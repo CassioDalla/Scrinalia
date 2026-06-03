@@ -1,0 +1,63 @@
+[project]
+name = "memoria-curitibana-etl"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "beautifulsoup4>=4.14.3",
+    "bertopic>=0.17.4",
+    "dotenv>=0.9.9",
+    "jupyterlab>=4.5.7",
+    "loguru>=0.7.3",
+    "numpy>=2.3.5",
+    "pandas>=2.3.3",
+    "pt-core-news-lg",
+    "requests>=2.34.2",
+    "scikit-learn>=1.8.0",
+    "spacy>=3.8.14",
+    "sqlalchemy>=2.0.50",
+    "torch>=2.12.0",
+    "transformers>=5.9.0",
+]
+
+[tool.uv.sources]
+pt-core-news-lg = { url = "https://github.com/explosion/spacy-models/releases/download/pt_core_news_lg-3.8.0/pt_core_news_lg-3.8.0-py3-none-any.whl" }
+
+[tool.ruff]
+# Define o tamanho máximo da linha (88 é o padrão do Black, mas muitos preferem 120)
+line-length = 120
+
+# Versão do Python que o seu projeto suporta. 
+# O Ruff usa isso para saber quais modernizações de sintaxe pode aplicar.
+target-version = "py311"
+
+[tool.ruff.lint]
+# Lista de regras que o Ruff deve validar (ver explicação abaixo)
+select = [
+    "E",   # pycodestyle (erros de formatação)
+    "W",   # pycodestyle (avisos)
+    "F",   # pyflakes (erros de sintaxe e lógica básica)
+    "I",   # isort (ordenação automática de imports)
+    "B",   # flake8-bugbear (encontra bugs comuns e armadilhas do Python)
+    "UP",  # pyupgrade (atualiza a sintaxe para padrões mais modernos)
+    "C4",  # flake8-comprehensions (melhora as list/dict comprehensions)
+    "SIM", # flake8-simplify (sugere maneiras mais limpas de escrever o mesmo código)
+    "RUF", # regras específicas do próprio Ruff
+]
+
+# Regras a serem ignoradas
+ignore = [
+    "E501", # Ignora o aviso de "linha muito longa" no linter, pois o formatador já vai cuidar disso
+]
+
+[tool.ruff.lint.per-file-ignores]
+# É muito comum termos imports não utilizados no __init__.py para expor a API
+"__init__.py" = ["F401"]
+
+[tool.ruff.format]
+# Configurações para substituir o Black
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
