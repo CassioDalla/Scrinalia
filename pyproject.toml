@@ -12,6 +12,7 @@ dependencies = [
     "loguru>=0.7.3",
     "numpy>=2.3.5",
     "pandas>=2.3.3",
+    "psycopg2==2.9.12",
     "pt-core-news-lg",
     "requests>=2.34.2",
     "scikit-learn>=1.8.0",
