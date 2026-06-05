@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, String, func
+from sqlalchemy import DateTime, Enum, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -12,6 +12,7 @@ class ScrapeStatus(enum.Enum):
     DONE = "DONE"
     NETWORK_ERROR = "NETWORk_ERROR"
     NOT_FOUND = "NOT_FOUND"
+    FATAL_ERROR = "FATAL_ERROR"
 
 
 class ScrapingQueue(Base):
@@ -26,3 +27,5 @@ class ScrapingQueue(Base):
 
     discovered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_scraped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    retry_count: Mapped[int] = mapped_column(default=0)
+    last_error_message: Mapped[str | None] = mapped_column(Text)

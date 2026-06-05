@@ -4,7 +4,13 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 -- -----------------------------------------------------
 --                     QUEUE AREA
 -- -----------------------------------------------------
-CREATE TYPE scrape_status_enum as ENUM ('PENDING', 'DONE', 'NETWORk_ERROR', 'NOT_FOUND');
+CREATE TYPE scrape_status_enum as ENUM (
+    'PENDING',
+    'DONE',
+    'NETWORk_ERROR',
+    'NOT_FOUND',
+    'FATAL_ERROR'
+);
 
 CREATE TABLE
     IF NOT EXISTS scraping_queue (

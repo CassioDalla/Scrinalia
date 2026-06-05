@@ -22,6 +22,7 @@ class Settings:
 
     # Site público Arquivo
     PUBLIC_SCRAPE_URL = os.getenv("PUBLIC_SCRAPE_URL")
+    PUBLIC_SCRAPE_DETAIL_URL = os.getenv("PUBLIC_SCRAPE_DETAIL_URL")
 
 
 settings = Settings()
