@@ -106,7 +106,7 @@ def process_scraping_batch(db_session: Session, batch: Sequence[ScrapingQueue]):
             queue_crud.update_queue_status(db_session, doc_id, ScrapeStatus.DONE)
 
         except requests.exceptions.HTTPError as e:
-            if e.response and e.response.status_code == 404:
+            if e.response is not None and e.response.status_code == 404:
                 logger.error(f"Erro 404: Documento {doc_id} não existe no ArqDoc.")
                 queue_crud.update_queue_status(db_session, doc_id, ScrapeStatus.NOT_FOUND, error_msg=str(e))
             else:
