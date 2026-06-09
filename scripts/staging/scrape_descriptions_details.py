@@ -1,3 +1,5 @@
+import time
+
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
@@ -86,6 +88,7 @@ def process_scraping_batch(db_session: Session, batch: Sequence[ScrapingQueue]):
     total_itens = len(batch)
 
     MAX_RETRIES = 3
+    DELAY_REQUEST = 0.25
 
     if total_itens == 0:
         logger.info("Nenhuma descrição na fila para buscar agora.")
@@ -134,6 +137,9 @@ def process_scraping_batch(db_session: Session, batch: Sequence[ScrapingQueue]):
             # Erros de código quebram o fluxo, não devem ter retry
             logger.exception(f"💥 Erro fatal (Código/Banco) no documento {doc_id}: {e}")
             queue_crud.update_queue_status(db_session, doc_id, ScrapeStatus.FATAL_ERROR, error_msg=str(e))
+
+
+        time.sleep(DELAY_REQUEST)
 
     logger.success("✅ Extração concluída!")
 
