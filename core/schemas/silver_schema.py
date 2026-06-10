@@ -26,7 +26,7 @@ class SilverDescription(BaseModel):
     dimension_support: str | None = None  # Dimensão e Suporte
     producers: str | None = None  # Nome do(s) Produtor(es)
     admin_bio_history: str | None = None  # História Administrativa/Biográfia
-    admin_archival_history:str | None = None # História Arquivística 
+    admin_archival_history: str | None = None  # História Arquivística
     provenance: str | None = None  # Procedência
     scope_content: str | None = None  # Âmbito e Conteúdo (Antigo Resumo)
     appraisal_destruction: str | None = None  # Avaliação, Eliminação e Temporalidade
@@ -60,12 +60,11 @@ class SilverDescription(BaseModel):
         """
         if not v:
             return None
-        
+
         text = str(v).replace(";", ",")
         tags_list = [tag.strip() for tag in text.split(",") if tag.strip()]
-        
-        return ", ".join(tags_list) if tags_list else None
 
+        return ", ".join(tags_list) if tags_list else None
 
     @field_validator(
         "title",
@@ -108,9 +107,6 @@ class SilverDescription(BaseModel):
 
         return clean_text
 
-    
-    
-    
     @model_validator(mode="before")
     @classmethod
     def map_bronze_to_silver(cls, data: dict[str, Any]) -> dict[str, Any]:
@@ -135,7 +131,7 @@ class SilverDescription(BaseModel):
         data_bruta = payload.get("Data de Produção") or payload.get("Data")
         if data_bruta:
             data_str = str(data_bruta).strip()
-            
+
             # Padrão 1: ISO 8601 ou YYYY-MM-DD (ex: 1929-07-05T03:00:00Z)
             match_iso = re.search(r"(\d{4})-(\d{2})-(\d{2})", data_str)
             # Padrão 2: Brasileiro DD/MM/YYYY (ex: 05/07/1929)
@@ -152,9 +148,9 @@ class SilverDescription(BaseModel):
                     silver_data["document_date"] = date(ano, mes, dia)
                 elif match_ano:
                     ano = int(match_ano.group(1))
-                    silver_data["document_date"] = date(ano, 1, 1) # Define como 1º de Janeiro do ano
+                    silver_data["document_date"] = date(ano, 1, 1)  # Define como 1º de Janeiro do ano
             except ValueError:
-                pass 
+                pass
 
         # 2. Mapeamento de De -> Para (ISAD-G)
         # Se a chave da esquerda existir no JSON, joga no atributo da direita
@@ -188,10 +184,9 @@ class SilverDescription(BaseModel):
             "Pontos de Acesso": "indexing_points",
         }
 
-        chaves_mapeadas = ["_url_origem", "attch_down_link", "Data", "Data de Produção","title"]
+        chaves_mapeadas = ["_url_origem", "attch_down_link", "Data", "Data de Produção", "title"]
 
         for chave_html, valor in payload.items():
-        
             if chave_html in mapa_chaves:
                 nome_atributo_pydantic = mapa_chaves[chave_html]
                 # Se já existia um valor (ex: fusão de condições de acesso), a gente concatena

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from core.crud import silver_crud
 from core.database import get_db
 from core.logger import logger
-from core.schemas.SilverSchema import SilverDescription
+from core.schemas.silver_schema import SilverDescription
 
 
 def run_silver_pipeline(db_session: Session) -> None:

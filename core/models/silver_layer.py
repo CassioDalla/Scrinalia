@@ -13,7 +13,7 @@ class SilverDescriptionModel(Base):
 
     description_id: Mapped[str] = mapped_column(String(50), primary_key=True)
     bronze_content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    
+
     title: Mapped[str] = mapped_column(Text, nullable=False)
     document_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     original_url: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -49,9 +49,7 @@ class SilverDescriptionModel(Base):
 
     raw_metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}", nullable=False)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
