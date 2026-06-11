@@ -92,3 +92,7 @@ def scrape_descriptions_id(initial_page: int = 1, max_pages: int | None = None, 
             logger.success(f"🔥 Sucesso! {inserted_ids_count} novos documentos adicionados à fila.")
         else:
             logger.warning("Nenhum ID novo foi inserido.")
+
+
+if __name__ == "__main__":
+    scrape_descriptions_id(delay_requests=0.5)
