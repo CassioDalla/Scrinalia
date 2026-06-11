@@ -90,7 +90,9 @@ class GoldDescriptionModel(Base):
     document_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     silver_content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-
+    original_thumbnail_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    storage_thumbnail_uri: Mapped[str | None] = mapped_column(String, nullable=True)
+   
     # Metadados da Norma ISAD(G)
     reference_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     level: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -110,7 +112,7 @@ class GoldDescriptionModel(Base):
 
     # Rastreia quais pipelines já processaram este documento
     # Exemplo: {"ner_spacy_v1": "completed", "mdeberta_tags": "completed"}
-    execution_log: Mapped[dict | None] = mapped_column(JSONB, default=dict)
+    execution_log: Mapped[dict] = mapped_column(JSONB, default=dict)
 
     # --- Auditoria (Human-in-the-Loop) ---
     review_status: Mapped[GoldReviewStatus] = mapped_column(

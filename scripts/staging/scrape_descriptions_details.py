@@ -1,5 +1,4 @@
 import time
-
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
@@ -54,6 +53,16 @@ def fetch_and_parse_html(description_id: str) -> dict[str, str]:
         and (link := btn_download.get("href"))
     ):
         registro["attch_down_link"] = str(link)
+
+    # 2.1 Extrair o link de download da thumbnail
+
+    if (
+        (info_arquivo := soup.find("div", class_="thumb-container"))
+        and (img := info_arquivo.find("img", class_="img-fluid"))
+        and isinstance(img, Tag)
+        and (link := img.get("src"))
+    ):
+        registro["thumb_down_link"] = str(link)
 
     # 3. Extrair 'Informações Rápidas' (Quick Info)
     for item in soup.find_all("div", class_="quick-info-item"):
@@ -137,7 +146,6 @@ def process_scraping_batch(db_session: Session, batch: Sequence[ScrapingQueue]):
             # Erros de código quebram o fluxo, não devem ter retry
             logger.exception(f"💥 Erro fatal (Código/Banco) no documento {doc_id}: {e}")
             queue_crud.update_queue_status(db_session, doc_id, ScrapeStatus.FATAL_ERROR, error_msg=str(e))
-
 
         time.sleep(DELAY_REQUEST)
 

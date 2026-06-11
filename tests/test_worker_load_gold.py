@@ -77,6 +77,7 @@ def test_executar_migracao_fluxo_completo(mocker: MockerFixture) -> None:
     doc_silver.language_name = "pt-BR"
     doc_silver.archivist_notes = None
     doc_silver.indexing_points = "Tag Teste"
+    doc_silver.thumb_down_link = ""
 
     # Simula o yield_per do SQLAlchemy retornando nossa lista
     mock_query = Mock()
@@ -135,6 +136,7 @@ def test_executar_migracao_idempotencia(mocker: MockerFixture) -> None:
     doc_silver.language_name = "pt"
     doc_silver.archivist_notes = None
     doc_silver.indexing_points = None
+    doc_silver.thumb_down_link = ""
 
     mock_query = Mock()
     mock_db.scalars.return_value = mock_query

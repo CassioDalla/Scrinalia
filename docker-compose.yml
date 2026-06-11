@@ -13,5 +13,19 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./db-init:/docker-entrypoint-initdb.d
 
+  minio:
+    image: minio/minio:latest
+    container_name: minio_storage
+    ports:
+      - "9000:9000" # Porta da API S3
+      - "9001:9001" # Porta do Painel Web
+    environment:
+      MINIO_ROOT_USER: "admin_minio"
+      MINIO_ROOT_PASSWORD: "password_super_segura"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+
 volumes:
   pgdata:
+  minio_data:

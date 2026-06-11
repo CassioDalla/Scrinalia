@@ -90,6 +90,8 @@ def executar_migracao_silver_gold():
                     document_date=doc_silver.document_date,
                     summary=doc_silver.scope_content,
                     silver_content_hash=doc_silver.bronze_content_hash,
+                    original_thumbnail_url=doc_silver.thumb_down_link,
+                    storage_thumbnail_uri=None,
                     reference_code=doc_silver.reference_code,
                     level=doc_silver.level,
                     producers=doc_silver.producers,
@@ -120,7 +122,7 @@ def executar_migracao_silver_gold():
                     )
                     sucess += 1
 
-                    if sucess % 500 == 0:
+                    if sucess % 100 == 0:
                         logger.info(f"⏳ Progresso: {sucess} documentos migrados para a Gold...")
 
             except Exception as e:

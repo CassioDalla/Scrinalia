@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS silver_descriptions (
     document_date DATE,
     original_url TEXT,
     attachment_link TEXT,
+    thumb_down_link TEXT,
     -- Metadados da Norma ISAD(G)
     reference_code TEXT,
     level TEXT,

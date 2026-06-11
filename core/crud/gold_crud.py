@@ -1,6 +1,7 @@
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from core.models.gold_layer import (
     GoldDescriptionEntityModel,
@@ -175,3 +176,29 @@ def link_description_relationships(db: Session, description_id: str, entity_ids:
             insert(GoldDescriptionTagModel).values(description_id=description_id, tag_id=t_id).on_conflict_do_nothing()
         )
         db.execute(stmt_tag)
+
+
+def stamp_ai_execution(db: Session, description_id: str, worker_name: str) -> None:
+    """
+    Atualiza apenas o JSONB de log de execução, avisando que um pipeline de IA terminou.
+    """
+    doc = db.query(GoldDescriptionModel).filter_by(description_id=description_id).first()
+    if doc:
+        new_log = dict(doc.execution_log)
+        new_log[worker_name] = "completed"
+
+        # Substitui e avisa o SQLAlchemy que o JSON foi modificado
+        doc.execution_log = new_log
+        flag_modified(doc, "execution_log")
+
+
+def load_nlp_rules(db: Session):
+    rules = []
+
+    # Puxa todas as regras da tabela
+    results = db.execute(text("SELECT pattern, label, canonical_name FROM nlp_dictionary")).fetchall()
+
+    for line in results:
+        rules.append({"pattern": line.pattern, "label": line.label, "id": line.canonical_name})
+
+    return rules

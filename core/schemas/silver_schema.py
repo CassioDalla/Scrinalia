@@ -19,6 +19,7 @@ class SilverDescription(BaseModel):
     document_date: date | None = None
     original_url: str | None = None
     attachment_link: str | None = None
+    thumb_down_link: str | None = None
 
     # --- Metadados da Norma ISAD(G) (Tratados como Strings Flexíveis) ---
     reference_code: str | None = None  # Código Referência
@@ -125,6 +126,7 @@ class SilverDescription(BaseModel):
             "title": data.get("raw_title") or payload.get("title") or "SEM TÍTULO",
             "original_url": payload.get("_url_origem"),
             "attachment_link": payload.get("attch_down_link"),
+            "thumb_down_link": data.get("thumb_down_link"),
             "raw_metadata": {},
         }
 
@@ -182,6 +184,7 @@ class SilverDescription(BaseModel):
             "Regras ou Convenções": "rules_conventions",
             "Datas da Descrição": "description_dates",
             "Pontos de Acesso": "indexing_points",
+            "thumb_down_link": "thumb_down_link",
         }
 
         chaves_mapeadas = ["_url_origem", "attch_down_link", "Data", "Data de Produção", "title"]

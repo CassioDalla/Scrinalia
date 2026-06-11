@@ -18,6 +18,7 @@ class SilverDescriptionModel(Base):
     document_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     original_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     attachment_link: Mapped[str | None] = mapped_column(Text, nullable=True)
+    thumb_down_link: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Metadados da Norma ISAD(G)
     reference_code: Mapped[str | None] = mapped_column(Text, nullable=True)

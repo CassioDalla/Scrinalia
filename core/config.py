@@ -24,5 +24,11 @@ class Settings:
     PUBLIC_SCRAPE_URL = os.getenv("PUBLIC_SCRAPE_URL")
     PUBLIC_SCRAPE_DETAIL_URL = os.getenv("PUBLIC_SCRAPE_DETAIL_URL")
 
+    # Storage
+    S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT_URL")
+    S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
+    S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY")
+    S3_SECRET_KEY = os.getenv("S3_SECRET_KEY")
+
 
 settings = Settings()

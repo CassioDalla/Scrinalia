@@ -40,7 +40,9 @@ class GoldDescriptionDTO(BaseModel):
     document_date: date | None = Field(None, description="Data do documento.")
     summary: str | None = Field(None, description="Resumo do documento.")
     silver_content_hash: str = Field(..., description="Hash de controle da Silver.")
-
+    original_thumbnail_url: str | None = Field(..., description="Link de Dowload da Thumbnail")
+    storage_thumbnail_uri: str | None = Field(..., description="URI ")
+    
     # --- Metadados da Norma ISAD(G) (Herdados para leitura rápida no Front-end) ---
     reference_code: str | None = Field(None, description="Código de referência arquivística.")
     level: str | None = Field(None, description="Nível de descrição (ex: Dossiê, Item, Volume).")
