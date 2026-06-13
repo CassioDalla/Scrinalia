@@ -26,9 +26,9 @@ Dar utilidade imediata aos dados enriquecidos na Camada Ouro através de uma int
 - [ ] **Motor de Busca Semântica:**
   - [ ] Implementar queries otimizadas no PostgreSQL filtrando por tags, categorias e entidades.
   - [ ] (Opcional) Gerar embeddings com pgvector para busca por similaridade de contexto.
-- [ ] **Interface Web Leve (MVP):**
-  - [ ] Desenvolver um front-end rápido em Python (Streamlit ou Gradio).
-  - [ ] Criar dashboard simples exibindo os metadados ISAD(G) e as entidades descobertas pela IA.
+- [x] **Interface Web Leve (MVP):**
+  - [x] Desenvolver um front-end rápido em Python (Streamlit ou Gradio).
+  - [x] Criar dashboard simples exibindo os metadados ISAD(G) e as entidades descobertas pela IA.
 
 ## 🟠 Fase 3: Refatoração Arquitetural (Ports & Adapters)
 Preparar o repositório para ser uma ferramenta open-source agnóstica, separando o "Motor de IA" da origem dos dados.
@@ -54,10 +54,11 @@ Adicionar novos "operários" de IA à esteira industrial para lidar com dados n�
 Este documento mapeia a evolução da curadoria humana e automatizada sobre os dados extraídos pelo motor de NLP.
 
 #### Fase 1: Exploração e Limpeza Tática (Manual via Jupyter/SQL)
-- [ ] Ativar extensão `pg_trgm` no PostgreSQL.
-- [ ] Criar query de similaridade de strings (Fuzzy Matching) para agrupar entidades suspeitas de duplicação.
-- [ ] Mapear os erros mais comuns do spaCy (ex: divisão de siglas institucionais).
+- [x] Ativar extensão `pg_trgm` no PostgreSQL.
+- [x] Criar query de similaridade de strings (Fuzzy Matching) para agrupar entidades suspeitas de duplicação.
+- [x] Mapear os erros mais comuns do spaCy (ex: divisão de siglas institucionais).
 - [ ] Inserir manualmente os mapeamentos corrigidos na tabela `nlp_dictionary` para blindar o motor.
+  - `nlp_dictionary` possivelmente está deprecated agora com a tabela `domain_synonyms`
 
 #### Fase 2: O Revisor Silencioso (Background AI)
 - [ ] Criar worker assíncrono para o Granite (ou outro modelo local leve).
