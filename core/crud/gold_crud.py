@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from core.models.gold_layer import (
+    DomainStopwordsModel,
     GoldDescriptionEntityModel,
     GoldDescriptionModel,
     GoldDescriptionTagModel,
@@ -202,3 +203,45 @@ def load_nlp_rules(db: Session):
         rules.append({"pattern": line.pattern, "label": line.label, "id": line.canonical_name})
 
     return rules
+
+
+def save_stopwords(db: Session, words_list: list[str]) -> None:
+    """
+    Insere uma lista de palavras na tabela de stopwords do domínio.
+
+    Utiliza uma operação de Bulk Insert (Batch) nativa do PostgreSQL.
+    Caso a palavra já exista na tabela (conflito de restrição UNIQUE na coluna 'word'),
+    a operação é ignorada silenciosamente (ON CONFLICT DO NOTHING), garantindo idempotência.
+
+    Args:
+        db (Session): Sessão ativa do SQLAlchemy (o commit deve ser gerido externamente).
+        words_list (list[str]): Lista de palavras a serem adicionadas como stopwords.
+    """
+    if not words_list:
+        return None
+
+    clean_words = [{"word": w.strip().lower()} for w in words_list if w.strip()]
+
+    if not clean_words:
+        return None
+
+    stmt = insert(DomainStopwordsModel).values(clean_words).on_conflict_do_nothing()
+
+    db.execute(stmt)
+
+
+def get_stopwords(db: Session) -> set[str]:
+    """
+    Recupera todas as stopwords de domínio cadastradas no banco de dados.
+
+    Retorna um conjunto (Set) de stopwords
+
+    Args:
+        db (Session): Sessão ativa do SQLAlchemy.
+
+    Returns:
+        set[str]: Conjunto contendo todas as stopwords em letras minúsculas.
+    """
+    stmt = select(DomainStopwordsModel.word)
+    resultados = db.scalars(stmt).all()
+    return set(resultados)

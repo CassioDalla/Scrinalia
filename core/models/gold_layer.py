@@ -4,6 +4,7 @@ from datetime import date, datetime
 from sqlalchemy import (
     ARRAY,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Enum,
@@ -30,6 +31,53 @@ class GoldReviewStatus(enum.StrEnum):
     NEEDS_REVIEW = "NEEDS_REVIEW"  # A IA achou anomalia ou teve baixa confiança
     HUMAN_APPROVED = "HUMAN_APPROVED"  # O humano validou ou corrigiu manualmente (Trava Edição de IA)
     REJECTED = "REJECTED"  # O humano definiu que o dado é lixo
+
+
+class DomainStopwordsModel(Base):
+    __tablename__ = "domain_stopwords"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    word: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+
+
+class DomainSynonymsModel(Base):
+    __tablename__ = "domain_synonyms"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    # O nome do sinônimo (Ex: "pmc", "prefeituta", "washington")
+    synonym_name: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+
+    # O Discriminador: Define de qual universo esse sinônimo faz parte
+    # Valores aceitos: 'TAG', 'ORG', 'LOC', 'PER'
+    category: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+
+    # Arcos Exclusivos: Chaves estrangeiras opcionais (Nullable)
+    canonical_tag_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("gold_tags.tag_id", ondelete="CASCADE"), nullable=True
+    )
+
+    canonical_entity_id: Mapped[int | None] = mapped_column(
+        Integer,
+        # Verifique se o nome da tabela e coluna da sua entidade é este mesmo
+        ForeignKey("gold_entities.entity_id", ondelete="CASCADE"),
+        nullable=True,
+    )
+
+    __table_args__ = (
+        # 1. Garante que a mesma palavra pode existir, DESDE QUE em categorias diferentes.
+        # Ex: "Amazon" (LOC) e "Amazon" (ORG) podem conviver em paz.
+        UniqueConstraint("synonym_name", "category", name="uix_synonym_category"),
+        # 2. Integridade de Dados: Garante no motor do PostgreSQL que NUNCA
+        # teremos uma linha sem destino, ou uma linha apontando para os dois lugares ao mesmo tempo.
+        CheckConstraint(
+            """
+            (category = 'TAG' AND canonical_tag_id IS NOT NULL AND canonical_entity_id IS NULL) OR
+            (category IN ('ORG', 'LOC', 'PER') AND canonical_entity_id IS NOT NULL AND canonical_tag_id IS NULL)
+            """,
+            name="chk_exclusive_synonym_target",
+        ),
+    )
 
 
 # ==========================================
@@ -92,7 +140,7 @@ class GoldDescriptionModel(Base):
     silver_content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     original_thumbnail_url: Mapped[str | None] = mapped_column(String, nullable=True)
     storage_thumbnail_uri: Mapped[str | None] = mapped_column(String, nullable=True)
-   
+
     # Metadados da Norma ISAD(G)
     reference_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     level: Mapped[str | None] = mapped_column(Text, nullable=True)

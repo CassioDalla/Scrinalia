@@ -10,51 +10,33 @@ from core.models.silver_layer import SilverDescriptionModel
 from core.schemas.gold_schema import GoldDescriptionDTO, GoldTagDTO
 
 
-def extract_tags(indexing_points: str | None) -> list[GoldTagDTO]:
+# TODO mover isso para a tag_service
+def extract_tags(indexing_points: str | None, stopwords_list: set[str] | None) -> list[GoldTagDTO]:
     """
-    Aplica a limpeza aos Pontos de Acesso criados pelos arquivistas e
-    converte-os no DTO exigido pela Camada Ouro.
+    Aplica a limpeza aos Pontos de Acesso criados pelos arquivistas.
     """
     if not indexing_points:
         return []
 
-    # TODO: Colocar isso aqui em outro lugar depois de forma que fique mais dinamico
-    stopwords_dominio = {
-        "pontos de acesso e indexação",
-        "revisado",
-        "curitiba",
-        "foto",
-        "fotografia",
-        "imagem",
-        "documento",
-        "processo",
-        "ofício",
-        "pmc",
-        "prefeitura",
-        "municipal",
-        "arquivo",
-        "acervo",
-        "p&b",
-        "colorida",
-        "cópia",
-    }
+    # Usa um set vazio se não passarem a lista
+    stopwords = stopwords_list or set()
+
     tags_brutas = indexing_points.split(",")
     tags_limpas = set()
 
     for tag in tags_brutas:
         tag = tag.strip().lower()
 
-        # Remove as stopwords exatas (o \b garante que são palavras inteiras)
-        for junk in stopwords_dominio:
+        # Remove as stopwords exatas enviadas por parâmetro
+        for junk in stopwords:
             tag = re.sub(rf"\b{junk}\b", "", tag).strip()
 
-        tag = re.sub(r"\s+", " ", tag)  # Remove espaços duplos
+        tag = re.sub(r"\s+", " ", tag)
 
-        # Só aceita tags reais (maiores que 2 letras e menores que 100 caracteres)
         if 2 < len(tag) <= 100:
             tags_limpas.add(tag)
         elif len(tag) > 100:
-            logger.warning(f"⚠️ Tag ignorada por ser muito longa ({len(tag)} chars): '{tag[:50]}...'")
+            logger.warning(f"⚠️ Tag ignorada por ser muito longa: '{tag[:50]}...'")
 
     # Transforma o Set de strings limpas numa lista de DTOs
     dto_list = []
@@ -108,7 +90,8 @@ def executar_migracao_silver_gold():
                     execution_log={"migracao_base": "completed"},
                 )
 
-                tags_dtos = extract_tags(doc_silver.indexing_points)
+                stopword_list = gold_crud.get_stopwords(db)
+                tags_dtos = extract_tags(doc_silver.indexing_points, stopword_list)
 
                 was_saved = gold_crud.upsert_gold_description(db, doc_dto)
 
