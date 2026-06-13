@@ -1,0 +1,14 @@
+services:
+  postgres_test:
+    image: postgres:15 # Use a mesma versão do seu banco oficial
+    container_name: memoria_curitibana_db_test
+    environment:
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_DB: test_db
+    ports:
+      - "5433:5432"
+    # O tmpfs faz o banco rodar inteiramente na memória RAM!
+    # Os testes vão voar porque não há gravação real no disco rígido.
+    tmpfs:
+      - /var/lib/postgresql/data

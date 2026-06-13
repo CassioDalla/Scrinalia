@@ -8,6 +8,8 @@ wheels/
 .vscode
 .env
 logs
+.coverage
+/htmlcov
 
 # Virtual environments
 .venv

@@ -1,12 +1,22 @@
+from typing import Any
+import uuid
+from collections.abc import Generator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
-from core.models.queue import ScrapeStatus, ScrapingQueue
+import core.models  # noqa: F401, RUF100
+from core.schemas.gold_schema import GoldDescriptionDTO
 
 # Descobre o caminho absoluto da pasta 'tests' de forma dinâmica
 TESTS_FOLDER = Path(__file__).parent
+
+TEST_DATABASE_URL = "postgresql://test_user:test_password@localhost:5433/test_db"
 
 
 @pytest.fixture
@@ -27,9 +37,114 @@ def html_mock_vazio():
 @pytest.fixture
 def fila_mock():
     """Cria um registro falso da Fila para injetar no Orquestrador."""
-    return ScrapingQueue(
+    return core.models.ScrapingQueue(
         description_id="doc-123",
-        scrape_status=ScrapeStatus.PENDING,
+        scrape_status=core.models.ScrapeStatus.PENDING,
         retry_count=0,
         discovered_at=datetime.now(UTC),
     )
+
+
+@pytest.fixture(scope="session")
+def engine():
+    """Cria a conexão com o banco de testes e monta a estrutura de tabelas uma única vez."""
+    engine = create_engine(TEST_DATABASE_URL)
+
+    # Cria todas as tabelas baseadas nos seus Models
+    core.models.Base.metadata.create_all(bind=engine)
+
+    yield engine
+
+    # Ao final de todos os testes, destrói as tabelas
+    core.models.Base.metadata.drop_all(bind=engine)
+    engine.dispose()
+
+
+@pytest.fixture(scope="function")
+def db_session(engine) -> Generator[Session, None, None]:
+    """
+    Fornece uma sessão isolada para cada teste.
+    Usa SAVEPOINTs para garantir que mesmo que o código teste chame db.commit(),
+    tudo seja revertido no final do teste, mantendo o banco vazio para o próximo.
+    """
+    connection = engine.connect()
+    transaction = connection.begin()
+
+    # join_transaction_mode="create_savepoint" é o segredo do SQLAlchemy 2.0
+    # Ele empacota os seus commits reais em sub-transações temporárias
+    session = Session(bind=connection, join_transaction_mode="create_savepoint")
+
+    yield session
+
+    # Encerra o teste destruindo a sessão e dando um rollback em absolutamente tudo
+    session.close()
+    transaction.rollback()
+    connection.close()
+
+
+# Tiramos o autouse=True!
+@pytest.fixture()
+def use_test_db(db_session):
+    """
+    Fixture sob demanda. Apenas os testes que pedirem por 'use_test_db'
+    terão o 'get_db' interceptado e apontado para o Docker.
+    """
+
+    @contextmanager
+    def _mock_get_db():
+        yield db_session
+
+    with patch("core.database.get_db", _mock_get_db):
+        yield
+
+
+@pytest.fixture
+def generate_description_doc(db_session):
+    """
+    Uma fábrica inteligente de documentos.
+    Preenche automaticamente todos os campos chatos e obrigatórios,
+    mas permite que o teste sobrescreva apenas o que importa.
+    """
+
+    def _create(**kwargs):
+        dados_padrao = {
+            # Gera uma string única e corta para caber no limite de String(50)
+            "description_id": f"doc_teste_{uuid.uuid4().hex[:30]}",
+            "original_title": "Título Genérico de Teste",
+            "silver_content_hash": "hash_falso_1234567890abcdef",
+        }
+
+        # 2. Se o teste enviou algo específico (ex: title="Novo Título"), nós atualizamos
+        dados_padrao.update(kwargs)
+
+        # 3. Criamos o objeto, salvamos no banco e devolvemos o objeto real com ID
+        doc = core.models.GoldDescriptionModel(**dados_padrao)
+        db_session.add(doc)
+        db_session.commit()
+
+        return doc
+
+    return _create
+
+
+@pytest.fixture
+def generate_gold_description_dto():
+    """
+    Fábrica para gerar DTOs válidos para os testes de CRUD e ETL.
+    Preenche automaticamente os campos que o Pylance exige.
+    """
+
+    def _create(**kwargs):
+        # O esqueleto com tudo o que o Pylance exige
+        dados_padrao: dict[str, Any] = {
+            "description_id": f"doc_teste_{uuid.uuid4().hex[:30]}",
+            "original_title": "Titulo Teste",
+            "silver_content_hash": "hash_falso_1234567890abcdef",
+        }
+
+        # O teste sobrescreve apenas o que importa
+        dados_padrao.update(kwargs)
+
+        return GoldDescriptionDTO(**dados_padrao)
+
+    return _create

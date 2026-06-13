@@ -16,7 +16,8 @@ def test_extract_tags_sucess() -> None:
     """Testa a limpeza de stopwords de domínio e a normalização de múltiplas tags."""
     texto_bruto = "Ofício, Curitiba, Indústria Têxtil, Fábrica de Cortinas e Toalhas, Colombo"
 
-    resultado = worker_load_gold.extract_tags(texto_bruto)
+    stopword_list = {"ofício", "curitiba"}
+    resultado = worker_load_gold.extract_tags(texto_bruto, stopword_list)
 
     # Extrai apenas os nomes para facilitar a validação
     nomes_tags = {dto.name for dto in resultado}
@@ -37,7 +38,8 @@ def test_extract_tags_data_quality() -> None:
     # Lixo legível = > 100 caracteres (inválida)
     texto_bruto = "A, Curitiba, " + ("X" * 105) + ", Manutenção"
 
-    resultado = worker_load_gold.extract_tags(texto_bruto)
+    stopword_list = {"curitiba"}
+    resultado = worker_load_gold.extract_tags(texto_bruto, stopword_list)
 
     assert len(resultado) == 1
     assert resultado[0].name == "manutenção"
@@ -45,7 +47,7 @@ def test_extract_tags_data_quality() -> None:
 
 def test_extract_tags_null() -> None:
     """Garante que a esteira não quebra se o documento original não tiver tags."""
-    resultado = worker_load_gold.extract_tags(None)
+    resultado = worker_load_gold.extract_tags(None, set())
     assert resultado == []
 
 
@@ -61,6 +63,7 @@ def test_executar_migracao_fluxo_completo(mocker: MockerFixture) -> None:
     # 1. Intercepta a abertura de sessão do banco
     mock_get_db = mocker.patch.object(worker_load_gold, "get_db")
     mock_get_db.return_value.__enter__.return_value = mock_db
+    mocker.patch.object(gold_crud, "get_stopwords", return_value={"tag teste"})
 
     doc_silver = Mock()
     doc_silver.description_id = "doc-100"
@@ -120,6 +123,7 @@ def test_executar_migracao_idempotencia(mocker: MockerFixture) -> None:
 
     mock_get_db = mocker.patch.object(worker_load_gold, "get_db")
     mock_get_db.return_value.__enter__.return_value = mock_db
+    mocker.patch.object(gold_crud, "get_stopwords", return_value={"tag teste"})
 
     doc_silver = Mock()
     doc_silver.description_id = "doc-100"
