@@ -1,9 +1,9 @@
-from typing import Any
 import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 import core.models  # noqa: F401, RUF100
 from core.schemas.gold_schema import GoldDescriptionDTO
+from domains.ingestion import models as ingest_model
 
 # Descobre o caminho absoluto da pasta 'tests' de forma dinâmica
 TESTS_FOLDER = Path(__file__).parent
@@ -37,9 +38,9 @@ def html_mock_vazio():
 @pytest.fixture
 def fila_mock():
     """Cria um registro falso da Fila para injetar no Orquestrador."""
-    return core.models.ScrapingQueue(
+    return ingest_model.ScrapingQueue(
         description_id="doc-123",
-        scrape_status=core.models.ScrapeStatus.PENDING,
+        scrape_status=ingest_model.ScrapeStatus.PENDING,
         retry_count=0,
         discovered_at=datetime.now(UTC),
     )

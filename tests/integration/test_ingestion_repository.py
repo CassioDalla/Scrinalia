@@ -2,8 +2,8 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
-from core.crud.queue_crud import add, add_in_bulk, get_ids_to_scrape_details, update_queue_status
-from core.models.queue import ScrapeStatus, ScrapingQueue
+from domains.ingestion.models import ScrapeStatus, ScrapingQueue
+from domains.ingestion.repository import add, add_in_bulk, get_from_queue, update_queue_status
 
 # ==========================================
 # 1. TESTES DE INSERÇÃO SIMPLES (ADD)
@@ -74,7 +74,7 @@ def test_add_in_bulk_empty_list(use_test_db, db_session):
 # ==========================================
 
 
-def test_get_ids_to_scrape_details_nulls_first(use_test_db, db_session):
+def test_get_from_queue_nulls_first(use_test_db, db_session):
     """Garante que documentos que NUNCA foram raspados (Null) venham antes na fila."""
     hoje = datetime.now(UTC)
 
@@ -85,7 +85,7 @@ def test_get_ids_to_scrape_details_nulls_first(use_test_db, db_session):
     db_session.add_all([doc_velho, doc_novo, doc_virgem])
     db_session.commit()
 
-    fila = get_ids_to_scrape_details(db_session)
+    fila = get_from_queue(db_session)
 
     assert len(fila) == 3
     # A ordenação deve ser: NULLS FIRST, depois do mais antigo para o mais recente
@@ -94,7 +94,7 @@ def test_get_ids_to_scrape_details_nulls_first(use_test_db, db_session):
     assert fila[2].description_id == "doc_novo"
 
 
-def test_get_ids_to_scrape_details_ignore_status(use_test_db, db_session):
+def test_get_from_queue_ignore_status(use_test_db, db_session):
     """Garante que os status ignorados não poluem a busca da fila."""
     doc_pendente = ScrapingQueue(description_id="doc_p", scrape_status=ScrapeStatus.PENDING)
     doc_fatal = ScrapingQueue(description_id="doc_f", scrape_status=ScrapeStatus.FATAL_ERROR)
@@ -102,13 +102,13 @@ def test_get_ids_to_scrape_details_ignore_status(use_test_db, db_session):
     db_session.add_all([doc_pendente, doc_fatal])
     db_session.commit()
 
-    fila = get_ids_to_scrape_details(db_session, ignore_status=[ScrapeStatus.FATAL_ERROR])
+    fila = get_from_queue(db_session, ignore_status=[ScrapeStatus.FATAL_ERROR])
 
     assert len(fila) == 1
     assert fila[0].description_id == "doc_p"
 
 
-def test_get_ids_to_scrape_details_sliding_window(use_test_db, db_session):
+def test_get_from_queue_sliding_window(use_test_db, db_session):
     """Testa os filtros de janela de tempo (scraped_before)."""
     agora = datetime.now(UTC)
     ontem = agora - timedelta(days=1)
@@ -122,7 +122,7 @@ def test_get_ids_to_scrape_details_sliding_window(use_test_db, db_session):
 
     # Pede documentos que foram raspados ANTES de 3 dias atrás
     limite = agora - timedelta(days=3)
-    fila = get_ids_to_scrape_details(db_session, scraped_before=limite)
+    fila = get_from_queue(db_session, scraped_before=limite)
 
     assert len(fila) == 1
     assert fila[0].description_id == "doc_expirado"
@@ -141,8 +141,9 @@ def test_update_queue_status_success(use_test_db, db_session):
     db_session.commit()
 
     resultado = update_queue_status(db_session, "doc_1", ScrapeStatus.DONE)
-
     assert resultado is True
+
+    db_session.expire_all()
     doc_atualizado = db_session.execute(select(ScrapingQueue).filter_by(description_id="doc_1")).scalar_one()
 
     assert doc_atualizado.scrape_status == ScrapeStatus.DONE
@@ -158,6 +159,7 @@ def test_update_queue_status_increment_retry(use_test_db, db_session):
 
     update_queue_status(db_session, "doc_2", ScrapeStatus.NETWORK_ERROR, error_msg="Timeout 504", increment_retry=True)
 
+    db_session.expire_all()
     doc_atualizado = db_session.execute(select(ScrapingQueue).filter_by(description_id="doc_2")).scalar_one()
 
     assert doc_atualizado.retry_count == 2  # Incrementou 1 + 1
@@ -173,6 +175,7 @@ def test_update_queue_status_fatal_error(use_test_db, db_session):
 
     update_queue_status(db_session, "doc_3", ScrapeStatus.FATAL_ERROR, error_msg="404 Not Found", increment_retry=False)
 
+    db_session.expire_all()
     doc_atualizado = db_session.execute(select(ScrapingQueue).filter_by(description_id="doc_3")).scalar_one()
 
     assert doc_atualizado.retry_count == 3  # Continua intacto

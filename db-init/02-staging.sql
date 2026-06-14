@@ -1,5 +1,5 @@
 CREATE TABLE
-    IF NOT EXISTS staging_descriptions (
+    IF NOT EXISTS raw_data (
         id SERIAL PRIMARY KEY,
         description_id VARCHAR(60) UNIQUE NOT NULL,
         content_hash VARCHAR(64) NOT NULL,
