@@ -161,11 +161,11 @@ def update_queue_status(
             scrape_status=status,
             last_scraped_at=now,
             retry_count=ScrapingQueue.retry_count + 1,
-            last_error_messag=error_msg,
+            last_error_message=error_msg,
         )
     else:
         # Falha fatal: Apenas muda o status, não mexe no contador
-        stmt = stmt.values(scrape_status=status, last_scraped_at=now, last_error_messag=error_msg)
+        stmt = stmt.values(scrape_status=status, last_scraped_at=now, last_error_message=error_msg)
 
     stmt = stmt.returning(ScrapingQueue.description_id)
 
