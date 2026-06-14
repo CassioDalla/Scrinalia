@@ -6,7 +6,7 @@ from core.crud import gold_crud
 from core.database import get_db
 from core.logger import logger
 from core.models.gold_layer import GoldReviewStatus
-from core.models.silver_layer import SilverDescriptionModel
+from domains.staging.models import StagingDocument
 from core.schemas.gold_schema import GoldDescriptionDTO, GoldTagDTO
 
 

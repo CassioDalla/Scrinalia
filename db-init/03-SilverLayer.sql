@@ -1,6 +1,6 @@
-CREATE TABLE IF NOT EXISTS silver_descriptions (
+CREATE TABLE IF NOT EXISTS staging_documents (
     description_id VARCHAR(50) PRIMARY KEY,
-    bronze_content_hash VARCHAR(64) NOT NULL, -- O Hash para saber se atualizou
+    raw_content_hash VARCHAR(64) NOT NULL, -- O Hash para saber se atualizou
     title TEXT NOT NULL,
     document_date DATE,
     original_url TEXT,

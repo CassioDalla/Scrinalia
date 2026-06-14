@@ -9,7 +9,6 @@ from .gold_layer import (
     GoldReviewStatus,
     GoldTagModel,
 )
-from .silver_layer import SilverDescriptionModel
 
 __all__ = [
     "Base",
@@ -21,5 +20,4 @@ __all__ = [
     "GoldEntityModel",
     "GoldReviewStatus",
     "GoldTagModel",
-    "SilverDescriptionModel",
 ]

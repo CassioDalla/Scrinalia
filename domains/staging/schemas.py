@@ -5,14 +5,24 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
-class SilverDescription(BaseModel):
+class StagingDocumentDTO(BaseModel):
     """
-    Modelo de dados da Camada Silver.
-    Limpa strings sujas sem quebrar o pipeline se o dado for inesperado.
+    Contrato de validação e transformação (Schema/DTO) da camada Staging.
+
+    Atua como o motor "Transform" do processo de ETL. Intercepta o dicionário
+    bruto e imprevisível extraído da origem (RawData) e o converte numa entidade
+    relacional rigorosa, alinhada à Norma Arquivística ISAD(G).
+
+    Responsabilidades:
+        - Parser Dinâmico: Mapeia chaves variáveis do acervo para atributos fixos.
+        - Higienização: Limpa espaços duplos e converte "falsos nulos" (ex: "n/a") para None nativo.
+        - Extração de Tipos: Aplica Regex para inferir e converter datas em objetos `datetime.date`.
+        - Preservação (Data Lake Approach): Qualquer chave não mapeada ou desconhecida
+          é isolada com segurança no dicionário `raw_metadata`, garantindo perda zero de informação.
     """
 
     description_id: str
-    bronze_content_hash: str
+    raw_content_hash: str
 
     # --- Colunas de Primeira Classe ---
     title: str
@@ -110,23 +120,27 @@ class SilverDescription(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def map_bronze_to_silver(cls, data: dict[str, Any]) -> dict[str, Any]:
+    def map_raw_to_staging(cls, data: dict[str, Any]) -> dict[str, Any]:
         """
-        Mapeia dinamicamente o dicionário cru para o formato estrito,
-        procurando pelas chaves ISAD(G) na Bronze.
+        Pré-processador executado antes da validação estrita do Pydantic (mode="before").
+
+        Inspeciona o dicionário que chega do banco de dados (RawData), entra no campo
+        'payload' e distribui as chaves extraídas do HTML para os atributos fortemente
+        tipados da classe. Concatena valores em caso de chaves duplicadas na origem e
+        isola lixo ou campos inéditos no 'raw_metadata'.
         """
+
         if "payload" not in data:
             return data
 
         payload = data.get("payload", {})
 
-        silver_data = {
+        staging_data = {
             "description_id": data.get("description_id"),
-            "bronze_content_hash": data.get("content_hash"),
+            "raw_content_hash": data.get("content_hash"),
             "title": data.get("raw_title") or payload.get("title") or "SEM TÍTULO",
             "original_url": payload.get("_url_origem"),
             "attachment_link": payload.get("attch_down_link"),
-            "thumb_down_link": data.get("thumb_down_link"),
             "raw_metadata": {},
         }
 
@@ -144,13 +158,13 @@ class SilverDescription(BaseModel):
             try:
                 if match_iso:
                     ano, mes, dia = map(int, match_iso.groups())
-                    silver_data["document_date"] = date(ano, mes, dia)
+                    staging_data["document_date"] = date(ano, mes, dia)
                 elif match_br:
                     dia, mes, ano = map(int, match_br.groups())
-                    silver_data["document_date"] = date(ano, mes, dia)
+                    staging_data["document_date"] = date(ano, mes, dia)
                 elif match_ano:
                     ano = int(match_ano.group(1))
-                    silver_data["document_date"] = date(ano, 1, 1)  # Define como 1º de Janeiro do ano
+                    staging_data["document_date"] = date(ano, 1, 1)  # Define como 1º de Janeiro do ano
             except ValueError:
                 pass
 
@@ -193,15 +207,15 @@ class SilverDescription(BaseModel):
             if chave_html in mapa_chaves:
                 nome_atributo_pydantic = mapa_chaves[chave_html]
                 # Se já existia um valor (ex: fusão de condições de acesso), a gente concatena
-                if silver_data.get(nome_atributo_pydantic):
-                    silver_data[nome_atributo_pydantic] += f" | {valor}"
+                if staging_data.get(nome_atributo_pydantic):
+                    staging_data[nome_atributo_pydantic] += f" | {valor}"
                 else:
-                    silver_data[nome_atributo_pydantic] = valor
+                    staging_data[nome_atributo_pydantic] = valor
                 chaves_mapeadas.append(chave_html)  # Registra que já lidamos com essa chave original
 
         # 3. O "Lixo" Desconhecido (Garante que nunca perdemos dados)
         for chave_html, valor in payload.items():
             if chave_html not in chaves_mapeadas:
-                silver_data["raw_metadata"][chave_html] = valor
+                staging_data["raw_metadata"][chave_html] = valor
 
-        return silver_data
+        return staging_data

@@ -5,14 +5,34 @@ from sqlalchemy import Date, DateTime, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from ..base import Base
+from core.base import Base
 
 
-class SilverDescriptionModel(Base):
-    __tablename__ = "silver_descriptions"
+class StagingDocument(Base):
+    """
+    Representa um documento de acervo estruturado e tipado na camada Staging.
+
+    Esta entidade recebe os dados brutos (RawData) da camada de ingestão e os
+    transforma em colunas relacionais rigorosas, mapeando o modelo descritivo
+    arquivístico baseado na Norma ISAD(G).
+
+    Atua como a única fonte da verdade higienizada antes de o documento seguir
+    para o processamento de Inteligência Artificial (Archive/Gold).
+
+    Attributes:
+        description_id: O identificador único legado do sistema de origem.
+        raw_content_hash: Hash de linhagem. Liga esta versão estruturada à versão
+            bruta exata que a gerou. Essencial para detectar se o documento precisa ser reprocessado.
+        title: Título principal do documento.
+        document_date: Data normalizada do documento (quando aplicável e validável).
+        raw_metadata: Cópia de segurança (JSON) contendo as chaves originais não
+            mapeadas ou casos de borda que não couberam no esquema ISAD(G) padrão.
+    """
+
+    __tablename__ = "staging_documents"
 
     description_id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    bronze_content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    raw_content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
     title: Mapped[str] = mapped_column(Text, nullable=False)
     document_date: Mapped[date | None] = mapped_column(Date, nullable=True)
