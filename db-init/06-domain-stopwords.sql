@@ -1,4 +1,0 @@
-CREATE TABLE IF NOT EXISTS domain_stopwords (
-    id SERIAL PRIMARY KEY,
-    word VARCHAR(255) UNIQUE NOT NULL
-)

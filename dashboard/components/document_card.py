@@ -1,9 +1,9 @@
 import streamlit as st
 
-from core.models.gold_layer import GoldDescriptionModel
+from domains.archive.models import ArchiveDocument
 
 
-def render_document_card(doc: GoldDescriptionModel):
+def render_document_card(doc: ArchiveDocument):
     """Renderiza a gaveta expansível para um único documento."""
 
     with st.expander(f"📄 {doc.original_title}"):

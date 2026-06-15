@@ -3,15 +3,25 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from core.models.gold_layer import GoldReviewStatus
+from domains.archive.models import ArchiveReviewStatus
 
 
 # ==========================================
 # DTOs para Entidades (Pessoas, Locais, Orgs)
 # ==========================================
-class GoldEntityDTO(BaseModel):
-    name: str = Field(..., description="Nome limpo e formatado da entidade.")
-    entity_type: Literal["PER", "ORG", "LOC"] = Field(..., description="Tipo da entidade.")
+class ArchiveEntityDTO(BaseModel):
+    """
+    Contrato de dados para Entidades Nomeadas (NER).
+
+    Garante que os extratores (como o spaCy) retornem entidades
+    padronizadas e validadas contra os tipos permitidos no domínio
+    antes da persistência.
+    """
+
+    name: str = Field(description="Nome limpo e formatado da entidade.")
+    entity_type: Literal["PER", "ORG", "LOC"] = Field(
+        description="Tipo da entidade. Restrito a Pessoa, Organização ou Local."
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -19,31 +29,46 @@ class GoldEntityDTO(BaseModel):
 # ==========================================
 # DTOs para Tags e Taxonomias
 # ==========================================
-class GoldTagDTO(BaseModel):
-    """Contrato rigoroso para a criação de Tags via mDeBERTa."""
+class ArchiveTagDTO(BaseModel):
+    """
+    Contrato rigoroso para a criação de Tags (Taxonomia).
 
-    name: str = Field(description="A palavra-chave, sempre em minúsculo.")
-    macro_category: str | None = Field(default=None, description="A gaveta principal (ex: Urbanismo).")
-    ai_confidence_score: float | None = Field(default=None, description="Certeza do modelo de IA (0 a 100).")
+    Assegura que os modelos de classificação (ex: mDeBERTa) entreguem
+    categorias consistentes acompanhadas de sua métrica de confiança
+    para métricas de observabilidade.
+    """
+
+    name: str = Field(description="A palavra-chave ou conceito associado, preferencialmente em minúsculo.")
+    macro_category: str | None = Field(default=None, description="A gaveta semântica principal (ex: Urbanismo, Saúde)")
+    ai_confidence_score: float | None = Field(
+        default=None, description="Grau de certeza do modelo de IA (0.0 a 1.0 ou 0 a 100)."
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class GoldDescriptionDTO(BaseModel):
+class ArchiveDocumentDTO(BaseModel):
     """
-    Contrato rigoroso para a inserção/atualização de um Documento na Camada Ouro.
-    Garante que a IA ou o script de migração enviem todos os dados necessários.
+    Contrato rigoroso de Inserção/Atualização para a Camada Archive.
+
+    Atua como o guardião da integridade da tabela fato. Garante que scripts de
+    migração e múltiplos workers de Inteligência Artificial trafeguem payloads
+    completos e tipados ao atualizar o estado de enriquecimento do documento.
     """
 
     description_id: str = Field(description="ID herdado da Silver.")
     original_title: str = Field(description="Título original da Silver.")
     document_date: date | None = Field(default=None, description="Data do documento.")
     summary: str | None = Field(default=None, description="Resumo do documento.")
-    silver_content_hash: str = Field(description="Hash de controle da Silver.")
-    original_thumbnail_url: str | None = Field(default=None, description="Link de Dowload da Thumbnail")
-    storage_thumbnail_uri: str | None = Field(default=None, description="URI ")
+    staging_content_hash: str = Field(description="Hash de controle de linhagem e detecção de mudanças (CDC).")
+    original_thumbnail_url: str | None = Field(
+        default=None, description="Link de download público da thumbnail na fonte."
+    )
+    storage_thumbnail_uri: str | None = Field(
+        default=None, description="URI ou Path interno do arquivo salvo no Object Storage"
+    )
 
-    # --- Metadados da Norma ISAD(G) (Herdados para leitura rápida no Front-end) ---
+    # --- Metadados da Norma ISAD(G) ---
     reference_code: str | None = Field(default=None, description="Código de referência arquivística.")
     level: str | None = Field(default=None, description="Nível de descrição (ex: Dossiê, Item, Volume).")
     producers: str | None = Field(default=None, description="Entidades produtoras responsáveis pelo fundo/documento.")
@@ -60,18 +85,18 @@ class GoldDescriptionDTO(BaseModel):
         default=None, description="Notas e observações técnicas do arquivista que catalogou."
     )
 
-    # Enriquecimento
+    # --- Enriquecimento (Machine Learning) ---
     final_title: str | None = Field(default=None, description="Título gerado pela IA ou revisado.")
     semantic_search_vector: str | None = Field(default=None, description="Texto limpo para busca.")
 
     execution_log: dict[str, str] = Field(
         default_factory=dict,
-        description="Rastreia quais workers (IA) já processaram o documento. Ex: {'ner_spacy': 'completed'}",
+        description="Rastreia quais workers (IA) já processaram o documento. Ex: {'ner_spacy': 'DONE'}",
     )
 
-    # Governança
-    review_status: GoldReviewStatus = Field(
-        default=GoldReviewStatus.PENDING_AI, description="Status atual de auditoria."
+    # --- Governança (Human-In-The-Loop) ---
+    review_status: ArchiveReviewStatus = Field(
+        default=ArchiveReviewStatus.PENDING_AI, description="Status atual de auditoria."
     )
     is_anomaly: bool = Field(default=False, description="Flag de erro estrutural.")
     anomaly_reasons: list[str] | None = Field(default=None, description="Lista de erros encontrados.")

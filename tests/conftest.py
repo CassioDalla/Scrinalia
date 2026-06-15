@@ -10,8 +10,9 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-import core.models  # noqa: F401, RUF100
-from core.schemas.gold_schema import GoldDescriptionDTO
+from core.base import Base
+from domains.archive.models import ArchiveDocument
+from domains.archive.schemas import ArchiveDocumentDTO
 from domains.ingestion import models as ingest_model
 
 # Descobre o caminho absoluto da pasta 'tests' de forma dinâmica
@@ -52,12 +53,12 @@ def engine():
     engine = create_engine(TEST_DATABASE_URL)
 
     # Cria todas as tabelas baseadas nos seus Models
-    core.models.Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
 
     yield engine
 
     # Ao final de todos os testes, destrói as tabelas
-    core.models.Base.metadata.drop_all(bind=engine)
+    Base.metadata.drop_all(bind=engine)
     engine.dispose()
 
 
@@ -100,7 +101,7 @@ def use_test_db(db_session):
 
 
 @pytest.fixture
-def generate_description_doc(db_session):
+def generate_archive_doc(db_session):
     """
     Uma fábrica inteligente de documentos.
     Preenche automaticamente todos os campos chatos e obrigatórios,
@@ -112,14 +113,11 @@ def generate_description_doc(db_session):
             # Gera uma string única e corta para caber no limite de String(50)
             "description_id": f"doc_teste_{uuid.uuid4().hex[:30]}",
             "original_title": "Título Genérico de Teste",
-            "silver_content_hash": "hash_falso_1234567890abcdef",
+            "staging_content_hash": "hash_falso_1234567890abcdef",
         }
 
-        # 2. Se o teste enviou algo específico (ex: title="Novo Título"), nós atualizamos
         dados_padrao.update(kwargs)
-
-        # 3. Criamos o objeto, salvamos no banco e devolvemos o objeto real com ID
-        doc = core.models.GoldDescriptionModel(**dados_padrao)
+        doc = ArchiveDocument(**dados_padrao)
         db_session.add(doc)
         db_session.commit()
 
@@ -129,7 +127,7 @@ def generate_description_doc(db_session):
 
 
 @pytest.fixture
-def generate_gold_description_dto():
+def generate_archive_dto():
     """
     Fábrica para gerar DTOs válidos para os testes de CRUD e ETL.
     Preenche automaticamente os campos que o Pylance exige.
@@ -140,12 +138,37 @@ def generate_gold_description_dto():
         dados_padrao: dict[str, Any] = {
             "description_id": f"doc_teste_{uuid.uuid4().hex[:30]}",
             "original_title": "Titulo Teste",
-            "silver_content_hash": "hash_falso_1234567890abcdef",
+            "staging_content_hash": "hash_falso_1234567890abcdef",
         }
 
-        # O teste sobrescreve apenas o que importa
         dados_padrao.update(kwargs)
+        return ArchiveDocumentDTO(**dados_padrao)
 
-        return GoldDescriptionDTO(**dados_padrao)
+    return _create
 
+@pytest.fixture
+def mock_staging_doc():
+    """
+    Gera um objeto Mock perfeito simulando um StagingDocument vindo do banco.
+    Evita que o Pydantic dê erro de validação de tipos durante os testes dos Workers.
+    """
+    def _create(description_id="doc-100", raw_content_hash="hash_123"):
+        from unittest.mock import Mock
+        doc = Mock()
+        doc.description_id = description_id
+        doc.title = "Dossiê Teste"
+        doc.document_date = None
+        doc.scope_content = "Resumo do documento"
+        doc.raw_content_hash = raw_content_hash
+        doc.reference_code = "BR PR"
+        doc.level = "Dossiê"
+        doc.producers = "Prefeitura"
+        doc.admin_bio_history = None
+        doc.admin_archival_history = None
+        doc.provenance = None
+        doc.language_name = "pt-BR"
+        doc.archivist_notes = None
+        doc.indexing_points = "Tag Teste"
+        doc.thumb_down_link = ""
+        return doc
     return _create
