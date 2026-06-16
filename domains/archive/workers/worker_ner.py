@@ -1,3 +1,4 @@
+import re
 from typing import Literal, cast
 
 import spacy
@@ -57,6 +58,20 @@ def extract_entities_text(text: str, nlp_engine: Language) -> list[ArchiveEntity
     return unique_entities
 
 
+def _clean_raw_text(text: str) -> str:
+    if not text:
+        return ""
+
+    # 1. Remove URLs (http, https, www)
+    text_no_urls = re.sub(r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+", "", text)
+    text_no_urls = re.sub(r"www\.\S+", "", text_no_urls)
+
+    # 2. Remove e-mails
+    text_no_urls = re.sub(r"[\w\.-]+@[\w\.-]+", "", text_no_urls)
+
+    return text_no_urls.strip()
+
+
 def execute_worker_ner() -> None:
     """
     Orquestrador principal do pipeline de Extração de Entidades (NER).
@@ -93,10 +108,11 @@ def execute_worker_ner() -> None:
         for doc in documentos_pendentes:
             try:
                 with db.begin_nested():
-                    # TODO Pensar em uma forma de deixar isso dinamico para o front decidir quais colunas usar para o NER
                     componentes_texto = [doc.original_title, doc.admin_bio_history, doc.provenance, doc.scope_content]
                     # Filtra apenas os campos preenchidos e junta-os com ponto e espaço
                     text_contextualized = ". ".join([txt.strip() for txt in componentes_texto if txt and txt.strip()])
+
+                    text_contextualized = _clean_raw_text(text_contextualized)
 
                     # 1. Executa a extração NLP
                     dtos_entidades = extract_entities_text(text_contextualized, nlp)
