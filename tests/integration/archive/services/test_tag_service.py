@@ -12,17 +12,14 @@ from domains.archive.services.tag_service import TagService
 # 1. TESTES DE PURGE (STOPWORDS)
 # ==========================================
 
+
 def test_purge_stopwords_success(use_test_db, db_session):
     """Garante que as stopwords são lidas do banco e apagadas."""
     service = TagService(db_session)
 
     # 1. Prepara o banco com tags
-    db_session.add_all([
-        ArchiveTag(name="ofício"), 
-        ArchiveTag(name="valiosa"), 
-        ArchiveTag(name="curitiba")
-    ])
-    
+    db_session.add_all([ArchiveTag(name="ofício"), ArchiveTag(name="valiosa"), ArchiveTag(name="curitiba")])
+
     # 2. Insere as stopwords no dicionário (simulando o frontend)
     repository.save_stopwords(db_session, [" OFÍCIO ", "Curitiba"])
     db_session.commit()
@@ -66,6 +63,7 @@ def test_purge_stopwords_empty_db(use_test_db, db_session):
 # 2. TESTES DE CONTAGEM E ESTATÍSTICA (RELEVANCE)
 # ==========================================
 
+
 def test_get_tag_relevance_count(use_test_db, db_session, generate_archive_doc):
     """Garante que a contagem agrupa e ordena da mais usada para a menos usada."""
     service = TagService(db_session)
@@ -78,11 +76,13 @@ def test_get_tag_relevance_count(use_test_db, db_session, generate_archive_doc):
     db_session.add_all([tag_comum, tag_rara])
     db_session.commit()
 
-    db_session.add_all([
-        ArchiveDocumentTag(description_id=doc1.description_id, tag_id=tag_comum.tag_id),
-        ArchiveDocumentTag(description_id=doc2.description_id, tag_id=tag_comum.tag_id),
-        ArchiveDocumentTag(description_id=doc1.description_id, tag_id=tag_rara.tag_id),
-    ])
+    db_session.add_all(
+        [
+            ArchiveDocumentTag(description_id=doc1.description_id, tag_id=tag_comum.tag_id),
+            ArchiveDocumentTag(description_id=doc2.description_id, tag_id=tag_comum.tag_id),
+            ArchiveDocumentTag(description_id=doc1.description_id, tag_id=tag_rara.tag_id),
+        ]
+    )
     db_session.commit()
 
     resultados = service.get_tag_relevance_count(limit=5)
@@ -137,6 +137,7 @@ def test_get_tag_relevance_tfidf_empty_db(use_test_db, db_session):
 # 3. TESTES DE ALGORITMO APROXIMADO (PG_TRGM)
 # ==========================================
 
+
 def test_find_similar_tags(use_test_db, db_session):
     """Garante que a busca trigramática acha erros de digitação e obedece ao threshold."""
     # Instala a extensão no banco de testes do Docker
@@ -158,6 +159,7 @@ def test_find_similar_tags(use_test_db, db_session):
 # ==========================================
 # 4. TESTES DE MESCLAGEM (MERGE)
 # ==========================================
+
 
 def test_merge_tags_success(use_test_db, db_session, generate_archive_doc):
     """Testa o fluxo feliz: move docs, cria sinônimos e apaga a tag antiga."""
@@ -195,10 +197,12 @@ def test_merge_tags_idempotency_conflict(use_test_db, db_session, generate_archi
     db_session.add_all([tag_oficial, tag_erro])
     db_session.commit()
 
-    db_session.add_all([
-        ArchiveDocumentTag(description_id=doc.description_id, tag_id=tag_oficial.tag_id),
-        ArchiveDocumentTag(description_id=doc.description_id, tag_id=tag_erro.tag_id),
-    ])
+    db_session.add_all(
+        [
+            ArchiveDocumentTag(description_id=doc.description_id, tag_id=tag_oficial.tag_id),
+            ArchiveDocumentTag(description_id=doc.description_id, tag_id=tag_erro.tag_id),
+        ]
+    )
     db_session.commit()
 
     _docs_afetados, tags_apagadas = service.merge_tags(tag_oficial.tag_id, [tag_erro.tag_id])

@@ -25,6 +25,7 @@ from domains.archive.schemas import ArchiveEntityDTO, ArchiveTagDTO
 # 1. TESTES DE UPSERT (CARGA DA ETL E RESET DE IA)
 # ==========================================
 
+
 def test_upsert_archive_document_insert_new(use_test_db, db_session, generate_archive_dto):
     """Cenário 1: Inserção de documento inédito vindo da Staging."""
     dto_novo = generate_archive_dto(description_id="1", original_title="Inédito", staging_content_hash="hash_1")
@@ -39,40 +40,34 @@ def test_upsert_archive_document_insert_new(use_test_db, db_session, generate_ar
 
 def test_upsert_archive_document_ignore_same_hash(use_test_db, db_session, generate_archive_dto):
     """Cenário 2: Carga Incremental. Documento com mesmo Hash deve ser ignorado."""
-    dto_original = generate_archive_dto(
-        description_id="2", original_title="Original", staging_content_hash="hash_2"
-    )
+    dto_original = generate_archive_dto(description_id="2", original_title="Original", staging_content_hash="hash_2")
     upsert_archive_document(db_session, dto_original)
     db_session.commit()
 
-    dto_repetido = generate_archive_dto(
-        description_id="2", original_title="Falso", staging_content_hash="hash_2"
-    )
+    dto_repetido = generate_archive_dto(description_id="2", original_title="Falso", staging_content_hash="hash_2")
     inseriu_repetido = upsert_archive_document(db_session, dto_repetido)
     db_session.commit()
 
     assert inseriu_repetido is False
     doc_banco = db_session.execute(select(ArchiveDocument).filter_by(description_id="2")).scalar_one()
-    assert doc_banco.original_title == "Original" 
+    assert doc_banco.original_title == "Original"
 
 
 def test_upsert_archive_document_update_resets_ai(use_test_db, db_session, generate_archive_dto):
     """Cenário 3: CDC (Change Data Capture). Se o Hash mudou na Staging, atualiza os dados E apaga rastros de IA."""
     dto_original = generate_archive_dto(
-        description_id="3", 
-        original_title="Antigo", 
+        description_id="3",
+        original_title="Antigo",
         staging_content_hash="hash_3",
-        execution_log={"ner_spacy_v1": "DONE"}, # Log sujo da IA
-        review_status=ArchiveReviewStatus.NEEDS_REVIEW
+        execution_log={"ner_spacy_v1": "DONE"},  # Log sujo da IA
+        review_status=ArchiveReviewStatus.NEEDS_REVIEW,
     )
     upsert_archive_document(db_session, dto_original)
     db_session.commit()
 
     # Nova carga com Hash atualizado da Staging envia o DTO limpo (Default)
     dto_novo = generate_archive_dto(
-        description_id="3", 
-        original_title="Novo Título", 
-        staging_content_hash="hash_3_NOVO"
+        description_id="3", original_title="Novo Título", staging_content_hash="hash_3_NOVO"
     )
     inseriu_novo = upsert_archive_document(db_session, dto_novo)
     db_session.commit()
@@ -80,7 +75,7 @@ def test_upsert_archive_document_update_resets_ai(use_test_db, db_session, gener
     assert inseriu_novo is True
     doc_banco = db_session.execute(select(ArchiveDocument).filter_by(description_id="3")).scalar_one()
     assert doc_banco.original_title == "Novo Título"
-    assert doc_banco.execution_log == {} # O log foi resetado!
+    assert doc_banco.execution_log == {}  # O log foi resetado!
     assert doc_banco.review_status == ArchiveReviewStatus.PENDING_AI
 
 
@@ -109,6 +104,7 @@ def test_upsert_archive_document_blocked_by_human_approved(use_test_db, db_sessi
 # ==========================================
 # 2. TESTES DE ENTIDADES E TAGS (DIMENSÕES)
 # ==========================================
+
 
 def test_get_or_create_entities_new_and_existing(use_test_db, db_session):
     """Garante a criação e a idempotência de Entidades (NER)."""
@@ -139,6 +135,7 @@ def test_get_or_create_tags_new_and_lowercased(use_test_db, db_session):
 # 3. TESTES DE RELACIONAMENTOS (N:N)
 # ==========================================
 
+
 def test_link_description_relationships_bulk(use_test_db, db_session, generate_archive_dto):
     """Testa a inserção em lote (Bulk Insert) otimizada nas tabelas associativas."""
     upsert_archive_document(db_session, generate_archive_dto(description_id="25"))
@@ -160,6 +157,7 @@ def test_link_description_relationships_bulk(use_test_db, db_session, generate_a
 # ==========================================
 # 4. TESTES DE IA (STAMP E NLP)
 # ==========================================
+
 
 def test_stamp_ai_execution(use_test_db, db_session, generate_archive_dto):
     """Testa se a coluna JSONB mutável salva o novo log garantindo o estado da ORM."""
@@ -185,9 +183,7 @@ def test_get_ner_synonyms_rules(use_test_db, db_session):
 
     # 2. Cria o Sinônimo apontando para a Entidade
     sinonimo = DomainSynonyms(
-        synonym_name="prefeitura municipal", 
-        category="ORG", 
-        canonical_entity_id=ent_canonica.entity_id
+        synonym_name="prefeitura municipal", category="ORG", canonical_entity_id=ent_canonica.entity_id
     )
     db_session.add(sinonimo)
     db_session.commit()
@@ -204,6 +200,7 @@ def test_get_ner_synonyms_rules(use_test_db, db_session):
 # ==========================================
 # 5. TESTES DE STOPWORDS DO DOMÍNIO
 # ==========================================
+
 
 def test_save_and_get_stopwords(use_test_db, db_session):
     """Testa o bulk insert com ON CONFLICT e a extração limpa."""

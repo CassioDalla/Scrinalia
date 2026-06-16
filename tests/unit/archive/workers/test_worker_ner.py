@@ -6,10 +6,10 @@ from sqlalchemy.orm import Session
 from domains.archive import repository
 from domains.archive.workers import worker_ner
 
-
 # ==========================================
 # 1. TESTES UNITÁRIOS DE LÓGICA PURA (NLP)
 # ==========================================
+
 
 def test_extract_entities_text_sucesso(mocker: MockerFixture) -> None:
     """Testa se entidades legítimas são capturadas, limpas e padronizadas com Title Case."""
@@ -63,13 +63,14 @@ def test_extract_entities_text_data_quality_filtra_lixo(mocker: MockerFixture) -
 # 2. TESTES DE INTEGRALIDADE DO WORKER (ORQUESTRADOR)
 # ==========================================
 
+
 def test_execute_worker_ner_fluxo_completo(mocker: MockerFixture) -> None:
     """Testa o caminho feliz: lê documento pendente, extrai entidades, salva e carimba checkpoint."""
     mock_db = mocker.Mock(spec=Session)
 
     mock_get_db = mocker.patch.object(worker_ner, "get_db")
     mock_get_db.return_value.__enter__.return_value = mock_db
-    
+
     # CORREÇÃO: Usando MagicMock para suportar o db.begin_nested()
     mock_db.begin_nested.return_value = mocker.MagicMock()
 
@@ -110,7 +111,7 @@ def test_execute_worker_ner_vazio_obrigatoriamente_carimba_log(mocker: MockerFix
 
     mock_get_db = mocker.patch.object(worker_ner, "get_db")
     mock_get_db.return_value.__enter__.return_value = mock_db
-    
+
     # CORREÇÃO: Usando MagicMock para suportar o db.begin_nested()
     mock_db.begin_nested.return_value = mocker.MagicMock()
 

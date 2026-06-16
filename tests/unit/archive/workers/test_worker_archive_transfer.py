@@ -5,10 +5,10 @@ from domains.archive import repository
 from domains.archive.schemas import ArchiveDocumentDTO
 from domains.archive.workers import worker_archive_transfer
 
-
 # ==========================================
 # TESTES DE ORQUESTRAÇÃO E TRANSAÇÃO (Transferência)
 # ==========================================
+
 
 def test_run_archive_transfer_fluxo_completo(mocker: MockerFixture, mock_staging_doc) -> None:
     """Testa o caminho feliz, onde um documento inédito da Staging é inserido na Archive."""
@@ -61,7 +61,7 @@ def test_run_archive_transfer_idempotencia(mocker: MockerFixture, mock_staging_d
 
     # Usa a fábrica novamente!
     doc_staging = mock_staging_doc()
-    
+
     mock_query = mocker.Mock()
     mock_db.scalars.return_value = mock_query
     mock_query.yield_per.return_value = [doc_staging]
