@@ -39,7 +39,9 @@ class ArchiveTagDTO(BaseModel):
     """
 
     name: str = Field(description="A palavra-chave ou conceito associado, preferencialmente em minúsculo.")
-    macro_category: str | None = Field(default=None, description="A gaveta semântica principal (ex: Urbanismo, Saúde)")
+    macro_category_id: int | None = Field(
+        default=None, description="Id linkando para a gaveta semântica principal (ex: Urbanismo, Saúde)"
+    )
     ai_confidence_score: float | None = Field(
         default=None, description="Grau de certeza do modelo de IA (0.0 a 1.0 ou 0 a 100)."
     )

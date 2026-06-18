@@ -4,14 +4,15 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from core.base import Base
-from domains.archive.models import ArchiveDocument
+from domains.archive.engines.typologies import registry
+from domains.archive.models import ArchiveDocument, ArchiveTypology
 from domains.archive.schemas import ArchiveDocumentDTO
 from domains.ingestion import models as ingest_model
 
@@ -19,6 +20,27 @@ from domains.ingestion import models as ingest_model
 TESTS_FOLDER = Path(__file__).parent
 
 TEST_DATABASE_URL = "postgresql://test_user:test_password@localhost:5433/test_db"
+
+
+@pytest.fixture
+def mock_registry_typology(monkeypatch):
+    """
+    Fixture que prepara o terreno para os testes da fábrica.
+    Injeta um motor falso e um preset falso nos dicionários oficiais.
+    Como usamos o 'monkeypatch', o Pytest garante que o dicionário volta
+    ao normal (limpo) ao final de cada teste, sem poluir os outros testes.
+    """
+    # 1. Criamos a nossa Classe Falsa
+    MockEngineClass = MagicMock()
+
+    # 2. Injetamos no dicionário de motores disponíveis
+    monkeypatch.setitem(registry.AVAILABLE_ENGINES, "motor_fake", MockEngineClass)
+
+    # 3. Injetamos no dicionário de presets
+    monkeypatch.setitem(registry.PRESETS, "preset_teste", {"model": "modelo_falso_v1", "device": "cpu"})
+
+    # Retornamos a classe para podermos fazer os "asserts" dentro dos testes
+    return MockEngineClass
 
 
 @pytest.fixture
@@ -146,14 +168,17 @@ def generate_archive_dto():
 
     return _create
 
+
 @pytest.fixture
 def mock_staging_doc():
     """
     Gera um objeto Mock perfeito simulando um StagingDocument vindo do banco.
     Evita que o Pydantic dê erro de validação de tipos durante os testes dos Workers.
     """
+
     def _create(description_id="doc-100", raw_content_hash="hash_123"):
         from unittest.mock import Mock
+
         doc = Mock()
         doc.description_id = description_id
         doc.title = "Dossiê Teste"
@@ -171,4 +196,18 @@ def mock_staging_doc():
         doc.indexing_points = "Tag Teste"
         doc.thumb_down_link = ""
         return doc
+
+    return _create
+
+
+@pytest.fixture
+def generate_typology(db_session):
+    """Fábrica para popular a tabela de tipologias antes dos testes."""
+
+    def _create(id=99, name="Dossiê"):
+        tipo = ArchiveTypology(typology_id=id, name=name)
+        db_session.add(tipo)
+        db_session.commit()
+        return tipo
+
     return _create

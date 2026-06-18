@@ -18,20 +18,31 @@ CREATE TABLE IF NOT EXISTS archive_entities (
 
 -- Índices para buscas textuais e filtros por categoria de entidade
 CREATE INDEX IF NOT EXISTS idx_archive_entities_name ON archive_entities (name);
+
 CREATE INDEX IF NOT EXISTS idx_archive_entities_type ON archive_entities (entity_type);
+
+CREATE INDEX IF NOT EXISTS idx_archive_entities_name_trgm ON archive_entities USING gin (name gin_trgm_ops);
 
 -- 3. Tabela de Dimensão: Tags e Taxonomias (Zero-Shot / Clustering)
 CREATE TABLE IF NOT EXISTS archive_tags (
     tag_id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    macro_category VARCHAR(100), -- Categoria mãe definida via Classificação Semântica
+    macro_category_id INT, -- Categoria mãe definida via Classificação Semântica
     ai_confidence_score DOUBLE PRECISION, -- Score de certeza do modelo (0 a 100)
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uix_tag_name UNIQUE (name)
+    CONSTRAINT uix_tag_name UNIQUE (name),
+
+    CONSTRAINT fk_archive_tags_macro 
+        FOREIGN KEY (macro_category_id) 
+        REFERENCES archive_macro_categories (category_id) --VAI QUEBRAR, ESSA TABELA TA EM OUTRO ARQUIVO
+        ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_archive_tags_name ON archive_tags (name);
-CREATE INDEX IF NOT EXISTS idx_archive_tags_macro ON archive_tags (macro_category);
+
+CREATE INDEX IF NOT EXISTS idx_archive_tags_macro ON archive_tags (macro_category_id);
+
+CREATE INDEX IF NOT EXISTS idx_archive_tags_name_trgm ON archive_tags USING gin (name gin_trgm_ops);
 
 -- 4. Tabela Fato: Descrições (A base principal do Acervo)
 CREATE TABLE IF NOT EXISTS archive_documents (
@@ -42,25 +53,25 @@ CREATE TABLE IF NOT EXISTS archive_documents (
     staging_content_hash VARCHAR(64) NOT NULL, -- Identifica se o dado mudou na origem
     original_thumbnail_url VARCHAR,
     storage_thumbnail_uri VARCHAR,
-    
-    -- Metadados da Norma ISAD(G)
-    reference_code TEXT,
-    level TEXT,
-    producers TEXT,
-    admin_bio_history TEXT,
-    admin_archival_history TEXT,
-    provenance TEXT,
-    scope_content TEXT,
-    language_name TEXT,
-    archivist_notes TEXT,
 
-    -- Dados de Enriquecimento
-    final_title TEXT, -- Título definitivo (IA ou Humano)
-    semantic_search_vector TEXT, -- Texto limpo via spaCy para buscas
-    execution_log JSONB NOT NULL DEFAULT '{}'::jsonb, -- Rastreamento Assíncrono da IA
+-- Metadados da Norma ISAD(G)
+reference_code TEXT,
+level TEXT,
+producers TEXT,
+admin_bio_history TEXT,
+admin_archival_history TEXT,
+provenance TEXT,
+scope_content TEXT,
+language_name TEXT,
+archivist_notes TEXT,
 
-    -- Governança e Qualidade Data-Driven
-    review_status archive_review_status_enum NOT NULL DEFAULT 'PENDING_AI',
+-- Dados de Enriquecimento
+final_title TEXT, -- Título definitivo (IA ou Humano)
+semantic_search_vector TEXT, -- Texto limpo via spaCy para buscas
+execution_log JSONB NOT NULL DEFAULT '{}'::jsonb, -- Rastreamento Assíncrono da IA
+
+-- Governança e Qualidade Data-Driven
+review_status archive_review_status_enum NOT NULL DEFAULT 'PENDING_AI',
     is_anomaly BOOLEAN NOT NULL DEFAULT FALSE,
     anomaly_reasons TEXT[], -- ARRAY para acumular múltiplos erros
     
@@ -70,6 +81,7 @@ CREATE TABLE IF NOT EXISTS archive_documents (
 
 -- Índices normais
 CREATE INDEX IF NOT EXISTS idx_archive_desc_status ON archive_documents (review_status);
+
 CREATE INDEX IF NOT EXISTS idx_archive_desc_anomaly ON archive_documents (is_anomaly);
 -- O Índice GIN: Permite aos Workers encontrarem JSONs pendentes em milissegundos
 CREATE INDEX IF NOT EXISTS ix_archive_exec_log ON archive_documents USING GIN (execution_log);
@@ -124,9 +136,9 @@ CREATE TABLE IF NOT EXISTS domain_synonyms (
     category VARCHAR(10) NOT NULL, -- Valores Aceitos 'TAG', 'LOC','ORG','PER'
     canonical_tag_id INTEGER,
     canonical_entity_id INTEGER, -- Arcos Exclusivos (Chaves Estrangeiras Nulas)
-    
-    -- 1. Relacionamento com a tabela de Tags
-    CONSTRAINT fk_domain_synonyms_tag FOREIGN KEY (canonical_tag_id) REFERENCES archive_tags (tag_id) ON DELETE CASCADE,
+
+-- 1. Relacionamento com a tabela de Tags
+CONSTRAINT fk_domain_synonyms_tag FOREIGN KEY (canonical_tag_id) REFERENCES archive_tags (tag_id) ON DELETE CASCADE,
     -- 2. Relacionamento com a tabela de Entidades
     CONSTRAINT fk_domain_synonyms_entity FOREIGN KEY (canonical_entity_id) REFERENCES archive_entities (entity_id) ON DELETE CASCADE,
     -- 3. Restrição de Unicidade Composta
@@ -148,4 +160,5 @@ CREATE TABLE IF NOT EXISTS domain_synonyms (
 
 -- Índices de Performance para o dicionário
 CREATE INDEX ix_domain_synonyms_synonym_name ON domain_synonyms (synonym_name);
+
 CREATE INDEX ix_domain_synonyms_category ON domain_synonyms (category);

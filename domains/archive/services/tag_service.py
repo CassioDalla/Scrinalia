@@ -48,7 +48,9 @@ class TagService:
             elif len(tag) > 100:
                 logger.warning(f"⚠️ Tag ignorada por ser muito longa: '{tag[:50]}...'")
 
-        return [ArchiveTagDTO(name=tag_name, macro_category=None, ai_confidence_score=None) for tag_name in tags_limpas]
+        return [
+            ArchiveTagDTO(name=tag_name, macro_category_id=None, ai_confidence_score=None) for tag_name in tags_limpas
+        ]
 
     def purge_stopwords(self) -> int:
         """

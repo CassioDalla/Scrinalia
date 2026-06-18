@@ -1,10 +1,13 @@
+import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from domains.archive.models import (
     ArchiveDocument,
     ArchiveDocumentEntity,
     ArchiveDocumentTag,
     ArchiveEntity,
+    ArchiveMacroCategory,
     ArchiveReviewStatus,
     ArchiveTag,
     DomainSynonyms,
@@ -122,13 +125,86 @@ def test_get_or_create_entities_new_and_existing(use_test_db, db_session):
 
 def test_get_or_create_tags_new_and_lowercased(use_test_db, db_session):
     """Garante a criação de tags inéditas convertendo sempre para minúsculo."""
-    tags_dto = [ArchiveTagDTO(name=" ARQUIVAMENTO ", macro_category="Administrativo")]
+    tags_dto = [ArchiveTagDTO(name=" ARQUIVAMENTO ", macro_category_id=None)]
     ids_gerados = get_or_create_tags(db_session, tags_dto)
     db_session.commit()
 
     assert len(ids_gerados) == 1
     tag_db = db_session.execute(select(ArchiveTag).filter_by(tag_id=ids_gerados[0])).scalar_one()
     assert tag_db.name == "arquivamento"
+
+
+def test_create_tag_com_macro_category_valida(use_test_db, db_session):
+    """Garante que uma tag é criada e vinculada corretamente a uma categoria macro existente."""
+    # 1. Setup: Criamos a Categoria Macro primeiro
+    macro = ArchiveMacroCategory(name="Administrativo", description="Documentos de RH e Gestão")
+    db_session.add(macro)
+    db_session.commit()
+
+    # 2. Ação: Passamos o ID gerado para a DTO
+    tags_dto = [ArchiveTagDTO(name="ofício", macro_category_id=macro.category_id)]
+    ids_gerados = get_or_create_tags(db_session, tags_dto)
+    db_session.commit()
+
+    # 3. Verificações
+    tag_db = db_session.get(ArchiveTag, ids_gerados[0])
+    assert tag_db.name == "ofício"
+    assert tag_db.macro_category_id == macro.category_id
+
+    # Testa o relationship do SQLAlchemy
+    assert tag_db.macro_category.name == "Administrativo"
+
+
+def test_falha_ao_criar_tag_com_macro_category_inexistente(use_test_db, db_session):
+    """Garante que o banco de dados bloqueia a criação de tag com um ID de categoria fantasma."""
+    # ID 9999 não existe na tabela archive_macro_categories
+    tags_dto = [ArchiveTagDTO(name="financeiro", macro_category_id=9999)]
+
+    # O SQLAlchemy deve levantar um IntegrityError por violação de Foreign Key
+    with pytest.raises(IntegrityError):
+        get_or_create_tags(db_session, tags_dto)
+        db_session.commit()
+
+
+def test_recupera_tag_existente_mantendo_macro_category(use_test_db, db_session):
+    """Se a tag já existe, deve apenas retornar o ID mantendo a categoria intacta."""
+    macro = ArchiveMacroCategory(name="Financeiro")
+    db_session.add(macro)
+    db_session.commit()
+
+    # Simulamos uma execução anterior que criou a tag
+    get_or_create_tags(db_session, [ArchiveTagDTO(name="recibo", macro_category_id=macro.category_id)])
+    db_session.commit()
+
+    # Ação: Rodamos a função de novo com a mesma tag
+    ids_gerados = get_or_create_tags(db_session, [ArchiveTagDTO(name="RECIBO", macro_category_id=macro.category_id)])
+
+    assert len(ids_gerados) == 1
+    tag_db = db_session.get(ArchiveTag, ids_gerados[0])
+
+    # Garante que a relação não se perdeu no "Get"
+    assert tag_db.macro_category_id == macro.category_id
+
+
+def test_exclusao_de_macro_category_seta_fk_como_nulo(use_test_db, db_session):
+    """Garante o comportamento 'SET NULL' quando a categoria pai é deletada."""
+    # 1. Setup
+    macro = ArchiveMacroCategory(name="Projetos Especiais")
+    db_session.add(macro)
+    db_session.commit()
+
+    tag = ArchiveTag(name="planta_baixa", macro_category_id=macro.category_id)
+    db_session.add(tag)
+    db_session.commit()
+
+    # 2. Ação: Deletamos a categoria macro (o pai)
+    db_session.delete(macro)
+    db_session.commit()
+
+    # 3. Verificação: Atualizamos a tag na memória e verificamos
+    db_session.refresh(tag)
+    assert tag.macro_category_id is None
+    assert tag.name == "planta_baixa"  # A tag deve continuar existindo!
 
 
 # ==========================================
