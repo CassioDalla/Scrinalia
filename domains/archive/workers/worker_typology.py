@@ -174,7 +174,7 @@ def execute(
                         doc.execution_log = log_atual
                         flag_modified(doc, "execution_log")
                     except Exception as e:
-                        logger.error(f"Falha crítica ao tentar carimbar erro no doc {doc.description_id}: {e}")
+                        logger.critical(f"Falha crítica ao tentar carimbar erro no doc {doc.description_id}: {e}")
 
             try:
                 db.commit()

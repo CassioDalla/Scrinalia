@@ -11,9 +11,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from core.base import Base
-from domains.archive.engines.typologies import registry
 from domains.archive.models import ArchiveDocument, ArchiveTypology
-from domains.archive.schemas import ArchiveDocumentDTO
+from domains.archive.schemas import ArchiveDocumentDTO, ArchiveEntityDTO
 from domains.ingestion import models as ingest_model
 
 # Descobre o caminho absoluto da pasta 'tests' de forma dinâmica
@@ -23,24 +22,23 @@ TEST_DATABASE_URL = "postgresql://test_user:test_password@localhost:5433/test_db
 
 
 @pytest.fixture
-def mock_registry_typology(monkeypatch):
+def mock_registry(monkeypatch):
     """
-    Fixture que prepara o terreno para os testes da fábrica.
-    Injeta um motor falso e um preset falso nos dicionários oficiais.
-    Como usamos o 'monkeypatch', o Pytest garante que o dicionário volta
-    ao normal (limpo) ao final de cada teste, sem poluir os outros testes.
+    Fixture Factory: Prepara dinamicamente qualquer módulo registry para testes.
     """
-    # 1. Criamos a nossa Classe Falsa
-    MockEngineClass = MagicMock()
 
-    # 2. Injetamos no dicionário de motores disponíveis
-    monkeypatch.setitem(registry.AVAILABLE_ENGINES, "motor_fake", MockEngineClass)
+    def _patch_registry(registry_module):
+        # 1. Criamos a nossa Classe Falsa
+        MockEngineClass = MagicMock()
 
-    # 3. Injetamos no dicionário de presets
-    monkeypatch.setitem(registry.PRESETS, "preset_teste", {"model": "modelo_falso_v1", "device": "cpu"})
+        # 2. Injetamos nos dicionários do módulo que foi passado como argumento
+        monkeypatch.setitem(registry_module.AVAILABLE_ENGINES, "motor_fake", MockEngineClass)
+        monkeypatch.setitem(registry_module.PRESETS, "preset_teste", {"model": "falso", "device": "cpu"})
 
-    # Retornamos a classe para podermos fazer os "asserts" dentro dos testes
-    return MockEngineClass
+        # Retornamos a classe para os asserts
+        return MockEngineClass
+
+    return _patch_registry
 
 
 @pytest.fixture
@@ -211,3 +209,17 @@ def generate_typology(db_session):
         return tipo
 
     return _create
+
+
+@pytest.fixture
+def mock_ner_engine():
+    """Simula o motor spaCy devolvendo DTOs de entidades."""
+    mock_engine = MagicMock()
+    entidade_mock = ArchiveEntityDTO(name="Prefeitura de Curitiba", entity_type="ORG")
+
+    # Função dinâmica: devolve uma cópia do resultado para CADA texto que entrar
+    def simulador_de_extracao(texts):
+        return [[entidade_mock] for _ in texts]
+
+    mock_engine.extract.side_effect = simulador_de_extracao
+    return mock_engine

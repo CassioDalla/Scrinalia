@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from domains.archive.engines.typologies import registry as typology_registry
 from domains.archive.models import ArchiveDocument
 from domains.archive.workers.worker_typology import execute
 
@@ -9,7 +10,7 @@ def test_worker_integracao_atualiza_banco_corretamente(
     db_session,
     generate_archive_doc,
     generate_typology,
-    mock_registry_typology,
+    mock_registry,
 ):
     # 1. Preparação Real no Banco
     tipo_real = generate_typology(id=99, name="dossiê")
@@ -19,7 +20,8 @@ def test_worker_integracao_atualiza_banco_corretamente(
     expected_typology_id = tipo_real.typology_id
 
     # 2. Prepara a IA Falsa
-    instancia_da_ia = mock_registry_typology.return_value
+    MockClass = mock_registry(typology_registry)
+    instancia_da_ia = MockClass.return_value
     instancia_da_ia.classify.return_value = [{"labels": [tipo_real.name], "scores": [0.85]}]
 
     # 3. Ação: Passamos o db_session isolado do Pytest direto para o worker!
@@ -38,8 +40,9 @@ def test_worker_integracao_atualiza_banco_corretamente(
     assert doc_atualizado.execution_log["worker_typology_classifier_v1"] == "DONE"
 
 
-def test_worker_sai_graciosamente_sem_tipologias_cadastradas(db_session, mock_registry_typology):
+def test_worker_sai_graciosamente_sem_tipologias_cadastradas(db_session, mock_registry):
     # O banco está vazio (nenhuma tipologia criada)
+    MockClass = mock_registry(typology_registry)
     execute(
         db=db_session,
         engine_name="motor_fake",  # type: ignore
@@ -48,19 +51,20 @@ def test_worker_sai_graciosamente_sem_tipologias_cadastradas(db_session, mock_re
 
     # O teste passa simplesmente se a função executar até o fim sem levantar exceções.
     # O log "Nenhuma tipologia cadastrada" será emitido internamente.
-    instancia_da_ia = mock_registry_typology.return_value
+    instancia_da_ia = MockClass.return_value
     instancia_da_ia.classify.assert_not_called()
 
 
 def test_worker_sai_graciosamente_sem_documentos_pendentes(
-    db_session, generate_typology, generate_archive_doc, mock_registry_typology
+    db_session, generate_typology, generate_archive_doc, mock_registry
 ):
     generate_typology(id=1, name="Dossiê")
 
     # Criamos um documento que JÁ FOI processado por essa versão do worker
     generate_archive_doc(execution_log={"worker_typology_classifier_v1": "DONE"})
 
-    instancia_da_ia = mock_registry_typology.return_value
+    MockClass = mock_registry(typology_registry)
+    instancia_da_ia = MockClass.return_value
 
     execute(
         db=db_session,
@@ -73,7 +77,7 @@ def test_worker_sai_graciosamente_sem_documentos_pendentes(
 
 
 def test_worker_ignora_documentos_vazios_e_carimba_done(
-    db_session, generate_typology, generate_archive_doc, mock_registry_typology
+    db_session, generate_typology, generate_archive_doc, mock_registry
 ):
     generate_typology(id=1, name="Dossiê")
 
@@ -81,7 +85,8 @@ def test_worker_ignora_documentos_vazios_e_carimba_done(
     doc = generate_archive_doc(original_title="", scope_content="   ")
     doc_id = doc.description_id
 
-    instancia_da_ia = mock_registry_typology.return_value
+    MockClass = mock_registry(typology_registry)
+    instancia_da_ia = MockClass.return_value
 
     execute(
         db=db_session,
@@ -99,14 +104,13 @@ def test_worker_ignora_documentos_vazios_e_carimba_done(
     assert doc_atualizado.execution_log["worker_typology_classifier_v1"] == "DONE"
 
 
-def test_worker_ignora_baixa_confianca_da_ia(
-    db_session, generate_typology, generate_archive_doc, mock_registry_typology
-):
+def test_worker_ignora_baixa_confianca_da_ia(db_session, generate_typology, generate_archive_doc, mock_registry):
     tipo = generate_typology(id=1, name="Dossiê")
     doc = generate_archive_doc(original_title="Texto confuso sem contexto")
     doc_id = doc.description_id
 
-    instancia_da_ia = mock_registry_typology.return_value
+    MockClass = mock_registry(typology_registry)
+    instancia_da_ia = MockClass.return_value
 
     # IA devolve apenas 30% de confiança (seu limiar é 40%)
     instancia_da_ia.classify.return_value = [{"labels": [tipo.name], "scores": [0.30]}]
@@ -125,12 +129,13 @@ def test_worker_ignora_baixa_confianca_da_ia(
     assert doc_atualizado.execution_log["worker_typology_classifier_v1"] == "DONE"
 
 
-def test_worker_lida_com_alucinacao_da_ia(db_session, generate_typology, generate_archive_doc, mock_registry_typology):
+def test_worker_lida_com_alucinacao_da_ia(db_session, generate_typology, generate_archive_doc, mock_registry):
     generate_typology(id=1, name="Dossiê")
     doc = generate_archive_doc(original_title="Documento normal")
     doc_id = doc.description_id
 
-    instancia_da_ia = mock_registry_typology.return_value
+    MockClass = mock_registry(typology_registry)
+    instancia_da_ia = MockClass.return_value
 
     # IA devolve uma label inventada que não existe no mapa do banco
     instancia_da_ia.classify.return_value = [{"labels": ["Tipologia Inexistente"], "scores": [0.99]}]
@@ -148,14 +153,13 @@ def test_worker_lida_com_alucinacao_da_ia(db_session, generate_typology, generat
     assert doc_atualizado.execution_log["worker_typology_classifier_v1"] == "DONE"
 
 
-def test_worker_faz_rollback_em_falha_da_ia(
-    db_session, generate_typology, generate_archive_doc, mock_registry_typology
-):
+def test_worker_faz_rollback_em_falha_da_ia(db_session, generate_typology, generate_archive_doc, mock_registry):
     generate_typology(id=1, name="Dossiê")
     doc = generate_archive_doc(original_title="Texto gigante")
     doc_id = doc.description_id
 
-    instancia_da_ia = mock_registry_typology.return_value
+    MockClass = mock_registry(typology_registry)
+    instancia_da_ia = MockClass.return_value
 
     # Simulamos o modelo da HuggingFace estourando a memória (OOM)
     instancia_da_ia.classify.side_effect = Exception("CUDA Out of Memory")
@@ -175,14 +179,13 @@ def test_worker_faz_rollback_em_falha_da_ia(
     assert doc_atualizado.execution_log is None or "worker_typology_classifier_v1" not in doc_atualizado.execution_log
 
 
-def test_worker_faz_rollback_em_falha_de_commit(
-    db_session, generate_typology, generate_archive_doc, mock_registry_typology
-):
+def test_worker_faz_rollback_em_falha_de_commit(db_session, generate_typology, generate_archive_doc, mock_registry):
     tipo = generate_typology(id=1, name="Dossiê")
     doc = generate_archive_doc(original_title="Documento perfeito")
     doc_id = doc.description_id
 
-    instancia_da_ia = mock_registry_typology.return_value
+    MockClass = mock_registry(typology_registry)
+    instancia_da_ia = MockClass.return_value
     instancia_da_ia.classify.return_value = [{"labels": [tipo.name], "scores": [0.90]}]
 
     # Usamos o patch.object para interceptar EXATAMENTE o método commit da nossa sessão atual

@@ -1,143 +1,113 @@
-from unittest.mock import Mock
+from unittest.mock import MagicMock, patch
 
-from pytest_mock import MockerFixture
-from sqlalchemy.orm import Session
-
-from domains.archive import repository
-from domains.archive.workers import worker_ner
-
-# ==========================================
-# 1. TESTES UNITÁRIOS DE LÓGICA PURA (NLP)
-# ==========================================
+from domains.archive.workers.worker_ner import execute
 
 
-def test_extract_entities_text_sucesso(mocker: MockerFixture) -> None:
-    """Testa se entidades legítimas são capturadas, limpas e padronizadas com Title Case."""
-    mock_ent_per = mocker.Mock()
-    mock_ent_per.text = "david carneiro"
-    mock_ent_per.label_ = "PER"
-    mock_ent_per.ent_id_ = ""
+class MockArchiveDocument:
+    """Dublê ultraleve simulando um documento do SQLAlchemy para os Testes Unitários."""
 
-    mock_ent_loc = mocker.Mock()
-    mock_ent_loc.text = "rua brigadeiro franco"
-    mock_ent_loc.label_ = "LOC"
-    mock_ent_loc.ent_id_ = ""
-
-    mock_doc = mocker.Mock()
-    mock_doc.ents = [mock_ent_per, mock_ent_loc]
-
-    mock_nlp_engine = mocker.Mock(return_value=mock_doc)
-
-    resultado = worker_ner.extract_entities_text("Texto", mock_nlp_engine)
-
-    assert len(resultado) == 2
-    assert resultado[0].name == "David Carneiro"
-    assert resultado[0].entity_type == "PER"
-    assert resultado[1].name == "Rua Brigadeiro Franco"
-    assert resultado[1].entity_type == "LOC"
-
-
-def test_extract_entities_text_data_quality_filtra_lixo(mocker: MockerFixture) -> None:
-    """Garante que a esteira descarte ruídos textuais (strings muito curtas ou excessivamente longas)."""
-    mock_ent_curta = mocker.Mock()
-    mock_ent_curta.text = "X"
-    mock_ent_curta.label_ = "LOC"
-    mock_ent_curta.ent_id_ = ""
-
-    mock_ent_longa = mocker.Mock()
-    mock_ent_longa.text = "A" * 155
-    mock_ent_longa.label_ = "ORG"
-    mock_ent_longa.ent_id_ = ""
-
-    mock_doc = mocker.Mock()
-    mock_doc.ents = [mock_ent_curta, mock_ent_longa]
-
-    mock_nlp_engine = mocker.Mock(return_value=mock_doc)
-
-    resultado = worker_ner.extract_entities_text("Texto...", mock_nlp_engine)
-
-    assert len(resultado) == 0
+    def __init__(self, description_id, title, content=""):
+        self.description_id = description_id
+        self.original_title = title
+        self.admin_bio_history = None
+        self.provenance = None
+        self.scope_content = content
+        self.execution_log = None
 
 
 # ==========================================
-# 2. TESTES DE INTEGRALIDADE DO WORKER (ORQUESTRADOR)
+# 1. TESTES UNITÁRIOS (Lógica e Tratamento de Erros)
 # ==========================================
 
 
-def test_execute_worker_ner_fluxo_completo(mocker: MockerFixture) -> None:
-    """Testa o caminho feliz: lê documento pendente, extrai entidades, salva e carimba checkpoint."""
-    mock_db = mocker.Mock(spec=Session)
+@patch("domains.archive.workers.worker_ner.get_engine")
+@patch("domains.archive.workers.worker_ner.repository")
+def test_worker_ner_unitario_fluxo_ideal(mock_repo, mock_get_engine, mock_ner_engine):
+    """Cenário Bom: Textos são concatenados, IA extrai e repositório salva."""
+    mock_get_engine.return_value = mock_ner_engine
+    mock_repo.get_ner_synonyms_rules.return_value = []
+    mock_repo.get_or_create_entities.return_value = [101]
 
-    mock_get_db = mocker.patch.object(worker_ner, "get_db")
-    mock_get_db.return_value.__enter__.return_value = mock_db
+    # Simulamos o banco de dados
+    mock_db = MagicMock()
+    doc_teste = MockArchiveDocument("doc-1", "Ofício", "Conteúdo sobre obras.")
 
-    # CORREÇÃO: Usando MagicMock para suportar o db.begin_nested()
-    mock_db.begin_nested.return_value = mocker.MagicMock()
+    # O side_effect quebra o laço 'while True': devolve o documento na 1ª volta e vazio na 2ª.
+    mock_db.scalars.return_value.all.side_effect = [[doc_teste], []]
 
-    # Previne o spaCy de ser carregado de verdade durante os testes
-    mocker.patch("spacy.load", return_value=mocker.Mock())
-    mocker.patch.object(repository, "get_ner_synonyms_rules", return_value=[])
+    # Execução
+    execute(db=mock_db, engine_name="spacy_ner")
 
-    doc_archive_fake = Mock()
-    doc_archive_fake.description_id = "archive-dossie-1"
-    doc_archive_fake.original_title = "Título Legal"
-    doc_archive_fake.admin_bio_history = "Histórico do produtor David Carneiro."
-    doc_archive_fake.provenance = "Coleção Particular."
-    doc_archive_fake.scope_content = "Conteúdo rico de Curitiba."
+    # Verificações
+    mock_ner_engine.extract.assert_called_once()
+    args, _ = mock_ner_engine.extract.call_args
+    # Confirma se as colunas foram limpas e unidas com ponto e espaço
+    assert args[0] == ["Ofício. Conteúdo sobre obras."]
 
-    mock_query = Mock()
-    mock_db.scalars.return_value = mock_query
-    mock_query.yield_per.return_value = [doc_archive_fake]
+    # Verifica se os vínculos foram comandados ao repositório
+    mock_repo.link_description_relationships.assert_called_once_with(
+        mock_db, description_id="doc-1", entity_ids=[101], tag_ids=[]
+    )
 
-    fake_dto = Mock()
-    mocker.patch.object(worker_ner, "extract_entities_text", return_value=[fake_dto])
-
-    mock_get_or_create = mocker.patch.object(repository, "get_or_create_entities", return_value=[777])
-    mock_link = mocker.patch.object(repository, "link_description_relationships")
-    mock_carimbar = mocker.patch.object(repository, "stamp_ai_execution")
-
-    worker_ner.execute_worker_ner()
-
-    mock_get_or_create.assert_called_once_with(mock_db, [fake_dto])
-    mock_link.assert_called_once_with(mock_db, description_id="archive-dossie-1", entity_ids=[777], tag_ids=[])
-    # Garante que o passaporte foi carimbado com a chave atualizada
-    mock_carimbar.assert_called_once_with(mock_db, "archive-dossie-1", "ner_spacy_v1")
+    # O carimbo foi aplicado em memória?
+    assert doc_teste.execution_log["worker_ner_v1"] == "DONE"  # type: ignore
     mock_db.commit.assert_called_once()
 
 
-def test_execute_worker_ner_vazio_obrigatoriamente_carimba_log(mocker: MockerFixture) -> None:
-    """Garante que se o documento não possuir entidades, o checkpoint é gravado mesmo assim."""
-    mock_db = mocker.Mock(spec=Session)
+@patch("domains.archive.workers.worker_ner.get_engine")
+@patch("domains.archive.workers.worker_ner.repository")
+def test_worker_ner_ignora_textos_vazios(mock_repo, mock_get_engine, mock_ner_engine):
+    """Cenário Bom: Se o documento só tem espaços, carimba como DONE e pula a IA."""
+    mock_get_engine.return_value = mock_ner_engine
+    mock_db = MagicMock()
 
-    mock_get_db = mocker.patch.object(worker_ner, "get_db")
-    mock_get_db.return_value.__enter__.return_value = mock_db
+    doc_vazio = MockArchiveDocument("doc-2", "   ", "")
+    mock_db.scalars.return_value.all.side_effect = [[doc_vazio], []]
 
-    # CORREÇÃO: Usando MagicMock para suportar o db.begin_nested()
-    mock_db.begin_nested.return_value = mocker.MagicMock()
+    execute(db=mock_db)
 
-    mocker.patch("spacy.load", return_value=mocker.Mock())
-    mocker.patch.object(repository, "get_ner_synonyms_rules", return_value=[])
+    # A IA não deve ter sido acionada para não gastar processamento
+    mock_ner_engine.extract.assert_not_called()
 
-    doc_archive_fake = Mock()
-    doc_archive_fake.description_id = "archive-vazio"
-    doc_archive_fake.original_title = None
-    doc_archive_fake.admin_bio_history = None
-    doc_archive_fake.provenance = None
-    doc_archive_fake.scope_content = None
+    # Mas o documento DEVE ser carimbado para sair da fila
+    assert doc_vazio.execution_log["worker_ner_v1"] == "DONE"  # type: ignore
 
-    mock_query = Mock()
-    mock_db.scalars.return_value = mock_query
-    mock_query.yield_per.return_value = [doc_archive_fake]
 
-    mocker.patch.object(worker_ner, "extract_entities_text", return_value=[])
+@patch("domains.archive.workers.worker_ner.get_engine")
+@patch("domains.archive.workers.worker_ner.repository")
+def test_worker_ner_falha_na_ia_faz_rollback(mock_repo, mock_get_engine, mock_ner_engine):
+    """Cenário Ruim: Se o spaCy estourar a memória, a transação aborta e o laço quebra."""
+    mock_get_engine.return_value = mock_ner_engine
+    mock_db = MagicMock()
 
-    mock_get_or_create = mocker.patch.object(repository, "get_or_create_entities")
-    mock_link = mocker.patch.object(repository, "link_description_relationships")
-    mock_carimbar = mocker.patch.object(repository, "stamp_ai_execution")
+    doc_teste = MockArchiveDocument("doc-3", "Texto válido")
+    mock_db.scalars.return_value.all.side_effect = [[doc_teste], []]
 
-    worker_ner.execute_worker_ner()
+    # Forçamos o motor NLP a explodir
+    mock_ner_engine.extract.side_effect = Exception("Out of Memory")
 
-    mock_get_or_create.assert_not_called()
-    mock_link.assert_not_called()
-    mock_carimbar.assert_called_once_with(mock_db, "archive-vazio", "ner_spacy_v1")
-    mock_db.commit.assert_called_once()
+    execute(db=mock_db)
+
+    # O rollback deve ter sido chamado
+    mock_db.rollback.assert_called()
+    # O carimbo NÃO deve ser aplicado, pois o lote inteiro falhou na inferência
+    assert doc_teste.execution_log is None
+
+
+@patch("domains.archive.workers.worker_ner.get_engine")
+@patch("domains.archive.workers.worker_ner.repository")
+def test_worker_ner_falha_no_repositorio_carimba_erro(mock_repo, mock_get_engine, mock_ner_engine):
+    """Cenário Ruim (Anti-Loop): A IA funciona, mas o banco recusa a inserção. Carimba com ERROR."""
+    mock_get_engine.return_value = mock_ner_engine
+    mock_db = MagicMock()
+
+    doc_teste = MockArchiveDocument("doc-4", "Texto válido")
+    mock_db.scalars.return_value.all.side_effect = [[doc_teste], []]
+
+    # Forçamos uma falha de integridade relacional na hora de gravar as entidades
+    mock_repo.get_or_create_entities.side_effect = Exception("Erro de Foreign Key")
+
+    execute(db=mock_db)
+
+    # A blindagem funcionou?
+    assert doc_teste.execution_log["worker_ner_v1"] == "ERROR"  # type: ignore
