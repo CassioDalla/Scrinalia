@@ -1,14 +1,11 @@
 import pytest
 
-# Importa todos os Registry
 from domains.archive.engines.classification import registry as typology_registry
+from domains.archive.engines.clustering import registry as cluster_registry
 from domains.archive.engines.NER import registry as ner_registry
 
 # Coloque todos numa lista
-ALL_REGISTRIES = [
-    typology_registry,
-    ner_registry,
-]
+ALL_REGISTRIES = [typology_registry, ner_registry, cluster_registry]
 
 
 @pytest.mark.parametrize("reg_module", ALL_REGISTRIES)

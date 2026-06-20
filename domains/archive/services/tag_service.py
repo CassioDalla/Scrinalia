@@ -1,12 +1,14 @@
 import re
 from collections.abc import Sequence
-from typing import cast
+from typing import Any, Literal, cast
 
 from sqlalchemy import CursorResult, Float, Row, delete, desc, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from core.logger import logger
+from domains.archive import repository as repo
+from domains.archive.engines.clustering.registry import EngineName, PresetName, get_engine
 from domains.archive.models import ArchiveDocument, ArchiveDocumentTag, ArchiveTag, DomainStopwords, DomainSynonyms
 from domains.archive.schemas import ArchiveTagDTO
 
@@ -202,3 +204,53 @@ class TagService:
 
         resultado_delete = cast(CursorResult, resultado_delete)
         return len(docs_afetados), resultado_delete.rowcount
+
+    def suggest_macro_categories(
+        self,
+        source_type: Literal["tags", "documents"] = "tags",
+        columns_to_extract: list[str] | None = None,
+        engine_name: EngineName = "bertopic",
+        preset: PresetName = "exploratorio_macro",
+    ) -> dict[Any, Any]:
+        """
+        Extrai todas a tags do acervo e utiliza Inteligência Artificial
+        (Clustering) para sugerir agrupamentos semânticos (Macro Categorias).
+        """
+
+        logger.info(f"🔍 Iniciando descoberta de tópicos com {engine_name} ({preset}) usando {source_type}...")
+
+        if source_type == "tags":
+            texts_to_analize = repo.fetch_tags_for_clustering(db=self.db)
+        elif source_type == "documents":
+            texts_to_analize = repo.fetch_documents_for_clustering(db=self.db, columns_to_extract=columns_to_extract)
+        else:
+            raise ValueError("O parâmetro 'source_type' deve ser 'tags' ou 'documents'.")
+
+        if not texts_to_analize or len(texts_to_analize) < 10:
+            logger.warning("⚠️ Textos insuficientes para formar clusters semânticos.")
+            return {}
+
+        engine = get_engine(engine_name, preset=preset)
+
+        topics, topic_info_df = engine.discover_topics(list(texts_to_analize))
+
+        results = {}
+
+        # Formatação de Negócios
+        for _, row in topic_info_df.iterrows():
+            topic_id = row["Topic"]
+
+            if topic_id == -1:
+                continue
+
+            # Cruza os IDs gerados com a lista de palavras enviadas para extrair amostras
+            amostras = [texts_to_analize[i] for i, t in enumerate(topics) if t == topic_id]
+
+            results[topic_id] = {
+                "nome_sugerido": " - ".join(row["Representation"][:3]).title(),
+                "volume_estimado": row["Count"],
+                "amostras_reais": amostras[:10],
+            }
+
+        logger.info(f"🎯 Foram sugeridas {len(results)} Macro Categorias potenciais.")
+        return results

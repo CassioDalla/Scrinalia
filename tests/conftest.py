@@ -24,14 +24,21 @@ TEST_DATABASE_URL = "postgresql://test_user:test_password@localhost:5433/test_db
 @pytest.fixture
 def mock_registry(monkeypatch):
     """
-    Fixture Factory: Prepara dinamicamente qualquer módulo registry para testes.
+    Fixture Factory: Prepara dinamicamente qualquer módulo registry para testes,
+    garantindo que a IA real nunca seja chamada por acidente
     """
 
     def _patch_registry(registry_module):
         # 1. Criamos a nossa Classe Falsa
         MockEngineClass = MagicMock()
 
-        # 2. Injetamos nos dicionários do módulo que foi passado como argumento
+        for engine_name in registry_module.AVAILABLE_ENGINES:
+            monkeypatch.setitem(registry_module.AVAILABLE_ENGINES, engine_name, MockEngineClass)
+
+        # 3. Blindamos os presets também para evitar validações chatas de chaves reais
+        for preset_name in registry_module.PRESETS:
+            monkeypatch.setitem(registry_module.PRESETS, preset_name, {"model": "falso", "device": "cpu"})
+
         monkeypatch.setitem(registry_module.AVAILABLE_ENGINES, "motor_fake", MockEngineClass)
         monkeypatch.setitem(registry_module.PRESETS, "preset_teste", {"model": "falso", "device": "cpu"})
 

@@ -1,5 +1,7 @@
 from typing import Protocol
 
+from pandas import DataFrame
+
 from domains.archive.schemas import ArchiveEntityDTO
 
 
@@ -25,3 +27,10 @@ class EntityExtractionEngine(Protocol):
         Cada resultado é uma lista de Entidades encontradas naquele respectivo texto.
         """
         ...
+
+
+class TopicDiscoveryEngine(Protocol):
+    """Contrato usado pelos motores de clustering para"
+    descobrir tópicos no arcervo"""
+
+    def discover_topics(self, texts: list[str]) -> tuple[list[int], DataFrame]: ...

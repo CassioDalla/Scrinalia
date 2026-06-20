@@ -72,3 +72,6 @@ line-ending = "auto"
 dev = [
     "pytest-cov>=7.1.0",
 ]
+
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"

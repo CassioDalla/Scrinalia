@@ -1,4 +1,6 @@
-from sqlalchemy import select
+import re
+
+from sqlalchemy import or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
@@ -252,3 +254,40 @@ def get_active_typologies(db: Session) -> dict[str, int]:
         typologies_map[context_label] = typo_id
 
     return typologies_map
+
+
+def fetch_tags_for_clustering(db: Session) -> list[str]:
+    """Busca apenas tags únicas que ainda não têm Macro Categoria."""
+    stmt = select(ArchiveTag.name).where(ArchiveTag.macro_category_id.is_(None)).distinct()
+    return list(db.scalars(stmt).all())
+
+
+def fetch_documents_for_clustering(db: Session, columns_to_extract: list[str] | None = None) -> list[str]:
+    """
+    Busca documentos e concatena as colunas textuais solicitadas
+    numa única string coesa para alimentar a IA.
+    """
+    columns = columns_to_extract or ["original_title", "admin_bio_history", "provenance", "scope_content"]
+
+    filters = [getattr(ArchiveDocument, col).is_not(None) for col in columns]
+    stmt = select(ArchiveDocument).where(or_(*filters))
+
+    docs = db.scalars(stmt).all()
+    clean_txt = []
+
+    for doc in docs:
+        parts = []
+        for col in columns:
+            val = getattr(doc, col)
+            # Garante que não é nulo, é string e não está vazia (só espaços)
+            if val and isinstance(val, str) and val.strip():
+                # Remove quebras de linha para não confundir o algoritmo
+                texto_limpo = re.sub(r"\s+", " ", val.strip())
+                if texto_limpo:
+                    parts.append(texto_limpo)
+
+        if parts:
+            # Junta o Título com a Descrição usando um ponto e espaço
+            clean_txt.append(". ".join(parts) + ".")
+
+    return clean_txt

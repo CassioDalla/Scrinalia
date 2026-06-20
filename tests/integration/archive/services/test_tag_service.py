@@ -1,11 +1,9 @@
+import pandas as pd
 from sqlalchemy import select, text
 
 from domains.archive import repository
-from domains.archive.models import (
-    ArchiveDocumentTag,
-    ArchiveTag,
-    DomainSynonyms,
-)
+from domains.archive.engines.clustering import registry as clustering_registry
+from domains.archive.models import ArchiveDocument, ArchiveDocumentTag, ArchiveMacroCategory, ArchiveTag, DomainSynonyms
 from domains.archive.services.tag_service import TagService
 
 # ==========================================
@@ -210,3 +208,120 @@ def test_merge_tags_idempotency_conflict(use_test_db, db_session, generate_archi
     assert tags_apagadas == 1
     qtd_vinculos = db_session.query(ArchiveDocumentTag).count()
     assert qtd_vinculos == 1  # Apenas o oficial restou
+
+
+# ==========================================
+# TESTES DE INTEGRAÇÃO (DB REAL + IA MOCKADA)
+# ==========================================
+
+
+def test_integration_suggest_categories_happy_path_tags(db_session, mock_registry):
+    """
+    Testa a integração real entre o Service, o Repository e o PostgreSQL via Tags.
+    """
+
+    # 1. Criamos a Macro Categoria primeiro para respeitar a Foreign Key
+    macro = ArchiveMacroCategory(name="Categoria Ignorada", description="Teste")
+    db_session.add(macro)
+    db_session.flush()  # O flush envia para o banco e gera o ID, mas mantém na transação
+
+    # 2. Inserimos 12 tags orfãs reais
+    for i in range(12):
+        db_session.add(ArchiveTag(name=f"Tag Real {i}", macro_category_id=None))
+
+    # 3. Inserimos 1 tag que já tem categoria usando o ID gerado (não deve ser puxada pela query)
+    db_session.add(ArchiveTag(name="Tag Ignorada", macro_category_id=macro.category_id))
+    db_session.commit()
+
+    MockClass = mock_registry(clustering_registry)
+    instancia_da_ia = MockClass.return_value
+    mock_df = pd.DataFrame([{"Topic": 0, "Count": 12, "Representation": ["teste", "banco", "real"]}])
+    instancia_da_ia.discover_topics.return_value = ([0] * 12, mock_df)
+
+    service = TagService(db=db_session)
+    resultado = service.suggest_macro_categories(source_type="tags")
+
+    # Garante que a IA recebeu as 12 tags e ignorou a que já tinha categoria
+    argumentos_passados_pra_ia = instancia_da_ia.discover_topics.call_args[0][0]
+    assert len(argumentos_passados_pra_ia) == 12
+    assert "Tag Ignorada" not in argumentos_passados_pra_ia
+
+    assert 0 in resultado
+    assert resultado[0]["nome_sugerido"] == "Teste - Banco - Real"
+
+
+def test_integration_suggest_categories_happy_path_docs(db_session, mock_registry, generate_archive_doc):
+    """
+    Testa a integração real entre o Service, o Repository e o PostgreSQL via Documentos.
+    Verifica se a concatenação de Título e Descrição funciona na prática.
+    """
+
+    for i in range(12):
+        doc = generate_archive_doc(
+            description_id=f"doc_{i}",
+            original_title=f"Título {i}",
+            scope_content="Descrição válida com texto.",
+            staging_content_hash=f"hash_{i}",
+        )
+
+    MockClass = mock_registry(clustering_registry)
+    instancia_da_ia = MockClass.return_value
+    mock_df = pd.DataFrame([{"Topic": 0, "Count": 12, "Representation": ["teste", "docs", "integra"]}])
+    instancia_da_ia.discover_topics.return_value = ([0] * 12, mock_df)
+
+    service = TagService(db=db_session)
+    resultado = service.suggest_macro_categories(
+        source_type="documents", columns_to_extract=["original_title", "scope_content"]
+    )
+
+    argumentos_passados_pra_ia = instancia_da_ia.discover_topics.call_args[0][0]
+
+    texto_esperado = "Título 0. Descrição válida com texto."
+    assert texto_esperado in argumentos_passados_pra_ia[0]
+
+    assert len(resultado) == 1
+    assert resultado[0]["nome_sugerido"] == "Teste - Docs - Integra"
+
+
+def test_integration_suggest_categories_sad_path_insufficient_tags(db_session, mock_registry):
+    """
+    Caminho Triste: Existem tags no banco real, mas são menos que 10.
+    """
+
+    for i in range(5):
+        db_session.add(ArchiveTag(name=f"Tag {i}", macro_category_id=None))
+    db_session.commit()
+
+    MockClass = mock_registry(clustering_registry)
+    instancia_da_ia = MockClass.return_value
+
+    service = TagService(db=db_session)
+    resultado = service.suggest_macro_categories(source_type="tags")
+
+    instancia_da_ia.discover_topics.assert_not_called()
+    assert resultado == {}
+
+
+def test_integration_suggest_categories_sad_path_already_categorized(db_session, mock_registry):
+    """
+    Caminho Triste: Existem 20 tags, mas todas elas já têm Macro Categoria atribuída.
+    """
+
+    # 1. Criamos a Macro Categoria real
+    macro = ArchiveMacroCategory(name="Categoria Existente", description="Teste")
+    db_session.add(macro)
+    db_session.flush()
+
+    # 2. Vinculamos as 20 tags a essa categoria
+    for i in range(20):
+        db_session.add(ArchiveTag(name=f"Tag {i}", macro_category_id=macro.category_id))
+    db_session.commit()
+
+    MockClass = mock_registry(clustering_registry)
+    instancia_da_ia = MockClass.return_value
+
+    service = TagService(db=db_session)
+    resultado = service.suggest_macro_categories(source_type="tags")
+
+    instancia_da_ia.discover_topics.assert_not_called()
+    assert resultado == {}

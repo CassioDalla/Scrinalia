@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+from domains.archive.engines.classification import registry
 from domains.archive.workers.worker_typology import execute
 
 # ==========================================
@@ -18,16 +19,13 @@ class MockArchiveDocument:
         self.execution_log = None
 
 
-@patch("domains.archive.workers.worker_typology.get_db")
 @patch("domains.archive.workers.worker_typology.repository.get_active_typologies")
 def test_worker_unitario_logica_de_concatenacao(
     mock_get_typologies,
-    mock_get_db,
-    mock_registry_typology,  # <-- A nossa fixture maravilhosa entra aqui!
+    mock_registry,
 ):
     # 1. Prepara o Banco Falso
     mock_session = MagicMock()
-    mock_get_db.return_value.__enter__.return_value = mock_session
     mock_get_typologies.return_value = {"Contrato": 1}
 
     doc_teste = MockArchiveDocument(1, "Contrato de Prestação de Serviços", None)
@@ -35,11 +33,18 @@ def test_worker_unitario_logica_de_concatenacao(
 
     # 2. Prepara a IA Falsa (Acessando a instância gerada pela nossa Fábrica mockada)
     # mock_registry_typology é a CLASSE. O .return_value pega a INSTÂNCIA.
-    instancia_da_ia = mock_registry_typology.return_value
+
+    MockClass = mock_registry(registry)
+    instancia_da_ia = MockClass.return_value
     instancia_da_ia.classify.return_value = [{"labels": ["Contrato"], "scores": [0.95]}]
 
     # 3. Ação: Passamos o nome do motor falso que a fixture injetou no registry!
-    execute(engine_name="motor_fake", preset="preset_teste", columns_to_classify=["original_title", "scope_content"])  # type: ignore
+    execute(
+        db=mock_session,
+        engine_name="motor_fake",  # type: ignore
+        preset="preset_teste",  # type: ignore
+        columns_to_classify=["original_title", "scope_content"],
+    )  # type: ignore
 
     # 4. Verificações (Asserts)
     # Validamos se a concatenação de colunas funcionou (ignorou o scope_content nulo)
