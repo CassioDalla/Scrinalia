@@ -7,7 +7,7 @@ from .ollama_typology import OllamaTypologyEngine
 EngineName = Literal["deberta_typology", "ollama_typology"]
 AVAILABLE_ENGINES: dict[EngineName, type[TypologyEngine]] = {
     "deberta_typology": DebertaEngine,
-    "ollama_typology": OllamaTypologyEngine,
+    "ollama_typology": OllamaTypologyEngine,  # type: ignore
 }
 
 PresetName = Literal["cpu_local", "gpu_cloud"]

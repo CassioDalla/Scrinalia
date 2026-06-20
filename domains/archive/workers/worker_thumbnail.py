@@ -4,6 +4,7 @@ from io import BytesIO
 import requests
 from PIL import Image
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from core.database import get_db
@@ -51,7 +52,7 @@ def download_image_to_memory(url: str) -> BytesIO | None:
         return None
 
 
-def execute_worker_thumbnails() -> None:
+def execute(db: Session) -> None:
     """
     Orquestrador assíncrono responsável por migrar imagens de um link externo
     efémero para um Object Storage seguro (ex: MinIO/S3).
@@ -63,59 +64,59 @@ def execute_worker_thumbnails() -> None:
 
     storage = S3Storage()
 
-    with get_db() as db:
-        # Busca imagens que ainda não foram enviadas E que não falharam permanentemente
-        query = select(ArchiveDocument).where(
-            ArchiveDocument.original_thumbnail_url.is_not(None)
-            & ArchiveDocument.storage_thumbnail_uri.is_(None)
-            & ~ArchiveDocument.execution_log.has_key("thumbnail_failed")
-        )
+    # Busca imagens que ainda não foram enviadas E que não falharam permanentemente
+    query = select(ArchiveDocument).where(
+        ArchiveDocument.original_thumbnail_url.is_not(None)
+        & ArchiveDocument.storage_thumbnail_uri.is_(None)
+        & ~ArchiveDocument.execution_log.has_key("thumbnail_failed")
+    )
 
-        documentos_pendentes = db.scalars(query).yield_per(50)
+    documentos_pendentes = db.scalars(query).yield_per(50)
 
-        processados = 0
-        sucessos = 0
+    processados = 0
+    sucessos = 0
 
-        for doc in documentos_pendentes:
-            try:
-                with db.begin_nested():
-                    url_alvo = doc.original_thumbnail_url
+    for doc in documentos_pendentes:
+        try:
+            with db.begin_nested():
+                url_alvo = doc.original_thumbnail_url
 
-                    if not url_alvo:
-                        continue
+                if not url_alvo:
+                    continue
 
-                    nome_ficheiro = f"thumb_{doc.description_id}.jpg"
-                    caminho_no_bucket = f"thumbnails/{nome_ficheiro}"
+                nome_ficheiro = f"thumb_{doc.description_id}.jpg"
+                caminho_no_bucket = f"thumbnails/{nome_ficheiro}"
 
-                    bytes_imagem = download_image_to_memory(url_alvo)
+                bytes_imagem = download_image_to_memory(url_alvo)
 
-                    if bytes_imagem:
-                        uri_final = storage.upload_file(file_stream=bytes_imagem, file_path=caminho_no_bucket)
-                        doc.storage_thumbnail_uri = uri_final
-                        sucessos += 1
-                    else:
-                        # Em caso de falha de download, carimba no JSONB para não tentar no próximo loop
-                        novo_log = dict(doc.execution_log)
-                        novo_log["thumbnail_failed"] = "True"
-                        doc.execution_log = novo_log
-                        flag_modified(doc, "execution_log")
+                if bytes_imagem:
+                    uri_final = storage.upload_file(file_stream=bytes_imagem, file_path=caminho_no_bucket)
+                    doc.storage_thumbnail_uri = uri_final
+                    sucessos += 1
+                else:
+                    # Em caso de falha de download, carimba no JSONB para não tentar no próximo loop
+                    novo_log = dict(doc.execution_log)
+                    novo_log["thumbnail_failed"] = "True"
+                    doc.execution_log = novo_log
+                    flag_modified(doc, "execution_log")
 
-                    processados += 1
+                processados += 1
 
-                    if processados % 50 == 0:
-                        logger.info(f"⏳ Progresso: {processados} imagens analisadas...")
+                if processados % 50 == 0:
+                    logger.info(f"⏳ Progresso: {processados} imagens analisadas...")
 
-                    time.sleep(0.5)
+                time.sleep(0.5)
 
-            except Exception as e:
-                logger.error(f"❌ Erro catastrófico no documento {doc.description_id}: {e}")
-                continue
+        except Exception as e:
+            logger.error(f"❌ Erro catastrófico no documento {doc.description_id}: {e}")
+            continue
 
-        db.commit()
-        logger.success(
-            f"✅ Worker de Thumbnails finalizado! {sucessos} imagens guardadas com sucesso de {processados} tentativas."
-        )
+    db.commit()
+    logger.success(
+        f"✅ Worker de Thumbnails finalizado! {sucessos} imagens guardadas com sucesso de {processados} tentativas."
+    )
 
 
 if __name__ == "__main__":
-    execute_worker_thumbnails()
+    with get_db() as db:
+        execute(db)

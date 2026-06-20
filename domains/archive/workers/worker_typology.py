@@ -6,7 +6,7 @@ from core.database import get_db
 from core.logger import logger
 from domains.archive import repository
 from domains.archive.engines.base import TypologyEngine
-from domains.archive.engines.typologies.registry import EngineName, PresetName, get_engine
+from domains.archive.engines.classification.registry import EngineName, PresetName, get_engine
 from domains.archive.models import ArchiveDocument
 
 

@@ -10,7 +10,7 @@ from domains.archive.services.tag_service import TagService
 from domains.staging.models import StagingDocument
 
 
-def run_archive_transfer_pipeline(db_session: Session) -> None:
+def execute(db_session: Session) -> None:
     """
     Orquestrador responsável por copiar os dados estruturados da camada Staging
     e inicializar os registros na tabela fato da camada Archive.
@@ -90,4 +90,4 @@ def run_archive_transfer_pipeline(db_session: Session) -> None:
 
 if __name__ == "__main__":
     with get_db() as db:
-        run_archive_transfer_pipeline(db)
+        execute(db)

@@ -49,7 +49,7 @@ def test_clean_text_fields_converte_falsos_nulos_para_none() -> None:
         "rules_conventions": "Nenhum",
     }
 
-    dto = StagingDocumentDTO(**dados)
+    dto = StagingDocumentDTO(**dados)  # type: ignore
 
     assert dto.producers is None
     assert dto.access_conditions is None

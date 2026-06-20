@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from domains.archive.engines.typologies import registry as typology_registry
+from domains.archive.engines.classification import registry as typology_registry
 from domains.archive.models import ArchiveDocument
 from domains.archive.workers.worker_typology import execute
 

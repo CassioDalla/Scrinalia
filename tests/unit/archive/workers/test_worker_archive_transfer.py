@@ -33,11 +33,11 @@ def test_run_archive_transfer_fluxo_completo(mocker: MockerFixture, mock_staging
 
     # Intercepta o repositório com O NOME CORRETO DA FUNÇÃO
     mock_upsert = mocker.patch.object(repository, "upsert_archive_document", return_value=True)
-    mock_tags = mocker.patch.object(repository, "get_or_create_tags", return_value=[99])
-    mock_link = mocker.patch.object(repository, "link_description_relationships")
+    _mock_tags = mocker.patch.object(repository, "get_or_create_tags", return_value=[99])
+    _mock_link = mocker.patch.object(repository, "link_description_relationships")
 
     # Executa
-    worker_archive_transfer.run_archive_transfer_pipeline(mock_db)
+    worker_archive_transfer.execute(mock_db)
 
     # Validação
     assert mock_upsert.call_count == 1
@@ -74,7 +74,7 @@ def test_run_archive_transfer_idempotencia(mocker: MockerFixture, mock_staging_d
     mock_link = mocker.patch.object(repository, "link_description_relationships")
 
     # Executa
-    worker_archive_transfer.run_archive_transfer_pipeline(mock_db)
+    worker_archive_transfer.execute(mock_db)
 
     # Validações
     mock_upsert.assert_called_once()

@@ -81,7 +81,7 @@ def test_execute_worker_thumbnails_sucesso(mocker: MockerFixture) -> None:
     # Previne o sleep de atrasar os testes
     mocker.patch("time.sleep")
 
-    worker_thumbnail.execute_worker_thumbnails()
+    worker_thumbnail.execute(mock_db)
 
     # Validações
     assert doc_fake.storage_thumbnail_uri == "s3://bucket/thumb_doc-1.jpg"
@@ -110,7 +110,7 @@ def test_execute_worker_thumbnails_marca_falha_no_json(mocker: MockerFixture) ->
     mock_flag = mocker.patch("domains.archive.workers.worker_thumbnail.flag_modified")
     mocker.patch("time.sleep")
 
-    worker_thumbnail.execute_worker_thumbnails()
+    worker_thumbnail.execute(mock_db)
 
     # O documento não recebe a URI, mas recebe a flag de falha
     assert doc_fake.execution_log == {"thumbnail_failed": "True"}

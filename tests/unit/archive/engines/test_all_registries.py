@@ -1,9 +1,8 @@
 import pytest
 
-from domains.archive.engines.NER import registry as ner_registry
-
 # Importa todos os Registry
-from domains.archive.engines.typologies import registry as typology_registry
+from domains.archive.engines.classification import registry as typology_registry
+from domains.archive.engines.NER import registry as ner_registry
 
 # Coloque todos numa lista
 ALL_REGISTRIES = [
