@@ -259,7 +259,10 @@ def get_active_typologies(db: Session) -> dict[str, int]:
 def fetch_tags_for_clustering(db: Session) -> list[str]:
     """Busca apenas tags únicas que ainda não têm Macro Categoria."""
     stmt = select(ArchiveTag.name).where(ArchiveTag.macro_category_id.is_(None)).distinct()
-    return list(db.scalars(stmt).all())
+    results = db.scalars(stmt).all()
+
+    texts = [t for t in results if t and not t.replace(".", "").isdigit()]
+    return texts
 
 
 def fetch_documents_for_clustering(db: Session, columns_to_extract: list[str] | None = None) -> list[str]:

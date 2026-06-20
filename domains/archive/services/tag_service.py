@@ -211,6 +211,7 @@ class TagService:
         columns_to_extract: list[str] | None = None,
         engine_name: EngineName = "bertopic",
         preset: PresetName = "exploratorio_macro",
+        **engine_kwargs,
     ) -> dict[Any, Any]:
         """
         Extrai todas a tags do acervo e utiliza Inteligência Artificial
@@ -230,7 +231,7 @@ class TagService:
             logger.warning("⚠️ Textos insuficientes para formar clusters semânticos.")
             return {}
 
-        engine = get_engine(engine_name, preset=preset)
+        engine = get_engine(engine_name, preset=preset, **engine_kwargs)
 
         topics, topic_info_df = engine.discover_topics(list(texts_to_analize))
 
