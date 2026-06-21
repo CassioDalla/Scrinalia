@@ -1,11 +1,11 @@
 from unittest.mock import MagicMock, Mock
 
-import pandas as pd
 import pytest
 from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
-from domains.archive.engines.clustering import registry
+from domains.archive.exceptions import InvalidParam
+from domains.archive.schemas.tag_schema import MergeResponse
 from domains.archive.services.tag_service import TagService
 
 # ==========================================
@@ -141,10 +141,10 @@ def test_merge_tags_transfere_e_apaga_sucesso(mocker: MockerFixture) -> None:
     mock_db.execute.side_effect = [mocker.DEFAULT, mocker.DEFAULT, mocker.DEFAULT, mocker.DEFAULT, mock_result]
 
     service = TagService(mock_db)
-    docs_afetados, tags_apagadas = service.merge_tags(canonical_id=1, ids_to_merge=[2])
+    res: MergeResponse = service.merge_tags(canonical_id=1, ids_to_merge=[2])
 
-    assert docs_afetados == 2
-    assert tags_apagadas == 1
+    assert res.documents_updated == 2
+    assert res.tags_deleted == 1
     assert mock_db.execute.call_count == 5
 
 
@@ -153,10 +153,12 @@ def test_merge_tags_lista_vazia(mocker: MockerFixture) -> None:
     mock_db = mocker.Mock(spec=Session)
     service = TagService(mock_db)
 
-    docs, tags = service.merge_tags(canonical_id=1, ids_to_merge=[])
+    with pytest.raises(InvalidParam) as exc_info:
+        service.merge_tags(canonical_id=1, ids_to_merge=[])
 
-    assert docs == 0
-    assert tags == 0
+    # (Opcional, mas recomendado) Valida se a mensagem do erro está correta
+    assert "A lista de tags para mesclar não pode estar vazia." in str(exc_info.value)
+
     mock_db.execute.assert_not_called()
 
 
@@ -179,10 +181,10 @@ def test_merge_tags_sem_documentos_afetados(mocker: MockerFixture) -> None:
     mock_db.execute.side_effect = [mocker.DEFAULT, mocker.DEFAULT, mocker.DEFAULT, mock_result]
 
     service = TagService(mock_db)
-    docs_afetados, tags_apagadas = service.merge_tags(canonical_id=1, ids_to_merge=[2])
+    res = service.merge_tags(canonical_id=1, ids_to_merge=[2])
 
-    assert docs_afetados == 0
-    assert tags_apagadas == 1
+    assert res.documents_updated == 0
+    assert res.tags_deleted == 1
 
     # Como não há documentos, o INSERT de transferência na ArchiveDocumentTag é pulado!
     # Restam apenas: 1 SELECT (docs) + 1 INSERT (synonyms) + 2 DELETEs (tags associativas e tag final)
@@ -190,123 +192,41 @@ def test_merge_tags_sem_documentos_afetados(mocker: MockerFixture) -> None:
 
 
 # ==========================================
-# TESTES: sugest_macro_categories
+# TESTES: get_text_to_suggest_macro_category_tags
 # ==========================================
 
 
-def test_suggest_macro_categories_happy_path_tags(mock_registry, mocker):
-    """Garante que a função formata corretamente as categorias sugeridas pela IA usando Tags."""
-    # 1. Prepara os dados falsos do banco
-    tags_falsas = [f"tag_{i}" for i in range(15)]  # Precisamos de > 10 para não cair no IF de escape
+def test_get_text_to_suggest_macro_category_tags(mocker):
+    """Garante que a service busca tags no repositório correto."""
     mock_tag_repo = mocker.patch("domains.archive.services.tag_service.repo")
-    mock_tag_repo.fetch_tags_for_clustering.return_value = tags_falsas
+    mock_tag_repo.fetch_tags_for_clustering.return_value = ["tag1", "tag2"]
 
-    # 2. Prepara o retorno falso do BERTopic (Pandas DataFrame)
-    mock_df = pd.DataFrame(
-        [
-            {"Topic": 0, "Count": 10, "Representation": ["urbano", "rua", "obras"]},
-            {"Topic": 1, "Count": 5, "Representation": ["lei", "decreto", "oficio"]},
-        ]
-    )
-    # Tópico 0 para as 10 primeiras tags, Tópico 1 para as 5 últimas
-    mock_topics = [0] * 10 + [1] * 5
-
-    MockClass = mock_registry(registry)
-    instancia_da_ia = MockClass.return_value
-
-    instancia_da_ia.discover_topics.return_value = (mock_topics, mock_df)
-
-    # 3. Execução
     service = TagService(db=MagicMock())
-    resultado = service.suggest_macro_categories(source_type="tags", engine_name="motor_fake")  # type: ignore
+    resultado = service.get_text_to_suggest_macro_category(source_type="tags")
 
-    # 4. Verificações (Asserts)
-    mock_tag_repo.fetch_tags_for_clustering.assert_called_once()
-    instancia_da_ia.discover_topics.assert_called_once_with(tags_falsas)
-
-    # Valida a formatação de negócios
-    assert len(resultado) == 2
-    assert resultado[0]["nome_sugerido"] == "Urbano - Rua - Obras"
-    assert resultado[0]["volume_estimado"] == 10
-    assert len(resultado[0]["amostras_reais"]) == 10  # Respeita o limite de fatiamento
+    mock_tag_repo.fetch_tags_for_clustering.assert_called_once_with(db=service.db)
+    assert resultado == ["tag1", "tag2"]
 
 
-def test_suggest_macro_categories_happy_path_documents(mock_registry, mocker):
-    """Garante que a função repassa as colunas corretas quando busca por Documentos."""
-    textos_docs = [f"Doc texto longo {i}" for i in range(12)]
+def test_get_text_to_suggest_macro_category_documents(mocker):
+    """Garante que a service busca documentos repassando as colunas."""
     mock_tag_repo = mocker.patch("domains.archive.services.tag_service.repo")
-    mock_tag_repo.fetch_documents_for_clustering.return_value = textos_docs
-
-    MockClass = mock_registry(registry)
-    instancia_da_ia = MockClass.return_value
-
-    mock_df = pd.DataFrame([{"Topic": 0, "Count": 12, "Representation": ["teste", "doc", "ok"]}])
-    instancia_da_ia.discover_topics.return_value = ([0] * 12, mock_df)
+    mock_tag_repo.fetch_documents_for_clustering.return_value = ["doc1", "doc2"]
 
     service = TagService(db=MagicMock())
-    colunas_teste = ["scope_content"]
-    resultado = service.suggest_macro_categories(
-        source_type="documents",
-        columns_to_extract=colunas_teste,
-        engine_name="motor_fake",  # type: ignore
-    )
+    colunas = ["scope_content"]
 
-    # Verifica se as colunas foram passadas para o repositório
-    mock_tag_repo.fetch_documents_for_clustering.assert_called_once_with(
-        db=service.db, columns_to_extract=colunas_teste
-    )
-    assert 0 in resultado
+    resultado = service.get_text_to_suggest_macro_category(source_type="documents", columns_to_extract=colunas)
+
+    mock_tag_repo.fetch_documents_for_clustering.assert_called_once_with(db=service.db, columns_to_extract=colunas)
+    assert resultado == ["doc1", "doc2"]
 
 
-def test_suggest_macro_categories_insufficient_texts(mock_registry, mocker):
-    """Garante que a execução é abortada graciosamente se houver menos de 10 textos no banco."""
-    # Apenas 5 tags no banco
-    mock_tag_repo = mocker.patch("domains.archive.services.tag_service.repo")
-    mock_tag_repo.fetch_tags_for_clustering.return_value = ["tag1", "tag2", "tag3", "tag4", "tag5"]
-
-    service = TagService(db=MagicMock())
-    resultado = service.suggest_macro_categories(engine_name="motor_fake")  # type: ignore
-
-    MockClass = mock_registry(registry)
-    instancia_da_ia = MockClass.return_value
-
-    # Como não há dados suficientes, a IA não deve ser incomodada
-    instancia_da_ia.discover_topics.assert_not_called()
-    assert resultado == {}
-
-
-def test_suggest_macro_categories_invalid_source_type():
-    """Garante que um ValueError é lançado se o programador passar um 'source_type' inválido."""
+def test_get_text_to_suggest_macro_category_invalid():
+    """Garante o bloqueio caso passem um source_type não suportado."""
     service = TagService(db=MagicMock())
 
-    with pytest.raises(ValueError, match="O parâmetro 'source_type' deve ser 'tags' ou 'documents'"):
-        service.suggest_macro_categories(source_type="invalido", engine_name="motor_fake")  # type: ignore
+    with pytest.raises(InvalidParam) as exc_info:
+        service.get_text_to_suggest_macro_category(source_type="invalido")  # type: ignore
 
-
-def test_suggest_macro_categories_ignores_noise_topic(mock_registry, mocker):
-    """Garante que o tópico '-1' (ruído do BERTopic) é sumariamente ignorado e não aparece no JSON final."""
-    tags_falsas = [f"tag_{i}" for i in range(12)]
-    mock_tag_repo = mocker.patch("domains.archive.services.tag_service.repo")
-    mock_tag_repo.fetch_tags_for_clustering.return_value = tags_falsas
-
-    # O DataFrame contém o tópico -1 (que deve ser ignorado) e o 0 (que deve passar)
-    mock_df = pd.DataFrame(
-        [
-            {"Topic": -1, "Count": 4, "Representation": ["lixo", "ruido", "aleatorio"]},
-            {"Topic": 0, "Count": 8, "Representation": ["bom", "certo", "ok"]},
-        ]
-    )
-    mock_topics = [-1] * 4 + [0] * 8
-
-    MockClass = mock_registry(registry)
-    instancia_da_ia = MockClass.return_value
-
-    instancia_da_ia.discover_topics.return_value = (mock_topics, mock_df)
-
-    service = TagService(db=MagicMock())
-    resultado = service.suggest_macro_categories(engine_name="motor_fake")  # type: ignore
-
-    # O tópico -1 NÃO deve estar nas chaves do dicionário de retorno
-    assert -1 not in resultado
-    assert 0 in resultado
-    assert len(resultado) == 1
+    assert "O parâmetro 'source_type' deve ser obrigatoriamente 'tags' ou 'documents'." in str(exc_info.value)

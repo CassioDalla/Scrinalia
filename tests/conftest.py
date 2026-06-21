@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from core.base import Base
 from domains.archive.models import ArchiveDocument, ArchiveTypology
-from domains.archive.schemas import ArchiveDocumentDTO, ArchiveEntityDTO
+from domains.archive.schemas.schemas import ArchiveDocumentDTO, ArchiveEntityDTO
 from domains.ingestion import models as ingest_model
 
 # Descobre o caminho absoluto da pasta 'tests' de forma dinâmica

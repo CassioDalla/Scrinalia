@@ -5,7 +5,7 @@ from core.database import get_db
 from core.logger import logger
 from domains.archive import repository
 from domains.archive.models import ArchiveReviewStatus
-from domains.archive.schemas import ArchiveDocumentDTO
+from domains.archive.schemas.schemas import ArchiveDocumentDTO
 from domains.archive.services.tag_service import TagService
 from domains.staging.models import StagingDocument
 

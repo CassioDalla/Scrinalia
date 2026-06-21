@@ -22,7 +22,7 @@ from domains.archive.repository import (
     stamp_ai_execution,
     upsert_archive_document,
 )
-from domains.archive.schemas import ArchiveEntityDTO, ArchiveTagDTO
+from domains.archive.schemas.schemas import ArchiveEntityDTO, ArchiveTagDTO
 
 # ==========================================
 # 1. TESTES DE UPSERT (CARGA DA ETL E RESET DE IA)

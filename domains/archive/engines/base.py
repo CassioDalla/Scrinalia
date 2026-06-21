@@ -2,7 +2,7 @@ from typing import Protocol
 
 from pandas import DataFrame
 
-from domains.archive.schemas import ArchiveEntityDTO
+from domains.archive.schemas.schemas import ArchiveEntityDTO
 
 
 class TypologyEngine(Protocol):

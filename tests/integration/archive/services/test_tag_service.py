@@ -1,9 +1,8 @@
-import pandas as pd
 from sqlalchemy import select, text
 
 from domains.archive import repository
-from domains.archive.engines.clustering import registry as clustering_registry
-from domains.archive.models import ArchiveDocument, ArchiveDocumentTag, ArchiveMacroCategory, ArchiveTag, DomainSynonyms
+from domains.archive.models import ArchiveDocumentTag, ArchiveMacroCategory, ArchiveTag, DomainSynonyms
+from domains.archive.schemas.tag_schema import TagRelevanceCount
 from domains.archive.services.tag_service import TagService
 
 # ==========================================
@@ -86,8 +85,13 @@ def test_get_tag_relevance_count(use_test_db, db_session, generate_archive_doc):
     resultados = service.get_tag_relevance_count(limit=5)
 
     assert len(resultados) == 2
-    assert resultados[0] == ("comum", 2)
-    assert resultados[1] == ("rara", 1)
+
+    resExpected = [TagRelevanceCount(name="comum", total_usage=2), TagRelevanceCount(name="rara", total_usage=1)]
+
+    assert list(resultados) == resExpected
+
+    # assert resultados[0] == {"name": "comum", "total_usage": 2}
+    # assert resultados[1] == {"name": "rara", "total_usage": 1}
 
 
 def test_get_tag_relevance_tfidf(use_test_db, db_session, generate_archive_doc):
@@ -97,33 +101,36 @@ def test_get_tag_relevance_tfidf(use_test_db, db_session, generate_archive_doc):
     """
     service = TagService(db_session)
 
-    tag_onipresente = ArchiveTag(name="onipresente")
-    tag_especifica = ArchiveTag(name="especifica")
-    db_session.add_all([tag_onipresente, tag_especifica])
-    db_session.commit()
-
-    # Criamos 4 documentos no total
+    tag_oni = ArchiveTag(name="onipresente")
+    tag_esp = ArchiveTag(name="especifica")
     docs = [generate_archive_doc(description_id=f"doc_{i}") for i in range(4)]
 
-    # A Onipresente está nos 4 documentos
-    for d in docs:
-        db_session.add(ArchiveDocumentTag(description_id=d.description_id, tag_id=tag_onipresente.tag_id))
-
-    # A Específica está em apenas 1 documento
-    db_session.add(ArchiveDocumentTag(description_id=docs[0].description_id, tag_id=tag_especifica.tag_id))
+    # Salva tags e docs de uma vez
+    db_session.add_all([tag_oni, tag_esp, *docs])
     db_session.commit()
 
+    # Cria todos os vínculos de uma vez com list comprehension
+    vinculos = [ArchiveDocumentTag(description_id=d.description_id, tag_id=tag_oni.tag_id) for d in docs]
+    vinculos.append(ArchiveDocumentTag(description_id=docs[0].description_id, tag_id=tag_esp.tag_id))
+    db_session.add_all(vinculos)
+    db_session.commit()
+
+    # 2. EXECUÇÃO
     resultados = service.get_tag_relevance_tfidf()
 
-    nome_primeiro_lugar = resultados[0][0]
-    score_primeiro_lugar = resultados[0][3]
-    nome_segundo_lugar = resultados[1][0]
-    score_segundo_lugar = resultados[1][3]
+    # 3. VERIFICAÇÃO (ASSERTS) MAIS EXPRESSIVA:
+    assert len(resultados) == 2, "Deveria ter avaliado exatamente 2 tags"
 
-    assert nome_primeiro_lugar == "especifica"
-    assert score_primeiro_lugar > 0
-    assert nome_segundo_lugar == "onipresente"
-    assert score_segundo_lugar == 0.0  # ln(4/4) = 0
+    # Desempacota os objetos do Pydantic (assumindo que a service já ordena DESC)
+    primeiro_lugar, segundo_lugar = resultados[0], resultados[1]
+
+    # Verifica o topo do ranking
+    assert primeiro_lugar.name == "especifica"
+    assert primeiro_lugar.score_tfidf > 0.0
+
+    # Verifica a base do ranking (penalização do IDF)
+    assert segundo_lugar.name == "onipresente"
+    assert segundo_lugar.score_tfidf == 0.0
 
 
 def test_get_tag_relevance_tfidf_empty_db(use_test_db, db_session):
@@ -149,9 +156,10 @@ def test_find_similar_tags(use_test_db, db_session):
 
     similares = service.find_similar_tags("prefeitura", threshold=0.3)
 
+    tag = similares[0]
     assert len(similares) == 1
-    assert similares[0][1] == "prefeituta"
-    assert similares[0][2] > 0.4
+    assert tag.name == "prefeituta"
+    assert tag.similarity > 0.4
 
 
 # ==========================================
@@ -173,10 +181,10 @@ def test_merge_tags_success(use_test_db, db_session, generate_archive_doc):
     db_session.add(ArchiveDocumentTag(description_id=doc.description_id, tag_id=tag_erro.tag_id))
     db_session.commit()
 
-    docs_afetados, tags_apagadas = service.merge_tags(tag_oficial.tag_id, [tag_erro.tag_id])
+    res = service.merge_tags(tag_oficial.tag_id, [tag_erro.tag_id])
 
-    assert docs_afetados == 1
-    assert tags_apagadas == 1
+    assert res.documents_updated == 1
+    assert res.tags_deleted == 1
 
     sinonimo = db_session.scalars(select(DomainSynonyms)).first()
     assert sinonimo.synonym_name == "fotu"
@@ -203,125 +211,105 @@ def test_merge_tags_idempotency_conflict(use_test_db, db_session, generate_archi
     )
     db_session.commit()
 
-    _docs_afetados, tags_apagadas = service.merge_tags(tag_oficial.tag_id, [tag_erro.tag_id])
+    res = service.merge_tags(tag_oficial.tag_id, [tag_erro.tag_id])
 
-    assert tags_apagadas == 1
+    assert res.tags_deleted == 1
     qtd_vinculos = db_session.query(ArchiveDocumentTag).count()
     assert qtd_vinculos == 1  # Apenas o oficial restou
 
 
 # ==========================================
-# TESTES DE INTEGRAÇÃO (DB REAL + IA MOCKADA)
+# TESTES DE INTEGRAÇÃO (SERVICE + POSTGRESQL REAL)
 # ==========================================
 
 
-def test_integration_suggest_categories_happy_path_tags(db_session, mock_registry):
+def test_integration_get_texts_happy_path_tags(db_session):
     """
-    Testa a integração real entre o Service, o Repository e o PostgreSQL via Tags.
+    Testa a integração real via Tags.
+    Garante que puxa apenas tags órfãs (sem categoria) para análise.
     """
-
     # 1. Criamos a Macro Categoria primeiro para respeitar a Foreign Key
     macro = ArchiveMacroCategory(name="Categoria Ignorada", description="Teste")
     db_session.add(macro)
-    db_session.flush()  # O flush envia para o banco e gera o ID, mas mantém na transação
+    db_session.flush()
 
     # 2. Inserimos 12 tags orfãs reais
-    for i in range(12):
-        db_session.add(ArchiveTag(name=f"Tag Real {i}", macro_category_id=None))
+    tags_orfas = [ArchiveTag(name=f"Tag Real {i}", macro_category_id=None) for i in range(12)]
+    db_session.add_all(tags_orfas)
 
-    # 3. Inserimos 1 tag que já tem categoria usando o ID gerado (não deve ser puxada pela query)
+    # 3. Inserimos 1 tag que já tem categoria (NÃO deve ser puxada)
     db_session.add(ArchiveTag(name="Tag Ignorada", macro_category_id=macro.category_id))
     db_session.commit()
 
-    MockClass = mock_registry(clustering_registry)
-    instancia_da_ia = MockClass.return_value
-    mock_df = pd.DataFrame([{"Topic": 0, "Count": 12, "Representation": ["teste", "banco", "real"]}])
-    instancia_da_ia.discover_topics.return_value = ([0] * 12, mock_df)
-
+    # 4. Execução da Service (sem envolver IA)
     service = TagService(db=db_session)
-    resultado = service.suggest_macro_categories(source_type="tags")
+    textos = service.get_text_to_suggest_macro_category(source_type="tags")
 
-    # Garante que a IA recebeu as 12 tags e ignorou a que já tinha categoria
-    argumentos_passados_pra_ia = instancia_da_ia.discover_topics.call_args[0][0]
-    assert len(argumentos_passados_pra_ia) == 12
-    assert "Tag Ignorada" not in argumentos_passados_pra_ia
-
-    assert 0 in resultado
-    assert resultado[0]["nome_sugerido"] == "Teste - Banco - Real"
+    # 5. Asserts
+    assert len(textos) == 12, "Deveria ter puxado apenas as 12 tags órfãs."
+    assert "Tag Real 0" in textos
+    assert "Tag Ignorada" not in textos
 
 
-def test_integration_suggest_categories_happy_path_docs(db_session, mock_registry, generate_archive_doc):
+def test_integration_get_texts_happy_path_docs(db_session, generate_archive_doc):
     """
-    Testa a integração real entre o Service, o Repository e o PostgreSQL via Documentos.
-    Verifica se a concatenação de Título e Descrição funciona na prática.
+    Testa a integração real via Documentos.
+    Verifica se o repositório concatena as colunas corretamente no banco.
     """
-
-    for i in range(12):
-        doc = generate_archive_doc(
+    # Criamos os documentos reais no banco
+    _ = [
+        generate_archive_doc(
             description_id=f"doc_{i}",
             original_title=f"Título {i}",
-            scope_content="Descrição válida com texto.",
+            scope_content="Descrição válida com texto",
             staging_content_hash=f"hash_{i}",
         )
-
-    MockClass = mock_registry(clustering_registry)
-    instancia_da_ia = MockClass.return_value
-    mock_df = pd.DataFrame([{"Topic": 0, "Count": 12, "Representation": ["teste", "docs", "integra"]}])
-    instancia_da_ia.discover_topics.return_value = ([0] * 12, mock_df)
+        for i in range(12)
+    ]
 
     service = TagService(db=db_session)
-    resultado = service.suggest_macro_categories(
+    textos = service.get_text_to_suggest_macro_category(
         source_type="documents", columns_to_extract=["original_title", "scope_content"]
     )
 
-    argumentos_passados_pra_ia = instancia_da_ia.discover_topics.call_args[0][0]
-
-    texto_esperado = "Título 0. Descrição válida com texto."
-    assert texto_esperado in argumentos_passados_pra_ia[0]
-
-    assert len(resultado) == 1
-    assert resultado[0]["nome_sugerido"] == "Teste - Docs - Integra"
+    assert len(textos) == 12
+    # Valida exatamente o formato da string que vai ser enviada para a IA depois
+    assert textos[0] == "Título 0. Descrição válida com texto."
 
 
-def test_integration_suggest_categories_sad_path_insufficient_tags(db_session, mock_registry):
+def test_integration_get_texts_sad_path_insufficient_tags(db_session):
     """
-    Caminho Triste: Existem tags no banco real, mas são menos que 10.
+    Caminho Triste: Existem tags, mas são menos que 10.
+    A Service devolve a lista curta (O Controller é quem deve bloquear).
     """
-
-    for i in range(5):
-        db_session.add(ArchiveTag(name=f"Tag {i}", macro_category_id=None))
+    tags = [ArchiveTag(name=f"Tag {i}", macro_category_id=None) for i in range(5)]
+    db_session.add_all(tags)
     db_session.commit()
 
-    MockClass = mock_registry(clustering_registry)
-    instancia_da_ia = MockClass.return_value
-
     service = TagService(db=db_session)
-    resultado = service.suggest_macro_categories(source_type="tags")
+    textos = service.get_text_to_suggest_macro_category(source_type="tags")
 
-    instancia_da_ia.discover_topics.assert_not_called()
-    assert resultado == {}
+    assert len(textos) == 5
+    # A responsabilidade do retorno de "Textos insuficientes" ficou no Controller.
+    # Aqui atestamos que a Service fez a parte dela.
 
 
-def test_integration_suggest_categories_sad_path_already_categorized(db_session, mock_registry):
+def test_integration_get_texts_sad_path_already_categorized(db_session):
     """
-    Caminho Triste: Existem 20 tags, mas todas elas já têm Macro Categoria atribuída.
+    Caminho Triste: Existem muitas tags, mas todas já têm Macro Categoria.
+    O banco não deve retornar nada.
     """
-
-    # 1. Criamos a Macro Categoria real
     macro = ArchiveMacroCategory(name="Categoria Existente", description="Teste")
     db_session.add(macro)
     db_session.flush()
 
-    # 2. Vinculamos as 20 tags a essa categoria
-    for i in range(20):
-        db_session.add(ArchiveTag(name=f"Tag {i}", macro_category_id=macro.category_id))
+    # Vinculamos todas as 20 tags à categoria
+    tags = [ArchiveTag(name=f"Tag {i}", macro_category_id=macro.category_id) for i in range(20)]
+    db_session.add_all(tags)
     db_session.commit()
 
-    MockClass = mock_registry(clustering_registry)
-    instancia_da_ia = MockClass.return_value
-
     service = TagService(db=db_session)
-    resultado = service.suggest_macro_categories(source_type="tags")
+    textos = service.get_text_to_suggest_macro_category(source_type="tags")
 
-    instancia_da_ia.discover_topics.assert_not_called()
-    assert resultado == {}
+    assert len(textos) == 0, "Nenhuma tag deveria ter sido retornada, pois todas já estão categorizadas."
+    assert textos == []

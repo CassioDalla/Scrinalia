@@ -16,7 +16,7 @@ from domains.archive.models import (
     DomainStopwords,
     DomainSynonyms,
 )
-from domains.archive.schemas import ArchiveDocumentDTO, ArchiveEntityDTO, ArchiveTagDTO
+from domains.archive.schemas.schemas import ArchiveDocumentDTO, ArchiveEntityDTO, ArchiveTagDTO
 
 """Como resolvemos isso elegantemente?
 Não mexemos no upsert de transferência da Staging. Nós delegamos isso para os Workers de IA!

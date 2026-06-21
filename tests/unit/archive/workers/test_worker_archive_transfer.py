@@ -2,7 +2,7 @@ from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
 from domains.archive import repository
-from domains.archive.schemas import ArchiveDocumentDTO
+from domains.archive.schemas.schemas import ArchiveDocumentDTO
 from domains.archive.workers import worker_archive_transfer
 
 # ==========================================
