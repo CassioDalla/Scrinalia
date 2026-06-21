@@ -1,6 +1,7 @@
 import re
+from typing import cast
 
-from sqlalchemy import or_, select
+from sqlalchemy import CursorResult, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
@@ -197,21 +198,23 @@ def get_ner_synonyms_rules(db: Session):
     ]
 
 
-def save_stopwords(db: Session, words_list: list[str]) -> None:
+def save_stopwords(db: Session, words_list: list[str]) -> int:
     """
     Insere uma lista de palavras na tabela de stopwords em lote.
+    Retorna a quantidade exata de novas stopwords inseridas.
     """
     if not words_list:
-        return None
+        return 0
 
     clean_words = [{"word": w.strip().lower()} for w in words_list if w.strip()]
 
     if not clean_words:
-        return None
+        return 0
 
     stmt = insert(DomainStopwords).values(clean_words).on_conflict_do_nothing()
 
-    db.execute(stmt)
+    result = cast(CursorResult, db.execute(stmt))
+    return result.rowcount
 
 
 def get_stopwords(db: Session) -> set[str]:

@@ -60,6 +60,9 @@ class TagService:
             ArchiveTagDTO(name=tag_name, macro_category_id=None, ai_confidence_score=None) for tag_name in tags_limpas
         ]
 
+    def save_new_stopwords(self, word_list: list[str]) -> int:
+        return repo.save_stopwords(self.db, word_list)
+
     def purge_stopwords(self) -> int:
         """
         Varre a tabela de tags e apaga graciosamente qualquer tag que bata

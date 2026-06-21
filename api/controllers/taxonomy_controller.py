@@ -1,4 +1,6 @@
 # api/controllers/taxonomy_controller.py
+from typing import Literal
+
 import anyio
 import anyio.to_process
 from litestar import Controller, get, post
@@ -6,7 +8,6 @@ from litestar.di import Provide
 
 from api.dependencies import provide_tag_service
 from api.schemas.taxonomy import MergeRequest, StopwordsRequest, SuggestMacroRequest
-from domains.archive.repository import save_stopwords
 from domains.archive.schemas.tag_schema import (
     MacroCategoriesSuggestionResponse,
     MergeResponse,
@@ -23,9 +24,9 @@ class TaxonomyController(Controller):
 
     dependencies = {"tag_service": Provide(provide_tag_service)}  # noqa: RUF012
 
-    @get("/tags/relevance")
+    @get("/tags/relevance/{method:str}")
     def get_tag_relevance(
-        self, tag_service: TagService, method: str = "tfidf", limit: int = 30
+        self, tag_service: TagService, method: Literal["tfidf", "count"] = "tfidf", limit: int = 30
     ) -> TagRelevanceResponse:
 
         if method == "tfidf":
@@ -50,7 +51,9 @@ class TaxonomyController(Controller):
     @post("/tags/stopwords/purge")
     def purge_stopwords(self, tag_service: TagService, data: StopwordsRequest) -> dict:
 
-        save_stopwords(tag_service.db, data.words)
+        if data.words:
+            tag_service.save_new_stopwords(data.words)
+
         qtd_apagadas = tag_service.purge_stopwords()
         return {"message": "Limpeza concluída com sucesso.", "tags_deleted": qtd_apagadas}
 
