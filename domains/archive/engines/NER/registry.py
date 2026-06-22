@@ -5,7 +5,7 @@ from domains.archive.engines.base import EntityExtractionEngine
 from .spacy_engine import SpacyEngine
 
 EngineName = Literal["spacy_ner"]
-PresetName = Literal["gpu"]
+PresetName = Literal["gpu", "lemmatizer"]
 
 AVAILABLE_ENGINES: dict[EngineName, type[EntityExtractionEngine]] = {
     "spacy_ner": SpacyEngine,
@@ -13,6 +13,7 @@ AVAILABLE_ENGINES: dict[EngineName, type[EntityExtractionEngine]] = {
 
 PRESETS: dict[PresetName, dict[str, Any]] = {
     "gpu": {"model": "pt_core_news_lg", "device": "gpu"},
+    "lemmatizer": {"model": "pt_core_news_lg", "device": "gpu", "disable": ["ner", "parser"]},
 }
 
 

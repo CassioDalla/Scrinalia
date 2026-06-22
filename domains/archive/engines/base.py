@@ -28,6 +28,8 @@ class EntityExtractionEngine(Protocol):
         """
         ...
 
+    def lemmatize(self, text: str, stopwords: list[str]) -> list[str]: ...
+
 
 class TopicDiscoveryEngine(Protocol):
     """Contrato usado pelos motores de clustering para"

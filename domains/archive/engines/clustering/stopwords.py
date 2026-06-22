@@ -1,4 +1,7 @@
 STOPWORDS_BR = [
+    "n",
+    "nº",
+    "º",
     # Artigos e contrações
     "a",
     "o",

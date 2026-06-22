@@ -2,6 +2,8 @@ from typing import Any, Literal
 
 from domains.archive.engines.base import TopicDiscoveryEngine
 from domains.archive.engines.clustering.bertopic_engine import BERTopicEngine
+from domains.archive.engines.clustering.stopwords import STOPWORDS_BR
+from domains.archive.engines.NER import registry as NerRegistry
 
 EngineName = Literal["bertopic"]
 PresetName = Literal["exploratorio_fino", "exploratorio_macro"]
@@ -17,12 +19,14 @@ PRESETS: dict[PresetName, dict[str, Any]] = {
         "min_topic_size": 3,
         "n_gram_range": (1, 2),  # Permite que a IA gere palavras-chave compostas
         "nr_topics": "auto",  # Deixa a IA descobrir quantos tópicos existem naturalmente
+        "use_spacy_lemmatizer": True,
     },
     "exploratorio_macro": {
         "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
         "min_topic_size": 15,  # Exige mais documentos para formar um cluster (gavetas mais genéricas)
         "n_gram_range": (1, 1),
-        "nr_topics": 10,  # Força a redução para no máximo 10 grandes áreas temáticas
+        "nr_topics": "auto",
+        "use_spacy_lemmatizer": True,
     },
 }
 
@@ -40,5 +44,16 @@ def get_engine(engine_name: EngineName, preset: PresetName | None = None, **kwar
         final_kwargs.update(PRESETS[preset])
 
     final_kwargs.update(kwargs)
+
+    if engine_name == "bertopic" and final_kwargs.pop("use_spacy_lemmatizer", False):  # noqa: SIM102
+        if "analyzer" not in final_kwargs:
+            spacy_engine = NerRegistry.get_engine("spacy_ner", preset="lemmatizer")
+
+            # O Scikit-Learn vai chamar esta função passando apenas o texto.
+            # Nós preenchemos o argumento 'stopwords' que faltava e repassamos pro seu motor!
+            def analyzer_wrapper(text: str) -> list[str]:
+                return spacy_engine.lemmatize(text, stopwords=STOPWORDS_BR)
+
+            final_kwargs["analyzer"] = analyzer_wrapper
 
     return AVAILABLE_ENGINES[engine_name](**final_kwargs)

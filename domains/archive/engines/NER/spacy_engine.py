@@ -23,7 +23,7 @@ class SpacyEngine:
 
         self.model_name = model
         self.device = device
-
+        self.disable = kwargs.get("disable", [])
         if "cpu" in self.device:
             spacy.require_cpu()  # type: ignore
 
@@ -31,7 +31,7 @@ class SpacyEngine:
             spacy.prefer_gpu()  # type: ignore
 
         try:
-            self.nlp: Language = spacy.load(self.model_name)
+            self.nlp: Language = spacy.load(self.model_name, disable=self.disable)
         except OSError:
             logger.error(
                 f"❌ Modelo {self.model_name} não encontrado. Execute: python -m spacy download {self.model_name}"
@@ -87,3 +87,20 @@ class SpacyEngine:
             results.append(entities_found)
 
         return results
+
+    def lemmatize(self, text: str, stopwords: list[str]) -> list[str]:
+        doc = self.nlp(text.lower())
+        lemmas = []
+
+        for token in doc:
+            # Só aceita palavras que: não são pontuação, não são espaços, e não são stopwords
+
+            if token.is_punct or token.is_space or token.like_num:
+                continue
+
+            lemma = token.lemma_
+            # Ignora stopwords, tokens classificados como stop pelo spaCy e palavras de 1 letra (como 'º' ou 'a')
+            if lemma not in stopwords and not token.is_stop and len(lemma) > 2:
+                lemmas.append(lemma)
+
+        return lemmas
