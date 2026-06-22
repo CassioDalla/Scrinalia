@@ -4,7 +4,7 @@ from typing import Literal, cast
 
 from sqlalchemy import CursorResult, Float, delete, desc, func, select, text
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import aliased, Session
 
 from core.logger import logger
 from domains.archive import repository as repo
@@ -16,6 +16,7 @@ from domains.archive.schemas.tag_schema import (
     TagRelevanceCount,
     TagRelevanceIdf,
     TagSimilarity,
+    TagPairSimilarity
 )
 
 
@@ -145,12 +146,14 @@ class TagService:
         if not target_tag:
             raise InvalidParam("O parametro 'target_tag'é obrigatório")
 
+        self.db.execute(text(f"SET LOCAL pg_trgm.similarity_threshold = {threshold}"))
+
         target_lower = target_tag.lower()
         similaridade = func.similarity(ArchiveTag.name, target_lower)
 
         stmt = (
             select(ArchiveTag.tag_id, ArchiveTag.name, similaridade.label("similarity"))
-            .where(similaridade >= threshold)
+            .where(ArchiveTag.name.op('%')(target_lower))
             # Ignora a própria palavra alvo
             .where(func.lower(ArchiveTag.name) != target_lower)
             .order_by(desc("similarity"))
@@ -158,6 +161,42 @@ class TagService:
         )
         results = self.db.execute(stmt).fetchall()
         return [TagSimilarity.model_validate(r) for r in results]
+
+    def find_all_similar_tag_pairs(self, threshold: float = 0.65) -> Sequence[TagPairSimilarity]:
+        """
+        Varre o acervo e cruza todas as tags entre si para encontrar 
+        pares que sejam muito parecidos (potenciais duplicações).
+        """
+        # 1. Configura o threshold nativo do PostgreSQL apenas para esta transação.
+        self.db.execute(text(f"SET LOCAL pg_trgm.similarity_threshold = {threshold}"))
+
+        # Cria os alias para o Self Join
+        Tag1 = aliased(ArchiveTag)
+        Tag2 = aliased(ArchiveTag)
+
+        # Prepara o cálculo de similaridade
+        similaridade = func.similarity(Tag1.name, Tag2.name)
+
+        stmt = (
+            select(
+                Tag1.tag_id.label("id_1"),
+                Tag1.name.label("name_1"),
+                Tag2.tag_id.label("id_2"),
+                Tag2.name.label("name_2"),
+                similaridade.label("sim_score")
+            )
+            # O Join garantindo que só testa combinações únicas e ignora a si mesma
+            .join(Tag2, Tag1.tag_id < Tag2.tag_id)
+            # 2. HACK DE PERFORMANCE: Só compara tags que tenham até 3 letras de diferença no tamanho
+            .where(func.abs(func.length(Tag1.name) - func.length(Tag2.name)) <= 3)
+            # 3. O SEGREDO: O operador % é a única coisa que ativa o Índice GIN!
+            .where(Tag1.name.op('%')(Tag2.name))
+            .order_by(desc("sim_score"), Tag1.name)
+        )
+
+        results = self.db.execute(stmt).fetchall()
+        
+        return [TagPairSimilarity.model_validate(r) for r in results]
 
     def merge_tags(self, canonical_id: int, ids_to_merge: list[int]) -> MergeResponse:
         """

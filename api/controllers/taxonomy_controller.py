@@ -13,6 +13,7 @@ from domains.archive.schemas.tag_schema import (
     MergeResponse,
     TagRelevanceResponse,
     TagSimilarity,
+    TagPairSimilarity
 )
 from domains.archive.services.tag_service import TagService
 from domains.archive.workers.worker_suggest_macro_category import run_suggestion_engine
@@ -37,8 +38,12 @@ class TaxonomyController(Controller):
         return TagRelevanceResponse.from_payload(list(resultados))
 
     @get("/tags/similar")
-    def get_similar_tags(self, tag_service: TagService, target: str, threshold: float = 0.4) -> list[TagSimilarity]:
+    def get_similar_tags(self, tag_service: TagService, target: str | None = None, threshold: float = 0.4) -> list[TagSimilarity] | list[TagPairSimilarity]:
 
+        if not target:
+            results = tag_service.find_all_similar_tag_pairs(threshold)
+            return list(results)
+       
         results = tag_service.find_similar_tags(target, threshold)
         return list(results)
 

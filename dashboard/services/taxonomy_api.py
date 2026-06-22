@@ -66,6 +66,19 @@ class TaxonomyApiService:
 
         except requests.RequestException:
             return []
+        
+    @staticmethod
+    def find_all_similar_pairs(threshold: float) -> list[dict]:
+        try:
+            response = requests.get(
+                f"{API_BASE_URL}/tags/similar", 
+                params={"threshold": threshold}
+            )
+            response.raise_for_status()
+            data = response.json()
+            return data.get("payload", data) if isinstance(data, dict) else data
+        except requests.RequestException:
+            return []
 
     @staticmethod
     def merge_tags(canonical_id: int, ids_to_merge: list[int]) -> bool:

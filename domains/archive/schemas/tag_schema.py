@@ -46,6 +46,15 @@ class TagSimilarity(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+#Pensar em alguma forma juntar com o schema de cima
+class TagPairSimilarity(BaseModel):
+    id_1: int
+    name_1: str
+    id_2: int
+    name_2: str
+    sim_score: float
+
+    model_config = ConfigDict(from_attributes=True)
 
 class MergeResponse(BaseModel):
     documents_updated: int
