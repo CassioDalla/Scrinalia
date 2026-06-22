@@ -16,7 +16,7 @@ def test_stamp_ai_execution_atualiza_jsonb(mocker: MockerFixture) -> None:
     mock_db.execute.return_value.scalar_one_or_none.return_value = doc_fake
 
     # Intercepta a função do SQLAlchemy que avisa sobre mudança no JSON
-    mock_flag = mocker.patch("domains.archive.repository.flag_modified")
+    mock_flag = mocker.patch("domains.archive.repository.document_repo.flag_modified")
 
     repository.stamp_ai_execution(mock_db, "doc-123", "ner_spacy_v1")
 
