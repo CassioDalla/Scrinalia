@@ -46,7 +46,8 @@ class TagSimilarity(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-#Pensar em alguma forma juntar com o schema de cima
+
+# Pensar em alguma forma juntar com o schema de cima
 class TagPairSimilarity(BaseModel):
     id_1: int
     name_1: str
@@ -55,6 +56,7 @@ class TagPairSimilarity(BaseModel):
     sim_score: float
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class MergeResponse(BaseModel):
     documents_updated: int
@@ -74,3 +76,12 @@ class MacroCategoriesSuggestionResponse(BaseModel):
     total_suggestions: int
     categories: list[MacroCategorySuggested]
     message: str | None = None
+
+
+class ArchiveMacroCategoryEntityDTO(BaseModel):
+    category_id: int
+    name: str
+    description: str | None
+    is_active: bool
+
+    model_config = ConfigDict(from_attributes=True)

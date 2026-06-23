@@ -9,20 +9,23 @@ from domains.archive.schemas.schemas import ArchiveDocumentDTO
 from domains.archive.services.tag_service import TagService
 from domains.staging.models import StagingDocument
 
+# Tamanho do lote para o Batch Commit
+BATCH_SIZE = 500
+
 
 def execute(db_session: Session) -> None:
     """
     Orquestrador responsável por copiar os dados estruturados da camada Staging
     e inicializar os registros na tabela fato da camada Archive.
     """
-    logger.info("🚀 Iniciando migração da base Silver para a Gold...")
+    logger.info("🚀 Iniciando migração do Staging para Archive")
 
     # Instancia o serviço de domínio de Tags
     tag_service = TagService(db_session)
 
     # yield_per(500) evita estourar a memória RAM ao buscar milhares de registros
     query = select(StagingDocument)
-    documents_staging = db_session.scalars(query).yield_per(500)
+    documents_staging = db_session.scalars(query).yield_per(BATCH_SIZE)
 
     sucess = 0
     failures = 0
@@ -61,9 +64,9 @@ def execute(db_session: Session) -> None:
                 if was_saved:
                     # 3. Extrai e higieniza as tags antigas via Serviço de Domínio
                     tags_dtos = tag_service.extract_and_clean_tags(doc_staging.indexing_points)
-                    tag_ids = repository.get_or_create_tags(db_session, tags_dtos)
+                    tag_ids = tag_service.process_worker_tags(tags_dtos)
 
-                    # 4. Cria as relações N:N
+                    # 4. Cria as relações N:N TODO Pensar em tirar isso daqui e delegar para uma service
                     repository.link_description_relationships(
                         db_session,
                         description_id=doc_dto.description_id,
@@ -72,7 +75,8 @@ def execute(db_session: Session) -> None:
                     )
                     sucess += 1
 
-                    if sucess % 100 == 0:
+                    if sucess > 0 and sucess % BATCH_SIZE == 0:
+                        db_session.commit()
                         logger.info(f"⏳ Progresso: {sucess} documentos transferidos para a Archive...")
 
         except Exception as e:

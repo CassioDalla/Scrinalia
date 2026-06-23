@@ -5,6 +5,7 @@ from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
 from domains.archive.exceptions import InvalidParam
+from domains.archive.schemas.schemas import ArchiveTagDTO
 from domains.archive.schemas.tag_schema import MergeResponse
 from domains.archive.services.tag_service import TagService
 
@@ -230,3 +231,114 @@ def test_get_text_to_suggest_macro_category_invalid():
         service.get_text_to_suggest_macro_category(source_type="invalido")  # type: ignore
 
     assert "O parâmetro 'source_type' deve ser obrigatoriamente 'tags' ou 'documents'." in str(exc_info.value)
+
+
+# ==========================================
+# TESTES: process_worker_tags
+# ==========================================
+
+
+def test_process_worker_tags_lista_vazia(mocker: MockerFixture) -> None:
+    """Caminho Ruim: O worker enviou uma lista vazia, retorna rápido sem bater no banco."""
+    mock_db = mocker.Mock(spec=Session)
+    mock_repository = mocker.patch("domains.archive.services.tag_service.repo")
+
+    service = TagService(mock_db)
+    resultado = service.process_worker_tags([])
+
+    assert resultado == []
+    mock_repository.get_synonyms_mapping.assert_not_called()
+    mock_repository.get_or_create_tags.assert_not_called()
+
+
+def test_process_worker_tags_apenas_tags_novas_caminho_feliz(mocker: MockerFixture) -> None:
+    """Caminho Feliz: Nenhuma tag é sinônimo, todas são enviadas para criação."""
+    mock_db = mocker.Mock(spec=Session)
+    mock_repository = mocker.patch("domains.archive.services.tag_service.repo")
+
+    # Mocks: Banco retorna que não há sinônimos, e a criação gerou os IDs 10 e 11
+    mock_repository.get_synonyms_mapping.return_value = {}
+    mock_repository.get_or_create_tags.return_value = [10, 11]
+
+    dtos = [
+        ArchiveTagDTO(name="Urbanismo", macro_category_id=None, ai_confidence_score=None),
+        ArchiveTagDTO(name="Asfalto", macro_category_id=None, ai_confidence_score=None),
+    ]
+
+    service = TagService(mock_db)
+    resultado = service.process_worker_tags(dtos)
+
+    assert set(resultado) == {10, 11}
+    mock_repository.get_synonyms_mapping.assert_called_once()
+    mock_repository.get_or_create_tags.assert_called_once_with(mock_db, dtos)
+
+
+def test_process_worker_tags_apenas_sinonimos(mocker: MockerFixture) -> None:
+    """Caminho de Substituição: O worker enviou APENAS sinônimos, pulando a criação no repositório."""
+    mock_db = mocker.Mock(spec=Session)
+    mock_repository = mocker.patch("domains.archive.services.tag_service.repo")
+
+    # Mocks: Ambas as palavras já são sinônimos conhecidos mapeados para IDs 99 e 100
+    mock_repository.get_synonyms_mapping.return_value = {"prefeiruta": 99, "parques": 100}
+
+    dtos = [
+        ArchiveTagDTO(name="Prefeiruta", macro_category_id=None, ai_confidence_score=None),
+        ArchiveTagDTO(name="Parques", macro_category_id=None, ai_confidence_score=None),
+    ]
+
+    service = TagService(mock_db)
+    resultado = service.process_worker_tags(dtos)
+
+    assert set(resultado) == {99, 100}
+    mock_repository.get_synonyms_mapping.assert_called_once()
+    # Pula a criação, pois não sobrou nenhuma tag nova!
+    mock_repository.get_or_create_tags.assert_not_called()
+
+
+def test_process_worker_tags_misto_sinonimos_e_novas(mocker: MockerFixture) -> None:
+    """Caminho Realista: A malha fina intercepta sinônimos e envia apenas as tags legítimas para o banco."""
+    mock_db = mocker.Mock(spec=Session)
+    mock_repository = mocker.patch("domains.archive.services.tag_service.repo")
+
+    # Mocks: "leis" é sinônimo da tag canônica (ID 5). A tag "IPTU" não tem sinônimo e receberá o ID 88
+    mock_repository.get_synonyms_mapping.return_value = {"leis": 5}
+    mock_repository.get_or_create_tags.return_value = [88]
+
+    dto_sinonimo = ArchiveTagDTO(name="Leis", macro_category_id=None, ai_confidence_score=None)
+    dto_nova = ArchiveTagDTO(name="IPTU", macro_category_id=None, ai_confidence_score=None)
+
+    service = TagService(mock_db)
+    resultado = service.process_worker_tags([dto_sinonimo, dto_nova])
+
+    assert set(resultado) == {5, 88}
+
+    # Verifica se o service enviou APENAS a dto nova ("IPTU") para gravação
+    args, _ = mock_repository.get_or_create_tags.call_args
+    dtos_enviados_para_criacao = args[1]
+
+    assert len(dtos_enviados_para_criacao) == 1
+    assert dtos_enviados_para_criacao[0].name == "IPTU"
+
+
+def test_process_worker_tags_deduplicacao_de_ids(mocker: MockerFixture) -> None:
+    """Limites de Borda: Garante que múltiplas tags diferentes não gerem o mesmo ID duplicado no documento."""
+    mock_db = mocker.Mock(spec=Session)
+    mock_repository = mocker.patch("domains.archive.services.tag_service.repo")
+
+    # Digamos que "parques" e "pracinhas" são ambos sinônimos para o ID 12 ("parque").
+    # E "parque" também foi enviada (ela não é sinônimo, passará pela criação e retornará ID 12).
+    mock_repository.get_synonyms_mapping.return_value = {"parques": 12, "pracinhas": 12}
+    mock_repository.get_or_create_tags.return_value = [12]
+
+    dtos = [
+        ArchiveTagDTO(name="Parque", macro_category_id=None, ai_confidence_score=None),
+        ArchiveTagDTO(name="Parques", macro_category_id=None, ai_confidence_score=None),
+        ArchiveTagDTO(name="Pracinhas", macro_category_id=None, ai_confidence_score=None),
+    ]
+
+    service = TagService(mock_db)
+    resultado = service.process_worker_tags(dtos)
+
+    # O resultado deve ter apenas UM registro do ID 12. O uso do set() na service garante isso.
+    assert len(resultado) == 1
+    assert resultado == [12]

@@ -1,18 +1,24 @@
-from .document_repo import upsert_archive_document, link_description_relationships, fetch_documents_for_clustering, stamp_ai_execution
-from .tag_repo import fetch_tags_for_clustering, save_stopwords, get_stopwords, get_or_create_tags
+from .document_repo import (
+    fetch_documents_for_clustering,
+    link_description_relationships,
+    stamp_ai_execution,
+    upsert_archive_document,
+)
 from .entity_repo import get_ner_synonyms_rules, get_or_create_entities
+from .tag_repo import fetch_tags_for_clustering, get_or_create_tags, get_stopwords, get_synonyms_mapping, save_stopwords
 from .typology_repo import get_active_typologies
 
 __all__ = [
+    "fetch_documents_for_clustering",
     "fetch_tags_for_clustering",
-    "save_stopwords",
-    "get_stopwords",
-    "get_or_create_tags",
+    "get_active_typologies",
     "get_ner_synonyms_rules",
     "get_or_create_entities",
-    "upsert_archive_document",
+    "get_or_create_tags",
+    "get_stopwords",
+    "get_synonyms_mapping",
     "link_description_relationships",
-    "fetch_documents_for_clustering",
-    "get_active_typologies",
-    "stamp_ai_execution"
+    "save_stopwords",
+    "stamp_ai_execution",
+    "upsert_archive_document",
 ]

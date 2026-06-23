@@ -4,11 +4,10 @@ from sqlalchemy import CursorResult, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from domains.archive.models import (
-    ArchiveTag,
-    DomainStopwords,
-)
+from domains.archive.models import ArchiveMacroCategory, ArchiveTag, DomainStopwords, DomainSynonyms
+from domains.archive.schemas import ArchiveMacroCategoryEntityDTO
 from domains.archive.schemas.schemas import ArchiveTagDTO
+
 
 def fetch_tags_for_clustering(db: Session) -> list[str]:
     """Busca apenas tags únicas que ainda não têm Macro Categoria."""
@@ -18,7 +17,25 @@ def fetch_tags_for_clustering(db: Session) -> list[str]:
     texts = [t for t in results if t and not t.replace(".", "").isdigit()]
     return texts
 
-# TODO Buscar os sinonomios de tags no banco, se alguma tag for sinonimo, usar a canonica
+
+def get_synonyms_mapping(db: Session, words: list[str]) -> dict[str, int]:
+    """
+    Busca no banco se alguma das palavras fornecidas é um sinônimo conhecido.
+    Retorna um dicionário mapeando: { 'nome_do_sinonimo': ID_da_Tag_Canonica }
+    """
+    if not words:
+        return {}
+
+    words_clean = [w.strip().lower() for w in words]
+
+    stmt = select(DomainSynonyms.synonym_name, DomainSynonyms.canonical_tag_id).where(
+        DomainSynonyms.category == "TAG", DomainSynonyms.synonym_name.in_(words_clean)
+    )
+
+    resultados = db.execute(stmt).all()
+    return {row.synonym_name: row.canonical_tag_id for row in resultados}
+
+
 def get_or_create_tags(db: Session, tags_list: list[ArchiveTagDTO]) -> list[int]:
     """
     Gerencia a dimensão de tags e taxonomias do mDeBERTa.
@@ -28,28 +45,28 @@ def get_or_create_tags(db: Session, tags_list: list[ArchiveTagDTO]) -> list[int]
     if not tags_list:
         return []
 
-    tag_ids = []
-    for t in tags_list:
-        # Tags oficiais sempre minúsculas para agrupamento perfeito (ex: alvenaria)
-        name_clean = t.name.strip().lower()
+    insert_data = []
+    names_to_search = []
 
-        stmt = (
-            insert(ArchiveTag)
-            .values(
-                name=name_clean,
-                macro_category_id=t.macro_category_id,
-                ai_confidence_score=t.ai_confidence_score,
-            )
-            .on_conflict_do_nothing(index_elements=["name"])
+    for t in tags_list:
+        name_clean = t.name.strip().lower()
+        names_to_search.append(name_clean)
+        insert_data.append(
+            {
+                "name": name_clean,
+                "macro_category_id": t.macro_category_id,
+                "ai_confidence_score": t.ai_confidence_score,
+            }
         )
 
-        db.execute(stmt)
+    # 2. Faz o INSERT massivo ignorando as tags que já existem (graças ao índice único na coluna 'name')
+    stmt_insert = insert(ArchiveTag).values(insert_data).on_conflict_do_nothing(index_elements=["name"])
+    db.execute(stmt_insert)
 
-        id_query = select(ArchiveTag.tag_id).where(ArchiveTag.name == name_clean)
-        tag_id = db.execute(id_query).scalar_one()
-        tag_ids.append(tag_id)
+    # 3. Num ÚNICO select, busca todos os IDs (dos que acabaram de ser criados e dos que já existiam)
+    stmt_select = select(ArchiveTag.tag_id).where(ArchiveTag.name.in_(names_to_search))
 
-    return tag_ids
+    return list(db.scalars(stmt_select).all())
 
 
 def save_stopwords(db: Session, words_list: list[str]) -> int:
@@ -85,3 +102,24 @@ def get_stopwords(db: Session) -> set[str]:
     stmt = select(DomainStopwords.word)
     results = db.scalars(stmt).all()
     return set(results)
+
+
+def get_macro_categories(db: Session) -> list[ArchiveMacroCategoryEntityDTO]:
+
+    stmt = select(
+        ArchiveMacroCategory.category_id,
+        ArchiveMacroCategory.name,
+        ArchiveMacroCategory.description,
+        ArchiveMacroCategory.is_active,
+    )
+
+    results = db.execute(stmt).mappings().all()
+    return [ArchiveMacroCategoryEntityDTO.model_validate(r) for r in results]
+
+
+# TODO
+def create_macro_category(db: Session, m_category: ArchiveMacroCategoryEntityDTO): ...
+
+
+# TODO pensar na melhor forma de fazer isso e nos args. Receber a model do banco, DTOS ou listas simples de ids
+def link_to_macro_category(db: Session, tags_ids: list[int], m_category_id: int): ...

@@ -133,7 +133,7 @@ if __name__ == "__main__":
         adapter = PMCScraperAdapter(delay_requests=0.5)
 
         # 1. Povoar a fila
-        # run_discovery_job(db, adapter=PMCScraperAdapter)
+        # run_discovery_job(db, adapter=adapter)
 
         # 2. Processar a fila
         run_detail_scraping_job(db, adapter=adapter)

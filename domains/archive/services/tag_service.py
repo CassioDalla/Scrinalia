@@ -4,7 +4,7 @@ from typing import Literal, cast
 
 from sqlalchemy import CursorResult, Float, delete, desc, func, select, text
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import aliased, Session
+from sqlalchemy.orm import Session, aliased
 
 from core.logger import logger
 from domains.archive import repository as repo
@@ -13,10 +13,10 @@ from domains.archive.models import ArchiveDocument, ArchiveDocumentTag, ArchiveT
 from domains.archive.schemas.schemas import ArchiveTagDTO
 from domains.archive.schemas.tag_schema import (
     MergeResponse,
+    TagPairSimilarity,
     TagRelevanceCount,
     TagRelevanceIdf,
     TagSimilarity,
-    TagPairSimilarity
 )
 
 
@@ -28,6 +28,29 @@ class TagService:
 
     def __init__(self, db: Session):
         self.db = db
+        self._stopwords_regex = None
+
+    def _get_stopwords_regex(self) -> re.Pattern:
+        """
+        Busca as stopwords no banco apenas uma vez e compila um super-regex.
+        """
+        if self._stopwords_regex is None:
+            # Puxa do banco
+            stopwords = repo.get_stopwords(self.db)
+
+            if stopwords:
+                # Escapa os caracteres especiais das stopwords (caso haja algum '+', '.', etc)
+                # e junta tudo com o pipe '|' (Operador OR)
+                words = "|".join(re.escape(w) for w in stopwords)
+                pattern = rf"\b({words})\b"
+
+                # Compila o regex com a flag de ignorar maiúsculas/minúsculas
+                self._stopwords_regex = re.compile(pattern, flags=re.IGNORECASE)
+            else:
+                # Se o banco estiver vazio, cria um regex que nunca dá match
+                self._stopwords_regex = re.compile(r"a^")
+
+        return self._stopwords_regex
 
     def extract_and_clean_tags(self, indexing_points: str | None) -> list[ArchiveTagDTO]:
         """
@@ -38,7 +61,7 @@ class TagService:
             return []
 
         # Busca as stopwords ativas diretamente do banco
-        stopwords = set(self.db.scalars(select(DomainStopwords.word)).all())
+        regex_stopwords = self._get_stopwords_regex()
 
         tags_brutas = indexing_points.split(",")
         tags_limpas = set()
@@ -46,9 +69,7 @@ class TagService:
         for tag in tags_brutas:
             tag = tag.strip().lower()
 
-            for junk in stopwords:
-                # Usa regex word boundaries (\b) para não apagar pedaços de palavras
-                tag = re.sub(rf"\b{junk}\b", "", tag).strip()
+            tag = regex_stopwords.sub("", tag).strip()
 
             tag = re.sub(r"\s+", " ", tag)
 
@@ -60,6 +81,44 @@ class TagService:
         return [
             ArchiveTagDTO(name=tag_name, macro_category_id=None, ai_confidence_score=None) for tag_name in tags_limpas
         ]
+
+    def process_worker_tags(self, dtos_from_worker: list[ArchiveTagDTO]) -> list[int]:
+        """
+        Pipeline de negócio: Verifica sinônimos e roteia para gravação.
+        Retorna a lista final de IDs (canônicos ou recém-criados) para vincular ao documento.
+        """
+        if not dtos_from_worker:
+            return []
+
+        # 1. Extrai apenas os nomes em minúsculas para checar os sinônimos no banco
+        names_to_search = [dto.name.strip().lower() for dto in dtos_from_worker]
+
+        # 2. Busca o mapeamento no Repositório (Retorna algo como: {"prefeiruta": 45, "parques": 12})
+        mapa_sinonimos = repo.get_synonyms_mapping(self.db, names_to_search)
+
+        ids_finais_para_o_documento = []
+        dtos_para_criar = []
+
+        # 3. O Roteamento de Regra de Negócio (A malha fina)
+        for dto in dtos_from_worker:
+            nome_normalizado = dto.name.strip().lower()
+
+            if nome_normalizado in mapa_sinonimos:
+                # É um sinônimo conhecido! Descartamos a DTO e usamos o ID da Tag Canônica
+                id_canonico = mapa_sinonimos[nome_normalizado]
+                ids_finais_para_o_documento.append(id_canonico)
+            else:
+                # É uma tag nova ou legítima. Vai para a fila de persistência.
+                dtos_para_criar.append(dto)
+
+        # 4. Envia para o repositório de criação APENAS as tags que não eram sinônimos
+        if dtos_para_criar:
+            ids_novos_ou_existentes = repo.get_or_create_tags(self.db, dtos_para_criar)
+            ids_finais_para_o_documento.extend(ids_novos_ou_existentes)
+
+        # 5. Retorna um set convertido em lista para garantir que o mesmo documento
+        # não receba o mesmo ID de tag duas vezes (ex: se "parque" e "parques" vierem no mesmo documento)
+        return list(set(ids_finais_para_o_documento))
 
     def save_new_stopwords(self, word_list: list[str]) -> int:
         return repo.save_stopwords(self.db, word_list)
@@ -153,7 +212,7 @@ class TagService:
 
         stmt = (
             select(ArchiveTag.tag_id, ArchiveTag.name, similaridade.label("similarity"))
-            .where(ArchiveTag.name.op('%')(target_lower))
+            .where(ArchiveTag.name.op("%")(target_lower))
             # Ignora a própria palavra alvo
             .where(func.lower(ArchiveTag.name) != target_lower)
             .order_by(desc("similarity"))
@@ -164,7 +223,7 @@ class TagService:
 
     def find_all_similar_tag_pairs(self, threshold: float = 0.65) -> Sequence[TagPairSimilarity]:
         """
-        Varre o acervo e cruza todas as tags entre si para encontrar 
+        Varre o acervo e cruza todas as tags entre si para encontrar
         pares que sejam muito parecidos (potenciais duplicações).
         """
         # 1. Configura o threshold nativo do PostgreSQL apenas para esta transação.
@@ -183,19 +242,19 @@ class TagService:
                 Tag1.name.label("name_1"),
                 Tag2.tag_id.label("id_2"),
                 Tag2.name.label("name_2"),
-                similaridade.label("sim_score")
+                similaridade.label("sim_score"),
             )
             # O Join garantindo que só testa combinações únicas e ignora a si mesma
             .join(Tag2, Tag1.tag_id < Tag2.tag_id)
             # 2. HACK DE PERFORMANCE: Só compara tags que tenham até 3 letras de diferença no tamanho
             .where(func.abs(func.length(Tag1.name) - func.length(Tag2.name)) <= 3)
             # 3. O SEGREDO: O operador % é a única coisa que ativa o Índice GIN!
-            .where(Tag1.name.op('%')(Tag2.name))
+            .where(Tag1.name.op("%")(Tag2.name))
             .order_by(desc("sim_score"), Tag1.name)
         )
 
         results = self.db.execute(stmt).fetchall()
-        
+
         return [TagPairSimilarity.model_validate(r) for r in results]
 
     def merge_tags(self, canonical_id: int, ids_to_merge: list[int]) -> MergeResponse:
@@ -298,3 +357,7 @@ class TagService:
             raise InvalidParam("O parâmetro 'source_type' deve ser 'tags' ou 'documents'.")
 
         return texts_to_analize
+
+    # TODO Pensar em como fazer isso. Tirar as entidades conhecidas das tags ou não. Tags precisam ser classiicadas em assuntos.
+    def purge_entities_from_tags(self):
+        pass
