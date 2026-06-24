@@ -1,3 +1,4 @@
+from .entity_schema import ArchiveEntityDTO
 from .tag_schema import (
     ArchiveMacroCategoryEntityDTO,
     MacroCategoriesSuggestionResponse,
@@ -11,6 +12,7 @@ from .tag_schema import (
 )
 
 __all__ = [
+    "ArchiveEntityDTO",
     "ArchiveMacroCategoryEntityDTO",
     "MacroCategoriesSuggestionResponse",
     "MacroCategorySuggested",

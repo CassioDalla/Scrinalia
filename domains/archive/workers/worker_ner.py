@@ -7,11 +7,11 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from core.database import get_db
 from core.logger import logger
-from domains.archive import repository
 from domains.archive.engines.base import EntityExtractionEngine
 from domains.archive.engines.NER.registry import EngineName as ExtractEngineName
 from domains.archive.engines.NER.registry import PresetName, get_engine
 from domains.archive.models import ArchiveDocument
+from domains.archive.repository import EntityRepository
 
 
 def _clean_raw_text(text: str) -> str:
@@ -83,9 +83,12 @@ def execute(
 
     columns_to_extract = columns_to_extract or ["original_title", "admin_bio_history", "provenance", "scope_content"]
 
+    # Instancia o repo
+    repository = EntityRepository(db)
+
     try:
         logger.info("Carregando Motor de Extração e regras dinâmicas...")
-        regras_dinamicas = repository.get_ner_synonyms_rules(db)
+        regras_dinamicas = repository.get_ner_synonyms_rules()
         # O motor deve ser capaz de receber essas regras no construtor ou via um método setup()
         engine: EntityExtractionEngine = get_engine(
             engine_name=engine_name, preset=preset, custom_rules=regras_dinamicas, **engine_kwargs
@@ -171,10 +174,10 @@ def execute(
                     try:
                         # Se a IA encontrou entidades, processamos os vínculos
                         if dtos_entities:
-                            entity_ids = repository.get_or_create_entities(db, dtos_entities)
+                            entity_ids = repository.get_or_create_entities(dtos_entities)
 
-                            repository.link_description_relationships(
-                                db, description_id=doc.description_id, entity_ids=entity_ids, tag_ids=[]
+                            repository.link_entities_to_document(
+                                description_id=doc.description_id, entity_ids=entity_ids
                             )
                             logger.debug(f"Doc {doc.description_id} ➡️ {len(entity_ids)} entidades vinculadas.")
                         else:

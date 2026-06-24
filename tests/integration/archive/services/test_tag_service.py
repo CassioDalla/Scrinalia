@@ -5,6 +5,10 @@ from domains.archive.models import ArchiveDocumentTag, ArchiveMacroCategory, Arc
 from domains.archive.schemas.tag_schema import TagRelevanceCount
 from domains.archive.services.tag_service import TagService
 
+
+# TODO A SERVICE PASSOU A RECEBER INJETADO O REPO. MUDAR OS TESTES
+
+
 # ==========================================
 # 1. TESTES DE PURGE (STOPWORDS)
 # ==========================================

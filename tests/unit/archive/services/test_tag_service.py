@@ -9,6 +9,10 @@ from domains.archive.schemas.schemas import ArchiveTagDTO
 from domains.archive.schemas.tag_schema import MergeResponse
 from domains.archive.services.tag_service import TagService
 
+
+# TODO A SERVICE PASSOU A TER O REPO INJETADO, MUDAR OS TESTES
+
+
 # ==========================================
 # TESTES: extract_and_clean_tags
 # ==========================================
@@ -142,7 +146,7 @@ def test_merge_tags_transfere_e_apaga_sucesso(mocker: MockerFixture) -> None:
     mock_db.execute.side_effect = [mocker.DEFAULT, mocker.DEFAULT, mocker.DEFAULT, mocker.DEFAULT, mock_result]
 
     service = TagService(mock_db)
-    res: MergeResponse = service.merge_tags(canonical_id=1, ids_to_merge=[2])
+    res: MergeResponse = service.merge(canonical_id=1, ids_to_merge=[2])
 
     assert res.documents_updated == 2
     assert res.tags_deleted == 1
@@ -155,7 +159,7 @@ def test_merge_tags_lista_vazia(mocker: MockerFixture) -> None:
     service = TagService(mock_db)
 
     with pytest.raises(InvalidParam) as exc_info:
-        service.merge_tags(canonical_id=1, ids_to_merge=[])
+        service.merge(canonical_id=1, ids_to_merge=[])
 
     # (Opcional, mas recomendado) Valida se a mensagem do erro está correta
     assert "A lista de tags para mesclar não pode estar vazia." in str(exc_info.value)
@@ -182,7 +186,7 @@ def test_merge_tags_sem_documentos_afetados(mocker: MockerFixture) -> None:
     mock_db.execute.side_effect = [mocker.DEFAULT, mocker.DEFAULT, mocker.DEFAULT, mock_result]
 
     service = TagService(mock_db)
-    res = service.merge_tags(canonical_id=1, ids_to_merge=[2])
+    res = service.merge(canonical_id=1, ids_to_merge=[2])
 
     assert res.documents_updated == 0
     assert res.tags_deleted == 1

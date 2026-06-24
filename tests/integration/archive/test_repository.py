@@ -24,6 +24,10 @@ from domains.archive.repository import (
 )
 from domains.archive.schemas.schemas import ArchiveEntityDTO, ArchiveTagDTO
 
+
+# TODO MUDAR OS TESTES PARA TESTAR INDIVIDUALMENTE CADA REPO
+
+
 # ==========================================
 # 1. TESTES DE UPSERT (CARGA DA ETL E RESET DE IA)
 # ==========================================

@@ -5,7 +5,7 @@ from spacy.language import Language
 from spacy.pipeline import EntityRuler
 
 from core.logger import logger
-from domains.archive.schemas.schemas import ArchiveEntityDTO
+from domains.archive.schemas import ArchiveEntityDTO
 
 
 class SpacyEngine:

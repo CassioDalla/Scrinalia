@@ -4,7 +4,7 @@ from litestar.status_codes import HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND, HTTP
 from domains.archive.exceptions import (
     DomainException,
     EngineExecutionError,
-    InvalidMergeTagError,
+    InvalidMergeError,
     InvalidParam,
     TagNotFoundError,
 )
@@ -21,7 +21,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
     if isinstance(exc, TagNotFoundError):
         status_code = HTTP_404_NOT_FOUND
 
-    elif isinstance(exc, (InvalidParam, InvalidMergeTagError)):
+    elif isinstance(exc, (InvalidParam, InvalidMergeError)):
         status_code = HTTP_400_BAD_REQUEST
 
     elif isinstance(exc, EngineExecutionError):

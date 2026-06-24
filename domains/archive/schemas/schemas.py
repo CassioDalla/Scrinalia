@@ -9,21 +9,6 @@ from domains.archive.models import ArchiveReviewStatus
 # ==========================================
 # DTOs para Entidades (Pessoas, Locais, Orgs)
 # ==========================================
-class ArchiveEntityDTO(BaseModel):
-    """
-    Contrato de dados para Entidades Nomeadas (NER).
-
-    Garante que os extratores (como o spaCy) retornem entidades
-    padronizadas e validadas contra os tipos permitidos no domínio
-    antes da persistência.
-    """
-
-    name: str = Field(description="Nome limpo e formatado da entidade.")
-    entity_type: Literal["PER", "ORG", "LOC"] = Field(
-        description="Tipo da entidade. Restrito a Pessoa, Organização ou Local."
-    )
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 # ==========================================

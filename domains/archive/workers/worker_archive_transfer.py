@@ -5,6 +5,7 @@ from core.database import get_db
 from core.logger import logger
 from domains.archive import repository
 from domains.archive.models import ArchiveReviewStatus
+from domains.archive.repository import TagRepository
 from domains.archive.schemas.schemas import ArchiveDocumentDTO
 from domains.archive.services.tag_service import TagService
 from domains.staging.models import StagingDocument
@@ -20,8 +21,11 @@ def execute(db_session: Session) -> None:
     """
     logger.info("🚀 Iniciando migração do Staging para Archive")
 
+    # Instancia o TagRepo
+    tag_repo = TagRepository(db_session)
+
     # Instancia o serviço de domínio de Tags
-    tag_service = TagService(db_session)
+    tag_service = TagService(tag_repo)
 
     # yield_per(500) evita estourar a memória RAM ao buscar milhares de registros
     query = select(StagingDocument)

@@ -12,7 +12,7 @@ class TagNotFoundError(DomainException):
     pass
 
 
-class InvalidMergeTagError(DomainException):
+class InvalidMergeError(DomainException):
     """Lançado quando tenta mesclar uma tag nela mesma ou quebra regras de sinônimos."""
 
     # Tradução ideal no Litestar: HTTP 400 (Bad Request) ou 422

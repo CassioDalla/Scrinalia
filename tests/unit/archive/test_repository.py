@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 
 from domains.archive import repository
 
+# TODO REFATORAR TESTES UNITARIOSS PARA TESTAR CADA REPOSITORIO
+
 
 def test_stamp_ai_execution_atualiza_jsonb(mocker: MockerFixture) -> None:
     """Garante que a função marca o log de execução sem apagar chaves antigas."""
