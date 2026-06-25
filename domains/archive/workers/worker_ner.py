@@ -13,6 +13,14 @@ from domains.archive.engines.NER.registry import PresetName, get_engine
 from domains.archive.models import ArchiveDocument
 from domains.archive.repository import EntityRepository
 
+# TODO (Melhorias Futuras):
+# 1. Gargalo N+1 (Performance): Em vez de gravar as entidades documento por documento,
+#    criar um buffer em memória (ex: `batch_links`) e usar um método `bulk_link_entities`
+#    no Repositório no fim do lote, exatamente como foi otimizado no worker_etl.
+# 2. Resiliência de Banco (PendingRollbackError): Envolver a chamada de
+#    `repository.get_or_create_entities` em um `with db.begin_nested():`
+#    para evitar que falhas de Constraints corrompam a transação do lote inteiro.
+
 
 def _clean_raw_text(text: str) -> str:
     """Helper para limpar ruídos básicos antes de enviar para a IA."""

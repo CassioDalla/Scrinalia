@@ -6,27 +6,31 @@ from domains.archive.models import (
 )
 
 
-def get_active_typologies(db: Session) -> dict[str, int]:
-    """
-    Recupera todas as tipologias de documentos cadastradas no banco de dados.
+class TypologyRepository:
+    def __init__(self, db: Session) -> None:
+        self.db = db
 
-    Args:
-        db (Session): Sessão ativa do SQLAlchemy.
+    def get_active_typologies(self) -> dict[str, int]:
+        """
+        Recupera todas as tipologias de documentos cadastradas no banco de dados.
 
-    Returns:
-        dict[str, int]: Dicionário contendo nome+contexto e id ex {"Fotografia": 1}.
-    """
+        Args:
+            db (Session): Sessão ativa do SQLAlchemy.
 
-    stmt = select(ArchiveTypology.typology_id, ArchiveTypology.name, ArchiveTypology.context_description)
+        Returns:
+            dict[str, int]: Dicionário contendo nome+contexto e id ex {"Fotografia": 1}.
+        """
 
-    results = db.execute(stmt).all()
+        stmt = select(ArchiveTypology.typology_id, ArchiveTypology.name, ArchiveTypology.context_description)
 
-    typologies_map = {}
-    for typo_id, name, description in results:
-        # Cria uma label  descritiva para a IA
-        # Ex: "Planta Arquitetônica: Projetos de aumento, construção e reformas."
-        context_label = f"{name}: {description}" if description else name
+        results = self.db.execute(stmt).all()
 
-        typologies_map[context_label] = typo_id
+        typologies_map = {}
+        for typo_id, name, description in results:
+            # Cria uma label  descritiva para a IA
+            # Ex: "Planta Arquitetônica: Projetos de aumento, construção e reformas."
+            context_label = f"{name}: {description}" if description else name
 
-    return typologies_map
+            typologies_map[context_label] = typo_id
+
+        return typologies_map

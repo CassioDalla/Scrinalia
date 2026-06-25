@@ -4,10 +4,10 @@ from typing import Literal
 
 from core.logger import logger
 from domains.archive.exceptions import InvalidMergeError, InvalidParam
-from domains.archive.repository import document_repo
+from domains.archive.repository import DocumentRepository
 from domains.archive.repository.tag_repo import TagRepository
-from domains.archive.schemas.schemas import ArchiveTagDTO
-from domains.archive.schemas.tag_schema import (
+from domains.archive.schemas import (
+    ArchiveTagDTO,
     MergeResponse,
     TagPairSimilarity,
     TagRelevanceCount,
@@ -22,8 +22,9 @@ class TagService:
     a taxonomia e as tags na camada Archive.
     """
 
-    def __init__(self, repo: TagRepository):
+    def __init__(self, repo: TagRepository, document_repo: DocumentRepository):
         self.repo = repo
+        self.document_repo = document_repo
         self._stopwords_regex = None
 
     def _get_stopwords_regex(self) -> re.Pattern:
@@ -227,9 +228,7 @@ class TagService:
             texts_to_analize = self.repo.fetch_tags_for_clustering()
         elif source_type == "documents":
             # Gambiarra que sera refatorada
-            texts_to_analize = document_repo.fetch_documents_for_clustering(
-                db=self.repo.db, columns_to_extract=columns_to_extract
-            )
+            texts_to_analize = self.document_repo.fetch_documents_for_clustering(columns_to_extract=columns_to_extract)
 
         return texts_to_analize
 

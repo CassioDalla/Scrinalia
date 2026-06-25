@@ -4,10 +4,10 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from core.database import get_db
 from core.logger import logger
-from domains.archive import repository
 from domains.archive.engines.base import TypologyEngine
 from domains.archive.engines.classification.registry import EngineName, PresetName, get_engine
 from domains.archive.models import ArchiveDocument
+from domains.archive.repository import TypologyRepository
 
 
 def execute(
@@ -59,6 +59,8 @@ def execute(
 
     columns_to_classify = columns_to_classify or ["original_title"]
 
+    repository = TypologyRepository(db)
+
     try:
         logger.info("Carregando Motor de Processamento...")
         engine: TypologyEngine = get_engine(engine_name=engine_name, preset=preset, **engine_kwargs)
@@ -66,7 +68,7 @@ def execute(
         logger.error(f"❌ Erro ao carregar o modelo: {e}")
         raise
 
-    typologies_map = repository.get_active_typologies(db)
+    typologies_map = repository.get_active_typologies()
     print(typologies_map)
     if not typologies_map:
         logger.warning("⚠️ Nenhuma tipologia cadastrada no banco. Abortando Classificação.")

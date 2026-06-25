@@ -1,37 +1,8 @@
 from datetime import date
-from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from domains.archive.models import ArchiveReviewStatus
-
-
-# ==========================================
-# DTOs para Entidades (Pessoas, Locais, Orgs)
-# ==========================================
-
-
-# ==========================================
-# DTOs para Tags e Taxonomias
-# ==========================================
-class ArchiveTagDTO(BaseModel):
-    """
-    Contrato rigoroso para a criação de Tags (Taxonomia).
-
-    Assegura que os modelos de classificação (ex: mDeBERTa) entreguem
-    categorias consistentes acompanhadas de sua métrica de confiança
-    para métricas de observabilidade.
-    """
-
-    name: str = Field(description="A palavra-chave ou conceito associado, preferencialmente em minúsculo.")
-    macro_category_id: int | None = Field(
-        default=None, description="Id linkando para a gaveta semântica principal (ex: Urbanismo, Saúde)"
-    )
-    ai_confidence_score: float | None = Field(
-        default=None, description="Grau de certeza do modelo de IA (0.0 a 1.0 ou 0 a 100)."
-    )
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class ArchiveDocumentDTO(BaseModel):

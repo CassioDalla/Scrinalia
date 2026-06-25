@@ -1,57 +1,108 @@
-from unittest.mock import MagicMock, patch
+from pytest_mock import MockerFixture
+from sqlalchemy.orm import Session
 
-from domains.archive.engines.classification import registry
-from domains.archive.workers.worker_typology import execute
-
-# ==========================================
-# 1. TESTE UNITÁRIO (Foco na Lógica Python)
-# ==========================================
+from domains.archive.workers import worker_typology
 
 
 class MockArchiveDocument:
-    """Dublê super leve apenas para o teste unitário."""
+    """Dublê ultraleve simulando um documento do SQLAlchemy para os Testes Unitários."""
 
-    def __init__(self, id, title, content):
-        self.description_id = id
+    def __init__(self, description_id: str, title: str, content: str | None = None):
+        self.description_id = description_id
         self.original_title = title
         self.scope_content = content
         self.typology_id = None
         self.execution_log = None
 
 
-@patch("domains.archive.workers.worker_typology.repository.get_active_typologies")
-def test_worker_unitario_logica_de_concatenacao(
-    mock_get_typologies,
-    mock_registry,
-):
-    # 1. Prepara o Banco Falso
-    mock_session = MagicMock()
-    mock_get_typologies.return_value = {"Contrato": 1}
+# ==========================================
+# TESTES DE ORQUESTRAÇÃO DO WORKER DE TIPOLOGIA
+# ==========================================
 
-    doc_teste = MockArchiveDocument(1, "Contrato de Prestação de Serviços", None)
-    mock_session.scalars.return_value.all.side_effect = [[doc_teste], []]
 
-    # 2. Prepara a IA Falsa (Acessando a instância gerada pela nossa Fábrica mockada)
-    # mock_registry_typology é a CLASSE. O .return_value pega a INSTÂNCIA.
+def test_worker_typology_unitario_fluxo_ideal(mocker: MockerFixture) -> None:
+    """Cenário Bom: Textos são concatenados ignorando nulos, IA classifica e doc é atualizado."""
+    mock_db = mocker.Mock(spec=Session)
 
-    MockClass = mock_registry(registry)
-    instancia_da_ia = MockClass.return_value
-    instancia_da_ia.classify.return_value = [{"labels": ["Contrato"], "scores": [0.95]}]
+    # 1. Mocks das Classes/Funções Externas no escopo do Worker
+    mock_repo_class = mocker.patch("domains.archive.workers.worker_typology.TypologyRepository")
+    mock_get_engine = mocker.patch("domains.archive.workers.worker_typology.get_engine")
+    mock_flag_modified = mocker.patch("domains.archive.workers.worker_typology.flag_modified")
 
-    # 3. Ação: Passamos o nome do motor falso que a fixture injetou no registry!
-    execute(
-        db=mock_session,
+    # 2. Configurações dos Retornos (Falsificando o BD e a IA)
+    mock_repo = mock_repo_class.return_value
+    mock_repo.get_active_typologies.return_value = {"Contrato": 1}
+
+    mock_classifier_engine = mock_get_engine.return_value
+    # A IA do HuggingFace/ZeroShot retorna uma lista com o formato: [{"labels": [...], "scores": [...]}]
+    mock_classifier_engine.classify.return_value = [{"labels": ["Contrato"], "scores": [0.95]}]
+
+    # 3. Simula a fila do banco de dados (1 documento na 1ª volta, quebra o laço na 2ª)
+    # Mandamos o content como None para testar se ele ignora o Nulo e não concatena lixo
+    doc_teste = MockArchiveDocument("doc-1", "Contrato de Prestação de Serviços", None)
+    mock_db.scalars.return_value.all.side_effect = [[doc_teste], []]
+
+    # 4. Execução
+    worker_typology.execute(
+        db=mock_db,
         engine_name="motor_fake",  # type: ignore
         preset="preset_teste",  # type: ignore
         columns_to_classify=["original_title", "scope_content"],
-    )  # type: ignore
+    )
 
-    # 4. Verificações (Asserts)
-    # Validamos se a concatenação de colunas funcionou (ignorou o scope_content nulo)
-    instancia_da_ia.classify.assert_called_once()
-    args, _ = instancia_da_ia.classify.call_args
+    # 5. Verificações de IA
+    mock_classifier_engine.classify.assert_called_once()
+    args, _ = mock_classifier_engine.classify.call_args
+    # Confirma se as colunas foram limpas, unidas com ponto e ignorou o campo "scope_content" (None)
     assert args[0] == ["Contrato de Prestação de Serviços"]
 
+    # 6. Verificações de Persistência
     assert doc_teste.typology_id == 1
     assert doc_teste.execution_log["worker_typology_classifier_v1"] == "DONE"  # type: ignore
-    mock_session.commit.assert_called_once()
+
+    mock_flag_modified.assert_called_once_with(doc_teste, "execution_log")
+    mock_db.commit.assert_called_once()
+
+
+def test_worker_typology_ignora_textos_vazios(mocker: MockerFixture) -> None:
+    """Cenário Limite: Documentos sem texto útil devem ser pulados na IA, mas carimbados no BD."""
+    mock_db = mocker.Mock(spec=Session)
+
+    mocker.patch("domains.archive.workers.worker_typology.TypologyRepository")
+    mock_get_engine = mocker.patch("domains.archive.workers.worker_typology.get_engine")
+    mock_flag_modified = mocker.patch("domains.archive.workers.worker_typology.flag_modified")
+
+    # Documento onde tudo está vazio
+    doc_vazio = MockArchiveDocument("doc-2", "   ", None)
+    mock_db.scalars.return_value.all.side_effect = [[doc_vazio], []]
+
+    worker_typology.execute(db=mock_db)
+
+    # A IA não pode ter sido chamada (poupa processamento)
+    mock_get_engine.return_value.classify.assert_not_called()
+
+    # O carimbo deve ter sido aplicado para o Worker não entrar em loop amanhã
+    assert doc_vazio.execution_log["worker_typology_classifier_v1"] == "DONE"  # type: ignore
+    mock_flag_modified.assert_called_once()
+
+
+def test_worker_typology_falha_na_ia_faz_rollback(mocker: MockerFixture) -> None:
+    """Cenário Ruim: Se o motor Zero-Shot der erro de memória, a transação aborta e faz rollback."""
+    mock_db = mocker.Mock(spec=Session)
+
+    mocker.patch("domains.archive.workers.worker_typology.TypologyRepository")
+    mock_get_engine = mocker.patch("domains.archive.workers.worker_typology.get_engine")
+
+    doc_teste = MockArchiveDocument("doc-3", "Texto super complexo", "Muitas palavras")
+    mock_db.scalars.return_value.all.side_effect = [[doc_teste], []]
+
+    # Forçamos o motor NLP a explodir
+    mock_get_engine.return_value.classify.side_effect = Exception("Out of Memory na GPU")
+
+    worker_typology.execute(db=mock_db)
+
+    # O rollback deve ter sido chamado para proteger a transação do banco
+    mock_db.rollback.assert_called()
+
+    # O carimbo não deve ter sido aplicado, permitindo nova tentativa futuramente
+    assert doc_teste.execution_log is None

@@ -14,8 +14,7 @@ from domains.archive.models import (
     DomainStopwords,
     DomainSynonyms,
 )
-from domains.archive.schemas import ArchiveMacroCategoryEntityDTO
-from domains.archive.schemas.schemas import ArchiveTagDTO
+from domains.archive.schemas import ArchiveMacroCategoryEntityDTO, ArchiveTagDTO
 
 
 class TagRepository:
@@ -214,6 +213,31 @@ class TagRepository:
     def link_documents_to_tag(self, doc_ids: set[str], target_tag_id: int) -> None:
         novos_vinculos = [{"description_id": doc_id, "tag_id": target_tag_id} for doc_id in doc_ids]
         stmt = insert(ArchiveDocumentTag).values(novos_vinculos).on_conflict_do_nothing()
+        self.db.execute(stmt)
+
+    def link_tags_to_document(self, description_id: str, tag_ids: list[int]) -> None:
+        """Vincula múltiplas tags a um único documento (Usado pontualmente)."""
+        if not tag_ids:
+            return
+
+        novos_vinculos = [{"description_id": description_id, "tag_id": t_id} for t_id in set(tag_ids)]
+        stmt = insert(ArchiveDocumentTag).values(novos_vinculos).on_conflict_do_nothing()
+        self.db.execute(stmt)
+
+    def bulk_link_tags(self, links_data: list[dict]) -> None:
+        """
+        Otimização para Ingestão em Lote (Workers).
+        Insere milhares de vínculos N:N numa única transação.
+        Recebe: [{"description_id": "doc1", "tag_id": 1}, ...]
+        """
+        if not links_data:
+            return
+
+        # Converte para tuplas e depois para dict novamente para remover duplicidades
+        # exatas enviadas no mesmo lote, prevenindo trancamentos desnecessários (locks)
+        unique_links = [dict(t) for t in {tuple(d.items()) for d in links_data}]
+
+        stmt = insert(ArchiveDocumentTag).values(unique_links).on_conflict_do_nothing()
         self.db.execute(stmt)
 
     def create_synonyms(self, synonyms_data: list[dict]) -> None:
