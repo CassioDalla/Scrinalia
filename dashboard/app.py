@@ -13,22 +13,19 @@ st.set_page_config(page_title="Acervo Inteligente MVP", page_icon="🏛️", lay
 
 # Registra as duas páginas
 pagina_vitrine = st.Page("views/vitrine.py", title="Vitrine de Busca", icon="🔍")
-pagina_taxonomia = st.Page("views/taxonomy_view.py", title="Taxonomia", icon="🧹")
+pagina_taxonomia = st.Page("views/taxonomy_view.py", title="Tags e Assuntos", icon="🏷️")
+pagina_entidades = st.Page("views/entity_view.py", title="Entidades Nomeadas", icon="🗂️")
 
 # Configura a navegação lateral passando as duas páginas
-navegacao = st.navigation({
-    "Descoberta": [
-        pagina_vitrine
-    ],
-    "Governança & Curadoria": [
-        pagina_taxonomia,
-    ],
-    "Engenharia de Sistema": [
-        #pagina_workers
-    ]
-})
- 
-
+navegacao = st.navigation(
+    {
+        "Descoberta": [pagina_vitrine],
+        "Governança & Curadoria": [pagina_taxonomia, pagina_entidades],
+        "Engenharia de Sistema": [
+            # pagina_workers
+        ],
+    }
+)
 
 
 navegacao.run()

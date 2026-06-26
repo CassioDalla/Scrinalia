@@ -41,6 +41,25 @@ class EntityPairSimilarity(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class EntitySimilarityResponse(BaseModel):
+    mode: Literal["all", "specific"]
+    data: list[EntitySimilarity|EntityPairSimilarity]
+
+    @classmethod
+    def from_payload(cls, payload:list[EntitySimilarity|EntityPairSimilarity]) -> "EntitySimilarityResponse":
+        if not payload:
+            return cls(mode="all", data=[])
+
+        first_item = payload[0]
+
+        if isinstance(first_item, EntitySimilarity):
+            return cls(mode="specific", data=payload)
+
+        elif isinstance(first_item, EntityPairSimilarity):
+            return cls(mode="all", data=payload)
+
+        raise ValueError("Tipo de payload desconhecido")
+
 class EntityMergeResponse(BaseModel):
     documents_updated: int
     entities_deleted: int
@@ -53,3 +72,8 @@ class EntityRelevance(BaseModel):
     name: str
     entity_type: str
     total_usage: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+class EntityRelevanceResponse(BaseModel):
+    data: list[EntityRelevance]

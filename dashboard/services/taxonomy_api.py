@@ -2,8 +2,10 @@ import pandas as pd
 import requests
 import streamlit as st
 
-# Idealmente, puxe isso de variáveis de ambiente (.env)
-API_BASE_URL = "http://localhost:8000/api/v1/taxonomy"
+from core.config import settings
+
+HOST = settings.API_BASE_URL
+API_URL = f"{HOST}api/v1/taxonomy"
 
 
 class TaxonomyApiService:
@@ -16,7 +18,7 @@ class TaxonomyApiService:
         endpoint = "relevance/tfidf" if "TF-IDF" in method else "relevance/count"
 
         try:
-            response = requests.get(f"{API_BASE_URL}/tags/{endpoint}", params={"limit": limit})
+            response = requests.get(f"{API_URL}/tags/{endpoint}", params={"limit": limit})
             response.raise_for_status()
 
             data = response.json()
@@ -54,7 +56,7 @@ class TaxonomyApiService:
     def find_similar_tags(target: str, threshold: float) -> list[dict]:
         """Busca tags similares usando a extensão pg_trgm na API."""
         try:
-            response = requests.get(f"{API_BASE_URL}/tags/similar", params={"target": target, "threshold": threshold})
+            response = requests.get(f"{API_URL}/tags/similar", params={"target": target, "threshold": threshold})
 
             response.raise_for_status()
             data = response.json()
@@ -66,14 +68,11 @@ class TaxonomyApiService:
 
         except requests.RequestException:
             return []
-        
+
     @staticmethod
     def find_all_similar_pairs(threshold: float) -> list[dict]:
         try:
-            response = requests.get(
-                f"{API_BASE_URL}/tags/similar", 
-                params={"threshold": threshold}
-            )
+            response = requests.get(f"{API_URL}/tags/similar", params={"threshold": threshold})
             response.raise_for_status()
             data = response.json()
             return data.get("payload", data) if isinstance(data, dict) else data
@@ -85,7 +84,7 @@ class TaxonomyApiService:
         """Envia o comando de merge para a API."""
         try:
             payload = {"canonical_id": canonical_id, "ids_to_merge": ids_to_merge}
-            response = requests.post(f"{API_BASE_URL}/tags/merge", json=payload)
+            response = requests.post(f"{API_URL}/tags/merge", json=payload)
 
             # Se a API retornar 400 (ex: FusaoDeTagsInvalidaError), cai aqui
             if not response.ok:
@@ -101,7 +100,7 @@ class TaxonomyApiService:
     def purge_stopwords(stopwords: list[str]) -> tuple[bool, int]:
         try:
             payload = {"words": stopwords}
-            response = requests.post(f"{API_BASE_URL}/tags/stopwords/purge", json=payload)
+            response = requests.post(f"{API_URL}/tags/stopwords/purge", json=payload)
 
             if response.ok:
                 # Retorna Sucesso = True e a quantidade de tags apagadas devolvida pela API

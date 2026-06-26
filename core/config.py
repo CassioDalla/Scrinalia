@@ -30,9 +30,11 @@ class Settings:
     S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY")
     S3_SECRET_KEY = os.getenv("S3_SECRET_KEY")
 
-
-    #LLM Hosts
+    # LLM Hosts
     OLLAMA_HOST_URL = os.getenv("OLLAMA_HOST_URL")
+
+    # API
+    API_BASE_URL = os.getenv("API_BASE_URL")
 
 
 settings = Settings()

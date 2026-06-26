@@ -6,15 +6,17 @@ import anyio.to_process
 from litestar import Controller, get, post
 from litestar.di import Provide
 
-from api.dependencies import provide_tag_service
+from api.dependencies import provide_entity_service, provide_tag_service
 from api.schemas.taxonomy import MergeRequest, StopwordsRequest, SuggestMacroRequest
+from domains.archive.schemas.entity_schema import EntityRelevanceResponse, EntitySimilarityResponse
 from domains.archive.schemas.tag_schema import (
     MacroCategoriesSuggestionResponse,
     MergeResponse,
+    TagPairSimilarity,
     TagRelevanceResponse,
     TagSimilarity,
-    TagPairSimilarity
 )
+from domains.archive.services.entity_service import EntityService
 from domains.archive.services.tag_service import TagService
 from domains.archive.workers.worker_suggest_macro_category import run_suggestion_engine
 
@@ -23,7 +25,10 @@ class TaxonomyController(Controller):
     path = "/api/v1/taxonomy"
     tags = ["Taxonomy"]  # noqa: RUF012
 
-    dependencies = {"tag_service": Provide(provide_tag_service)}  # noqa: RUF012
+    dependencies = {  # noqa: RUF012
+        "tag_service": Provide(provide_tag_service),
+        "entity_service": Provide(provide_entity_service),
+    }
 
     @get("/tags/relevance/{method:str}")
     def get_tag_relevance(
@@ -38,18 +43,20 @@ class TaxonomyController(Controller):
         return TagRelevanceResponse.from_payload(list(resultados))
 
     @get("/tags/similar")
-    def get_similar_tags(self, tag_service: TagService, target: str | None = None, threshold: float = 0.4) -> list[TagSimilarity] | list[TagPairSimilarity]:
+    def get_similar_tags(
+        self, tag_service: TagService, target: str | None = None, threshold: float = 0.4
+    ) -> list[TagSimilarity] | list[TagPairSimilarity]:
 
         if not target:
             results = tag_service.find_all_similar_tag_pairs(threshold)
             return list(results)
-       
+
         results = tag_service.find_similar_tags(target, threshold)
         return list(results)
 
     @post("/tags/merge")
     def merge_tags(self, tag_service: TagService, data: MergeRequest) -> MergeResponse:
-        response = tag_service.merge_tags(data.canonical_id, data.ids_to_merge)
+        response = tag_service.merge(data.canonical_id, data.ids_to_merge)
 
         return response
 
@@ -83,3 +90,38 @@ class TaxonomyController(Controller):
         )
 
         return results
+
+    @get("/entities/relevance")
+    def get_entity_relevance(
+        self, entity_service: EntityService, entity_type: Literal["ORG", "PER", "LOC"] | None = None, limit: int = 30
+    ) -> EntityRelevanceResponse:
+        resultados = entity_service.get_entity_relevance_count(entity_type, limit)
+        return EntityRelevanceResponse(data=list(resultados))
+
+    @get("/entities/similar")
+    def get_similar_entities(
+        self,
+        entity_service: EntityService,
+        target_name: str | None = None,
+        entity_type: Literal["ORG", "PER", "LOC"] | None = None,
+        threshold: float = 0.5,
+    ) -> EntitySimilarityResponse:
+
+        if not target_name:
+            resultados = entity_service.find_all_similar_entity_pairs(threshold)
+            return EntitySimilarityResponse.from_payload(list(resultados))
+
+        resultados = entity_service.find_similar(target_name, entity_type, threshold)
+        return EntitySimilarityResponse.from_payload(list(resultados))
+
+    @post("/entities/merge")
+    def merge_entities(self, entity_service: EntityService, data: MergeRequest) -> dict[str, int]:
+        res = entity_service.merge(data.canonical_id, data.ids_to_merge)
+
+        # TODO Fazer um mergeResponse da entity ou reciclar o da tag
+        return {"documents_updated": res.documents_updated, "entities_deleted": res.entities_deleted}
+
+    @post("/entities/orphans/purge")
+    def purge_orphan_entities(self, entity_service: EntityService) -> dict:
+        qtd_apagadas = entity_service.purge_orphan_entities()
+        return {"message": "Limpeza de entidades órfãs concluída com sucesso.", "entities_deleted": qtd_apagadas}
