@@ -39,6 +39,16 @@ class ArchiveReviewStatus(enum.StrEnum):
     REJECTED = "REJECTED"  # O humano definiu que o dado é lixo
 
 
+class StopwordsScope(enum.StrEnum):
+    """
+    Controla o escopo de uma stopword de dominio
+    """
+
+    TAG = "TAG"  # Aplicada a stowords apenas a tags
+    ENTITY = "ENTITY"
+    ALL = "ALL"
+
+
 class DomainStopwords(Base):
     """Lista de stopwords específicas do domínio
     arquivístico para limpeza de NLP."""
@@ -47,6 +57,12 @@ class DomainStopwords(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     word: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+    word_scope: Mapped[StopwordsScope] = mapped_column(
+        Enum(StopwordsScope, name="stopwords_scope", create_type=False),
+        default=StopwordsScope.TAG,
+        nullable=False,
+        index=True,
+    )
 
 
 class DomainSynonyms(Base):

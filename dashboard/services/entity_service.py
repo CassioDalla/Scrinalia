@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 import requests
 
@@ -74,6 +74,33 @@ class StreamlitEntityService:
         """Comanda a limpeza em lote de registros sem nenhum documento associado."""
         try:
             response = requests.post(f"{API_URL}/entities/orphans/purge")
+            return response.json() if response.status_code == 200 else {"error": response.text}
+        except Exception as e:
+            return {"error": str(e)}
+
+    @staticmethod
+    def reclassify_entity(entity_id: int, new_type: Literal["ORG", "PER", "LOC"]) -> dict[str, Any]:
+        """Altera a categoria da entidade e gera a âncora de sinônimo."""
+        try:
+            response = requests.patch(f"{API_URL}/entities/{entity_id}/reclassify", json={"new_type": new_type})
+            return response.json() if response.status_code == 200 else {"error": response.text}
+        except Exception as e:
+            return {"error": str(e)}
+
+    @staticmethod
+    def purge_stopwords(words: list[str]) -> dict[str, Any]:
+        """Envia termos para a lista negra e expurga retroativamente."""
+        try:
+            response = requests.post(f"{API_URL}/entities/stopwords/purge_stopwords", json={"words": words})
+            return response.json() if response.status_code == 200 else {"error": response.text}
+        except Exception as e:
+            return {"error": str(e)}
+
+    @staticmethod
+    def delete_entity(entity_id: int) -> dict[str, Any]:
+        """Exclui cirurgicamente uma entidade pelo ID."""
+        try:
+            response = requests.delete(f"{API_URL}/entities/{entity_id}")
             return response.json() if response.status_code == 200 else {"error": response.text}
         except Exception as e:
             return {"error": str(e)}

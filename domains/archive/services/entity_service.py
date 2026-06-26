@@ -111,3 +111,53 @@ class EntityService:
         após curadorias humanas ou exclusões de documentos no sistema.
         """
         return self.repo.purge_orphan_entities()
+
+    def reclassify_entity(self, entity_id: int, new_type: Literal["ORG", "PER", "LOC"]) -> None:
+        """
+        Corrige a classificação de uma entidade e cria uma âncora (sinônimo)
+        para prevenir falsos positivos futuros do Worker NER.
+        """
+        canonical = self.repo.get_by_id(entity_id)
+        if not canonical:
+            raise InvalidParam(f"Entidade canônica com ID {entity_id} não encontrada.")
+
+        if canonical.entity_type == new_type:
+            raise InvalidParam(f"A entidade '{canonical.name}' já está classificada como {new_type}.")
+
+        self.repo.update_entity_type(entity_id, new_type)
+
+        # 2. Gera o sinônimo de ancoragem (em minúsculas, como definimos nas regras de negócio)
+        synonym_data = [
+            {
+                "synonym_name": canonical.name.strip().lower(),
+                "category": new_type,
+                "canonical_tag_id": None,
+                "canonical_entity_id": entity_id,
+            }
+        ]
+
+        self.repo.create_synonyms(synonym_data)
+
+    def purge_entity_stopwords(self, words: list[str]) -> int:
+        """
+        Adiciona termos à lista negra de extração do NER e varre o banco
+        para expurgar entidades falsas que já tenham sido criadas.
+        """
+        if not words:
+            return 0
+
+        # 1. Grava na lista negra (Worker não vai extrair mais)
+        self.repo.save_entity_stopwords(words)
+
+        # 2. Expurga o passado (Limpa a base atual)
+        linhas_apagadas = self.repo.delete_entities_by_names(words)
+
+        return linhas_apagadas
+
+    def delete_entity(self, entity_id: int) -> None:
+        """Exclui cirurgicamente uma entidade isolada do banco de dados."""
+        entity = self.repo.get_by_id(entity_id)
+        if not entity:
+            raise InvalidParam(f"Entidade com ID {entity_id} não encontrada para exclusão.")
+
+        self.repo.delete_entities([entity_id])

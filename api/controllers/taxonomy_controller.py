@@ -3,11 +3,11 @@ from typing import Literal
 
 import anyio
 import anyio.to_process
-from litestar import Controller, get, post
+from litestar import Controller, delete, get, patch, post
 from litestar.di import Provide
 
 from api.dependencies import provide_entity_service, provide_tag_service
-from api.schemas.taxonomy import MergeRequest, StopwordsRequest, SuggestMacroRequest
+from api.schemas.taxonomy import MergeRequest, ReclassifyEntityRequest, StopwordsRequest, SuggestMacroRequest
 from domains.archive.schemas.entity_schema import EntityRelevanceResponse, EntitySimilarityResponse
 from domains.archive.schemas.tag_schema import (
     MacroCategoriesSuggestionResponse,
@@ -125,3 +125,27 @@ class TaxonomyController(Controller):
     def purge_orphan_entities(self, entity_service: EntityService) -> dict:
         qtd_apagadas = entity_service.purge_orphan_entities()
         return {"message": "Limpeza de entidades órfãs concluída com sucesso.", "entities_deleted": qtd_apagadas}
+
+    @post("/entities/stopwords/purge_stopwords")
+    def purge_entity_stopwords(self, entity_service: EntityService, data: StopwordsRequest) -> dict:
+        qtd_apagadas = entity_service.purge_entity_stopwords(data.words)
+
+        return {
+            "message": "Falsos positivos adicionados à lista negra e expurgados com sucesso.",
+            "entities_deleted": qtd_apagadas,
+        }
+
+    @patch("/entities/{entity_id:int}/reclassify")
+    def reclassify_entity(self, entity_service: EntityService, entity_id: int, data: ReclassifyEntityRequest) -> dict:
+        entity_service.reclassify_entity(entity_id, data.new_type)
+        return {
+            "message": "Entidade reclassificada com sucesso e sinônimo de ancoragem gerado.",
+            "new_type": data.new_type,
+        }
+
+    @delete("/entities/{entity_id:int}", status_code=200)
+    def delete_entity(self, entity_service: EntityService, entity_id: int) -> dict:
+        # A transação (commit/rollback) continua garantida pela injeção db_session
+        entity_service.delete_entity(entity_id)
+
+        return {"message": f"Entidade {entity_id} excluída com sucesso da base de dados."}

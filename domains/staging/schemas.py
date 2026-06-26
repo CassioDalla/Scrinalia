@@ -62,6 +62,8 @@ class StagingDocumentDTO(BaseModel):
     # Tudo que for não mapeado acima cai aqui
     raw_metadata: dict[str, Any] = Field(default_factory=dict)
 
+    # TODO adicionar limpeza de " -  : ;" como separadores de tags
+
     @field_validator("indexing_points", mode="before")
     @classmethod
     def standardize_tags_delimiter(cls, v: str | None) -> str | None:

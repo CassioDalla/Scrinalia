@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
 from domains.archive.exceptions import InvalidParam
-from domains.archive.models import ArchiveDocumentEntity, ArchiveEntity, DomainSynonyms
+from domains.archive.models import ArchiveDocumentEntity, ArchiveEntity, DomainStopwords, DomainSynonyms, StopwordsScope
 from domains.archive.schemas.entity_schema import ArchiveEntityDTO
 
 
@@ -163,6 +163,22 @@ class EntityRepository:
         stmt = insert(ArchiveDocumentEntity).values(novos_vinculos).on_conflict_do_nothing()
         self.db.execute(stmt)
 
+    def bulk_link_entities(self, links_data: list[dict]) -> None:
+        """
+        Otimização para Ingestão em Lote (Workers).
+        Insere milhares de vínculos N:N numa única transação.
+        Recebe: [{"description_id": "doc1", "entity_id": 1}, ...]
+        """
+        if not links_data:
+            return
+
+        # Converte para tuplas e depois para dict novamente para remover duplicidades
+        # exatas enviadas no mesmo lote, prevenindo trancamentos desnecessários (locks)
+        unique_links = [dict(t) for t in {tuple(d.items()) for d in links_data}]
+
+        stmt = insert(ArchiveDocumentEntity).values(unique_links).on_conflict_do_nothing()
+        self.db.execute(stmt)
+
     def create_synonyms(self, synonyms_data: list[dict]) -> None:
         stmt = insert(DomainSynonyms).values(synonyms_data).on_conflict_do_nothing()
         self.db.execute(stmt)
@@ -173,6 +189,37 @@ class EntityRepository:
 
         result = self.db.execute(delete(ArchiveEntity).where(ArchiveEntity.entity_id.in_(entity_ids)))
         return cast(CursorResult, result).rowcount
+
+    def update_entity_type(self, entity_id: int, new_type: str) -> None:
+        """Atualiza a categoria (PER, LOC, ORG) de uma entidade canônica."""
+        # Ajuste 'Entity' para o nome exato da sua classe de Modelo SQLAlchemy
+        entity = self.db.query(ArchiveEntity).filter(ArchiveEntity.entity_id == entity_id).first()
+        if entity:
+            entity.entity_type = new_type
+
+    def save_entity_stopwords(self, words: list[str]) -> None:
+        """Salva as palavras na lista negra com o escopo exclusivo para Entidades."""
+        for word in words:
+            clean_word = word.strip().lower()
+
+            # Verifica se já não existe para evitar erro de Unique Constraint
+            exists = self.db.query(DomainStopwords).filter_by(word=clean_word, word_scope=StopwordsScope.ENTITY).first()
+
+            if not exists:
+                new_stopword = DomainStopwords(word=clean_word, word_scope=StopwordsScope.ENTITY)
+                self.db.add(new_stopword)
+
+    def delete_entities_by_names(self, names: list[str]) -> int:
+        """Deleta entidades do acervo buscando por uma lista de nomes exatos."""
+        clean_names = [n.strip().lower() for n in names]
+
+        linhas_apagadas = (
+            self.db.query(ArchiveEntity)
+            .filter(func.lower(ArchiveEntity.name).in_(clean_names))
+            .delete(synchronize_session=False)
+        )
+
+        return linhas_apagadas
 
     # --- Consultas Analíticas e Manutenção ---
 

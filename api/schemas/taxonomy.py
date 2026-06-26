@@ -17,3 +17,7 @@ class SuggestMacroRequest(BaseModel):
         default="tags", description="A fonte de dados que a IA usará para gerar os clusters."
     )
     columns_to_extract: list[str] | None = None
+
+
+class ReclassifyEntityRequest(BaseModel):
+    new_type: Literal["ORG", "PER", "LOC"]

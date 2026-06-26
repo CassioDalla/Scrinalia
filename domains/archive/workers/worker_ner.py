@@ -10,16 +10,18 @@ from core.logger import logger
 from domains.archive.engines.base import EntityExtractionEngine
 from domains.archive.engines.NER.registry import EngineName as ExtractEngineName
 from domains.archive.engines.NER.registry import PresetName, get_engine
-from domains.archive.models import ArchiveDocument
+from domains.archive.models import ArchiveDocument, DomainStopwords, StopwordsScope
 from domains.archive.repository import EntityRepository
 
-# TODO (Melhorias Futuras):
-# 1. Gargalo N+1 (Performance): Em vez de gravar as entidades documento por documento,
-#    criar um buffer em memória (ex: `batch_links`) e usar um método `bulk_link_entities`
-#    no Repositório no fim do lote, exatamente como foi otimizado no worker_etl.
-# 2. Resiliência de Banco (PendingRollbackError): Envolver a chamada de
-#    `repository.get_or_create_entities` em um `with db.begin_nested():`
-#    para evitar que falhas de Constraints corrompam a transação do lote inteiro.
+
+def load_entity_blacklist(db_session: Session) -> set[str]:
+    """Carrega todas as stopwords de entidades para um SET do Python (Busca O(1))."""
+    result = (
+        db_session.query(DomainStopwords.word)
+        .filter(DomainStopwords.word_scope.in_([StopwordsScope.ENTITY, StopwordsScope.ALL]))
+        .all()
+    )
+    return {row[0].lower() for row in result}
 
 
 def _clean_raw_text(text: str) -> str:
@@ -90,8 +92,6 @@ def execute(
     logger.info(f"🚀 Iniciando Worker de NER (Motor: {engine_name} | Preset: {preset})")
 
     columns_to_extract = columns_to_extract or ["original_title", "admin_bio_history", "provenance", "scope_content"]
-
-    # Instancia o repo
     repository = EntityRepository(db)
 
     try:
@@ -126,8 +126,10 @@ def execute(
 
     logger.info(f"🔍 Encontrados {total_documents} documentos para processar.")
 
-    processed_docs_count = 0
+    blacklist = load_entity_blacklist(db)
+    logger.info(f"🛡️ Carregadas {len(blacklist)} palavras na blacklist NER.")
 
+    processed_docs_count = 0
     while True:
         try:
             query = select(ArchiveDocument).where(*where_cond).limit(db_batch_size)
@@ -162,6 +164,7 @@ def execute(
                 docs_valid.append(doc)
                 texts_buffer.append(text_contextualized)
 
+            batch_links_buffer = []
             if texts_buffer:
                 logger.info(f"🧠 Extraindo entidades de {len(texts_buffer)} documentos...")
 
@@ -182,12 +185,28 @@ def execute(
                     try:
                         # Se a IA encontrou entidades, processamos os vínculos
                         if dtos_entities:
-                            entity_ids = repository.get_or_create_entities(dtos_entities)
+                            dtos_filtrados = [ent for ent in dtos_entities if ent.name.strip().lower() not in blacklist]
 
-                            repository.link_entities_to_document(
-                                description_id=doc.description_id, entity_ids=entity_ids
-                            )
-                            logger.debug(f"Doc {doc.description_id} ➡️ {len(entity_ids)} entidades vinculadas.")
+                            if dtos_filtrados:
+                                try:
+                                    with db.begin_nested():
+                                        entity_ids = repository.get_or_create_entities(dtos_filtrados)
+
+                                        for e_id in entity_ids:
+                                            batch_links_buffer.append(
+                                                {"description_id": doc.description_id, "entity_id": e_id}
+                                            )
+
+                                        logger.debug(
+                                            f"Doc {doc.description_id} ➡️ {len(entity_ids)} entidades prontas para vínculo."
+                                        )
+                                except Exception as e_nested:
+                                    logger.error(f"❌ Erro transacional no doc {doc.description_id}: {e_nested}")
+                                    status_carimbo = "ERROR"
+                            else:
+                                logger.debug(
+                                    f"Doc {doc.description_id} ➡️ Todas as entidades barradas pela Lista Negra."
+                                )
                         else:
                             logger.debug(f"Doc {doc.description_id} ➡️ Nenhuma entidade encontrada.")
 
@@ -208,6 +227,9 @@ def execute(
 
             # 6. Commit de Lote e Limpeza de Memória
             try:
+                if batch_links_buffer:
+                    repository.bulk_link_entities(batch_links_buffer)
+
                 db.commit()
                 logger.info(f"⏳ Progresso parcial: {processed_docs_count} documentos enriquecidos...")
             except Exception as e:

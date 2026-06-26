@@ -1,8 +1,117 @@
+from typing import Literal, cast
+
 import pandas as pd
 import streamlit as st
 from services.entity_service import StreamlitEntityService as service
 
+
+## =========================================================================
+##                 COMPONENTES REUTILIZAVEIS DA VIEW
+## =========================================================================
+def render_painel_banimento_lote(df_selecionado: pd.DataFrame, key_prefix: str):
+    """
+    Componente para Ações em Lote (>1 linha selecionada):
+    Bane múltiplas entidades de uma só vez.
+    """
+    st.divider()
+    st.markdown("### 🚫 Banimento em Massa (Lista Negra)")
+
+    nomes_alvo = df_selecionado["Nome da Entidade"].tolist()
+
+    st.warning(
+        f"⚠️ **Atenção:** Você selecionou **{len(nomes_alvo)} entidades** para banimento. Elas serão excluídas e o Worker será bloqueado de gerá-las novamente."
+    )
+
+    with st.expander("Ver lista de entidades que serão banidas"):
+        st.write(", ".join(nomes_alvo))
+
+    if st.button(
+        "🚫 Banir Todas as Entidades Selecionadas",
+        type="primary",
+        use_container_width=True,
+        key=f"btn_ban_lote_{key_prefix}",
+    ):
+        with st.spinner("Adicionando à lista negra e expurgando do banco..."):
+            res = service.purge_stopwords([nome.lower() for nome in nomes_alvo])
+            if "error" in res:
+                st.error(res["error"])
+            else:
+                qtd_apagadas = res.get("entities_deleted", 0)
+                st.success(
+                    f"🎉 {len(nomes_alvo)} palavras banidas com sucesso! {qtd_apagadas} registros deletados do acervo."
+                )
+                st.rerun()
+
+
+def render_painel_individual(df_selecionado: pd.DataFrame, key_prefix: str):
+    """
+    Componente reutilizável para o painel de Ações Individuais (Reclassificar e Excluir).
+    """
+    st.divider()
+    st.markdown("### 🛠️ Ações Individuais")
+    st.write("Ajuste a classificação ou exclua pontualmente este registro.")
+
+    id_alvo = int(df_selecionado.iloc[0]["ID"])
+    nome_alvo = df_selecionado.iloc[0]["Nome da Entidade"]
+    tipo_atual = df_selecionado.iloc[0]["Tipo"]
+
+    col_reclass, col_delete, col_ban = st.columns(3)
+
+    with col_reclass:
+        st.markdown(f"**Reclassificar: {nome_alvo}**")
+        novo_tipo = st.selectbox(
+            "Nova Categoria",
+            ["PER", "LOC", "ORG"],
+            index=["PER", "LOC", "ORG"].index(tipo_atual) if tipo_atual in ["PER", "LOC", "ORG"] else 0,
+            key=f"reclass_{key_prefix}_{id_alvo}",
+        )
+        if st.button(
+            "Atualizar Categoria", type="primary", use_container_width=True, key=f"btn_reclass_{key_prefix}_{id_alvo}"
+        ):
+            if novo_tipo == tipo_atual:
+                st.warning("A entidade já possui esta categoria.")
+            else:
+                with st.spinner("Atualizando banco e gerando sinônimos..."):
+                    novo_tipo = cast(Literal["PER", "ORG", "LOC"], novo_tipo)
+                    res = service.reclassify_entity(id_alvo, novo_tipo)
+                    if "error" in res:
+                        st.error(res["error"])
+                    else:
+                        st.success(f"Categoria alterada para {novo_tipo}!")
+                        st.rerun()
+
+    with col_delete:
+        st.markdown("**Exclusão**")
+        st.caption("Remove apenas este ID específico.")
+        if st.button(
+            "🗑️ Excluir Entidade", type="secondary", use_container_width=True, key=f"btn_del_{key_prefix}_{id_alvo}"
+        ):
+            with st.spinner("Excluindo registro..."):
+                res = service.delete_entity(id_alvo)
+                if "error" in res:
+                    st.error(res["error"])
+                else:
+                    st.success("Entidade excluída com sucesso!")
+                    st.rerun()
+
+    with col_ban:
+        st.markdown("**Adicionar à Lista Negra**")
+        st.caption("Deleta a palavra do acervo e bloqueia a IA no futuro de classificá-la novamente.")
+        if st.button(
+            "🚫 Banir Palavra", type="secondary", use_container_width=True, key=f"btn_ban_{key_prefix}_{id_alvo}"
+        ):
+            with st.spinner(f"Banindo '{nome_alvo}' e expurgando banco..."):
+                res = service.purge_stopwords([nome_alvo.lower()])
+                if "error" in res:
+                    st.error(res["error"])
+                else:
+                    qtd_apagadas = res.get("entities_deleted", 1)
+                    st.success(f"Palavra banida! {qtd_apagadas} registros deletados.")
+                    st.rerun()
+
+
 st.title("🗂️ Governança de Entidades Nomeadas")
+
 st.markdown(
     "Audite, higienize e consolide Pessoas (PER), Locais (LOC) e Organizações (ORG) extraídas de forma automática pelo Worker NER."
 )
@@ -50,7 +159,17 @@ with tab_relevancia:
     if dados_relevancia:
         df_relevance = pd.DataFrame(dados_relevancia)
         df_relevance.columns = ["ID", "Nome da Entidade", "Tipo", "Total de Ocorrências no Acervo"]
-        st.dataframe(df_relevance, use_container_width=True, hide_index=True)
+        evento = st.dataframe(
+            df_relevance, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="multi-row"
+        )
+
+        linhas_selecionadas = evento.selection.rows  # type: ignore
+
+        if len(linhas_selecionadas) == 1:
+            render_painel_individual(df_relevance.iloc[linhas_selecionadas], key_prefix="aba_freq")
+        elif len(linhas_selecionadas) >= 2:
+            render_painel_banimento_lote(df_relevance.iloc[linhas_selecionadas], key_prefix="freq")
+
     else:
         st.info("Nenhum registro localizado para os filtros informados.")
 
@@ -114,42 +233,51 @@ with tab_mesclagem:
 
                 linhas_selecionadas = evento.selection.rows  # type: ignore
 
-                if len(linhas_selecionadas) >= 2:
-                    st.divider()
-                    st.markdown("### 👑 Eleger Registro Canônico")
-                    st.info("A entidade eleita preservará o seu ID e herdará os documentos das linhas eliminadas.")
+                if len(linhas_selecionadas) == 1:
+                    render_painel_individual(df_sim.iloc[linhas_selecionadas], key_prefix="aba_merge")
 
-                    df_selecionado = df_sim.iloc[linhas_selecionadas]
-                    opcoes_dict = {row["ID"]: row["Nome da Entidade"] for _, row in df_selecionado.iterrows()}
-
-                    id_canonico = st.radio(
-                        "Qual registro representa a grafia correta/oficial?",
-                        options=opcoes_dict.keys(),
-                        format_func=lambda x: opcoes_dict[x],
+                elif len(linhas_selecionadas) >= 2:
+                    sub_tab_merge, sub_tab_ban = st.tabs(
+                        ["🔗 Unificar Entidades (Merge)", "🚫 Banir Todas (Lista Negra)"]
                     )
 
-                    ids_para_mesclar = [id_ent for id_ent in opcoes_dict if id_ent != id_canonico]
-                    nomes_mesclados = [opcoes_dict[id_ent] for id_ent in ids_para_mesclar]
+                    with sub_tab_merge:
+                        st.divider()
+                        st.markdown("### 👑 Eleger Registro Canônico")
+                        st.info("A entidade eleita preservará o seu ID e herdará os documentos das linhas eliminadas.")
 
-                    st.warning(
-                        f"⚠️ **Confirmação:** As entidades **{', '.join(nomes_mesclados)}** serão removidas e os seus históricos acoplados a **{opcoes_dict[id_canonico]}**."
-                    )
+                        df_selecionado = df_sim.iloc[linhas_selecionadas]
+                        opcoes_dict = {row["ID"]: row["Nome da Entidade"] for _, row in df_selecionado.iterrows()}
 
-                    if st.button("Executar Fusão de Entidades", type="primary", use_container_width=True):
-                        with st.spinner("Processando fusão..."):
-                            resposta_merge = service.merge_entities(
-                                canonical_id=id_canonico, ids_to_merge=ids_para_mesclar
-                            )
-                            if "error" in resposta_merge:
-                                st.error(f"Falha na API: {resposta_merge['error']}")
-                            else:
-                                st.success(
-                                    f"✅ Sucesso! Vínculos movidos: {resposta_merge['documents_updated']} documentos | Linhas eliminadas: {resposta_merge['entities_deleted']}"
+                        id_canonico = st.radio(
+                            "Qual registro representa a grafia correta/oficial?",
+                            options=opcoes_dict.keys(),
+                            format_func=lambda x: opcoes_dict[x],
+                        )
+
+                        ids_para_mesclar = [id_ent for id_ent in opcoes_dict if id_ent != id_canonico]
+                        nomes_mesclados = [opcoes_dict[id_ent] for id_ent in ids_para_mesclar]
+
+                        st.warning(
+                            f"⚠️ **Confirmação:** As entidades **{', '.join(nomes_mesclados)}** serão removidas e os seus históricos acoplados a **{opcoes_dict[id_canonico]}**."
+                        )
+
+                        if st.button("Executar Fusão de Entidades", type="primary", use_container_width=True):
+                            with st.spinner("Processando fusão..."):
+                                resposta_merge = service.merge_entities(
+                                    canonical_id=id_canonico, ids_to_merge=ids_para_mesclar
                                 )
-                                st.rerun()
+                                if "error" in resposta_merge:
+                                    st.error(f"Falha na API: {resposta_merge['error']}")
+                                else:
+                                    st.success(
+                                        f"✅ Sucesso! Vínculos movidos: {resposta_merge['documents_updated']} documentos | Linhas eliminadas: {resposta_merge['entities_deleted']}"
+                                    )
+                                    st.rerun()
 
-                elif len(linhas_selecionadas) == 1:
-                    st.caption("💡 Selecione ao menos **duas linhas** para acionar o painel relacional.")
+                    with sub_tab_ban:
+                        render_painel_banimento_lote(df_selecionado, key_prefix="merge_busca")
+
             else:
                 st.info("Nenhuma entidade semelhante foi localizada.")
 
@@ -189,35 +317,54 @@ with tab_mesclagem:
                 id1, termo1 = int(linha["ID A"]), linha["Entidade A"]
                 id2, termo2 = int(linha["ID B"]), linha["Entidade B"]
 
-                st.markdown(f"### 👑 Resolver Duplicidade: **{termo1}** vs **{termo2}**")
+                st.markdown(f"### ⚖️ Ação para: **{termo1}** vs **{termo2}**")
+                col_merge, col_ban = st.columns(2)
 
-                opcoes_par = {id1: termo1, id2: termo2}
-                id_canonico = st.radio(
-                    "Qual registro deve ser mantido como o termo oficial?",
-                    options=opcoes_par.keys(),
-                    format_func=lambda x: opcoes_par[x],
-                    horizontal=True,
-                )
+                with col_merge:
+                    st.markdown(f"### 👑 Resolver Duplicidade: **{termo1}** vs **{termo2}**")
 
-                id_para_mesclar = id2 if id_canonico == id1 else id1
-                termo_morto = opcoes_par[id_para_mesclar]
-                termo_vivo = opcoes_par[id_canonico]
+                    opcoes_par = {id1: termo1, id2: termo2}
+                    id_canonico = st.radio(
+                        "Qual registro deve ser mantido como o termo oficial?",
+                        options=opcoes_par.keys(),
+                        format_func=lambda x: opcoes_par[x],
+                        horizontal=True,
+                    )
 
-                st.warning(
-                    f"⚠️ **Confirmação:** A entidade **{termo_morto}** será desativada do acervo e convertida em sinônimo de **{termo_vivo}**."
-                )
+                    id_para_mesclar = id2 if id_canonico == id1 else id1
+                    termo_morto = opcoes_par[id_para_mesclar]
+                    termo_vivo = opcoes_par[id_canonico]
 
-                if st.button("Fundir este Par de Entidades", type="primary", use_container_width=True):
-                    with st.spinner("Atualizando registros..."):
-                        resposta_merge = service.merge_entities(
-                            canonical_id=id_canonico, ids_to_merge=[id_para_mesclar]
-                        )
-                        if "error" in resposta_merge:
-                            st.error(f"Erro na operação: {resposta_merge['error']}")
-                        else:
-                            st.success("Par de entidades consolidado com sucesso!")
-                            del st.session_state["pares_entidades_encontrados"]
-                            st.rerun()
+                    st.warning(
+                        f"⚠️ **Confirmação:** A entidade **{termo_morto}** será desativada do acervo e convertida em sinônimo de **{termo_vivo}**."
+                    )
+
+                    if st.button("Fundir este Par de Entidades", type="primary", use_container_width=True):
+                        with st.spinner("Atualizando registros..."):
+                            resposta_merge = service.merge_entities(
+                                canonical_id=id_canonico, ids_to_merge=[id_para_mesclar]
+                            )
+                            if "error" in resposta_merge:
+                                st.error(f"Erro na operação: {resposta_merge['error']}")
+                            else:
+                                st.success("Par de entidades consolidado com sucesso!")
+                                del st.session_state["pares_entidades_encontrados"]
+                                st.rerun()
+
+                with col_ban:
+                    st.markdown("**2. Falso Positivo Duplo?**")
+                    st.caption(
+                        "Se ambos os termos forem erros da IA, você pode enviá-los para a Lista Negra de uma só vez."
+                    )
+                    if st.button("🚫 Banir Ambos os Termos", type="secondary", use_container_width=True):
+                        with st.spinner("Banindo termos..."):
+                            res = service.purge_stopwords([termo1.lower(), termo2.lower()])
+                            if "error" in res:
+                                st.error(res["error"])
+                            else:
+                                st.success("Termos banidos da plataforma!")
+                                del st.session_state["pares_entidades_encontrados"]
+                                st.rerun()
 
         elif "pares_entidades_encontrados" in st.session_state:
             st.success("✨ Excelente! Nenhuma duplicidade localizada no acervo com este limiar.")
@@ -230,6 +377,37 @@ with tab_manutencao:
     st.subheader("Saneamento de Índices e Otimização")
     st.write("Efetue rotinas de limpeza profunda para remover resíduos estruturais.")
 
+    # 1. BLOCO DA LISTA NEGRA (STOPWORDS)
+    st.markdown("#### 🚫 Lista Negra de Entidades (Falsos Positivos)")
+    with st.popover("❔ Como funciona a Lista Negra?"):
+        st.markdown("""
+        Se o robô continuar a extrair palavras que não são entidades (ex: *Feiras livres*, *Atenciosamente*), 
+        digite-as aqui. O sistema vai apagar todas as ocorrências atuais e impedir que o robô as extraia novamente.
+        """)
+
+    stopwords_input = st.text_area(
+        "Digitar Falsos Positivos (Separados por vírgula):",
+        placeholder="Exemplo: feiras livres, atenciosamente, documento",
+        help="Insira os termos e o sistema fará a limpeza atômica em lote no banco.",
+    )
+
+    if st.button("Adicionar à Lista Negra e Expurgar", type="primary"):
+        if not stopwords_input.strip():
+            st.warning("Por favor, informe ao menos uma palavra.")
+        else:
+            lista_palavras = [w.strip().lower() for w in stopwords_input.split(",") if w.strip()]
+            with st.spinner("Atualizando regras do Worker e expurgando banco..."):
+                res = service.purge_stopwords(lista_palavras)
+                if "error" in res:
+                    st.error(f"Erro na operação: {res['error']}")
+                else:
+                    st.success(
+                        f"🎉 Lista negra atualizada! {res.get('entities_deleted', 0)} entidades falsas foram apagadas do acervo."
+                    )
+                    st.balloons()
+
+    st.divider()
+
     with st.popover("❔ Entender o impacto de expurgar Entidades Órfãs"):
         st.markdown("""
         Entidades órfãs são palavras gravadas na tabela taxonômica que **não possuem mais nenhum documento associado**. 
@@ -237,8 +415,6 @@ with tab_manutencao:
 
         Removê-las limpa termos fantasmas que poluiriam os filtros de pesquisa dos usuários, sem qualquer risco de perda de dados.
         """)
-
-    st.divider()
 
     if st.button(
         "🧹 Varrer e Expurgar Entidades Órfãs do Acervo",
