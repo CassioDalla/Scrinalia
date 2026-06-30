@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from domains.archive.schemas.entity_schema import ConflictResolutionData, CrossDomainConflict
+
 
 class MergeRequest(BaseModel):
     canonical_id: int
@@ -22,3 +24,18 @@ class SuggestMacroRequest(BaseModel):
 
 class ReclassifyEntityRequest(BaseModel):
     new_type: Literal["ORG", "PER", "LOC"]
+
+
+class ConflictResolutionResponse(BaseModel):
+    message: str
+    data: ConflictResolutionData
+
+
+class CrossDomainConflictListResponse(BaseModel):
+    data: list[CrossDomainConflict]
+
+
+class ConflictResolutionRequest(BaseModel):
+    winner: Literal["TAG", "ENTITY"]
+    tag_id: int
+    entity_id: int

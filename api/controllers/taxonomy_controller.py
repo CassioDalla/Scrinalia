@@ -7,7 +7,15 @@ from litestar import Controller, delete, get, patch, post
 from litestar.di import Provide
 
 from api.dependencies import provide_entity_service, provide_tag_service
-from api.schemas.taxonomy import MergeRequest, ReclassifyEntityRequest, StopwordsRequest, SuggestMacroRequest
+from api.schemas.taxonomy import (
+    ConflictResolutionRequest,
+    ConflictResolutionResponse,
+    CrossDomainConflictListResponse,
+    MergeRequest,
+    ReclassifyEntityRequest,
+    StopwordsRequest,
+    SuggestMacroRequest,
+)
 from domains.archive.schemas.entity_schema import EntityRelevanceResponse, EntitySimilarityResponse
 from domains.archive.schemas.tag_schema import (
     MacroCategoriesSuggestionResponse,
@@ -149,3 +157,25 @@ class TaxonomyController(Controller):
         entity_service.delete_entity(entity_id)
 
         return {"message": f"Entidade {entity_id} excluída com sucesso da base de dados."}
+
+    # ==========================================
+    # ROTAS: CHOQUE DE DOMÍNIOS (Cross-Domain)
+    # ==========================================
+
+    @get("/conflicts/cross-domain")
+    def get_cross_domain_conflicts(
+        self, entity_service: EntityService, threshold: float = 0.85
+    ) -> CrossDomainConflictListResponse:
+        """Retorna uma lista de conflitos onde Tags e Entidades possuem a mesma nomenclatura."""
+        resultados = entity_service.find_cross_domain_conflicts(threshold=threshold)
+        return CrossDomainConflictListResponse(data=list(resultados))
+
+    @post("/conflicts/resolve")
+    def resolve_cross_domain_conflict(
+        self, entity_service: EntityService, data: ConflictResolutionRequest
+    ) -> ConflictResolutionResponse:
+        """Resolve o conflito forçando a vitória de uma Tag ou de uma Entidade."""
+        resultado = entity_service.resolve_cross_domain_conflict(data.winner, data.tag_id, data.entity_id)
+        return ConflictResolutionResponse(
+            message=f"Conflito resolvido! A vitória foi concedida para {data.winner}.", data=resultado
+        )

@@ -6,7 +6,15 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
 from domains.archive.exceptions import InvalidParam
-from domains.archive.models import ArchiveDocumentEntity, ArchiveEntity, DomainStopwords, DomainSynonyms, StopwordsScope
+from domains.archive.models import (
+    ArchiveDocumentEntity,
+    ArchiveDocumentTag,
+    ArchiveEntity,
+    ArchiveTag,
+    DomainStopwords,
+    DomainSynonyms,
+    StopwordsScope,
+)
 from domains.archive.schemas.entity_schema import ArchiveEntityDTO
 
 
@@ -88,6 +96,86 @@ class EntityRepository:
         )
 
         return self.db.execute(stmt).all()
+
+    def get_cross_domain_conflicts(self, threshold: float) -> Sequence[Row]:
+        """Busca conflitos onde o nome da Tag é idêntico ou muito similar ao da Entidade."""
+        self.db.execute(text(f"SET LOCAL pg_trgm.similarity_threshold = {threshold}"))
+
+        sim_score = func.similarity(ArchiveTag.name, ArchiveEntity.name)
+
+        stmt = (
+            select(
+                ArchiveTag.tag_id,
+                ArchiveTag.name.label("tag_name"),
+                ArchiveEntity.entity_id,
+                ArchiveEntity.name.label("entity_name"),
+                ArchiveEntity.entity_type,
+                sim_score.label("similarity"),
+            )
+            .join(
+                ArchiveEntity,
+                ArchiveTag.name.op("%")(ArchiveEntity.name)
+                | (func.lower(ArchiveTag.name) == func.lower(ArchiveEntity.name)),
+            )
+            .order_by(desc("similarity"))
+        )
+        return self.db.execute(stmt).all()
+
+    def resolve_cross_domain_conflict(self, winner: Literal["TAG", "ENTITY"], tag_id: int, entity_id: int) -> int:
+        """
+        Transfere os documentos para o vencedor e deleta o perdedor de forma atômica e
+        adiciona o nome do perdedor na lista negra do seu respectivo domínio.
+        Retorna a quantidade de documentos transferidos.
+        """
+        docs_transferidos = 0
+
+        if winner == "TAG":
+            ent_nome = self.db.scalar(select(ArchiveEntity.name).where(ArchiveEntity.entity_id == entity_id))
+
+            # Pega os docs da Entidade e move para a Tag
+            stmt_docs = select(ArchiveDocumentEntity.description_id).where(ArchiveDocumentEntity.entity_id == entity_id)
+            doc_ids = self.db.scalars(stmt_docs).all()
+
+            if doc_ids:
+                novos_vinculos = [{"description_id": d, "tag_id": tag_id} for d in doc_ids]
+                stmt_insert = insert(ArchiveDocumentTag).values(novos_vinculos).on_conflict_do_nothing()
+                self.db.execute(stmt_insert)
+                docs_transferidos = len(doc_ids)
+
+            self.db.execute(delete(ArchiveEntity).where(ArchiveEntity.entity_id == entity_id))
+
+            if ent_nome:
+                stmt_stopword = (
+                    insert(DomainStopwords)
+                    .values(word=ent_nome.lower().strip(), word_scope=StopwordsScope.ENTITY)
+                    .on_conflict_do_nothing()
+                )
+                self.db.execute(stmt_stopword)
+
+        elif winner == "ENTITY":
+            tag_nome = self.db.scalar(select(ArchiveTag.name).where(ArchiveTag.tag_id == tag_id))
+
+            # Pega os docs da Tag e move para a Entidade
+            stmt_docs = select(ArchiveDocumentTag.description_id).where(ArchiveDocumentTag.tag_id == tag_id)
+            doc_ids = self.db.scalars(stmt_docs).all()
+
+            if doc_ids:
+                novos_vinculos = [{"description_id": d, "entity_id": entity_id} for d in doc_ids]
+                stmt_insert = insert(ArchiveDocumentEntity).values(novos_vinculos).on_conflict_do_nothing()
+                self.db.execute(stmt_insert)
+                docs_transferidos = len(doc_ids)
+
+            self.db.execute(delete(ArchiveTag).where(ArchiveTag.tag_id == tag_id))
+
+            if tag_nome:
+                stmt_stopword = (
+                    insert(DomainStopwords)
+                    .values(word=tag_nome.lower().strip(), word_scope=StopwordsScope.TAG)
+                    .on_conflict_do_nothing()
+                )
+                self.db.execute(stmt_stopword)
+
+        return docs_transferidos
 
     # --- Métodos de Ingestão e NER ---
 

@@ -43,10 +43,10 @@ class EntityPairSimilarity(BaseModel):
 
 class EntitySimilarityResponse(BaseModel):
     mode: Literal["all", "specific"]
-    data: list[EntitySimilarity|EntityPairSimilarity]
+    data: list[EntitySimilarity | EntityPairSimilarity]
 
     @classmethod
-    def from_payload(cls, payload:list[EntitySimilarity|EntityPairSimilarity]) -> "EntitySimilarityResponse":
+    def from_payload(cls, payload: list[EntitySimilarity | EntityPairSimilarity]) -> "EntitySimilarityResponse":
         if not payload:
             return cls(mode="all", data=[])
 
@@ -59,6 +59,7 @@ class EntitySimilarityResponse(BaseModel):
             return cls(mode="all", data=payload)
 
         raise ValueError("Tipo de payload desconhecido")
+
 
 class EntityMergeResponse(BaseModel):
     documents_updated: int
@@ -75,5 +76,20 @@ class EntityRelevance(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class EntityRelevanceResponse(BaseModel):
     data: list[EntityRelevance]
+
+
+class CrossDomainConflict(BaseModel):
+    tag_id: int
+    tag_name: str
+    entity_id: int
+    entity_name: str
+    entity_type: str
+    similarity: float
+
+
+class ConflictResolutionData(BaseModel):
+    winner: Literal["TAG", "ENTITY"]
+    documents_transferred: int

@@ -111,3 +111,25 @@ class TaxonomyApiService:
         except requests.RequestException as e:
             st.error(f"Erro de conexão: {e}")
             return False, 0
+
+    @staticmethod
+    def get_cross_domain_conflicts(threshold: float = 0.85) -> list[dict]:
+        """Busca a lista de conflitos entre Tags e Entidades."""
+        try:
+            response = requests.get(f"{API_URL}/conflicts/cross-domain", params={"threshold": threshold})
+            if response.status_code == 200:
+                res_json = response.json()
+                return res_json.get("data", [])
+            return []
+        except Exception:
+            return []
+
+    @staticmethod
+    def resolve_cross_domain_conflict(winner: str, tag_id: int, entity_id: int) -> dict:
+        """Envia o veredito de quem ganhou a batalha (TAG ou ENTITY)."""
+        payload = {"winner": winner, "tag_id": tag_id, "entity_id": entity_id}
+        try:
+            response = requests.post(f"{API_URL}/conflicts/resolve", json=payload)
+            return response.json() if response.status_code == 200 else {"error": response.text}
+        except Exception as e:
+            return {"error": str(e)}

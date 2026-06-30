@@ -4,6 +4,8 @@ from typing import Literal
 from domains.archive.exceptions import InvalidParam
 from domains.archive.repository.entity_repo import EntityRepository
 from domains.archive.schemas.entity_schema import (
+    ConflictResolutionData,
+    CrossDomainConflict,
     EntityMergeResponse,
     EntityPairSimilarity,
     EntityRelevance,
@@ -174,3 +176,19 @@ class EntityService:
             raise InvalidParam(f"Entidade com ID {entity_id} não encontrada para exclusão.")
 
         self.repo.delete_entities([entity_id])
+
+    def find_cross_domain_conflicts(self, threshold: float = 0.85) -> Sequence[CrossDomainConflict]:
+        """Varre o banco procurando Tags e Entidades que possuem o mesmo nome ou grafia muito próxima."""
+        results = self.repo.get_cross_domain_conflicts(threshold)
+        return [CrossDomainConflict.model_validate(dict(r._mapping)) for r in results]
+
+    def resolve_cross_domain_conflict(
+        self, winner: Literal["TAG", "ENTITY"], tag_id: int, entity_id: int
+    ) -> ConflictResolutionData:
+        """Resolve o conflito transferindo os relacionamentos para o vencedor e expurgando o perdedor."""
+        if winner not in ["TAG", "ENTITY"]:
+            raise InvalidParam("O vencedor (winner) deve ser obrigatoriamente 'TAG' ou 'ENTITY'.")
+
+        docs_transferidos = self.repo.resolve_cross_domain_conflict(winner, tag_id, entity_id)
+
+        return ConflictResolutionData(winner=winner, documents_transferred=docs_transferidos)
