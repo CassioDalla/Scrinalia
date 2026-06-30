@@ -197,6 +197,11 @@ class EntityRepository:
         if entity:
             entity.entity_type = new_type
 
+    def update_entity_name(self, entity_id: int, new_name: str) -> None:
+        entity = self.db.query(ArchiveEntity).filter(ArchiveEntity.entity_id == entity_id).first()
+        if entity:
+            entity.name = new_name
+
     def save_entity_stopwords(self, words: list[str]) -> None:
         """Salva as palavras na lista negra com o escopo exclusivo para Entidades."""
         for word in words:

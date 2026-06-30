@@ -60,10 +60,13 @@ class StreamlitEntityService:
             return []
 
     @staticmethod
-    def merge_entities(canonical_id: int, ids_to_merge: list[int]) -> dict[str, Any]:
-        """Comanda a fusão atômica de múltiplos IDs duplicados sob um ID correto."""
+    def merge_entities(canonical_id: int, ids_to_merge: list[int], new_name: str | None = None) -> dict[str, Any]:
+        """Comanda a fusão atômica de múltiplos IDs duplicados sob um ID correto e permite renomeação."""
         try:
             payload = {"canonical_id": canonical_id, "ids_to_merge": ids_to_merge}
+            if new_name:
+                payload["new_name"] = new_name
+
             response = requests.post(f"{API_URL}/entities/merge", json=payload)
             return response.json() if response.status_code == 201 else {"error": response.text}
         except Exception as e:

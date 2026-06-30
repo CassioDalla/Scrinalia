@@ -138,6 +138,10 @@ tab_relevancia, tab_mesclagem, tab_manutencao = st.tabs(
     ["📊 Análise de Frequência", "🔗 Unificação & Duplicatas", "🧹 Manutenção e Limpeza"]
 )
 
+# Inicialização do Carrinho de Mesclagem na sessão do Streamlit
+if "cart_merge_entities" not in st.session_state:
+    st.session_state["cart_merge_entities"] = {}
+
 # ======================================================================
 # ABA 1: ANÁLISE DE FREQUÊNCIA
 # ======================================================================
@@ -164,6 +168,19 @@ with tab_relevancia:
         )
 
         linhas_selecionadas = evento.selection.rows  # type: ignore
+
+        if len(linhas_selecionadas) > 0:
+            df_selecionado = df_relevance.iloc[linhas_selecionadas]
+
+            # Atalho: Adicionar ao carrinho direto da aba de frequência
+            if st.button("🛒 Enviar selecionadas ao Cesto de Mesclagem (Aba 2)", type="primary"):
+                for _, row in df_selecionado.iterrows():
+                    st.session_state["cart_merge_entities"][row["ID"]] = {
+                        "ID": row["ID"],
+                        "Nome da Entidade": row["Nome da Entidade"],
+                        "Tipo": row["Tipo"],
+                    }
+                st.success(f"{len(linhas_selecionadas)} entidades enviadas ao carrinho!")
 
         if len(linhas_selecionadas) == 1:
             render_painel_individual(df_relevance.iloc[linhas_selecionadas], key_prefix="aba_freq")
@@ -233,53 +250,81 @@ with tab_mesclagem:
 
                 linhas_selecionadas = evento.selection.rows  # type: ignore
 
-                if len(linhas_selecionadas) == 1:
-                    render_painel_individual(df_sim.iloc[linhas_selecionadas], key_prefix="aba_merge")
+                if len(linhas_selecionadas) > 0:
+                    df_selecionado = df_sim.iloc[linhas_selecionadas]
 
-                elif len(linhas_selecionadas) >= 2:
-                    sub_tab_merge, sub_tab_ban = st.tabs(
-                        ["🔗 Unificar Entidades (Merge)", "🚫 Banir Todas (Lista Negra)"]
-                    )
+                    st.markdown("---")
+                    if st.button("🛒 Adicionar Selecionadas ao Cesto", type="primary", use_container_width=True):
+                        for _, row in df_selecionado.iterrows():
+                            st.session_state["cart_merge_entities"][row["ID"]] = {
+                                "ID": row["ID"],
+                                "Nome da Entidade": row["Nome da Entidade"],
+                                "Tipo": row["Tipo"],
+                            }
+                        st.success(f"Adicionadas {len(linhas_selecionadas)} entidades ao carrinho!")
+                        st.rerun()
 
-                    with sub_tab_merge:
-                        st.divider()
-                        st.markdown("### 👑 Eleger Registro Canônico")
-                        st.info("A entidade eleita preservará o seu ID e herdará os documentos das linhas eliminadas.")
-
-                        df_selecionado = df_sim.iloc[linhas_selecionadas]
-                        opcoes_dict = {row["ID"]: row["Nome da Entidade"] for _, row in df_selecionado.iterrows()}
-
-                        id_canonico = st.radio(
-                            "Qual registro representa a grafia correta/oficial?",
-                            options=opcoes_dict.keys(),
-                            format_func=lambda x: opcoes_dict[x],
-                        )
-
-                        ids_para_mesclar = [id_ent for id_ent in opcoes_dict if id_ent != id_canonico]
-                        nomes_mesclados = [opcoes_dict[id_ent] for id_ent in ids_para_mesclar]
-
-                        st.warning(
-                            f"⚠️ **Confirmação:** As entidades **{', '.join(nomes_mesclados)}** serão removidas e os seus históricos acoplados a **{opcoes_dict[id_canonico]}**."
-                        )
-
-                        if st.button("Executar Fusão de Entidades", type="primary", use_container_width=True):
-                            with st.spinner("Processando fusão..."):
-                                resposta_merge = service.merge_entities(
-                                    canonical_id=id_canonico, ids_to_merge=ids_para_mesclar
-                                )
-                                if "error" in resposta_merge:
-                                    st.error(f"Falha na API: {resposta_merge['error']}")
-                                else:
-                                    st.success(
-                                        f"✅ Sucesso! Vínculos movidos: {resposta_merge['documents_updated']} documentos | Linhas eliminadas: {resposta_merge['entities_deleted']}"
-                                    )
-                                    st.rerun()
-
-                    with sub_tab_ban:
+                    # Mantém as ações cirúrgicas rápidas
+                    if len(linhas_selecionadas) == 1:
+                        render_painel_individual(df_selecionado, key_prefix="merge")
+                    else:
                         render_painel_banimento_lote(df_selecionado, key_prefix="merge_busca")
-
             else:
                 st.info("Nenhuma entidade semelhante foi localizada.")
+
+        # --- O CARRINHO DE MESCLAGEM ---
+        st.divider()
+        st.markdown("### 🛒 Cesto de Mesclagem")
+
+        if not st.session_state["cart_merge_entities"]:
+            st.info("O cesto está vazio. Busque e adicione entidades acima para consolidá-las.")
+        else:
+            df_carrinho = pd.DataFrame(list(st.session_state["cart_merge_entities"].values()))
+
+            col_cart1, col_cart2 = st.columns([4, 1])
+            with col_cart1:
+                st.dataframe(df_carrinho, use_container_width=True, hide_index=True)
+            with col_cart2:
+                if st.button("🗑️ Limpar Carrinho", use_container_width=True):
+                    st.session_state["cart_merge_entities"] = {}
+                    st.rerun()
+
+            if len(df_carrinho) >= 1:
+                st.markdown("#### 👑 Eleger Termo Oficial e Renomear")
+                st.info("A entidade eleita vai herdar os documentos de todas as outras do cesto.")
+
+                opcoes_dict = {row["ID"]: row["Nome da Entidade"] for _, row in df_carrinho.iterrows()}
+
+                id_canonico = st.radio(
+                    "Qual registro representa a âncora principal (ID que vai sobreviver)?",
+                    options=opcoes_dict.keys(),
+                    format_func=lambda x: opcoes_dict[x],
+                    key="radio_canonico_carrinho",
+                )
+
+                novo_nome = st.text_input(
+                    "Deseja renomear a entidade final? (Opcional)",
+                    placeholder="Ex: Secretaria Municipal de Urbanismo",
+                    help="Se preenchido, o ID eleito receberá este nome, e o nome antigo dele virará sinônimo automaticamente.",
+                )
+
+                ids_para_mesclar = [id_ent for id_ent in opcoes_dict if id_ent != id_canonico]
+
+                if st.button("🚀 Executar Mesclagem e Esvaziar Carrinho", type="primary", use_container_width=True):
+                    with st.spinner("Processando mesclagem e gerando sinônimos no banco..."):
+                        resposta_merge = service.merge_entities(
+                            canonical_id=id_canonico,
+                            ids_to_merge=ids_para_mesclar,
+                            new_name=novo_nome.strip() if novo_nome.strip() else None,
+                        )
+                        if "error" in resposta_merge:
+                            st.error(f"Falha na API: {resposta_merge['error']}")
+                        else:
+                            st.success(
+                                f"🎉 Sucesso! {resposta_merge.get('documents_updated', 0)} vínculos movidos e {resposta_merge.get('entities_deleted', 0)} entidades deletadas."
+                            )
+                            st.session_state["cart_merge_entities"] = {}
+                            st.rerun()
 
     # ------------------------------------------------------------------
     # FLUXO B: VARREDURA COMPLETA (Single-Row Selection)

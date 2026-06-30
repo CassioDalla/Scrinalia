@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 class MergeRequest(BaseModel):
     canonical_id: int
     ids_to_merge: list[int] = Field(min_length=1, description="Lista de IDs que serão mesclados e deletados.")
+    new_name: str | None = None
 
 
 class StopwordsRequest(BaseModel):

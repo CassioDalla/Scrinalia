@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from typing import Literal
 
-from domains.archive.exceptions import InvalidMergeError, InvalidParam
+from domains.archive.exceptions import InvalidParam
 from domains.archive.repository.entity_repo import EntityRepository
 from domains.archive.schemas.entity_schema import (
     EntityMergeResponse,
@@ -50,16 +50,18 @@ class EntityService:
             for r in results
         ]
 
-    def merge(self, canonical_id: int, ids_to_merge: list[int]) -> EntityMergeResponse:
+    def merge(self, canonical_id: int, ids_to_merge: list[int], new_name: str | None = None) -> EntityMergeResponse:
         """
         Orquestra a fusão de entidades aplicando regras de negócio e sanitização.
+        Permite renomear a entidade canônica
         """
-        # Regra 1: Blindagem contra auto-mesclagem
-        if canonical_id in ids_to_merge:
-            raise InvalidMergeError("O ID da entidade canônica não pode estar na lista de exclusão.")
 
-        if not ids_to_merge:
-            raise InvalidParam("A lista de entidades para mesclar não pode estar vazia.")
+        # Regra 1: Blindagem contra auto-mesclagem
+        ids_reais = [id_ for id_ in ids_to_merge if id_ != canonical_id]
+
+        # Se não há fusão e não há renomeação, ignora.
+        if not ids_reais and not new_name:
+            return EntityMergeResponse(documents_updated=0, entities_deleted=0)
 
         # Regra 2: Valida se a canônica existe para herdar a tipagem
         canonical = self.repo.get_by_id(canonical_id)
@@ -67,16 +69,25 @@ class EntityService:
             raise InvalidParam(f"Entidade canônica com ID {canonical_id} não encontrada.")
 
         # Regra 3: Higienização de dados (Nomes para sinônimos devem ser minúsculos)
-        dead_entities = self.repo.get_by_ids(ids_to_merge)
+        dead_entities = self.repo.get_by_ids(ids_reais) if ids_reais else []
         synonym_name = [e.name.strip().lower() for e in dead_entities]
 
-        # Coordenação 1: Transferir documentos
-        docs_brutos = self.repo.get_document_ids_by_entities(ids_to_merge)
-        docs_unicos = set(docs_brutos)
-        if docs_unicos:
-            self.repo.link_documents_to_entity(docs_unicos, canonical_id)
+        # Coordenação 0: Renomeação da Entidade Canônica
+        if new_name and new_name.strip() and new_name.strip().lower() != canonical.name.lower():
+            old_name = canonical.name
+            # Adiciona o nome antigo como sinônimo para não quebrar buscas futuras
+            synonym_name.append(old_name.strip().lower())
+            self.repo.update_entity_name(canonical_id, new_name.strip())
 
-        # Coordenação 2: Gravar sinônimos
+        # Coordenação 1: Transferir documentos
+        docs_unicos = set()
+        if ids_reais:
+            docs_brutos = self.repo.get_document_ids_by_entities(ids_reais)
+            docs_unicos = set(docs_brutos)
+            if docs_unicos:
+                self.repo.link_documents_to_entity(docs_unicos, canonical_id)
+
+        # Coordenação 2: Gravar sinônimos (Tanto das entidades mortas quanto o nome antigo)
         if synonym_name:
             synonyms_data = [
                 {
@@ -90,7 +101,9 @@ class EntityService:
             self.repo.create_synonyms(synonyms_data)
 
         # Coordenação 3: Apagar entidades velhas
-        linhas_apagadas = self.repo.delete_entities(ids_to_merge)
+        linhas_apagadas = 0
+        if ids_reais:
+            linhas_apagadas = self.repo.delete_entities(ids_reais)
 
         return EntityMergeResponse(documents_updated=len(docs_unicos), entities_deleted=linhas_apagadas)
 

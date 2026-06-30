@@ -116,7 +116,7 @@ class TaxonomyController(Controller):
 
     @post("/entities/merge")
     def merge_entities(self, entity_service: EntityService, data: MergeRequest) -> dict[str, int]:
-        res = entity_service.merge(data.canonical_id, data.ids_to_merge)
+        res = entity_service.merge(data.canonical_id, data.ids_to_merge, data.new_name)
 
         # TODO Fazer um mergeResponse da entity ou reciclar o da tag
         return {"documents_updated": res.documents_updated, "entities_deleted": res.entities_deleted}
