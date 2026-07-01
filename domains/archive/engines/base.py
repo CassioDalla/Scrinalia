@@ -2,7 +2,7 @@ from typing import Protocol
 
 from pandas import DataFrame
 
-from domains.archive.schemas import ArchiveEntityDTO
+from domains.archive.schemas import ArchiveEntityDTO, EntityTagDecisionSchema
 
 
 class TypologyEngine(Protocol):
@@ -36,3 +36,12 @@ class TopicDiscoveryEngine(Protocol):
     descobrir tópicos no arcervo"""
 
     def discover_topics(self, texts: list[str]) -> tuple[list[int], DataFrame]: ...
+
+
+class ResolveTagEntityConflictEngine(Protocol):
+    """
+    Contrato usado por motores de IA (LLMs) que decidem empates semânticos
+    entre duas taxonomias (ex: Tag vs Entidade).
+    """
+
+    def decide_conflict(self, tag_name: str, entity_name: str, entity_type: str) -> EntityTagDecisionSchema: ...

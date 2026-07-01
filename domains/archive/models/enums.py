@@ -22,3 +22,7 @@ class StopwordsScope(enum.StrEnum):
     TAG = "TAG"  # Aplicada a stowords apenas a tags
     ENTITY = "ENTITY"
     ALL = "ALL"
+
+
+class AnomalyType(enum.StrEnum):
+    CROSS_DOMAIN_COLLISION = "CROSS_DOMAIN_COLLISION"

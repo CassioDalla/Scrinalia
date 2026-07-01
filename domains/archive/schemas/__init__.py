@@ -1,3 +1,4 @@
+from .ai_schemas import EntityTagDecisionSchema
 from .document_schema import ArchiveDocumentDTO
 from .entity_schema import ArchiveEntityDTO
 from .tag_schema import (
@@ -18,6 +19,7 @@ __all__ = [
     "ArchiveEntityDTO",
     "ArchiveMacroCategoryEntityDTO",
     "ArchiveTagDTO",
+    "EntityTagDecisionSchema",
     "MacroCategoriesSuggestionResponse",
     "MacroCategorySuggested",
     "MergeResponse",
