@@ -21,7 +21,7 @@ Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).
 - Workers are runnable modules: `uv run python -m domains.archive.workers.worker_ner` (each has `execute(db)` + a `__main__` block).
 - Database migrations: `uv run alembic upgrade head`; new revision: `uv run alembic revision --autogenerate -m "..."`; drift check: `uv run alembic check`.
 - Tests: `uv run pytest`; a single test: `uv run pytest tests/unit/archive/workers/test_worker_ner.py::test_name`.
-- Lint/format: ruff is configured in `pyproject.toml` (line-length 120, double quotes) but is **not a dependency** — `uv run ruff` fails. Use `uvx ruff check .` / `uvx ruff format .` or `uv add --dev ruff`.
+- Lint/format: `uv run ruff check .` and `uv run ruff format .` (ruff is a dev dependency; line-length 120, double quotes). CI enforces `ruff format --check .`.
 - `Procfile` defines the `api` (`uvicorn` with `CUDA_VISIBLE_DEVICES=""`, i.e. CPU) and `web` (`streamlit`) processes.
 
 ## Database and infra
@@ -45,4 +45,4 @@ Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).
 - Integration tests require the Postgres test database: `docker compose -f docker-compose.test.yml up -d` (port 5433, tmpfs in RAM). `tests/conftest.py` defaults to `postgresql://test_user:test_password@localhost:5433/test_db`; override with the `TEST_DATABASE_URL` env var.
 - Key fixtures in `tests/conftest.py`: `db_session` (SAVEPOINT + rollback per test), `use_test_db` (patches `core.database.get_db`, opt-in), `generate_archive_doc`, `generate_typology`, `mock_ner_engine`, `mock_staging_doc`.
 - Pytest uses `--import-mode=importlib`; tests import top-level packages (`core`, `domains`), so run pytest from the root.
-- There is no CI configured (no `.github/`); run tests and ruff locally before finishing.
+- CI (`.github/workflows/ci.yml`) has two jobs: a fast `uvx ruff` lint/format job, and a test job that runs `alembic upgrade head` + `alembic check` and `uv run pytest` against a Postgres service on 5432. Run the same checks locally before finishing.
