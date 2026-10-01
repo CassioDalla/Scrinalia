@@ -1,8 +1,8 @@
 import re
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
 from domains.archive.models import (
@@ -113,3 +113,62 @@ class DocumentRepository:
             # Substitui e avisa o SQLAlchemy que o JSON foi modificado
             doc.execution_log = new_log
             flag_modified(doc, "execution_log")
+
+    # ==========================================
+    # LEITURA E CURADORIA (HUMAN-IN-THE-LOOP)
+    # ==========================================
+
+    def search(self, term: str | None = None, limit: int = 50, offset: int = 0) -> tuple[list[ArchiveDocument], int]:
+        """
+        Busca textual simples do acervo com paginação.
+
+        Retorna a página de documentos (com tags e entidades já carregadas
+        via eager loading, evitando o problema N+1) e o total de registros.
+        """
+        stmt = select(ArchiveDocument)
+
+        if term:
+            like = f"%{term}%"
+            stmt = stmt.where(
+                or_(
+                    ArchiveDocument.original_title.ilike(like),
+                    ArchiveDocument.final_title.ilike(like),
+                    ArchiveDocument.scope_content.ilike(like),
+                )
+            )
+
+        total = self.db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+
+        page_stmt = (
+            stmt.options(selectinload(ArchiveDocument.tags), selectinload(ArchiveDocument.entities))
+            .order_by(ArchiveDocument.updated_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(self.db.scalars(page_stmt).all()), total
+
+    def get_by_id(self, description_id: str) -> ArchiveDocument | None:
+        """Carrega um documento com tags e entidades para leitura/edição."""
+        stmt = (
+            select(ArchiveDocument)
+            .where(ArchiveDocument.description_id == description_id)
+            .options(selectinload(ArchiveDocument.tags), selectinload(ArchiveDocument.entities))
+        )
+        return self.db.scalars(stmt).first()
+
+    def update_review(self, description_id: str, changes: dict) -> ArchiveDocument | None:
+        """
+        Aplica as edições do arquivista e blinda o documento contra a IA.
+
+        Qualquer documento editado manualmente passa a `HUMAN_APPROVED`, o que
+        impede sobrescrita pelo pipeline de migração/IA.
+        """
+        doc = self.get_by_id(description_id)
+        if doc is None:
+            return None
+
+        for field, value in changes.items():
+            setattr(doc, field, value)
+
+        doc.review_status = ArchiveReviewStatus.HUMAN_APPROVED
+        return doc

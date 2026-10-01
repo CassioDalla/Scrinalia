@@ -60,3 +60,49 @@ class ArchiveDocumentDTO(BaseModel):
     anomaly_reasons: list[str] | None = Field(default=None, description="Lista de erros encontrados.")
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class DocumentTagSummary(BaseModel):
+    """Tag enxuta anexada a um documento na leitura do acervo."""
+
+    tag_id: int
+    name: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DocumentEntitySummary(BaseModel):
+    """Entidade nomeada (NER) enxuta anexada a um documento."""
+
+    entity_id: int
+    name: str
+    entity_type: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DocumentSummary(BaseModel):
+    """Visão de leitura do acervo, consumida pela API e pelo front-end."""
+
+    description_id: str
+    original_title: str
+    final_title: str | None = None
+    document_date: date | None = None
+    review_status: ArchiveReviewStatus
+    is_anomaly: bool = False
+    storage_thumbnail_uri: str | None = None
+    scope_content: str | None = None
+    admin_bio_history: str | None = None
+    tags: list[DocumentTagSummary] = Field(default_factory=list)
+    entities: list[DocumentEntitySummary] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DocumentListResponse(BaseModel):
+    """Página de resultados do acervo."""
+
+    total: int
+    limit: int
+    offset: int
+    items: list[DocumentSummary]

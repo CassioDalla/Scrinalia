@@ -12,6 +12,13 @@ class TagNotFoundError(DomainException):
     pass
 
 
+class DocumentNotFoundError(DomainException):
+    """Lançado quando um documento não existe na camada Archive."""
+
+    # Tradução ideal no Litestar: HTTP 404 (Not Found)
+    pass
+
+
 class InvalidMergeError(DomainException):
     """Lançado quando tenta mesclar uma tag nela mesma ou quebra regras de sinônimos."""
 
