@@ -18,7 +18,7 @@ Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).
 - API: `uv run uvicorn main:app --reload`.
 - Dashboard: `uv run streamlit run dashboard/app.py` — requires the API running at `API_BASE_URL` (default `http://localhost:8000/`).
 - Local infra: `docker compose up -d` (PostGIS on 5432 + MinIO on 9000/9001).
-- Workers are runnable modules: `uv run python -m domains.archive.workers.worker_ner` (each has `execute(db)` + a `__main__` block).
+- Workers: prefer the unified runner — `uv run python -m domains.archive.workers.runner <name> [--engine X --preset Y --batch N --option key=value]`, where names are `transfer`, `cleaning`, `ner`, `typology`, `thumbnail`, `conflict-judge`. Pipeline order: `transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge`. Each `worker_*.py` also has an `execute(db, ...)` + `__main__` block runnable directly.
 - Database migrations: `uv run alembic upgrade head`; new revision: `uv run alembic revision --autogenerate -m "..."`; drift check: `uv run alembic check`.
 - Tests: `uv run pytest`; a single test: `uv run pytest tests/unit/archive/workers/test_worker_ner.py::test_name`.
 - Lint/format: `uv run ruff check .` and `uv run ruff format .` (ruff is a dev dependency; line-length 120, double quotes). CI enforces `ruff format --check .`.
