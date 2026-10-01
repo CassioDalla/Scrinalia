@@ -49,6 +49,8 @@ jobs:
           enable-cache: true
       - name: Install dependencies
         run: uv sync
+      - name: Type check
+        run: uv run basedpyright
       - name: Apply migrations on a fresh database
         run: uv run alembic upgrade head
       - name: Check for model/migration drift
