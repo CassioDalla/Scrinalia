@@ -73,6 +73,8 @@ line-ending = "auto"
 
 [dependency-groups]
 dev = [
+    "basedpyright>=1.40.1",
+    "pre-commit>=4.6.2",
     "pytest-cov>=7.1.0",
     "ruff>=0.16.10",
 ]
@@ -82,3 +84,21 @@ addopts = "--import-mode=importlib"
 # The project is not packaged/installed; make top-level packages (core, domains, api)
 # importable when running pytest from the repo root.
 pythonpath = ["."]
+
+[tool.basedpyright]
+# Pragmatic typed-Python baseline: type-check the application code, keep
+# third-party noise and one-off tooling out of the gate. Tighten over time.
+typeCheckingMode = "basic"
+pythonVersion = "3.12"
+include = ["core", "domains", "api", "dashboard", "main.py"]
+exclude = [
+    "**/__pycache__",
+    ".venv",
+    "migrations",
+    "tests",
+    "Data",
+    "triagem.py",
+    "verificar_titulos_gemma.py",
+    "verificar_titulos_novo.py",
+]
+reportMissingTypeStubs = false
