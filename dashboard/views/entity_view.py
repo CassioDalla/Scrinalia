@@ -308,12 +308,12 @@ with tab_mesclagem:
                     help="Se preenchido, o ID eleito receberá este nome, e o nome antigo dele virará sinônimo automaticamente.",
                 )
 
-                ids_para_mesclar = [id_ent for id_ent in opcoes_dict if id_ent != id_canonico]
+                ids_para_mesclar = [int(id_ent) for id_ent in opcoes_dict if id_ent != id_canonico]
 
                 if st.button("🚀 Executar Mesclagem e Esvaziar Carrinho", type="primary", use_container_width=True):
                     with st.spinner("Processando mesclagem e gerando sinônimos no banco..."):
                         resposta_merge = service.merge_entities(
-                            canonical_id=id_canonico,
+                            canonical_id=int(id_canonico),
                             ids_to_merge=ids_para_mesclar,
                             new_name=novo_nome.strip() if novo_nome.strip() else None,
                         )

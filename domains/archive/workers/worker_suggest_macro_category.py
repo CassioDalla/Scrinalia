@@ -24,7 +24,7 @@ def run_suggestion_engine(
 
         # Formatação de Negócios
         for _, row in topic_info_df.iterrows():
-            topic_id = row["Topic"]
+            topic_id = int(row["Topic"])
 
             if topic_id == -1:
                 continue
@@ -35,7 +35,7 @@ def run_suggestion_engine(
             category_dto = MacroCategorySuggested(
                 topic_id=topic_id,
                 suggested_name=" - ".join(row["Representation"][:3]).title(),
-                estimate_count=row["Count"],
+                estimate_count=int(row["Count"]),
                 real_samples=amostras[:10],
             )
 

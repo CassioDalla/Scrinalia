@@ -9,7 +9,7 @@ BASE_URL = f"{settings.API_BASE_URL}api/v1/documents"
 
 def search_document(termo_busca: str, limite: int = 50) -> list[DocumentSummary]:
     """Consulta a API do acervo (o front-end não acessa o banco de dados diretamente)."""
-    params: dict[str, object] = {"limit": limite}
+    params: dict[str, str | int] = {"limit": limite}
     if termo_busca:
         params["term"] = termo_busca
 

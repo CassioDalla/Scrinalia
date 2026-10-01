@@ -1,9 +1,9 @@
 import streamlit as st
 
-from domains.archive.models import ArchiveDocument
+from domains.archive.schemas.document_schema import DocumentSummary
 
 
-def render_document_card(doc: ArchiveDocument):
+def render_document_card(doc: DocumentSummary) -> None:
     """Renderiza a gaveta expansível para um único documento."""
 
     with st.expander(f"📄 {doc.original_title}"):

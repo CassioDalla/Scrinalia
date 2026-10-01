@@ -1,6 +1,3 @@
-from collections.abc import Callable
-from typing import Literal
-
 from bertopic import BERTopic
 from pandas import DataFrame
 from sklearn.feature_extraction.text import CountVectorizer
@@ -10,7 +7,7 @@ from domains.archive.engines.clustering.stopwords import STOPWORDS_BR
 
 class BERTopicEngine:
     def __init__(self, embedding_model: str = "paraphrase-multilingual-MiniLM-L12-v2", **kwargs):
-        analyzer: Callable | Literal["word"] = kwargs.pop("analyzer", "word")
+        analyzer = kwargs.pop("analyzer", "word")
         vectorizer_model = CountVectorizer(analyzer=analyzer, stop_words=STOPWORDS_BR)
 
         config = {
