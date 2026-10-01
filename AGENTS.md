@@ -26,8 +26,8 @@ Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).
 
 ## Database and infra
 - Schema is owned by **Alembic** (`migrations/`, config in `alembic.ini`, connection URL from `core.config.settings`). Apply with `uv run alembic upgrade head`. The models in `domains/*/models/` are the single source of truth; `uv run alembic check` must report no drift.
-- `db-init/*.sql` runs **only on first volume creation** and now provisions infrastructure only: extensions (`00-extensions.sql`) and the read-only `portal_reader` role (`01-public_reader_user.sql`). It no longer creates tables. Recreate the volume with `docker compose down -v && docker compose up -d`, then run the migration.
-- GIN fuzzy-search indexes (`gin_trgm_ops`) require the `pg_trgm` extension: the initial migration creates it, and `tests/conftest.py` creates it before `create_all`.
+- There is no `db-init` anymore. The schema **and** the `pg_trgm` extension required by the fuzzy-search indexes are owned by Alembic: fresh volume -> `docker compose up -d` -> `uv run alembic upgrade head`. Recreate a clean volume with `docker compose down -v`.
+- `tests/conftest.py` creates `pg_trgm` before `create_all` for the test database.
 - `.env` is gitignored. Keys in `core/config.py`: `DB_*`, `ARQDOC_*`, `PUBLIC_SCRAPE_*`, `S3_*`, `OLLAMA_HOST_URL`, `API_BASE_URL`. `docker-compose.yml` reads `DB_USER`/`DB_PASS`/`DB_NAME` (defaults admin/admin123/memoriacuritibana).
 - Models are Postgres-specific (JSONB, ARRAY, native enums, GIN indexes) — they do not port to SQLite.
 
