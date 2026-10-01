@@ -38,7 +38,7 @@ class TaxonomyController(Controller):
         "entity_service": Provide(provide_entity_service),
     }
 
-    @get("/tags/relevance/{method:str}")
+    @get("/tags/relevance/{method:str}", sync_to_thread=True)
     def get_tag_relevance(
         self, tag_service: TagService, method: Literal["tfidf", "count"] = "tfidf", limit: int = 30
     ) -> TagRelevanceResponse:
@@ -50,7 +50,7 @@ class TaxonomyController(Controller):
 
         return TagRelevanceResponse.from_payload(list(resultados))
 
-    @get("/tags/similar")
+    @get("/tags/similar", sync_to_thread=True)
     def get_similar_tags(
         self, tag_service: TagService, target: str | None = None, threshold: float = 0.4
     ) -> list[TagSimilarity] | list[TagPairSimilarity]:
@@ -62,13 +62,13 @@ class TaxonomyController(Controller):
         results = tag_service.find_similar_tags(target, threshold)
         return list(results)
 
-    @post("/tags/merge")
+    @post("/tags/merge", sync_to_thread=False)
     def merge_tags(self, tag_service: TagService, data: MergeRequest) -> MergeResponse:
         response = tag_service.merge(data.canonical_id, data.ids_to_merge)
 
         return response
 
-    @post("/tags/stopwords/purge")
+    @post("/tags/stopwords/purge", sync_to_thread=False)
     def purge_stopwords(self, tag_service: TagService, data: StopwordsRequest) -> dict:
 
         if data.words:
@@ -99,14 +99,14 @@ class TaxonomyController(Controller):
 
         return results
 
-    @get("/entities/relevance")
+    @get("/entities/relevance", sync_to_thread=True)
     def get_entity_relevance(
         self, entity_service: EntityService, entity_type: Literal["ORG", "PER", "LOC"] | None = None, limit: int = 30
     ) -> EntityRelevanceResponse:
         resultados = entity_service.get_entity_relevance_count(entity_type, limit)
         return EntityRelevanceResponse(data=list(resultados))
 
-    @get("/entities/similar")
+    @get("/entities/similar", sync_to_thread=True)
     def get_similar_entities(
         self,
         entity_service: EntityService,
@@ -122,19 +122,19 @@ class TaxonomyController(Controller):
         resultados = entity_service.find_similar(target_name, entity_type, threshold)
         return EntitySimilarityResponse.from_payload(list(resultados))
 
-    @post("/entities/merge")
+    @post("/entities/merge", sync_to_thread=False)
     def merge_entities(self, entity_service: EntityService, data: MergeRequest) -> dict[str, int]:
         res = entity_service.merge(data.canonical_id, data.ids_to_merge, data.new_name)
 
         # TODO Fazer um mergeResponse da entity ou reciclar o da tag
         return {"documents_updated": res.documents_updated, "entities_deleted": res.entities_deleted}
 
-    @post("/entities/orphans/purge")
+    @post("/entities/orphans/purge", sync_to_thread=False)
     def purge_orphan_entities(self, entity_service: EntityService) -> dict:
         qtd_apagadas = entity_service.purge_orphan_entities()
         return {"message": "Limpeza de entidades órfãs concluída com sucesso.", "entities_deleted": qtd_apagadas}
 
-    @post("/entities/stopwords/purge_stopwords")
+    @post("/entities/stopwords/purge_stopwords", sync_to_thread=False)
     def purge_entity_stopwords(self, entity_service: EntityService, data: StopwordsRequest) -> dict:
         qtd_apagadas = entity_service.purge_entity_stopwords(data.words)
 
@@ -143,7 +143,7 @@ class TaxonomyController(Controller):
             "entities_deleted": qtd_apagadas,
         }
 
-    @patch("/entities/{entity_id:int}/reclassify")
+    @patch("/entities/{entity_id:int}/reclassify", sync_to_thread=False)
     def reclassify_entity(self, entity_service: EntityService, entity_id: int, data: ReclassifyEntityRequest) -> dict:
         entity_service.reclassify_entity(entity_id, data.new_type)
         return {
@@ -151,7 +151,7 @@ class TaxonomyController(Controller):
             "new_type": data.new_type,
         }
 
-    @delete("/entities/{entity_id:int}", status_code=200)
+    @delete("/entities/{entity_id:int}", status_code=200, sync_to_thread=False)
     def delete_entity(self, entity_service: EntityService, entity_id: int) -> dict:
         # A transação (commit/rollback) continua garantida pela injeção db_session
         entity_service.delete_entity(entity_id)
@@ -162,7 +162,7 @@ class TaxonomyController(Controller):
     # ROTAS: CHOQUE DE DOMÍNIOS (Cross-Domain)
     # ==========================================
 
-    @get("/conflicts/cross-domain")
+    @get("/conflicts/cross-domain", sync_to_thread=True)
     def get_cross_domain_conflicts(
         self, entity_service: EntityService, threshold: float = 0.85
     ) -> CrossDomainConflictListResponse:
@@ -170,7 +170,7 @@ class TaxonomyController(Controller):
         resultados = entity_service.find_cross_domain_conflicts(threshold=threshold)
         return CrossDomainConflictListResponse(data=list(resultados))
 
-    @post("/conflicts/resolve")
+    @post("/conflicts/resolve", sync_to_thread=False)
     def resolve_cross_domain_conflict(
         self, entity_service: EntityService, data: ConflictResolutionRequest
     ) -> ConflictResolutionResponse:

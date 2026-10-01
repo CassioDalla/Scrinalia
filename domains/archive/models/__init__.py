@@ -2,11 +2,12 @@ from .associations import ArchiveDocumentEntity, ArchiveDocumentTag
 from .document import ArchiveDocument
 from .entity import ArchiveEntity
 from .enums import AnomalyType, ArchiveReviewStatus, StopwordsScope
-from .governance import ArchiveAIReviewQueue, DomainStopwords, DomainSynonyms
+from .governance import ArchiveAIReviewQueue, DomainStopwords, DomainSynonyms, ArchiveCleaningRule
 from .taxonomy import ArchiveMacroCategory, ArchiveTag, ArchiveTypology
 
 __all__ = [
     "AnomalyType",
+    "ArchiveCleaningRule",
     "ArchiveAIReviewQueue",
     "ArchiveDocument",
     "ArchiveDocumentEntity",

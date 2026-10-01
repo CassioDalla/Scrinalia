@@ -3,36 +3,29 @@ from collections.abc import Iterator
 
 
 class AdapterNotFoundError(Exception):
-    """Lançado quando o documento não existe na fonte externa (ex: 404)."""
-
-    pass
-
+    """Thrown when the document does not exist in the external source (e.g., 404).""" 
+    ...
 
 class AdapterNetworkError(Exception):
-    """Lançado quando ocorre instabilidade de conexão (ex: Timeout)."""
-
-    pass
-
+    """Thrown when connection instability occurs (e.g., timeout)."""
+    ...
 
 class AdapterFatalError(Exception):
-    """Lançado quando os dados estão corrompidos ou o layout quebrou."""
-
-    pass
-
+    """Thrown when data is corrupted or the layout is broken."""
+    ...
 
 class IDiscoveryAdapter(ABC):
-    """Contrato para adaptadores que buscam NOVOS IDs no sistema legado."""
+    """Contract for adapters seeking NEW IDs in the legacy system."""
 
     @abstractmethod
     def fetch_new_ids(self, initial_page: int = 1, max_pages: int | None = None) -> Iterator[list[str]]:
-        """Deve yieldar listas de IDs encontrados por página/lote."""
-        pass
-
+        """It should yield lists of IDs found per page/batch."""
+        ...
 
 class IDetailAdapter(ABC):
-    """Contrato para adaptadores que extraem os metadados de um ID específico."""
+    """Contract for adapters that extract metadata from a specific ID."""
 
     @abstractmethod
     def fetch_details(self, description_id: str) -> dict[str, str]:
-        """Deve retornar um dicionário com os dados brutos prontos para a Staging."""
-        pass
+        """It must return a dictionary containing the raw data ready for Staging."""
+        ...

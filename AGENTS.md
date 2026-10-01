@@ -1,0 +1,47 @@
+# AGENTS.md
+
+## About the project
+A system for archivists to catalog and manage archival descriptions (ISAD(G) metadata), with AI enrichment (NER, zero-shot classification, clustering) and Human-in-the-Loop governance.
+
+Three-layer pipeline, each layer a domain under `domains/`:
+`ingestion` (scraping queue) -> `staging` (structured, cleaned data) -> `archive` (final enriched document + human review).
+
+- API: Litestar in `main.py` (`api/controllers/`), NOT FastAPI.
+- Front: Streamlit dashboard in `dashboard/`, **temporary** — the intent is to migrate to a backend + React frontend. Treat the API as the stable interface and avoid coupling new features to Streamlit.
+- Code, docstrings, logs, and domain messages are in Portuguese; commits follow Conventional Commits.
+- `README.md` is empty; the roadmap and architecture decisions live in `TODO.md`.
+
+## Commands
+Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).
+
+- Install deps: `uv sync` (heavy: `torch`, `transformers`, `spacy`, `bertopic`).
+- API: `uv run uvicorn main:app --reload`.
+- Dashboard: `uv run streamlit run dashboard/app.py` — requires the API running at `API_BASE_URL` (default `http://localhost:8000/`).
+- Local infra: `docker compose up -d` (PostGIS on 5432 + MinIO on 9000/9001).
+- Workers are runnable modules: `uv run python -m domains.archive.workers.worker_ner` (each has `execute(db)` + a `__main__` block).
+- Tests: `uv run pytest`; a single test: `uv run pytest tests/unit/archive/workers/test_worker_ner.py::test_name`.
+- Lint/format: ruff is configured in `pyproject.toml` (line-length 120, double quotes) but is **not a dependency** — `uv run ruff` fails. Use `uvx ruff check .` / `uvx ruff format .` or `uv add --dev ruff`.
+- `Procfile` defines the `api` (`uvicorn` with `CUDA_VISIBLE_DEVICES=""`, i.e. CPU) and `web` (`streamlit`) processes.
+
+## Database and infra
+- Schema is created by `db-init/*.sql`, mounted at `/docker-entrypoint-initdb.d`; it runs **only on first volume creation** and in alphabetical order. Changed the SQL? Recreate: `docker compose down -v && docker compose up -d`.
+- `db-init/0X-public_reader_user.sql` provisions a read-only role; the `0X` intentionally sorts after `08` so it runs last (creates a role, so it only works on a fresh volume).
+- GIN indexes use `pg_trgm` (`gin_trgm_ops`) and `postgis` is used, but only `postgis` is created by the scripts. If init fails on those indexes, run `CREATE EXTENSION IF NOT EXISTS pg_trgm;` manually.
+- `.env` is gitignored. Keys in `core/config.py`: `DB_*`, `ARQDOC_*`, `PUBLIC_SCRAPE_*`, `S3_*`, `OLLAMA_HOST_URL`, `API_BASE_URL`. `docker-compose.yml` reads `DB_USER`/`DB_PASS`/`DB_NAME` (defaults admin/admin123/memoriacuritibana).
+- Models are Postgres-specific (JSONB, ARRAY, native enums, GIN indexes) — they do not port to SQLite.
+
+## Architecture conventions (easy to get wrong)
+- DDD per domain: each domain has `models/`, `repository/`, `services/`, `schemas/`, `workers/`. Litestar controllers in `api/`; `api/dependencies.py` builds services per request by injecting the session.
+- Domain services receive repositories via constructor (`TagService(repo, document_repo)`); do not instantiate a session inside business logic.
+- AI engines are pluggable via `registry.py` in each subpackage (`engines/classification`, `engines/NER`, `engines/clustering`, `engines/LLMs`): `get_engine(engine_name, preset, **kwargs)`, where `kwargs` overrides the preset. Contracts live in `engines/base.py` (Protocols). To add an engine, register it in `AVAILABLE_ENGINES` and add a preset.
+- Worker idempotency: each worker stamps a versioned key in the JSONB `execution_log` (`worker_ner_v1`, `worker_typology_classifier_v1`, `cleaning_rule_{id}`), and the pending query filters by that key's absence (GIN index `ix_archive_exec_log`). Every new worker must follow this pattern + `flag_modified`.
+- `DocumentRepository.upsert_archive_document` is **exclusive to the staging->archive migration**. The `ON CONFLICT` only updates if `staging_content_hash` changed and the status is not `HUMAN_APPROVED`. AI workers must NOT use it (they use surgical updates); otherwise the AI data is discarded.
+- Governance: `ArchiveReviewStatus` controls the lifecycle (`HUMAN_APPROVED` blocks AI rewrites); tag x entity conflicts go to `archive_ai_review_queue`.
+- The dashboard is heterogeneous: `dashboard/services/search_service.py` queries Postgres directly via `get_db()`, while `taxonomy_api.py`, `cleaning_service.py`, and `entity_service.py` call the API via `requests`. Prefer the API for new features.
+
+## Tests
+- Unit tests never load real models. The `mock_registry` fixture monkeypatches `AVAILABLE_ENGINES`/`PRESETS` to shield any registry; do not call Ollama/MinIO in tests.
+- Integration tests require the Postgres test database: `docker compose -f docker-compose.test.yml up -d` (port 5433, tmpfs in RAM). `tests/conftest.py` hardcodes `postgresql://test_user:test_password@localhost:5433/test_db`.
+- Key fixtures in `tests/conftest.py`: `db_session` (SAVEPOINT + rollback per test), `use_test_db` (patches `core.database.get_db`, opt-in), `generate_archive_doc`, `generate_typology`, `mock_ner_engine`, `mock_staging_doc`.
+- Pytest uses `--import-mode=importlib`; tests import top-level packages (`core`, `domains`), so run pytest from the root.
+- There is no CI configured (no `.github/`); run tests and ruff locally before finishing.

@@ -11,23 +11,23 @@ from domains.staging.schemas import StagingDocumentDTO
 
 def get_pending_raw_records(db: Session) -> list[dict[str, Any]]:
     """
-    Identifica documentos brutos que aguardam transformação ou reprocessamento.
+    Identifies raw documents awaiting transformation or reprocessing.
 
-    Implementa o padrão Change Data Capture (CDC) por meio de Rastreamento de Hash.
-    Faz um LEFT JOIN entre os dados brutos recém-adquiridos (RawData) e a tabela
-    estruturada (StagingDocument).
+    Implements the Change Data Capture (CDC) pattern using Hash Tracking.
+    Performs a LEFT JOIN between the newly acquired raw data (RawData) and the
+    structured table (StagingDocument).
 
-    Retorna o payload apenas se:
-      1. O documento for inédito (não existe na Staging).
-      2. O hash do documento bruto atual for diferente do hash processado anteriormente
-         (indicando que o documento sofreu atualizações no acervo da origem).
+    Returns the payload only if:
+        1. The document is new (does not exist in Staging).
+        2. The hash of the current raw document differs from the previously processed hash
+            (indicating the document has been updated at the source).
 
     Args:
-        db (Session): Sessão ativa do SQLAlchemy.
+        db (Session): Active SQLAlchemy session.
 
     Returns:
-        list[dict[str, Any]]: Lista de dicionários contendo os dados brutos prontos
-        para o parser do Pydantic.
+        list[dict[str, Any]]: A list of dictionaries containing raw data ready
+        for the Pydantic parser.
     """
 
     stmt = (
@@ -42,28 +42,21 @@ def get_pending_raw_records(db: Session) -> list[dict[str, Any]]:
 
 def upsert_staging_document(db: Session, record: StagingDocumentDTO) -> None:
     """
-    Persiste um documento validado e estruturado na camada de Staging.
+    Persists a validated and structured document in the Staging layer.
 
-    Utiliza um comando 'UPSERT' nativo do PostgreSQL. Se o identificador do
-    documento for inédito, realiza o INSERT. Se já existir (cenário de reprocessamento
-    por alteração na origem), realiza o UPDATE substituindo os valores defasados
-    pelos novos extraídos do modelo Pydantic.
+    Uses a native PostgreSQL 'UPSERT' command. If the document identifier is new,
+    it performs an INSERT. If it already exists (a reprocessing scenario due to
+    source changes), it performs an UPDATE, replacing outdated values ​​with new
+    ones extracted from the Pydantic model.
 
     Args:
-        db (Session): Sessão ativa do SQLAlchemy.
-        record (StagingDocumentSchema): Objeto DTO validado com as regras ISAD(G).
+        db (Session): Active SQLAlchemy session.
+        record (StagingDocumentSchema): DTO object validated against ISAD(G) rules.
     """
 
-    # Converte o modelo validado para um dicionário, descartando chaves não preenchidas
     staging_dict = record.model_dump(exclude_unset=True)
-
     stmt = insert(StagingDocument).values(staging_dict)
-
-    # Monta o dicionário de atualização usando stmt.excluded para garantir
-    # que o PostgreSQL pegue exatamente os valores que ele tentou inserir.
-    # Excluímos a chave primária 'description_id' pois ela não deve ser atualizada.
     update_dict = {col.name: col for col in stmt.excluded if col.name != "description_id"}
-
     stmt = stmt.on_conflict_do_update(index_elements=["description_id"], set_=update_dict)
 
     db.execute(stmt)

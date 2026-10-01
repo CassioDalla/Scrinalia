@@ -15,19 +15,19 @@ from .models import RawData, ScrapeStatus, ScrapingQueue
 
 def add(db: Session, description_id: str) -> ScrapingQueue | None:
     """
-    Adiciona um novo ID de documento à fila de ingestão.
+    Adds a new document ID to the ingestion queue.
 
-    Tenta inserir um novo identificador na base. Se o ID já existir
-    (violação de UNIQUE constraint), a transação é desfeita e a duplicidade
-    é ignorada silenciosamente.
+    Attempts to insert a new identifier into the database. If the ID already exists
+    (UNIQUE constraint violation), the transaction is rolled back and the duplicate
+    is silently ignored.
 
     Args:
-        db (Session): Sessão ativa do SQLAlchemy.
-        description_id (str): Identificador único do documento na fonte externa.
+        db (Session): Active SQLAlchemy session.
+        description_id (str): Unique identifier of the document in the external source.
 
     Returns:
-        ScrapingQueue | None: A instância do objeto inserido, ou None caso
-        o ID já exista ou ocorra uma falha de banco de dados.
+        ScrapingQueue | None: The inserted object instance, or None if
+            the ID already exists or a database failure occurs.
     """
 
     item = ScrapingQueue(description_id=description_id)
@@ -39,30 +39,30 @@ def add(db: Session, description_id: str) -> ScrapingQueue | None:
 
     except IntegrityError:
         db.rollback()
-        logger.debug(f"Descrição de ID: {description_id} ja existe no banco. Ignorado")
+        logger.debug(f"Description with ID {description_id} already exists in the database. Ignored.")
         return None
 
     except Exception as e:
-        logger.critical(f"Erro crítico de banco de dados ao inserir o description_id {description_id}: {e}")
+        logger.critical(f"Critical database error when inserting description_id {description_id}: {e}")
         db.rollback()
         return None
 
 
 def add_in_bulk(db: Session, description_id_list: list[str]) -> int:
     """
-    Insere uma lista de IDs na fila de processamento em lote (Bulk Insert).
+    Inserts a list of IDs into the batch processing queue (Bulk Insert).
 
-    Utiliza a instrução 'ON CONFLICT DO NOTHING' nativa do PostgreSQL para garantir
-    alta performance de I/O, ignorando as linhas de IDs que já estiverem cadastradas
-    sem abortar a transação.
+    Uses the native PostgreSQL 'ON CONFLICT DO NOTHING' statement to ensure
+    high I/O performance, ignoring ID rows that are already registered
+    without aborting the transaction.
 
     Args:
-        db (Session): Sessão ativa do SQLAlchemy.
-        description_id_list (list[str]): Lista contendo os IDs recém-descobertos.
+        db (Session): Active SQLAlchemy session.
+        description_id_list (list[str]): List containing the newly discovered IDs.
 
     Returns:
-        int: A quantidade exata de registros inéditos que foram inseridos no banco.
-    """
+        int: The exact number of new records inserted into the database.
+"""
 
     if not description_id_list:
         return 0
@@ -80,7 +80,7 @@ def add_in_bulk(db: Session, description_id_list: list[str]) -> int:
 
     except Exception as e:
         db.rollback()
-        logger.exception(f"💥 Falha no bulk insert de {len(description_id_list)} IDs: {e}")
+        logger.exception(f"💥Bulk insertion of {len(description_id_list)} IDs failed. {e}")
         return 0
 
 
@@ -91,20 +91,20 @@ def get_from_queue(
     scraped_before: datetime | None = None,
 ) -> Sequence[ScrapingQueue]:
     """
-    Busca um lote de documentos na fila pendentes de extração de detalhes.
+    Retrieves a batch of documents from the queue pending detail extraction.
 
-    Aplica as regras de negócio de 'Sliding Window', retornando IDs que
-    nunca foram processados (NULLS FIRST) ou que já ultrapassaram o tempo
-    de vida útil (TTL) e precisam ser checados novamente para atualização.
+    Applies 'Sliding Window' business rules, returning IDs that
+    have never been processed (NULLS FIRST) or that have exceeded their
+    time-to-live (TTL) and require re-checking for updates.
 
     Args:
-        db (Session): Sessão ativa do SQLAlchemy.
-        ignore_status (list[ScrapeStatus] | None): Lista de status que não devem ser retornados.
-        discovered_after (datetime | None): Filtro de janela temporal de descoberta.
-        scraped_before (datetime | None): Filtro de janela temporal de obsolescência (TTL).
+        db (Session): Active SQLAlchemy session.
+        ignore_status (list[ScrapeStatus] | None): List of statuses to exclude from results.
+        discovered_after (datetime | None): Discovery time window filter.
+        scraped_before (datetime | None): Obsolescence (TTL) time window filter.
 
     Returns:
-        Sequence[ScrapingQueue]: Lista de entidades da fila prontas para o Adapter.
+        Sequence[ScrapingQueue]: List of queue entities ready for the Adapter.
     """
     stmt = select(ScrapingQueue)
 
@@ -114,8 +114,8 @@ def get_from_queue(
     if scraped_before is not None:
         stmt = stmt.where(
             or_(
-                ScrapingQueue.last_scraped_at.is_(None),  # Nunca foi raspado
-                ScrapingQueue.last_scraped_at <= scraped_before,  # Ou a janela de tempo já venceu
+                ScrapingQueue.last_scraped_at.is_(None),
+                ScrapingQueue.last_scraped_at <= scraped_before,
             )
         )
 
@@ -135,32 +135,30 @@ def update_queue_status(
     increment_retry: bool = False,
 ) -> bool:
     """
-    Atualiza o estado de um documento na fila após uma tentativa de ingestão.
+    Updates the state of a document in the queue following an ingestion attempt.
 
-    Realiza um comando de UPDATE atômico direto no banco de dados, registrando
-    o momento exato da operação. Gerencia a contagem de falhas transitórias (retries)
-    e a captura de logs de erro repassados pelos Adapters.
+    Executes an atomic UPDATE command directly on the database, recording
+    the exact timestamp of the operation. Manages the transient failure count (retries)
+    and captures error logs provided by the Adapters.
 
     Args:
-        db (Session): Sessão ativa do SQLAlchemy.
-        description_id (str): Identificador único do documento.
-        status (ScrapeStatus): Novo status a ser aplicado (ex: DONE, FATAL_ERROR).
-        error_msg (str | None): Mensagem de erro originada no domínio ou adaptador.
-        increment_retry (bool): Se True, soma +1 ao contador de falhas do ID.
+        db (Session): Active SQLAlchemy session.
+        description_id (str): Unique document identifier.
+        status (ScrapeStatus): New status to be applied (e.g., DONE, FATAL_ERROR).
+        error_msg (str | None): Error message originating from the domain or adapter.
+        increment_retry (bool): If True, increments the failure counter for the ID by 1.
 
     Returns:
-        bool: True se a fila foi atualizada com sucesso, False se o ID não existir.
+        bool: True if the queue was successfully updated, False if the ID does not exist.
     """
-
     now = datetime.now(UTC)
-
     stmt = update(ScrapingQueue).where(ScrapingQueue.description_id == description_id)
 
     if status == ScrapeStatus.DONE:
-        # Sucesso: Zera o contador de retentativas
+        # Success: Resets the retry counter
         stmt = stmt.values(scrape_status=status, last_scraped_at=now, retry_count=0)
     elif increment_retry:
-        # Falha transitória: Incrementa +1
+        # Transient failure: Increment +1
         stmt = stmt.values(
             scrape_status=status,
             last_scraped_at=now,
@@ -168,47 +166,46 @@ def update_queue_status(
             last_error_message=error_msg,
         )
     else:
-        # Falha fatal: Apenas muda o status, não mexe no contador
+        # Fatal error: Only changes the status; does not affect the counter.
         stmt = stmt.values(scrape_status=status, last_scraped_at=now, last_error_message=error_msg)
 
     stmt = stmt.returning(ScrapingQueue.description_id)
 
     try:
-        # Se db.scalar() retornar o ID, a linha foi encontrada e atualizada
         updated_id = db.scalar(stmt)
         db.commit()
 
         if updated_id is None:
-            logger.warning(f"Tentativa de atualizar status de ID inexistente: {description_id}")
+            logger.warning(f"Attempt to update status of non-existent ID:{description_id}")
             return False
 
         return True
 
     except Exception as e:
         db.rollback()
-        logger.error(f"Erro no banco ao atualizar status da fila para {description_id}: {e}")
+        logger.error(f"Database error when updating queue status to id: {description_id}: {e}")
         return False
 
 
 def save_raw_data(db: Session, description_id: str, scraped_data: dict) -> bool:
     """
-    Persiste os dados brutos extraídos pelo Adapter na camada de Ingestão.
+    Persists the raw data extracted by the Adapter in the Ingestion layer.
 
-    Calcula um hash SHA-256 do payload recebido para controle de idempotência.
-    Utiliza 'UPSERT' (ON CONFLICT DO UPDATE) do PostgreSQL com uma condicional
-    para ignorar a atualização física no disco caso o hash do conteúdo capturado
-    seja idêntico ao já existente no banco.
+    Calculates an SHA-256 hash of the received payload for idempotency control.
+    Uses PostgreSQL's 'UPSERT' (ON CONFLICT DO UPDATE) with a conditional
+    to skip the physical disk update if the hash of the captured content
+    matches the one already in the database.
 
     Args:
-        db (Session): Sessão ativa do SQLAlchemy.
-        description_id (str): Identificador único do documento na fonte externa.
-        scraped_data (dict): Dicionário bruto contendo os metadados extraídos.
+        db (Session): Active SQLAlchemy session.
+        description_id (str): Unique identifier of the document in the external source.
+        scraped_data (dict): Raw dictionary containing the extracted metadata.
 
     Raises:
-        Exception: Repassa qualquer erro crítico de banco para o Orquestrador tratar.
+        Exception: Propagates any critical database error for the Orchestrator to handle.
 
     Returns:
-        bool: True se os dados foram inseridos ou checados com sucesso.
+        bool: True if the data was successfully inserted or verified.
     """
     raw_title = scraped_data.get("title")
 
@@ -240,5 +237,5 @@ def save_raw_data(db: Session, description_id: str, scraped_data: dict) -> bool:
 
     except Exception as e:
         db.rollback()
-        logger.error(f"Falha grave no banco ao salvar {description_id} na ingestão: {e}")
+        logger.error(f"Critical database failure when saving Id {description_id} during ingestion: {e}")
         raise e

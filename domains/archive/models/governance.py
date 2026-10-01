@@ -1,4 +1,6 @@
-from sqlalchemy import CheckConstraint, Enum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from datetime import datetime
+
+from sqlalchemy import CheckConstraint,DateTime,Boolean,func, Enum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -92,3 +94,27 @@ class ArchiveAIReviewQueue(Base):
     llm_decision: Mapped[str | None] = mapped_column(String(50), nullable=True)
     llm_confidence: Mapped[str | None] = mapped_column(Float, nullable=True)
     llm_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+class ArchiveCleaningRule(Base):
+    """
+    Tabela que armazena as regras dinâmicas de limpeza (Regex) criadas pelos utilizadores.
+    """
+    __tablename__ = "archive_cleaning_rules"
+
+    rule_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    rule_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    
+    # Ex: "original_title", "scope_content"
+    target_column: Mapped[str] = mapped_column(String(50), nullable=False) 
+    
+    # Ex: r"\b(av\.?\s+avenida)\b"
+    regex_pattern: Mapped[str] = mapped_column(Text, nullable=False)
+    
+    # Ex: "Avenida" (Se vazio, atua como exclusão)
+    replacement_string: Mapped[str] = mapped_column(Text, default="", server_default="")
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    # Controle de quem criou
+    created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+

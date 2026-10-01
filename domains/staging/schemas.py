@@ -7,31 +7,31 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 class StagingDocumentDTO(BaseModel):
     """
-    Contrato de validação e transformação (Schema/DTO) da camada Staging.
+    Staging layer validation and transformation contract (Schema/DTO).
 
-    Atua como o motor "Transform" do processo de ETL. Intercepta o dicionário
-    bruto e imprevisível extraído da origem (RawData) e o converte numa entidade
-    relacional rigorosa, alinhada à Norma Arquivística ISAD(G).
+    Acts as the "Transform" engine of the ETL process. It intercepts the raw,
+    unpredictable dictionary extracted from the source (RawData) and converts
+    it into a rigorous relational entity aligned with the ISAD(G) archival standard.
 
-    Responsabilidades:
-        - Parser Dinâmico: Mapeia chaves variáveis do acervo para atributos fixos.
-        - Higienização: Limpa espaços duplos e converte "falsos nulos" (ex: "n/a") para None nativo.
-        - Extração de Tipos: Aplica Regex para inferir e converter datas em objetos `datetime.date`.
-        - Preservação (Data Lake Approach): Qualquer chave não mapeada ou desconhecida
-          é isolada com segurança no dicionário `raw_metadata`, garantindo perda zero de informação.
+    Responsibilities:
+        - Dynamic Parser: Maps variable collection keys to fixed attributes.
+        - Sanitization: Cleans up double spaces and converts "false nulls" (e.g., "n/a") to native `None`.
+        - Type Extraction: Applies Regex to infer and convert dates into `datetime.date` objects.
+        - Preservation (Data Lake Approach): Any unmapped or unknown key is
+        safely isolated within the `raw_metadata` dictionary, ensuring zero data loss.
     """
 
     description_id: str
     raw_content_hash: str
 
-    # --- Colunas de Primeira Classe ---
+    # --- First-Class Columns ---
     title: str
     document_date: date | None = None
     original_url: str | None = None
     attachment_link: str | None = None
     thumb_down_link: str | None = None
 
-    # --- Metadados da Norma ISAD(G) (Tratados como Strings Flexíveis) ---
+    # --- ISAD(G) Standard Metadata (Treated as Flexible Strings) ---
     reference_code: str | None = None  # Código Referência
     level: str | None = None  # Nível
     dimension_support: str | None = None  # Dimensão e Suporte
@@ -59,7 +59,7 @@ class StagingDocumentDTO(BaseModel):
     description_dates: str | None = None  # Data(s) da(s) descrição(ões)
     indexing_points: str | None = None  # Pontos de Acesso e Indexação de Assuntos
 
-    # Tudo que for não mapeado acima cai aqui
+    # Anything not mapped above falls here
     raw_metadata: dict[str, Any] = Field(default_factory=dict)
 
     # TODO adicionar limpeza de " -  : ;" como separadores de tags
@@ -68,8 +68,8 @@ class StagingDocumentDTO(BaseModel):
     @classmethod
     def standardize_tags_delimiter(cls, v: str | None) -> str | None:
         """
-        Garante que todas as tags sejam separadas por vírgula limpa,
-        independente se o arquivista usou ponto-e-vírgula ou múltiplos espaços.
+        Ensures that all tags are separated by clean commas,
+        regardless of whether the archivist used semicolons or multiple spaces.
         """
         if not v:
             return None
@@ -124,12 +124,12 @@ class StagingDocumentDTO(BaseModel):
     @classmethod
     def map_raw_to_staging(cls, data: dict[str, Any]) -> dict[str, Any]:
         """
-        Pré-processador executado antes da validação estrita do Pydantic (mode="before").
+        Pre-processor executed before Pydantic's strict validation (mode="before").
 
-        Inspeciona o dicionário que chega do banco de dados (RawData), entra no campo
-        'payload' e distribui as chaves extraídas do HTML para os atributos fortemente
-        tipados da classe. Concatena valores em caso de chaves duplicadas na origem e
-        isola lixo ou campos inéditos no 'raw_metadata'.
+        Inspects the dictionary received from the database (RawData), accesses the 'payload' 
+        field, and maps keys extracted from the HTML to the class's strongly typed attributes. 
+        Concatenates values ​​in the event of duplicate keys in the source and isolates extraneous 
+        data or unexpected fields in 'raw_metadata'.
         """
 
         if "payload" not in data:
@@ -146,9 +146,9 @@ class StagingDocumentDTO(BaseModel):
             "raw_metadata": {},
         }
 
-        data_bruta = payload.get("Data de Produção") or payload.get("Data")
-        if data_bruta:
-            data_str = str(data_bruta).strip()
+        raw_date = payload.get("Data de Produção") or payload.get("Data")
+        if raw_date:
+            data_str = str(raw_date).strip()
 
             # Padrão 1: ISO 8601 ou YYYY-MM-DD (ex: 1929-07-05T03:00:00Z)
             match_iso = re.search(r"(\d{4})-(\d{2})-(\d{2})", data_str)
@@ -170,9 +170,9 @@ class StagingDocumentDTO(BaseModel):
             except ValueError:
                 pass
 
-        # 2. Mapeamento de De -> Para (ISAD-G)
-        # Se a chave da esquerda existir no JSON, joga no atributo da direita
-        mapa_chaves = {
+        # From -> To Mapping (ISAD-G)
+        # If the key on the left exists in the JSON, assign it to the attribute on the right
+        keys_map = {
             "Código de Referência": "reference_code",
             "Nível de Descrição": "level",
             "Dimensão e Suporte": "dimension_support",
@@ -203,21 +203,20 @@ class StagingDocumentDTO(BaseModel):
             "thumb_down_link": "thumb_down_link",
         }
 
-        chaves_mapeadas = ["_url_origem", "attch_down_link", "Data", "Data de Produção", "title"]
+        mapped_keys = ["_url_origem", "attch_down_link", "Data", "Data de Produção", "title"]
 
-        for chave_html, valor in payload.items():
-            if chave_html in mapa_chaves:
-                nome_atributo_pydantic = mapa_chaves[chave_html]
-                # Se já existia um valor (ex: fusão de condições de acesso), a gente concatena
-                if staging_data.get(nome_atributo_pydantic):
-                    staging_data[nome_atributo_pydantic] += f" | {valor}"
+        for html_key, value in payload.items():
+            if html_key in keys_map:
+                name_attribute_pydantic = keys_map[html_key]
+                if staging_data.get(name_attribute_pydantic):
+                    staging_data[name_attribute_pydantic] += f" | {value}"
                 else:
-                    staging_data[nome_atributo_pydantic] = valor
-                chaves_mapeadas.append(chave_html)  # Registra que já lidamos com essa chave original
+                    staging_data[name_attribute_pydantic] = value
+                mapped_keys.append(html_key) 
 
-        # 3. O "Lixo" Desconhecido (Garante que nunca perdemos dados)
-        for chave_html, valor in payload.items():
-            if chave_html not in chaves_mapeadas:
-                staging_data["raw_metadata"][chave_html] = valor
+        # The Unknown "Trash" (Ensures we never lose data
+        for html_key, value in payload.items():
+            if html_key not in mapped_keys:
+                staging_data["raw_metadata"][html_key] = value
 
         return staging_data

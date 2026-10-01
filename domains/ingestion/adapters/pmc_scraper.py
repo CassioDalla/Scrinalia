@@ -17,12 +17,12 @@ from domains.ingestion.ports import (
 
 class PMCScraperAdapter(IDiscoveryAdapter, IDetailAdapter):
     """
-    Adaptador concreto para extração de dados do site público do arquivo
-    da Prefeitura Municipal de Curitiba (PMC).
+    Concrete adapter for data extraction from the Curitiba City Hall (PMC) public 
+    archive website.
 
-    Implementa as interfaces de descoberta (IDiscoveryAdapter) e extração detalhada
-    (IDetailAdapter) traduzindo a sujeira do HTML e os erros da biblioteca
-    HTTP em dicionários limpos e exceções de domínio previsíveis.
+    It implements the discovery (IDiscoveryAdapter) and detailed extraction 
+    (IDetailAdapter) interfaces, translating messy HTML and HTTP library 
+    errors into clean dictionaries and predictable domain exceptions.
     """
 
     def __init__(self, delay_requests: float = 0.5):
@@ -33,20 +33,21 @@ class PMCScraperAdapter(IDiscoveryAdapter, IDetailAdapter):
 
     def fetch_new_ids(self, initial_page: int = 1, max_pages: int | None = None):
         """
-        Extrai os IDs das descrições do arquivo navegando pela paginação do site.
+        Extracts IDs from descriptions by navigating the site's pagination.
 
-        A função realiza requisições HTTP iterando sobre as páginas, extrai os links das
-        caixas de resultado e utiliza uma expressão regular para capturar o valor numérico
-        do parâmetro 'id' nas URLs.
+        The function performs HTTP requests while iterating through pages, extracts links
+        from result boxes, and uses a regular expression to capture the numeric value
+        of the 'id' parameter from the URLs.
 
         Args:
-            initial_page: O número da página por onde a raspagem deve começar. Padrão é 1.
-            max_pages: O limite de páginas que serão processadas. Se definido como None,
-                o scraper rodará indefinidamente até esgotar todas as páginas.
+            initial_page: The page number where scraping should begin. Defaults to 1.
+            max_pages: The maximum number of pages to process. If set to None,
+                the scraper will run indefinitely until all pages are exhausted.
 
         Yields:
-            Uma lista de strings (IDs) encontrada em cada página processada.
+            A list of strings (IDs) found on each processed page.
         """
+
         ids_found: list[str] = []
         current_page: int = initial_page
         processed_pages: int = 0
@@ -91,22 +92,22 @@ class PMCScraperAdapter(IDiscoveryAdapter, IDetailAdapter):
 
     def fetch_details(self, description_id: str) -> dict[str, str]:
         """
-        Executa a requisição HTTP e extrai os metadados do HTML da página.
+        Executes the HTTP request and extracts metadata from the page's HTML.
 
-        Esta função não possui conhecimento de regras de negócio ou banco de dados.
-        Erros de rede e status HTTP são capturados e traduzidos para exceções
-        de domínio que o orquestrador (Worker) consiga entender e tratar.
+        This function has no knowledge of business rules or databases.
+        Network errors and HTTP status codes are captured and translated into
+        domain-specific exceptions that the orchestrator (Worker) can understand and handle.
 
         Args:
-            description_id: O identificador único do documento no acervo.
+            description_id: The unique identifier of the document in the collection.
 
         Returns:
-            Um dicionário contendo as chaves extraídas da página, sem chaves com valores vazios.
+            A dictionary containing the keys extracted from the page, excluding keys with empty values.
 
         Raises:
-            AdapterNotFoundError: Se o servidor responder com erro 404 (Não Encontrado).
-            AdapterNetworkError: Para instabilidades de conexão, timeout ou outros erros HTTP.
-            AdapterFatalError: Se o layout do site quebrar e o BeautifulSoup falhar.
+            AdapterNotFoundError: If the server responds with a 404 (Not Found) error.
+            AdapterNetworkError: For connection instabilities, timeouts, or other HTTP errors.
+            AdapterFatalError: If the site layout breaks and BeautifulSoup fails.
         """
 
         url = f"{self.detail_url}{description_id}"

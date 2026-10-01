@@ -19,19 +19,19 @@ MAX_RETRIES = 3
 
 def run_discovery_job(db_session: Session, adapter: IDiscoveryAdapter, max_pages: int | None = None):
     """
-    Orquestra a fase de descoberta da Ingestão, buscando novos IDs na fonte de dados.
+    Orchestrates the Ingestion discovery phase, retrieving new IDs from the data source.
 
-    Utiliza um adaptador de descoberta (IDiscoveryAdapter) para iterar sobre a
-    fonte (páginas web, planilhas, APIs) e insere os identificadores inéditos
-    na Fila de Processamento em lotes (bulk insert).
+    Uses a discovery adapter (IDiscoveryAdapter) to iterate over the
+    source (web pages, spreadsheets, APIs) and inserts new identifiers
+    into the Processing Queue in batches (bulk insert).
 
     Args:
-        db_session (Session): Sessão ativa do SQLAlchemy.
-        adapter (IDiscoveryAdapter): Instância do adaptador responsável por buscar os IDs.
-        max_pages (int | None, opcional): Limite de iterações/páginas a serem processadas.
+        db_session (Session): Active SQLAlchemy session.
+        adapter (IDiscoveryAdapter): Instance of the adapter responsible for retrieving IDs.
+        max_pages (int | None, optional): Limit on the number of iterations/pages to process.
     """
 
-    logger.info("🚀 Iniciando a descoberta de IDs no catálogo...")
+    logger.info("🚀 Starting ID discovery job...")
 
     total_inserted = 0
     for batch_ids in adapter.fetch_new_ids(max_pages=max_pages):
@@ -39,10 +39,10 @@ def run_discovery_job(db_session: Session, adapter: IDiscoveryAdapter, max_pages
         total_inserted += inserted_count
 
         if inserted_count > 0:
-            logger.success(f"🔥 +{inserted_count} novos documentos na fila.")
+            logger.success(f"🔥 +{inserted_count} new documents in the queue.")
 
     if total_inserted == 0:
-        logger.warning("Nenhum ID inédito foi encontrado nesta execução.")
+        logger.warning("No new IDs were found in this execution.")
 
 
 def run_detail_scraping_job(
@@ -53,24 +53,24 @@ def run_detail_scraping_job(
     audit_ttl_days: int | None = None,
 ):
     """
-    Orquestra o consumo da fila e a extração dos dados brutos (RawData).
+    Orchestrates queue consumption and raw data extraction.
 
-    Aplica as regras de negócio de tempo de vida (TTL) e janelas temporais
-    para selecionar quais documentos devem ser processados. Para cada item,
-    solicita ao adaptador a extração dos metadados e atualiza o estado
-    do processamento, aplicando contagem de falhas (retries) em caso de instabilidade.
+    Applies business rules regarding Time-To-Live (TTL) and time windows
+    to select which documents should be processed. For each item,
+    it requests metadata extraction from the adapter and updates the
+    processing state, applying retry logic in the event of instability.
 
     Args:
-        db_session (Session): Sessão ativa do SQLAlchemy.
-        adapter (IDetailAdapter): Instância do adaptador responsável por extrair os detalhes.
-        force_retry_fatal (bool): Se True, tenta extrair novamente IDs marcados como FATAL_ERROR.
-        ignore_sliding_window (bool): Se True, ignora os filtros de tempo e varre a fila inteira.
-        audit_ttl_days (int | None): Quantidade de dias para Time-To-Live (TTL). Ativa o
-            Modo Auditoria para reprocessar documentos concluídos (DONE) inativos há X dias,
-            garantindo a captura de atualizações silenciosas na origem.
+        db_session (Session): Active SQLAlchemy session.
+        adapter (IDetailAdapter): Instance of the adapter responsible for extracting details.
+        force_retry_fatal (bool): If True, attempts to re-extract IDs marked as FATAL_ERROR.
+        ignore_sliding_window (bool): If True, ignores time filters and scans the entire queue.
+        audit_ttl_days (int | None): Time-To-Live (TTL) duration in days. Activates
+            Audit Mode to reprocess completed (DONE) documents that have been inactive
+            for X days, ensuring the capture of silent updates at the source.
     """
 
-    # 1. Configura as regras da janela de tempo
+    # Time-To-Live configs
     if audit_ttl_days is not None:
         discovered_after = None
         scraped_before = datetime.now(UTC) - timedelta(days=audit_ttl_days)
@@ -84,26 +84,23 @@ def run_detail_scraping_job(
         if not ignore_sliding_window:
             ignore_status.append(ScrapeStatus.DONE)
 
-    # 2. Busca o Lote
     batch = repository.get_from_queue(
         db_session, discovered_after=discovered_after, scraped_before=scraped_before, ignore_status=ignore_status
     )
 
     total_itens = len(batch)
     if total_itens == 0:
-        logger.info("Nenhuma descrição pendente na fila.")
+        logger.info("No documents pending in the queue.")
         return
 
-    logger.info(f"🚀 Iniciando a extração de {total_itens} detalhes...")
+    logger.info(f"🚀 Starting extraction of {total_itens} itens details...")
 
-    # 3. Processa o Lote
-    for indice, fila in enumerate(batch, start=1):
-        doc_id = fila.description_id
-        logger.info(f"⏳ Processando [{indice}/{total_itens}] ID: {doc_id}")
+    for index, queue in enumerate(batch, start=1):
+        doc_id = queue.description_id
+        logger.info(f"⏳ Processing [{index}/{total_itens}] ID: {doc_id}")
 
         try:
             data_scraped = adapter.fetch_details(doc_id)
-
             repository.save_raw_data(db_session, doc_id, data_scraped)
             repository.update_queue_status(db_session, doc_id, ScrapeStatus.DONE)
 
@@ -113,7 +110,7 @@ def run_detail_scraping_job(
 
         except AdapterNetworkError as e:
             logger.warning(f"⚠️ Instabilidade em {doc_id}: {e}")
-            if fila.retry_count >= MAX_RETRIES:
+            if queue.retry_count >= MAX_RETRIES:
                 repository.update_queue_status(db_session, doc_id, ScrapeStatus.FATAL_ERROR, error_msg=str(e))
             else:
                 repository.update_queue_status(
@@ -125,15 +122,11 @@ def run_detail_scraping_job(
             repository.update_queue_status(db_session, doc_id, ScrapeStatus.FATAL_ERROR, error_msg=str(e))
 
 
-# Ponto de Entrada (Exemplo de uso)
 if __name__ == "__main__":
     from domains.ingestion.adapters.pmc_scraper import PMCScraperAdapter
 
     with get_db() as db:
         adapter = PMCScraperAdapter(delay_requests=0.5)
 
-        # 1. Povoar a fila
         # run_discovery_job(db, adapter=adapter)
-
-        # 2. Processar a fila
-        run_detail_scraping_job(db, adapter=adapter)
+        run_detail_scraping_job(db, adapter=adapter, ignore_sliding_window=True)

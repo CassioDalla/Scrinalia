@@ -10,23 +10,23 @@ from core.base import Base
 
 class StagingDocument(Base):
     """
-    Representa um documento de acervo estruturado e tipado na camada Staging.
+    Represents a structured and typed archival document within the Staging Domain.
 
-    Esta entidade recebe os dados brutos (RawData) da camada de ingestão e os
-    transforma em colunas relacionais rigorosas, mapeando o modelo descritivo
-    arquivístico baseado na Norma ISAD(G).
+    This entity receives raw data (RawData) from the ingestion Domain and
+    transforms it into strict relational columns, mapping it to the archival
+    descriptive model based on the ISAD(G) standard.
 
-    Atua como a única fonte da verdade higienizada antes de o documento seguir
-    para o processamento de Inteligência Artificial (Archive/Gold).
+    It serves as the single source of sanitized truth before the document
+    proceeds to Artificial Intelligence processing on Archive Domain.
 
     Attributes:
-        description_id: O identificador único legado do sistema de origem.
-        raw_content_hash: Hash de linhagem. Liga esta versão estruturada à versão
-            bruta exata que a gerou. Essencial para detectar se o documento precisa ser reprocessado.
-        title: Título principal do documento.
-        document_date: Data normalizada do documento (quando aplicável e validável).
-        raw_metadata: Cópia de segurança (JSON) contendo as chaves originais não
-            mapeadas ou casos de borda que não couberam no esquema ISAD(G) padrão.
+        description_id: The unique legacy identifier from the source system.
+        raw_content_hash: Lineage hash. Links this structured version to the
+             exact raw version that generated it. Essential for detecting if the document needs reprocessing.
+        title: Main title of the document.
+        document_date: Normalized document date (when applicable and validatable).
+        raw_metadata: Backup copy (JSON) containing original unmapped keys
+            or edge cases that did not fit the standard ISAD(G) schema.
     """
 
     __tablename__ = "staging_documents"
@@ -40,7 +40,7 @@ class StagingDocument(Base):
     attachment_link: Mapped[str | None] = mapped_column(Text, nullable=True)
     thumb_down_link: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Metadados da Norma ISAD(G)
+    # Metadata ISAD(G)
     reference_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     level: Mapped[str | None] = mapped_column(Text, nullable=True)
     dimension_support: Mapped[str | None] = mapped_column(Text, nullable=True)
