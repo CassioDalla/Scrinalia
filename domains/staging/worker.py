@@ -56,7 +56,7 @@ def run_staging_pipeline(db_session: Session) -> None:
 
         except Exception as e:
             failures += 1
-            logger.error(f"💥 Fatal error saving document {doc_id} to the database: {str(e)}")
+            logger.error(f"💥 Fatal error saving document {doc_id} to the database: {e!s}")
             continue
 
     try:
@@ -64,7 +64,7 @@ def run_staging_pipeline(db_session: Session) -> None:
         logger.info(f"🎯 Staging Pipeline Completed! Success: {success} | failures: {failures}")
     except Exception as e:
         db_session.rollback()
-        logger.critical(f"🔥 Critical error during final commit:{str(e)}")
+        logger.critical(f"🔥 Critical error during final commit:{e!s}")
 
 
 if __name__ == "__main__":

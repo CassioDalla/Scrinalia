@@ -1,8 +1,9 @@
-from sqlalchemy import select, update
-from sqlalchemy.orm import Session
-from typing import Sequence
+from collections.abc import Sequence
 
-from domains.archive.models import ArchiveDocument, ArchiveCleaningRule
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from domains.archive.models import ArchiveCleaningRule, ArchiveDocument
 
 
 class CleaningRepository:
@@ -16,7 +17,7 @@ class CleaningRepository:
         return rule
 
     def get_active_rules(self) -> Sequence[ArchiveCleaningRule]:
-        stmt = select(ArchiveCleaningRule).where(ArchiveCleaningRule.is_active == True)
+        stmt = select(ArchiveCleaningRule).where(ArchiveCleaningRule.is_active.is_(True))
         return self.db.scalars(stmt).all()
 
     def get_rule_by_id(self, rule_id: int) -> ArchiveCleaningRule:

@@ -1,8 +1,9 @@
 import csv
 import time
-import requests
 
+import requests
 from sqlalchemy import select
+
 from core.database import get_db
 from domains.staging.models import StagingDocument
 

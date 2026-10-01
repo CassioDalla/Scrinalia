@@ -45,10 +45,10 @@ with aba_analise:
     st.subheader("🧹 Limpeza Sistemática de Ruídos (Stopwords)")
     with st.popover("❔ O que são Stopwords de Assunto?"):
         st.markdown("""
-        São termos genéricos, jargões documentais ou ruídos de digitação (ex: *foto*, *ofício*, *página*, *cópia*) 
+        São termos genéricos, jargões documentais ou ruídos de digitação (ex: *foto*, *ofício*, *página*, *cópia*)
         que não agregam valor histórico ou semântico à indexação.
 
-        Ao registrar uma palavra como stopword, o sistema **exclui** essa tag de todos os documentos atuais e 
+        Ao registrar uma palavra como stopword, o sistema **exclui** essa tag de todos os documentos atuais e
         instrui os próximos Workers a ignorarem este termo para sempre.
         """)
 

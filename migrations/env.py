@@ -3,14 +3,13 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from core.base import Base
-from core.config import settings
-
 # Import every model package so Base.metadata is fully populated before
 # autogenerate compares it against the database.
-import domains.archive.models  # noqa: F401
-import domains.ingestion.models  # noqa: F401
+import domains.archive.models
+import domains.ingestion.models
 import domains.staging.models  # noqa: F401
+from core.base import Base
+from core.config import settings
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

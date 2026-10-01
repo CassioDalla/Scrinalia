@@ -37,7 +37,7 @@ def test_get_cross_domain_conflicts(use_test_db, db_session):
 
 def test_resolve_cross_domain_conflict_tag_wins(use_test_db, db_session, generate_archive_doc):
     """Garante que a Tag absorve os documentos da Entidade e a Entidade é destruída."""
-    from domains.archive.models import ArchiveEntity, ArchiveDocumentTag, ArchiveDocumentEntity
+    from domains.archive.models import ArchiveDocumentEntity, ArchiveDocumentTag, ArchiveEntity
 
     repo = EntityRepository(db_session)
 

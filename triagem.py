@@ -1,7 +1,6 @@
 import csv
 import re
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 from sqlalchemy import select
@@ -103,7 +102,7 @@ def contem_erros_ia(id_linha: str, titulo: str, conteudo: str) -> tuple[str, str
             Responda APENAS "SIM" ou "NAO".
             Texto para análise:
             {texto_alvo}
-            
+
             Resposta:"""
 
     payload = {

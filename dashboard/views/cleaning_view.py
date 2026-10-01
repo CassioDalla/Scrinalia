@@ -4,7 +4,7 @@ from services.cleaning_service import StreamlitCleaningService as service
 
 st.title("🧹 Qualidade de Dados (Motor Regex)")
 st.markdown("""
-Crie regras avançadas de limpeza textual para higienizar o acervo retroativamente. 
+Crie regras avançadas de limpeza textual para higienizar o acervo retroativamente.
 As regras ativas serão processadas silenciosamente pelo Worker em *background*.
 """)
 

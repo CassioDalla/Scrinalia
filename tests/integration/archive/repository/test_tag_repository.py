@@ -126,7 +126,7 @@ def test_link_tags_to_document_com_duplicadas(use_test_db, db_session, generate_
     repo = TagRepository(db_session)
 
     # 1. Setup
-    doc = generate_archive_doc(description_id="doc_link_1", original_title="Documento Base")
+    generate_archive_doc(description_id="doc_link_1", original_title="Documento Base")
     tag_a = ArchiveTag(name="tag_a")
     tag_b = ArchiveTag(name="tag_b")
     db_session.add_all([tag_a, tag_b])
@@ -157,8 +157,8 @@ def test_bulk_link_tags_otimizacao_worker(use_test_db, db_session, generate_arch
     repo = TagRepository(db_session)
 
     # 1. Setup
-    doc_1 = generate_archive_doc(description_id="doc_bulk_1", original_title="Lote 1")
-    doc_2 = generate_archive_doc(description_id="doc_bulk_2", original_title="Lote 2")
+    generate_archive_doc(description_id="doc_bulk_1", original_title="Lote 1")
+    generate_archive_doc(description_id="doc_bulk_2", original_title="Lote 2")
     tag_x = ArchiveTag(name="tag_x")
     db_session.add_all([tag_x])
     db_session.commit()

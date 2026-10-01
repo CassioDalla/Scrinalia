@@ -12,7 +12,7 @@ Quando ambos os motores extraem termos idênticos ou graficamente semelhantes, o
 # ======================================================================
 # CENTRAL DE INSTRUÇÕES DE GOVERNANÇA
 # ======================================================================
-with st.expander("ℹ️ Central de Ajuda: Como decidir o vencedor?", expanded=False):
+with st.expander("📖 Central de Ajuda: Como decidir o vencedor?", expanded=False):
     st.markdown("""
     ### ⚖️ Critérios de Julgamento Arquivístico
 

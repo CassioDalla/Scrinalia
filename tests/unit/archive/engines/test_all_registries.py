@@ -10,7 +10,7 @@ ALL_REGISTRIES = [typology_registry, ner_registry, cluster_registry]
 
 @pytest.mark.parametrize("reg_module", ALL_REGISTRIES)
 def test_get_engine_rejeita_motor_invalido(mock_registry, reg_module):
-    mock_engine_class = mock_registry(reg_module)
+    mock_registry(reg_module)
 
     with pytest.raises(ValueError, match="não suportado"):
         reg_module.get_engine("inexistente")
@@ -22,7 +22,7 @@ def test_get_engine_kwargs_sobrescrevem_preset(mock_registry, reg_module):
     mock_engine_class = mock_registry(reg_module)
 
     # Pedimos o preset_teste (que tem device="cpu"), MAS forçamos device="cuda:0"
-    engine = reg_module.get_engine("motor_fake", preset="preset_teste", device="cuda:0")
+    reg_module.get_engine("motor_fake", preset="preset_teste", device="cuda:0")
 
     # A regra de ouro: o "cuda:0" deve ter esmagado o "cpu"
     mock_engine_class.assert_called_once_with(model="falso", device="cuda:0")
@@ -44,7 +44,7 @@ def test_get_engine_carrega_preset_corretamente(mock_registry, reg_module):
     mock_engine_class = mock_registry(reg_module)
 
     # 2. Executa a fábrica real
-    engine = reg_module.get_engine("motor_fake", preset="preset_teste")
+    reg_module.get_engine("motor_fake", preset="preset_teste")
 
     # 3. Verifica se a fábrica repassou os dados certos
     mock_engine_class.assert_called_once_with(model="falso", device="cpu")

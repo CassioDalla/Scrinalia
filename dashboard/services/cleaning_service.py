@@ -1,5 +1,6 @@
+from typing import Any
+
 import requests
-from typing import Dict, Any
 
 from core.config import settings
 
@@ -13,7 +14,7 @@ class StreamlitCleaningService:
     """
 
     @staticmethod
-    def preview_dry_run(target_column: str, regex_pattern: str, replacement_string: str) -> Dict[str, Any]:
+    def preview_dry_run(target_column: str, regex_pattern: str, replacement_string: str) -> dict[str, Any]:
         """Envia o Regex para a API testar e devolver uma amostra do 'Antes e Depois'."""
         payload = {
             "target_column": target_column,
@@ -26,10 +27,10 @@ class StreamlitCleaningService:
                 return response.json()
             return {"is_valid_regex": False, "error_message": response.text}
         except Exception as e:
-            return {"is_valid_regex": False, "error_message": f"Erro de conexão com a API: {str(e)}"}
+            return {"is_valid_regex": False, "error_message": f"Erro de conexão com a API: {e!s}"}
 
     @staticmethod
-    def create_rule(name: str, target_column: str, regex_pattern: str, replacement_string: str) -> Dict[str, Any]:
+    def create_rule(name: str, target_column: str, regex_pattern: str, replacement_string: str) -> dict[str, Any]:
         """Envia a regra confirmada para ser guardada no banco de dados e ativada."""
         payload = {
             "rule_name": name,
@@ -43,10 +44,10 @@ class StreamlitCleaningService:
                 return response.json()
             return {"error": response.text}
         except Exception as e:
-            return {"error": f"Erro de conexão com a API: {str(e)}"}
+            return {"error": f"Erro de conexão com a API: {e!s}"}
 
     @staticmethod
-    def get_active_rules() -> list[Dict[str, Any]]:
+    def get_active_rules() -> list[dict[str, Any]]:
         """Busca todas as regras ativas na API."""
         try:
             response = requests.get(BASE_URL)

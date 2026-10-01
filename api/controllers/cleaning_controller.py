@@ -1,18 +1,17 @@
-from litestar import Controller, get, post, patch
+from litestar import Controller, get, patch, post
 from litestar.di import Provide
-
-from api.schemas.cleaning_requests import CreateCleaningRuleRequest, DryRunRequest
-from domains.archive.schemas.cleaning_schema import CleaningRuleCreateDTO, DryRunRequestDTO
 from litestar.exceptions import NotFoundException
-from domains.archive.services.cleaning_service import CleaningService
 
 from api.dependencies import provide_cleaning_service
+from api.schemas.cleaning_requests import CreateCleaningRuleRequest, DryRunRequest
+from domains.archive.schemas.cleaning_schema import CleaningRuleCreateDTO, DryRunRequestDTO
+from domains.archive.services.cleaning_service import CleaningService
 
 
 class CleaningController(Controller):
     path = "/api/v1/quality/cleaning-rules"
-    tags = ["Data Quality"]
-    dependencies = {"cleaning_service": Provide(provide_cleaning_service)}
+    tags = ["Data Quality"]  # noqa: RUF012
+    dependencies = {"cleaning_service": Provide(provide_cleaning_service)}  # noqa: RUF012
 
     # TODO RETORNAR DTOS
 
@@ -29,7 +28,7 @@ class CleaningController(Controller):
             regra = cleaning_service.deactivate_rule(rule_id)
             return {"message": "Regra desativada com sucesso.", "data": regra.model_dump()}
         except ValueError as e:
-            raise NotFoundException(str(e))
+            raise NotFoundException(str(e)) from e
 
     @post("/", sync_to_thread=False)
     def create_rule(self, cleaning_service: CleaningService, data: CreateCleaningRuleRequest) -> dict:

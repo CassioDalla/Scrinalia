@@ -1,7 +1,6 @@
 from collections.abc import Sequence
 from typing import cast
 
-from httpx import delete
 from sqlalchemy import CursorResult, Float, Row, delete, desc, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased

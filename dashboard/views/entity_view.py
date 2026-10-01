@@ -426,7 +426,7 @@ with tab_manutencao:
     st.markdown("#### 🚫 Lista Negra de Entidades (Falsos Positivos)")
     with st.popover("❔ Como funciona a Lista Negra?"):
         st.markdown("""
-        Se o robô continuar a extrair palavras que não são entidades (ex: *Feiras livres*, *Atenciosamente*), 
+        Se o robô continuar a extrair palavras que não são entidades (ex: *Feiras livres*, *Atenciosamente*),
         digite-as aqui. O sistema vai apagar todas as ocorrências atuais e impedir que o robô as extraia novamente.
         """)
 
@@ -455,7 +455,7 @@ with tab_manutencao:
 
     with st.popover("❔ Entender o impacto de expurgar Entidades Órfãs"):
         st.markdown("""
-        Entidades órfãs são palavras gravadas na tabela taxonômica que **não possuem mais nenhum documento associado**. 
+        Entidades órfãs são palavras gravadas na tabela taxonômica que **não possuem mais nenhum documento associado**.
         Isso ocorre quando documentos são excluídos, ou após revisões manuais profundas.
 
         Removê-las limpa termos fantasmas que poluiriam os filtros de pesquisa dos usuários, sem qualquer risco de perda de dados.

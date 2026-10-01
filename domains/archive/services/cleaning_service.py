@@ -1,12 +1,13 @@
 import re
+
 from domains.archive.exceptions import InvalidParam
 from domains.archive.repository.cleaning_repo import CleaningRepository
 from domains.archive.schemas.cleaning_schema import (
     CleaningRuleCreateDTO,
     CleaningRuleDTO,
+    DryRunMatchDTO,
     DryRunRequestDTO,
     DryRunResponseDTO,
-    DryRunMatchDTO,
 )
 
 
@@ -19,7 +20,7 @@ class CleaningService:
         try:
             return re.compile(pattern, re.IGNORECASE)
         except re.error as e:
-            raise InvalidParam(f"Sintaxe de Regex inválida: {str(e)}")
+            raise InvalidParam(f"Sintaxe de Regex inválida: {e!s}") from e
 
     def create_cleaning_rule(self, dto: CleaningRuleCreateDTO) -> CleaningRuleDTO:
         # Validação antecipada (Fail Fast)
