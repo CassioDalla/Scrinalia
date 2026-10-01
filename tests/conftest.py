@@ -1,3 +1,4 @@
+import os
 import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -7,7 +8,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from core.base import Base
@@ -19,7 +20,9 @@ from domains.ingestion import models as ingest_model
 # Descobre o caminho absoluto da pasta 'tests' de forma dinâmica
 TESTS_FOLDER = Path(__file__).parent
 
-TEST_DATABASE_URL = "postgresql://test_user:test_password@localhost:5433/test_db"
+TEST_DATABASE_URL = os.getenv(
+    "TEST_DATABASE_URL", "postgresql://test_user:test_password@localhost:5433/test_db"
+)
 
 
 @pytest.fixture
@@ -79,6 +82,10 @@ def fila_mock():
 def engine():
     """Cria a conexão com o banco de testes e monta a estrutura de tabelas uma única vez."""
     engine = create_engine(TEST_DATABASE_URL)
+
+    # pg_trgm must exist before create_all builds the fuzzy-search GIN indexes.
+    with engine.begin() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
 
     # Cria todas as tabelas baseadas nos seus Models
     Base.metadata.create_all(bind=engine)

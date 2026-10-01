@@ -78,3 +78,6 @@ dev = [
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
+# The project is not packaged/installed; make top-level packages (core, domains, api)
+# importable when running pytest from the repo root.
+pythonpath = ["."]
