@@ -21,8 +21,7 @@ pagina_qualidade = st.Page("views/cleaning_view.py", title="Qualidade de Dados",
 navegacao = st.navigation(
     {
         "Descoberta": [pagina_vitrine],
-        "Governança & Curadoria": 
-        [pagina_taxonomia, pagina_entidades, pagina_conflitos, pagina_qualidade ],
+        "Governança & Curadoria": [pagina_taxonomia, pagina_entidades, pagina_conflitos, pagina_qualidade],
         "Engenharia de Sistema": [
             # pagina_workers
         ],

@@ -126,9 +126,9 @@ class StagingDocumentDTO(BaseModel):
         """
         Pre-processor executed before Pydantic's strict validation (mode="before").
 
-        Inspects the dictionary received from the database (RawData), accesses the 'payload' 
-        field, and maps keys extracted from the HTML to the class's strongly typed attributes. 
-        Concatenates values ​​in the event of duplicate keys in the source and isolates extraneous 
+        Inspects the dictionary received from the database (RawData), accesses the 'payload'
+        field, and maps keys extracted from the HTML to the class's strongly typed attributes.
+        Concatenates values ​​in the event of duplicate keys in the source and isolates extraneous
         data or unexpected fields in 'raw_metadata'.
         """
 
@@ -212,7 +212,7 @@ class StagingDocumentDTO(BaseModel):
                     staging_data[name_attribute_pydantic] += f" | {value}"
                 else:
                     staging_data[name_attribute_pydantic] = value
-                mapped_keys.append(html_key) 
+                mapped_keys.append(html_key)
 
         # The Unknown "Trash" (Ensures we never lose data
         for html_key, value in payload.items():

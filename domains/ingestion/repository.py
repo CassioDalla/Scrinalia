@@ -62,7 +62,7 @@ def add_in_bulk(db: Session, description_id_list: list[str]) -> int:
 
     Returns:
         int: The exact number of new records inserted into the database.
-"""
+    """
 
     if not description_id_list:
         return 0

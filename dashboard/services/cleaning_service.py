@@ -6,17 +6,19 @@ from core.config import settings
 HOST = settings.API_BASE_URL
 BASE_URL = f"{HOST}api/v1/quality/cleaning-rules"
 
+
 class StreamlitCleaningService:
     """
     Faz a ponte entre o Front-end do Streamlit e a API de Qualidade de Dados.
     """
+
     @staticmethod
     def preview_dry_run(target_column: str, regex_pattern: str, replacement_string: str) -> Dict[str, Any]:
         """Envia o Regex para a API testar e devolver uma amostra do 'Antes e Depois'."""
         payload = {
             "target_column": target_column,
             "regex_pattern": regex_pattern,
-            "replacement_string": replacement_string
+            "replacement_string": replacement_string,
         }
         try:
             response = requests.post(f"{BASE_URL}/preview", json=payload)
@@ -33,7 +35,7 @@ class StreamlitCleaningService:
             "rule_name": name,
             "target_column": target_column,
             "regex_pattern": regex_pattern,
-            "replacement_string": replacement_string
+            "replacement_string": replacement_string,
         }
         try:
             response = requests.post(BASE_URL, json=payload)
@@ -42,7 +44,6 @@ class StreamlitCleaningService:
             return {"error": response.text}
         except Exception as e:
             return {"error": f"Erro de conexão com a API: {str(e)}"}
-        
 
     @staticmethod
     def get_active_rules() -> list[Dict[str, Any]]:

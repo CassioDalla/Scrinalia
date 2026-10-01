@@ -4,6 +4,7 @@ from typing import Sequence
 
 from domains.archive.models import ArchiveDocument, ArchiveCleaningRule
 
+
 class CleaningRepository:
     def __init__(self, db: Session):
         self.db = db
@@ -19,24 +20,24 @@ class CleaningRepository:
         return self.db.scalars(stmt).all()
 
     def get_rule_by_id(self, rule_id: int) -> ArchiveCleaningRule:
-        stmt= select(ArchiveCleaningRule).where(ArchiveCleaningRule.rule_id == rule_id)
+        stmt = select(ArchiveCleaningRule).where(ArchiveCleaningRule.rule_id == rule_id)
         return self.db.scalars(stmt).one()
 
-
-    def get_unprocessed_documents_for_rule(self, rule_id: int, target_column: str, limit: int = 500) -> Sequence[ArchiveDocument]:
+    def get_unprocessed_documents_for_rule(
+        self, rule_id: int, target_column: str, limit: int = 500
+    ) -> Sequence[ArchiveDocument]:
         """
         Busca documentos que AINDA NÃO têm a flag 'rule_X' no execution_log
         e onde a coluna alvo NÃO é nula.
         """
         rule_key = f"cleaning_rule_{rule_id}"
-        
+
         stmt = (
             select(ArchiveDocument)
             .where(getattr(ArchiveDocument, target_column).is_not(None))
             .where(
                 # Ou o log não existe, ou se existe, não contém a chave da regra
-                (ArchiveDocument.execution_log.is_(None)) | 
-                (~ArchiveDocument.execution_log.has_key(rule_key))
+                (ArchiveDocument.execution_log.is_(None)) | (~ArchiveDocument.execution_log.has_key(rule_key))
             )
             .limit(limit)
         )

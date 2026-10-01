@@ -20,9 +20,7 @@ from domains.ingestion import models as ingest_model
 # Descobre o caminho absoluto da pasta 'tests' de forma dinâmica
 TESTS_FOLDER = Path(__file__).parent
 
-TEST_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_URL", "postgresql://test_user:test_password@localhost:5433/test_db"
-)
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql://test_user:test_password@localhost:5433/test_db")
 
 
 @pytest.fixture
