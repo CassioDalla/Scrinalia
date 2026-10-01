@@ -2,7 +2,6 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
-    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,7 +16,6 @@ class ArchiveDocumentEntity(Base):
     entity_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("archive_entities.entity_id", ondelete="CASCADE"), primary_key=True
     )
-    __table_args__ = (UniqueConstraint("description_id", "entity_id", name="uix_description_entity"),)
 
 
 class ArchiveDocumentTag(Base):
@@ -28,4 +26,3 @@ class ArchiveDocumentTag(Base):
     tag_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("archive_tags.tag_id", ondelete="CASCADE"), primary_key=True
     )
-    __table_args__ = (UniqueConstraint("description_id", "tag_id", name="uix_description_tag"),)

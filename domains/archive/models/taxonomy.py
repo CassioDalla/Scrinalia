@@ -6,6 +6,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -51,6 +52,15 @@ class ArchiveTag(Base):
     macro_category: Mapped["ArchiveMacroCategory"] = relationship(back_populates="tags")
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index(
+            "idx_archive_tags_name_trgm",
+            "name",
+            postgresql_using="gin",
+            postgresql_ops={"name": "gin_trgm_ops"},
+        ),
+    )
 
 
 class ArchiveTypology(Base):

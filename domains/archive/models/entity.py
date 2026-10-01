@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     DateTime,
+    Index,
     Integer,
     String,
     func,
@@ -31,3 +32,12 @@ class ArchiveEntity(Base):
         secondary="archive_document_entities", back_populates="entities"
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index(
+            "idx_archive_entities_name_trgm",
+            "name",
+            postgresql_using="gin",
+            postgresql_ops={"name": "gin_trgm_ops"},
+        ),
+    )
