@@ -8,6 +8,7 @@ from litestar.status_codes import (
 from sqlalchemy.exc import IntegrityError
 
 from domains.archive.exceptions import (
+    DocumentNotFoundError,
     DomainException,
     EngineExecutionError,
     InvalidMergeError,
@@ -24,7 +25,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
     # Define um erro padrão caso a exceção específica não esteja mapeada
     status_code = HTTP_400_BAD_REQUEST
 
-    if isinstance(exc, TagNotFoundError):
+    if isinstance(exc, (TagNotFoundError, DocumentNotFoundError)):
         status_code = HTTP_404_NOT_FOUND
 
     elif isinstance(exc, (InvalidParam, InvalidMergeError)):

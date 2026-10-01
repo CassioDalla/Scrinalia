@@ -5,6 +5,7 @@ from domains.archive.repository.document_repo import DocumentRepository
 from domains.archive.repository.entity_repo import EntityRepository
 from domains.archive.repository.tag_repo import TagRepository
 from domains.archive.services.cleaning_service import CleaningService
+from domains.archive.services.document_service import DocumentService
 from domains.archive.services.entity_service import EntityService
 from domains.archive.services.tag_service import TagService
 
@@ -25,3 +26,8 @@ def provide_entity_service(db_session: Session) -> EntityService:
 
 def provide_cleaning_service(db_session: Session) -> CleaningService:
     return CleaningService(CleaningRepository(db_session))
+
+
+def provide_document_service(db_session: Session) -> DocumentService:
+    """Constrói o serviço de leitura/curadoria do acervo com a sessão da requisição."""
+    return DocumentService(DocumentRepository(db_session))
