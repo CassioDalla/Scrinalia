@@ -108,3 +108,49 @@ def test_stamp_ai_execution(use_test_db, db_session, generate_archive_dto):
 
     assert "migracao_base" in doc_banco.execution_log
     assert doc_banco.execution_log["ner_spacy_v1"] == "DONE"
+
+
+# ==========================================
+# TESTES DE LEITURA E CURADORIA
+# ==========================================
+
+
+def test_search_filters_by_term_and_paginates(use_test_db, db_session, generate_archive_dto):
+    """Busca textual retorna apenas o matches e o total correto, respeitando a página."""
+    repo = DocumentRepository(db_session)
+    repo.upsert_archive_document(
+        generate_archive_dto(description_id="s1", original_title="Matadouro Municipal", staging_content_hash="h1")
+    )
+    repo.upsert_archive_document(
+        generate_archive_dto(description_id="s2", original_title="Praça do Gaúcho", staging_content_hash="h2")
+    )
+    db_session.commit()
+
+    docs, total = repo.search(term="Matadouro")
+    assert total == 1
+    assert docs[0].description_id == "s1"
+
+    pagina, total_geral = repo.search(limit=1, offset=0)
+    assert total_geral == 2
+    assert len(pagina) == 1
+
+
+def test_update_review_blinds_document_as_human_approved(use_test_db, db_session, generate_archive_dto):
+    """A edição humana aplica os campos e marca o documento como HUMAN_APPROVED."""
+    repo = DocumentRepository(db_session)
+    repo.upsert_archive_document(
+        generate_archive_dto(description_id="r1", original_title="Original", staging_content_hash="hr1")
+    )
+    db_session.commit()
+
+    atualizado = repo.update_review("r1", {"final_title": "Título Revisado", "archivist_notes": "ok"})
+    db_session.commit()
+
+    assert atualizado is not None
+    assert atualizado.review_status == ArchiveReviewStatus.HUMAN_APPROVED
+    assert atualizado.final_title == "Título Revisado"
+
+
+def test_update_review_returns_none_for_missing_document(use_test_db, db_session):
+    repo = DocumentRepository(db_session)
+    assert repo.update_review("nao-existe", {"final_title": "x"}) is None
