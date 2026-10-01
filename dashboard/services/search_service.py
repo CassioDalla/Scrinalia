@@ -1,23 +1,23 @@
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+import requests
 
-from core.database import get_db
-from domains.archive.models import ArchiveDocument
+from core.config import settings
+from core.logger import logger
+from domains.archive.schemas.document_schema import DocumentSummary
+
+BASE_URL = f"{settings.API_BASE_URL}api/v1/documents"
 
 
-def search_document(termo_busca: str, limite: int = 50):
-    """Encapsula toda a lógica de acesso a dados da Camada Ouro."""
-    with get_db() as db:
-        query = select(ArchiveDocument).options(
-            selectinload(ArchiveDocument.tags), selectinload(ArchiveDocument.entities)
-        )
+def search_document(termo_busca: str, limite: int = 50) -> list[DocumentSummary]:
+    """Consulta a API do acervo (o front-end não acessa o banco de dados diretamente)."""
+    params: dict[str, object] = {"limit": limite}
+    if termo_busca:
+        params["term"] = termo_busca
 
-        if termo_busca:
-            busca_like = f"%{termo_busca}%"
-            query = query.where(
-                ArchiveDocument.original_title.ilike(busca_like)
-                | ArchiveDocument.scope_content.ilike(busca_like)
-            )
+    try:
+        response = requests.get(BASE_URL, params=params, timeout=10)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        logger.error(f"Falha ao consultar a API do acervo: {exc}")
+        return []
 
-        query = query.limit(limite)
-        return db.scalars(query).all()
+    return [DocumentSummary.model_validate(item) for item in response.json().get("items", [])]
