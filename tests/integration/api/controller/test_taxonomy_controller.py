@@ -106,6 +106,8 @@ def test_rota_dispara_409_quando_ha_conflito_banco(client: TestClient, mocker):
     Testa o integrity_error_handler.
     Se o banco de dados berrar, a API devolve 409 Conflict.
     """
+    # O handler grava as palavras antes de expurgar; isolamos as duas operações.
+    mocker.patch.object(TagService, "save_new_stopwords", return_value=0)
     mock_service = mocker.patch.object(TagService, "purge_stopwords")
 
     # Simulamos um IntegrityError do SQLAlchemy (ex: violação de constraint)

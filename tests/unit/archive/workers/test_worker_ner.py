@@ -1,6 +1,7 @@
 from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
+from domains.archive.schemas import ArchiveEntityDTO
 from domains.archive.workers import worker_ner
 
 
@@ -38,40 +39,46 @@ def test_clean_raw_text_vazio():
 # 2. TESTES DE ORQUESTRAÇÃO DO WORKER
 # ==========================================
 
+# A blacklist é carregada do banco; isolamos para não depender de uma sessão real.
+BLACKLIST_PATH = "domains.archive.workers.worker_ner.load_entity_blacklist"
+
+
+def _mock_session(mocker: MockerFixture):
+    mock_db = mocker.MagicMock(spec=Session)
+    mock_db.scalar.return_value = 1
+    return mock_db
+
 
 def test_worker_ner_unitario_fluxo_ideal(mocker: MockerFixture) -> None:
     """Cenário Bom: Textos são concatenados, IA extrai e repositório salva."""
-    mock_db = mocker.Mock(spec=Session)
+    mock_db = _mock_session(mocker)
 
-    # 1. Mocks das Classes/Funções Externas
     mock_repo_class = mocker.patch("domains.archive.workers.worker_ner.EntityRepository")
     mock_get_engine = mocker.patch("domains.archive.workers.worker_ner.get_engine")
     mock_flag_modified = mocker.patch("domains.archive.workers.worker_ner.flag_modified")
+    mocker.patch(BLACKLIST_PATH, return_value=set())
 
-    # 2. Configurando o Repositório e a IA
     mock_repo = mock_repo_class.return_value
     mock_repo.get_ner_synonyms_rules.return_value = []
     mock_repo.get_or_create_entities.return_value = [101]
 
     mock_ner_engine = mock_get_engine.return_value
-    # Retorna uma lista de DTOs simulada para 1 documento
-    mock_ner_engine.extract.return_value = [[mocker.Mock()]]
+    mock_ner_engine.extract.return_value = [[ArchiveEntityDTO(name="Prefeitura", entity_type="ORG")]]
 
-    # 3. Simula a fila do banco de dados (1 documento na primeira volta, vazio na segunda para quebrar o while)
+    # 1 documento na primeira volta, vazio na segunda para quebrar o while
     doc_teste = MockArchiveDocument("doc-1", "Ofício", "Conteúdo sobre obras.")
     mock_db.scalars.return_value.all.side_effect = [[doc_teste], []]
 
-    # 4. Execução
     worker_ner.execute(db=mock_db, engine_name="spacy_ner")
 
-    # 5. Verificações de IA
+    # Verificações de IA: texto contextualizado e limpo
     mock_ner_engine.extract.assert_called_once()
     args, _ = mock_ner_engine.extract.call_args
-    # Confirma se as colunas foram limpas e unidas com ponto e espaço
     assert args[0] == ["Ofício. Conteúdo sobre obras."]
 
-    # 6. Verificações de Persistência (usando a nova cardinalidade do Repositório)
-    mock_repo.link_entities_to_document.assert_called_once_with(description_id="doc-1", entity_ids=[101])
+    # Verificações de Persistência
+    mock_repo.get_or_create_entities.assert_called_once()
+    mock_repo.bulk_link_entities.assert_called_once_with([{"description_id": "doc-1", "entity_id": 101}])
 
     # O carimbo de sucesso foi aplicado na memória do documento?
     assert doc_teste.execution_log["worker_ner_v1"] == "DONE"  # type: ignore
@@ -81,13 +88,12 @@ def test_worker_ner_unitario_fluxo_ideal(mocker: MockerFixture) -> None:
 
 def test_worker_ner_ignora_textos_vazios(mocker: MockerFixture) -> None:
     """Cenário Bom: Se o documento só tem espaços ou URLs, carimba como DONE e pula a IA."""
-    mock_db = mocker.Mock(spec=Session)
+    mock_db = _mock_session(mocker)
 
-    mock_repo_class = mocker.patch("domains.archive.workers.worker_ner.EntityRepository")
+    mocker.patch("domains.archive.workers.worker_ner.EntityRepository")
     mock_get_engine = mocker.patch("domains.archive.workers.worker_ner.get_engine")
     mock_flag_modified = mocker.patch("domains.archive.workers.worker_ner.flag_modified")
-
-    mock_ner_engine = mock_get_engine.return_value
+    mocker.patch(BLACKLIST_PATH, return_value=set())
 
     # Documento que, após remover o email, fica vazio
     doc_vazio = MockArchiveDocument("doc-2", "   ", "contato@email.com")
@@ -96,7 +102,7 @@ def test_worker_ner_ignora_textos_vazios(mocker: MockerFixture) -> None:
     worker_ner.execute(db=mock_db)
 
     # A IA NÃO deve ter sido acionada para não gastar processamento à toa
-    mock_ner_engine.extract.assert_not_called()
+    mock_get_engine.return_value.extract.assert_not_called()
 
     # Mas o documento DEVE ser carimbado para não entrar em loop infinito na fila
     assert doc_vazio.execution_log["worker_ner_v1"] == "DONE"  # type: ignore
@@ -105,10 +111,11 @@ def test_worker_ner_ignora_textos_vazios(mocker: MockerFixture) -> None:
 
 def test_worker_ner_falha_na_ia_faz_rollback(mocker: MockerFixture) -> None:
     """Cenário Ruim: Se o spaCy estourar a memória (Exception), a transação aborta e o laço quebra."""
-    mock_db = mocker.Mock(spec=Session)
+    mock_db = _mock_session(mocker)
 
     mocker.patch("domains.archive.workers.worker_ner.EntityRepository")
     mock_get_engine = mocker.patch("domains.archive.workers.worker_ner.get_engine")
+    mocker.patch(BLACKLIST_PATH, return_value=set())
 
     doc_teste = MockArchiveDocument("doc-3", "Texto válido para forçar a IA a rodar")
     mock_db.scalars.return_value.all.side_effect = [[doc_teste], []]
@@ -127,14 +134,15 @@ def test_worker_ner_falha_na_ia_faz_rollback(mocker: MockerFixture) -> None:
 
 def test_worker_ner_falha_no_repositorio_carimba_erro(mocker: MockerFixture) -> None:
     """Cenário Ruim (Resiliência): A IA funciona, mas o banco recusa a inserção. Carimba com ERROR e avança."""
-    mock_db = mocker.Mock(spec=Session)
+    mock_db = _mock_session(mocker)
 
     mock_repo_class = mocker.patch("domains.archive.workers.worker_ner.EntityRepository")
     mock_get_engine = mocker.patch("domains.archive.workers.worker_ner.get_engine")
     mock_flag_modified = mocker.patch("domains.archive.workers.worker_ner.flag_modified")
+    mocker.patch(BLACKLIST_PATH, return_value=set())
 
     # Simulamos que a IA encontrou 1 entidade
-    mock_get_engine.return_value.extract.return_value = [[mocker.Mock()]]
+    mock_get_engine.return_value.extract.return_value = [[ArchiveEntityDTO(name="Prefeitura", entity_type="ORG")]]
 
     doc_teste = MockArchiveDocument("doc-4", "Texto válido")
     mock_db.scalars.return_value.all.side_effect = [[doc_teste], []]
