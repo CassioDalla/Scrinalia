@@ -19,14 +19,15 @@ Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).
 - Dashboard: `uv run streamlit run dashboard/app.py` — requires the API running at `API_BASE_URL` (default `http://localhost:8000/`).
 - Local infra: `docker compose up -d` (PostGIS on 5432 + MinIO on 9000/9001).
 - Workers are runnable modules: `uv run python -m domains.archive.workers.worker_ner` (each has `execute(db)` + a `__main__` block).
+- Database migrations: `uv run alembic upgrade head`; new revision: `uv run alembic revision --autogenerate -m "..."`; drift check: `uv run alembic check`.
 - Tests: `uv run pytest`; a single test: `uv run pytest tests/unit/archive/workers/test_worker_ner.py::test_name`.
 - Lint/format: ruff is configured in `pyproject.toml` (line-length 120, double quotes) but is **not a dependency** — `uv run ruff` fails. Use `uvx ruff check .` / `uvx ruff format .` or `uv add --dev ruff`.
 - `Procfile` defines the `api` (`uvicorn` with `CUDA_VISIBLE_DEVICES=""`, i.e. CPU) and `web` (`streamlit`) processes.
 
 ## Database and infra
-- Schema is created by `db-init/*.sql`, mounted at `/docker-entrypoint-initdb.d`; it runs **only on first volume creation** and in alphabetical order. Changed the SQL? Recreate: `docker compose down -v && docker compose up -d`.
-- `db-init/0X-public_reader_user.sql` provisions a read-only role; the `0X` intentionally sorts after `08` so it runs last (creates a role, so it only works on a fresh volume).
-- GIN indexes use `pg_trgm` (`gin_trgm_ops`) and `postgis` is used, but only `postgis` is created by the scripts. If init fails on those indexes, run `CREATE EXTENSION IF NOT EXISTS pg_trgm;` manually.
+- Schema is owned by **Alembic** (`migrations/`, config in `alembic.ini`, connection URL from `core.config.settings`). Apply with `uv run alembic upgrade head`. The models in `domains/*/models/` are the single source of truth; `uv run alembic check` must report no drift.
+- `db-init/*.sql` runs **only on first volume creation** and now provisions infrastructure only: extensions (`00-extensions.sql`) and the read-only `portal_reader` role (`01-public_reader_user.sql`). It no longer creates tables. Recreate the volume with `docker compose down -v && docker compose up -d`, then run the migration.
+- GIN fuzzy-search indexes (`gin_trgm_ops`) require the `pg_trgm` extension: the initial migration creates it, and `tests/conftest.py` creates it before `create_all`.
 - `.env` is gitignored. Keys in `core/config.py`: `DB_*`, `ARQDOC_*`, `PUBLIC_SCRAPE_*`, `S3_*`, `OLLAMA_HOST_URL`, `API_BASE_URL`. `docker-compose.yml` reads `DB_USER`/`DB_PASS`/`DB_NAME` (defaults admin/admin123/memoriacuritibana).
 - Models are Postgres-specific (JSONB, ARRAY, native enums, GIN indexes) — they do not port to SQLite.
 
@@ -41,7 +42,7 @@ Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).
 
 ## Tests
 - Unit tests never load real models. The `mock_registry` fixture monkeypatches `AVAILABLE_ENGINES`/`PRESETS` to shield any registry; do not call Ollama/MinIO in tests.
-- Integration tests require the Postgres test database: `docker compose -f docker-compose.test.yml up -d` (port 5433, tmpfs in RAM). `tests/conftest.py` hardcodes `postgresql://test_user:test_password@localhost:5433/test_db`.
+- Integration tests require the Postgres test database: `docker compose -f docker-compose.test.yml up -d` (port 5433, tmpfs in RAM). `tests/conftest.py` defaults to `postgresql://test_user:test_password@localhost:5433/test_db`; override with the `TEST_DATABASE_URL` env var.
 - Key fixtures in `tests/conftest.py`: `db_session` (SAVEPOINT + rollback per test), `use_test_db` (patches `core.database.get_db`, opt-in), `generate_archive_doc`, `generate_typology`, `mock_ner_engine`, `mock_staging_doc`.
 - Pytest uses `--import-mode=importlib`; tests import top-level packages (`core`, `domains`), so run pytest from the root.
 - There is no CI configured (no `.github/`); run tests and ruff locally before finishing.
