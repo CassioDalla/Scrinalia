@@ -43,12 +43,11 @@ def test_get_tag_relevance_returns_200(client: TestClient, mocker):
 
     assert response.status_code == HTTP_200_OK
 
-    # We dynamically detect whether you named the envelope "data" or "payload"
+    # TagRelevanceResponse always uses the "payload" envelope.
     response_json = response.json()
-    envelope_key = "data" if "data" in response_json else "payload"
-
-    assert len(response_json[envelope_key]) == 1
-    assert response_json[envelope_key][0]["name"] == "Curitiba"
+    assert response_json["mode"] == "tfidf"
+    assert len(response_json["payload"]) == 1
+    assert response_json["payload"][0]["name"] == "Curitiba"
     mock_service.assert_called_once_with(10)
 
 

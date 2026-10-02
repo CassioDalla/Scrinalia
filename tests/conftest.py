@@ -236,3 +236,17 @@ def mock_ner_engine():
 
     mock_engine.extract.side_effect = extraction_simulator
     return mock_engine
+
+
+def pytest_collection_modifyitems(config, items):
+    """Tag every collected test with ``unit`` or ``integration`` based on its path.
+
+    This keeps the suite runnable without a database via ``pytest -m unit`` and lets
+    CI/developers select the integration layer explicitly, without annotating each file.
+    """
+    for item in items:
+        path = str(item.fspath)
+        if "/tests/integration/" in path:
+            item.add_marker(pytest.mark.integration)
+        elif "/tests/unit/" in path:
+            item.add_marker(pytest.mark.unit)

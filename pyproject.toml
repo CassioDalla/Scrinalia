@@ -84,6 +84,11 @@ addopts = "--import-mode=importlib"
 # The project is not packaged/installed; make top-level packages (core, domains, api)
 # importable when running pytest from the repo root.
 pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+    "unit: fast tests that never touch a database or load real models",
+    "integration: tests that require a PostgreSQL test database",
+]
 
 [tool.basedpyright]
 # Pragmatic typed-Python baseline: type-check the application code, keep
