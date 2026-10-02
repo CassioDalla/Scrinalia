@@ -6,6 +6,7 @@ import pytest
 from domains.archive.exceptions import DocumentNotFoundError
 from domains.archive.models import ArchiveReviewStatus
 from domains.archive.repository import DocumentRepository
+from domains.archive.schemas.command_schema import DocumentReviewCommand
 from domains.archive.schemas.document_schema import DocumentListResponse
 from domains.archive.services.document_service import DocumentService
 
@@ -57,8 +58,9 @@ def test_update_review_marks_human_approved() -> None:
     )
     service = DocumentService(repo)
 
-    result = service.update_review("doc-3", {"final_title": "Novo"})
+    command = DocumentReviewCommand(description_id="doc-3", final_title="Novo")
+    result = service.update_review(command)
 
-    repo.update_review.assert_called_once_with("doc-3", {"final_title": "Novo"})
+    repo.update_review.assert_called_once_with(command)
     assert result.review_status == ArchiveReviewStatus.HUMAN_APPROVED
     assert result.final_title == "Novo"

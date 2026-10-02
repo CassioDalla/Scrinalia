@@ -39,3 +39,12 @@ class ResolveConflictCommand(BaseModel):
     winner: Literal["TAG", "ENTITY"]
     tag_id: int
     entity_id: int
+
+
+class DocumentReviewCommand(BaseModel):
+    """Command carrying the archivist's manual edits for one document."""
+
+    description_id: str
+    final_title: str | None = None
+    scope_content: str | None = None
+    archivist_notes: str | None = None

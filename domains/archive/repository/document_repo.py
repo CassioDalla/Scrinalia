@@ -9,6 +9,7 @@ from domains.archive.models import (
     ArchiveDocument,
     ArchiveReviewStatus,
 )
+from domains.archive.schemas.command_schema import DocumentReviewCommand
 from domains.archive.schemas.document_schema import ArchiveDocumentDTO, DocumentSummary
 
 
@@ -161,17 +162,18 @@ class DocumentRepository:
         doc = self.db.scalars(stmt).first()
         return DocumentSummary.model_validate(doc) if doc else None
 
-    def update_review(self, description_id: str, changes: dict) -> DocumentSummary | None:
+    def update_review(self, command: DocumentReviewCommand) -> DocumentSummary | None:
         """
         Applies the archivist's edits and shields the document against the AI.
 
         Any manually edited document becomes `HUMAN_APPROVED`, which
         prevents overwriting by the migration/AI pipeline.
         """
-        doc = self._get_orm_by_id(description_id)
+        doc = self._get_orm_by_id(command.description_id)
         if doc is None:
             return None
 
+        changes = command.model_dump(exclude_unset=True, exclude={"description_id"})
         for field, value in changes.items():
             setattr(doc, field, value)
 

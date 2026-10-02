@@ -5,6 +5,7 @@ from domains.archive.models import (
     ArchiveReviewStatus,
 )
 from domains.archive.repository.document_repo import DocumentRepository
+from domains.archive.schemas.command_schema import DocumentReviewCommand
 
 # ==========================================
 # UPSERT AND DATA PIPELINE (ETL) TESTS
@@ -175,7 +176,9 @@ def test_update_review_blinds_document_as_human_approved(use_test_db, db_session
     )
     db_session.commit()
 
-    updated = repo.update_review("r1", {"final_title": "Título Revisado", "archivist_notes": "ok"})
+    updated = repo.update_review(
+        DocumentReviewCommand(description_id="r1", final_title="Título Revisado", archivist_notes="ok")
+    )
     db_session.commit()
 
     assert updated is not None
@@ -185,4 +188,4 @@ def test_update_review_blinds_document_as_human_approved(use_test_db, db_session
 
 def test_update_review_returns_none_for_missing_document(use_test_db, db_session):
     repo = DocumentRepository(db_session)
-    assert repo.update_review("nao-existe", {"final_title": "x"}) is None
+    assert repo.update_review(DocumentReviewCommand(description_id="nao-existe", final_title="x")) is None

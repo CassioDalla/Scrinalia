@@ -1,5 +1,6 @@
 from typing import Protocol
 
+from domains.archive.schemas.command_schema import DocumentReviewCommand
 from domains.archive.schemas.document_schema import ArchiveDocumentDTO, DocumentSummary
 
 
@@ -7,10 +8,8 @@ class DocumentRepositoryPort(Protocol):
     """
     Output port for the Archive document (fact table).
 
-    Read methods return ``DocumentSummary`` DTOs. Write methods (``upsert``,
-    ``update_review``, ``stamp_ai_execution``) still operate on the ORM entity:
-    returning command/result DTOs on the write side is a known debt
-    (see `.analysis/adr-arquitetura-alvo.md`).
+    Reads return ``DocumentSummary`` DTOs and writes take DTOs/commands, so the
+    SQLAlchemy entity never crosses the boundary.
     """
 
     # --- Read (showcase / curation) ---
@@ -22,5 +21,5 @@ class DocumentRepositoryPort(Protocol):
 
     # --- Write ---
     def upsert_archive_document(self, doc_data: ArchiveDocumentDTO) -> bool: ...
-    def update_review(self, description_id: str, changes: dict) -> DocumentSummary | None: ...
+    def update_review(self, command: DocumentReviewCommand) -> DocumentSummary | None: ...
     def stamp_ai_execution(self, description_id: str, worker_name: str) -> None: ...

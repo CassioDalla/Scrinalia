@@ -1,5 +1,6 @@
 from domains.archive.exceptions import DocumentNotFoundError
 from domains.archive.ports.document import DocumentRepositoryPort
+from domains.archive.schemas.command_schema import DocumentReviewCommand
 from domains.archive.schemas.document_schema import (
     DocumentListResponse,
     DocumentSummary,
@@ -27,8 +28,8 @@ class DocumentService:
             raise DocumentNotFoundError(f"Documento '{description_id}' não encontrado no acervo.")
         return doc
 
-    def update_review(self, description_id: str, changes: dict) -> DocumentSummary:
-        doc = self.repo.update_review(description_id, changes)
+    def update_review(self, command: DocumentReviewCommand) -> DocumentSummary:
+        doc = self.repo.update_review(command)
         if doc is None:
-            raise DocumentNotFoundError(f"Documento '{description_id}' não encontrado no acervo.")
+            raise DocumentNotFoundError(f"Documento '{command.description_id}' não encontrado no acervo.")
         return doc

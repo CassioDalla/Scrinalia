@@ -3,6 +3,7 @@ from litestar.di import Provide
 
 from api.dependencies import provide_document_service
 from api.schemas.documents import DocumentUpdateRequest
+from domains.archive.schemas.command_schema import DocumentReviewCommand
 from domains.archive.schemas.document_schema import DocumentListResponse, DocumentSummary
 from domains.archive.services.document_service import DocumentService
 
@@ -39,4 +40,6 @@ class DocumentController(Controller):
         data: DocumentUpdateRequest,
     ) -> DocumentSummary:
         """Applies the human review and marks the document as HUMAN_APPROVED."""
-        return document_service.update_review(description_id, data.model_dump(exclude_unset=True))
+        return document_service.update_review(
+            DocumentReviewCommand(description_id=description_id, **data.model_dump(exclude_unset=True))
+        )
