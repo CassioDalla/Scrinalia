@@ -11,7 +11,8 @@ from core.database import get_db
 from core.logger import logger
 from core.storage import S3Storage
 from core.unit_of_work import UnitOfWork
-from domains.archive.models import ArchiveDocument, ArchiveReviewStatus
+from domains.archive.models import ArchiveDocument
+from domains.archive.repository.governance import ai_writable_documents
 from domains.archive.worker_stamp import THUMBNAIL_FAILED
 
 
@@ -72,7 +73,7 @@ def execute(db: Session) -> None:
     query = select(ArchiveDocument).where(
         ArchiveDocument.original_thumbnail_url.is_not(None)
         & ArchiveDocument.storage_thumbnail_uri.is_(None)
-        & (ArchiveDocument.review_status != ArchiveReviewStatus.HUMAN_APPROVED)
+        & ai_writable_documents()
         & ~ArchiveDocument.execution_log.has_key(THUMBNAIL_FAILED.key)
     )
 

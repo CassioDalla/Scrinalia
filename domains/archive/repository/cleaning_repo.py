@@ -3,7 +3,8 @@ from collections.abc import Sequence
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from domains.archive.models import ArchiveCleaningRule, ArchiveDocument, ArchiveReviewStatus
+from domains.archive.models import ArchiveCleaningRule, ArchiveDocument
+from domains.archive.repository.governance import ai_writable_documents
 from domains.archive.schemas.cleaning_schema import CleaningRuleDTO
 from domains.archive.worker_stamp import cleaning_rule_stamp
 
@@ -52,7 +53,7 @@ class CleaningRepository:
         stmt = (
             select(ArchiveDocument)
             .where(getattr(ArchiveDocument, target_column).is_not(None))
-            .where(ArchiveDocument.review_status != ArchiveReviewStatus.HUMAN_APPROVED)
+            .where(ai_writable_documents())
             .where(
                 # Either the log does not exist, or if it does, it does not contain the rule key
                 (ArchiveDocument.execution_log.is_(None)) | (~ArchiveDocument.execution_log.has_key(rule_key))
@@ -66,7 +67,7 @@ class CleaningRepository:
         stmt = (
             select(ArchiveDocument)
             .where(getattr(ArchiveDocument, target_column).is_not(None))
-            .where(ArchiveDocument.review_status != ArchiveReviewStatus.HUMAN_APPROVED)
+            .where(ai_writable_documents())
             .limit(limit)
         )
         return self.db.scalars(stmt).all()

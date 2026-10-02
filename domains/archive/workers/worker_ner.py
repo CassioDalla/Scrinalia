@@ -12,8 +12,9 @@ from core.unit_of_work import UnitOfWork
 from domains.archive.engines.base import EntityExtractionEngine
 from domains.archive.engines.NER.registry import EngineName as ExtractEngineName
 from domains.archive.engines.NER.registry import PresetName, get_engine
-from domains.archive.models import ArchiveDocument, ArchiveReviewStatus, DomainStopwords, StopwordsScope
+from domains.archive.models import ArchiveDocument, DomainStopwords, StopwordsScope
 from domains.archive.repository import EntityRepository
+from domains.archive.repository.governance import ai_writable_documents
 from domains.archive.worker_stamp import NER
 
 
@@ -116,7 +117,7 @@ def execute(
     # HUMAN_APPROVED documents are shielded: the AI must not overwrite human curation.
     filters_columns = [getattr(ArchiveDocument, col).is_not(None) for col in columns_to_extract]
     where_cond = [
-        ArchiveDocument.review_status != ArchiveReviewStatus.HUMAN_APPROVED,
+        ai_writable_documents(),
         or_(*filters_columns),
         or_(
             ArchiveDocument.execution_log.is_(None),

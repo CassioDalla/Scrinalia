@@ -8,8 +8,9 @@ from core.runner_config import TypologyRunnerConfig
 from core.unit_of_work import UnitOfWork
 from domains.archive.engines.base import TypologyEngine
 from domains.archive.engines.classification.registry import EngineName, PresetName, get_engine
-from domains.archive.models import ArchiveDocument, ArchiveReviewStatus
+from domains.archive.models import ArchiveDocument
 from domains.archive.repository import TypologyRepository
+from domains.archive.repository.governance import ai_writable_documents
 from domains.archive.worker_stamp import TYPOLOGY
 
 
@@ -88,7 +89,7 @@ def execute(
     where_cond = [
         ArchiveDocument.typology_id.is_(None),
         # HUMAN_APPROVED documents are shielded from AI reclassification.
-        ArchiveDocument.review_status != ArchiveReviewStatus.HUMAN_APPROVED,
+        ai_writable_documents(),
         or_(*filters_columns),
         or_(
             ArchiveDocument.execution_log.is_(None),
