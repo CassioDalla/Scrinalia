@@ -229,7 +229,3 @@ class TagService:
             texts_to_analyze = self.document_repo.fetch_documents_for_clustering(columns_to_extract=columns_to_extract)
 
         return texts_to_analyze
-
-    # TODO Think about how to do this. Remove the known entities from the tags or not. Tags need to be classified into subjects.
-    def purge_entities_from_tags(self):
-        pass

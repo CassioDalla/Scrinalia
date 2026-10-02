@@ -76,7 +76,6 @@ def execute(
         raise
 
     typologies_map = repository.get_active_typologies()
-    print(typologies_map)
     if not typologies_map:
         logger.warning("⚠️ No typology registered in the database. Aborting Classification.")
         return
@@ -151,7 +150,7 @@ def execute(
                     break
 
                 # Application of the results
-                for doc, result in zip(valid_docs, results):  # noqa: B905
+                for doc, result in zip(valid_docs, results, strict=True):
                     stamp_status = "DONE"
                     try:
                         best_label = result["labels"][0]

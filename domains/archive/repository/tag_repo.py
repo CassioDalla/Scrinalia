@@ -132,12 +132,6 @@ class TagRepository:
         results = self.db.execute(stmt).mappings().all()
         return [ArchiveMacroCategoryEntityDTO.model_validate(r) for r in results]
 
-    # TODO
-    def create_macro_category(self, m_category: ArchiveMacroCategoryEntityDTO): ...
-
-    # TODO think about the best way to do this and about the args. Receive the db model, DTOs or simple lists of ids
-    def link_to_macro_category(self, tags_ids: list[int], m_category_id: int): ...
-
     def purge_tags_by_stopwords(self, stopwords: set[str]) -> int:
         """Mass deletes all tags that match the stopwords list."""
         stmt = delete(ArchiveTag).where(func.lower(ArchiveTag.name).in_(stopwords))
