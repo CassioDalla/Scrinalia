@@ -31,19 +31,18 @@ def add(db: Session, description_id: str) -> ScrapingQueue | None:
 
     item = ScrapingQueue(description_id=description_id)
     try:
-        db.add(item)
-        db.commit()
-        db.refresh(item)
+        # A savepoint keeps the caller's transaction usable when the ID is duplicated.
+        with db.begin_nested():
+            db.add(item)
+            db.flush()
         return item
 
     except IntegrityError:
-        db.rollback()
         logger.debug(f"Description with ID {description_id} already exists in the database. Ignored.")
         return None
 
     except Exception as e:
         logger.critical(f"Critical database error when inserting description_id {description_id}: {e}")
-        db.rollback()
         return None
 
 
@@ -68,19 +67,12 @@ def add_in_bulk(db: Session, description_id_list: list[str]) -> int:
 
     data = [{"description_id": desc_id} for desc_id in description_id_list]
 
-    try:
-        stmt = insert(ScrapingQueue).values(data)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["description_id"])
-        stmt = stmt.returning(ScrapingQueue.description_id)
-        inserted_ids = db.scalars(stmt).all()
-        db.commit()
+    stmt = insert(ScrapingQueue).values(data)
+    stmt = stmt.on_conflict_do_nothing(index_elements=["description_id"])
+    stmt = stmt.returning(ScrapingQueue.description_id)
+    inserted_ids = db.scalars(stmt).all()
 
-        return len(inserted_ids)
-
-    except Exception as e:
-        db.rollback()
-        logger.exception(f"💥Bulk insertion of {len(description_id_list)} IDs failed. {e}")
-        return 0
+    return len(inserted_ids)
 
 
 def get_from_queue(
@@ -170,20 +162,13 @@ def update_queue_status(
 
     stmt = stmt.returning(ScrapingQueue.description_id)
 
-    try:
-        updated_id = db.scalar(stmt)
-        db.commit()
+    updated_id = db.scalar(stmt)
 
-        if updated_id is None:
-            logger.warning(f"Attempt to update status of non-existent ID:{description_id}")
-            return False
-
-        return True
-
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Database error when updating queue status to id: {description_id}: {e}")
+    if updated_id is None:
+        logger.warning(f"Attempt to update status of non-existent ID:{description_id}")
         return False
+
+    return True
 
 
 def save_raw_data(db: Session, description_id: str, scraped_data: dict) -> bool:
@@ -217,23 +202,16 @@ def save_raw_data(db: Session, description_id: str, scraped_data: dict) -> bool:
         "content_hash": content_hash,
     }
 
-    try:
-        stmt = insert(RawData).values(**values)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["description_id"],
-            set_={
-                "raw_title": stmt.excluded.raw_title,
-                "payload": stmt.excluded.payload,
-                "content_hash": stmt.excluded.content_hash,
-                "updated_at": func.now(),
-            },
-            where=(RawData.content_hash != stmt.excluded.content_hash),
-        )
-        db.execute(stmt)
-        db.commit()
-        return True
-
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Critical database failure when saving Id {description_id} during ingestion: {e}")
-        raise e
+    stmt = insert(RawData).values(**values)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["description_id"],
+        set_={
+            "raw_title": stmt.excluded.raw_title,
+            "payload": stmt.excluded.payload,
+            "content_hash": stmt.excluded.content_hash,
+            "updated_at": func.now(),
+        },
+        where=(RawData.content_hash != stmt.excluded.content_hash),
+    )
+    db.execute(stmt)
+    return True

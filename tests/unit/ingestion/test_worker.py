@@ -36,6 +36,25 @@ def test_run_detail_scraping_job_success(mocker: MockerFixture, queue_mock: Scra
     mock_adapter.fetch_details.assert_called_once_with("doc-123")
     mock_save.assert_called_once_with(mock_db, "doc-123", {"title": "Teste"})
     mock_queue.assert_called_once_with(mock_db, "doc-123", ScrapeStatus.DONE)
+    # The raw payload and the queue status are committed atomically per item.
+    mock_db.commit.assert_called_once()
+
+
+def test_run_detail_scraping_job_rolls_back_when_save_fails(mocker: MockerFixture, queue_mock: ScrapingQueue) -> None:
+    """If the raw payload cannot be saved, the item must roll back and not be marked DONE."""
+    mock_db = mocker.Mock(spec=Session)
+
+    mocker.patch.object(repository, "get_from_queue", return_value=[queue_mock])
+    mocker.patch.object(repository, "save_raw_data", side_effect=Exception("deadlock"))
+    mock_queue = mocker.patch.object(repository, "update_queue_status")
+
+    mock_adapter = mocker.Mock(spec=IDetailAdapter)
+    mock_adapter.fetch_details.return_value = {"title": "Teste"}
+
+    worker.run_detail_scraping_job(mock_db, adapter=mock_adapter)
+
+    mock_db.rollback.assert_called_once()
+    mock_queue.assert_not_called()
 
 
 def test_run_detail_scraping_job_not_found(mocker: MockerFixture, queue_mock: ScrapingQueue) -> None:

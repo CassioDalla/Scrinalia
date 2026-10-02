@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from core.logger import logger
 from core.runner_config import IngestionRunnerConfig
+from core.unit_of_work import UnitOfWork
 from domains.ingestion import repository
 from domains.ingestion.models import ScrapeStatus
 from domains.ingestion.ports import (
@@ -32,9 +33,11 @@ def run_discovery_job(db_session: Session, adapter: IDiscoveryAdapter, max_pages
 
     logger.info("🚀 Starting ID discovery job...")
 
+    uow = UnitOfWork(db_session)
     total_inserted = 0
     for batch_ids in adapter.fetch_new_ids(max_pages=max_pages):
         inserted_count = repository.add_in_bulk(db_session, batch_ids)
+        uow.commit()
         total_inserted += inserted_count
 
         if inserted_count > 0:
@@ -103,14 +106,14 @@ def run_detail_scraping_job(
 
     logger.info(f"🚀 Starting extraction of {total_items} item details...")
 
+    uow = UnitOfWork(db_session)
+
     for index, queue in enumerate(batch, start=1):
         doc_id = queue.description_id
         logger.info(f"⏳ Processing [{index}/{total_items}] ID: {doc_id}")
 
         try:
             data_scraped = adapter.fetch_details(doc_id)
-            repository.save_raw_data(db_session, doc_id, data_scraped)
-            repository.update_queue_status(db_session, doc_id, ScrapeStatus.DONE)
 
         except AdapterNotFoundError as e:
             logger.error(f"Error 404: {e}")
@@ -128,6 +131,22 @@ def run_detail_scraping_job(
         except (AdapterFatalError, Exception) as e:
             logger.exception(f"💥 Fatal error (Parsing/DB) on {doc_id}: {e}")
             repository.update_queue_status(db_session, doc_id, ScrapeStatus.FATAL_ERROR, error_msg=str(e))
+
+        else:
+            # The raw payload and the queue status must land in the same transaction.
+            try:
+                repository.save_raw_data(db_session, doc_id, data_scraped)
+                repository.update_queue_status(db_session, doc_id, ScrapeStatus.DONE)
+            except Exception as e:
+                logger.exception(f"💥 Database error persisting {doc_id}: {e}")
+                uow.rollback()
+                continue
+
+        try:
+            uow.commit()
+        except Exception as e:
+            logger.error(f"💥 Failed to persist the result of {doc_id}: {e}")
+            uow.rollback()
 
 
 if __name__ == "__main__":
