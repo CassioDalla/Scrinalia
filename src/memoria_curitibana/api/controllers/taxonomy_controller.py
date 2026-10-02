@@ -28,7 +28,6 @@ from memoria_curitibana.domains.archive.schemas.tag_schema import (
 )
 from memoria_curitibana.domains.archive.services.entity_service import EntityService
 from memoria_curitibana.domains.archive.services.tag_service import TagService
-from memoria_curitibana.domains.archive.workers.worker_suggest_macro_category import run_suggestion_engine
 
 
 class TaxonomyController(Controller):
@@ -98,6 +97,11 @@ class TaxonomyController(Controller):
             return MacroCategoriesSuggestionResponse(
                 total_suggestions=0, categories=[], message="⚠️ Textos insuficientes para formar clusters semânticos."
             )
+
+        # Imported here because the suggestion worker reaches the clustering registry,
+        # which is what drags BERTopic (about ten seconds) into the process. Only this
+        # route needs it, so the API must not pay for it at import time.
+        from memoria_curitibana.domains.archive.workers.worker_suggest_macro_category import run_suggestion_engine
 
         # anyio.to_process.run_sync receives the function and then its positional arguments.
         results = await anyio.to_process.run_sync(

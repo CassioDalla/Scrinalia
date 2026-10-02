@@ -3,7 +3,6 @@ from typing import Any, Literal
 from memoria_curitibana.domains.archive.engines.base import TopicDiscoveryEngine
 from memoria_curitibana.domains.archive.engines.clustering.bertopic_engine import BERTopicEngine
 from memoria_curitibana.domains.archive.engines.clustering.stopwords import STOPWORDS_BR
-from memoria_curitibana.domains.archive.engines.NER import registry as NerRegistry
 
 EngineName = Literal["bertopic"]
 PresetName = Literal["exploratory_fine", "exploratory_macro"]
@@ -47,7 +46,12 @@ def get_engine(engine_name: EngineName, preset: PresetName | None = None, **kwar
 
     if engine_name == "bertopic" and final_kwargs.pop("use_spacy_lemmatizer", False):  # noqa: SIM102
         if "analyzer" not in final_kwargs:
-            spacy_engine = NerRegistry.get_engine("spacy_ner", preset="lemmatizer")
+            # Imported here rather than at module level: the NER registry pulls in the
+            # whole spaCy stack (and torch behind it), which would otherwise be paid by
+            # anyone consulting this registry, even when the lemmatizer is not used.
+            from memoria_curitibana.domains.archive.engines.NER import registry as ner_registry
+
+            spacy_engine = ner_registry.get_engine("spacy_ner", preset="lemmatizer")
 
             # Scikit-Learn will call this function passing only the text.
             # We fill in the missing 'stopwords' argument and forward it to its engine!

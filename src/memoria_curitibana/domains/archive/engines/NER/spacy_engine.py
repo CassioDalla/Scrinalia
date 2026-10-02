@@ -1,16 +1,23 @@
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import spacy
-from spacy.language import Language
-from spacy.pipeline import EntityRuler
 
 from memoria_curitibana.core.logger import logger
 from memoria_curitibana.domains.archive.schemas import ArchiveEntityDTO
+
+if TYPE_CHECKING:
+    from spacy.language import Language
+    from spacy.pipeline import EntityRuler
 
 
 class SpacyEngine:
     """
     Named Entity Recognition (NER) extraction engine using spaCy.
+
+    ``spacy`` is imported at module level because it is relatively cheap; the trained
+    pipeline is loaded on instantiation, which is where the real cost lives. The
+    ``EntityRuler`` and ``Language`` imports are type-only so that merely importing
+    the engine does not build the spacy pipeline modules.
     """
 
     def __init__(
@@ -38,7 +45,7 @@ class SpacyEngine:
 
         # Injection of institutional rules (dynamic dictionaries from the Database)
         if custom_rules:
-            ruler = cast(EntityRuler, self.nlp.add_pipe("entity_ruler", before="ner"))
+            ruler = cast("EntityRuler", self.nlp.add_pipe("entity_ruler", before="ner"))
             ruler.add_patterns(custom_rules)
             logger.info(f"⚙️ {len(custom_rules)} institutional rules loaded into the NER engine.")
 
