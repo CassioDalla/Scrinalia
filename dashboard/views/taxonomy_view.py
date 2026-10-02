@@ -8,25 +8,25 @@ st.markdown(
     "Audite a relevância dos termos indexados, unifique sinônimos e gerencie as stopwords para otimização do acervo arquivístico."
 )
 
-aba_analise, aba_similaridade, aba_macro = st.tabs(
+analysis_tab, similarity_tab, macro_tab = st.tabs(
     ["📊 Análise de Relevância", "🔍 Unificação de Duplicatas", "🧠 Macro Categorização por IA"]
 )
 
 # ==========================================
-# ABA 1: ANÁLISE DE RELEVÂNCIA
+# TAB 1: RELEVANCE ANALYSIS
 # ==========================================
-with aba_analise:
+with analysis_tab:
     st.subheader("Métricas de Relevância de Assuntos")
     col1, col2 = st.columns([2, 1])
     with col1:
-        metodo = st.radio(
+        method = st.radio(
             "Método de Análise Estatística:",
             ["TF-IDF (Recomendado)", "Frequência Simples"],
             horizontal=True,
             help="Selecione o motor matemático para ordenação dos assuntos principais.",
         )
     with col2:
-        limite = st.slider(
+        limit = st.slider(
             "Quantidade de Tags na Amostra:",
             10,
             500,
@@ -35,10 +35,10 @@ with aba_analise:
         )
 
     with st.spinner("Calculando métricas..."):
-        df_relevancia = TaxonomyApiService.fetch_tag_relevance(metodo, limite)
+        relevance_df = TaxonomyApiService.fetch_tag_relevance(method, limit)
 
-        if not df_relevancia.empty:
-            st.dataframe(df_relevancia, use_container_width=True, hide_index=True)
+        if not relevance_df.empty:
+            st.dataframe(relevance_df, use_container_width=True, hide_index=True)
         else:
             st.info("Nenhuma tag localizada para os parâmetros informados.")
 
@@ -61,23 +61,23 @@ with aba_analise:
         if not stopwords_input.strip():
             st.warning("Por favor, informe ao menos uma palavra para prosseguir com a exclusão.")
         else:
-            lista_palavras = [w.strip() for w in stopwords_input.split(",") if w.strip()]
+            word_list = [w.strip() for w in stopwords_input.split(",") if w.strip()]
 
             with st.spinner("Processando exclusão relacional em background..."):
-                sucesso, qtd_apagadas = TaxonomyApiService.purge_stopwords(lista_palavras)
+                success, deleted_count = TaxonomyApiService.purge_stopwords(word_list)
 
-                if sucesso:
+                if success:
                     st.success(
-                        f"✅ Sucesso! Novas stopwords registradas e **{qtd_apagadas}** tags foram apagadas do acervo."
+                        f"✅ Sucesso! Novas stopwords registradas e **{deleted_count}** tags foram apagadas do acervo."
                     )
 
 # ==========================================
-# ABA 2: SIMILARIDADE (PRÉ-MERGE)
+# TAB 2: SIMILARITY (PRE-MERGE)
 # ==========================================
-with aba_similaridade:
+with similarity_tab:
     st.subheader("Consolidação Semântica")
     st.markdown("Remova variações ortográficas ou abreviações inconsistentes fundindo registros duplicados.")
-    modo_busca = st.radio(
+    search_mode = st.radio(
         "Estratégia de Captura de Erros:",
         ["Varrer Banco em Busca de Duplicatas (Pares)", "Buscar Termo Específico"],
         horizontal=True,
@@ -93,28 +93,28 @@ with aba_similaridade:
     )
 
     # ==========================================
-    # MODO 1: BUSCA ESPECÍFICA
+    # MODE 1: SPECIFIC SEARCH
     # ==========================================
-    if modo_busca == "Buscar Termo Específico":
+    if search_mode == "Buscar Termo Específico":
         st.markdown(
             "🔍 **Instruções:** 1. Busque o termo; 2. Selecione as caixas das tags duplicadas; 3. Eleja o termo correto no painel."
         )
-        tag_alvo = st.text_input(
+        target_tag = st.text_input(
             "Investigar Palavra-Chave:",
             placeholder="Ex: prefeitura",
             help="Digite uma palavra para ver as suas variantes.",
         )
 
-        if tag_alvo.strip():
-            similares = TaxonomyApiService.find_similar_tags(tag_alvo, threshold)
+        if target_tag.strip():
+            similar_tags = TaxonomyApiService.find_similar_tags(target_tag, threshold)
 
-            if similares:
-                # O JSON da API já deve ter chaves claras, mapeamos para o DataFrame
-                df_sim = pd.DataFrame(similares)
+            if similar_tags:
+                # The API JSON should already have clear keys, we map it to the DataFrame
+                df_sim = pd.DataFrame(similar_tags)
                 df_sim = df_sim.rename(columns={"tag_id": "ID da Tag", "name": "Termo", "similarity": "Score"})
 
                 st.markdown("### Selecione as tags para Merge:")
-                evento = st.dataframe(
+                event = st.dataframe(
                     df_sim,
                     use_container_width=True,
                     hide_index=True,
@@ -122,52 +122,52 @@ with aba_similaridade:
                     selection_mode="multi-row",
                 )
 
-                linhas_selecionadas = evento.selection.rows  # type: ignore
+                selected_rows = event.selection.rows  # type: ignore
 
-                if len(linhas_selecionadas) >= 2:
+                if len(selected_rows) >= 2:
                     st.divider()
                     st.markdown("### 👑 Eleger Termo Canônico")
                     st.info(
                         "O termo eleito abaixo permanecerá ativo. Os restantes serão desativados e os seus documentos transferidos"
                     )
 
-                    df_selecionado = df_sim.iloc[linhas_selecionadas]
-                    opcoes_dict = {row["ID da Tag"]: row["Termo"] for _, row in df_selecionado.iterrows()}
+                    selected_df = df_sim.iloc[selected_rows]
+                    options_dict = {row["ID da Tag"]: row["Termo"] for _, row in selected_df.iterrows()}
 
-                    id_canonico = st.radio(
+                    canonical_id = st.radio(
                         "Qual grafia padrão deve sobreviver?",
-                        options=opcoes_dict.keys(),
-                        format_func=lambda x: opcoes_dict[x],
+                        options=options_dict.keys(),
+                        format_func=lambda x: options_dict[x],
                     )
 
-                    ids_para_mesclar = [id_tag for id_tag in opcoes_dict if id_tag != id_canonico]
-                    nomes_mesclados = [opcoes_dict[id_tag] for id_tag in ids_para_mesclar]
+                    ids_to_merge = [id_tag for id_tag in options_dict if id_tag != canonical_id]
+                    merged_names = [options_dict[id_tag] for id_tag in ids_to_merge]
 
                     st.warning(
-                        f"⚠️ **Confirmação:** Os assuntos **{', '.join(nomes_mesclados)}** serão permanentemente aglutinados dentro de **{opcoes_dict[id_canonico]}**."
+                        f"⚠️ **Confirmação:** Os assuntos **{', '.join(merged_names)}** serão permanentemente aglutinados dentro de **{options_dict[canonical_id]}**."
                     )
 
                     if st.button("Executar Fusão de Tags", type="primary", use_container_width=True):
                         with st.spinner("Processando fusão no banco de dados..."):
-                            sucesso = TaxonomyApiService.merge_tags(id_canonico, ids_para_mesclar)
-                            if sucesso:
+                            success = TaxonomyApiService.merge_tags(canonical_id, ids_to_merge)
+                            if success:
                                 st.success("Tags unificadas com sucesso!")
                                 st.rerun()
 
-                elif len(linhas_selecionadas) == 1:
+                elif len(selected_rows) == 1:
                     st.caption("💡 Selecione pelo menos **duas linhas** na tabela acima para abrir o painel de fusão.")
             else:
                 st.info("Nenhuma variação fonética ou ortográfica localizada para este termo.")
     # ------------------------------------------------------------------
-    # MODO 2: VARREDURA COMPLETA
+    # MODE 2: FULL SCAN
     # ------------------------------------------------------------------
     else:
         if st.button("Executar Varredura", type="primary", use_container_width=True):
-            st.session_state["pares_tags_encontrados"] = TaxonomyApiService.find_all_similar_pairs(threshold)
+            st.session_state["tag_pairs_found"] = TaxonomyApiService.find_all_similar_pairs(threshold)
 
-        if st.session_state.get("pares_tags_encontrados"):
-            df_pares = pd.DataFrame(st.session_state["pares_tags_encontrados"])
-            df_pares = df_pares.rename(
+        if st.session_state.get("tag_pairs_found"):
+            pairs_df = pd.DataFrame(st.session_state["tag_pairs_found"])
+            pairs_df = pairs_df.rename(
                 columns={
                     "id_1": "ID 1",
                     "name_1": "Termo A",
@@ -180,57 +180,57 @@ with aba_similaridade:
             st.markdown("### Conflitos Identificados na Base de Dados")
             st.caption("Clique em uma linha para abrir o painel de resolução imediata.")
 
-            evento_pares = st.dataframe(
-                df_pares,
+            pairs_event = st.dataframe(
+                pairs_df,
                 use_container_width=True,
                 hide_index=True,
                 on_select="rerun",
                 selection_mode="single-row",
             )
 
-            linhas_selecionadas = evento_pares.selection.rows  # type: ignore
+            selected_rows = pairs_event.selection.rows  # type: ignore
 
-            if len(linhas_selecionadas) == 1:
+            if len(selected_rows) == 1:
                 st.divider()
-                linha = df_pares.iloc[linhas_selecionadas[0]]
-                id1, termo1 = int(linha["ID 1"]), linha["Termo A"]
-                id2, termo2 = int(linha["ID 2"]), linha["Termo B"]
+                row = pairs_df.iloc[selected_rows[0]]
+                id1, term1 = int(row["ID 1"]), row["Termo A"]
+                id2, term2 = int(row["ID 2"]), row["Termo B"]
 
-                st.markdown(f"### 👑 Resolver Conflito: **{termo1}** vs **{termo2}**")
+                st.markdown(f"### 👑 Resolver Conflito: **{term1}** vs **{term2}**")
 
-                opcoes_par = {id1: termo1, id2: termo2}
-                id_canonico = st.radio(
+                pair_options = {id1: term1, id2: term2}
+                canonical_id = st.radio(
                     "Qual termo deve ser preservado como oficial?",
-                    options=opcoes_par.keys(),
-                    format_func=lambda x: opcoes_par[x],
+                    options=pair_options.keys(),
+                    format_func=lambda x: pair_options[x],
                     horizontal=True,
                 )
 
-                id_para_mesclar = id2 if id_canonico == id1 else id1
-                termo_morto = opcoes_par[id_para_mesclar]
-                termo_vivo = opcoes_par[id_canonico]
+                id_to_merge = id2 if canonical_id == id1 else id1
+                dead_term = pair_options[id_to_merge]
+                live_term = pair_options[canonical_id]
 
                 st.warning(
-                    f"⚠️ **Confirmação:** A tag **{termo_morto}** será removida e todos os seus vínculos passarão a apontar para **{termo_vivo}**."
+                    f"⚠️ **Confirmação:** A tag **{dead_term}** será removida e todos os seus vínculos passarão a apontar para **{live_term}**."
                 )
 
                 if st.button("Fundir Par de Tags", type="primary", use_container_width=True):
                     with st.spinner("Salvando transação..."):
-                        if TaxonomyApiService.merge_tags(id_canonico, [id_para_mesclar]):
+                        if TaxonomyApiService.merge_tags(canonical_id, [id_to_merge]):
                             st.success("Par de tags consolidado!")
-                            del st.session_state["pares_tags_encontrados"]
+                            del st.session_state["tag_pairs_found"]
                             st.rerun()
 
-        elif "pares_tags_encontrados" in st.session_state:
+        elif "tag_pairs_found" in st.session_state:
             st.success("✨ Varredura concluída! Nenhuma anomalia de duplicidade localizada no limiar selecionado.")
 
 # ======================================================================
-# ABA 3: MACRO CATEGORIZAÇÃO POR IA
+# TAB 3: MACRO CATEGORIZATION BY AI
 # ======================================================================
-with aba_macro:
+with macro_tab:
     st.subheader("Sugestão de Macro Categorias Semânticas (IA)")
     st.markdown(
         "Agrupe automaticamente assuntos pulverizados em clusters lógicos usando processamento de linguagem natural."
     )
-    # Implementação futura do clustering semântico...
+    # Future implementation of semantic clustering...
     st.info("Esta funcionalidade está aguardando o carregamento dos vetores de embeddings do acervo.")

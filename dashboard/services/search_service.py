@@ -7,17 +7,17 @@ from domains.archive.schemas.document_schema import DocumentSummary
 BASE_URL = f"{settings.API_BASE_URL}api/v1/documents"
 
 
-def search_document(termo_busca: str, limite: int = 50) -> list[DocumentSummary]:
-    """Consulta a API do acervo (o front-end não acessa o banco de dados diretamente)."""
-    params: dict[str, str | int] = {"limit": limite}
-    if termo_busca:
-        params["term"] = termo_busca
+def search_document(search_term: str, limit: int = 50) -> list[DocumentSummary]:
+    """Query the archive API (the front end does not access the database directly)."""
+    params: dict[str, str | int] = {"limit": limit}
+    if search_term:
+        params["term"] = search_term
 
     try:
         response = requests.get(BASE_URL, params=params, timeout=10)
         response.raise_for_status()
     except requests.RequestException as exc:
-        logger.error(f"Falha ao consultar a API do acervo: {exc}")
+        logger.error(f"Failed to query the archive API: {exc}")
         return []
 
     return [DocumentSummary.model_validate(item) for item in response.json().get("items", [])]

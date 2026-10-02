@@ -3,30 +3,30 @@ from pathlib import Path
 
 import streamlit as st
 
-raiz_projeto = Path(__file__).parent.parent.resolve()
-sys.path.append(str(raiz_projeto))
+project_root = Path(__file__).parent.parent.resolve()
+sys.path.append(str(project_root))
 
 
-# Configuração global (deve ser a primeiríssima chamada do Streamlit)
+# Global configuration (must be the very first Streamlit call)
 st.set_page_config(page_title="Acervo Inteligente MVP", page_icon="🏛️", layout="wide")
 
 
-# Registra as duas páginas
-pagina_vitrine = st.Page("views/vitrine.py", title="Vitrine de Busca", icon="🔍")
-pagina_taxonomia = st.Page("views/taxonomy_view.py", title="Tags e Assuntos", icon="🏷️")
-pagina_entidades = st.Page("views/entity_view.py", title="Entidades Nomeadas", icon="🗂️")
-pagina_conflitos = st.Page("views/conflicts_view.py", title="Conflitos de Domínio", icon="⚔️")
-pagina_qualidade = st.Page("views/cleaning_view.py", title="Qualidade de Dados", icon="🧼")
-# Configura a navegação lateral passando as duas páginas
-navegacao = st.navigation(
+# Register the pages
+vitrine_page = st.Page("views/vitrine.py", title="Vitrine de Busca", icon="🔍")
+taxonomy_page = st.Page("views/taxonomy_view.py", title="Tags e Assuntos", icon="🏷️")
+entities_page = st.Page("views/entity_view.py", title="Entidades Nomeadas", icon="🗂️")
+conflicts_page = st.Page("views/conflicts_view.py", title="Conflitos de Domínio", icon="⚔️")
+quality_page = st.Page("views/cleaning_view.py", title="Qualidade de Dados", icon="🧼")
+# Configure the sidebar navigation passing the pages
+navigation = st.navigation(
     {
-        "Descoberta": [pagina_vitrine],
-        "Governança & Curadoria": [pagina_taxonomia, pagina_entidades, pagina_conflitos, pagina_qualidade],
+        "Descoberta": [vitrine_page],
+        "Governança & Curadoria": [taxonomy_page, entities_page, conflicts_page, quality_page],
         "Engenharia de Sistema": [
-            # pagina_workers
+            # workers_page
         ],
     }
 )
 
 
-navegacao.run()
+navigation.run()

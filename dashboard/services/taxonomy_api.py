@@ -9,12 +9,12 @@ API_URL = f"{HOST}api/v1/taxonomy"
 
 
 class TaxonomyApiService:
-    """Serviço de frontend responsável por consumir a API Litestar."""
+    """Frontend service responsible for consuming the Litestar API."""
 
     @staticmethod
     def fetch_tag_relevance(method: str, limit: int) -> pd.DataFrame:
-        """Busca o ranking de tags e já devolve formatado em DataFrame."""
-        # Define a rota com base na escolha do usuário
+        """Fetches the tag ranking and returns it already formatted as a DataFrame."""
+        # Define the route based on the user's choice
         endpoint = "relevance/tfidf" if "TF-IDF" in method else "relevance/count"
 
         try:
@@ -23,18 +23,18 @@ class TaxonomyApiService:
 
             data = response.json()
 
-            # 1. Desempacota o array que agora vive dentro de "payload"
+            # 1. Unpack the array that now lives inside "payload"
             payload = data.get("payload", [])
 
             if not payload:
                 return pd.DataFrame()
 
-            # 2. Transforma em DataFrame
+            # 2. Turn it into a DataFrame
             df = pd.DataFrame(payload)
 
-            # 3. Renomeia as colunas usando um dicionário (muito mais seguro)
-            # O .rename() garante que, mesmo se a API mudar a ordem das chaves,
-            # os nomes corretos serão aplicados.
+            # 3. Rename the columns using a dictionary (much safer)
+            # The .rename() guarantees that, even if the API changes the key order,
+            # the correct names are applied.
             if data.get("mode") == "tfidf":
                 df = df.rename(
                     columns={
@@ -54,7 +54,7 @@ class TaxonomyApiService:
 
     @staticmethod
     def find_similar_tags(target: str, threshold: float) -> list[dict]:
-        """Busca tags similares usando a extensão pg_trgm na API."""
+        """Finds similar tags using the pg_trgm extension on the API."""
         try:
             response = requests.get(f"{API_URL}/tags/similar", params={"target": target, "threshold": threshold})
 
@@ -81,12 +81,12 @@ class TaxonomyApiService:
 
     @staticmethod
     def merge_tags(canonical_id: int, ids_to_merge: list[int]) -> bool:
-        """Envia o comando de merge para a API."""
+        """Sends the merge command to the API."""
         try:
             payload = {"canonical_id": canonical_id, "ids_to_merge": ids_to_merge}
             response = requests.post(f"{API_URL}/tags/merge", json=payload)
 
-            # Se a API retornar 400 (ex: FusaoDeTagsInvalidaError), cai aqui
+            # If the API returns 400 (e.g. FusaoDeTagsInvalidaError), it falls through here
             if not response.ok:
                 st.error(response.json().get("message", "Erro desconhecido na API."))
                 return False
@@ -103,7 +103,7 @@ class TaxonomyApiService:
             response = requests.post(f"{API_URL}/tags/stopwords/purge", json=payload)
 
             if response.ok:
-                # Retorna Sucesso = True e a quantidade de tags apagadas devolvida pela API
+                # Returns Success = True and the number of deleted tags returned by the API
                 return True, response.json().get("tags_deleted", 0)
 
             st.error(response.json().get("message", "Erro ao purgar stopwords."))
@@ -114,7 +114,7 @@ class TaxonomyApiService:
 
     @staticmethod
     def get_cross_domain_conflicts(threshold: float = 0.85) -> list[dict]:
-        """Busca a lista de conflitos entre Tags e Entidades."""
+        """Fetches the list of conflicts between Tags and Entities."""
         try:
             response = requests.get(f"{API_URL}/conflicts/cross-domain", params={"threshold": threshold})
             if response.status_code == 200:
@@ -126,7 +126,7 @@ class TaxonomyApiService:
 
     @staticmethod
     def resolve_cross_domain_conflict(winner: str, tag_id: int, entity_id: int) -> dict:
-        """Envia o veredito de quem ganhou a batalha (TAG ou ENTITY)."""
+        """Sends the verdict of who won the battle (TAG or ENTITY)."""
         payload = {"winner": winner, "tag_id": tag_id, "entity_id": entity_id}
         try:
             response = requests.post(f"{API_URL}/conflicts/resolve", json=payload)

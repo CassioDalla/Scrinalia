@@ -4,19 +4,19 @@ from domains.archive.schemas.document_schema import DocumentSummary
 
 
 def render_document_card(doc: DocumentSummary) -> None:
-    """Renderiza a gaveta expansível para um único documento."""
+    """Render the expandable drawer for a single document."""
 
     with st.expander(f"📄 {doc.original_title}"):
-        # Dividimos em 3 colunas: [Foto] [Textos] [Tags/Entidades]
-        col_img, col_texto, col_meta = st.columns([1, 2, 1])
+        # Split into 3 columns: [Photo] [Texts] [Tags/Entities]
+        image_col, text_col, meta_col = st.columns([1, 2, 1])
 
-        with col_img:
-            # Integração com o nosso Worker de Thumbnails (MinIO)
+        with image_col:
+            # Integration with our Thumbnails Worker (MinIO)
             if getattr(doc, "storage_thumbnail_uri", None):
-                url_publica = doc.storage_thumbnail_uri
-                if url_publica:
-                    url_publica = url_publica.replace("s3://", "http://localhost:9000/")
-                    st.image(url_publica, use_container_width=True)
+                public_url = doc.storage_thumbnail_uri
+                if public_url:
+                    public_url = public_url.replace("s3://", "http://localhost:9000/")
+                    st.image(public_url, use_container_width=True)
             else:
                 st.markdown(
                     "<div style='background:#f0f2f6; border-radius:5px; padding:30px; text-align:center;'>"
@@ -24,7 +24,7 @@ def render_document_card(doc: DocumentSummary) -> None:
                     unsafe_allow_html=True,
                 )
 
-        with col_texto:
+        with text_col:
             st.markdown("**Resumo (Scope & Content):**")
             st.write(doc.scope_content if doc.scope_content else "*Sem descrição detalhada.*")
 
@@ -32,9 +32,9 @@ def render_document_card(doc: DocumentSummary) -> None:
                 st.markdown("**Histórico Administrativo/Biográfico:**")
                 st.write(doc.admin_bio_history)
 
-        with col_meta:
+        with meta_col:
             st.caption(f"**ID:** `{doc.description_id}`")
-            # Adicionado tratamento seguro caso a coluna review_status não exista
+            # Added safe handling in case the review_status column does not exist
             status = getattr(doc, "review_status", None)
             st.caption(f"**Status:** `{status.name if status else 'PENDENTE'}`")
 
@@ -47,24 +47,24 @@ def render_document_card(doc: DocumentSummary) -> None:
 
             if doc.entities:
                 st.markdown("**🤖 Entidades (NER):**")
-                ent_html = ""
+                entities_html = ""
 
-                for e in doc.entities:
-                    tipo = e.entity_type.upper()
+                for entity in doc.entities:
+                    entity_type = entity.entity_type.upper()
 
-                    # 1. Define o ícone com base no tipo da entidade
-                    if tipo == "PER":
-                        icone = "👤"  # Pessoa / Autoridade
-                    elif tipo == "LOC":
-                        icone = "🗺️"  # Local / Rua / Cidade
-                    elif tipo == "ORG":
-                        icone = "🏢"  # Organização / Empresa / Repartição Pública
+                    # 1. Define the icon based on the entity type
+                    if entity_type == "PER":
+                        icon = "👤"  # Person / Authority
+                    elif entity_type == "LOC":
+                        icon = "🗺️"  # Place / Street / City
+                    elif entity_type == "ORG":
+                        icon = "🏢"  # Organization / Company / Public Office
                     else:
-                        icone = "🔍"  # Fallback seguro para outros tipos
+                        icon = "🔍"  # Safe fallback for other types
 
-                    classe_css = f"badge-{tipo.lower()}"
+                    css_class = f"badge-{entity_type.lower()}"
 
-                    # 2. Injeta o ícone diretamente dentro da pílula colorida
-                    ent_html += f"<span class='{classe_css}'>{icone} {e.name}</span>"
+                    # 2. Inject the icon directly inside the colored pill
+                    entities_html += f"<span class='{css_class}'>{icon} {entity.name}</span>"
 
-                st.markdown(ent_html, unsafe_allow_html=True)
+                st.markdown(entities_html, unsafe_allow_html=True)

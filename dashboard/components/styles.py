@@ -2,7 +2,7 @@ import streamlit as st
 
 
 def apply_global_css():
-    """Injeta as classes CSS personalizadas na aplicação."""
+    """Inject the custom CSS classes into the application."""
     st.markdown(
         """
         <style>

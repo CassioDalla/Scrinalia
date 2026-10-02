@@ -9,15 +9,15 @@ apply_global_css()
 st.title("🏛️ Motor de Descoberta do Acervo")
 st.markdown("Busca semântica e visualização de entidades extraídas por Inteligência Artificial.")
 
-busca = st.text_input("🔍 Pesquisar no acervo (ex: Matadouro, Colombo, João)...")
+search_term = st.text_input("🔍 Pesquisar no acervo (ex: Matadouro, Colombo, João)...")
 
 with st.spinner("Consultando Camada Ouro..."):
-    resultados = search_document(busca)
+    results = search_document(search_term)
 
-if not resultados:
+if not results:
     st.warning("Nenhum documento encontrado.")
 else:
-    st.success(f"Mostrando {len(resultados)} documentos encontrados.")
+    st.success(f"Mostrando {len(results)} documentos encontrados.")
 
-    for doc in resultados:
+    for doc in results:
         render_document_card(doc)

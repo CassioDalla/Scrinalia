@@ -10,7 +10,7 @@ Quando ambos os motores extraem termos idênticos ou graficamente semelhantes, o
 """)
 
 # ======================================================================
-# CENTRAL DE INSTRUÇÕES DE GOVERNANÇA
+# GOVERNANCE INSTRUCTIONS HUB
 # ======================================================================
 with st.expander("📖 Central de Ajuda: Como decidir o vencedor?", expanded=False):
     st.markdown("""
@@ -28,13 +28,13 @@ with st.expander("📖 Central de Ajuda: Como decidir o vencedor?", expanded=Fal
     """)
 
 # ======================================================================
-# PAINEL DE CONTROLE E ESCANEAMENTO
+# CONTROL AND SCANNING PANEL
 # ======================================================================
 st.write("---")
-col_config, col_btn = st.columns([3, 1])
+config_col, button_col = st.columns([3, 1])
 
-with col_config:
-    threshold_conflito = st.slider(
+with config_col:
+    conflict_threshold = st.slider(
         "Limiar de Alarme para Conflitos (Métrica Levenshtein):",
         0.75,
         1.0,
@@ -43,29 +43,29 @@ with col_config:
         help="Ajuste a sensibilidade ortográfica. 1.0 busca apenas termos com escrita 100% idêntica.",
     )
 
-with col_btn:
-    st.write("##")  # Alinhamento vertical do botão
-    executar_scan = st.button("🚨 Varrer Conflitos", type="primary", use_container_width=True)
+with button_col:
+    st.write("##")  # Vertical alignment of the button
+    run_scan = st.button("🚨 Varrer Conflitos", type="primary", use_container_width=True)
 
-# Gerenciamento de estado para manter os resultados entre os 'reruns' do Streamlit
-if "conflitos_dominio" not in st.session_state:
-    st.session_state["conflitos_dominio"] = None
+# State management to keep the results between Streamlit 'reruns'
+if "domain_conflicts" not in st.session_state:
+    st.session_state["domain_conflicts"] = None
 
-if executar_scan:
+if run_scan:
     with st.spinner("Varrendo tabelas taxonômicas e calculando matriz de similaridade..."):
-        st.session_state["conflitos_dominio"] = TaxonomyApiService.get_cross_domain_conflicts(
-            threshold=threshold_conflito
+        st.session_state["domain_conflicts"] = TaxonomyApiService.get_cross_domain_conflicts(
+            threshold=conflict_threshold
         )
 
 # ======================================================================
-# EXIBIÇÃO DOS RESULTADOS E TABELA INTERATIVA
+# RESULTS DISPLAY AND INTERACTIVE TABLE
 # ======================================================================
-if st.session_state["conflitos_dominio"] is not None:
-    if st.session_state["conflitos_dominio"]:
-        df_conflitos = pd.DataFrame(st.session_state["conflitos_dominio"])
+if st.session_state["domain_conflicts"] is not None:
+    if st.session_state["domain_conflicts"]:
+        conflicts_df = pd.DataFrame(st.session_state["domain_conflicts"])
 
-        # Formatação cosmética das colunas para o usuário final
-        df_display = df_conflitos.rename(
+        # Cosmetic column formatting for the end user
+        df_display = conflicts_df.rename(
             columns={
                 "tag_id": "ID (Tag)",
                 "tag_name": "Nomenclatura (Tag)",
@@ -76,31 +76,31 @@ if st.session_state["conflitos_dominio"] is not None:
             }
         )
 
-        st.markdown(f"### 🎯 Foram localizadas **{len(df_conflitos)} ambiguidades** estruturais.")
+        st.markdown(f"### 🎯 Foram localizadas **{len(conflicts_df)} ambiguidades** estruturais.")
         st.caption("Selecione uma linha da tabela abaixo para abrir o painel de veredito individual.")
 
-        # Tabela interativa com modo de seleção de linha única
-        evento_tabela = st.dataframe(
+        # Interactive table with single-row selection mode
+        table_event = st.dataframe(
             df_display, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row"
         )
 
-        linhas_selecionadas = evento_tabela.selection.rows  # type: ignore
+        selected_rows = table_event.selection.rows  # type: ignore
 
         # ======================================================================
-        # PAINEL DE FUSÃO CRUZADA (APARECE APENAS AO CLICAR EM UMA LINHA)
+        # CROSS-MERGE PANEL (ONLY APPEARS WHEN A ROW IS CLICKED)
         # ======================================================================
-        if len(linhas_selecionadas) == 1:
-            index_alvo = linhas_selecionadas[0]
-            linha_dados = df_conflitos.iloc[index_alvo]
+        if len(selected_rows) == 1:
+            target_index = selected_rows[0]
+            data_row = conflicts_df.iloc[target_index]
 
-            tag_id = int(linha_dados["tag_id"])
-            tag_nome = str(linha_dados["tag_name"])
-            entity_id = int(linha_dados["entity_id"])
-            entity_nome = str(linha_dados["entity_name"])
-            entity_tipo = str(linha_dados["entity_type"])
+            tag_id = int(data_row["tag_id"])
+            tag_name = str(data_row["tag_name"])
+            entity_id = int(data_row["entity_id"])
+            entity_name = str(data_row["entity_name"])
+            entity_type = str(data_row["entity_type"])
 
             st.divider()
-            st.markdown(f"### ⚖️ Painel de Veredito: `{tag_nome}` vs `{entity_nome}` ({entity_tipo})")
+            st.markdown(f"### ⚖️ Painel de Veredito: `{tag_name}` vs `{entity_name}` ({entity_type})")
             st.write("Escolha qual estrutura de dados representa a realidade histórica deste termo:")
 
             col_tag, col_entity = st.columns(2)
@@ -125,12 +125,12 @@ if st.session_state["conflitos_dominio"] is not None:
                             st.success(
                                 f"Sucesso! {res['data']['documents_transferred']} documentos transferidos para o domínio de Tags."
                             )
-                            # Limpa o cache para forçar nova varredura sem o registro resolvido
-                            st.session_state["conflitos_dominio"] = None
+                            # Clear the cache to force a new scan without the resolved record
+                            st.session_state["domain_conflicts"] = None
                             st.rerun()
 
             with col_entity:
-                st.markdown(f"#### 🤖 Declarar como Entidade ({entity_tipo})")
+                st.markdown(f"#### 🤖 Declarar como Entidade ({entity_type})")
                 st.caption(f"A tag de ID {tag_id} será desativada. Seus documentos migrarão para o grafo de Entidades.")
 
                 if st.button(
@@ -147,8 +147,8 @@ if st.session_state["conflitos_dominio"] is not None:
                             st.success(
                                 f"Sucesso! {res['data']['documents_transferred']} documentos transferidos para a Entidade."
                             )
-                            # Limpa o cache para forçar nova varredura sem o registro resolvido
-                            st.session_state["conflitos_dominio"] = None
+                            # Clear the cache to force a new scan without the resolved record
+                            st.session_state["domain_conflicts"] = None
                             st.rerun()
 
     else:

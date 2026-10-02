@@ -10,12 +10,12 @@ BASE_URL = f"{HOST}api/v1/quality/cleaning-rules"
 
 class StreamlitCleaningService:
     """
-    Faz a ponte entre o Front-end do Streamlit e a API de Qualidade de Dados.
+    Bridges the Streamlit front end and the Data Quality API.
     """
 
     @staticmethod
     def preview_dry_run(target_column: str, regex_pattern: str, replacement_string: str) -> dict[str, Any]:
-        """Envia o Regex para a API testar e devolver uma amostra do 'Antes e Depois'."""
+        """Sends the Regex so the API can test it and return a sample of the 'Before and After'."""
         payload = {
             "target_column": target_column,
             "regex_pattern": regex_pattern,
@@ -31,7 +31,7 @@ class StreamlitCleaningService:
 
     @staticmethod
     def create_rule(name: str, target_column: str, regex_pattern: str, replacement_string: str) -> dict[str, Any]:
-        """Envia a regra confirmada para ser guardada no banco de dados e ativada."""
+        """Sends the confirmed rule to be stored in the database and activated."""
         payload = {
             "rule_name": name,
             "target_column": target_column,
@@ -48,7 +48,7 @@ class StreamlitCleaningService:
 
     @staticmethod
     def get_active_rules() -> list[dict[str, Any]]:
-        """Busca todas as regras ativas na API."""
+        """Fetches all active rules from the API."""
         try:
             response = requests.get(BASE_URL)
             if response.status_code == 200:
@@ -59,7 +59,7 @@ class StreamlitCleaningService:
 
     @staticmethod
     def deactivate_rule(rule_id: int) -> bool:
-        """Envia o comando para desativar a regra."""
+        """Sends the command to deactivate the rule."""
         try:
             response = requests.patch(f"{BASE_URL}/{rule_id}/deactivate")
             return response.status_code in (200, 201)

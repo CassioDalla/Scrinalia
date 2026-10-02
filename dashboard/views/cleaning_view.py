@@ -19,17 +19,17 @@ with st.expander("💡 Guia Rápido: Como usar Expressões Regulares (Regex)?"):
 st.divider()
 
 # ======================================================================
-# FORMULÁRIO DE CRIAÇÃO DA REGRA
+# RULE CREATION FORM
 # ======================================================================
 col1, col2 = st.columns([1, 1])
 
 with col1:
-    nome_regra = st.text_input(
+    rule_name = st.text_input(
         "Nome da Regra:",
         placeholder="Ex: Remover 'Av. Avenida'",
         help="Um nome para identificar esta rotina no banco de dados.",
     )
-    coluna_alvo = st.selectbox(
+    target_column = st.selectbox(
         "Coluna Alvo no Acervo:",
         options=[
             ("original_title", "Título Original"),
@@ -42,51 +42,51 @@ with col1:
     )
 
 with col2:
-    padrao_regex = st.text_input(
+    regex_pattern = st.text_input(
         "Padrão Regex (Python):",
         placeholder=r"Ex: \b(av\.?\s+avenida)\b",
         help="A expressão regular para localizar a anomalia.",
     )
-    texto_substituicao = st.text_input(
+    replacement_text = st.text_input(
         "Substituir por:",
         placeholder="Deixe em branco para apagar a anomalia",
         help="O texto que vai entrar no lugar do padrão encontrado.",
     )
 
-# Estado para guardar a simulação
-if "simulacao_limpeza" not in st.session_state:
-    st.session_state["simulacao_limpeza"] = None
+# State to hold the simulation
+if "cleaning_simulation" not in st.session_state:
+    st.session_state["cleaning_simulation"] = None
 
 # ======================================================================
-# BOTÃO DE DRY-RUN (SIMULAÇÃO SEGURA)
+# DRY-RUN BUTTON (SAFE SIMULATION)
 # ======================================================================
 if st.button("🧪 Simular Impacto (Dry-Run)", type="secondary", use_container_width=True):
-    if not nome_regra or not padrao_regex:
+    if not rule_name or not regex_pattern:
         st.warning("Preencha o Nome da Regra e o Padrão Regex para simular.")
     else:
         with st.spinner("Testando Regex contra amostras reais do banco de dados..."):
-            # Envia a coluna (índice 0 da tupla selecionada)
-            resultado = service.preview_dry_run(
-                target_column=coluna_alvo[0],  # type: ignore
-                regex_pattern=padrao_regex,
-                replacement_string=texto_substituicao,
+            # Send the column (index 0 of the selected tuple)
+            result = service.preview_dry_run(
+                target_column=target_column[0],  # type: ignore
+                regex_pattern=regex_pattern,
+                replacement_string=replacement_text,
             )
-            st.session_state["simulacao_limpeza"] = resultado
+            st.session_state["cleaning_simulation"] = result
 
 # ======================================================================
-# EXIBIÇÃO DA SIMULAÇÃO E BOTÃO DE SALVAR
+# SIMULATION DISPLAY AND SAVE BUTTON
 # ======================================================================
-if st.session_state["simulacao_limpeza"]:
-    res = st.session_state["simulacao_limpeza"]
+if st.session_state["cleaning_simulation"]:
+    res = st.session_state["cleaning_simulation"]
 
     st.divider()
     st.markdown("### 🔬 Resultados da Simulação")
 
-    # 1. Se for inválido, mostra o erro e bloqueia (não mostra o botão)
+    # 1. If invalid, show the error and stop (do not show the button)
     if not res.get("is_valid_regex", False):
         st.error(f"❌ Sintaxe de Regex Inválida: {res.get('error_message')}")
 
-    # 2. Se for válido, seguimos em frente!
+    # 2. If valid, we move on!
     else:
         if res.get("matches_found", 0) == 0:
             st.info(
@@ -95,11 +95,11 @@ if st.session_state["simulacao_limpeza"]:
         else:
             st.success(f"✅ Regex validado! Encontrados **{res['matches_found']}** matches na amostra de teste.")
 
-            # Monta a tabela de Antes e Depois (Diff) apenas se houver dados
-            amostras = res.get("samples", [])
-            df_amostras = pd.DataFrame(amostras)
+            # Build the Before and After table (Diff) only if there is data
+            samples = res.get("samples", [])
+            samples_df = pd.DataFrame(samples)
 
-            df_display = df_amostras.rename(
+            df_display = samples_df.rename(
                 columns={
                     "description_id": "ID do Documento",
                     "original_text": "Texto Original (Antes)",
@@ -108,39 +108,39 @@ if st.session_state["simulacao_limpeza"]:
             )
             st.dataframe(df_display, use_container_width=True, hide_index=True)
 
-        # O botão de "Salvar" FICA AQUI DENTRO, visível sempre que a regra for válida
+        # The "Save" button stays HERE INSIDE, visible whenever the rule is valid
         st.markdown("---")
         st.warning("Tem a certeza de que deseja ativar esta regra? O Worker irá aplicá-la ao acervo.")
 
         if st.button("🚀 Salvar e Ativar Regra", type="primary", use_container_width=True):
             with st.spinner("A guardar regra no banco de dados..."):
-                resposta = service.create_rule(
-                    name=nome_regra,
-                    target_column=coluna_alvo[0],  # type: ignore
-                    regex_pattern=padrao_regex,
-                    replacement_string=texto_substituicao,
+                response = service.create_rule(
+                    name=rule_name,
+                    target_column=target_column[0],  # type: ignore
+                    regex_pattern=regex_pattern,
+                    replacement_string=replacement_text,
                 )
 
-                if "error" in resposta:
-                    st.error(f"Falha ao salvar a regra: {resposta['error']}")
+                if "error" in response:
+                    st.error(f"Falha ao salvar a regra: {response['error']}")
                 else:
                     st.success("🎉 Regra salva e ativada com sucesso!")
-                    st.session_state["simulacao_limpeza"] = None  # Limpa a tela
-                    st.rerun()  # Refresh imediato para a regra aparecer na lista em baixo!
+                    st.session_state["cleaning_simulation"] = None  # Clears the screen
+                    st.rerun()  # Immediate refresh so the rule shows in the list below!
 
 # ======================================================================
-# LISTAGEM E GESTÃO DE REGRAS ATIVAS
+# LISTING AND MANAGEMENT OF ACTIVE RULES
 # ======================================================================
 st.divider()
 st.subheader("📋 Regras de Limpeza Ativas")
 st.markdown("Estas regras estão atualmente a ser processadas em background pelo Worker.")
 
-regras_ativas = service.get_active_rules()
+active_rules = service.get_active_rules()
 
-if not regras_ativas:
+if not active_rules:
     st.info("Nenhuma regra de limpeza ativa no momento.")
 else:
-    # Cabeçalho da tabela improvisada
+    # Improvised table header
     col_h1, col_h2, col_h3, col_h4 = st.columns([2, 2, 3, 1])
     col_h1.caption("NOME DA REGRA")
     col_h2.caption("COLUNA ALVO")
@@ -149,24 +149,24 @@ else:
 
     st.divider()
 
-    for regra in regras_ativas:
-        # Container para manter o alinhamento de cada linha
+    for rule in active_rules:
+        # Container to keep each row aligned
         with st.container():
             col1, col2, col3, col4 = st.columns([2, 2, 3, 1])
 
-            col1.write(f"**{regra['rule_name']}**")
-            col2.code(regra["target_column"])
+            col1.write(f"**{rule['rule_name']}**")
+            col2.code(rule["target_column"])
 
-            # Formatação amigável: mostra o que vira o quê
-            substituicao = regra["replacement_string"] if regra["replacement_string"] else "[Apagar]"
-            col3.write(f"`{regra['regex_pattern']}` ➡️ `{substituicao}`")
+            # Friendly formatting: shows what becomes what
+            replacement = rule["replacement_string"] if rule["replacement_string"] else "[Apagar]"
+            col3.write(f"`{rule['regex_pattern']}` ➡️ `{replacement}`")
 
-            # O parâmetro 'key' é obrigatório em loops no Streamlit para os botões não se sobreporem
-            if col4.button("❌ Desativar", key=f"deactivate_{regra['rule_id']}", use_container_width=True):
-                sucesso = service.deactivate_rule(regra["rule_id"])
-                if sucesso:
-                    st.toast(f"Regra '{regra['name']}' desativada!")
-                    st.rerun()  # Dá o refresh imediato na interface
+            # The 'key' parameter is mandatory in Streamlit loops so the buttons do not overlap
+            if col4.button("❌ Desativar", key=f"deactivate_{rule['rule_id']}", use_container_width=True):
+                success = service.deactivate_rule(rule["rule_id"])
+                if success:
+                    st.toast(f"Regra '{rule['name']}' desativada!")
+                    st.rerun()  # Gives the immediate interface refresh
                 else:
                     st.error("Erro ao desativar a regra.")
 
