@@ -8,7 +8,7 @@ Three-layer pipeline, each layer a domain under `domains/`:
 
 - API: Litestar in `main.py` (`api/controllers/`), NOT FastAPI.
 - Front: Streamlit dashboard in `dashboard/`, **temporary** — the intent is to migrate to a backend + React frontend. Treat the API as the stable interface and avoid coupling new features to Streamlit.
-- Code, docstrings, logs, and domain messages are in Portuguese; commits follow Conventional Commits.
+- Code is written in **English**: filenames, identifiers, comments, docstrings, log messages and internal error messages. Only end-user-visible text stays Portuguese (see Language below). Commits follow Conventional Commits.
 - `README.md` is empty; the roadmap and architecture decisions live in `TODO.md`.
 
 ## Commands
@@ -23,6 +23,13 @@ Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).
 - Tests: `uv run pytest`; a single test: `uv run pytest tests/unit/archive/workers/test_worker_ner.py::test_name`.
 - Lint/format: `uv run ruff check .` and `uv run ruff format .` (ruff is a dev dependency; line-length 120, double quotes). CI enforces `ruff format --check .`.
 - `Procfile` defines the `api` (`uvicorn` with `CUDA_VISIBLE_DEVICES=""`, i.e. CPU) and `web` (`streamlit`) processes.
+- Type check: `uv run basedpyright` (scope and strictness in `[tool.basedpyright]`).
+- Pre-commit hooks (ruff lint/format + basedpyright): `uv run pre-commit install` once per clone; run manually with `uv run pre-commit run --all-files`.
+
+## Language
+- Everything in code is **English**: filenames, identifiers, comments, docstrings, log messages, Pydantic `Field` descriptions and internal errors.
+- Portuguese is allowed **only for end-user-visible text**: Streamlit UI strings, API response `message` values, and exception messages that the API forwards to users (`DomainException` subclasses and `ValueError` handled by `value_error_handler`).
+- Never translate source-data literals that must match external payloads (e.g. the ISAD(G) keys in `domains/staging/schemas.py`) or LLM prompts written to reason about Portuguese text (e.g. `engines/LLMs/ollama_tag_entity_conflict.py`).
 
 ## Database and infra
 - Schema is owned by **Alembic** (`migrations/`, config in `alembic.ini`, connection URL from `core.config.settings`). Apply with `uv run alembic upgrade head`. The models in `domains/*/models/` are the single source of truth; `uv run alembic check` must report no drift.
