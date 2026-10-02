@@ -97,8 +97,8 @@ exclude = [
     "migrations",
     "tests",
     "Data",
-    "triagem.py",
-    "verificar_titulos_gemma.py",
-    "verificar_titulos_novo.py",
+    "triage.py",
+    "verify_titles_gemma.py",
+    "verify_titles_new.py",
 ]
 reportMissingTypeStubs = false
