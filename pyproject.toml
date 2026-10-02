@@ -10,8 +10,6 @@ dependencies = [
     "bertopic>=0.17.4",
     "boto3>=1.43.27",
     "dotenv>=0.9.9",
-    "honcho>=2.0.0",
-    "jupyterlab>=4.5.7",
     "litestar[standard]>=2.24.0",
     "loguru>=0.7.3",
     "numpy>=2.3.5",
@@ -19,8 +17,7 @@ dependencies = [
     "pillow>=12.2.0",
     "psycopg2==2.9.12",
     "pt-core-news-lg",
-    "pytest>=9.0.3",
-    "pytest-mock>=3.15.1",
+    "pydantic-settings>=2.15.0",
     "requests>=2.34.2",
     "scikit-learn>=1.8.0",
     "spacy>=3.8.14",
@@ -37,9 +34,9 @@ pt-core-news-lg = { url = "https://github.com/explosion/spacy-models/releases/do
 # Define o tamanho máximo da linha (88 é o padrão do Black, mas muitos preferem 120)
 line-length = 120
 
-# Versão do Python que o seu projeto suporta. 
+# Versão do Python que o seu projeto suporta.
 # O Ruff usa isso para saber quais modernizações de sintaxe pode aplicar.
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 # Lista de regras que o Ruff deve validar (ver explicação abaixo)
@@ -74,8 +71,11 @@ line-ending = "auto"
 [dependency-groups]
 dev = [
     "basedpyright>=1.40.1",
+    "jupyterlab>=4.5.7",
     "pre-commit>=4.6.2",
+    "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
+    "pytest-mock>=3.15.1",
     "ruff>=0.16.10",
 ]
 

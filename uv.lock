@@ -984,18 +984,6 @@ wheels = [
 ]
 
 [[package]]
-name = "honcho"
-version = "2.0.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/65/c8/d860888358bf5c8a6e7d78d1b508b59b0e255afd5655f243b8f65166dafd/honcho-2.0.0.tar.gz", hash = "sha256:af3815c03c634bf67d50f114253ea9fef72ecff26e4fd06b29234789ac5b8b2e", size = 45618, upload-time = "2024-10-06T14:26:53.871Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/48/1c/25631fc359955569e63f5446dbb7022c320edf9846cbe892ee5113433a7e/honcho-2.0.0-py3-none-any.whl", hash = "sha256:56dcd04fc72d362a4befb9303b1a1a812cba5da283526fbc6509be122918ddf3", size = 22093, upload-time = "2024-10-06T14:26:52.181Z" },
-]
-
-[[package]]
 name = "httpcore"
 version = "1.0.9"
 source = { registry = "https://pypi.org/simple" }
@@ -1648,8 +1636,6 @@ dependencies = [
     { name = "bertopic" },
     { name = "boto3" },
     { name = "dotenv" },
-    { name = "honcho" },
-    { name = "jupyterlab" },
     { name = "litestar", extra = ["standard"] },
     { name = "loguru" },
     { name = "numpy" },
@@ -1657,8 +1643,7 @@ dependencies = [
     { name = "pillow" },
     { name = "psycopg2" },
     { name = "pt-core-news-lg" },
-    { name = "pytest" },
-    { name = "pytest-mock" },
+    { name = "pydantic-settings" },
     { name = "requests" },
     { name = "scikit-learn" },
     { name = "spacy" },
@@ -1671,8 +1656,11 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "basedpyright" },
+    { name = "jupyterlab" },
     { name = "pre-commit" },
+    { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "pytest-mock" },
     { name = "ruff" },
 ]
 
@@ -1683,8 +1671,6 @@ requires-dist = [
     { name = "bertopic", specifier = ">=0.17.4" },
     { name = "boto3", specifier = ">=1.43.27" },
     { name = "dotenv", specifier = ">=0.9.9" },
-    { name = "honcho", specifier = ">=2.0.0" },
-    { name = "jupyterlab", specifier = ">=4.5.7" },
     { name = "litestar", extras = ["standard"], specifier = ">=2.24.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "numpy", specifier = ">=2.3.5" },
@@ -1692,8 +1678,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=12.2.0" },
     { name = "psycopg2", specifier = "==2.9.12" },
     { name = "pt-core-news-lg", url = "https://github.com/explosion/spacy-models/releases/download/pt_core_news_lg-3.8.0/pt_core_news_lg-3.8.0-py3-none-any.whl" },
-    { name = "pytest", specifier = ">=9.0.3" },
-    { name = "pytest-mock", specifier = ">=3.15.1" },
+    { name = "pydantic-settings", specifier = ">=2.15.0" },
     { name = "requests", specifier = ">=2.34.2" },
     { name = "scikit-learn", specifier = ">=1.8.0" },
     { name = "spacy", specifier = ">=3.8.14" },
@@ -1706,8 +1691,11 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "basedpyright", specifier = ">=1.40.1" },
+    { name = "jupyterlab", specifier = ">=4.5.7" },
     { name = "pre-commit", specifier = ">=4.6.2" },
+    { name = "pytest", specifier = ">=9.0.3" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "ruff", specifier = ">=0.16.10" },
 ]
 
@@ -2781,6 +2769,20 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/64/d3/84c282a7eee1d3ac4c0377546ef5a1ea436ce26840d9ac3b7ed54a377507/pydantic_core-2.46.4-graalpy312-graalpy250_312_native-macosx_11_0_arm64.whl", hash = "sha256:3009f12e4e90b7f88b4f9adb1b0c4a3d58fe7820f3238c190047209d148026df", size = 1936024, upload-time = "2026-05-06T13:40:15.671Z" },
     { url = "https://files.pythonhosted.org/packages/d7/ca/eac61596cdeb4d7e174d3dc0bd8a6238f14f75f97a24e7b7db4c7e7340a0/pydantic_core-2.46.4-graalpy312-graalpy250_312_native-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ad785e92e6dc634c21555edc8bd6b64957ab844541bcb96a1366c202951ae526", size = 1990696, upload-time = "2026-05-06T13:38:34.717Z" },
     { url = "https://files.pythonhosted.org/packages/fa/c3/7c8b240552251faf6b3a957db200fcfbbcec36763c050428b601e0c9b83b/pydantic_core-2.46.4-graalpy312-graalpy250_312_native-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:00c603d540afdd6b80eb39f078f33ebd46211f02f33e34a32d9f053bba711de0", size = 2147590, upload-time = "2026-05-06T13:39:29.883Z" },
+]
+
+[[package]]
+name = "pydantic-settings"
+version = "2.15.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "python-dotenv" },
+    { name = "typing-inspection" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/68/ca/31c57507b13119d7d3cfa1576dad2911a4861e3be07b579395f4e9d393f9/pydantic_settings-2.15.0.tar.gz", hash = "sha256:694b793e84f766ba76a90ebdefc01d0a9a045dab0382bee70393da93712ad117", size = 261253, upload-time = "2026-08-07T09:24:57.419Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/30/a4/2bffa9f8e804325a09867f0e9d30795c80ea9f8d62560bd1b6ad6220eb2f/pydantic_settings-2.15.0-py3-none-any.whl", hash = "sha256:0ba092c291c94baceb5eff768aa0d56400a457585bc0175925a5a5510303da42", size = 69413, upload-time = "2026-08-07T09:24:55.839Z" },
 ]
 
 [[package]]
