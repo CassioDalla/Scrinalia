@@ -42,7 +42,7 @@ Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).
 - There is no `db-init` anymore. The schema **and** the `pg_trgm` extension required by the fuzzy-search indexes are owned by Alembic: fresh volume -> `docker compose up -d` -> `uv run alembic upgrade head`. Recreate a clean volume with `docker compose down -v`.
 - `tests/conftest.py` creates `pg_trgm` before `create_all` for the test database. Because the suite **drops the schema on teardown**, never run a server against the test database in parallel with pytest, and re-run `alembic upgrade head` before starting one again.
 - `.env` is gitignored. Keys in `core/config.py`: `DB_*`, `ARQDOC_*`, `PUBLIC_SCRAPE_*`, `S3_*`, `OLLAMA_HOST_URL`, `API_BASE_URL`, plus `LOG_DIR`/`LOG_LEVEL`/`DEBUG`. `docker-compose.yml` reads `DB_USER`/`DB_PASS`/`DB_NAME` (defaults admin/admin123/memoriacuritibana).
-- Models are Postgres-specific (JSONB, ARRAY, native enums, GIN indexes) — they do not port to SQLite. Note that `research/coremltools` (a transitive `bertopic` dependency) also ships a `core` package; internal imports win by CWD precedence today, which is another reason to package the project (see `.analysis/analise-layout-src-e-divida-tecnica.md`).
+- Models are Postgres-specific (JSONB, ARRAY, native enums, GIN indexes) — they do not port to SQLite.
 
 ## Architecture conventions (easy to get wrong)
 - DDD per domain: each domain has `models/`, `repository/`, `services/`, `schemas/`, `workers/`. Litestar controllers in `api/`; `api/dependencies.py` is the composition root: `provide_unit_of_work` owns the request transaction and each service provider receives it via `NamedDependency[UnitOfWork]`.
