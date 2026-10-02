@@ -9,6 +9,7 @@ from domains.archive.models import (
     ArchiveDocument,
     ArchiveReviewStatus,
 )
+from domains.archive.repository.governance import ai_writable_documents
 from domains.archive.schemas.command_schema import DocumentReviewCommand
 from domains.archive.schemas.document_schema import ArchiveDocumentDTO, DocumentSummary
 
@@ -63,8 +64,7 @@ class DocumentRepository:
             index_elements=["description_id"],
             set_=update_dict,
             where=(
-                (ArchiveDocument.review_status != ArchiveReviewStatus.HUMAN_APPROVED)
-                & (ArchiveDocument.staging_content_hash != stmt.excluded.staging_content_hash)
+                ai_writable_documents() & (ArchiveDocument.staging_content_hash != stmt.excluded.staging_content_hash)
             ),
         )
         stmt = stmt.returning(ArchiveDocument.description_id)
