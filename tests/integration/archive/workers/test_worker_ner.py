@@ -2,9 +2,32 @@ from unittest.mock import patch
 
 from sqlalchemy import select
 
-from domains.archive.models import ArchiveDocument, ArchiveDocumentEntity, ArchiveEntity
+from domains.archive.models import ArchiveDocument, ArchiveDocumentEntity, ArchiveEntity, ArchiveReviewStatus
 from domains.archive.schemas.entity_schema import ArchiveEntityDTO
 from domains.archive.workers.worker_ner import execute
+
+
+@patch("domains.archive.workers.worker_ner.get_engine")
+def test_worker_ner_integration_skips_human_approved(
+    mock_get_engine,
+    db_session,
+    generate_archive_doc,
+):
+    """Governance: a HUMAN_APPROVED document must be shielded from AI re-processing."""
+    generate_archive_doc(
+        description_id="doc_human",
+        original_title="Documento revisado pelo arquivista",
+        review_status=ArchiveReviewStatus.HUMAN_APPROVED,
+    )
+
+    execute(db=db_session)
+
+    # The AI must never even be consulted for a human-approved document.
+    mock_get_engine.return_value.extract.assert_not_called()
+
+    db_session.expire_all()
+    approved = db_session.get(ArchiveDocument, "doc_human")
+    assert approved.execution_log is None or "worker_ner_v1" not in approved.execution_log
 
 
 @patch("domains.archive.workers.worker_ner.get_engine")
@@ -53,8 +76,9 @@ def test_worker_ner_integration_real_database(
     assert len(db_entities) == 2
     names = {e.name for e in db_entities}
 
-    assert "David Carneiro" in names
-    assert "Curitiba" in names
+    # Entity names are normalized to lowercase on persistence.
+    assert "david carneiro" in names
+    assert "curitiba" in names
 
     # Checks whether the associative table (N:N) was populated
     links = db_session.scalars(select(ArchiveDocumentEntity)).all()

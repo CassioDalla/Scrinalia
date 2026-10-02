@@ -10,7 +10,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from core.database import get_db
 from core.logger import logger
 from core.storage import S3Storage
-from domains.archive.models import ArchiveDocument
+from domains.archive.models import ArchiveDocument, ArchiveReviewStatus
 
 
 def download_image_to_memory(url: str) -> BytesIO | None:
@@ -64,10 +64,12 @@ def execute(db: Session) -> None:
 
     storage = S3Storage()
 
-    # Fetches images that have not yet been uploaded AND that have not failed permanently
+    # Fetches images that have not yet been uploaded AND that have not failed permanently.
+    # HUMAN_APPROVED documents are left untouched.
     query = select(ArchiveDocument).where(
         ArchiveDocument.original_thumbnail_url.is_not(None)
         & ArchiveDocument.storage_thumbnail_uri.is_(None)
+        & (ArchiveDocument.review_status != ArchiveReviewStatus.HUMAN_APPROVED)
         & ~ArchiveDocument.execution_log.has_key("thumbnail_failed")
     )
 
@@ -109,6 +111,16 @@ def execute(db: Session) -> None:
 
         except Exception as e:
             logger.error(f"❌ Catastrophic error in document {doc.description_id}: {e}")
+            # Stamp the failure so the document does not loop forever on a broken record.
+            try:
+                new_log = dict(doc.execution_log) if doc.execution_log else {}
+                new_log["thumbnail_failed"] = "True"
+                doc.execution_log = new_log
+                flag_modified(doc, "execution_log")
+                db.commit()
+            except Exception as stamp_error:
+                logger.critical(f"🔥 Critical failure stamping the error on doc {doc.description_id}: {stamp_error}")
+                db.rollback()
             continue
 
     db.commit()

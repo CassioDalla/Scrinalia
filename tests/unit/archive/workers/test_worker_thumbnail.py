@@ -116,3 +116,30 @@ def test_execute_worker_thumbnails_marks_failure_in_json(mocker: MockerFixture) 
     assert fake_doc.execution_log == {"thumbnail_failed": "True"}
     mock_flag.assert_called_once_with(fake_doc, "execution_log")
     mock_db.commit.assert_called_once()
+
+
+def test_execute_worker_thumbnails_stamps_unexpected_exceptions(mocker: MockerFixture) -> None:
+    """Regression: an unexpected error must also stamp the document, else it retries forever."""
+    mock_db = mocker.Mock(spec=Session)
+
+    mock_get_db = mocker.patch.object(worker_thumbnail, "get_db")
+    mock_get_db.return_value.__enter__.return_value = mock_db
+
+    mock_db.begin_nested.return_value = mocker.MagicMock()
+
+    fake_doc = mocker.Mock()
+    fake_doc.description_id = "doc-boom"
+    fake_doc.original_thumbnail_url = "http://link.com"
+    fake_doc.execution_log = {}
+
+    mock_db.scalars.return_value.yield_per.return_value = [fake_doc]
+
+    # The download helper itself explodes (not returns None), forcing the outer except.
+    mocker.patch.object(worker_thumbnail, "download_image_to_memory", side_effect=Exception("boom"))
+    mock_flag = mocker.patch("domains.archive.workers.worker_thumbnail.flag_modified")
+    mocker.patch("time.sleep")
+
+    worker_thumbnail.execute(mock_db)
+
+    assert fake_doc.execution_log == {"thumbnail_failed": "True"}
+    mock_flag.assert_called_once_with(fake_doc, "execution_log")

@@ -25,29 +25,20 @@ class TagService:
     def __init__(self, repo: TagRepository, document_repo: DocumentRepository):
         self.repo = repo
         self.document_repo = document_repo
-        self._stopwords_regex = None
+        self._stopwords: frozenset[str] | None = None
 
-    def _get_stopwords_regex(self) -> re.Pattern:
+    def _get_stopwords(self) -> frozenset[str]:
         """
-        Fetches the stopwords from the database only once and compiles a super-regex.
+        Fetches the stopwords from the database only once and caches them as a set.
+
+        A set is used (instead of a compiled regex) because matching whole entries is
+        the only safe rule: a substring regex would corrupt legitimate multi-word tags
+        (e.g. the stopword "rio" would turn "Rio Branco" into "Branco").
         """
-        if self._stopwords_regex is None:
-            # Pulls from the database
-            stopwords = self.repo.get_stopwords()
+        if self._stopwords is None:
+            self._stopwords = frozenset(word.strip().lower() for word in self.repo.get_stopwords() if word.strip())
 
-            if stopwords:
-                # Escapes the special characters of the stopwords (in case there is any '+', '.', etc)
-                # and joins everything with the pipe '|' (OR operator)
-                words = "|".join(re.escape(w) for w in stopwords)
-                pattern = rf"\b({words})\b"
-
-                # Compiles the regex with the ignore case flag
-                self._stopwords_regex = re.compile(pattern, flags=re.IGNORECASE)
-            else:
-                # If the database is empty, creates a regex that never matches
-                self._stopwords_regex = re.compile(r"a^")
-
-        return self._stopwords_regex
+        return self._stopwords
 
     def extract_and_clean_tags(self, indexing_points: str | None) -> list[ArchiveTagDTO]:
         """
@@ -58,15 +49,20 @@ class TagService:
             return []
 
         # Fetches the active stopwords directly from the database
-        regex_stopwords = self._get_stopwords_regex()
+        stopwords = self._get_stopwords()
 
-        raw_tags = indexing_points.split(",")
+        # The staging layer may join duplicate source keys with " | ", so both "|" and
+        # "," are treated as tag separators.
+        raw_tags = re.split(r"[,|]", indexing_points)
         clean_tags = set()
 
         for tag in raw_tags:
             tag = tag.strip().lower()
 
-            tag = regex_stopwords.sub("", tag).strip()
+            # A stopword only removes the tag when it is the WHOLE tag. Removing it as a
+            # substring would destroy valid multi-word tags ("Rio Branco" -> "Branco").
+            if tag in stopwords:
+                continue
 
             tag = re.sub(r"\s+", " ", tag)
 

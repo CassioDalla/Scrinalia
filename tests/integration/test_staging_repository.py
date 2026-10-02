@@ -90,3 +90,37 @@ def test_upsert_staging_document_updates_existing_record(use_test_db, db_session
 
     assert updated_doc.raw_content_hash == "hash-NOVO"
     assert updated_doc.title == "Título Novo Atualizado"
+
+
+def test_upsert_staging_preserves_created_at_and_absent_fields(use_test_db, db_session) -> None:
+    """
+    Regression: the ON CONFLICT must not reset ``created_at`` nor null out fields that
+    were simply absent from the new payload.
+    """
+
+    old_data = StagingDocument(
+        description_id="doc-preserve",
+        raw_content_hash="hash-VELHO",
+        title="Título Antigo",
+        reference_code="BR PR CUR",
+        producers="Prefeitura de Curitiba",
+        raw_metadata={},
+    )
+    db_session.add(old_data)
+    db_session.commit()
+
+    created_at_before = db_session.get(StagingDocument, "doc-preserve").created_at
+
+    # The new payload only brings the title and a new hash.
+    new_dto = StagingDocumentDTO(
+        description_id="doc-preserve", raw_content_hash="hash-NOVO", title="Título Novo Atualizado"
+    )
+    upsert_staging_document(db_session, new_dto)
+
+    db_session.expire_all()
+    updated_doc = db_session.execute(select(StagingDocument).filter_by(description_id="doc-preserve")).scalar_one()
+
+    assert updated_doc.title == "Título Novo Atualizado"
+    assert updated_doc.created_at == created_at_before  # not reset
+    assert updated_doc.reference_code == "BR PR CUR"  # absent field preserved
+    assert updated_doc.producers == "Prefeitura de Curitiba"

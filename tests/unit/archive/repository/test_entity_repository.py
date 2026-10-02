@@ -2,6 +2,7 @@ from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
 from domains.archive.repository import EntityRepository
+from domains.archive.schemas import ArchiveEntityDTO
 
 
 def test_get_or_create_entities_ignores_empty_list(mocker: MockerFixture) -> None:
@@ -20,9 +21,13 @@ def test_get_or_create_entities_happy_path(mocker: MockerFixture) -> None:
     mock_db = mocker.Mock(spec=Session)
     repo = EntityRepository(mock_db)
 
-    # Creating fake DTOs
-    ent1 = mocker.Mock(name=" Winston Churchill  ", entity_type="PER")
-    ent2 = mocker.Mock(name="Curitiba", entity_type="LOC")
+    # Creating fake DTOs (``spec`` keeps ``name`` as a real attribute, unlike a plain Mock).
+    ent1 = mocker.Mock(spec=ArchiveEntityDTO)
+    ent1.name = " Winston Churchill  "
+    ent1.entity_type = "PER"
+    ent2 = mocker.Mock(spec=ArchiveEntityDTO)
+    ent2.name = "Curitiba"
+    ent2.entity_type = "LOC"
 
     # Simulate that the database returned IDs 1 and 2
     mock_db.scalars.return_value.all.return_value = [1, 2]
@@ -33,6 +38,12 @@ def test_get_or_create_entities_happy_path(mocker: MockerFixture) -> None:
     # Guarantees that there was one execute (for the insert) and one scalars (for the select)
     assert mock_db.execute.call_count == 1
     assert mock_db.scalars.call_count == 1
+
+    # The entity name must be normalized to lowercase before hitting the database.
+    executed_stmt = mock_db.execute.call_args[0][0]
+    inserted_names = {value for value in executed_stmt.compile().params.values() if isinstance(value, str)}
+    assert "winston churchill" in inserted_names
+    assert "curitiba" in inserted_names
 
 
 def test_purge_orphan_entities_ignores_when_none(mocker: MockerFixture) -> None:

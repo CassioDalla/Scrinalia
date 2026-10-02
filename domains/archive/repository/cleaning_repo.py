@@ -3,7 +3,7 @@ from collections.abc import Sequence
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from domains.archive.models import ArchiveCleaningRule, ArchiveDocument
+from domains.archive.models import ArchiveCleaningRule, ArchiveDocument, ArchiveReviewStatus
 
 
 class CleaningRepository:
@@ -20,9 +20,9 @@ class CleaningRepository:
         stmt = select(ArchiveCleaningRule).where(ArchiveCleaningRule.is_active.is_(True))
         return self.db.scalars(stmt).all()
 
-    def get_rule_by_id(self, rule_id: int) -> ArchiveCleaningRule:
+    def get_rule_by_id(self, rule_id: int) -> ArchiveCleaningRule | None:
         stmt = select(ArchiveCleaningRule).where(ArchiveCleaningRule.rule_id == rule_id)
-        return self.db.scalars(stmt).one()
+        return self.db.scalars(stmt).one_or_none()
 
     def get_unprocessed_documents_for_rule(
         self, rule_id: int, target_column: str, limit: int = 500
@@ -30,12 +30,16 @@ class CleaningRepository:
         """
         Fetches documents that DO NOT YET have the 'rule_X' flag in execution_log
         and where the target column is NOT null.
+
+        Documents validated by a human (``HUMAN_APPROVED``) are excluded: the AI must
+        never overwrite a human's decision.
         """
         rule_key = f"cleaning_rule_{rule_id}"
 
         stmt = (
             select(ArchiveDocument)
             .where(getattr(ArchiveDocument, target_column).is_not(None))
+            .where(ArchiveDocument.review_status != ArchiveReviewStatus.HUMAN_APPROVED)
             .where(
                 # Either the log does not exist, or if it does, it does not contain the rule key
                 (ArchiveDocument.execution_log.is_(None)) | (~ArchiveDocument.execution_log.has_key(rule_key))
@@ -46,5 +50,10 @@ class CleaningRepository:
 
     def get_random_sample_for_dry_run(self, target_column: str, limit: int = 200) -> Sequence[ArchiveDocument]:
         """Fetches a sample of non-null documents to try to find matches for the Dry-Run."""
-        stmt = select(ArchiveDocument).where(getattr(ArchiveDocument, target_column).is_not(None)).limit(limit)
+        stmt = (
+            select(ArchiveDocument)
+            .where(getattr(ArchiveDocument, target_column).is_not(None))
+            .where(ArchiveDocument.review_status != ArchiveReviewStatus.HUMAN_APPROVED)
+            .limit(limit)
+        )
         return self.db.scalars(stmt).all()

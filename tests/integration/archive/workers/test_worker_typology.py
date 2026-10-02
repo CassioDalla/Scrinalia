@@ -1,8 +1,39 @@
 from unittest.mock import patch
 
 from domains.archive.engines.classification import registry as typology_registry
-from domains.archive.models import ArchiveDocument
+from domains.archive.models import ArchiveDocument, ArchiveReviewStatus
 from domains.archive.workers.worker_typology import execute
+
+
+def test_worker_typology_integration_skips_human_approved(
+    use_test_db,
+    db_session,
+    generate_archive_doc,
+    generate_typology,
+    mock_registry,
+):
+    """Governance: human curation blocks AI reclassification."""
+    real_typology = generate_typology(id=99, name="dossiê")
+    approved = generate_archive_doc(
+        original_title="Documento revisado",
+        scope_content="Conteúdo já validado.",
+        review_status=ArchiveReviewStatus.HUMAN_APPROVED,
+    )
+
+    MockClass = mock_registry(typology_registry)
+    ai_instance = MockClass.return_value
+    ai_instance.classify.return_value = [{"labels": [real_typology.name], "scores": [0.99]}]
+
+    execute(
+        db=db_session,
+        engine_name="motor_fake",  # type: ignore
+        preset="preset_teste",  # type: ignore
+        columns_to_classify=["original_title", "scope_content"],
+    )
+
+    ai_instance.classify.assert_not_called()
+    db_session.expire_all()
+    assert db_session.get(ArchiveDocument, approved.description_id).typology_id is None
 
 
 def test_worker_integration_updates_database_correctly(

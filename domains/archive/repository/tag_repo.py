@@ -163,7 +163,7 @@ class TagRepository:
         return self.db.execute(stmt).all()
 
     def find_similar(self, target_lower: str, threshold: float) -> Sequence[Row]:
-        self.db.execute(text(f"SET LOCAL pg_trgm.similarity_threshold = {threshold}"))
+        self.db.execute(text("SET LOCAL pg_trgm.similarity_threshold = :threshold"), {"threshold": threshold})
         similarity = func.similarity(ArchiveTag.name, target_lower)
         stmt = (
             select(ArchiveTag.tag_id, ArchiveTag.name, similarity.label("similarity"))
@@ -175,7 +175,7 @@ class TagRepository:
         return self.db.execute(stmt).all()
 
     def find_all_similar_pairs(self, threshold: float) -> Sequence[Row]:
-        self.db.execute(text(f"SET LOCAL pg_trgm.similarity_threshold = {threshold}"))
+        self.db.execute(text("SET LOCAL pg_trgm.similarity_threshold = :threshold"), {"threshold": threshold})
         Tag1 = aliased(ArchiveTag)
         Tag2 = aliased(ArchiveTag)
         similarity = func.similarity(Tag1.name, Tag2.name)

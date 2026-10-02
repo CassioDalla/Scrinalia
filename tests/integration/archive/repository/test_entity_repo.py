@@ -20,6 +20,23 @@ def test_get_or_create_entities_new_and_existing(use_test_db, db_session):
     assert ids_step_1[0] == ids_step_2[0]
 
 
+def test_get_or_create_entities_is_case_insensitive(use_test_db, db_session):
+    """Regression: 'Curitiba' and 'curitiba' must resolve to the same canonical entity."""
+    repo = EntityRepository(db_session)
+
+    id_upper = repo.get_or_create_entities([ArchiveEntityDTO(name="Curitiba", entity_type="LOC")])
+    db_session.commit()
+
+    id_mixed = repo.get_or_create_entities([ArchiveEntityDTO(name="CURITIBA", entity_type="LOC")])
+    db_session.commit()
+
+    assert id_upper == id_mixed
+
+    stored = db_session.scalars(select(ArchiveEntity)).all()
+    assert len(stored) == 1
+    assert stored[0].name == "curitiba"
+
+
 def test_get_ner_synonyms_rules(use_test_db, db_session):
     """Tests the SQL join that builds the spaCy patterns based on the official Synonyms table."""
     repo = EntityRepository(db_session)

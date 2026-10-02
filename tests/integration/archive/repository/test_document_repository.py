@@ -41,7 +41,11 @@ def test_upsert_archive_document_ignore_same_hash(use_test_db, db_session, gener
 
 
 def test_upsert_archive_document_update_resets_ai(use_test_db, db_session, generate_archive_dto):
-    """Scenario 3: CDC. If the Hash changed in Staging, it updates the data AND erases AI traces."""
+    """
+    Scenario 3: CDC. If the Hash changed in Staging, it updates the data AND erases AI
+    traces that ARE present in the new payload (execution_log={} and PENDING_AI here),
+    while preserving metadata that this transfer does not carry.
+    """
     repo = DocumentRepository(db_session)
     original_dto = generate_archive_dto(
         description_id="3",
@@ -49,19 +53,49 @@ def test_upsert_archive_document_update_resets_ai(use_test_db, db_session, gener
         staging_content_hash="hash_3",
         execution_log={"ner_spacy_v1": "DONE"},
         review_status=ArchiveReviewStatus.NEEDS_REVIEW,
+        reference_code="BR PR CUR 001",
     )
     repo.upsert_archive_document(original_dto)
     db_session.commit()
 
-    new_dto = generate_archive_dto(description_id="3", original_title="Novo Título", staging_content_hash="hash_3_NOVO")
+    new_dto = generate_archive_dto(
+        description_id="3",
+        original_title="Novo Título",
+        staging_content_hash="hash_3_NOVO",
+        execution_log={},
+        review_status=ArchiveReviewStatus.PENDING_AI,
+    )
     new_inserted = repo.upsert_archive_document(new_dto)
     db_session.commit()
 
     assert new_inserted is True
     doc_db = db_session.execute(select(ArchiveDocument).filter_by(description_id="3")).scalar_one()
     assert doc_db.original_title == "Novo Título"
-    assert doc_db.execution_log == {}  # The log was reset!
+    assert doc_db.execution_log == {}  # The log present in the payload was reset!
     assert doc_db.review_status == ArchiveReviewStatus.PENDING_AI
+    # A field NOT sent by this transfer payload must survive the update.
+    assert doc_db.reference_code == "BR PR CUR 001"
+
+
+def test_upsert_archive_document_preserves_created_at(use_test_db, db_session, generate_archive_dto):
+    """Regression: reprocessing a document must not reset its created_at."""
+    repo = DocumentRepository(db_session)
+    repo.upsert_archive_document(
+        generate_archive_dto(description_id="created", original_title="Antigo", staging_content_hash="h1")
+    )
+    db_session.commit()
+
+    created_at_before = db_session.get(ArchiveDocument, "created").created_at
+
+    repo.upsert_archive_document(
+        generate_archive_dto(description_id="created", original_title="Novo", staging_content_hash="h2")
+    )
+    db_session.commit()
+    db_session.expire_all()
+
+    stored = db_session.get(ArchiveDocument, "created")
+    assert stored.original_title == "Novo"
+    assert stored.created_at == created_at_before
 
 
 def test_upsert_archive_document_blocked_by_human_approved(use_test_db, db_session, generate_archive_dto):

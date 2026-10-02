@@ -41,7 +41,7 @@ class EntityRepository:
         if not target_name:
             raise InvalidParam("O parametro 'target_tag'é obrigatório")
 
-        self.db.execute(text(f"SET LOCAL pg_trgm.similarity_threshold = {threshold}"))
+        self.db.execute(text("SET LOCAL pg_trgm.similarity_threshold = :threshold"), {"threshold": threshold})
 
         target_lower = target_name.lower()
         similarity = func.similarity(ArchiveEntity.name, target_lower)
@@ -67,7 +67,7 @@ class EntityRepository:
         pairs that are very similar (potential duplications or NER errors).
         """
         # 1. Configures PostgreSQL's native threshold only for this transaction.
-        self.db.execute(text(f"SET LOCAL pg_trgm.similarity_threshold = {threshold}"))
+        self.db.execute(text("SET LOCAL pg_trgm.similarity_threshold = :threshold"), {"threshold": threshold})
 
         # Creates the aliases for the Self Join
         Entity1 = aliased(ArchiveEntity)
@@ -99,7 +99,7 @@ class EntityRepository:
 
     def get_cross_domain_conflicts(self, threshold: float) -> Sequence[Row]:
         """Searches for conflicts where the Tag name is identical or very similar to the Entity's."""
-        self.db.execute(text(f"SET LOCAL pg_trgm.similarity_threshold = {threshold}"))
+        self.db.execute(text("SET LOCAL pg_trgm.similarity_threshold = :threshold"), {"threshold": threshold})
 
         sim_score = func.similarity(ArchiveTag.name, ArchiveEntity.name)
 
@@ -212,12 +212,14 @@ class EntityRepository:
         if not entities_list:
             return []
 
-        # 1. Prepares the list of dictionaries for the mass INSERT
+        # 1. Prepares the list of dictionaries for the mass INSERT.
+        # Names are normalized to lowercase (mirroring the Tag dimension) so that
+        # "Curitiba" and "curitiba" resolve to the same canonical entity.
         insert_data = []
         names_to_search = []
 
         for ent in entities_list:
-            name_clean = ent.name.strip()
+            name_clean = ent.name.strip().lower()
             names_to_search.append(name_clean)
             insert_data.append({"name": name_clean, "entity_type": ent.entity_type})
 

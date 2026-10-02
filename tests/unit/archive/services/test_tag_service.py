@@ -76,6 +76,35 @@ def test_extract_and_clean_tags_data_quality(mocker: MockerFixture) -> None:
     assert result[0].name == "tag normal"
 
 
+def test_extract_and_clean_tags_keeps_multiple_word_tags(mocker: MockerFixture) -> None:
+    """Regression: a stopword must only drop the WHOLE tag, never a substring of it."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    mock_tag_repo.get_stopwords.return_value = {"lixo", "rio"}
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+    result = service.extract_and_clean_tags("Rio Branco, Lixo, Rio")
+    names = {tag.name for tag in result}
+
+    # "Rio Branco" survives; only the exact tags "lixo" and "rio" are removed.
+    assert "rio branco" in names
+    assert "lixo" not in names
+    assert "rio" not in names
+
+
+def test_extract_and_clean_tags_splits_pipe_separator(mocker: MockerFixture) -> None:
+    """Regression: staging joins duplicate keys with ' | ', which is also a separator."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    mock_tag_repo.get_stopwords.return_value = set()
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+    result = service.extract_and_clean_tags("Obras | Urbanismo, Saneamento")
+    names = {tag.name for tag in result}
+
+    assert names == {"obras", "urbanismo", "saneamento"}
+
+
 # ==========================================
 # TESTS: purge_stopwords
 # ==========================================

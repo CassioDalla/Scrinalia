@@ -56,7 +56,14 @@ def upsert_staging_document(db: Session, record: StagingDocumentDTO) -> None:
 
     staging_dict = record.model_dump(exclude_unset=True)
     stmt = insert(StagingDocument).values(staging_dict)
-    update_dict = {col.name: col for col in stmt.excluded if col.name != "description_id"}
-    stmt = stmt.on_conflict_do_update(index_elements=["description_id"], set_=update_dict)
+
+    # Only the columns actually present in the payload may be overwritten. Iterating
+    # over ``stmt.excluded`` would expose EVERY table column, resetting ``created_at``
+    # and nulling out fields that simply were not sent (e.g. ISAD(G) metadata).
+    immutable_columns = {"description_id", "created_at"}
+    update_dict = {key: stmt.excluded[key] for key in staging_dict if key not in immutable_columns}
+
+    if update_dict:
+        stmt = stmt.on_conflict_do_update(index_elements=["description_id"], set_=update_dict)
 
     db.execute(stmt)

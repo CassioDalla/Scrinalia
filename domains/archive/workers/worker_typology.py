@@ -6,7 +6,7 @@ from core.database import get_db
 from core.logger import logger
 from domains.archive.engines.base import TypologyEngine
 from domains.archive.engines.classification.registry import EngineName, PresetName, get_engine
-from domains.archive.models import ArchiveDocument
+from domains.archive.models import ArchiveDocument, ArchiveReviewStatus
 from domains.archive.repository import TypologyRepository
 
 
@@ -81,6 +81,8 @@ def execute(
     filters_columns = [getattr(ArchiveDocument, col).is_not(None) for col in columns_to_classify]
     where_cond = [
         ArchiveDocument.typology_id.is_(None),
+        # HUMAN_APPROVED documents are shielded from AI reclassification.
+        ArchiveDocument.review_status != ArchiveReviewStatus.HUMAN_APPROVED,
         or_(*filters_columns),
         or_(
             ArchiveDocument.execution_log.is_(None),
