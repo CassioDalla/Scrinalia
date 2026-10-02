@@ -4,8 +4,8 @@ import time
 import requests
 from sqlalchemy import select
 
-from core.database import get_db
-from domains.staging.models import StagingDocument
+from memoria_curitibana.core.database import get_db
+from memoria_curitibana.domains.staging.models import StagingDocument
 
 # ================= CONFIGURATION =================
 OLLAMA_URL = "http://localhost:11434/api/generate"
