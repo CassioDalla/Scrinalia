@@ -11,7 +11,7 @@ def _fake_db_factory(sentinel):
 
 
 def test_run_worker_rejects_unknown_worker() -> None:
-    with pytest.raises(ValueError, match="desconhecido"):
+    with pytest.raises(ValueError, match="Unknown worker"):
         runner.run_worker("nao-existe")
 
 
@@ -44,9 +44,9 @@ def test_run_worker_handles_db_session_and_var_kwargs(monkeypatch) -> None:
     captured: dict = {}
     sentinel = object()
 
-    def fake_worker(db_session, threshold_similaridade=0.9, **engine_kwargs):
+    def fake_worker(db_session, similarity_threshold=0.9, **engine_kwargs):
         captured["db_session"] = db_session
-        captured["threshold"] = threshold_similaridade
+        captured["threshold"] = similarity_threshold
         captured["engine_kwargs"] = engine_kwargs
 
     monkeypatch.setitem(runner.WORKERS, "fake_session", fake_worker)
@@ -54,7 +54,7 @@ def test_run_worker_handles_db_session_and_var_kwargs(monkeypatch) -> None:
     runner.run_worker(
         "fake_session",
         engine_name="ollama_judge",
-        extra={"threshold_similaridade": 0.8},
+        extra={"similarity_threshold": 0.8},
         db_factory=lambda: _fake_db_factory(sentinel),
     )
 

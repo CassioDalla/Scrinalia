@@ -3,10 +3,10 @@ from domains.archive.repository.typology_repo import TypologyRepository
 
 
 def test_get_active_typologies_from_db(use_test_db, db_session):
-    """Testa a integração real do repositório de tipologias com o banco de dados."""
+    """Tests the real integration of the typology repository with the database."""
     repo = TypologyRepository(db_session)
 
-    # Inserção de dados simulados no PostgreSQL/SQLite
+    # Insertion of simulated data into PostgreSQL/SQLite
     db_session.add_all(
         [
             ArchiveTypology(name="Carta", context_description="Correspondência oficial e pessoal."),
@@ -15,13 +15,13 @@ def test_get_active_typologies_from_db(use_test_db, db_session):
     )
     db_session.commit()
 
-    # Executa o método
-    resultados = repo.get_active_typologies()
+    # Run the method
+    results = repo.get_active_typologies()
 
-    # Garante que os dados vieram formatados diretamente do banco
-    assert isinstance(resultados, dict)
-    assert "Carta: Correspondência oficial e pessoal." in resultados
-    assert "Memorando" in resultados
+    # Guarantees that the data came formatted directly from the database
+    assert isinstance(results, dict)
+    assert "Carta: Correspondência oficial e pessoal." in results
+    assert "Memorando" in results
 
-    # Verifica os IDs (assumindo auto-incremento 1 e 2 no banco limpo)
-    assert resultados["Memorando"] > 0
+    # Checks the IDs (assuming auto-increment 1 and 2 in the clean database)
+    assert results["Memorando"] > 0

@@ -5,7 +5,7 @@ from domains.archive.workers import worker_typology
 
 
 class MockArchiveDocument:
-    """Dublê ultraleve simulando um documento do SQLAlchemy para os Testes Unitários."""
+    """Ultralean double simulating an SQLAlchemy document for the Unit Tests."""
 
     def __init__(self, description_id: str, title: str, content: str | None = None):
         self.description_id = description_id
@@ -16,33 +16,33 @@ class MockArchiveDocument:
 
 
 # ==========================================
-# TESTES DE ORQUESTRAÇÃO DO WORKER DE TIPOLOGIA
+# TYPOLOGY WORKER ORCHESTRATION TESTS
 # ==========================================
 
 
-def test_worker_typology_unitario_fluxo_ideal(mocker: MockerFixture) -> None:
-    """Cenário Bom: Textos são concatenados ignorando nulos, IA classifica e doc é atualizado."""
+def test_worker_typology_unit_ideal_flow(mocker: MockerFixture) -> None:
+    """Good Scenario: Texts are concatenated ignoring nulls, the AI classifies and the doc is updated."""
     mock_db = mocker.Mock(spec=Session)
 
-    # 1. Mocks das Classes/Funções Externas no escopo do Worker
+    # 1. Mocks of the External Classes/Functions in the Worker scope
     mock_repo_class = mocker.patch("domains.archive.workers.worker_typology.TypologyRepository")
     mock_get_engine = mocker.patch("domains.archive.workers.worker_typology.get_engine")
     mock_flag_modified = mocker.patch("domains.archive.workers.worker_typology.flag_modified")
 
-    # 2. Configurações dos Retornos (Falsificando o BD e a IA)
+    # 2. Return Configurations (Faking the DB and the AI)
     mock_repo = mock_repo_class.return_value
     mock_repo.get_active_typologies.return_value = {"Contrato": 1}
 
     mock_classifier_engine = mock_get_engine.return_value
-    # A IA do HuggingFace/ZeroShot retorna uma lista com o formato: [{"labels": [...], "scores": [...]}]
+    # The HuggingFace/ZeroShot AI returns a list with the format: [{"labels": [...], "scores": [...]}]
     mock_classifier_engine.classify.return_value = [{"labels": ["Contrato"], "scores": [0.95]}]
 
-    # 3. Simula a fila do banco de dados (1 documento na 1ª volta, quebra o laço na 2ª)
-    # Mandamos o content como None para testar se ele ignora o Nulo e não concatena lixo
-    doc_teste = MockArchiveDocument("doc-1", "Contrato de Prestação de Serviços", None)
-    mock_db.scalars.return_value.all.side_effect = [[doc_teste], []]
+    # 3. Simulates the database queue (1 document on the 1st round, breaks the loop on the 2nd)
+    # We send the content as None to test whether it ignores the Null and does not concatenate junk
+    test_doc = MockArchiveDocument("doc-1", "Contrato de Prestação de Serviços", None)
+    mock_db.scalars.return_value.all.side_effect = [[test_doc], []]
 
-    # 4. Execução
+    # 4. Execution
     worker_typology.execute(
         db=mock_db,
         engine_name="motor_fake",  # type: ignore
@@ -50,59 +50,59 @@ def test_worker_typology_unitario_fluxo_ideal(mocker: MockerFixture) -> None:
         columns_to_classify=["original_title", "scope_content"],
     )
 
-    # 5. Verificações de IA
+    # 5. AI verifications
     mock_classifier_engine.classify.assert_called_once()
     args, _ = mock_classifier_engine.classify.call_args
-    # Confirma se as colunas foram limpas, unidas com ponto e ignorou o campo "scope_content" (None)
+    # Confirms whether the columns were cleaned, joined with a period and the "scope_content" field (None) ignored
     assert args[0] == ["Contrato de Prestação de Serviços"]
 
-    # 6. Verificações de Persistência
-    assert doc_teste.typology_id == 1
-    assert doc_teste.execution_log["worker_typology_classifier_v1"] == "DONE"  # type: ignore
+    # 6. Persistence verifications
+    assert test_doc.typology_id == 1
+    assert test_doc.execution_log["worker_typology_classifier_v1"] == "DONE"  # type: ignore
 
-    mock_flag_modified.assert_called_once_with(doc_teste, "execution_log")
+    mock_flag_modified.assert_called_once_with(test_doc, "execution_log")
     mock_db.commit.assert_called_once()
 
 
-def test_worker_typology_ignora_textos_vazios(mocker: MockerFixture) -> None:
-    """Cenário Limite: Documentos sem texto útil devem ser pulados na IA, mas carimbados no BD."""
+def test_worker_typology_ignores_empty_texts(mocker: MockerFixture) -> None:
+    """Edge Scenario: Documents with no useful text must be skipped by the AI, but stamped in the DB."""
     mock_db = mocker.Mock(spec=Session)
 
     mocker.patch("domains.archive.workers.worker_typology.TypologyRepository")
     mock_get_engine = mocker.patch("domains.archive.workers.worker_typology.get_engine")
     mock_flag_modified = mocker.patch("domains.archive.workers.worker_typology.flag_modified")
 
-    # Documento onde tudo está vazio
-    doc_vazio = MockArchiveDocument("doc-2", "   ", None)
-    mock_db.scalars.return_value.all.side_effect = [[doc_vazio], []]
+    # Document where everything is empty
+    empty_doc = MockArchiveDocument("doc-2", "   ", None)
+    mock_db.scalars.return_value.all.side_effect = [[empty_doc], []]
 
     worker_typology.execute(db=mock_db)
 
-    # A IA não pode ter sido chamada (poupa processamento)
+    # The AI must not have been called (saves processing)
     mock_get_engine.return_value.classify.assert_not_called()
 
-    # O carimbo deve ter sido aplicado para o Worker não entrar em loop amanhã
-    assert doc_vazio.execution_log["worker_typology_classifier_v1"] == "DONE"  # type: ignore
+    # The stamp must have been applied so the Worker does not loop again tomorrow
+    assert empty_doc.execution_log["worker_typology_classifier_v1"] == "DONE"  # type: ignore
     mock_flag_modified.assert_called_once()
 
 
-def test_worker_typology_falha_na_ia_faz_rollback(mocker: MockerFixture) -> None:
-    """Cenário Ruim: Se o motor Zero-Shot der erro de memória, a transação aborta e faz rollback."""
+def test_worker_typology_ai_failure_rolls_back(mocker: MockerFixture) -> None:
+    """Bad Scenario: If the Zero-Shot engine throws a memory error, the transaction aborts and rolls back."""
     mock_db = mocker.Mock(spec=Session)
 
     mocker.patch("domains.archive.workers.worker_typology.TypologyRepository")
     mock_get_engine = mocker.patch("domains.archive.workers.worker_typology.get_engine")
 
-    doc_teste = MockArchiveDocument("doc-3", "Texto super complexo", "Muitas palavras")
-    mock_db.scalars.return_value.all.side_effect = [[doc_teste], []]
+    test_doc = MockArchiveDocument("doc-3", "Texto super complexo", "Muitas palavras")
+    mock_db.scalars.return_value.all.side_effect = [[test_doc], []]
 
-    # Forçamos o motor NLP a explodir
+    # Force the NLP engine to explode
     mock_get_engine.return_value.classify.side_effect = Exception("Out of Memory na GPU")
 
     worker_typology.execute(db=mock_db)
 
-    # O rollback deve ter sido chamado para proteger a transação do banco
+    # The rollback must have been called to protect the database transaction
     mock_db.rollback.assert_called()
 
-    # O carimbo não deve ter sido aplicado, permitindo nova tentativa futuramente
-    assert doc_teste.execution_log is None
+    # The stamp must not have been applied, allowing a future retry
+    assert test_doc.execution_log is None

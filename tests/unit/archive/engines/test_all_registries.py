@@ -4,12 +4,12 @@ from domains.archive.engines.classification import registry as typology_registry
 from domains.archive.engines.clustering import registry as cluster_registry
 from domains.archive.engines.NER import registry as ner_registry
 
-# Coloque todos numa lista
+# Put them all in a list
 ALL_REGISTRIES = [typology_registry, ner_registry, cluster_registry]
 
 
 @pytest.mark.parametrize("reg_module", ALL_REGISTRIES)
-def test_get_engine_rejeita_motor_invalido(mock_registry, reg_module):
+def test_get_engine_rejects_invalid_engine(mock_registry, reg_module):
     mock_registry(reg_module)
 
     with pytest.raises(ValueError, match="não suportado"):
@@ -17,34 +17,34 @@ def test_get_engine_rejeita_motor_invalido(mock_registry, reg_module):
 
 
 @pytest.mark.parametrize("reg_module", ALL_REGISTRIES)
-def test_get_engine_kwargs_sobrescrevem_preset(mock_registry, reg_module):
-    # Armazenamos a classe falsa retornada pela fábrica
+def test_get_engine_kwargs_override_preset(mock_registry, reg_module):
+    # Store the fake class returned by the factory
     mock_engine_class = mock_registry(reg_module)
 
-    # Pedimos o preset_teste (que tem device="cpu"), MAS forçamos device="cuda:0"
+    # We request preset_teste (which has device="cpu"), BUT force device="cuda:0"
     reg_module.get_engine("motor_fake", preset="preset_teste", device="cuda:0")
 
-    # A regra de ouro: o "cuda:0" deve ter esmagado o "cpu"
+    # The golden rule: "cuda:0" must have crushed "cpu"
     mock_engine_class.assert_called_once_with(model="falso", device="cuda:0")
 
 
 @pytest.mark.parametrize("reg_module", ALL_REGISTRIES)
-def test_get_engine_rejeita_preset_invalido(mock_registry, reg_module):
-    # 1. Aciona a Fixture Factory para o registry da rodada atual
+def test_get_engine_rejects_invalid_preset(mock_registry, reg_module):
+    # 1. Trigger the Fixture Factory for the current registry
     mock_registry(reg_module)
 
-    # 2. Tenta acionar a fábrica com o preset fantasma
+    # 2. Try to trigger the factory with the ghost preset
     with pytest.raises(ValueError, match="não encontrado"):
         reg_module.get_engine("motor_fake", preset="preset_fantasma")
 
 
 @pytest.mark.parametrize("reg_module", ALL_REGISTRIES)
-def test_get_engine_carrega_preset_corretamente(mock_registry, reg_module):
-    # 1. Mocka o registry da rodada
+def test_get_engine_loads_preset_correctly(mock_registry, reg_module):
+    # 1. Mock the registry for the current round
     mock_engine_class = mock_registry(reg_module)
 
-    # 2. Executa a fábrica real
+    # 2. Run the real factory
     reg_module.get_engine("motor_fake", preset="preset_teste")
 
-    # 3. Verifica se a fábrica repassou os dados certos
+    # 3. Check that the factory forwarded the right data
     mock_engine_class.assert_called_once_with(model="falso", device="cpu")

@@ -4,45 +4,45 @@ from sqlalchemy.orm import Session
 from domains.archive.repository.tag_repo import TagRepository
 
 
-def test_save_stopwords_ignora_lista_vazia_ou_suja(mocker: MockerFixture) -> None:
-    """Garante que espaços em branco ou listas vazias não geram queries inúteis."""
+def test_save_stopwords_ignores_empty_or_dirty_list(mocker: MockerFixture) -> None:
+    """Guarantees that blank strings or empty lists do not generate useless queries."""
     mock_db = mocker.Mock(spec=Session)
     repo = TagRepository(mock_db)
 
-    # Nenhuma das palavras é válida
-    resultado = repo.save_stopwords(["   ", ""])
+    # None of the words is valid
+    result = repo.save_stopwords(["   ", ""])
 
-    assert resultado == 0
+    assert result == 0
     mock_db.execute.assert_not_called()
 
 
-def test_fetch_tags_for_clustering_ignora_numeros(mocker: MockerFixture) -> None:
-    """Garante que o repositório filtra tags que são apenas números ou números com pontos."""
+def test_fetch_tags_for_clustering_ignores_numbers(mocker: MockerFixture) -> None:
+    """Guarantees that the repository filters tags that are only numbers or numbers with dots."""
     mock_db = mocker.Mock(spec=Session)
     repo = TagRepository(mock_db)
 
-    # Simula o retorno do banco com palavras úteis e ruídos numéricos
+    # Simulate the database return with useful words and numeric noise
     mock_db.scalars.return_value.all.return_value = ["urbano", "123", "ruas", "1.500", None]
 
-    resultado = repo.fetch_tags_for_clustering()
+    result = repo.fetch_tags_for_clustering()
 
-    # Deve ignorar "123", "1.500" e None
-    assert resultado == ["urbano", "ruas"]
+    # Must ignore "123", "1.500" and None
+    assert result == ["urbano", "ruas"]
 
 
-def test_get_synonyms_mapping_ignora_lista_vazia(mocker: MockerFixture) -> None:
-    """Caminho Triste: Evita ida ao banco se não houver palavras para buscar."""
+def test_get_synonyms_mapping_ignores_empty_list(mocker: MockerFixture) -> None:
+    """Sad Path: Avoids a database round trip if there are no words to look up."""
     mock_db = mocker.Mock(spec=Session)
     repo = TagRepository(mock_db)
 
-    resultado = repo.get_synonyms_mapping([])
+    result = repo.get_synonyms_mapping([])
 
-    assert resultado == {}
+    assert result == {}
     mock_db.execute.assert_not_called()
 
 
-def test_get_synonyms_mapping_retorna_dicionario(mocker: MockerFixture) -> None:
-    """Garante que a resposta SQL é convertida para um dicionário perfeito de mapeamento."""
+def test_get_synonyms_mapping_returns_dictionary(mocker: MockerFixture) -> None:
+    """Guarantees that the SQL response is converted into a perfect mapping dictionary."""
     mock_db = mocker.Mock(spec=Session)
     repo = TagRepository(mock_db)
 
@@ -51,6 +51,6 @@ def test_get_synonyms_mapping_retorna_dicionario(mocker: MockerFixture) -> None:
 
     mock_db.execute.return_value.all.return_value = [row1, row2]
 
-    resultado = repo.get_synonyms_mapping(["prefeitura", "governo"])
+    result = repo.get_synonyms_mapping(["prefeitura", "governo"])
 
-    assert resultado == {"prefeitura": 10, "governo": 15}
+    assert result == {"prefeitura": 10, "governo": 15}

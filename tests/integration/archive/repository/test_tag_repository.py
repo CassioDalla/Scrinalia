@@ -8,37 +8,37 @@ from domains.archive.schemas.tag_schema import ArchiveTagDTO
 
 
 def test_get_or_create_tags_new_and_lowercased(use_test_db, db_session):
-    """Garante a criação de tags inéditas convertendo sempre para minúsculo."""
+    """Guarantees the creation of brand-new tags, always converting to lowercase."""
     repo = TagRepository(db_session)
     tags_dto = [ArchiveTagDTO(name=" ARQUIVAMENTO ", macro_category_id=None)]
 
-    ids_gerados = repo.get_or_create_tags(tags_dto)
+    generated_ids = repo.get_or_create_tags(tags_dto)
     db_session.commit()
 
-    assert len(ids_gerados) == 1
-    tag_db = db_session.execute(select(ArchiveTag).filter_by(tag_id=ids_gerados[0])).scalar_one()
+    assert len(generated_ids) == 1
+    tag_db = db_session.execute(select(ArchiveTag).filter_by(tag_id=generated_ids[0])).scalar_one()
     assert tag_db.name == "arquivamento"
 
 
-def test_create_tag_com_macro_category_valida(use_test_db, db_session):
-    """Garante que uma tag é criada e vinculada corretamente a uma categoria macro existente."""
+def test_create_tag_with_valid_macro_category(use_test_db, db_session):
+    """Guarantees that a tag is created and correctly linked to an existing macro category."""
     repo = TagRepository(db_session)
     macro = ArchiveMacroCategory(name="Administrativo", description="Documentos de RH e Gestão")
     db_session.add(macro)
     db_session.commit()
 
     tags_dto = [ArchiveTagDTO(name="ofício", macro_category_id=macro.category_id)]
-    ids_gerados = repo.get_or_create_tags(tags_dto)
+    generated_ids = repo.get_or_create_tags(tags_dto)
     db_session.commit()
 
-    tag_db = db_session.get(ArchiveTag, ids_gerados[0])
+    tag_db = db_session.get(ArchiveTag, generated_ids[0])
     assert tag_db.name == "ofício"
     assert tag_db.macro_category_id == macro.category_id
     assert tag_db.macro_category.name == "Administrativo"
 
 
-def test_falha_ao_criar_tag_com_macro_category_inexistente(use_test_db, db_session):
-    """Garante que o banco de dados bloqueia a criação de tag com um ID de categoria fantasma."""
+def test_fails_to_create_tag_with_missing_macro_category(use_test_db, db_session):
+    """Guarantees that the database blocks the creation of a tag with a ghost category ID."""
     repo = TagRepository(db_session)
     tags_dto = [ArchiveTagDTO(name="financeiro", macro_category_id=9999)]
 
@@ -47,8 +47,8 @@ def test_falha_ao_criar_tag_com_macro_category_inexistente(use_test_db, db_sessi
         db_session.commit()
 
 
-def test_recupera_tag_existente_mantendo_macro_category(use_test_db, db_session):
-    """Se a tag já existe, deve apenas retornar o ID mantendo a categoria intacta."""
+def test_retrieves_existing_tag_keeping_macro_category(use_test_db, db_session):
+    """If the tag already exists, it must only return the ID while keeping the category intact."""
     repo = TagRepository(db_session)
     macro = ArchiveMacroCategory(name="Financeiro")
     db_session.add(macro)
@@ -57,15 +57,15 @@ def test_recupera_tag_existente_mantendo_macro_category(use_test_db, db_session)
     repo.get_or_create_tags([ArchiveTagDTO(name="recibo", macro_category_id=macro.category_id)])
     db_session.commit()
 
-    ids_gerados = repo.get_or_create_tags([ArchiveTagDTO(name="RECIBO", macro_category_id=macro.category_id)])
+    generated_ids = repo.get_or_create_tags([ArchiveTagDTO(name="RECIBO", macro_category_id=macro.category_id)])
 
-    assert len(ids_gerados) == 1
-    tag_db = db_session.get(ArchiveTag, ids_gerados[0])
+    assert len(generated_ids) == 1
+    tag_db = db_session.get(ArchiveTag, generated_ids[0])
     assert tag_db.macro_category_id == macro.category_id
 
 
-def test_exclusao_de_macro_category_seta_fk_como_nulo(use_test_db, db_session):
-    """Garante o comportamento 'SET NULL' quando a categoria pai é deletada."""
+def test_macro_category_deletion_sets_fk_to_null(use_test_db, db_session):
+    """Guarantees the 'SET NULL' behavior when the parent category is deleted."""
     macro = ArchiveMacroCategory(name="Projetos Especiais")
     db_session.add(macro)
     db_session.commit()
@@ -83,11 +83,11 @@ def test_exclusao_de_macro_category_seta_fk_como_nulo(use_test_db, db_session):
 
 
 def test_save_and_get_stopwords(use_test_db, db_session):
-    """Testa o bulk insert com ON CONFLICT e a extração limpa."""
+    """Tests the bulk insert with ON CONFLICT and the clean extraction."""
     repo = TagRepository(db_session)
-    palavras_sujas = [" Curitiba ", "ofício", "", "  ", "Prefeitura"]
+    dirty_words = [" Curitiba ", "ofício", "", "  ", "Prefeitura"]
 
-    repo.save_stopwords(palavras_sujas)
+    repo.save_stopwords(dirty_words)
     db_session.commit()
 
     repo.save_stopwords(["ofício", "colombo"])
@@ -102,7 +102,7 @@ def test_save_and_get_stopwords(use_test_db, db_session):
 
 
 def test_purge_tags_by_stopwords(use_test_db, db_session):
-    """Garante a exclusão em massa das tags que dão 'match' na lista de stopwords."""
+    """Guarantees the bulk deletion of tags that 'match' the stopword list."""
     repo = TagRepository(db_session)
 
     db_session.add_all([ArchiveTag(name="curitiba"), ArchiveTag(name="estado"), ArchiveTag(name="importante")])
@@ -110,18 +110,18 @@ def test_purge_tags_by_stopwords(use_test_db, db_session):
 
     stopwords = {"estado", "importante", "irrelevante"}
 
-    apagadas = repo.purge_tags_by_stopwords(stopwords)
+    deleted = repo.purge_tags_by_stopwords(stopwords)
     db_session.commit()
 
-    assert apagadas == 2
-    tags_restantes = db_session.scalars(select(ArchiveTag.name)).all()
-    assert "curitiba" in tags_restantes
+    assert deleted == 2
+    remaining_tags = db_session.scalars(select(ArchiveTag.name)).all()
+    assert "curitiba" in remaining_tags
 
 
-def test_link_tags_to_document_com_duplicadas(use_test_db, db_session, generate_archive_doc):
+def test_link_tags_to_document_with_duplicates(use_test_db, db_session, generate_archive_doc):
     """
-    Garante que o repositório vincula várias tags a 1 documento,
-    ignora duplicatas na mesma lista (usando set) e respeita o ON CONFLICT.
+    Guarantees that the repository links several tags to 1 document,
+    ignores duplicates in the same list (using a set) and respects the ON CONFLICT.
     """
     repo = TagRepository(db_session)
 
@@ -132,27 +132,27 @@ def test_link_tags_to_document_com_duplicadas(use_test_db, db_session, generate_
     db_session.add_all([tag_a, tag_b])
     db_session.commit()
 
-    # 2. Ação: Passamos a tag_a duas vezes na mesma requisição
-    ids_tags = [tag_a.tag_id, tag_b.tag_id, tag_a.tag_id]
-    repo.link_tags_to_document(description_id="doc_link_1", tag_ids=ids_tags)
+    # 2. Action: We pass tag_a twice in the same request
+    tag_ids = [tag_a.tag_id, tag_b.tag_id, tag_a.tag_id]
+    repo.link_tags_to_document(description_id="doc_link_1", tag_ids=tag_ids)
     db_session.commit()
 
-    # 3. Verificação 1: O set() limpou a duplicata da requisição
-    qtd_vinculos = db_session.query(ArchiveDocumentTag).filter_by(description_id="doc_link_1").count()
-    assert qtd_vinculos == 2
+    # 3. Check 1: The set() cleaned the duplicate from the request
+    link_count = db_session.query(ArchiveDocumentTag).filter_by(description_id="doc_link_1").count()
+    assert link_count == 2
 
-    # 4. Verificação 2: Idempotência (Rodar de novo não quebra o banco por causa do ON CONFLICT)
+    # 4. Check 2: Idempotency (Running it again does not break the database thanks to ON CONFLICT)
     repo.link_tags_to_document(description_id="doc_link_1", tag_ids=[tag_a.tag_id])
     db_session.commit()
 
-    qtd_vinculos_final = db_session.query(ArchiveDocumentTag).filter_by(description_id="doc_link_1").count()
-    assert qtd_vinculos_final == 2  # Continua 2!
+    final_link_count = db_session.query(ArchiveDocumentTag).filter_by(description_id="doc_link_1").count()
+    assert final_link_count == 2  # Still 2!
 
 
-def test_bulk_link_tags_otimizacao_worker(use_test_db, db_session, generate_archive_doc):
+def test_bulk_link_tags_worker_optimization(use_test_db, db_session, generate_archive_doc):
     """
-    Testa a função de inserção massiva para Workers.
-    Valida a conversão e deduplicação de dicionários e o bypass de conflitos no banco.
+    Tests the bulk insert function for Workers.
+    Validates the conversion and deduplication of dictionaries and the bypass of database conflicts.
     """
     repo = TagRepository(db_session)
 
@@ -163,23 +163,23 @@ def test_bulk_link_tags_otimizacao_worker(use_test_db, db_session, generate_arch
     db_session.add_all([tag_x])
     db_session.commit()
 
-    # 2. Ação: O Worker construiu uma lista com dicionários duplicados
-    payload_worker = [
+    # 2. Action: The Worker built a list with duplicate dictionaries
+    worker_payload = [
         {"description_id": "doc_bulk_1", "tag_id": tag_x.tag_id},
         {"description_id": "doc_bulk_2", "tag_id": tag_x.tag_id},
-        {"description_id": "doc_bulk_1", "tag_id": tag_x.tag_id},  # 🚨 Dicionário 100% duplicado!
+        {"description_id": "doc_bulk_1", "tag_id": tag_x.tag_id},  # 🚨 100% duplicated dictionary!
     ]
 
-    repo.bulk_link_tags(payload_worker)
+    repo.bulk_link_tags(worker_payload)
     db_session.commit()
 
-    # 3. Verificação
-    vinculos = db_session.scalars(select(ArchiveDocumentTag)).all()
+    # 3. Check
+    links = db_session.scalars(select(ArchiveDocumentTag)).all()
 
-    # O banco deve ter apenas 2 registros válidos. O Python deduplicou e o DB ignorou os erros.
-    assert len(vinculos) == 2
+    # The database must have only 2 valid records. Python deduplicated and the DB ignored the errors.
+    assert len(links) == 2
 
-    # Garante que os documentos certos receberam as tags
-    docs_afetados = {v.description_id for v in vinculos}
-    assert "doc_bulk_1" in docs_afetados
-    assert "doc_bulk_2" in docs_afetados
+    # Guarantees that the right documents received the tags
+    affected_docs = {v.description_id for v in links}
+    assert "doc_bulk_1" in affected_docs
+    assert "doc_bulk_2" in affected_docs

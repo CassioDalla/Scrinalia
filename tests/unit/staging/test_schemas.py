@@ -3,10 +3,10 @@ from datetime import date
 from domains.staging.schemas import StagingDocumentDTO
 
 
-def test_silver_indexing_points_validator_substitui_pontos_e_virgulas() -> None:
-    """Garante que o validador da Silver limpa as tags antes de enviar para a Gold."""
+def test_silver_indexing_points_validator_replaces_semicolons() -> None:
+    """Guarantees that the Silver validator cleans the tags before sending them to Gold."""
 
-    dados_brutos = {
+    raw_data = {
         "description_id": "doc-123",
         "title": "Documento Teste",
         "raw_content_hash": "hash_123",
@@ -15,15 +15,15 @@ def test_silver_indexing_points_validator_substitui_pontos_e_virgulas() -> None:
         "indexing_points": "Ofício; Curitiba; Indústria Têxtil",
     }
 
-    dto = StagingDocumentDTO(**dados_brutos)
+    dto = StagingDocumentDTO(**raw_data)
 
     assert dto.indexing_points == "Ofício, Curitiba, Indústria Têxtil"
 
 
-def test_silver_indexing_points_aceita_nulo() -> None:
-    """Garante que o validador não quebra se o documento não tiver tags."""
+def test_silver_indexing_points_accepts_null() -> None:
+    """Guarantees that the validator does not break if the document has no tags."""
 
-    dados_brutos = {
+    raw_data = {
         "description_id": "doc-123",
         "title": "Documento Teste",
         "raw_content_hash": "hash_123",
@@ -32,14 +32,14 @@ def test_silver_indexing_points_aceita_nulo() -> None:
         "indexing_points": None,
     }
 
-    dto = StagingDocumentDTO(**dados_brutos)
+    dto = StagingDocumentDTO(**raw_data)
 
     assert dto.indexing_points is None
 
 
-def test_clean_text_fields_converte_falsos_nulos_para_none() -> None:
-    """Garante que o validador limpa strings inúteis do legado."""
-    dados = {
+def test_clean_text_fields_converts_false_nulls_to_none() -> None:
+    """Guarantees that the validator cleans useless legacy strings."""
+    data = {
         "description_id": "doc-1",
         "raw_content_hash": "hash",
         "title": "Titulo",
@@ -49,7 +49,7 @@ def test_clean_text_fields_converte_falsos_nulos_para_none() -> None:
         "rules_conventions": "Nenhum",
     }
 
-    dto = StagingDocumentDTO(**dados)  # type: ignore
+    dto = StagingDocumentDTO(**data)  # type: ignore
 
     assert dto.producers is None
     assert dto.access_conditions is None
@@ -57,22 +57,22 @@ def test_clean_text_fields_converte_falsos_nulos_para_none() -> None:
     assert dto.rules_conventions is None
 
 
-def test_map_raw_to_staging_extrai_data_brasileira() -> None:
-    """Garante que a Regex captura o padrão DD/MM/YYYY no payload bruto."""
-    dados_brutos = {
+def test_map_raw_to_staging_extracts_brazilian_date() -> None:
+    """Guarantees that the Regex captures the DD/MM/YYYY pattern in the raw payload."""
+    raw_data = {
         "description_id": "doc-2",
         "content_hash": "hash_xyz",
         "payload": {"title": "Ofício do Prefeito", "Data de Produção": "05/07/1929"},
     }
 
-    dto = StagingDocumentDTO(**dados_brutos)
+    dto = StagingDocumentDTO(**raw_data)
 
     assert dto.document_date == date(1929, 7, 5)
 
 
-def test_map_raw_to_staging_salva_lixo_no_raw_metadata() -> None:
-    """Garante que chaves desconhecidas do HTML não são perdidas."""
-    dados_brutos = {
+def test_map_raw_to_staging_saves_junk_in_raw_metadata() -> None:
+    """Guarantees that unknown HTML keys are not lost."""
+    raw_data = {
         "description_id": "doc-3",
         "content_hash": "hash_abc",
         "payload": {
@@ -82,7 +82,7 @@ def test_map_raw_to_staging_salva_lixo_no_raw_metadata() -> None:
         },
     }
 
-    dto = StagingDocumentDTO(**dados_brutos)
+    dto = StagingDocumentDTO(**raw_data)
 
     assert dto.reference_code == "BR PRPMC"
     assert "Chave Bizarra Inesperada" in dto.raw_metadata

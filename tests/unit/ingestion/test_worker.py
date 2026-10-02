@@ -11,37 +11,37 @@ from domains.ingestion.ports import (
 )
 
 # ==========================================
-# TESTES DO ORQUESTRADOR DA INGESTÃO (WORKER)
+# INGESTION ORCHESTRATOR TESTS (WORKER)
 # ==========================================
 
 
-def test_run_detail_scraping_job_sucesso(mocker: MockerFixture, fila_mock: ScrapingQueue) -> None:
+def test_run_detail_scraping_job_success(mocker: MockerFixture, queue_mock: ScrapingQueue) -> None:
     mock_db = mocker.Mock(spec=Session)
 
-    # 1. Isola a busca da fila para retornar apenas o mock
-    mocker.patch.object(repository, "get_from_queue", return_value=[fila_mock])
+    # 1. Isolate the queue lookup to return only the mock
+    mocker.patch.object(repository, "get_from_queue", return_value=[queue_mock])
 
-    # 2. Cria o mock do Adaptador respeitando a Interface
+    # 2. Create the Adapter mock respecting the Interface
     mock_adapter = mocker.Mock(spec=IDetailAdapter)
     mock_adapter.fetch_details.return_value = {"title": "Teste"}
 
-    # 3. Isola a persistência
+    # 3. Isolate persistence
     mock_save = mocker.patch.object(repository, "save_raw_data")
     mock_queue = mocker.patch.object(repository, "update_queue_status")
 
-    # 4. Executa o Worker injetando as dependências
+    # 4. Run the Worker injecting the dependencies
     worker.run_detail_scraping_job(mock_db, adapter=mock_adapter)
 
-    # 5. Valida a orquestração
+    # 5. Validate the orchestration
     mock_adapter.fetch_details.assert_called_once_with("doc-123")
     mock_save.assert_called_once_with(mock_db, "doc-123", {"title": "Teste"})
     mock_queue.assert_called_once_with(mock_db, "doc-123", ScrapeStatus.DONE)
 
 
-def test_run_detail_scraping_job_not_found(mocker: MockerFixture, fila_mock: ScrapingQueue) -> None:
+def test_run_detail_scraping_job_not_found(mocker: MockerFixture, queue_mock: ScrapingQueue) -> None:
     mock_db = mocker.Mock(spec=Session)
 
-    mocker.patch.object(repository, "get_from_queue", return_value=[fila_mock])
+    mocker.patch.object(repository, "get_from_queue", return_value=[queue_mock])
     mock_save = mocker.patch.object(repository, "save_raw_data")
     mock_queue = mocker.patch.object(repository, "update_queue_status")
 
@@ -54,11 +54,11 @@ def test_run_detail_scraping_job_not_found(mocker: MockerFixture, fila_mock: Scr
     mock_queue.assert_called_once_with(mock_db, "doc-123", ScrapeStatus.NOT_FOUND, error_msg="Não existe")
 
 
-def test_run_detail_scraping_job_network_retry(mocker: MockerFixture, fila_mock: ScrapingQueue) -> None:
+def test_run_detail_scraping_job_network_retry(mocker: MockerFixture, queue_mock: ScrapingQueue) -> None:
     mock_db = mocker.Mock(spec=Session)
-    fila_mock.retry_count = 1  # Ainda tem tentativas sobrando
+    queue_mock.retry_count = 1  # Still has retries left
 
-    mocker.patch.object(repository, "get_from_queue", return_value=[fila_mock])
+    mocker.patch.object(repository, "get_from_queue", return_value=[queue_mock])
     mock_queue = mocker.patch.object(repository, "update_queue_status")
 
     mock_adapter = mocker.Mock(spec=IDetailAdapter)
@@ -71,11 +71,11 @@ def test_run_detail_scraping_job_network_retry(mocker: MockerFixture, fila_mock:
     )
 
 
-def test_run_detail_scraping_job_max_retries_excedido(mocker: MockerFixture, fila_mock: ScrapingQueue) -> None:
+def test_run_detail_scraping_job_max_retries_exceeded(mocker: MockerFixture, queue_mock: ScrapingQueue) -> None:
     mock_db = mocker.Mock(spec=Session)
-    fila_mock.retry_count = 3  # Limite estourado!
+    queue_mock.retry_count = 3  # Limit exceeded!
 
-    mocker.patch.object(repository, "get_from_queue", return_value=[fila_mock])
+    mocker.patch.object(repository, "get_from_queue", return_value=[queue_mock])
     mock_queue = mocker.patch.object(repository, "update_queue_status")
 
     mock_adapter = mocker.Mock(spec=IDetailAdapter)
@@ -83,20 +83,20 @@ def test_run_detail_scraping_job_max_retries_excedido(mocker: MockerFixture, fil
 
     worker.run_detail_scraping_job(mock_db, adapter=mock_adapter)
 
-    # O Worker deve interceptar que passou de 3 e lançar como FATAL
+    # The Worker must detect that it went past 3 and raise it as FATAL
     mock_queue.assert_called_once_with(mock_db, "doc-123", ScrapeStatus.FATAL_ERROR, error_msg="Caiu de novo")
 
 
-def test_run_detail_scraping_job_fatal_error_direto(mocker: MockerFixture, fila_mock: ScrapingQueue) -> None:
+def test_run_detail_scraping_job_direct_fatal_error(mocker: MockerFixture, queue_mock: ScrapingQueue) -> None:
     mock_db = mocker.Mock(spec=Session)
-    # Mesmo na primeira tentativa (retry=0), se for um erro fatal, ele não pode tentar de novo
-    fila_mock.retry_count = 0
+    # Even on the first attempt (retry=0), if it is a fatal error, it cannot try again
+    queue_mock.retry_count = 0
 
-    mocker.patch.object(repository, "get_from_queue", return_value=[fila_mock])
+    mocker.patch.object(repository, "get_from_queue", return_value=[queue_mock])
     mock_queue = mocker.patch.object(repository, "update_queue_status")
 
     mock_adapter = mocker.Mock(spec=IDetailAdapter)
-    # Exemplo: O BeautifulSoup quebrou tentando ler uma tag inexistente
+    # Example: BeautifulSoup broke trying to read a nonexistent tag
     mock_adapter.fetch_details.side_effect = AdapterFatalError("HTML Malformado")
 
     worker.run_detail_scraping_job(mock_db, adapter=mock_adapter)

@@ -4,65 +4,65 @@ from domains.archive.models import ArchiveEntity, ArchiveTag
 from domains.archive.repository import EntityRepository
 
 # ==========================================
-# TESTES DE CHOQUE DE DOMÍNIOS (Cross-Domain)
+# CROSS-DOMAIN CLASH TESTS
 # ==========================================
 
 
 def test_get_cross_domain_conflicts(use_test_db, db_session):
-    """Testa se o pg_trgm localiza conflitos reais entre as tabelas independentes."""
+    """Tests whether pg_trgm finds real conflicts between the independent tables."""
 
     db_session.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
     db_session.commit()
 
     repo = EntityRepository(db_session)
 
-    # Criamos um cenário de conflito: "Batel" existe como Tag e como Entidade(LOC)
+    # We create a conflict scenario: "Batel" exists as a Tag and as an Entity (LOC)
     db_session.add_all(
         [
             ArchiveTag(name="batel"),
             ArchiveEntity(name="Batel", entity_type="LOC"),
-            ArchiveTag(name="ofício"),  # Não tem conflito
-            ArchiveEntity(name="David Carneiro", entity_type="PER"),  # Não tem conflito
+            ArchiveTag(name="ofício"),  # No conflict
+            ArchiveEntity(name="David Carneiro", entity_type="PER"),  # No conflict
         ]
     )
     db_session.commit()
 
-    conflitos = repo.get_cross_domain_conflicts(threshold=0.85)
+    conflicts = repo.get_cross_domain_conflicts(threshold=0.85)
 
-    assert len(conflitos) == 1
-    assert conflitos[0].tag_name == "batel"
-    assert conflitos[0].entity_name == "Batel"
-    assert conflitos[0].similarity >= 0.99  # São a mesma palavra
+    assert len(conflicts) == 1
+    assert conflicts[0].tag_name == "batel"
+    assert conflicts[0].entity_name == "Batel"
+    assert conflicts[0].similarity >= 0.99  # They are the same word
 
 
 def test_resolve_cross_domain_conflict_tag_wins(use_test_db, db_session, generate_archive_doc):
-    """Garante que a Tag absorve os documentos da Entidade e a Entidade é destruída."""
+    """Guarantees that the Tag absorbs the Entity's documents and the Entity is destroyed."""
     from domains.archive.models import ArchiveDocumentEntity, ArchiveDocumentTag, ArchiveEntity
 
     repo = EntityRepository(db_session)
 
     tag = ArchiveTag(name="urbanismo")
     ent = ArchiveEntity(name="Urbanismo", entity_type="ORG")
-    doc_da_entidade = generate_archive_doc(description_id="doc_1", original_title="Teste")
+    entity_doc = generate_archive_doc(description_id="doc_1", original_title="Teste")
 
-    db_session.add_all([tag, ent, doc_da_entidade])
+    db_session.add_all([tag, ent, entity_doc])
     db_session.commit()
 
-    # Vincula o documento SOMENTE à Entidade
+    # Link the document ONLY to the Entity
     db_session.add(ArchiveDocumentEntity(description_id="doc_1", entity_id=ent.entity_id))
     db_session.commit()
 
-    # A MÁGICA: A Tag vence o conflito
-    docs_movidos = repo.resolve_cross_domain_conflict(winner="TAG", tag_id=tag.tag_id, entity_id=ent.entity_id)
+    # THE MAGIC: The Tag wins the conflict
+    moved_docs = repo.resolve_cross_domain_conflict(winner="TAG", tag_id=tag.tag_id, entity_id=ent.entity_id)
     db_session.commit()
 
-    assert docs_movidos == 1
+    assert moved_docs == 1
 
-    # A entidade deve ter deixado de existir
-    ent_banco = db_session.get(ArchiveEntity, ent.entity_id)
-    assert ent_banco is None
+    # The entity must have ceased to exist
+    db_entity = db_session.get(ArchiveEntity, ent.entity_id)
+    assert db_entity is None
 
-    # O documento agora deve estar na tabela ArchiveDocumentTag!
-    vinculo_novo = db_session.scalars(select(ArchiveDocumentTag)).all()
-    assert len(vinculo_novo) == 1
-    assert vinculo_novo[0].tag_id == tag.tag_id
+    # The document must now be in the ArchiveDocumentTag table!
+    new_link = db_session.scalars(select(ArchiveDocumentTag)).all()
+    assert len(new_link) == 1
+    assert new_link[0].tag_id == tag.tag_id

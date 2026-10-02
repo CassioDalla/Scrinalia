@@ -5,79 +5,79 @@ from domains.archive.schemas.document_schema import ArchiveDocumentDTO
 from domains.archive.workers import worker_archive_transfer
 
 # ==========================================
-# TESTES DE ORQUESTRAÇÃO E TRANSAÇÃO (Worker ETL)
+# ORCHESTRATION AND TRANSACTION TESTS (ETL Worker)
 # ==========================================
 
 
-def test_run_archive_transfer_fluxo_completo(mocker: MockerFixture, mock_staging_doc) -> None:
-    """Testa o caminho feliz: Doc inédito, extração de tags e vinculação em Bulk."""
+def test_run_archive_transfer_full_flow(mocker: MockerFixture, mock_staging_doc) -> None:
+    """Tests the happy path: New doc, tag extraction and bulk linking."""
     mock_db = mocker.Mock(spec=Session)
 
-    # Intercepta as conexões de banco global (get_db)
+    # Intercepts the global database connections (get_db)
     mock_get_db = mocker.patch.object(worker_archive_transfer, "get_db")
     mock_get_db.return_value.__enter__.return_value = mock_db
     mock_db.begin_nested.return_value = mocker.MagicMock()
 
-    # Cria o documento Mock via factory
-    doc_staging = mock_staging_doc(description_id="doc-100", raw_content_hash="hash_123")
+    # Creates the Mock document via factory
+    staging_doc = mock_staging_doc(description_id="doc-100", raw_content_hash="hash_123")
 
     mock_query = mocker.Mock()
     mock_db.scalars.return_value = mock_query
-    mock_query.yield_per.return_value = [doc_staging]
+    mock_query.yield_per.return_value = [staging_doc]
 
-    # 1. MOCK DAS CLASSES QUE O WORKER INSTANCIA LÁ DENTRO
+    # 1. MOCK OF THE CLASSES THE WORKER INSTANTIATES INSIDE
     mock_doc_repo_class = mocker.patch("domains.archive.workers.worker_archive_transfer.DocumentRepository")
     mock_tag_repo_class = mocker.patch("domains.archive.workers.worker_archive_transfer.TagRepository")
     mock_tag_service_class = mocker.patch("domains.archive.workers.worker_archive_transfer.TagService")
 
-    # 2. CONFIGURANDO AS RESPOSTAS DAS INSTÂNCIAS
+    # 2. CONFIGURING THE INSTANCE RESPONSES
     mock_doc_repo = mock_doc_repo_class.return_value
     mock_tag_repo = mock_tag_repo_class.return_value
     mock_tag_service = mock_tag_service_class.return_value
 
     mock_doc_repo.upsert_archive_document.return_value = True
     mock_tag_service.extract_and_clean_tags.return_value = [mocker.Mock()]
-    mock_tag_service.process_worker_tags.return_value = [99, 100]  # Retorna duas tags para vincular
+    mock_tag_service.process_worker_tags.return_value = [99, 100]  # Returns two tags to link
 
-    # 3. EXECUTA O WORKER
+    # 3. RUN THE WORKER
     worker_archive_transfer.execute(mock_db)
 
-    # 4. VALIDAÇÕES: Upsert de Documentos
+    # 4. VALIDATIONS: Document Upsert
     assert mock_doc_repo.upsert_archive_document.call_count == 1
     args, _ = mock_doc_repo.upsert_archive_document.call_args
-    dto_enviado: ArchiveDocumentDTO = args[0]  # Pega o primeiro argumento enviado
+    sent_dto: ArchiveDocumentDTO = args[0]  # Takes the first argument sent
 
-    assert dto_enviado.description_id == "doc-100"
-    assert dto_enviado.staging_content_hash == "hash_123"
-    assert dto_enviado.execution_log == {}
+    assert sent_dto.description_id == "doc-100"
+    assert sent_dto.staging_content_hash == "hash_123"
+    assert sent_dto.execution_log == {}
 
-    # 5. VALIDAÇÕES: Chamadas de Regra de Negócio (TagService)
+    # 5. VALIDATIONS: Business Rule Calls (TagService)
     mock_tag_service.extract_and_clean_tags.assert_called_once()
     mock_tag_service.process_worker_tags.assert_called_once()
 
-    # 6. VALIDAÇÕES: Otimização de Banco (Bulk Insert no Buffer)
-    # Garante que o Worker montou o dicionário corretamente antes de enviar pro repo
+    # 6. VALIDATIONS: Database Optimization (Bulk Insert in the Buffer)
+    # Guarantees that the Worker built the dictionary correctly before sending it to the repo
     mock_tag_repo.bulk_link_tags.assert_called_once_with(
         [{"description_id": "doc-100", "tag_id": 99}, {"description_id": "doc-100", "tag_id": 100}]
     )
 
-    # O loop terminou, então deve comitar a transação final
+    # The loop finished, so it must commit the final transaction
     mock_db.commit.assert_called_once()
 
 
-def test_run_archive_transfer_idempotencia(mocker: MockerFixture, mock_staging_doc) -> None:
-    """Testa a Carga Incremental: Se o Hash for igual, o Upsert retorna False e o pipeline pula o processamento."""
+def test_run_archive_transfer_idempotency(mocker: MockerFixture, mock_staging_doc) -> None:
+    """Tests Incremental Loading: If the Hash is equal, the Upsert returns False and the pipeline skips processing."""
     mock_db = mocker.Mock(spec=Session)
 
     mock_get_db = mocker.patch.object(worker_archive_transfer, "get_db")
     mock_get_db.return_value.__enter__.return_value = mock_db
     mock_db.begin_nested.return_value = mocker.MagicMock()
 
-    doc_staging = mock_staging_doc()
+    staging_doc = mock_staging_doc()
 
     mock_query = mocker.Mock()
     mock_db.scalars.return_value = mock_query
-    mock_query.yield_per.return_value = [doc_staging]
+    mock_query.yield_per.return_value = [staging_doc]
 
     # Mocks
     mock_doc_repo_class = mocker.patch("domains.archive.workers.worker_archive_transfer.DocumentRepository")
@@ -88,16 +88,16 @@ def test_run_archive_transfer_idempotencia(mocker: MockerFixture, mock_staging_d
     mock_tag_repo = mock_tag_repo_class.return_value
     mock_tag_service = mock_tag_service_class.return_value
 
-    # Simulamos o bloqueio no upsert (O Documento já existia e não sofreu alterações na Staging)
+    # Simulate the upsert block (the Document already existed and did not change in Staging)
     mock_doc_repo.upsert_archive_document.return_value = False
 
-    # Executa
+    # Run
     worker_archive_transfer.execute(mock_db)
 
-    # Validações
+    # Validations
     mock_doc_repo.upsert_archive_document.assert_called_once()
 
-    # Como não houve insert/update, ele não deve processar Tags
+    # Since there was no insert/update, it must not process Tags
     mock_tag_service.extract_and_clean_tags.assert_not_called()
     mock_tag_service.process_worker_tags.assert_not_called()
     mock_tag_repo.bulk_link_tags.assert_not_called()
@@ -105,21 +105,21 @@ def test_run_archive_transfer_idempotencia(mocker: MockerFixture, mock_staging_d
     mock_db.commit.assert_called_once()
 
 
-def test_run_archive_transfer_resiliencia_em_lote(mocker: MockerFixture, mock_staging_doc) -> None:
-    """Garante que se um documento explodir (Exception), o Worker anota a falha e continua processando os outros."""
+def test_run_archive_transfer_batch_resilience(mocker: MockerFixture, mock_staging_doc) -> None:
+    """Guarantees that if a document explodes (Exception), the Worker records the failure and keeps processing the others."""
     mock_db = mocker.Mock(spec=Session)
 
     mock_get_db = mocker.patch.object(worker_archive_transfer, "get_db")
     mock_get_db.return_value.__enter__.return_value = mock_db
     mock_db.begin_nested.return_value = mocker.MagicMock()
 
-    # Cria DOIS documentos na fila
-    doc_falha = mock_staging_doc(description_id="doc-falha")
-    doc_sucesso = mock_staging_doc(description_id="doc-sucesso")
+    # Creates TWO documents in the queue
+    failing_doc = mock_staging_doc(description_id="doc-falha")
+    success_doc = mock_staging_doc(description_id="doc-sucesso")
 
     mock_query = mocker.Mock()
     mock_db.scalars.return_value = mock_query
-    mock_query.yield_per.return_value = [doc_falha, doc_sucesso]
+    mock_query.yield_per.return_value = [failing_doc, success_doc]
 
     # Mocks
     mock_doc_repo_class = mocker.patch("domains.archive.workers.worker_archive_transfer.DocumentRepository")
@@ -130,17 +130,17 @@ def test_run_archive_transfer_resiliencia_em_lote(mocker: MockerFixture, mock_st
     mock_tag_repo = mock_tag_repo_class.return_value
     mock_tag_service = mock_tag_service_class.return_value
 
-    # Força o primeiro Upsert a explodir com um erro grave e o segundo a funcionar
+    # Forces the first Upsert to explode with a serious error and the second to work
     mock_doc_repo.upsert_archive_document.side_effect = [Exception("Erro Fatal PostgreSQL"), True]
 
     mock_tag_service.extract_and_clean_tags.return_value = []
     mock_tag_service.process_worker_tags.return_value = [10]
 
-    # Executa
+    # Run
     worker_archive_transfer.execute(mock_db)
 
-    # O Upsert deve ter sido chamado 2 vezes (não parou no primeiro erro!)
+    # The Upsert must have been called 2 times (it did not stop on the first error!)
     assert mock_doc_repo.upsert_archive_document.call_count == 2
 
-    # O buffer de envio em massa deve ter salvo apenas os vínculos do SEGUNDO documento (que sobreviveu)
+    # The bulk send buffer must have saved only the links from the SECOND document (which survived)
     mock_tag_repo.bulk_link_tags.assert_called_once_with([{"description_id": "doc-sucesso", "tag_id": 10}])

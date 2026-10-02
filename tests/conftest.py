@@ -17,7 +17,7 @@ from domains.archive.schemas import ArchiveEntityDTO
 from domains.archive.schemas.document_schema import ArchiveDocumentDTO
 from domains.ingestion import models as ingest_model
 
-# Descobre o caminho absoluto da pasta 'tests' de forma dinâmica
+# Dynamically discover the absolute path of the 'tests' folder
 TESTS_FOLDER = Path(__file__).parent
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql://test_user:test_password@localhost:5433/test_db")
@@ -26,33 +26,33 @@ TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql://test_user:test_
 @pytest.fixture
 def mock_registry(monkeypatch):
     """
-    Fixture Factory: Prepara dinamicamente qualquer módulo registry para testes,
-    garantindo que a IA real nunca seja chamada por acidente
+    Fixture Factory: Dynamically prepares any registry module for tests,
+    ensuring the real AI is never called by accident.
     """
 
     def _patch_registry(registry_module):
-        # 1. Criamos a nossa Classe Falsa
+        # 1. We create our Fake Class
         MockEngineClass = MagicMock()
 
         for engine_name in registry_module.AVAILABLE_ENGINES:
             monkeypatch.setitem(registry_module.AVAILABLE_ENGINES, engine_name, MockEngineClass)
 
-        # 3. Blindamos os presets também para evitar validações chatas de chaves reais
+        # 3. We also shield the presets to avoid annoying validation of real keys
         for preset_name in registry_module.PRESETS:
             monkeypatch.setitem(registry_module.PRESETS, preset_name, {"model": "falso", "device": "cpu"})
 
         monkeypatch.setitem(registry_module.AVAILABLE_ENGINES, "motor_fake", MockEngineClass)
         monkeypatch.setitem(registry_module.PRESETS, "preset_teste", {"model": "falso", "device": "cpu"})
 
-        # Retornamos a classe para os asserts
+        # Return the class for the asserts
         return MockEngineClass
 
     return _patch_registry
 
 
 @pytest.fixture
-def html_mock_valido():
-    """Simula uma página perfeita do Site do Arquivo."""
+def html_mock_valid():
+    """Simulates a perfect page from the Archive Site."""
 
     file_path = TESTS_FOLDER / "data" / "valid_scrape_request.html"
 
@@ -60,14 +60,14 @@ def html_mock_valido():
 
 
 @pytest.fixture
-def html_mock_vazio():
-    """Simula uma página sem dados úteis."""
+def html_mock_empty():
+    """Simulates a page with no useful data."""
     return "<html><body><h1>Sem dados</h1></body></html>"
 
 
 @pytest.fixture
-def fila_mock():
-    """Cria um registro falso da Fila para injetar no Orquestrador."""
+def queue_mock():
+    """Creates a fake Queue record to inject into the Orchestrator."""
     return ingest_model.ScrapingQueue(
         description_id="doc-123",
         scrape_status=ingest_model.ScrapeStatus.PENDING,
@@ -78,19 +78,19 @@ def fila_mock():
 
 @pytest.fixture(scope="session")
 def engine():
-    """Cria a conexão com o banco de testes e monta a estrutura de tabelas uma única vez."""
+    """Creates the connection to the test database and builds the table structure only once."""
     engine = create_engine(TEST_DATABASE_URL)
 
     # pg_trgm must exist before create_all builds the fuzzy-search GIN indexes.
     with engine.begin() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
 
-    # Cria todas as tabelas baseadas nos seus Models
+    # Creates all tables based on your Models
     Base.metadata.create_all(bind=engine)
 
     yield engine
 
-    # Ao final de todos os testes, destrói as tabelas
+    # At the end of all tests, drop the tables
     Base.metadata.drop_all(bind=engine)
     engine.dispose()
 
@@ -98,31 +98,31 @@ def engine():
 @pytest.fixture(scope="function")
 def db_session(engine) -> Generator[Session, None, None]:
     """
-    Fornece uma sessão isolada para cada teste.
-    Usa SAVEPOINTs para garantir que mesmo que o código teste chame db.commit(),
-    tudo seja revertido no final do teste, mantendo o banco vazio para o próximo.
+    Provides an isolated session for each test.
+    Uses SAVEPOINTs to guarantee that even if the tested code calls db.commit(),
+    everything is rolled back at the end of the test, keeping the database empty for the next one.
     """
     connection = engine.connect()
     transaction = connection.begin()
 
-    # join_transaction_mode="create_savepoint" é o segredo do SQLAlchemy 2.0
-    # Ele empacota os seus commits reais em sub-transações temporárias
+    # join_transaction_mode="create_savepoint" is the secret of SQLAlchemy 2.0
+    # It wraps your real commits in temporary sub-transactions
     session = Session(bind=connection, join_transaction_mode="create_savepoint")
 
     yield session
 
-    # Encerra o teste destruindo a sessão e dando um rollback em absolutamente tudo
+    # End the test by destroying the session and rolling back absolutely everything
     session.close()
     transaction.rollback()
     connection.close()
 
 
-# Tiramos o autouse=True!
+# We removed autouse=True!
 @pytest.fixture()
 def use_test_db(db_session):
     """
-    Fixture sob demanda. Apenas os testes que pedirem por 'use_test_db'
-    terão o 'get_db' interceptado e apontado para o Docker.
+    On-demand fixture. Only the tests that request 'use_test_db'
+    will have 'get_db' intercepted and pointed at Docker.
     """
 
     @contextmanager
@@ -136,21 +136,21 @@ def use_test_db(db_session):
 @pytest.fixture
 def generate_archive_doc(db_session):
     """
-    Uma fábrica inteligente de documentos.
-    Preenche automaticamente todos os campos chatos e obrigatórios,
-    mas permite que o teste sobrescreva apenas o que importa.
+    A smart document factory.
+    Automatically fills in all the boring mandatory fields,
+    but lets the test override only what matters.
     """
 
     def _create(**kwargs):
-        dados_padrao = {
-            # Gera uma string única e corta para caber no limite de String(50)
+        default_data = {
+            # Generates a unique string and trims it to fit the String(50) limit
             "description_id": f"doc_teste_{uuid.uuid4().hex[:30]}",
             "original_title": "Título Genérico de Teste",
             "staging_content_hash": "hash_falso_1234567890abcdef",
         }
 
-        dados_padrao.update(kwargs)
-        doc = ArchiveDocument(**dados_padrao)
+        default_data.update(kwargs)
+        doc = ArchiveDocument(**default_data)
         db_session.add(doc)
         db_session.commit()
 
@@ -162,20 +162,20 @@ def generate_archive_doc(db_session):
 @pytest.fixture
 def generate_archive_dto():
     """
-    Fábrica para gerar DTOs válidos para os testes de CRUD e ETL.
-    Preenche automaticamente os campos que o Pylance exige.
+    Factory to generate valid DTOs for the CRUD and ETL tests.
+    Automatically fills in the fields that Pylance requires.
     """
 
     def _create(**kwargs):
-        # O esqueleto com tudo o que o Pylance exige
-        dados_padrao: dict[str, Any] = {
+        # The skeleton with everything Pylance requires
+        default_data: dict[str, Any] = {
             "description_id": f"doc_teste_{uuid.uuid4().hex[:30]}",
             "original_title": "Titulo Teste",
             "staging_content_hash": "hash_falso_1234567890abcdef",
         }
 
-        dados_padrao.update(kwargs)
-        return ArchiveDocumentDTO(**dados_padrao)
+        default_data.update(kwargs)
+        return ArchiveDocumentDTO(**default_data)
 
     return _create
 
@@ -183,8 +183,8 @@ def generate_archive_dto():
 @pytest.fixture
 def mock_staging_doc():
     """
-    Gera um objeto Mock perfeito simulando um StagingDocument vindo do banco.
-    Evita que o Pydantic dê erro de validação de tipos durante os testes dos Workers.
+    Generates a perfect Mock object simulating a StagingDocument coming from the database.
+    Prevents Pydantic from raising type-validation errors during the Worker tests.
     """
 
     def _create(description_id="doc-100", raw_content_hash="hash_123"):
@@ -213,26 +213,26 @@ def mock_staging_doc():
 
 @pytest.fixture
 def generate_typology(db_session):
-    """Fábrica para popular a tabela de tipologias antes dos testes."""
+    """Factory to populate the typology table before the tests."""
 
     def _create(id=99, name="Dossiê"):
-        tipo = ArchiveTypology(typology_id=id, name=name)
-        db_session.add(tipo)
+        typology = ArchiveTypology(typology_id=id, name=name)
+        db_session.add(typology)
         db_session.commit()
-        return tipo
+        return typology
 
     return _create
 
 
 @pytest.fixture
 def mock_ner_engine():
-    """Simula o motor spaCy devolvendo DTOs de entidades."""
+    """Simulates the spaCy engine returning entity DTOs."""
     mock_engine = MagicMock()
-    entidade_mock = ArchiveEntityDTO(name="Prefeitura de Curitiba", entity_type="ORG")
+    entity_mock = ArchiveEntityDTO(name="Prefeitura de Curitiba", entity_type="ORG")
 
-    # Função dinâmica: devolve uma cópia do resultado para CADA texto que entrar
-    def simulador_de_extracao(texts):
-        return [[entidade_mock] for _ in texts]
+    # Dynamic function: returns a copy of the result for EACH text that comes in
+    def extraction_simulator(texts):
+        return [[entity_mock] for _ in texts]
 
-    mock_engine.extract.side_effect = simulador_de_extracao
+    mock_engine.extract.side_effect = extraction_simulator
     return mock_engine

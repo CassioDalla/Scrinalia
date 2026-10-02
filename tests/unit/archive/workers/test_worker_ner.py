@@ -6,7 +6,7 @@ from domains.archive.workers import worker_ner
 
 
 class MockArchiveDocument:
-    """Dublê ultraleve simulando um documento do SQLAlchemy para os Testes Unitários."""
+    """Ultralean double simulating an SQLAlchemy document for the Unit Tests."""
 
     def __init__(self, description_id: str, title: str, content: str = ""):
         self.description_id = description_id
@@ -18,28 +18,28 @@ class MockArchiveDocument:
 
 
 # ==========================================
-# 1. TESTES DO HELPER DE LIMPEZA
+# 1. CLEANING HELPER TESTS
 # ==========================================
 
 
-def test_clean_raw_text_remove_urls_e_emails():
-    """Garante que a função auxiliar limpa ruídos de web corretamente."""
-    texto_sujo = "Visite http://site.com ou www.teste.com e mande email para admin@gov.br. Texto limpo."
-    resultado = worker_ner._clean_raw_text(texto_sujo)
+def test_clean_raw_text_removes_urls_and_emails():
+    """Guarantees that the helper function correctly cleans web noise."""
+    dirty_text = "Visite http://site.com ou www.teste.com e mande email para admin@gov.br. Texto limpo."
+    result = worker_ner._clean_raw_text(dirty_text)
 
-    assert resultado == "Visite  ou  e mande email para  Texto limpo."
+    assert result == "Visite  ou  e mande email para  Texto limpo."
 
 
-def test_clean_raw_text_vazio():
+def test_clean_raw_text_empty():
     assert worker_ner._clean_raw_text(None) == ""  # type: ignore
     assert worker_ner._clean_raw_text("   ") == ""
 
 
 # ==========================================
-# 2. TESTES DE ORQUESTRAÇÃO DO WORKER
+# 2. WORKER ORCHESTRATION TESTS
 # ==========================================
 
-# A blacklist é carregada do banco; isolamos para não depender de uma sessão real.
+# The blacklist is loaded from the database; we isolate it to avoid depending on a real session.
 BLACKLIST_PATH = "domains.archive.workers.worker_ner.load_entity_blacklist"
 
 
@@ -49,8 +49,8 @@ def _mock_session(mocker: MockerFixture):
     return mock_db
 
 
-def test_worker_ner_unitario_fluxo_ideal(mocker: MockerFixture) -> None:
-    """Cenário Bom: Textos são concatenados, IA extrai e repositório salva."""
+def test_worker_ner_unit_ideal_flow(mocker: MockerFixture) -> None:
+    """Good Scenario: Texts are concatenated, the AI extracts and the repository saves."""
     mock_db = _mock_session(mocker)
 
     mock_repo_class = mocker.patch("domains.archive.workers.worker_ner.EntityRepository")
@@ -65,29 +65,29 @@ def test_worker_ner_unitario_fluxo_ideal(mocker: MockerFixture) -> None:
     mock_ner_engine = mock_get_engine.return_value
     mock_ner_engine.extract.return_value = [[ArchiveEntityDTO(name="Prefeitura", entity_type="ORG")]]
 
-    # 1 documento na primeira volta, vazio na segunda para quebrar o while
-    doc_teste = MockArchiveDocument("doc-1", "Ofício", "Conteúdo sobre obras.")
-    mock_db.scalars.return_value.all.side_effect = [[doc_teste], []]
+    # 1 document on the first round, empty on the second to break the while
+    test_doc = MockArchiveDocument("doc-1", "Ofício", "Conteúdo sobre obras.")
+    mock_db.scalars.return_value.all.side_effect = [[test_doc], []]
 
     worker_ner.execute(db=mock_db, engine_name="spacy_ner")
 
-    # Verificações de IA: texto contextualizado e limpo
+    # AI verifications: contextualized and cleaned text
     mock_ner_engine.extract.assert_called_once()
     args, _ = mock_ner_engine.extract.call_args
     assert args[0] == ["Ofício. Conteúdo sobre obras."]
 
-    # Verificações de Persistência
+    # Persistence verifications
     mock_repo.get_or_create_entities.assert_called_once()
     mock_repo.bulk_link_entities.assert_called_once_with([{"description_id": "doc-1", "entity_id": 101}])
 
-    # O carimbo de sucesso foi aplicado na memória do documento?
-    assert doc_teste.execution_log["worker_ner_v1"] == "DONE"  # type: ignore
-    mock_flag_modified.assert_called_once_with(doc_teste, "execution_log")
+    # Was the success stamp applied in the document's memory?
+    assert test_doc.execution_log["worker_ner_v1"] == "DONE"  # type: ignore
+    mock_flag_modified.assert_called_once_with(test_doc, "execution_log")
     mock_db.commit.assert_called_once()
 
 
-def test_worker_ner_ignora_textos_vazios(mocker: MockerFixture) -> None:
-    """Cenário Bom: Se o documento só tem espaços ou URLs, carimba como DONE e pula a IA."""
+def test_worker_ner_ignores_empty_texts(mocker: MockerFixture) -> None:
+    """Good Scenario: If the document only has whitespace or URLs, it stamps it as DONE and skips the AI."""
     mock_db = _mock_session(mocker)
 
     mocker.patch("domains.archive.workers.worker_ner.EntityRepository")
@@ -95,45 +95,45 @@ def test_worker_ner_ignora_textos_vazios(mocker: MockerFixture) -> None:
     mock_flag_modified = mocker.patch("domains.archive.workers.worker_ner.flag_modified")
     mocker.patch(BLACKLIST_PATH, return_value=set())
 
-    # Documento que, após remover o email, fica vazio
-    doc_vazio = MockArchiveDocument("doc-2", "   ", "contato@email.com")
-    mock_db.scalars.return_value.all.side_effect = [[doc_vazio], []]
+    # Document that, after removing the email, becomes empty
+    empty_doc = MockArchiveDocument("doc-2", "   ", "contato@email.com")
+    mock_db.scalars.return_value.all.side_effect = [[empty_doc], []]
 
     worker_ner.execute(db=mock_db)
 
-    # A IA NÃO deve ter sido acionada para não gastar processamento à toa
+    # The AI must NOT have been triggered, to avoid wasting processing for nothing
     mock_get_engine.return_value.extract.assert_not_called()
 
-    # Mas o documento DEVE ser carimbado para não entrar em loop infinito na fila
-    assert doc_vazio.execution_log["worker_ner_v1"] == "DONE"  # type: ignore
+    # But the document MUST be stamped so it does not loop forever in the queue
+    assert empty_doc.execution_log["worker_ner_v1"] == "DONE"  # type: ignore
     mock_flag_modified.assert_called_once()
 
 
-def test_worker_ner_falha_na_ia_faz_rollback(mocker: MockerFixture) -> None:
-    """Cenário Ruim: Se o spaCy estourar a memória (Exception), a transação aborta e o laço quebra."""
+def test_worker_ner_ai_failure_rolls_back(mocker: MockerFixture) -> None:
+    """Bad Scenario: If spaCy runs out of memory (Exception), the transaction aborts and the loop breaks."""
     mock_db = _mock_session(mocker)
 
     mocker.patch("domains.archive.workers.worker_ner.EntityRepository")
     mock_get_engine = mocker.patch("domains.archive.workers.worker_ner.get_engine")
     mocker.patch(BLACKLIST_PATH, return_value=set())
 
-    doc_teste = MockArchiveDocument("doc-3", "Texto válido para forçar a IA a rodar")
-    mock_db.scalars.return_value.all.side_effect = [[doc_teste], []]
+    test_doc = MockArchiveDocument("doc-3", "Texto válido para forçar a IA a rodar")
+    mock_db.scalars.return_value.all.side_effect = [[test_doc], []]
 
-    # Forçamos o motor NLP a explodir
+    # Force the NLP engine to explode
     mock_get_engine.return_value.extract.side_effect = Exception("Out of Memory")
 
     worker_ner.execute(db=mock_db)
 
-    # O rollback deve ter sido chamado para proteger o banco
+    # The rollback must have been called to protect the database
     mock_db.rollback.assert_called()
 
-    # O carimbo NÃO deve ser aplicado (permanece None), pois o lote inteiro falhou na inferência
-    assert doc_teste.execution_log is None
+    # The stamp must NOT be applied (remains None), since the whole batch failed at inference
+    assert test_doc.execution_log is None
 
 
-def test_worker_ner_falha_no_repositorio_carimba_erro(mocker: MockerFixture) -> None:
-    """Cenário Ruim (Resiliência): A IA funciona, mas o banco recusa a inserção. Carimba com ERROR e avança."""
+def test_worker_ner_repository_failure_stamps_error(mocker: MockerFixture) -> None:
+    """Bad Scenario (Resilience): The AI works, but the database refuses the insert. Stamps with ERROR and moves on."""
     mock_db = _mock_session(mocker)
 
     mock_repo_class = mocker.patch("domains.archive.workers.worker_ner.EntityRepository")
@@ -141,20 +141,20 @@ def test_worker_ner_falha_no_repositorio_carimba_erro(mocker: MockerFixture) -> 
     mock_flag_modified = mocker.patch("domains.archive.workers.worker_ner.flag_modified")
     mocker.patch(BLACKLIST_PATH, return_value=set())
 
-    # Simulamos que a IA encontrou 1 entidade
+    # Simulate that the AI found 1 entity
     mock_get_engine.return_value.extract.return_value = [[ArchiveEntityDTO(name="Prefeitura", entity_type="ORG")]]
 
-    doc_teste = MockArchiveDocument("doc-4", "Texto válido")
-    mock_db.scalars.return_value.all.side_effect = [[doc_teste], []]
+    test_doc = MockArchiveDocument("doc-4", "Texto válido")
+    mock_db.scalars.return_value.all.side_effect = [[test_doc], []]
 
-    # Forçamos uma falha estrutural (ex: erro de Foreign Key) na hora de gravar a entidade
+    # Force a structural failure (e.g., Foreign Key error) when saving the entity
     mock_repo_class.return_value.get_or_create_entities.side_effect = Exception("DB Constraints Failed")
 
     worker_ner.execute(db=mock_db)
 
-    # A blindagem anti-loop infinito funcionou? O documento DEVE ser carimbado com ERROR.
-    assert doc_teste.execution_log["worker_ner_v1"] == "ERROR"  # type: ignore
+    # Did the anti-infinite-loop shield work? The document MUST be stamped with ERROR.
+    assert test_doc.execution_log["worker_ner_v1"] == "ERROR"  # type: ignore
     mock_flag_modified.assert_called_once()
 
-    # O batch avança e faz o commit dos outros (ou do próprio erro no log)
+    # The batch moves on and commits the others (or the error itself in the log)
     mock_db.commit.assert_called()

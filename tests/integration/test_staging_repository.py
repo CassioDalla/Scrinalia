@@ -6,87 +6,87 @@ from domains.staging.repository import get_pending_raw_records, upsert_staging_d
 from domains.staging.schemas import StagingDocumentDTO
 
 # ==========================================
-# TESTES DO REPOSITÓRIO DA STAGING
+# STAGING REPOSITORY TESTS
 # ==========================================
 
 
-def test_get_pending_raw_records_encontra_novo_documento(use_test_db, db_session) -> None:
-    """Garante que um dado na Ingestão que não existe na Staging seja retornado."""
+def test_get_pending_raw_records_finds_new_document(use_test_db, db_session) -> None:
+    """Guarantees that raw data in Ingestion that does not exist in Staging is returned."""
 
-    # 1. Cria um dado bruto na origem
-    dado_bruto = RawData(
+    # 1. Create raw data at the source
+    raw_data = RawData(
         description_id="doc-inédito", content_hash="hash-123", raw_title="Título Bruto", payload={"Data": "1990"}
     )
-    db_session.add(dado_bruto)
+    db_session.add(raw_data)
     db_session.commit()
 
-    # 2. Executa a busca
-    pendentes = get_pending_raw_records(db_session)
+    # 2. Run the search
+    pending = get_pending_raw_records(db_session)
 
-    assert len(pendentes) == 1
-    assert pendentes[0]["description_id"] == "doc-inédito"
-    assert pendentes[0]["content_hash"] == "hash-123"
+    assert len(pending) == 1
+    assert pending[0]["description_id"] == "doc-inédito"
+    assert pending[0]["content_hash"] == "hash-123"
 
 
-def test_get_pending_raw_records_ignora_documentos_sincronizados(use_test_db, db_session) -> None:
-    """Garante que se os hashes baterem, o documento é ignorado."""
+def test_get_pending_raw_records_ignores_synced_documents(use_test_db, db_session) -> None:
+    """Guarantees that if the hashes match, the document is ignored."""
 
-    dado_bruto = RawData(description_id="doc-sync", content_hash="hash-igual", payload={})
-    # Simula que a Staging já processou este documento e guardou o mesmo hash
-    dado_staging = StagingDocument(
+    raw_data = RawData(description_id="doc-sync", content_hash="hash-igual", payload={})
+    # Simulates that Staging already processed this document and stored the same hash
+    staging_data = StagingDocument(
         description_id="doc-sync", raw_content_hash="hash-igual", title="Título", raw_metadata={}
     )
 
-    db_session.add_all([dado_bruto, dado_staging])
+    db_session.add_all([raw_data, staging_data])
     db_session.commit()
 
-    pendentes = get_pending_raw_records(db_session)
+    pending = get_pending_raw_records(db_session)
 
-    # Não deve retornar nada, pois está tudo atualizado
-    assert len(pendentes) == 0
+    # Should return nothing, since everything is up to date
+    assert len(pending) == 0
 
 
-def test_get_pending_raw_records_detecta_mudanca_de_hash(use_test_db, db_session) -> None:
-    """Garante que se o conteúdo na prefeitura mudou (hash diferente), ele pede reprocessamento."""
+def test_get_pending_raw_records_detects_hash_change(use_test_db, db_session) -> None:
+    """Guarantees that if the content at the city hall changed (different hash), it requests reprocessing."""
 
-    # Hash novo (Acabou de ser raspado)
-    dado_bruto = RawData(description_id="doc-mudou", content_hash="hash-NOVO", payload={})
-    # Hash antigo (Processado na semana passada)
-    dado_staging = StagingDocument(
+    # New hash (just scraped)
+    raw_data = RawData(description_id="doc-mudou", content_hash="hash-NOVO", payload={})
+    # Old hash (processed last week)
+    staging_data = StagingDocument(
         description_id="doc-mudou", raw_content_hash="hash-VELHO", title="Título Antigo", raw_metadata={}
     )
 
-    db_session.add_all([dado_bruto, dado_staging])
+    db_session.add_all([raw_data, staging_data])
     db_session.commit()
 
-    pendentes = get_pending_raw_records(db_session)
+    pending = get_pending_raw_records(db_session)
 
-    # Tem que pegar, porque o hash mudou!
-    assert len(pendentes) == 1
-    assert pendentes[0]["description_id"] == "doc-mudou"
+    # It must be picked up, because the hash changed!
+    assert len(pending) == 1
+    assert pending[0]["description_id"] == "doc-mudou"
 
 
-def test_upsert_staging_document_atualiza_registro_existente(use_test_db, db_session) -> None:
-    """Testa o ON CONFLICT DO UPDATE substituindo os dados defasados."""
+def test_upsert_staging_document_updates_existing_record(use_test_db, db_session) -> None:
+    """Tests the ON CONFLICT DO UPDATE replacing outdated data."""
 
-    # 1. Banco já possui uma versão antiga
-    dado_antigo = StagingDocument(
+    # 1. The database already holds an old version
+    old_data = StagingDocument(
         description_id="doc-update", raw_content_hash="hash-VELHO", title="Título Antigo", raw_metadata={}
     )
-    db_session.add(dado_antigo)
+    db_session.add(old_data)
     db_session.commit()
 
-    # 2. Chega o DTO novo do Pydantic
-    dto_novo = StagingDocumentDTO(
+    # 2. The new Pydantic DTO arrives
+    new_dto = StagingDocumentDTO(
         description_id="doc-update", raw_content_hash="hash-NOVO", title="Título Novo Atualizado"
     )
 
-    # 3. Faz o Upsert
-    upsert_staging_document(db_session, dto_novo)
+    # 3. Perform the Upsert
+    upsert_staging_document(db_session, new_dto)
 
-    # 4. Verifica se atualizou o banco (precisa do expire_all para limpar o cache)
+    # 4. Check whether the database was updated (expire_all is needed to clear the cache)
     db_session.expire_all()
-    doc_atualizado = db_session.execute(select(StagingDocument).filter_by(description_id="doc-update")).scalar_one()
+    updated_doc = db_session.execute(select(StagingDocument).filter_by(description_id="doc-update")).scalar_one()
 
-    assert doc_atualizado.raw_content_hash == "hash-NOVO"
-    assert doc_atualizado.title == "Título Novo Atualizado"
+    assert updated_doc.raw_content_hash == "hash-NOVO"
+    assert updated_doc.title == "Título Novo Atualizado"

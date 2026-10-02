@@ -11,42 +11,43 @@ from domains.archive.schemas.cleaning_schema import (
 )
 from domains.archive.services.cleaning_service import CleaningService
 
+# ==========================================
+# FIXTURES (Test environment preparation)
+# ==========================================
 
-# ==========================================
-# FIXTURES (Preparação do ambiente de teste)
-# ==========================================
+
 @pytest.fixture
 def mock_repo():
-    """Cria um repositório falso para não batermos no banco de dados."""
+    """Creates a fake repository so we do not hit the database."""
     repo = MagicMock()
-    # Mock do atributo db para testarmos o commit no deactivate_rule
+    # Mock of the db attribute to test the commit in deactivate_rule
     repo.db = MagicMock()
     return repo
 
 
 @pytest.fixture
 def cleaning_service(mock_repo):
-    """Injeta o repositório falso no nosso serviço real."""
+    """Injects the fake repository into our real service."""
     return CleaningService(mock_repo)
 
 
 class MockArchiveDocument:
-    """Classe simples para simular os documentos retornados pelo Repositório."""
+    """Simple class to simulate the documents returned by the Repository."""
 
     def __init__(self, description_id, text):
         self.description_id = description_id
-        self.original_title = text  # Simularemos a coluna 'original_title'
+        self.original_title = text  # We will simulate the 'original_title' column
 
 
 # ==========================================
-# TESTES DE SCHEMAS / DTOs (Validação Estrita)
+# SCHEMA / DTO TESTS (Strict Validation)
 # ==========================================
-def test_dto_rejeita_coluna_nao_permitida():
-    """Garante que o Pydantic bloqueia colunas que não estão no Literal AllowedColumns."""
+def test_dto_rejects_disallowed_column():
+    """Guarantees that Pydantic blocks columns that are not in the Literal AllowedColumns."""
     with pytest.raises(ValidationError) as exc_info:
         CleaningRuleCreateDTO(
             rule_name="Regra Quebrada",
-            target_column="coluna_inventada_que_nao_existe",  # Invalido # type: ignore
+            target_column="coluna_inventada_que_nao_existe",  # Invalid # type: ignore
             regex_pattern=r"\bteste\b",
             replacement_string="",
         )
@@ -54,10 +55,10 @@ def test_dto_rejeita_coluna_nao_permitida():
 
 
 # ==========================================
-# TESTES DE CRIAÇÃO DE REGRA (Validação Regex)
+# RULE CREATION TESTS (Regex Validation)
 # ==========================================
-def test_create_rule_sucesso(cleaning_service, mock_repo):
-    """Testa o fluxo feliz de criar uma regra com um Regex válido."""
+def test_create_rule_success(cleaning_service, mock_repo):
+    """Tests the happy path of creating a rule with a valid Regex."""
     dto = CleaningRuleCreateDTO(
         rule_name="Apagar Av",
         target_column="original_title",
@@ -65,7 +66,7 @@ def test_create_rule_sucesso(cleaning_service, mock_repo):
         replacement_string="Avenida",
     )
 
-    # Simula o retorno do banco de dados (A model do SQLAlchemy)
+    # Simulates the database return (the SQLAlchemy model)
     mock_rule = ArchiveCleaningRule(
         rule_id=1,
         rule_name=dto.rule_name,
@@ -76,20 +77,20 @@ def test_create_rule_sucesso(cleaning_service, mock_repo):
     )
     mock_repo.create_rule.return_value = mock_rule
 
-    resultado = cleaning_service.create_cleaning_rule(dto)
+    result = cleaning_service.create_cleaning_rule(dto)
 
-    assert resultado.rule_id == 1
-    assert resultado.is_active is True
-    assert resultado.rule_name == "Apagar Av"
+    assert result.rule_id == 1
+    assert result.is_active is True
+    assert result.rule_name == "Apagar Av"
     mock_repo.create_rule.assert_called_once()
 
 
-def test_create_rule_rejeita_regex_invalido(cleaning_service):
-    """Garante que o sistema lança a exceção de negócio correta se o Regex estiver quebrado."""
+def test_create_rule_rejects_invalid_regex(cleaning_service):
+    """Guarantees that the system raises the correct business exception if the Regex is broken."""
     dto = CleaningRuleCreateDTO(
         rule_name="Regra Bugada",
         target_column="original_title",
-        regex_pattern=r"*[invalido",  # Regex sintaticamente quebrado
+        regex_pattern=r"*[invalido",  # Syntactically broken Regex
         replacement_string="",
     )
 
@@ -100,51 +101,51 @@ def test_create_rule_rejeita_regex_invalido(cleaning_service):
 
 
 # ==========================================
-# TESTES DE DRY-RUN (Simulação)
+# DRY-RUN TESTS (Simulation)
 # ==========================================
-def test_simulate_dry_run_com_matches(cleaning_service, mock_repo):
-    """Testa se o Regex substitui o texto corretamente nos documentos mockados."""
-    # Prepara o DTO de simulação
+def test_simulate_dry_run_with_matches(cleaning_service, mock_repo):
+    """Tests whether the Regex replaces the text correctly in the mocked documents."""
+    # Prepare the simulation DTO
     dto = DryRunRequestDTO(target_column="original_title", regex_pattern=r"\bav\b\.?", replacement_string="Avenida")
 
-    # Moca o repositório para devolver 3 documentos (2 com a anomalia, 1 limpo)
+    # Mocks the repository to return 3 documents (2 with the anomaly, 1 clean)
     mock_repo.get_random_sample_for_dry_run.return_value = [
         MockArchiveDocument("BR_01", "av. República Argentina"),
         MockArchiveDocument("BR_02", "av Silva Jardim"),
-        MockArchiveDocument("BR_03", "Rua XV de Novembro"),  # Não deve dar match
+        MockArchiveDocument("BR_03", "Rua XV de Novembro"),  # Must not match
     ]
 
-    resultado = cleaning_service.simulate_dry_run(dto)
+    result = cleaning_service.simulate_dry_run(dto)
 
-    assert resultado.is_valid_regex is True
-    assert resultado.matches_found == 2
-    assert len(resultado.samples) == 2
+    assert result.is_valid_regex is True
+    assert result.matches_found == 2
+    assert len(result.samples) == 2
 
-    # Verifica as substituições exatas
-    assert resultado.samples[0].original_text == "av. República Argentina"
-    assert resultado.samples[0].modified_text == "Avenida República Argentina"
+    # Checks the exact substitutions
+    assert result.samples[0].original_text == "av. República Argentina"
+    assert result.samples[0].modified_text == "Avenida República Argentina"
 
-    assert resultado.samples[1].original_text == "av Silva Jardim"
-    assert resultado.samples[1].modified_text == "Avenida Silva Jardim"
+    assert result.samples[1].original_text == "av Silva Jardim"
+    assert result.samples[1].modified_text == "Avenida Silva Jardim"
 
 
-def test_simulate_dry_run_regex_invalido(cleaning_service):
-    """Testa se o Dry-Run captura o erro de Regex e devolve no DTO, sem estourar exceção 500."""
+def test_simulate_dry_run_invalid_regex(cleaning_service):
+    """Tests whether the Dry-Run catches the Regex error and returns it in the DTO, without raising a 500 exception."""
     dto = DryRunRequestDTO(target_column="original_title", regex_pattern=r"(unclosed group", replacement_string="")
 
-    resultado = cleaning_service.simulate_dry_run(dto)
+    result = cleaning_service.simulate_dry_run(dto)
 
-    assert resultado.is_valid_regex is False
-    assert "Sintaxe de Regex inválida" in resultado.error_message
-    assert resultado.matches_found == 0
+    assert result.is_valid_regex is False
+    assert "Sintaxe de Regex inválida" in result.error_message
+    assert result.matches_found == 0
 
 
 # ==========================================
-# TESTES DE MUDANÇA DE ESTADO (Desativar)
+# STATE CHANGE TESTS (Deactivate)
 # ==========================================
-def test_deactivate_rule_sucesso(cleaning_service, mock_repo):
-    """Testa se a regra é desativada e o commit é acionado."""
-    # Instancia a regra com is_active=True
+def test_deactivate_rule_success(cleaning_service, mock_repo):
+    """Tests whether the rule is deactivated and the commit is triggered."""
+    # Instantiate the rule with is_active=True
     mock_rule = ArchiveCleaningRule(
         rule_id=99,
         rule_name="Regra Teste",
@@ -156,16 +157,16 @@ def test_deactivate_rule_sucesso(cleaning_service, mock_repo):
 
     mock_repo.get_rule_by_id.return_value = mock_rule
 
-    resultado = cleaning_service.deactivate_rule(99)
+    result = cleaning_service.deactivate_rule(99)
 
-    # Verifica se a propriedade foi alterada para False
-    assert resultado.is_active is False
-    # Verifica se a nossa "preguiça genial" acionou o commit no DB
+    # Checks whether the property was changed to False
+    assert result.is_active is False
+    # Checks whether our "brilliant laziness" triggered the commit on the DB
     mock_repo.db.commit.assert_called_once()
 
 
-def test_deactivate_rule_nao_encontrada(cleaning_service, mock_repo):
-    """Testa se lança ValueError quando a regra não existe no DB."""
+def test_deactivate_rule_not_found(cleaning_service, mock_repo):
+    """Tests whether it raises ValueError when the rule does not exist in the DB."""
     mock_repo.get_rule_by_id.return_value = None
 
     with pytest.raises(ValueError) as exc_info:

@@ -11,32 +11,32 @@ from domains.archive.schemas.tag_schema import MergeResponse
 from domains.archive.services.tag_service import TagService
 
 # ==========================================
-# TESTES: extract_and_clean_tags
+# TESTS: extract_and_clean_tags
 # ==========================================
 
 
-def test_extract_and_clean_tags_sucesso(mocker: MockerFixture) -> None:
-    """Caminho Feliz: Remove as stopwords usando o regex compilado e limpa a string corretamente."""
+def test_extract_and_clean_tags_success(mocker: MockerFixture) -> None:
+    """Happy Path: Removes the stopwords using the compiled regex and cleans the string correctly."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
 
-    # Ensinamos o repo falso a devolver um Set puro
+    # We teach the fake repo to return a pure Set
     mock_tag_repo.get_stopwords.return_value = {"lixo", "ignorar"}
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    texto_bruto = "Tag Válida, Lixo, Ignorar, Outra   Tag   Boa"
+    raw_text = "Tag Válida, Lixo, Ignorar, Outra   Tag   Boa"
 
-    resultado = service.extract_and_clean_tags(texto_bruto)
+    result = service.extract_and_clean_tags(raw_text)
 
-    assert len(resultado) == 2
-    nomes_extraidos = {tag.name for tag in resultado}
-    assert "tag válida" in nomes_extraidos
-    assert "outra tag boa" in nomes_extraidos
+    assert len(result) == 2
+    extracted_names = {tag.name for tag in result}
+    assert "tag válida" in extracted_names
+    assert "outra tag boa" in extracted_names
     mock_tag_repo.get_stopwords.assert_called_once()
 
 
-def test_extract_and_clean_tags_nulo_ou_vazio(mocker: MockerFixture) -> None:
-    """Caminho Ruim: Garante o early return se a string for None ou vazia."""
+def test_extract_and_clean_tags_null_or_empty(mocker: MockerFixture) -> None:
+    """Bad Path: Guarantees the early return if the string is None or empty."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
 
@@ -44,91 +44,91 @@ def test_extract_and_clean_tags_nulo_ou_vazio(mocker: MockerFixture) -> None:
 
     assert service.extract_and_clean_tags(None) == []
     assert service.extract_and_clean_tags("") == []
-    # O repositório nem deve ser consultado
+    # The repository must not even be queried
     mock_tag_repo.get_stopwords.assert_not_called()
 
 
-def test_extract_and_clean_tags_apenas_stopwords(mocker: MockerFixture) -> None:
-    """Caminho Ruim: A string continha apenas lixo e foi 100% limpa."""
+def test_extract_and_clean_tags_only_stopwords(mocker: MockerFixture) -> None:
+    """Bad Path: The string contained only junk and was 100% cleaned."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
     mock_tag_repo.get_stopwords.return_value = {"teste", "vazio"}
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    resultado = service.extract_and_clean_tags("Teste, Vazio, Teste")
+    result = service.extract_and_clean_tags("Teste, Vazio, Teste")
 
-    assert resultado == []
+    assert result == []
 
 
 def test_extract_and_clean_tags_data_quality(mocker: MockerFixture) -> None:
-    """Limites de Borda: Garante que tags anômalas (1 a 2 letras ou >100) são descartadas."""
+    """Edge Limits: Guarantees that anomalous tags (1 to 2 letters or >100) are discarded."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
-    mock_tag_repo.get_stopwords.return_value = set()  # Nenhuma stopword no banco
+    mock_tag_repo.get_stopwords.return_value = set()  # No stopwords in the database
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    texto_bruto = "A, Oi, Tag Normal, " + ("X" * 105)
+    raw_text = "A, Oi, Tag Normal, " + ("X" * 105)
 
-    resultado = service.extract_and_clean_tags(texto_bruto)
+    result = service.extract_and_clean_tags(raw_text)
 
-    # 'A' e 'Oi' são menores ou iguais a 2 caracteres. 'X'*105 é maior que 100.
-    assert len(resultado) == 1
-    assert resultado[0].name == "tag normal"
+    # 'A' and 'Oi' are shorter than or equal to 2 characters. 'X'*105 is longer than 100.
+    assert len(result) == 1
+    assert result[0].name == "tag normal"
 
 
 # ==========================================
-# TESTES: purge_stopwords
+# TESTS: purge_stopwords
 # ==========================================
 
 
-def test_purge_stopwords_remove_tags_sucesso(mocker: MockerFixture) -> None:
-    """Caminho Feliz: Coordena a busca de stopwords e a deleção em massa."""
+def test_purge_stopwords_removes_tags_success(mocker: MockerFixture) -> None:
+    """Happy Path: Coordinates the stopword lookup and the bulk deletion."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
 
     mock_tag_repo.get_stopwords.return_value = {"lixo"}
-    mock_tag_repo.purge_tags_by_stopwords.return_value = 1  # Fingimos que apagou 1 tag
+    mock_tag_repo.purge_tags_by_stopwords.return_value = 1  # Pretend it deleted 1 tag
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    qtd_apagada = service.purge_stopwords()
+    deleted_count = service.purge_stopwords()
 
-    assert qtd_apagada == 1
+    assert deleted_count == 1
     mock_tag_repo.get_stopwords.assert_called_once()
     mock_tag_repo.purge_tags_by_stopwords.assert_called_once_with({"lixo"})
 
 
-def test_purge_stopwords_tabela_stopwords_vazia(mocker: MockerFixture) -> None:
-    """Caminho Ruim: O banco de stopwords está vazio. O serviço deve abortar rápido."""
+def test_purge_stopwords_empty_stopwords_table(mocker: MockerFixture) -> None:
+    """Bad Path: The stopword table is empty. The service must abort quickly."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
 
     mock_tag_repo.get_stopwords.return_value = set()
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    qtd_apagada = service.purge_stopwords()
+    deleted_count = service.purge_stopwords()
 
-    assert qtd_apagada == 0
+    assert deleted_count == 0
     mock_tag_repo.purge_tags_by_stopwords.assert_not_called()
 
 
 # ==========================================
-# TESTES: merge_tags
+# TESTS: merge_tags
 # ==========================================
 
 
-def test_merge_tags_transfere_e_apaga_sucesso(mocker: MockerFixture) -> None:
-    """Caminho Feliz: Transfere os documentos, salva sinônimos e apaga as tags velhas."""
+def test_merge_tags_transfers_and_deletes_success(mocker: MockerFixture) -> None:
+    """Happy Path: Transfers the documents, saves synonyms and deletes the old tags."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
 
-    # 1. Simula a validação da canônica e a busca das tags que serão mortas
+    # 1. Simulate the canonical validation and the lookup of the tags that will be killed
     mock_tag_repo.get_by_id.return_value = Mock(tag_id=1, name="prefeitura")
     mock_tag_repo.get_by_ids.return_value = [Mock(tag_id=2, name="prefeituta")]
 
-    # 2. Simula a busca de documentos que possuíam a tag velha
+    # 2. Simulate the lookup of documents that had the old tag
     mock_tag_repo.get_document_ids_by_tags.return_value = ["doc-1", "doc-2"]
 
-    # 3. Simula o retorno do delete final
+    # 3. Simulate the final delete return
     mock_tag_repo.delete_tags.return_value = 1
 
     service = TagService(mock_tag_repo, mock_doc_repo)
@@ -137,14 +137,14 @@ def test_merge_tags_transfere_e_apaga_sucesso(mocker: MockerFixture) -> None:
     assert res.documents_updated == 2
     assert res.tags_deleted == 1
 
-    # Verifica a coordenação do Service
+    # Checks the Service coordination
     mock_tag_repo.link_documents_to_tag.assert_called_once_with({"doc-1", "doc-2"}, 1)
     mock_tag_repo.create_synonyms.assert_called_once()
     mock_tag_repo.delete_tags.assert_called_once_with([2])
 
 
-def test_merge_tags_lista_vazia(mocker: MockerFixture) -> None:
-    """Caminho Ruim: O array de IDs a serem mesclados está vazio."""
+def test_merge_tags_empty_list(mocker: MockerFixture) -> None:
+    """Bad Path: The array of IDs to be merged is empty."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
     service = TagService(mock_tag_repo, mock_doc_repo)
@@ -156,8 +156,8 @@ def test_merge_tags_lista_vazia(mocker: MockerFixture) -> None:
     mock_tag_repo.get_by_id.assert_not_called()
 
 
-def test_merge_tags_id_canocical_in_id_to_merge(mocker: MockerFixture) -> None:
-    """Caminho Ruim: O array de IDs a serem mesclados contem o id canonico."""
+def test_merge_tags_canonical_id_in_ids_to_merge(mocker: MockerFixture) -> None:
+    """Bad Path: The array of IDs to be merged contains the canonical id."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
     service = TagService(mock_tag_repo, mock_doc_repo)
@@ -169,10 +169,10 @@ def test_merge_tags_id_canocical_in_id_to_merge(mocker: MockerFixture) -> None:
     mock_tag_repo.get_by_id.assert_not_called()
 
 
-def test_merge_tags_sem_documentos_afetados(mocker: MockerFixture) -> None:
+def test_merge_tags_no_documents_affected(mocker: MockerFixture) -> None:
     """
-    Caminho Parcial: A tag existe, mas nenhum documento a usa.
-    Deve pular a transferência de documentos, mas AINDA ASSIM criar o sinônimo e apagá-la.
+    Partial Path: The tag exists, but no document uses it.
+    It must skip the document transfer, but STILL create the synonym and delete it.
     """
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
@@ -180,7 +180,7 @@ def test_merge_tags_sem_documentos_afetados(mocker: MockerFixture) -> None:
     mock_tag_repo.get_by_id.return_value = Mock(tag_id=1, name="oficial")
     mock_tag_repo.get_by_ids.return_value = [Mock(tag_id=2, name="tag_sem_uso")]
 
-    # Nenhum documento usa a tag
+    # No document uses the tag
     mock_tag_repo.get_document_ids_by_tags.return_value = []
     mock_tag_repo.delete_tags.return_value = 1
 
@@ -190,49 +190,49 @@ def test_merge_tags_sem_documentos_afetados(mocker: MockerFixture) -> None:
     assert res.documents_updated == 0
     assert res.tags_deleted == 1
 
-    # Como não há documentos, o INSERT de transferência é pulado!
+    # Since there are no documents, the transfer INSERT is skipped!
     mock_tag_repo.link_documents_to_tag.assert_not_called()
     mock_tag_repo.create_synonyms.assert_called_once()
     mock_tag_repo.delete_tags.assert_called_once_with([2])
 
 
 # ==========================================
-# TESTES: get_text_to_suggest_macro_category
+# TESTS: get_text_to_suggest_macro_category
 # ==========================================
 
 
 def test_get_text_to_suggest_macro_category_tags(mocker: MockerFixture):
-    """Garante que a service busca tags no repositório de Tags."""
+    """Guarantees that the service fetches tags from the Tags repository."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
 
     mock_tag_repo.fetch_tags_for_clustering.return_value = ["tag1", "tag2"]
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    resultado = service.get_text_to_suggest_macro_category(source_type="tags")
+    result = service.get_text_to_suggest_macro_category(source_type="tags")
 
     mock_tag_repo.fetch_tags_for_clustering.assert_called_once()
-    assert resultado == ["tag1", "tag2"]
+    assert result == ["tag1", "tag2"]
 
 
 def test_get_text_to_suggest_macro_category_documents(mocker: MockerFixture):
-    """Garante que a service delega corretamente a busca de documentos para o DocumentRepository."""
+    """Guarantees that the service correctly delegates the document lookup to DocumentRepository."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
 
     mock_doc_repo.fetch_documents_for_clustering.return_value = ["doc1", "doc2"]
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    colunas = ["scope_content"]
+    columns = ["scope_content"]
 
-    resultado = service.get_text_to_suggest_macro_category(source_type="documents", columns_to_extract=colunas)
+    result = service.get_text_to_suggest_macro_category(source_type="documents", columns_to_extract=columns)
 
-    mock_doc_repo.fetch_documents_for_clustering.assert_called_once_with(columns_to_extract=colunas)
-    assert resultado == ["doc1", "doc2"]
+    mock_doc_repo.fetch_documents_for_clustering.assert_called_once_with(columns_to_extract=columns)
+    assert result == ["doc1", "doc2"]
 
 
 def test_get_text_to_suggest_macro_category_invalid(mocker: MockerFixture):
-    """Garante o bloqueio caso passem um source_type não suportado."""
+    """Guarantees the block if an unsupported source_type is passed."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
 
@@ -245,29 +245,29 @@ def test_get_text_to_suggest_macro_category_invalid(mocker: MockerFixture):
 
 
 # ==========================================
-# TESTES: process_worker_tags
+# TESTS: process_worker_tags
 # ==========================================
 
 
-def test_process_worker_tags_lista_vazia(mocker: MockerFixture) -> None:
-    """Caminho Ruim: O worker enviou uma lista vazia, retorna rápido sem bater no repositório."""
+def test_process_worker_tags_empty_list(mocker: MockerFixture) -> None:
+    """Bad Path: The worker sent an empty list, returns quickly without hitting the repository."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    resultado = service.process_worker_tags([])
+    result = service.process_worker_tags([])
 
-    assert resultado == []
+    assert result == []
     mock_tag_repo.get_synonyms_mapping.assert_not_called()
     mock_tag_repo.get_or_create_tags.assert_not_called()
 
 
-def test_process_worker_tags_apenas_tags_novas_caminho_feliz(mocker: MockerFixture) -> None:
-    """Caminho Feliz: Nenhuma tag é sinônimo, todas são enviadas para criação."""
+def test_process_worker_tags_only_new_tags_happy_path(mocker: MockerFixture) -> None:
+    """Happy Path: No tag is a synonym, all are sent for creation."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
 
-    # Mocks: Banco retorna que não há sinônimos, e a criação gerou os IDs 10 e 11
+    # Mocks: The database returns that there are no synonyms, and creation generated IDs 10 and 11
     mock_tag_repo.get_synonyms_mapping.return_value = {}
     mock_tag_repo.get_or_create_tags.return_value = [10, 11]
 
@@ -277,19 +277,19 @@ def test_process_worker_tags_apenas_tags_novas_caminho_feliz(mocker: MockerFixtu
     ]
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    resultado = service.process_worker_tags(dtos)
+    result = service.process_worker_tags(dtos)
 
-    assert set(resultado) == {10, 11}
+    assert set(result) == {10, 11}
     mock_tag_repo.get_synonyms_mapping.assert_called_once()
     mock_tag_repo.get_or_create_tags.assert_called_once_with(dtos)
 
 
-def test_process_worker_tags_apenas_sinonimos(mocker: MockerFixture) -> None:
-    """Caminho de Substituição: O worker enviou APENAS sinônimos, pulando a criação no repositório."""
+def test_process_worker_tags_only_synonyms(mocker: MockerFixture) -> None:
+    """Replacement Path: The worker sent ONLY synonyms, skipping creation in the repository."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
 
-    # Mocks: Ambas as palavras já são sinônimos conhecidos mapeados para IDs 99 e 100
+    # Mocks: Both words are already known synonyms mapped to IDs 99 and 100
     mock_tag_repo.get_synonyms_mapping.return_value = {"prefeiruta": 99, "parques": 100}
 
     dtos = [
@@ -298,46 +298,46 @@ def test_process_worker_tags_apenas_sinonimos(mocker: MockerFixture) -> None:
     ]
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    resultado = service.process_worker_tags(dtos)
+    result = service.process_worker_tags(dtos)
 
-    assert set(resultado) == {99, 100}
+    assert set(result) == {99, 100}
     mock_tag_repo.get_synonyms_mapping.assert_called_once()
-    # Pula a criação, pois não sobrou nenhuma tag nova!
+    # Skips creation, since no new tag was left!
     mock_tag_repo.get_or_create_tags.assert_not_called()
 
 
-def test_process_worker_tags_misto_sinonimos_e_novas(mocker: MockerFixture) -> None:
-    """Caminho Realista: A malha fina intercepta sinônimos e envia apenas as tags legítimas para o banco."""
+def test_process_worker_tags_mixed_synonyms_and_new(mocker: MockerFixture) -> None:
+    """Realistic Path: The fine sieve intercepts synonyms and sends only the legitimate tags to the database."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
 
-    # Mocks: "leis" é sinônimo da tag canônica (ID 5). A tag "IPTU" não tem sinônimo e receberá o ID 88
+    # Mocks: "leis" is a synonym of the canonical tag (ID 5). The "IPTU" tag has no synonym and will receive ID 88
     mock_tag_repo.get_synonyms_mapping.return_value = {"leis": 5}
     mock_tag_repo.get_or_create_tags.return_value = [88]
 
-    dto_sinonimo = ArchiveTagDTO(name="Leis", macro_category_id=None, ai_confidence_score=None)
-    dto_nova = ArchiveTagDTO(name="IPTU", macro_category_id=None, ai_confidence_score=None)
+    synonym_dto = ArchiveTagDTO(name="Leis", macro_category_id=None, ai_confidence_score=None)
+    new_dto = ArchiveTagDTO(name="IPTU", macro_category_id=None, ai_confidence_score=None)
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    resultado = service.process_worker_tags([dto_sinonimo, dto_nova])
+    result = service.process_worker_tags([synonym_dto, new_dto])
 
-    assert set(resultado) == {5, 88}
+    assert set(result) == {5, 88}
 
-    # Verifica se o service enviou APENAS a dto nova ("IPTU") para gravação
+    # Checks whether the service sent ONLY the new dto ("IPTU") for persistence
     mock_tag_repo.get_or_create_tags.assert_called_once()
-    dtos_enviados_para_criacao = mock_tag_repo.get_or_create_tags.call_args[0][0]
+    dtos_sent_for_creation = mock_tag_repo.get_or_create_tags.call_args[0][0]
 
-    assert len(dtos_enviados_para_criacao) == 1
-    assert dtos_enviados_para_criacao[0].name == "IPTU"
+    assert len(dtos_sent_for_creation) == 1
+    assert dtos_sent_for_creation[0].name == "IPTU"
 
 
-def test_process_worker_tags_deduplicacao_de_ids(mocker: MockerFixture) -> None:
-    """Limites de Borda: Garante que múltiplas tags diferentes não gerem o mesmo ID duplicado no documento."""
+def test_process_worker_tags_deduplicates_ids(mocker: MockerFixture) -> None:
+    """Edge Limits: Guarantees that multiple different tags do not generate the same duplicated ID on the document."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
 
-    # Digamos que "parques" e "pracinhas" são ambos sinônimos para o ID 12 ("parque").
-    # E "parque" também foi enviada (ela não é sinônimo, passará pela criação e retornará ID 12).
+    # Let's say "parques" and "pracinhas" are both synonyms for ID 12 ("parque").
+    # And "parque" was also sent (it is not a synonym, it will go through creation and return ID 12).
     mock_tag_repo.get_synonyms_mapping.return_value = {"parques": 12, "pracinhas": 12}
     mock_tag_repo.get_or_create_tags.return_value = [12]
 
@@ -348,8 +348,8 @@ def test_process_worker_tags_deduplicacao_de_ids(mocker: MockerFixture) -> None:
     ]
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    resultado = service.process_worker_tags(dtos)
+    result = service.process_worker_tags(dtos)
 
-    # O resultado deve ter apenas UM registro do ID 12. O uso do set() na service garante isso.
-    assert len(resultado) == 1
-    assert resultado == [12]
+    # The result must have only ONE record of ID 12. The use of set() in the service guarantees this.
+    assert len(result) == 1
+    assert result == [12]

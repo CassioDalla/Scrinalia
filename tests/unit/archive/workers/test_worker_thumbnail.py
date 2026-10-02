@@ -4,115 +4,115 @@ from sqlalchemy.orm import Session
 from domains.archive.workers import worker_thumbnail
 
 # ==========================================
-# 1. TESTES DE REDE E MEMÓRIA
+# 1. NETWORK AND MEMORY TESTS
 # ==========================================
 
 
-def test_download_image_to_memory_sucesso(mocker: MockerFixture) -> None:
-    """Testa o download simulando uma resposta 200 HTTP e o processamento da PIL."""
+def test_download_image_to_memory_success(mocker: MockerFixture) -> None:
+    """Tests the download by simulating a 200 HTTP response and PIL processing."""
     mock_response = mocker.Mock()
     mock_response.status_code = 200
     mock_response.content = b"fake_bytes"
 
     mocker.patch("requests.get", return_value=mock_response)
 
-    # Finge que a PIL abriu a imagem com sucesso
+    # Pretend that PIL opened the image successfully
     mock_image = mocker.Mock()
     mock_image.mode = "RGB"
     mocker.patch("PIL.Image.open", return_value=mock_image)
 
-    resultado = worker_thumbnail.download_image_to_memory("http://site.com/img.png")
+    result = worker_thumbnail.download_image_to_memory("http://site.com/img.png")
 
-    assert resultado is not None
-    # Verifica se a imagem foi salva no buffer de saída
+    assert result is not None
+    # Checks whether the image was saved into the output buffer
     mock_image.save.assert_called_once()
 
 
-def test_download_image_to_memory_falha_http(mocker: MockerFixture) -> None:
-    """Garante que erros 404/500 da prefeitura não quebrem o worker."""
+def test_download_image_to_memory_http_failure(mocker: MockerFixture) -> None:
+    """Guarantees that 404/500 errors from the city hall do not break the worker."""
     mock_response = mocker.Mock()
     mock_response.status_code = 404
     mocker.patch("requests.get", return_value=mock_response)
 
-    resultado = worker_thumbnail.download_image_to_memory("http://site.com/img.png")
+    result = worker_thumbnail.download_image_to_memory("http://site.com/img.png")
 
-    assert resultado is None
+    assert result is None
 
 
 def test_download_image_to_memory_exception(mocker: MockerFixture) -> None:
-    """Garante que quedas de rede (Timeout) sejam tratadas graciosamente."""
+    """Guarantees that network drops (Timeout) are handled gracefully."""
     mocker.patch("requests.get", side_effect=Exception("Connection Timeout"))
 
-    resultado = worker_thumbnail.download_image_to_memory("http://site.com/img.png")
+    result = worker_thumbnail.download_image_to_memory("http://site.com/img.png")
 
-    assert resultado is None
+    assert result is None
 
 
 # ==========================================
-# 2. TESTES DE ORQUESTRAÇÃO
+# 2. ORCHESTRATION TESTS
 # ==========================================
 
 
-def test_execute_worker_thumbnails_sucesso(mocker: MockerFixture) -> None:
-    """Caminho feliz: Baixa a imagem, sobe pro Storage e salva a URI."""
+def test_execute_worker_thumbnails_success(mocker: MockerFixture) -> None:
+    """Happy path: Downloads the image, uploads it to Storage and saves the URI."""
     mock_db = mocker.Mock(spec=Session)
 
     mock_get_db = mocker.patch.object(worker_thumbnail, "get_db")
     mock_get_db.return_value.__enter__.return_value = mock_db
 
-    # CORREÇÃO: MagicMock
+    # FIX: MagicMock
     mock_db.begin_nested.return_value = mocker.MagicMock()
 
-    # Cria documento fake pendente
-    doc_fake = mocker.Mock()
-    doc_fake.description_id = "doc-1"
-    doc_fake.original_thumbnail_url = "http://link.com"
-    doc_fake.storage_thumbnail_uri = None
-    doc_fake.execution_log = {}
+    # Creates a pending fake document
+    fake_doc = mocker.Mock()
+    fake_doc.description_id = "doc-1"
+    fake_doc.original_thumbnail_url = "http://link.com"
+    fake_doc.storage_thumbnail_uri = None
+    fake_doc.execution_log = {}
 
-    mock_db.scalars.return_value.yield_per.return_value = [doc_fake]
+    mock_db.scalars.return_value.yield_per.return_value = [fake_doc]
 
-    # Mocks das integrações externas (Rede e MinIO)
+    # Mocks of external integrations (Network and MinIO)
     mocker.patch.object(worker_thumbnail, "download_image_to_memory", return_value=b"bytes")
 
     mock_storage = mocker.patch("domains.archive.workers.worker_thumbnail.S3Storage")
     mock_storage.return_value.upload_file.return_value = "s3://bucket/thumb_doc-1.jpg"
 
-    # Previne o sleep de atrasar os testes
+    # Prevents the sleep from slowing down the tests
     mocker.patch("time.sleep")
 
     worker_thumbnail.execute(mock_db)
 
-    # Validações
-    assert doc_fake.storage_thumbnail_uri == "s3://bucket/thumb_doc-1.jpg"
+    # Validations
+    assert fake_doc.storage_thumbnail_uri == "s3://bucket/thumb_doc-1.jpg"
     mock_storage.return_value.upload_file.assert_called_once()
     mock_db.commit.assert_called_once()
 
 
-def test_execute_worker_thumbnails_marca_falha_no_json(mocker: MockerFixture) -> None:
-    """Se o download falhar, o worker deve marcar a falha no execution_log."""
+def test_execute_worker_thumbnails_marks_failure_in_json(mocker: MockerFixture) -> None:
+    """If the download fails, the worker must mark the failure in execution_log."""
     mock_db = mocker.Mock(spec=Session)
 
     mock_get_db = mocker.patch.object(worker_thumbnail, "get_db")
     mock_get_db.return_value.__enter__.return_value = mock_db
 
-    # CORREÇÃO: MagicMock
+    # FIX: MagicMock
     mock_db.begin_nested.return_value = mocker.MagicMock()
 
-    doc_fake = mocker.Mock()
-    doc_fake.original_thumbnail_url = "http://link-quebrado.com"
-    doc_fake.execution_log = {}
+    fake_doc = mocker.Mock()
+    fake_doc.original_thumbnail_url = "http://link-quebrado.com"
+    fake_doc.execution_log = {}
 
-    mock_db.scalars.return_value.yield_per.return_value = [doc_fake]
+    mock_db.scalars.return_value.yield_per.return_value = [fake_doc]
 
-    # Força a falha no download
+    # Forces the download to fail
     mocker.patch.object(worker_thumbnail, "download_image_to_memory", return_value=None)
     mock_flag = mocker.patch("domains.archive.workers.worker_thumbnail.flag_modified")
     mocker.patch("time.sleep")
 
     worker_thumbnail.execute(mock_db)
 
-    # O documento não recebe a URI, mas recebe a flag de falha
-    assert doc_fake.execution_log == {"thumbnail_failed": "True"}
-    mock_flag.assert_called_once_with(doc_fake, "execution_log")
+    # The document does not receive the URI, but receives the failure flag
+    assert fake_doc.execution_log == {"thumbnail_failed": "True"}
+    mock_flag.assert_called_once_with(fake_doc, "execution_log")
     mock_db.commit.assert_called_once()

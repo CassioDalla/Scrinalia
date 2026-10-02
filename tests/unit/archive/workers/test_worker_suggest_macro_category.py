@@ -7,10 +7,10 @@ from domains.archive.workers.worker_suggest_macro_category import run_suggestion
 
 
 def test_worker_happy_path_formatting(mock_registry, mocker):
-    """Garante que o worker formata o DataFrame do BERTopic para o DTO do Pydantic."""
-    textos_analise = [f"texto_{i}" for i in range(15)]
+    """Guarantees that the worker formats the BERTopic DataFrame into the Pydantic DTO."""
+    analysis_texts = [f"texto_{i}" for i in range(15)]
 
-    # Simula a saída do BERTopic
+    # Simulates the BERTopic output
     mock_df = pd.DataFrame(
         [
             {"Topic": 0, "Count": 10, "Representation": ["urbano", "rua", "obras"]},
@@ -20,23 +20,23 @@ def test_worker_happy_path_formatting(mock_registry, mocker):
     mock_topics = [0] * 10 + [1] * 5
 
     MockClass = mock_registry(registry)
-    instancia_da_ia = MockClass.return_value
-    instancia_da_ia.discover_topics.return_value = (mock_topics, mock_df)
+    ai_instance = MockClass.return_value
+    ai_instance.discover_topics.return_value = (mock_topics, mock_df)
 
-    # Executa a função pura (o Worker)
-    resultado = run_suggestion_engine(texts_to_analize=textos_analise, engine_name="motor_fake")  # type: ignore
+    # Run the pure function (the Worker)
+    result = run_suggestion_engine(texts_to_analyze=analysis_texts, engine_name="motor_fake")  # type: ignore
 
-    # Valida usando a notação de objetos (Pydantic Models)
-    assert resultado.total_suggestions == 2
-    assert resultado.categories[0].topic_id == 0
-    assert resultado.categories[0].suggested_name == "Urbano - Rua - Obras"
-    assert resultado.categories[0].estimate_count == 10
-    assert len(resultado.categories[0].real_samples) == 10
+    # Validate using object notation (Pydantic Models)
+    assert result.total_suggestions == 2
+    assert result.categories[0].topic_id == 0
+    assert result.categories[0].suggested_name == "Urbano - Rua - Obras"
+    assert result.categories[0].estimate_count == 10
+    assert len(result.categories[0].real_samples) == 10
 
 
 def test_worker_ignores_noise_topic(mock_registry, mocker):
-    """Garante que o tópico '-1' (ruído do BERTopic) é sumariamente ignorado."""
-    textos_analise = [f"texto_{i}" for i in range(12)]
+    """Guarantees that topic '-1' (BERTopic noise) is summarily ignored."""
+    analysis_texts = [f"texto_{i}" for i in range(12)]
 
     mock_df = pd.DataFrame(
         [
@@ -47,17 +47,17 @@ def test_worker_ignores_noise_topic(mock_registry, mocker):
     mock_topics = [-1] * 4 + [0] * 8
 
     MockClass = mock_registry(registry)
-    instancia_da_ia = MockClass.return_value
-    instancia_da_ia.discover_topics.return_value = (mock_topics, mock_df)
+    ai_instance = MockClass.return_value
+    ai_instance.discover_topics.return_value = (mock_topics, mock_df)
 
-    resultado = run_suggestion_engine(texts_to_analize=textos_analise, engine_name="motor_fake")  # type: ignore
+    result = run_suggestion_engine(texts_to_analyze=analysis_texts, engine_name="motor_fake")  # type: ignore
 
-    # Apenas o tópico válido (0) deve estar na lista final
-    assert resultado.total_suggestions == 1
-    assert resultado.categories[0].topic_id == 0
+    # Only the valid topic (0) must be in the final list
+    assert result.total_suggestions == 1
+    assert result.categories[0].topic_id == 0
 
 
 def test_worker_empty_text_list():
-    """Garante que o worker aborta caso a lista chegue vazia, protegendo a IA."""
-    with pytest.raises(InvalidParam, match="O parâmetro 'texts_to_analize' não foi passado"):
-        run_suggestion_engine(texts_to_analize=[], engine_name="motor_fake")  # type: ignore
+    """Guarantees that the worker aborts if the list arrives empty, protecting the AI."""
+    with pytest.raises(InvalidParam, match="O parâmetro 'texts_to_analyze' não foi passado"):
+        run_suggestion_engine(texts_to_analyze=[], engine_name="motor_fake")  # type: ignore
