@@ -12,6 +12,7 @@ from core.logger import logger
 from core.storage import S3Storage
 from core.unit_of_work import UnitOfWork
 from domains.archive.models import ArchiveDocument
+from domains.archive.ports.storage import ThumbnailStoragePort
 from domains.archive.repository.governance import ai_writable_documents
 from domains.archive.worker_stamp import THUMBNAIL_FAILED
 
@@ -55,7 +56,7 @@ def download_image_to_memory(url: str) -> BytesIO | None:
         return None
 
 
-def execute(db: Session) -> None:
+def execute(db: Session, storage: ThumbnailStoragePort | None = None) -> None:
     """
     Asynchronous orchestrator responsible for migrating images from an ephemeral
     external link to a secure Object Storage (e.g. MinIO/S3).
@@ -65,7 +66,7 @@ def execute(db: Session) -> None:
     """
     logger.info("📸 Starting the Thumbnails Worker...")
 
-    storage = S3Storage()
+    storage = storage or S3Storage()
     uow = UnitOfWork(db)
 
     # Fetches images that have not yet been uploaded AND that have not failed permanently.

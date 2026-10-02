@@ -143,3 +143,29 @@ def test_execute_worker_thumbnails_stamps_unexpected_exceptions(mocker: MockerFi
 
     assert fake_doc.execution_log == {"thumbnail_failed": "True"}
     mock_flag.assert_called_once_with(fake_doc, "execution_log")
+
+
+def test_execute_worker_uses_injected_storage_port(mocker: MockerFixture) -> None:
+    """The worker must accept any ThumbnailStoragePort instead of building S3Storage itself."""
+    mock_db = mocker.Mock(spec=Session)
+    mock_db.begin_nested.return_value = mocker.MagicMock()
+
+    fake_doc = mocker.Mock()
+    fake_doc.description_id = "doc-port"
+    fake_doc.original_thumbnail_url = "http://link.com"
+    fake_doc.storage_thumbnail_uri = None
+    fake_doc.execution_log = {}
+    mock_db.scalars.return_value.yield_per.return_value = [fake_doc]
+
+    mocker.patch.object(worker_thumbnail, "download_image_to_memory", return_value=b"bytes")
+    mock_s3_cls = mocker.patch("domains.archive.workers.worker_thumbnail.S3Storage")
+    mocker.patch("time.sleep")
+
+    fake_storage = mocker.Mock()
+    fake_storage.upload_file.return_value = "s3://bucket/thumb_doc-port.jpg"
+
+    worker_thumbnail.execute(mock_db, storage=fake_storage)
+
+    fake_storage.upload_file.assert_called_once()
+    mock_s3_cls.assert_not_called()
+    assert fake_doc.storage_thumbnail_uri == "s3://bucket/thumb_doc-port.jpg"
