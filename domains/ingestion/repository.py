@@ -1,5 +1,3 @@
-import hashlib
-import json
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
@@ -8,6 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from core.content_hash import ContentHash
 from core.logger import logger
 
 from .models import RawData, ScrapeStatus, ScrapingQueue
@@ -209,8 +208,7 @@ def save_raw_data(db: Session, description_id: str, scraped_data: dict) -> bool:
     """
     raw_title = scraped_data.get("title")
 
-    string_payload = json.dumps(scraped_data, sort_keys=True, ensure_ascii=False)
-    content_hash = hashlib.sha256(string_payload.encode("utf-8")).hexdigest()
+    content_hash = ContentHash.of(scraped_data)
 
     values = {
         "description_id": description_id,
