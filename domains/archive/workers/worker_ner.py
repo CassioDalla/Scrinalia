@@ -15,6 +15,7 @@ from domains.archive.engines.NER.registry import PresetName, get_engine
 from domains.archive.models import ArchiveDocument, DomainStopwords, StopwordsScope
 from domains.archive.repository import EntityRepository
 from domains.archive.repository.governance import ai_writable_documents
+from domains.archive.schemas.command_schema import EntityLinkCommand
 from domains.archive.worker_stamp import NER
 
 
@@ -201,7 +202,7 @@ def execute(
 
                                         for e_id in entity_ids:
                                             batch_links_buffer.append(
-                                                {"description_id": doc.description_id, "entity_id": e_id}
+                                                EntityLinkCommand(description_id=doc.description_id, entity_id=e_id)
                                             )
 
                                         logger.debug(

@@ -4,6 +4,7 @@ from sqlalchemy.exc import IntegrityError
 
 from domains.archive.models import ArchiveDocumentTag, ArchiveMacroCategory, ArchiveTag
 from domains.archive.repository.tag_repo import TagRepository
+from domains.archive.schemas.command_schema import TagLinkCommand
 from domains.archive.schemas.tag_schema import ArchiveTagDTO
 
 
@@ -165,9 +166,9 @@ def test_bulk_link_tags_worker_optimization(use_test_db, db_session, generate_ar
 
     # 2. Action: The Worker built a list with duplicate dictionaries
     worker_payload = [
-        {"description_id": "doc_bulk_1", "tag_id": tag_x.tag_id},
-        {"description_id": "doc_bulk_2", "tag_id": tag_x.tag_id},
-        {"description_id": "doc_bulk_1", "tag_id": tag_x.tag_id},  # 🚨 100% duplicated dictionary!
+        TagLinkCommand(description_id="doc_bulk_1", tag_id=tag_x.tag_id),
+        TagLinkCommand(description_id="doc_bulk_2", tag_id=tag_x.tag_id),
+        TagLinkCommand(description_id="doc_bulk_1", tag_id=tag_x.tag_id),  # 🚨 100% duplicated command!
     ]
 
     repo.bulk_link_tags(worker_payload)

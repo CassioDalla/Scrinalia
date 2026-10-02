@@ -7,6 +7,7 @@ from domains.archive.models import ArchiveReviewStatus
 from domains.archive.ports.staging_source import StagingRecordSource
 from domains.archive.repository import DocumentRepository, TagRepository
 from domains.archive.repository.staging_source import SqlStagingRecordSource
+from domains.archive.schemas.command_schema import TagLinkCommand
 from domains.archive.schemas.document_schema import ArchiveDocumentDTO
 from domains.archive.services.tag_service import TagService
 
@@ -80,7 +81,9 @@ def execute(
                 tag_ids = tag_service.process_worker_tags(tags_dtos)
 
                 if tag_ids:
-                    batch_links.extend([{"description_id": doc_dto.description_id, "tag_id": t_id} for t_id in tag_ids])
+                    batch_links.extend(
+                        TagLinkCommand(description_id=doc_dto.description_id, tag_id=t_id) for t_id in tag_ids
+                    )
 
                 success_count += 1
 

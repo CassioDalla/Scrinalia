@@ -1,7 +1,7 @@
 from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
-from domains.archive.schemas import ArchiveEntityDTO
+from domains.archive.schemas import ArchiveEntityDTO, EntityLinkCommand
 from domains.archive.workers import worker_ner
 
 
@@ -78,7 +78,7 @@ def test_worker_ner_unit_ideal_flow(mocker: MockerFixture) -> None:
 
     # Persistence verifications
     mock_repo.get_or_create_entities.assert_called_once()
-    mock_repo.bulk_link_entities.assert_called_once_with([{"description_id": "doc-1", "entity_id": 101}])
+    mock_repo.bulk_link_entities.assert_called_once_with([EntityLinkCommand(description_id="doc-1", entity_id=101)])
 
     # Was the success stamp applied in the document's memory?
     assert test_doc.execution_log["worker_ner_v1"] == "DONE"  # type: ignore

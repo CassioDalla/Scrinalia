@@ -1,6 +1,7 @@
 from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
+from domains.archive.schemas.command_schema import TagLinkCommand
 from domains.archive.schemas.document_schema import ArchiveDocumentDTO
 from domains.archive.workers import worker_archive_transfer
 
@@ -58,7 +59,7 @@ def test_run_archive_transfer_full_flow(mocker: MockerFixture, mock_staging_doc)
     # 6. VALIDATIONS: Database Optimization (Bulk Insert in the Buffer)
     # Guarantees that the Worker built the dictionary correctly before sending it to the repo
     mock_tag_repo.bulk_link_tags.assert_called_once_with(
-        [{"description_id": "doc-100", "tag_id": 99}, {"description_id": "doc-100", "tag_id": 100}]
+        [TagLinkCommand(description_id="doc-100", tag_id=99), TagLinkCommand(description_id="doc-100", tag_id=100)]
     )
 
     # The loop finished, so it must commit the final transaction
@@ -179,4 +180,4 @@ def test_run_archive_transfer_batch_resilience(mocker: MockerFixture, mock_stagi
     assert mock_doc_repo.upsert_archive_document.call_count == 2
 
     # The bulk send buffer must have saved only the links from the SECOND document (which survived)
-    mock_tag_repo.bulk_link_tags.assert_called_once_with([{"description_id": "doc-sucesso", "tag_id": 10}])
+    mock_tag_repo.bulk_link_tags.assert_called_once_with([TagLinkCommand(description_id="doc-sucesso", tag_id=10)])

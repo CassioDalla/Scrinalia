@@ -16,7 +16,7 @@ from domains.archive.models import (
     DomainSynonyms,
     StopwordsScope,
 )
-from domains.archive.schemas.command_schema import SynonymCommand
+from domains.archive.schemas.command_schema import EntityLinkCommand, SynonymCommand
 from domains.archive.schemas.entity_schema import (
     ArchiveEntityDTO,
     CrossDomainConflict,
@@ -264,20 +264,21 @@ class EntityRepository:
         stmt = insert(ArchiveDocumentEntity).values(new_links).on_conflict_do_nothing()
         self.db.execute(stmt)
 
-    def bulk_link_entities(self, links_data: list[dict]) -> None:
+    def bulk_link_entities(self, links: Sequence[EntityLinkCommand]) -> None:
         """
         Optimization for Batch Ingestion (Workers).
-        Inserts thousands of N:N links in a single transaction.
-        Receives: [{"description_id": "doc1", "entity_id": 1}, ...]
+        Inserts thousands of N:N links in a single transaction, deduplicating
+        identical commands so the database does not take unnecessary locks.
         """
-        if not links_data:
+        if not links:
             return
 
-        # Converts to tuples and then back to dict to remove exact duplicates
-        # sent in the same batch, preventing unnecessary locks
-        unique_links = [dict(t) for t in {tuple(d.items()) for d in links_data}]
+        unique_links = {(link.description_id, link.entity_id) for link in links}
+        rows = [
+            {"description_id": description_id, "entity_id": entity_id} for description_id, entity_id in unique_links
+        ]
 
-        stmt = insert(ArchiveDocumentEntity).values(unique_links).on_conflict_do_nothing()
+        stmt = insert(ArchiveDocumentEntity).values(rows).on_conflict_do_nothing()
         self.db.execute(stmt)
 
     def create_synonyms(self, synonyms_data: list[SynonymCommand]) -> None:

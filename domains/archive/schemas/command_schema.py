@@ -48,3 +48,17 @@ class DocumentReviewCommand(BaseModel):
     final_title: str | None = None
     scope_content: str | None = None
     archivist_notes: str | None = None
+
+
+class TagLinkCommand(BaseModel):
+    """Command linking one document to one tag."""
+
+    description_id: str
+    tag_id: int
+
+
+class EntityLinkCommand(BaseModel):
+    """Command linking one document to one entity."""
+
+    description_id: str
+    entity_id: int

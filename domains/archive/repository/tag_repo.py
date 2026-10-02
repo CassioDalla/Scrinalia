@@ -19,6 +19,7 @@ from domains.archive.schemas import (
     ArchiveTagDTO,
     SynonymCommand,
     TagIdentity,
+    TagLinkCommand,
     TagPairSimilarity,
     TagRelevanceCount,
     TagRelevanceIdf,
@@ -229,20 +230,19 @@ class TagRepository:
         stmt = insert(ArchiveDocumentTag).values(new_links).on_conflict_do_nothing()
         self.db.execute(stmt)
 
-    def bulk_link_tags(self, links_data: list[dict]) -> None:
+    def bulk_link_tags(self, links: Sequence[TagLinkCommand]) -> None:
         """
         Optimization for Batch Ingestion (Workers).
-        Inserts thousands of N:N links in a single transaction.
-        Receives: [{"description_id": "doc1", "tag_id": 1}, ...]
+        Inserts thousands of N:N links in a single transaction, deduplicating
+        identical commands so the database does not take unnecessary locks.
         """
-        if not links_data:
+        if not links:
             return
 
-        # Converts to tuples and then back to dict to remove exact duplicates
-        # sent in the same batch, preventing unnecessary locks
-        unique_links = [dict(t) for t in {tuple(d.items()) for d in links_data}]
+        unique_links = {(link.description_id, link.tag_id) for link in links}
+        rows = [{"description_id": description_id, "tag_id": tag_id} for description_id, tag_id in unique_links]
 
-        stmt = insert(ArchiveDocumentTag).values(unique_links).on_conflict_do_nothing()
+        stmt = insert(ArchiveDocumentTag).values(rows).on_conflict_do_nothing()
         self.db.execute(stmt)
 
     def create_synonyms(self, synonyms_data: list[SynonymCommand]) -> None:
