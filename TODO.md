@@ -25,9 +25,11 @@ O objetivo desta fase é estabelecer a fundação de dados robusta e a esteira d
 ## 🟡 Fase 2: APIs e Governança (Human-in-the-Loop)
 Dar utilidade aos dados isolando o banco de dados do *Front-end* e permitindo a atuação dos arquivistas sobre as decisões da IA.
 
-- [ ] **Camada de API (FastAPI):**
-  - [ ] Desenvolver roteamento RESTful seguindo o padrão DDD (`domains/archive/routers.py`).
-  - [ ] Criar *endpoints* de leitura (Paginação do Acervo) e escrita (Aprovação humana).
+- [X] **Camada de API (Litestar):**
+  - [X] Roteamento RESTful seguindo o padrão DDD: controllers em `api/controllers/`, serviços por domínio.
+  - [X] *Endpoints* de leitura (paginação do acervo) e escrita (aprovação humana).
+  - [X] Composição por request com `provide_unit_of_work` (`api/dependencies.py`) dono da transação.
+  - Decisão registrada em [`docs/adr/0001-litestar-as-http-framework.md`](docs/adr/0001-litestar-as-http-framework.md) — o roadmap previa FastAPI, a implementação seguiu com Litestar.
 - [X] **Serviço de Entidades (`EntityService`):**
   - [X] Espelhar a lógica do `TagService`: criar funções para fundir (`merge`) Entidades duplicadas e popular a tabela `domain_synonyms`.
 - [ ] **Painel de Curadoria (Front-end HITL):**
