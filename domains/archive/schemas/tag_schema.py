@@ -47,7 +47,7 @@ class TagSimilarity(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# Pensar em alguma forma juntar com o schema de cima
+# Think about a way to merge this with the schema above
 class TagPairSimilarity(BaseModel):
     id_1: int
     name_1: str
@@ -89,19 +89,19 @@ class ArchiveMacroCategoryEntityDTO(BaseModel):
 
 class ArchiveTagDTO(BaseModel):
     """
-    Contrato rigoroso para a criação de Tags (Taxonomia).
+    Strict contract for creating Tags (Taxonomy).
 
-    Assegura que os modelos de classificação (ex: mDeBERTa) entreguem
-    categorias consistentes acompanhadas de sua métrica de confiança
-    para métricas de observabilidade.
+    Ensures that the classification models (e.g. mDeBERTa) deliver
+    consistent categories accompanied by their confidence metric
+    for observability metrics.
     """
 
-    name: str = Field(description="A palavra-chave ou conceito associado, preferencialmente em minúsculo.")
+    name: str = Field(description="The associated keyword or concept, preferably in lowercase.")
     macro_category_id: int | None = Field(
-        default=None, description="Id linkando para a gaveta semântica principal (ex: Urbanismo, Saúde)"
+        default=None, description="Id linking to the main semantic drawer (e.g. Urbanism, Health)"
     )
     ai_confidence_score: float | None = Field(
-        default=None, description="Grau de certeza do modelo de IA (0.0 a 1.0 ou 0 a 100)."
+        default=None, description="Degree of certainty of the AI model (0.0 to 1.0 or 0 to 100)."
     )
 
     model_config = ConfigDict(from_attributes=True)

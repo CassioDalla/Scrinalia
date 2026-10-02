@@ -16,14 +16,14 @@ class CleaningService:
         self.repo = repo
 
     def _validate_regex(self, pattern: str) -> re.Pattern:
-        """Tenta compilar o Regex. Se falhar, lança erro de negócio."""
+        """Tries to compile the Regex. If the compile fails, raises a business error."""
         try:
             return re.compile(pattern, re.IGNORECASE)
         except re.error as e:
             raise InvalidParam(f"Sintaxe de Regex inválida: {e!s}") from e
 
     def create_cleaning_rule(self, dto: CleaningRuleCreateDTO) -> CleaningRuleDTO:
-        # Validação antecipada (Fail Fast)
+        # Early validation (Fail Fast)
         self._validate_regex(dto.regex_pattern)
 
         rule = self.repo.create_rule(dto.model_dump())
@@ -31,8 +31,8 @@ class CleaningService:
 
     def simulate_dry_run(self, dto: DryRunRequestDTO) -> DryRunResponseDTO:
         """
-        Pega o Regex do utilizador, carrega documentos reais e mostra o "Antes e Depois"
-        para ele ter certeza de que não vai destruir o banco de dados sem querer.
+        Takes the user's Regex, loads real documents and shows the "Before and After"
+        so they can be sure they will not accidentally destroy the database.
         """
         try:
             regex = self._validate_regex(dto.regex_pattern)
@@ -43,23 +43,23 @@ class CleaningService:
 
         matches = []
         for doc in docs:
-            texto_original = getattr(doc, dto.target_column)
+            original_text = getattr(doc, dto.target_column)
 
-            # Se o Regex encontrar algo neste texto
-            if texto_original and regex.search(texto_original):
-                texto_modificado = regex.sub(dto.replacement_string, texto_original)
+            # If the Regex finds something in this text
+            if original_text and regex.search(original_text):
+                modified_text = regex.sub(dto.replacement_string, original_text)
 
-                # Guarda apenas se houve uma modificação real
-                if texto_original != texto_modificado:
+                # Only saves if there was a real modification
+                if original_text != modified_text:
                     matches.append(
                         DryRunMatchDTO(
                             description_id=doc.description_id,
-                            original_text=texto_original,
-                            modified_text=texto_modificado,
+                            original_text=original_text,
+                            modified_text=modified_text,
                         )
                     )
 
-                    # Limitamos a 5 exemplos visuais para não sobrecarregar a API
+                    # We limit it to 5 visual examples to avoid overloading the API
                     if len(matches) >= 5:
                         break
 

@@ -5,16 +5,16 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class ArchiveEntityDTO(BaseModel):
     """
-    Contrato de dados para Entidades Nomeadas (NER).
+    Data contract for Named Entities (NER).
 
-    Garante que os extratores (como o spaCy) retornem entidades
-    padronizadas e validadas contra os tipos permitidos no domínio
-    antes da persistência.
+    Ensures that the extractors (such as spaCy) return entities
+    standardized and validated against the types allowed in the domain
+    before persistence.
     """
 
-    name: str = Field(description="Nome limpo e formatado da entidade.")
+    name: str = Field(description="Clean, formatted name of the entity.")
     entity_type: Literal["PER", "ORG", "LOC"] = Field(
-        description="Tipo da entidade. Restrito a Pessoa, Organização ou Local."
+        description="Entity type. Restricted to Person, Organization or Location."
     )
 
     model_config = ConfigDict(from_attributes=True)

@@ -28,17 +28,17 @@ if TYPE_CHECKING:
 
 class ArchiveDocument(Base):
     """
-    O documento final, limpo e enriquecido.
+    The final, cleaned and enriched document.
 
-    Esta é a base de dados central servida para os utilizadores finais,
-    alimentada por múltiplos workers de Inteligência Artificial assíncronos.
+    This is the central database served to end users,
+    fed by multiple asynchronous Artificial Intelligence workers.
     """
 
     __tablename__ = "archive_documents"
 
     description_id: Mapped[str] = mapped_column(String(50), primary_key=True)
 
-    # --- Linhagem e Origem ---
+    # --- Lineage and Origin ---
     original_title: Mapped[str] = mapped_column(Text, nullable=False)
     document_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -46,7 +46,7 @@ class ArchiveDocument(Base):
     original_thumbnail_url: Mapped[str | None] = mapped_column(String, nullable=True)
     storage_thumbnail_uri: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    # --- Metadados Arquivísticos (ISAD-G) ---
+    # --- Archival Metadata (ISAD-G) ---
     reference_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     level: Mapped[str | None] = mapped_column(Text, nullable=True)
     producers: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -57,17 +57,17 @@ class ArchiveDocument(Base):
     language_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     archivist_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # --- Enriquecimento NLP/IA ---
+    # --- NLP/AI Enrichment ---
     final_title: Mapped[str | None] = mapped_column(Text, nullable=True)
     semantic_search_vector: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Exemplo: {"ner_spacy_v1": "DONE", "mdeberta_tags": "PENDING"}
+    # Example: {"ner_spacy_v1": "DONE", "mdeberta_tags": "PENDING"}
     execution_log: Mapped[dict] = mapped_column(JSONB, default=dict)
     typology_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("archive_typologies.typology_id", ondelete="SET NULL"), nullable=True, index=True
     )
 
-    # --- Auditoria (Human-in-the-Loop) ---
+    # --- Audit (Human-in-the-Loop) ---
     review_status: Mapped[ArchiveReviewStatus] = mapped_column(
         Enum(ArchiveReviewStatus, name="archive_review_status_enum", create_type=True),
         default=ArchiveReviewStatus.PENDING_AI,
@@ -77,7 +77,7 @@ class ArchiveDocument(Base):
     is_anomaly: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     anomaly_reasons: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
 
-    # --- Relacionamentos---
+    # --- Relationships---
     entities: Mapped[list["ArchiveEntity"]] = relationship(
         secondary="archive_document_entities", back_populates="descriptions"
     )
@@ -90,6 +90,6 @@ class ArchiveDocument(Base):
     )
 
     __table_args__ = (
-        # O Índice GIN é vital para a performance do polling dos Workers de IA
+        # The GIN index is vital for the AI Workers' polling performance
         Index("ix_archive_exec_log", execution_log, postgresql_using="gin"),
     )

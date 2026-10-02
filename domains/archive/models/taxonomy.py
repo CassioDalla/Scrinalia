@@ -34,7 +34,7 @@ class ArchiveMacroCategory(Base):
 
 class ArchiveTag(Base):
     """
-    Tags e Taxonomias de Agrupamento.
+    Tags and Grouping Taxonomies.
     """
 
     __tablename__ = "archive_tags"

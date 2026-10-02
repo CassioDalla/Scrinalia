@@ -6,34 +6,34 @@ class DomainException(Exception):
 
 
 class TagNotFoundError(DomainException):
-    """Lançado quando se tenta buscar ou mesclar uma tag que não existe."""
+    """Raised when trying to fetch or merge a tag that does not exist."""
 
-    # Tradução ideal no Litestar: HTTP 404 (Not Found)
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
     pass
 
 
 class DocumentNotFoundError(DomainException):
-    """Lançado quando um documento não existe na camada Archive."""
+    """Raised when a document does not exist in the Archive layer."""
 
-    # Tradução ideal no Litestar: HTTP 404 (Not Found)
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
     pass
 
 
 class InvalidMergeError(DomainException):
-    """Lançado quando tenta mesclar uma tag nela mesma ou quebra regras de sinônimos."""
+    """Raised when trying to merge a tag into itself or breaking synonym rules."""
 
-    # Tradução ideal no Litestar: HTTP 400 (Bad Request) ou 422
+    # Ideal translation in Litestar: HTTP 400 (Bad Request) or 422
     pass
 
 
 class InvalidParam(DomainException):
-    "Lançado quando algum parametro de função é passo errado"
+    """Raised when a function parameter is passed incorrectly."""
 
-    # Tradução ideal no Litestar: HTTP 400 (Bad Request) ou 422
+    # Ideal translation in Litestar: HTTP 400 (Bad Request) or 422
     pass
 
 
 class EngineExecutionError(DomainException):
-    "Lançado quando algum erro nos motores de Ia acontecem"
+    """Raised when an error occurs in the AI engines."""
 
     pass

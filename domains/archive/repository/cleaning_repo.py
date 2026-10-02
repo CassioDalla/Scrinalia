@@ -28,8 +28,8 @@ class CleaningRepository:
         self, rule_id: int, target_column: str, limit: int = 500
     ) -> Sequence[ArchiveDocument]:
         """
-        Busca documentos que AINDA NÃO têm a flag 'rule_X' no execution_log
-        e onde a coluna alvo NÃO é nula.
+        Fetches documents that DO NOT YET have the 'rule_X' flag in execution_log
+        and where the target column is NOT null.
         """
         rule_key = f"cleaning_rule_{rule_id}"
 
@@ -37,7 +37,7 @@ class CleaningRepository:
             select(ArchiveDocument)
             .where(getattr(ArchiveDocument, target_column).is_not(None))
             .where(
-                # Ou o log não existe, ou se existe, não contém a chave da regra
+                # Either the log does not exist, or if it does, it does not contain the rule key
                 (ArchiveDocument.execution_log.is_(None)) | (~ArchiveDocument.execution_log.has_key(rule_key))
             )
             .limit(limit)
@@ -45,6 +45,6 @@ class CleaningRepository:
         return self.db.scalars(stmt).all()
 
     def get_random_sample_for_dry_run(self, target_column: str, limit: int = 200) -> Sequence[ArchiveDocument]:
-        """Busca uma amostra de documentos não-nulos para tentar achar matches para o Dry-Run."""
+        """Fetches a sample of non-null documents to try to find matches for the Dry-Run."""
         stmt = select(ArchiveDocument).where(getattr(ArchiveDocument, target_column).is_not(None)).limit(limit)
         return self.db.scalars(stmt).all()

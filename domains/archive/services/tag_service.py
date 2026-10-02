@@ -18,8 +18,8 @@ from domains.archive.schemas import (
 
 class TagService:
     """
-    Serviço de domínio responsável por auditar, higienizar e unificar
-    a taxonomia e as tags na camada Archive.
+    Domain service responsible for auditing, sanitizing and unifying
+    the taxonomy and tags in the Archive layer.
     """
 
     def __init__(self, repo: TagRepository, document_repo: DocumentRepository):
@@ -29,41 +29,41 @@ class TagService:
 
     def _get_stopwords_regex(self) -> re.Pattern:
         """
-        Busca as stopwords no banco apenas uma vez e compila um super-regex.
+        Fetches the stopwords from the database only once and compiles a super-regex.
         """
         if self._stopwords_regex is None:
-            # Puxa do banco
+            # Pulls from the database
             stopwords = self.repo.get_stopwords()
 
             if stopwords:
-                # Escapa os caracteres especiais das stopwords (caso haja algum '+', '.', etc)
-                # e junta tudo com o pipe '|' (Operador OR)
+                # Escapes the special characters of the stopwords (in case there is any '+', '.', etc)
+                # and joins everything with the pipe '|' (OR operator)
                 words = "|".join(re.escape(w) for w in stopwords)
                 pattern = rf"\b({words})\b"
 
-                # Compila o regex com a flag de ignorar maiúsculas/minúsculas
+                # Compiles the regex with the ignore case flag
                 self._stopwords_regex = re.compile(pattern, flags=re.IGNORECASE)
             else:
-                # Se o banco estiver vazio, cria um regex que nunca dá match
+                # If the database is empty, creates a regex that never matches
                 self._stopwords_regex = re.compile(r"a^")
 
         return self._stopwords_regex
 
     def extract_and_clean_tags(self, indexing_points: str | None) -> list[ArchiveTagDTO]:
         """
-        Lê os pontos de indexação brutos (separados por vírgula), aplica
-        o dicionário de stopwords do banco de dados e retorna os contratos validados.
+        Reads the raw indexing points (comma-separated), applies
+        the stopwords dictionary from the database and returns the validated contracts.
         """
         if not indexing_points:
             return []
 
-        # Busca as stopwords ativas diretamente do banco
+        # Fetches the active stopwords directly from the database
         regex_stopwords = self._get_stopwords_regex()
 
-        tags_brutas = indexing_points.split(",")
-        tags_limpas = set()
+        raw_tags = indexing_points.split(",")
+        clean_tags = set()
 
-        for tag in tags_brutas:
+        for tag in raw_tags:
             tag = tag.strip().lower()
 
             tag = regex_stopwords.sub("", tag).strip()
@@ -71,89 +71,90 @@ class TagService:
             tag = re.sub(r"\s+", " ", tag)
 
             if 2 < len(tag) <= 100:
-                tags_limpas.add(tag)
+                clean_tags.add(tag)
             elif len(tag) > 100:
-                logger.warning(f"⚠️ Tag ignorada por ser muito longa: '{tag[:50]}...'")
+                logger.warning(f"⚠️ Tag ignored for being too long: '{tag[:50]}...'")
 
         return [
-            ArchiveTagDTO(name=tag_name, macro_category_id=None, ai_confidence_score=None) for tag_name in tags_limpas
+            ArchiveTagDTO(name=tag_name, macro_category_id=None, ai_confidence_score=None) for tag_name in clean_tags
         ]
 
     def process_worker_tags(self, dtos_from_worker: list[ArchiveTagDTO]) -> list[int]:
         """
-        Pipeline de negócio: Verifica sinônimos e roteia para gravação.
-        Retorna a lista final de IDs (canônicos ou recém-criados) para vincular ao documento.
+        Business pipeline: Checks synonyms and routes for persistence.
+        Returns the final list of IDs (canonical or newly created) to link to the document.
         """
         if not dtos_from_worker:
             return []
 
-        # 1. Extrai apenas os nomes em minúsculas para checar os sinônimos no banco
+        # 1. Extracts only the lowercase names to check the synonyms in the database
         names_to_search = [dto.name.strip().lower() for dto in dtos_from_worker]
 
-        # 2. Busca o mapeamento no Repositório (Retorna algo como: {"prefeiruta": 45, "parques": 12})
-        mapa_sinonimos = self.repo.get_synonyms_mapping(names_to_search)
+        # 2. Fetches the mapping from the Repository (Returns something like: {"prefeiruta": 45, "parques": 12})
+        synonyms_map = self.repo.get_synonyms_mapping(names_to_search)
 
-        ids_finais_para_o_documento = []
-        dtos_para_criar = []
+        final_ids_for_document = []
+        dtos_to_create = []
 
-        # 3. O Roteamento de Regra de Negócio (A malha fina)
+        # 3. The Business Rule Routing (The fine mesh)
         for dto in dtos_from_worker:
-            nome_normalizado = dto.name.strip().lower()
+            normalized_name = dto.name.strip().lower()
 
-            if nome_normalizado in mapa_sinonimos:
-                # É um sinônimo conhecido! Descartamos a DTO e usamos o ID da Tag Canônica
-                id_canonico = mapa_sinonimos[nome_normalizado]
-                ids_finais_para_o_documento.append(id_canonico)
+            if normalized_name in synonyms_map:
+                # It is a known synonym! We discard the DTO and use the Canonical Tag ID
+                canonical_id = synonyms_map[normalized_name]
+                final_ids_for_document.append(canonical_id)
             else:
-                # É uma tag nova ou legítima. Vai para a fila de persistência.
-                dtos_para_criar.append(dto)
+                # It is a new or legitimate tag. It goes to the persistence queue.
+                dtos_to_create.append(dto)
 
-        # 4. Envia para o repositório de criação APENAS as tags que não eram sinônimos
-        if dtos_para_criar:
-            ids_novos_ou_existentes = self.repo.get_or_create_tags(dtos_para_criar)
-            ids_finais_para_o_documento.extend(ids_novos_ou_existentes)
+        # 4. Sends to the creation repository ONLY the tags that were not synonyms
+        if dtos_to_create:
+            new_or_existing_ids = self.repo.get_or_create_tags(dtos_to_create)
+            final_ids_for_document.extend(new_or_existing_ids)
 
-        # 5. Retorna um set convertido em lista para garantir que o mesmo documento
-        # não receba o mesmo ID de tag duas vezes (ex: se "parque" e "parques" vierem no mesmo documento)
-        return list(set(ids_finais_para_o_documento))
+        # 5. Returns a set converted to a list to ensure the same document
+        # does not receive the same tag ID twice (e.g. if "park" and "parks" come in the same document)
+        return list(set(final_ids_for_document))
 
     def save_new_stopwords(self, word_list: list[str]) -> int:
         return self.repo.save_stopwords(word_list)
 
     def purge_stopwords(self) -> int:
         """
-        Varre a tabela de tags e apaga graciosamente qualquer tag que bata
-        exatamente com a lista oficial de stopwords."""
+        Scans the tag table and gracefully deletes any tag that exactly
+        matches the official stopwords list.
+        """
 
-        stopwords_clean = self.repo.get_stopwords()
-        if not stopwords_clean:
+        clean_stopwords = self.repo.get_stopwords()
+        if not clean_stopwords:
             return 0
 
-        return self.repo.purge_tags_by_stopwords(stopwords_clean)
+        return self.repo.purge_tags_by_stopwords(clean_stopwords)
 
     def get_tag_relevance_count(self, limit: int = 30) -> Sequence[TagRelevanceCount]:
         """
-        Conta quantas vezes cada tag aparece associada a um documento no acervo.
+        Counts how many times each tag appears associated with a document in the collection.
         """
         results = self.repo.get_relevance_count(limit)
         return [TagRelevanceCount.model_validate(r) for r in results]
 
     def get_tag_relevance_tfidf(self, limit: int = 30) -> Sequence[TagRelevanceIdf]:
         """
-        Calcula a relevância global das tags usando a fórmula TF-IDF nativa no PostgreSQL.
-        Penaliza tags genéricas que aparecem em todo o acervo e destaca termos específicos.
+        Calculates the global relevance of tags using the native TF-IDF formula in PostgreSQL.
+        Penalizes generic tags that appear throughout the collection and highlights specific terms.
         """
         results = self.repo.get_relevance_tfidf(limit)
         return [TagRelevanceIdf.model_validate(r) for r in results]
 
     def find_similar_tags(self, target_tag: str, threshold: float = 0.5) -> Sequence[TagSimilarity]:
         """
-        Busca tags com erros de digitação ou similaridade alta usando a extensão pg_trgm.
+        Searches for tags with typos or high similarity using the pg_trgm extension.
         """
         if not target_tag:
             raise InvalidParam("O parametro 'target_tag' é obrigatório")
 
-        # Regra de negócio: sempre buscar minúsculas
+        # Business rule: always search in lowercase
         target_lower = target_tag.strip().lower()
         results = self.repo.find_similar(target_lower, threshold)
 
@@ -161,15 +162,15 @@ class TagService:
 
     def find_all_similar_tag_pairs(self, threshold: float = 0.65) -> Sequence[TagPairSimilarity]:
         """
-        Varre o acervo e cruza todas as tags entre si para encontrar
-        pares que sejam muito parecidos (potenciais duplicações).
+        Scans the collection and cross-references all tags with each other to find
+        pairs that are very similar (potential duplicates).
         """
         results = self.repo.find_all_similar_pairs(threshold)
         return [TagPairSimilarity.model_validate(r) for r in results]
 
     def merge(self, canonical_id: int, ids_to_merge: list[int]) -> MergeResponse:
         """
-        Orquestra a fusão de tags, normalizando sinônimos e delegando a persistência ao Repo.
+        Orchestrates the merging of tags, normalizing synonyms and delegating persistence to the Repo.
         """
         if not ids_to_merge:
             raise InvalidParam("A lista de tags para mesclar não pode estar vazia.")
@@ -181,34 +182,34 @@ class TagService:
         if not canonical_exists:
             raise InvalidParam(f"A tag canônica informada (ID {canonical_id}) não existe no acervo.")
 
-        # 1. Busca nomes das mortas e normaliza para o Worker encontrar depois
-        tags_mortas = self.repo.get_by_ids(ids_to_merge)
-        nomes_sinonimos = [t.name.strip().lower() for t in tags_mortas]
+        # 1. Fetches the names of the dead ones and normalizes them so the Worker can find them later
+        dead_tags = self.repo.get_by_ids(ids_to_merge)
+        synonym_names = [t.name.strip().lower() for t in dead_tags]
 
-        # 2. Transfere os vínculos
-        docs_brutos = self.repo.get_document_ids_by_tags(ids_to_merge)
-        docs_unicos = set(docs_brutos)
+        # 2. Transfers the links
+        raw_docs = self.repo.get_document_ids_by_tags(ids_to_merge)
+        unique_docs = set(raw_docs)
 
-        if docs_unicos:
-            self.repo.link_documents_to_tag(docs_unicos, canonical_id)
+        if unique_docs:
+            self.repo.link_documents_to_tag(unique_docs, canonical_id)
 
-        # 3. Salva Sinônimos
-        if nomes_sinonimos:
-            sinonimos_data = [
+        # 3. Saves Synonyms
+        if synonym_names:
+            synonyms_data = [
                 {
-                    "synonym_name": nome,
+                    "synonym_name": name,
                     "category": "TAG",
                     "canonical_tag_id": canonical_id,
                     "canonical_entity_id": None,
                 }
-                for nome in nomes_sinonimos
+                for name in synonym_names
             ]
-            self.repo.create_synonyms(sinonimos_data)
+            self.repo.create_synonyms(synonyms_data)
 
-        # 4. Apaga o lixo
+        # 4. Deletes the garbage
         tags_deleted = self.repo.delete_tags(ids_to_merge)
 
-        return MergeResponse(documents_updated=len(docs_unicos), tags_deleted=tags_deleted)
+        return MergeResponse(documents_updated=len(unique_docs), tags_deleted=tags_deleted)
 
     def get_text_to_suggest_macro_category(
         self,
@@ -216,22 +217,22 @@ class TagService:
         columns_to_extract: list[str] | None = None,
     ) -> list[str]:
         """
-        Extrai todas a tags do acervo e utiliza Inteligência Artificial
-        (Clustering) para sugerir agrupamentos semânticos (Macro Categorias).
+        Extracts all tags from the collection and uses Artificial Intelligence
+        (Clustering) to suggest semantic groupings (Macro Categories).
         """
-        logger.info(f"🔍 Iniciando descoberta de tópicos usando source_type:{source_type}...")
+        logger.info(f"🔍 Starting topic discovery using source_type:{source_type}...")
 
         if source_type not in ["tags", "documents"]:
             raise InvalidParam("O parâmetro 'source_type' deve ser obrigatoriamente 'tags' ou 'documents'.")
 
         if source_type == "tags":
-            texts_to_analize = self.repo.fetch_tags_for_clustering()
+            texts_to_analyze = self.repo.fetch_tags_for_clustering()
         elif source_type == "documents":
-            # Gambiarra que sera refatorada
-            texts_to_analize = self.document_repo.fetch_documents_for_clustering(columns_to_extract=columns_to_extract)
+            # Hack that will be refactored
+            texts_to_analyze = self.document_repo.fetch_documents_for_clustering(columns_to_extract=columns_to_extract)
 
-        return texts_to_analize
+        return texts_to_analyze
 
-    # TODO Pensar em como fazer isso. Tirar as entidades conhecidas das tags ou não. Tags precisam ser classiicadas em assuntos.
+    # TODO Think about how to do this. Remove the known entities from the tags or not. Tags need to be classified into subjects.
     def purge_entities_from_tags(self):
         pass

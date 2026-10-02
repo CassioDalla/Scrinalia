@@ -15,8 +15,8 @@ from domains.archive.schemas.entity_schema import (
 
 class EntityService:
     """
-    Serviço de domínio responsável por auditar, higienizar e unificar
-    entidades nomeadas (Pessoas, Organizações, Locais) no acervo.
+    Domain service responsible for auditing, sanitizing and unifying
+    named entities (People, Organizations, Locations) in the collection.
     """
 
     def __init__(self, repo: EntityRepository):
@@ -28,7 +28,7 @@ class EntityService:
         if not target_name:
             raise InvalidParam("O parâmetro 'target_name' é obrigatório.")
 
-        # Regra de negócio: a busca deve ser sempre enviada em minúsculas
+        # Business rule: the search must always be sent in lowercase
         target_lower = target_name.strip().lower()
 
         results = self.repo.find_similar(target_lower, entity_type, threshold)
@@ -54,67 +54,67 @@ class EntityService:
 
     def merge(self, canonical_id: int, ids_to_merge: list[int], new_name: str | None = None) -> EntityMergeResponse:
         """
-        Orquestra a fusão de entidades aplicando regras de negócio e sanitização.
-        Permite renomear a entidade canônica
+        Orchestrates the merging of entities applying business rules and sanitization.
+        Allows renaming the canonical entity
         """
 
-        # Regra 1: Blindagem contra auto-mesclagem
-        ids_reais = [id_ for id_ in ids_to_merge if id_ != canonical_id]
+        # Rule 1: Protection against self-merge
+        real_ids = [id_ for id_ in ids_to_merge if id_ != canonical_id]
 
-        # Se não há fusão e não há renomeação, ignora.
-        if not ids_reais and not new_name:
+        # If there is no merge and no rename, ignore.
+        if not real_ids and not new_name:
             return EntityMergeResponse(documents_updated=0, entities_deleted=0)
 
-        # Regra 2: Valida se a canônica existe para herdar a tipagem
+        # Rule 2: Validates that the canonical exists to inherit the typing
         canonical = self.repo.get_by_id(canonical_id)
         if not canonical:
             raise InvalidParam(f"Entidade canônica com ID {canonical_id} não encontrada.")
 
-        # Regra 3: Higienização de dados (Nomes para sinônimos devem ser minúsculos)
-        dead_entities = self.repo.get_by_ids(ids_reais) if ids_reais else []
-        synonym_name = [e.name.strip().lower() for e in dead_entities]
+        # Rule 3: Data sanitization (Names for synonyms must be lowercase)
+        dead_entities = self.repo.get_by_ids(real_ids) if real_ids else []
+        synonym_names = [e.name.strip().lower() for e in dead_entities]
 
-        # Coordenação 0: Renomeação da Entidade Canônica
+        # Coordination 0: Renaming the Canonical Entity
         if new_name and new_name.strip() and new_name.strip().lower() != canonical.name.lower():
             old_name = canonical.name
-            # Adiciona o nome antigo como sinônimo para não quebrar buscas futuras
-            synonym_name.append(old_name.strip().lower())
+            # Adds the old name as a synonym so as not to break future searches
+            synonym_names.append(old_name.strip().lower())
             self.repo.update_entity_name(canonical_id, new_name.strip())
 
-        # Coordenação 1: Transferir documentos
-        docs_unicos = set()
-        if ids_reais:
-            docs_brutos = self.repo.get_document_ids_by_entities(ids_reais)
-            docs_unicos = set(docs_brutos)
-            if docs_unicos:
-                self.repo.link_documents_to_entity(docs_unicos, canonical_id)
+        # Coordination 1: Transfer documents
+        unique_docs = set()
+        if real_ids:
+            raw_docs = self.repo.get_document_ids_by_entities(real_ids)
+            unique_docs = set(raw_docs)
+            if unique_docs:
+                self.repo.link_documents_to_entity(unique_docs, canonical_id)
 
-        # Coordenação 2: Gravar sinônimos (Tanto das entidades mortas quanto o nome antigo)
-        if synonym_name:
+        # Coordination 2: Save synonyms (both of the dead entities and the old name)
+        if synonym_names:
             synonyms_data = [
                 {
-                    "synonym_name": nome,
+                    "synonym_name": name,
                     "category": canonical.entity_type,
                     "canonical_tag_id": None,
                     "canonical_entity_id": canonical_id,
                 }
-                for nome in synonym_name
+                for name in synonym_names
             ]
             self.repo.create_synonyms(synonyms_data)
 
-        # Coordenação 3: Apagar entidades velhas
-        linhas_apagadas = 0
-        if ids_reais:
-            linhas_apagadas = self.repo.delete_entities(ids_reais)
+        # Coordination 3: Delete old entities
+        deleted_rows = 0
+        if real_ids:
+            deleted_rows = self.repo.delete_entities(real_ids)
 
-        return EntityMergeResponse(documents_updated=len(docs_unicos), entities_deleted=linhas_apagadas)
+        return EntityMergeResponse(documents_updated=len(unique_docs), entities_deleted=deleted_rows)
 
     def get_entity_relevance_count(
         self, entity_type: Literal["ORG", "PER", "LOC"] | None = None, limit: int = 30
     ) -> Sequence[EntityRelevance]:
         """
-        Conta a relevância das entidades filtrando pelo tipo opcionalmente.
-        Mapeia os resultados do repositório para o DTO puro de Domínio.
+        Counts the relevance of entities, optionally filtering by type.
+        Maps the repository results to the pure Domain DTO.
         """
         results = self.repo.get_relevance_count(entity_type, limit)
 
@@ -122,15 +122,15 @@ class EntityService:
 
     def purge_orphan_entities(self) -> int:
         """
-        Varre e apaga entidades que ficaram órfãs (sem documentos vinculados)
-        após curadorias humanas ou exclusões de documentos no sistema.
+        Scans and deletes entities that became orphans (without linked documents)
+        after human curations or document deletions in the system.
         """
         return self.repo.purge_orphan_entities()
 
     def reclassify_entity(self, entity_id: int, new_type: Literal["ORG", "PER", "LOC"]) -> None:
         """
-        Corrige a classificação de uma entidade e cria uma âncora (sinônimo)
-        para prevenir falsos positivos futuros do Worker NER.
+        Corrects the classification of an entity and creates an anchor (synonym)
+        to prevent future false positives from the NER Worker.
         """
         canonical = self.repo.get_by_id(entity_id)
         if not canonical:
@@ -141,7 +141,7 @@ class EntityService:
 
         self.repo.update_entity_type(entity_id, new_type)
 
-        # 2. Gera o sinônimo de ancoragem (em minúsculas, como definimos nas regras de negócio)
+        # 2. Generates the anchoring synonym (in lowercase, as defined in the business rules)
         synonym_data = [
             {
                 "synonym_name": canonical.name.strip().lower(),
@@ -155,22 +155,22 @@ class EntityService:
 
     def purge_entity_stopwords(self, words: list[str]) -> int:
         """
-        Adiciona termos à lista negra de extração do NER e varre o banco
-        para expurgar entidades falsas que já tenham sido criadas.
+        Adds terms to the NER extraction blacklist and scans the database
+        to purge false entities that may already have been created.
         """
         if not words:
             return 0
 
-        # 1. Grava na lista negra (Worker não vai extrair mais)
+        # 1. Saves to the blacklist (Worker will no longer extract)
         self.repo.save_entity_stopwords(words)
 
-        # 2. Expurga o passado (Limpa a base atual)
-        linhas_apagadas = self.repo.delete_entities_by_names(words)
+        # 2. Purges the past (Cleans the current base)
+        deleted_rows = self.repo.delete_entities_by_names(words)
 
-        return linhas_apagadas
+        return deleted_rows
 
     def delete_entity(self, entity_id: int) -> None:
-        """Exclui cirurgicamente uma entidade isolada do banco de dados."""
+        """Surgically deletes an isolated entity from the database."""
         entity = self.repo.get_by_id(entity_id)
         if not entity:
             raise InvalidParam(f"Entidade com ID {entity_id} não encontrada para exclusão.")
@@ -178,17 +178,17 @@ class EntityService:
         self.repo.delete_entities([entity_id])
 
     def find_cross_domain_conflicts(self, threshold: float = 0.85) -> Sequence[CrossDomainConflict]:
-        """Varre o banco procurando Tags e Entidades que possuem o mesmo nome ou grafia muito próxima."""
+        """Scans the database looking for Tags and Entities that have the same name or very close spelling."""
         results = self.repo.get_cross_domain_conflicts(threshold)
         return [CrossDomainConflict.model_validate(dict(r._mapping)) for r in results]
 
     def resolve_cross_domain_conflict(
         self, winner: Literal["TAG", "ENTITY"], tag_id: int, entity_id: int
     ) -> ConflictResolutionData:
-        """Resolve o conflito transferindo os relacionamentos para o vencedor e expurgando o perdedor."""
+        """Resolves the conflict by transferring the relationships to the winner and purging the loser."""
         if winner not in ["TAG", "ENTITY"]:
             raise InvalidParam("O vencedor (winner) deve ser obrigatoriamente 'TAG' ou 'ENTITY'.")
 
-        docs_transferidos = self.repo.resolve_cross_domain_conflict(winner, tag_id, entity_id)
+        transferred_docs = self.repo.resolve_cross_domain_conflict(winner, tag_id, entity_id)
 
-        return ConflictResolutionData(winner=winner, documents_transferred=docs_transferidos)
+        return ConflictResolutionData(winner=winner, documents_transferred=transferred_docs)

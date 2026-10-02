@@ -18,8 +18,8 @@ if TYPE_CHECKING:
 
 class ArchiveEntity(Base):
     """
-    Entidades Nomeadas (Pessoas, Organizações, Locais).
-    Descobertas dinamicamente pelo spaCy ou inseridas manualmente.
+    Named Entities (People, Organizations, Locations).
+    Discovered dynamically by spaCy or inserted manually.
     """
 
     __tablename__ = "archive_entities"

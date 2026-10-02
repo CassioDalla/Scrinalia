@@ -8,10 +8,10 @@ from domains.archive.schemas.document_schema import (
 
 class DocumentService:
     """
-    Serviço de leitura e curadoria humana do acervo (camada Archive).
+    Service for reading and human curation of the collection (Archive layer).
 
-    Isola a API e o front-end do acesso direto ao banco de dados: toda a
-    navegação (vitrine) e a edição humana passam por aqui.
+    Isolates the API and the front-end from direct database access: all
+    navigation (showcase) and human editing go through here.
     """
 
     def __init__(self, repo: DocumentRepository) -> None:

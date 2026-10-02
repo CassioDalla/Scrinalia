@@ -6,7 +6,7 @@ AllowedColumns = Literal["original_title", "scope_content", "admin_bio_history",
 
 
 class CleaningRuleCreateDTO(BaseModel):
-    """DTO para criar uma regra."""
+    """DTO to create a rule."""
 
     rule_name: str
     target_column: AllowedColumns
@@ -16,14 +16,14 @@ class CleaningRuleCreateDTO(BaseModel):
 
 
 class CleaningRuleDTO(CleaningRuleCreateDTO):
-    """DTO representando uma regra ativa no banco."""
+    """DTO representing an active rule in the database."""
 
     rule_id: int
     is_active: bool
 
 
 class DryRunRequestDTO(BaseModel):
-    """DTO solicitando uma simulação."""
+    """DTO requesting a simulation."""
 
     target_column: AllowedColumns
     regex_pattern: str
@@ -31,7 +31,7 @@ class DryRunRequestDTO(BaseModel):
 
 
 class DryRunMatchDTO(BaseModel):
-    """DTO com o resultado de um match de simulação."""
+    """DTO with the result of a simulation match."""
 
     description_id: str
     original_text: str
@@ -39,7 +39,7 @@ class DryRunMatchDTO(BaseModel):
 
 
 class DryRunResponseDTO(BaseModel):
-    """DTO com o laudo final da simulação (Dry-Run)."""
+    """DTO with the final report of the simulation (Dry-Run)."""
 
     is_valid_regex: bool
     error_message: str | None = None

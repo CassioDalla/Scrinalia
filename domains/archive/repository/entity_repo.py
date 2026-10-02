@@ -34,8 +34,8 @@ class EntityRepository:
         self, target_name: str, entity_type: Literal["ORG", "PER", "LOC"] | None = None, threshold: float = 0.5
     ) -> Sequence[Row]:
         """
-        Busca entidades com erros de digitação ou similaridade alta usando a extensão pg_trgm.
-        Retorna também o 'entity_type' para ajudar o usuário a decidir se a mesclagem faz sentido.
+        Searches for entities with typos or high similarity using the pg_trgm extension.
+        Also returns the 'entity_type' to help the user decide whether the merge makes sense.
         """
 
         if not target_name:
@@ -44,11 +44,11 @@ class EntityRepository:
         self.db.execute(text(f"SET LOCAL pg_trgm.similarity_threshold = {threshold}"))
 
         target_lower = target_name.lower()
-        similaridade = func.similarity(ArchiveEntity.name, target_lower)
+        similarity = func.similarity(ArchiveEntity.name, target_lower)
 
         stmt = (
             select(
-                ArchiveEntity.entity_id, ArchiveEntity.name, ArchiveEntity.entity_type, similaridade.label("similarity")
+                ArchiveEntity.entity_id, ArchiveEntity.name, ArchiveEntity.entity_type, similarity.label("similarity")
             )
             .where(ArchiveEntity.name.op("%")(target_lower))
             .where(func.lower(ArchiveEntity.name) != target_lower)
@@ -63,18 +63,18 @@ class EntityRepository:
 
     def find_all_similar_pairs(self, threshold: float = 0.65) -> Sequence[Row]:
         """
-        Varre o acervo e cruza todas as entidades entre si para encontrar
-        pares que sejam muito parecidos (potenciais duplicações ou erros do NER).
+        Scans the collection and cross-references all entities with each other to find
+        pairs that are very similar (potential duplications or NER errors).
         """
-        # 1. Configura o threshold nativo do PostgreSQL apenas para esta transação.
+        # 1. Configures PostgreSQL's native threshold only for this transaction.
         self.db.execute(text(f"SET LOCAL pg_trgm.similarity_threshold = {threshold}"))
 
-        # Cria os alias para o Self Join
+        # Creates the aliases for the Self Join
         Entity1 = aliased(ArchiveEntity)
         Entity2 = aliased(ArchiveEntity)
 
-        # Prepara o cálculo de similaridade
-        similaridade = func.similarity(Entity1.name, Entity2.name)
+        # Prepares the similarity calculation
+        similarity = func.similarity(Entity1.name, Entity2.name)
 
         stmt = (
             select(
@@ -84,13 +84,13 @@ class EntityRepository:
                 Entity2.entity_id.label("id_2"),
                 Entity2.name.label("name_2"),
                 Entity2.entity_type.label("type_2"),
-                similaridade.label("similarity"),
+                similarity.label("similarity"),
             )
-            # O Join garantindo que só testa combinações únicas (A com B) e ignora espelhadas (B com A)
+            # The Join ensuring that only unique combinations are tested (A with B) and mirrored ones (B with A) are ignored
             .join(Entity2, Entity1.entity_id < Entity2.entity_id)
-            # 2. HACK DE PERFORMANCE: Só compara entidades que tenham até 3 letras de diferença no tamanho
+            # 2. PERFORMANCE HACK: Only compares entities that have up to 3 letters of difference in length
             .where(func.abs(func.length(Entity1.name) - func.length(Entity2.name)) <= 3)
-            # 3. O SEGREDO: O operador % é a única coisa que ativa o Índice GIN!
+            # 3. THE SECRET: The % operator is the only thing that activates the GIN Index!
             .where(Entity1.name.op("%")(Entity2.name))
             .order_by(desc("similarity"), Entity1.name)
         )
@@ -98,7 +98,7 @@ class EntityRepository:
         return self.db.execute(stmt).all()
 
     def get_cross_domain_conflicts(self, threshold: float) -> Sequence[Row]:
-        """Busca conflitos onde o nome da Tag é idêntico ou muito similar ao da Entidade."""
+        """Searches for conflicts where the Tag name is identical or very similar to the Entity's."""
         self.db.execute(text(f"SET LOCAL pg_trgm.similarity_threshold = {threshold}"))
 
         sim_score = func.similarity(ArchiveTag.name, ArchiveEntity.name)
@@ -123,66 +123,66 @@ class EntityRepository:
 
     def resolve_cross_domain_conflict(self, winner: Literal["TAG", "ENTITY"], tag_id: int, entity_id: int) -> int:
         """
-        Transfere os documentos para o vencedor e deleta o perdedor de forma atômica e
-        adiciona o nome do perdedor na lista negra do seu respectivo domínio.
-        Retorna a quantidade de documentos transferidos.
+        Transfers the documents to the winner and deletes the loser atomically and
+        adds the loser's name to the blacklist of its respective domain.
+        Returns the number of documents transferred.
         """
-        docs_transferidos = 0
+        transferred_docs = 0
 
         if winner == "TAG":
-            ent_nome = self.db.scalar(select(ArchiveEntity.name).where(ArchiveEntity.entity_id == entity_id))
+            entity_name = self.db.scalar(select(ArchiveEntity.name).where(ArchiveEntity.entity_id == entity_id))
 
-            # Pega os docs da Entidade e move para a Tag
+            # Fetches the Entity's docs and moves them to the Tag
             stmt_docs = select(ArchiveDocumentEntity.description_id).where(ArchiveDocumentEntity.entity_id == entity_id)
             doc_ids = self.db.scalars(stmt_docs).all()
 
             if doc_ids:
-                novos_vinculos = [{"description_id": d, "tag_id": tag_id} for d in doc_ids]
-                stmt_insert = insert(ArchiveDocumentTag).values(novos_vinculos).on_conflict_do_nothing()
+                new_links = [{"description_id": d, "tag_id": tag_id} for d in doc_ids]
+                stmt_insert = insert(ArchiveDocumentTag).values(new_links).on_conflict_do_nothing()
                 self.db.execute(stmt_insert)
-                docs_transferidos = len(doc_ids)
+                transferred_docs = len(doc_ids)
 
             self.db.execute(delete(ArchiveEntity).where(ArchiveEntity.entity_id == entity_id))
 
-            if ent_nome:
+            if entity_name:
                 stmt_stopword = (
                     insert(DomainStopwords)
-                    .values(word=ent_nome.lower().strip(), word_scope=StopwordsScope.ENTITY)
+                    .values(word=entity_name.lower().strip(), word_scope=StopwordsScope.ENTITY)
                     .on_conflict_do_nothing()
                 )
                 self.db.execute(stmt_stopword)
 
         elif winner == "ENTITY":
-            tag_nome = self.db.scalar(select(ArchiveTag.name).where(ArchiveTag.tag_id == tag_id))
+            tag_name = self.db.scalar(select(ArchiveTag.name).where(ArchiveTag.tag_id == tag_id))
 
-            # Pega os docs da Tag e move para a Entidade
+            # Fetches the Tag's docs and moves them to the Entity
             stmt_docs = select(ArchiveDocumentTag.description_id).where(ArchiveDocumentTag.tag_id == tag_id)
             doc_ids = self.db.scalars(stmt_docs).all()
 
             if doc_ids:
-                novos_vinculos = [{"description_id": d, "entity_id": entity_id} for d in doc_ids]
-                stmt_insert = insert(ArchiveDocumentEntity).values(novos_vinculos).on_conflict_do_nothing()
+                new_links = [{"description_id": d, "entity_id": entity_id} for d in doc_ids]
+                stmt_insert = insert(ArchiveDocumentEntity).values(new_links).on_conflict_do_nothing()
                 self.db.execute(stmt_insert)
-                docs_transferidos = len(doc_ids)
+                transferred_docs = len(doc_ids)
 
             self.db.execute(delete(ArchiveTag).where(ArchiveTag.tag_id == tag_id))
 
-            if tag_nome:
+            if tag_name:
                 stmt_stopword = (
                     insert(DomainStopwords)
-                    .values(word=tag_nome.lower().strip(), word_scope=StopwordsScope.TAG)
+                    .values(word=tag_name.lower().strip(), word_scope=StopwordsScope.TAG)
                     .on_conflict_do_nothing()
                 )
                 self.db.execute(stmt_stopword)
 
-        return docs_transferidos
+        return transferred_docs
 
-    # --- Métodos de Ingestão e NER ---
+    # --- Ingestion and NER Methods ---
 
     def get_ner_synonyms_rules(self) -> list[dict]:
         """
-        Carrega as regras de normalização semântica exclusivas para o pipeline de NER (spaCy).
-        Ignora sinônimos de TAGs, retornando apenas mapeamentos para Entidades Canônicas.
+        Loads the semantic normalization rules exclusive to the NER pipeline (spaCy).
+        Ignores TAG synonyms, returning only mappings to Canonical Entities.
         """
 
         stmt = (
@@ -200,19 +200,19 @@ class EntityRepository:
 
     def get_or_create_entities(self, entities_list: list[ArchiveEntityDTO]) -> list[int]:
         """
-        Gerencia a dimensão de entidades (NER).
+        Manages the entity dimension (NER).
 
-        Recebe uma lista de Pessoas, Organizações ou Locais identificados pela IA.
-        Utiliza ON CONFLICT DO NOTHING para garantir a unicidade pelo nome.
+        Receives a list of People, Organizations or Locations identified by the AI.
+        Uses ON CONFLICT DO NOTHING to guarantee uniqueness by name.
 
         Returns:
-            list[int]: Lista de IDs (Chaves Primárias) das entidades prontas para vínculo.
+            list[int]: List of IDs (Primary Keys) of the entities ready for linking.
         """
 
         if not entities_list:
             return []
 
-        # 1. Prepara a lista de dicionários para o INSERT massivo
+        # 1. Prepares the list of dictionaries for the mass INSERT
         insert_data = []
         names_to_search = []
 
@@ -221,47 +221,47 @@ class EntityRepository:
             names_to_search.append(name_clean)
             insert_data.append({"name": name_clean, "entity_type": ent.entity_type})
 
-        # 2. Faz o INSERT massivo ignorando as entidades que já existem (índice único no 'name')
+        # 2. Performs the mass INSERT ignoring entities that already exist (unique index on 'name')
         stmt_insert = insert(ArchiveEntity).values(insert_data).on_conflict_do_nothing(index_elements=["name"])
         self.db.execute(stmt_insert)
 
-        # 3. Num ÚNICO select, busca todos os IDs (dos que acabaram de ser criados e dos já existentes)
+        # 3. In a SINGLE select, fetches all IDs (both the newly created and the already existing ones)
         stmt_select = select(ArchiveEntity.entity_id).where(ArchiveEntity.name.in_(names_to_search))
 
         return list(self.db.scalars(stmt_select).all())
 
-    # --- Métodos para o Merge ---
+    # --- Methods for the Merge ---
 
     def get_document_ids_by_entities(self, entity_ids: list[int]) -> Sequence[str]:
         stmt = select(ArchiveDocumentEntity.description_id).where(ArchiveDocumentEntity.entity_id.in_(entity_ids))
         return self.db.scalars(stmt).all()
 
     def link_documents_to_entity(self, doc_ids: set[str], target_entity_id: int) -> None:
-        novos_vinculos = [{"description_id": doc_id, "entity_id": target_entity_id} for doc_id in doc_ids]
-        stmt = insert(ArchiveDocumentEntity).values(novos_vinculos).on_conflict_do_nothing()
+        new_links = [{"description_id": doc_id, "entity_id": target_entity_id} for doc_id in doc_ids]
+        stmt = insert(ArchiveDocumentEntity).values(new_links).on_conflict_do_nothing()
         self.db.execute(stmt)
 
     def link_entities_to_document(self, description_id: str, entity_ids: list[int]) -> None:
-        """Vincula múltiplas entidades a um único documento (Usado na Ingestão / Worker)."""
+        """Links multiple entities to a single document (Used in Ingestion / Worker)."""
         if not entity_ids:
             return
 
-        # Usamos set(entity_ids) para evitar tentar inserir a mesma entidade duas vezes no mesmo documento
-        novos_vinculos = [{"description_id": description_id, "entity_id": e_id} for e_id in set(entity_ids)]
-        stmt = insert(ArchiveDocumentEntity).values(novos_vinculos).on_conflict_do_nothing()
+        # We use set(entity_ids) to avoid trying to insert the same entity twice in the same document
+        new_links = [{"description_id": description_id, "entity_id": e_id} for e_id in set(entity_ids)]
+        stmt = insert(ArchiveDocumentEntity).values(new_links).on_conflict_do_nothing()
         self.db.execute(stmt)
 
     def bulk_link_entities(self, links_data: list[dict]) -> None:
         """
-        Otimização para Ingestão em Lote (Workers).
-        Insere milhares de vínculos N:N numa única transação.
-        Recebe: [{"description_id": "doc1", "entity_id": 1}, ...]
+        Optimization for Batch Ingestion (Workers).
+        Inserts thousands of N:N links in a single transaction.
+        Receives: [{"description_id": "doc1", "entity_id": 1}, ...]
         """
         if not links_data:
             return
 
-        # Converte para tuplas e depois para dict novamente para remover duplicidades
-        # exatas enviadas no mesmo lote, prevenindo trancamentos desnecessários (locks)
+        # Converts to tuples and then back to dict to remove exact duplicates
+        # sent in the same batch, preventing unnecessary locks
         unique_links = [dict(t) for t in {tuple(d.items()) for d in links_data}]
 
         stmt = insert(ArchiveDocumentEntity).values(unique_links).on_conflict_do_nothing()
@@ -272,15 +272,15 @@ class EntityRepository:
         self.db.execute(stmt)
 
     def delete_entities(self, entity_ids: list[int]) -> int:
-        # A deleção associativa (ArchiveDocumentEntity) fica aqui também
+        # The associative deletion (ArchiveDocumentEntity) also lives here
         self.db.execute(delete(ArchiveDocumentEntity).where(ArchiveDocumentEntity.entity_id.in_(entity_ids)))
 
         result = self.db.execute(delete(ArchiveEntity).where(ArchiveEntity.entity_id.in_(entity_ids)))
         return cast(CursorResult, result).rowcount
 
     def update_entity_type(self, entity_id: int, new_type: str) -> None:
-        """Atualiza a categoria (PER, LOC, ORG) de uma entidade canônica."""
-        # Ajuste 'Entity' para o nome exato da sua classe de Modelo SQLAlchemy
+        """Updates the category (PER, LOC, ORG) of a canonical entity."""
+        # Adjust 'Entity' to the exact name of your SQLAlchemy Model class
         entity = self.db.query(ArchiveEntity).filter(ArchiveEntity.entity_id == entity_id).first()
         if entity:
             entity.entity_type = new_type
@@ -291,11 +291,11 @@ class EntityRepository:
             entity.name = new_name
 
     def save_entity_stopwords(self, words: list[str]) -> None:
-        """Salva as palavras na lista negra com o escopo exclusivo para Entidades."""
+        """Saves the words to the blacklist with the scope exclusive to Entities."""
         for word in words:
             clean_word = word.strip().lower()
 
-            # Verifica se já não existe para evitar erro de Unique Constraint
+            # Checks whether it already exists to avoid a Unique Constraint error
             exists = self.db.query(DomainStopwords).filter_by(word=clean_word, word_scope=StopwordsScope.ENTITY).first()
 
             if not exists:
@@ -303,23 +303,23 @@ class EntityRepository:
                 self.db.add(new_stopword)
 
     def delete_entities_by_names(self, names: list[str]) -> int:
-        """Deleta entidades do acervo buscando por uma lista de nomes exatos."""
+        """Deletes entities from the collection by searching for a list of exact names."""
         clean_names = [n.strip().lower() for n in names]
 
-        linhas_apagadas = (
+        deleted_rows = (
             self.db.query(ArchiveEntity)
             .filter(func.lower(ArchiveEntity.name).in_(clean_names))
             .delete(synchronize_session=False)
         )
 
-        return linhas_apagadas
+        return deleted_rows
 
-    # --- Consultas Analíticas e Manutenção ---
+    # --- Analytical Queries and Maintenance ---
 
     def get_relevance_count(
         self, entity_type: Literal["ORG", "PER", "LOC"] | None = None, limit: int = 30
     ) -> Sequence[Row]:
-        """Busca as entidades mais referenciadas em documentos."""
+        """Fetches the most referenced entities in documents."""
         stmt = select(
             ArchiveEntity.entity_id,
             ArchiveEntity.name,
@@ -334,7 +334,7 @@ class EntityRepository:
         return self.db.execute(stmt).all()
 
     def purge_orphan_entities(self) -> int:
-        """Encontra e apaga entidades que não possuem nenhum documento vinculado."""
+        """Finds and deletes entities that do not have any linked document."""
         stmt_orphans = (
             select(ArchiveEntity.entity_id)
             .outerjoin(ArchiveDocumentEntity, ArchiveEntity.entity_id == ArchiveDocumentEntity.entity_id)
@@ -346,5 +346,5 @@ class EntityRepository:
         if not orphans:
             return 0
 
-        resultado = self.db.execute(delete(ArchiveEntity).where(ArchiveEntity.entity_id.in_(orphans)))
-        return cast(CursorResult, resultado).rowcount
+        result = self.db.execute(delete(ArchiveEntity).where(ArchiveEntity.entity_id.in_(orphans)))
+        return cast(CursorResult, result).rowcount
