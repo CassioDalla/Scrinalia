@@ -10,6 +10,8 @@ from domains.archive.ports.taxonomy import TagRepositoryPort
 from domains.archive.schemas import (
     ArchiveTagDTO,
     MergeResponse,
+    MergeTagsCommand,
+    SynonymCommand,
     TagPairSimilarity,
     TagRelevanceCount,
     TagRelevanceIdf,
@@ -160,10 +162,13 @@ class TagService:
         """
         return list(self.repo.find_all_similar_pairs(threshold))
 
-    def merge(self, canonical_id: int, ids_to_merge: list[int]) -> MergeResponse:
+    def merge(self, command: MergeTagsCommand) -> MergeResponse:
         """
         Orchestrates the merging of tags, normalizing synonyms and delegating persistence to the Repo.
         """
+        canonical_id = command.canonical_id
+        ids_to_merge = command.ids_to_merge
+
         if not ids_to_merge:
             raise InvalidParam("A lista de tags para mesclar não pode estar vazia.")
 
@@ -176,7 +181,7 @@ class TagService:
 
         # 1. Fetches the names of the dead ones and normalizes them so the Worker can find them later
         dead_tags = self.repo.get_by_ids(ids_to_merge)
-        synonym_names = [t.name.strip().lower() for t in dead_tags]
+        synonym_names = [normalize_tag(t.name) for t in dead_tags]
 
         # 2. Transfers the links
         raw_docs = self.repo.get_document_ids_by_tags(ids_to_merge)
@@ -188,12 +193,12 @@ class TagService:
         # 3. Saves Synonyms
         if synonym_names:
             synonyms_data = [
-                {
-                    "synonym_name": name,
-                    "category": "TAG",
-                    "canonical_tag_id": canonical_id,
-                    "canonical_entity_id": None,
-                }
+                SynonymCommand(
+                    synonym_name=name,
+                    category="TAG",
+                    canonical_tag_id=canonical_id,
+                    canonical_entity_id=None,
+                )
                 for name in synonym_names
             ]
             self.repo.create_synonyms(synonyms_data)

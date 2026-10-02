@@ -1,8 +1,9 @@
 import pytest
+from pydantic import ValidationError
 from pytest_mock import MockerFixture
 
-from domains.archive.exceptions import InvalidParam
 from domains.archive.repository import EntityRepository
+from domains.archive.schemas import ResolveConflictCommand
 from domains.archive.schemas.entity_schema import CrossDomainConflict
 from domains.archive.services import EntityService
 
@@ -37,16 +38,10 @@ def test_find_cross_domain_conflicts(mocker: MockerFixture) -> None:
     assert results[0].entity_type == "LOC"
 
 
-def test_resolve_cross_domain_conflict_invalid(mocker: MockerFixture) -> None:
-    """Guarantees that the API blocks attempts to send an invalid winner."""
-    mock_ent_repo = mocker.Mock(spec=EntityRepository)
-    service = EntityService(mock_ent_repo)
-
-    with pytest.raises(InvalidParam) as exc_info:
-        service.resolve_cross_domain_conflict("VENCEDOR_FALSO", tag_id=1, entity_id=2)  # type: ignore
-
-    assert "obrigatoriamente 'TAG' ou 'ENTITY'" in str(exc_info.value)
-    mock_ent_repo.resolve_cross_domain_conflict.assert_not_called()
+def test_resolve_cross_domain_conflict_invalid_winner() -> None:
+    """Guarantees the command DTO rejects an invalid winner before it reaches the service."""
+    with pytest.raises(ValidationError):
+        ResolveConflictCommand(winner="VENCEDOR_FALSO", tag_id=1, entity_id=2)  # type: ignore
 
 
 def test_resolve_cross_domain_conflict_success(mocker: MockerFixture) -> None:
@@ -56,7 +51,8 @@ def test_resolve_cross_domain_conflict_success(mocker: MockerFixture) -> None:
     mock_ent_repo.resolve_cross_domain_conflict.return_value = 5  # 5 documents transferred
 
     service = EntityService(mock_ent_repo)
-    result = service.resolve_cross_domain_conflict("ENTITY", tag_id=10, entity_id=20)
+    command = ResolveConflictCommand(winner="ENTITY", tag_id=10, entity_id=20)
+    result = service.resolve_cross_domain_conflict(command)
 
     mock_ent_repo.resolve_cross_domain_conflict.assert_called_once_with("ENTITY", 10, 20)
     assert result.winner == "ENTITY"

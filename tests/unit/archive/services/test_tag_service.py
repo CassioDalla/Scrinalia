@@ -1,13 +1,11 @@
-from unittest.mock import Mock
-
 import pytest
 from pytest_mock import MockerFixture
 
 from domains.archive.exceptions import InvalidMergeError, InvalidParam
 from domains.archive.repository.document_repo import DocumentRepository
 from domains.archive.repository.tag_repo import TagRepository
-from domains.archive.schemas import ArchiveTagDTO
-from domains.archive.schemas.tag_schema import MergeResponse
+from domains.archive.schemas import ArchiveTagDTO, MergeTagsCommand
+from domains.archive.schemas.tag_schema import MergeResponse, TagIdentity
 from domains.archive.services.tag_service import TagService
 
 # ==========================================
@@ -151,8 +149,8 @@ def test_merge_tags_transfers_and_deletes_success(mocker: MockerFixture) -> None
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
 
     # 1. Simulate the canonical validation and the lookup of the tags that will be killed
-    mock_tag_repo.get_by_id.return_value = Mock(tag_id=1, name="prefeitura")
-    mock_tag_repo.get_by_ids.return_value = [Mock(tag_id=2, name="prefeituta")]
+    mock_tag_repo.get_by_id.return_value = TagIdentity(tag_id=1, name="prefeitura")
+    mock_tag_repo.get_by_ids.return_value = [TagIdentity(tag_id=2, name="prefeituta")]
 
     # 2. Simulate the lookup of documents that had the old tag
     mock_tag_repo.get_document_ids_by_tags.return_value = ["doc-1", "doc-2"]
@@ -161,7 +159,7 @@ def test_merge_tags_transfers_and_deletes_success(mocker: MockerFixture) -> None
     mock_tag_repo.delete_tags.return_value = 1
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    res: MergeResponse = service.merge(canonical_id=1, ids_to_merge=[2])
+    res: MergeResponse = service.merge(MergeTagsCommand(canonical_id=1, ids_to_merge=[2]))
 
     assert res.documents_updated == 2
     assert res.tags_deleted == 1
@@ -179,7 +177,7 @@ def test_merge_tags_empty_list(mocker: MockerFixture) -> None:
     service = TagService(mock_tag_repo, mock_doc_repo)
 
     with pytest.raises(InvalidParam) as exc_info:
-        service.merge(canonical_id=1, ids_to_merge=[])
+        service.merge(MergeTagsCommand(canonical_id=1, ids_to_merge=[]))
 
     assert "A lista de tags para mesclar não pode estar vazia." in str(exc_info.value)
     mock_tag_repo.get_by_id.assert_not_called()
@@ -192,7 +190,7 @@ def test_merge_tags_canonical_id_in_ids_to_merge(mocker: MockerFixture) -> None:
     service = TagService(mock_tag_repo, mock_doc_repo)
 
     with pytest.raises(InvalidMergeError) as exc_info:
-        service.merge(canonical_id=1, ids_to_merge=[1])
+        service.merge(MergeTagsCommand(canonical_id=1, ids_to_merge=[1]))
 
     assert "O ID da tag canônica não pode estar na lista de exclusão." in str(exc_info.value)
     mock_tag_repo.get_by_id.assert_not_called()
@@ -206,15 +204,15 @@ def test_merge_tags_no_documents_affected(mocker: MockerFixture) -> None:
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
 
-    mock_tag_repo.get_by_id.return_value = Mock(tag_id=1, name="oficial")
-    mock_tag_repo.get_by_ids.return_value = [Mock(tag_id=2, name="tag_sem_uso")]
+    mock_tag_repo.get_by_id.return_value = TagIdentity(tag_id=1, name="oficial")
+    mock_tag_repo.get_by_ids.return_value = [TagIdentity(tag_id=2, name="tag_sem_uso")]
 
     # No document uses the tag
     mock_tag_repo.get_document_ids_by_tags.return_value = []
     mock_tag_repo.delete_tags.return_value = 1
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    res = service.merge(canonical_id=1, ids_to_merge=[2])
+    res = service.merge(MergeTagsCommand(canonical_id=1, ids_to_merge=[2]))
 
     assert res.documents_updated == 0
     assert res.tags_deleted == 1

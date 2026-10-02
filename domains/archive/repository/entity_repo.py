@@ -5,7 +5,7 @@ from sqlalchemy import CursorResult, delete, desc, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
-from domains.archive.domain.normalization import normalize_entity, normalize_stopword
+from domains.archive.domain.normalization import normalize_entity, normalize_stopword, normalize_synonym
 from domains.archive.exceptions import InvalidParam
 from domains.archive.models import (
     ArchiveDocumentEntity,
@@ -16,6 +16,7 @@ from domains.archive.models import (
     DomainSynonyms,
     StopwordsScope,
 )
+from domains.archive.schemas.command_schema import SynonymCommand
 from domains.archive.schemas.entity_schema import (
     ArchiveEntityDTO,
     CrossDomainConflict,
@@ -279,8 +280,17 @@ class EntityRepository:
         stmt = insert(ArchiveDocumentEntity).values(unique_links).on_conflict_do_nothing()
         self.db.execute(stmt)
 
-    def create_synonyms(self, synonyms_data: list[dict]) -> None:
-        stmt = insert(DomainSynonyms).values(synonyms_data).on_conflict_do_nothing()
+    def create_synonyms(self, synonyms_data: list[SynonymCommand]) -> None:
+        rows = [
+            {
+                "synonym_name": normalize_synonym(item.synonym_name),
+                "category": item.category,
+                "canonical_tag_id": item.canonical_tag_id,
+                "canonical_entity_id": item.canonical_entity_id,
+            }
+            for item in synonyms_data
+        ]
+        stmt = insert(DomainSynonyms).values(rows).on_conflict_do_nothing()
         self.db.execute(stmt)
 
     def delete_entities(self, entity_ids: list[int]) -> int:

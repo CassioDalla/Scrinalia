@@ -5,7 +5,7 @@ from sqlalchemy import CursorResult, Float, delete, desc, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
-from domains.archive.domain.normalization import normalize_stopword, normalize_tag
+from domains.archive.domain.normalization import normalize_stopword, normalize_synonym, normalize_tag
 from domains.archive.models import (
     ArchiveDocument,
     ArchiveDocumentTag,
@@ -17,6 +17,7 @@ from domains.archive.models import (
 from domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
+    SynonymCommand,
     TagIdentity,
     TagPairSimilarity,
     TagRelevanceCount,
@@ -250,8 +251,17 @@ class TagRepository:
         stmt = insert(ArchiveDocumentTag).values(unique_links).on_conflict_do_nothing()
         self.db.execute(stmt)
 
-    def create_synonyms(self, synonyms_data: list[dict]) -> None:
-        stmt = insert(DomainSynonyms).values(synonyms_data).on_conflict_do_nothing()
+    def create_synonyms(self, synonyms_data: list[SynonymCommand]) -> None:
+        rows = [
+            {
+                "synonym_name": normalize_synonym(item.synonym_name),
+                "category": item.category,
+                "canonical_tag_id": item.canonical_tag_id,
+                "canonical_entity_id": item.canonical_entity_id,
+            }
+            for item in synonyms_data
+        ]
+        stmt = insert(DomainSynonyms).values(rows).on_conflict_do_nothing()
         self.db.execute(stmt)
 
     def delete_tags(self, tag_ids: list[int]) -> int:

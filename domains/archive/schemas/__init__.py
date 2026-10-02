@@ -1,4 +1,5 @@
 from .ai_schemas import EntityTagDecisionSchema
+from .command_schema import MergeEntityCommand, MergeTagsCommand, ResolveConflictCommand, SynonymCommand
 from .document_schema import (
     ArchiveDocumentDTO,
     DocumentEntitySummary,
@@ -34,7 +35,11 @@ __all__ = [
     "EntityTagDecisionSchema",
     "MacroCategoriesSuggestionResponse",
     "MacroCategorySuggested",
+    "MergeEntityCommand",
     "MergeResponse",
+    "MergeTagsCommand",
+    "ResolveConflictCommand",
+    "SynonymCommand",
     "TagIdentity",
     "TagPairSimilarity",
     "TagRelevanceCount",

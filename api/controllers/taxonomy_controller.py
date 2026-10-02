@@ -16,6 +16,7 @@ from api.schemas.taxonomy import (
     StopwordsRequest,
     SuggestMacroRequest,
 )
+from domains.archive.schemas import MergeEntityCommand, MergeTagsCommand, ResolveConflictCommand
 from domains.archive.schemas.entity_schema import EntityRelevanceResponse, EntitySimilarityResponse
 from domains.archive.schemas.tag_schema import (
     MacroCategoriesSuggestionResponse,
@@ -64,7 +65,7 @@ class TaxonomyController(Controller):
 
     @post("/tags/merge", sync_to_thread=False)
     def merge_tags(self, tag_service: TagService, data: MergeRequest) -> MergeResponse:
-        response = tag_service.merge(data.canonical_id, data.ids_to_merge)
+        response = tag_service.merge(MergeTagsCommand(canonical_id=data.canonical_id, ids_to_merge=data.ids_to_merge))
 
         return response
 
@@ -124,7 +125,9 @@ class TaxonomyController(Controller):
 
     @post("/entities/merge", sync_to_thread=False)
     def merge_entities(self, entity_service: EntityService, data: MergeRequest) -> dict[str, int]:
-        res = entity_service.merge(data.canonical_id, data.ids_to_merge, data.new_name)
+        res = entity_service.merge(
+            MergeEntityCommand(canonical_id=data.canonical_id, ids_to_merge=data.ids_to_merge, new_name=data.new_name)
+        )
 
         # TODO Create an entity MergeResponse or recycle the tag one
         return {"documents_updated": res.documents_updated, "entities_deleted": res.entities_deleted}
@@ -175,7 +178,9 @@ class TaxonomyController(Controller):
         self, entity_service: EntityService, data: ConflictResolutionRequest
     ) -> ConflictResolutionResponse:
         """Resolves the conflict by forcing the victory of a Tag or an Entity."""
-        result = entity_service.resolve_cross_domain_conflict(data.winner, data.tag_id, data.entity_id)
+        result = entity_service.resolve_cross_domain_conflict(
+            ResolveConflictCommand(winner=data.winner, tag_id=data.tag_id, entity_id=data.entity_id)
+        )
         return ConflictResolutionResponse(
             message=f"Conflito resolvido! A vitória foi concedida para {data.winner}.", data=result
         )

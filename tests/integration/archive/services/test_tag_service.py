@@ -3,6 +3,7 @@ from sqlalchemy import select, text
 from domains.archive.models import ArchiveDocumentTag, ArchiveMacroCategory, ArchiveTag, DomainSynonyms
 from domains.archive.repository.document_repo import DocumentRepository
 from domains.archive.repository.tag_repo import TagRepository
+from domains.archive.schemas import MergeTagsCommand
 from domains.archive.schemas.tag_schema import TagRelevanceCount
 from domains.archive.services.tag_service import TagService
 
@@ -191,7 +192,7 @@ def test_merge_tags_success(use_test_db, db_session, generate_archive_doc):
     db_session.add(ArchiveDocumentTag(description_id=doc.description_id, tag_id=wrong_tag.tag_id))
     db_session.commit()
 
-    res = service.merge(official_tag.tag_id, [wrong_tag.tag_id])
+    res = service.merge(MergeTagsCommand(canonical_id=official_tag.tag_id, ids_to_merge=[wrong_tag.tag_id]))
     db_session.commit()  # Commit in the test
 
     assert res.documents_updated == 1
@@ -224,7 +225,7 @@ def test_merge_tags_idempotency_conflict(use_test_db, db_session, generate_archi
     )
     db_session.commit()
 
-    res = service.merge(official_tag.tag_id, [wrong_tag.tag_id])
+    res = service.merge(MergeTagsCommand(canonical_id=official_tag.tag_id, ids_to_merge=[wrong_tag.tag_id]))
     db_session.commit()  # Commit in the test
 
     assert res.tags_deleted == 1

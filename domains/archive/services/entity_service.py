@@ -1,8 +1,14 @@
 from collections.abc import Sequence
-from typing import Literal
+from typing import Literal, cast
 
+from domains.archive.domain.normalization import normalize_entity
 from domains.archive.exceptions import InvalidParam
 from domains.archive.ports.entity import EntityRepositoryPort
+from domains.archive.schemas.command_schema import (
+    MergeEntityCommand,
+    ResolveConflictCommand,
+    SynonymCommand,
+)
 from domains.archive.schemas.entity_schema import (
     ConflictResolutionData,
     CrossDomainConflict,
@@ -36,11 +42,14 @@ class EntityService:
     def find_all_similar_entity_pairs(self, threshold: float = 0.65) -> Sequence[EntityPairSimilarity]:
         return list(self.repo.find_all_similar_pairs(threshold))
 
-    def merge(self, canonical_id: int, ids_to_merge: list[int], new_name: str | None = None) -> EntityMergeResponse:
+    def merge(self, command: MergeEntityCommand) -> EntityMergeResponse:
         """
         Orchestrates the merging of entities applying business rules and sanitization.
         Allows renaming the canonical entity
         """
+        canonical_id = command.canonical_id
+        ids_to_merge = command.ids_to_merge
+        new_name = command.new_name
 
         # Rule 1: Protection against self-merge
         real_ids = [id_ for id_ in ids_to_merge if id_ != canonical_id]
@@ -56,13 +65,13 @@ class EntityService:
 
         # Rule 3: Data sanitization (Names for synonyms must be lowercase)
         dead_entities = self.repo.get_by_ids(real_ids) if real_ids else []
-        synonym_names = [e.name.strip().lower() for e in dead_entities]
+        synonym_names = [normalize_entity(e.name) for e in dead_entities]
 
         # Coordination 0: Renaming the Canonical Entity
-        if new_name and new_name.strip() and new_name.strip().lower() != canonical.name.lower():
+        if new_name and new_name.strip() and normalize_entity(new_name) != normalize_entity(canonical.name):
             old_name = canonical.name
             # Adds the old name as a synonym so as not to break future searches
-            synonym_names.append(old_name.strip().lower())
+            synonym_names.append(normalize_entity(old_name))
             self.repo.update_entity_name(canonical_id, new_name.strip())
 
         # Coordination 1: Transfer documents
@@ -76,12 +85,12 @@ class EntityService:
         # Coordination 2: Save synonyms (both of the dead entities and the old name)
         if synonym_names:
             synonyms_data = [
-                {
-                    "synonym_name": name,
-                    "category": canonical.entity_type,
-                    "canonical_tag_id": None,
-                    "canonical_entity_id": canonical_id,
-                }
+                SynonymCommand(
+                    synonym_name=name,
+                    category=cast("Literal['ORG', 'PER', 'LOC']", canonical.entity_type),
+                    canonical_tag_id=None,
+                    canonical_entity_id=canonical_id,
+                )
                 for name in synonym_names
             ]
             self.repo.create_synonyms(synonyms_data)
@@ -125,12 +134,12 @@ class EntityService:
 
         # 2. Generates the anchoring synonym (in lowercase, as defined in the business rules)
         synonym_data = [
-            {
-                "synonym_name": canonical.name.strip().lower(),
-                "category": new_type,
-                "canonical_tag_id": None,
-                "canonical_entity_id": entity_id,
-            }
+            SynonymCommand(
+                synonym_name=canonical.name,
+                category=new_type,
+                canonical_tag_id=None,
+                canonical_entity_id=entity_id,
+            )
         ]
 
         self.repo.create_synonyms(synonym_data)
@@ -163,13 +172,8 @@ class EntityService:
         """Scans the database looking for Tags and Entities that have the same name or very close spelling."""
         return list(self.repo.get_cross_domain_conflicts(threshold))
 
-    def resolve_cross_domain_conflict(
-        self, winner: Literal["TAG", "ENTITY"], tag_id: int, entity_id: int
-    ) -> ConflictResolutionData:
+    def resolve_cross_domain_conflict(self, command: ResolveConflictCommand) -> ConflictResolutionData:
         """Resolves the conflict by transferring the relationships to the winner and purging the loser."""
-        if winner not in ["TAG", "ENTITY"]:
-            raise InvalidParam("O vencedor (winner) deve ser obrigatoriamente 'TAG' ou 'ENTITY'.")
+        transferred_docs = self.repo.resolve_cross_domain_conflict(command.winner, command.tag_id, command.entity_id)
 
-        transferred_docs = self.repo.resolve_cross_domain_conflict(winner, tag_id, entity_id)
-
-        return ConflictResolutionData(winner=winner, documents_transferred=transferred_docs)
+        return ConflictResolutionData(winner=command.winner, documents_transferred=transferred_docs)
