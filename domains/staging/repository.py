@@ -1,12 +1,10 @@
-from typing import Any
-
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from domains.ingestion.models import RawData
 from domains.staging.models import StagingDocument
-from domains.staging.schemas import StagingDocumentDTO
+from domains.staging.schemas import RawRecord, StagingDocumentDTO
 
 
 class SqlRawRecordSource:
@@ -21,7 +19,7 @@ class SqlRawRecordSource:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def next_batch(self) -> list[dict[str, Any]]:
+    def next_batch(self) -> list[RawRecord]:
         stmt = (
             select(RawData.description_id, RawData.payload, RawData.content_hash, RawData.raw_title)
             .outerjoin(StagingDocument, RawData.description_id == StagingDocument.description_id)
@@ -29,7 +27,7 @@ class SqlRawRecordSource:
                 (StagingDocument.description_id.is_(None)) | (StagingDocument.raw_content_hash != RawData.content_hash)
             )
         )
-        return [dict(row._mapping) for row in self.db.execute(stmt)]
+        return [RawRecord.model_validate(row._mapping) for row in self.db.execute(stmt)]
 
 
 class SqlStagingDocumentWriter:

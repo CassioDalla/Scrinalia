@@ -1,18 +1,17 @@
 from collections.abc import Sequence
-from typing import Any
 from unittest.mock import MagicMock
 
-from domains.staging.schemas import StagingDocumentDTO
+from domains.staging.schemas import RawRecord, StagingDocumentDTO
 from domains.staging.worker import run_staging_pipeline
 
 
 class InMemoryRawSource:
     """Fake input port: yields raw records from a plain list (no database)."""
 
-    def __init__(self, records: Sequence[dict[str, Any]]):
+    def __init__(self, records: Sequence[RawRecord]):
         self._records = list(records)
 
-    def next_batch(self) -> Sequence[dict[str, Any]]:
+    def next_batch(self) -> Sequence[RawRecord]:
         return self._records
 
 
@@ -29,16 +28,12 @@ class RecordingWriter:
 def test_run_staging_pipeline_uses_ports_without_database() -> None:
     """The use case must depend only on its ports, never on the ingestion ORM."""
     raw_records = [
-        {
-            "description_id": "doc-1",
-            "content_hash": "hash-1",
-            "payload": {"title": "Ofício do Prefeito", "Data de Produção": "05/07/1929"},
-        },
-        {
-            "description_id": "doc-2",
-            "content_hash": "hash-2",
-            "payload": {"title": "Planta do Mercado"},
-        },
+        RawRecord(
+            description_id="doc-1",
+            content_hash="hash-1",
+            payload={"title": "Ofício do Prefeito", "Data de Produção": "05/07/1929"},
+        ),
+        RawRecord(description_id="doc-2", content_hash="hash-2", payload={"title": "Planta do Mercado"}),
     ]
 
     source = InMemoryRawSource(raw_records)
@@ -57,7 +52,7 @@ def test_run_staging_pipeline_uses_ports_without_database() -> None:
 
 def test_run_staging_pipeline_commits_through_unit_of_work() -> None:
     """The worker must own the transaction via the UnitOfWork, not call commit on the session."""
-    raw_records = [{"description_id": "doc-1", "content_hash": "h", "payload": {"title": "Ok"}}]
+    raw_records = [RawRecord(description_id="doc-1", content_hash="h", payload={"title": "Ok"})]
     db_session = MagicMock()
     uow = MagicMock()
 
@@ -70,12 +65,10 @@ def test_run_staging_pipeline_commits_through_unit_of_work() -> None:
 def test_run_staging_pipeline_skips_invalid_records() -> None:
     """A record rejected by validation must not reach the writer and should not abort the batch."""
     raw_records = [
-        {"description_id": "bad", "content_hash": "h", "payload": {"title": None, "Data": "?"}},
-        {"description_id": "good", "content_hash": "h2", "payload": {"title": "Registro Válido"}},
+        # The first record carries a non-string content_hash; the schema must reject it.
+        RawRecord.model_construct(description_id="bad", content_hash=123, payload={"title": None, "Data": "?"}),
+        RawRecord(description_id="good", content_hash="h2", payload={"title": "Registro Válido"}),
     ]
-    # The first record has an explicit null title; the schema falls back to a placeholder,
-    # so force a real validation error with a broken raw hash type instead.
-    raw_records[0]["content_hash"] = 123
 
     writer = RecordingWriter()
     db_session = MagicMock()

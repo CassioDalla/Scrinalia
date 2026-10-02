@@ -24,8 +24,8 @@ def test_get_pending_raw_records_finds_new_document(use_test_db, db_session) -> 
     pending = SqlRawRecordSource(db_session).next_batch()
 
     assert len(pending) == 1
-    assert pending[0]["description_id"] == "doc-inédito"
-    assert pending[0]["content_hash"] == "hash-123"
+    assert pending[0].description_id == "doc-inédito"
+    assert pending[0].content_hash == "hash-123"
 
 
 def test_get_pending_raw_records_ignores_synced_documents(use_test_db, db_session) -> None:
@@ -63,7 +63,7 @@ def test_get_pending_raw_records_detects_hash_change(use_test_db, db_session) ->
 
     # It must be picked up, because the hash changed!
     assert len(pending) == 1
-    assert pending[0]["description_id"] == "doc-mudou"
+    assert pending[0].description_id == "doc-mudou"
 
 
 def test_upsert_staging_document_updates_existing_record(use_test_db, db_session) -> None:

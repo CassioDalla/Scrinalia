@@ -5,6 +5,21 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
+class RawRecord(BaseModel):
+    """
+    Raw record delivered by the Ingestion layer and consumed by the staging transform.
+
+    Input-port DTO: it carries exactly the columns the staging use case needs from
+    ``RawData`` (the original payload plus the CDC content hash), so the application
+    layer never imports the ingestion ORM.
+    """
+
+    description_id: str
+    content_hash: str
+    payload: dict[str, Any]
+    raw_title: str | None = None
+
+
 class StagingDocumentDTO(BaseModel):
     """
     Staging layer validation and transformation contract (Schema/DTO).

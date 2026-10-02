@@ -51,11 +51,18 @@ def run_staging_pipeline(
     success = 0
     failures = 0
 
-    for i, raw_data in enumerate(pending_records, start=1):
-        doc_id = raw_data.get("description_id", "UNKNOWN")
+    for i, raw_record in enumerate(pending_records, start=1):
+        doc_id = raw_record.description_id
         try:
             # Validation and Cleaning (Pydantic)
-            clean_record = StagingDocumentDTO.model_validate(raw_data)
+            clean_record = StagingDocumentDTO.model_validate(
+                {
+                    "description_id": raw_record.description_id,
+                    "content_hash": raw_record.content_hash,
+                    "payload": raw_record.payload,
+                    "raw_title": raw_record.raw_title,
+                }
+            )
 
             # Persistency
             with db_session.begin_nested():
