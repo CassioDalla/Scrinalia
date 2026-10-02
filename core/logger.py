@@ -11,10 +11,10 @@ logger.remove()
 logger.add(
     sys.stdout,
     format="<green>{time:YYYY-MM-DD HH:mm:sc}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-    level="INFO",  # Mostra INFO, WARNING, ERROR, CRITICAL. (Esconde DEBUG)
+    level="INFO",  # Shows INFO, WARNING, ERROR, CRITICAL. (Hides DEBUG)
 )
 
-# Sink 2: Erros Críticos
+# Sink 2: Critical Errors
 logger.add(
     "logs/criticos.log",
     level="ERROR",

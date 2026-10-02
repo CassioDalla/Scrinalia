@@ -11,7 +11,7 @@ from domains.archive.services.tag_service import TagService
 
 
 def provide_tag_service(db_session: Session) -> TagService:
-    """Constrói o serviço injetando os repositórios criados com a sessão da requisição atual."""
+    """Builds the service by injecting the repositories created with the current request session."""
     tag_repo = TagRepository(db_session)
     doc_repo = DocumentRepository(db_session)
 
@@ -19,7 +19,7 @@ def provide_tag_service(db_session: Session) -> TagService:
 
 
 def provide_entity_service(db_session: Session) -> EntityService:
-    """Constrói o serviço de Entidades injetando o seu repositório."""
+    """Builds the Entity service by injecting its repository."""
     repo = EntityRepository(db_session)
     return EntityService(repo)
 
@@ -29,5 +29,5 @@ def provide_cleaning_service(db_session: Session) -> CleaningService:
 
 
 def provide_document_service(db_session: Session) -> DocumentService:
-    """Constrói o serviço de leitura/curadoria do acervo com a sessão da requisição."""
+    """Builds the collection reading/curation service with the request session."""
     return DocumentService(DocumentRepository(db_session))

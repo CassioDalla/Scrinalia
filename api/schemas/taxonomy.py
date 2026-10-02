@@ -7,17 +7,17 @@ from domains.archive.schemas.entity_schema import ConflictResolutionData, CrossD
 
 class MergeRequest(BaseModel):
     canonical_id: int
-    ids_to_merge: list[int] = Field(min_length=1, description="Lista de IDs que serão mesclados e deletados.")
+    ids_to_merge: list[int] = Field(min_length=1, description="List of IDs that will be merged and deleted.")
     new_name: str | None = None
 
 
 class StopwordsRequest(BaseModel):
-    words: list[str] = Field(min_length=1, description="Lista de palavras a serem banidas.")
+    words: list[str] = Field(min_length=1, description="List of words to be banned.")
 
 
 class SuggestMacroRequest(BaseModel):
     source_type: Literal["tags", "documents"] = Field(
-        default="tags", description="A fonte de dados que a IA usará para gerar os clusters."
+        default="tags", description="The data source the AI will use to generate the clusters."
     )
     columns_to_extract: list[str] | None = None
 

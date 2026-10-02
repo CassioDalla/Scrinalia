@@ -2,10 +2,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class DocumentUpdateRequest(BaseModel):
-    """Campos que um arquivista pode revisar manualmente em um documento."""
+    """Fields an archivist can review manually in a document."""
 
-    final_title: str | None = Field(default=None, description="Título definitivo revisado pelo arquivista.")
-    scope_content: str | None = Field(default=None, description="Âmbito e conteúdo revisado.")
-    archivist_notes: str | None = Field(default=None, description="Notas técnicas do arquivista.")
+    final_title: str | None = Field(default=None, description="Final title reviewed by the archivist.")
+    scope_content: str | None = Field(default=None, description="Reviewed scope and content.")
+    archivist_notes: str | None = Field(default=None, description="Technical notes from the archivist.")
 
     model_config = ConfigDict(extra="forbid")

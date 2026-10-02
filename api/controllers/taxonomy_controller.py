@@ -44,11 +44,11 @@ class TaxonomyController(Controller):
     ) -> TagRelevanceResponse:
 
         if method == "tfidf":
-            resultados = tag_service.get_tag_relevance_tfidf(limit)
+            results = tag_service.get_tag_relevance_tfidf(limit)
         else:
-            resultados = tag_service.get_tag_relevance_count(limit)
+            results = tag_service.get_tag_relevance_count(limit)
 
-        return TagRelevanceResponse.from_payload(list(resultados))
+        return TagRelevanceResponse.from_payload(list(results))
 
     @get("/tags/similar", sync_to_thread=True)
     def get_similar_tags(
@@ -74,27 +74,27 @@ class TaxonomyController(Controller):
         if data.words:
             tag_service.save_new_stopwords(data.words)
 
-        qtd_apagadas = tag_service.purge_stopwords()
-        return {"message": "Limpeza concluída com sucesso.", "tags_deleted": qtd_apagadas}
+        deleted_count = tag_service.purge_stopwords()
+        return {"message": "Limpeza concluída com sucesso.", "tags_deleted": deleted_count}
 
     @post("/tags/suggest-macro")
     async def suggest_macro_categories(
         self, tag_service: TagService, data: SuggestMacroRequest
     ) -> MacroCategoriesSuggestionResponse:
 
-        texts_to_analize = tag_service.get_text_to_suggest_macro_category(
+        texts_to_analyze = tag_service.get_text_to_suggest_macro_category(
             source_type=data.source_type, columns_to_extract=data.columns_to_extract
         )
 
-        if not texts_to_analize or len(texts_to_analize) < 10:
+        if not texts_to_analyze or len(texts_to_analyze) < 10:
             return MacroCategoriesSuggestionResponse(
                 total_suggestions=0, categories=[], message="⚠️ Textos insuficientes para formar clusters semânticos."
             )
 
-        # anyio.to_process.run_sync recebe a função e depois os seus argumentos posicionais.
+        # anyio.to_process.run_sync receives the function and then its positional arguments.
         results = await anyio.to_process.run_sync(
             run_suggestion_engine,
-            texts_to_analize,  # Passamos o source_type posicionalmente
+            texts_to_analyze,  # We pass source_type positionally
         )
 
         return results
@@ -103,8 +103,8 @@ class TaxonomyController(Controller):
     def get_entity_relevance(
         self, entity_service: EntityService, entity_type: Literal["ORG", "PER", "LOC"] | None = None, limit: int = 30
     ) -> EntityRelevanceResponse:
-        resultados = entity_service.get_entity_relevance_count(entity_type, limit)
-        return EntityRelevanceResponse(data=list(resultados))
+        results = entity_service.get_entity_relevance_count(entity_type, limit)
+        return EntityRelevanceResponse(data=list(results))
 
     @get("/entities/similar", sync_to_thread=True)
     def get_similar_entities(
@@ -116,31 +116,31 @@ class TaxonomyController(Controller):
     ) -> EntitySimilarityResponse:
 
         if not target_name:
-            resultados = entity_service.find_all_similar_entity_pairs(threshold)
-            return EntitySimilarityResponse.from_payload(list(resultados))
+            results = entity_service.find_all_similar_entity_pairs(threshold)
+            return EntitySimilarityResponse.from_payload(list(results))
 
-        resultados = entity_service.find_similar(target_name, entity_type, threshold)
-        return EntitySimilarityResponse.from_payload(list(resultados))
+        results = entity_service.find_similar(target_name, entity_type, threshold)
+        return EntitySimilarityResponse.from_payload(list(results))
 
     @post("/entities/merge", sync_to_thread=False)
     def merge_entities(self, entity_service: EntityService, data: MergeRequest) -> dict[str, int]:
         res = entity_service.merge(data.canonical_id, data.ids_to_merge, data.new_name)
 
-        # TODO Fazer um mergeResponse da entity ou reciclar o da tag
+        # TODO Create an entity MergeResponse or recycle the tag one
         return {"documents_updated": res.documents_updated, "entities_deleted": res.entities_deleted}
 
     @post("/entities/orphans/purge", sync_to_thread=False)
     def purge_orphan_entities(self, entity_service: EntityService) -> dict:
-        qtd_apagadas = entity_service.purge_orphan_entities()
-        return {"message": "Limpeza de entidades órfãs concluída com sucesso.", "entities_deleted": qtd_apagadas}
+        deleted_count = entity_service.purge_orphan_entities()
+        return {"message": "Limpeza de entidades órfãs concluída com sucesso.", "entities_deleted": deleted_count}
 
     @post("/entities/stopwords/purge_stopwords", sync_to_thread=False)
     def purge_entity_stopwords(self, entity_service: EntityService, data: StopwordsRequest) -> dict:
-        qtd_apagadas = entity_service.purge_entity_stopwords(data.words)
+        deleted_count = entity_service.purge_entity_stopwords(data.words)
 
         return {
             "message": "Falsos positivos adicionados à lista negra e expurgados com sucesso.",
-            "entities_deleted": qtd_apagadas,
+            "entities_deleted": deleted_count,
         }
 
     @patch("/entities/{entity_id:int}/reclassify", sync_to_thread=False)
@@ -153,29 +153,29 @@ class TaxonomyController(Controller):
 
     @delete("/entities/{entity_id:int}", status_code=200, sync_to_thread=False)
     def delete_entity(self, entity_service: EntityService, entity_id: int) -> dict:
-        # A transação (commit/rollback) continua garantida pela injeção db_session
+        # The transaction (commit/rollback) is still guaranteed by the db_session injection
         entity_service.delete_entity(entity_id)
 
         return {"message": f"Entidade {entity_id} excluída com sucesso da base de dados."}
 
     # ==========================================
-    # ROTAS: CHOQUE DE DOMÍNIOS (Cross-Domain)
+    # ROUTES: DOMAIN CLASH (Cross-Domain)
     # ==========================================
 
     @get("/conflicts/cross-domain", sync_to_thread=True)
     def get_cross_domain_conflicts(
         self, entity_service: EntityService, threshold: float = 0.85
     ) -> CrossDomainConflictListResponse:
-        """Retorna uma lista de conflitos onde Tags e Entidades possuem a mesma nomenclatura."""
-        resultados = entity_service.find_cross_domain_conflicts(threshold=threshold)
-        return CrossDomainConflictListResponse(data=list(resultados))
+        """Returns a list of conflicts where Tags and Entities share the same naming."""
+        results = entity_service.find_cross_domain_conflicts(threshold=threshold)
+        return CrossDomainConflictListResponse(data=list(results))
 
     @post("/conflicts/resolve", sync_to_thread=False)
     def resolve_cross_domain_conflict(
         self, entity_service: EntityService, data: ConflictResolutionRequest
     ) -> ConflictResolutionResponse:
-        """Resolve o conflito forçando a vitória de uma Tag ou de uma Entidade."""
-        resultado = entity_service.resolve_cross_domain_conflict(data.winner, data.tag_id, data.entity_id)
+        """Resolves the conflict by forcing the victory of a Tag or an Entity."""
+        result = entity_service.resolve_cross_domain_conflict(data.winner, data.tag_id, data.entity_id)
         return ConflictResolutionResponse(
-            message=f"Conflito resolvido! A vitória foi concedida para {data.winner}.", data=resultado
+            message=f"Conflito resolvido! A vitória foi concedida para {data.winner}.", data=result
         )

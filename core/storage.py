@@ -25,5 +25,5 @@ class S3Storage:
             self.client.upload_fileobj(file_stream, self.bucket, file_path, ExtraArgs={"ContentType": content_type})
             return f"s3://{self.bucket}/{file_path}"
         except Exception as e:
-            logger.error(f"❌ Erro ao enviar ficheiro para S3: {e}")
+            logger.error(f"❌ Error uploading file to S3: {e}")
             raise

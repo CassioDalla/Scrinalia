@@ -19,10 +19,10 @@ from domains.archive.exceptions import (
 
 def domain_exception_handler(request: Request, exc: DomainException) -> Response:
     """
-    Mapeia dinamicamente as exceções do Core do negócio para os
-    status codes corretos do protocolo HTTP.
+    Dynamically maps business Core exceptions to the
+    correct HTTP protocol status codes.
     """
-    # Define um erro padrão caso a exceção específica não esteja mapeada
+    # Defines a default error in case the specific exception is not mapped
     status_code = HTTP_400_BAD_REQUEST
 
     if isinstance(exc, (TagNotFoundError, DocumentNotFoundError)):
@@ -34,7 +34,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
     elif isinstance(exc, EngineExecutionError):
         status_code = HTTP_422_UNPROCESSABLE_ENTITY
 
-    # Estrutura de resposta padronizada para o Front-end
+    # Standardized response structure for the Front-end
     return Response(
         content={
             "error_code": exc.__class__.__name__,
@@ -45,7 +45,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
 
 
 def integrity_error_handler(request: Request, exc: IntegrityError) -> Response:
-    """Captura conflitos estruturais do PostgreSQL (ex: violação de Unique, Foreign Key)."""
+    """Captures structural PostgreSQL conflicts (e.g.: Unique, Foreign Key violation)."""
     return Response(
         content={
             "error_code": "IntegrityError",
@@ -56,7 +56,7 @@ def integrity_error_handler(request: Request, exc: IntegrityError) -> Response:
 
 
 def value_error_handler(request: Request, exc: ValueError) -> Response:
-    """Captura validações nativas do Python lançadas pelos Services."""
+    """Captures native Python validations raised by the Services."""
     return Response(
         content={"error_code": "ValueError", "message": str(exc)},
         status_code=HTTP_400_BAD_REQUEST,

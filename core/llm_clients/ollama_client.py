@@ -5,7 +5,7 @@ from core.logger import logger
 
 
 class OllamaClient:
-    """Cliente base genérico"""
+    """Generic base client"""
 
     def __init__(self, host: str | None = None, model="granite"):
         self.host = host or settings.OLLAMA_HOST_URL
@@ -29,5 +29,5 @@ class OllamaClient:
             response.raise_for_status()
             return response.json().get("response", "{}")
         except Exception as e:
-            logger.error(f"Falha na rede com Ollama: {e}")
+            logger.error(f"Network failure with Ollama: {e}")
             return {}
