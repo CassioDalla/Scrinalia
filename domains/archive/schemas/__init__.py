@@ -15,7 +15,7 @@ from .document_schema import (
     DocumentSummary,
     DocumentTagSummary,
 )
-from .entity_schema import ArchiveEntityDTO, EntityIdentity
+from .entity_schema import ArchiveEntityDTO, EntityIdentity, NerSynonymRule
 from .tag_schema import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
@@ -48,6 +48,7 @@ __all__ = [
     "MergeEntityCommand",
     "MergeResponse",
     "MergeTagsCommand",
+    "NerSynonymRule",
     "ResolveConflictCommand",
     "SynonymCommand",
     "TagIdentity",

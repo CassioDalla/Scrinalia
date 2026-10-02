@@ -59,7 +59,8 @@ def test_get_ner_synonyms_rules(use_test_db, db_session):
     assert len(rules) == 1
     assert rules[0]["pattern"] == "prefeitura municipal"
     assert rules[0]["label"] == "ORG"
-    assert rules[0]["canonical_name"] == "Prefeitura de Curitiba"
+    # spaCy reads the canonical entity from the "id" key (exposed as ent_id_).
+    assert rules[0]["id"] == "Prefeitura de Curitiba"
 
 
 def test_purge_orphan_entities(use_test_db, db_session):

@@ -1,6 +1,19 @@
-from typing import Literal
+from typing import Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class NerSynonymRule(TypedDict):
+    """
+    Phrase pattern fed to spaCy's EntityRuler.
+
+    ``pattern`` is the synonym spelling, ``label`` is the entity type and ``id``
+    is the canonical entity name that spaCy exposes as ``ent_id_``.
+    """
+
+    pattern: str
+    label: str
+    id: str
 
 
 class ArchiveEntityDTO(BaseModel):

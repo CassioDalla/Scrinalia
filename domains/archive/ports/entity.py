@@ -9,6 +9,7 @@ from domains.archive.schemas.entity_schema import (
     EntityPairSimilarity,
     EntityRelevance,
     EntitySimilarity,
+    NerSynonymRule,
 )
 
 
@@ -30,7 +31,7 @@ class EntityRepositoryPort(Protocol):
     def get_relevance_count(
         self, entity_type: Literal["ORG", "PER", "LOC"] | None = None, limit: int = 30
     ) -> Sequence[EntityRelevance]: ...
-    def get_ner_synonyms_rules(self) -> list[dict]: ...
+    def get_ner_synonyms_rules(self) -> list[NerSynonymRule]: ...
 
     # --- Write ---
     def get_or_create_entities(self, entities_list: list[ArchiveEntityDTO]) -> list[int]: ...

@@ -24,6 +24,7 @@ from domains.archive.schemas.entity_schema import (
     EntityPairSimilarity,
     EntityRelevance,
     EntitySimilarity,
+    NerSynonymRule,
 )
 
 
@@ -190,7 +191,7 @@ class EntityRepository:
 
     # --- Ingestion and NER Methods ---
 
-    def get_ner_synonyms_rules(self) -> list[dict]:
+    def get_ner_synonyms_rules(self) -> list[NerSynonymRule]:
         """
         Loads the semantic normalization rules exclusive to the NER pipeline (spaCy).
         Ignores TAG synonyms, returning only mappings to Canonical Entities.
@@ -204,9 +205,9 @@ class EntityRepository:
 
         results = self.db.execute(stmt).all()
 
+        # ``id`` is the key spaCy reads from a phrase pattern to fill ``ent_id_``.
         return [
-            {"pattern": row.synonym_name, "label": row.category, "canonical_name": row.canonical_entity}
-            for row in results
+            NerSynonymRule(pattern=row.synonym_name, label=row.category, id=row.canonical_entity) for row in results
         ]
 
     def get_or_create_entities(self, entities_list: list[ArchiveEntityDTO]) -> list[int]:
