@@ -1,25 +1,33 @@
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.logger import logger
 from core.unit_of_work import UnitOfWork
 from domains.archive.models import ArchiveReviewStatus
+from domains.archive.ports.staging_source import StagingRecordSource
 from domains.archive.repository import DocumentRepository, TagRepository
+from domains.archive.repository.staging_source import SqlStagingRecordSource
 from domains.archive.schemas.document_schema import ArchiveDocumentDTO
 from domains.archive.services.tag_service import TagService
-from domains.staging.models import StagingDocument
 
 # Batch size for the Batch Commit
 BATCH_SIZE = 500
 
 
-def execute(db_session: Session) -> None:
+def execute(
+    db_session: Session,
+    source: StagingRecordSource | None = None,
+) -> None:
     """
     Orchestrator responsible for copying the structured data from the Staging layer
     and initializing the records in the fact table of the Archive layer.
+
+    The staging records arrive through the ``StagingRecordSource`` port, so this
+    use case never touches the staging ORM directly.
     """
     logger.info("🚀 Starting the migration from Staging to Archive")
+
+    source = source or SqlStagingRecordSource(db_session)
 
     # Instantiates the Repositories and Service
     tag_repo = TagRepository(db_session)
@@ -27,9 +35,7 @@ def execute(db_session: Session) -> None:
     tag_service = TagService(tag_repo, doc_repo)
     uow = UnitOfWork(db_session)
 
-    # yield_per(BATCH_SIZE) avoids blowing up RAM when fetching thousands of records
-    query = select(StagingDocument)
-    documents_staging = db_session.scalars(query).yield_per(BATCH_SIZE)
+    documents_staging = source.stream(BATCH_SIZE)
 
     success_count = 0
     failures = 0

@@ -65,6 +65,42 @@ def test_run_archive_transfer_full_flow(mocker: MockerFixture, mock_staging_doc)
     mock_db.commit.assert_called_once()
 
 
+def test_run_archive_transfer_consumes_ports_without_staging_orm(mocker: MockerFixture) -> None:
+    """The transfer use case must read staging through the port, not the staging ORM."""
+    from domains.archive.ports.staging_source import StagingRecord
+
+    mock_db = mocker.Mock(spec=Session)
+    mock_db.begin_nested.return_value = mocker.MagicMock()
+
+    record = StagingRecord(
+        description_id="doc-port",
+        title="Dossiê via porta",
+        raw_content_hash="hash_port",
+        indexing_points="Urbanismo",
+    )
+    source = mocker.Mock()
+    source.stream.return_value = iter([record])
+
+    mock_doc_repo_class = mocker.patch("domains.archive.workers.worker_archive_transfer.DocumentRepository")
+    mocker.patch("domains.archive.workers.worker_archive_transfer.TagRepository")
+    mock_tag_service_class = mocker.patch("domains.archive.workers.worker_archive_transfer.TagService")
+
+    mock_doc_repo = mock_doc_repo_class.return_value
+    mock_doc_repo.upsert_archive_document.return_value = True
+
+    mock_tag_service = mock_tag_service_class.return_value
+    mock_tag_service.extract_and_clean_tags.return_value = []
+    mock_tag_service.process_worker_tags.return_value = []
+
+    worker_archive_transfer.execute(mock_db, source=source)
+
+    source.stream.assert_called_once()
+    args, _ = mock_doc_repo.upsert_archive_document.call_args
+    sent_dto: ArchiveDocumentDTO = args[0]
+    assert sent_dto.description_id == "doc-port"
+    assert sent_dto.original_title == "Dossiê via porta"
+
+
 def test_run_archive_transfer_idempotency(mocker: MockerFixture, mock_staging_doc) -> None:
     """Tests Incremental Loading: If the Hash is equal, the Upsert returns False and the pipeline skips processing."""
     mock_db = mocker.Mock(spec=Session)
