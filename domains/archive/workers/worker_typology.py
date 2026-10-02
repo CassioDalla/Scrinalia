@@ -4,12 +4,12 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from core.database import get_db
 from core.logger import logger
+from core.runner_config import TypologyRunnerConfig
 from core.unit_of_work import UnitOfWork
 from domains.archive.engines.base import TypologyEngine
 from domains.archive.engines.classification.registry import EngineName, PresetName, get_engine
 from domains.archive.models import ArchiveDocument, ArchiveReviewStatus
 from domains.archive.repository import TypologyRepository
-from domains.archive.runner_config import TypologyRunnerConfig
 from domains.archive.worker_stamp import TYPOLOGY
 
 

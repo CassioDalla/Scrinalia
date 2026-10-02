@@ -7,13 +7,13 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from core.database import get_db
 from core.logger import logger
+from core.runner_config import NerRunnerConfig
 from core.unit_of_work import UnitOfWork
 from domains.archive.engines.base import EntityExtractionEngine
 from domains.archive.engines.NER.registry import EngineName as ExtractEngineName
 from domains.archive.engines.NER.registry import PresetName, get_engine
 from domains.archive.models import ArchiveDocument, ArchiveReviewStatus, DomainStopwords, StopwordsScope
 from domains.archive.repository import EntityRepository
-from domains.archive.runner_config import NerRunnerConfig
 from domains.archive.worker_stamp import NER
 
 

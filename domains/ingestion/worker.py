@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.logger import logger
-from domains.archive.runner_config import IngestionRunnerConfig
+from core.runner_config import IngestionRunnerConfig
 from domains.ingestion import repository
 from domains.ingestion.models import ScrapeStatus
 from domains.ingestion.ports import (

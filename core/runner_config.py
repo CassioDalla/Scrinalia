@@ -23,12 +23,3 @@ class IngestionRunnerConfig:
     max_retries: int = 3
     discovery_window_days: int = 30
     scraped_ttl_days: int = 1
-
-
-@dataclass(frozen=True)
-class ArchiveRunnerConfig:
-    """Aggregates the per-worker domain configuration."""
-
-    typology: TypologyRunnerConfig = TypologyRunnerConfig()
-    ner: NerRunnerConfig = NerRunnerConfig()
-    ingestion: IngestionRunnerConfig = IngestionRunnerConfig()
