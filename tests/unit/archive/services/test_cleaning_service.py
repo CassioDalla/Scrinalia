@@ -7,6 +7,7 @@ from domains.archive.exceptions import InvalidParam
 from domains.archive.models.governance import ArchiveCleaningRule
 from domains.archive.schemas.cleaning_schema import (
     CleaningRuleCreateDTO,
+    CleaningRuleDTO,
     DryRunRequestDTO,
 )
 from domains.archive.services.cleaning_service import CleaningService
@@ -144,31 +145,29 @@ def test_simulate_dry_run_invalid_regex(cleaning_service):
 # STATE CHANGE TESTS (Deactivate)
 # ==========================================
 def test_deactivate_rule_success(cleaning_service, mock_repo):
-    """Tests whether the rule is deactivated and flushed, never committed, by the service."""
-    # Instantiate the rule with is_active=True
-    mock_rule = ArchiveCleaningRule(
+    """Tests whether the rule is deactivated through the repository, never committed by the service."""
+    deactivated = CleaningRuleDTO(
         rule_id=99,
         rule_name="Regra Teste",
-        is_active=True,
+        is_active=False,
         target_column="original_title",
         regex_pattern=".",
         replacement_string="",
     )
-
-    mock_repo.get_rule_by_id.return_value = mock_rule
+    mock_repo.deactivate_rule.return_value = deactivated
 
     result = cleaning_service.deactivate_rule(99)
 
     # Checks whether the property was changed to False
     assert result.is_active is False
-    # The service flushes; the transaction is owned by the caller (Unit of Work).
-    mock_repo.db.flush.assert_called_once()
+    # The service delegates to the repository; it never commits on its own.
+    mock_repo.deactivate_rule.assert_called_once_with(99)
     mock_repo.db.commit.assert_not_called()
 
 
 def test_deactivate_rule_not_found(cleaning_service, mock_repo):
     """Tests whether it raises ValueError when the rule does not exist in the DB."""
-    mock_repo.get_rule_by_id.return_value = None
+    mock_repo.deactivate_rule.return_value = None
 
     with pytest.raises(ValueError) as exc_info:
         cleaning_service.deactivate_rule(999)

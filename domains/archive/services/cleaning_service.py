@@ -1,7 +1,7 @@
 import re
 
 from domains.archive.exceptions import InvalidParam
-from domains.archive.repository.cleaning_repo import CleaningRepository
+from domains.archive.ports.cleaning import CleaningRepositoryPort
 from domains.archive.schemas.cleaning_schema import (
     CleaningRuleCreateDTO,
     CleaningRuleDTO,
@@ -12,7 +12,7 @@ from domains.archive.schemas.cleaning_schema import (
 
 
 class CleaningService:
-    def __init__(self, repo: CleaningRepository):
+    def __init__(self, repo: CleaningRepositoryPort):
         self.repo = repo
 
     def _validate_regex(self, pattern: str) -> re.Pattern:
@@ -25,9 +25,7 @@ class CleaningService:
     def create_cleaning_rule(self, dto: CleaningRuleCreateDTO) -> CleaningRuleDTO:
         # Early validation (Fail Fast)
         self._validate_regex(dto.regex_pattern)
-
-        rule = self.repo.create_rule(dto.model_dump())
-        return CleaningRuleDTO.model_validate(rule, from_attributes=True)
+        return self.repo.create_rule(dto.model_dump())
 
     def simulate_dry_run(self, dto: DryRunRequestDTO) -> DryRunResponseDTO:
         """
@@ -66,17 +64,13 @@ class CleaningService:
         return DryRunResponseDTO(is_valid_regex=True, matches_found=len(matches), samples=matches)
 
     def get_active_rules(self) -> list[CleaningRuleDTO]:
-        rules = self.repo.get_active_rules()
-        return [CleaningRuleDTO.model_validate(r, from_attributes=True) for r in rules]
+        return list(self.repo.get_active_rules())
 
     def deactivate_rule(self, rule_id: int) -> CleaningRuleDTO:
-        rule = self.repo.get_rule_by_id(rule_id=rule_id)
-        if not rule:
+        # The transaction is owned by the caller (API middleware or worker context):
+        # the repository flushes and the use case never commits on its own.
+        rule = self.repo.deactivate_rule(rule_id)
+        if rule is None:
             raise ValueError(f"Regra {rule_id} não encontrada.")
 
-        rule.is_active = False
-        # The transaction is owned by the caller (API middleware or worker context):
-        # the service must not commit on its own.
-        self.repo.db.flush()
-
-        return CleaningRuleDTO.model_validate(rule, from_attributes=True)
+        return rule

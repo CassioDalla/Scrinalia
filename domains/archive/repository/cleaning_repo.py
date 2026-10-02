@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from domains.archive.models import ArchiveCleaningRule, ArchiveDocument, ArchiveReviewStatus
+from domains.archive.schemas.cleaning_schema import CleaningRuleDTO
 from domains.archive.worker_stamp import cleaning_rule_stamp
 
 
@@ -11,19 +12,30 @@ class CleaningRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_rule(self, rule_data: dict) -> ArchiveCleaningRule:
+    def create_rule(self, rule_data: dict) -> CleaningRuleDTO:
         rule = ArchiveCleaningRule(**rule_data)
         self.db.add(rule)
         self.db.flush()
-        return rule
+        return CleaningRuleDTO.model_validate(rule, from_attributes=True)
 
-    def get_active_rules(self) -> Sequence[ArchiveCleaningRule]:
+    def get_active_rules(self) -> Sequence[CleaningRuleDTO]:
         stmt = select(ArchiveCleaningRule).where(ArchiveCleaningRule.is_active.is_(True))
-        return self.db.scalars(stmt).all()
+        return [CleaningRuleDTO.model_validate(rule, from_attributes=True) for rule in self.db.scalars(stmt).all()]
 
-    def get_rule_by_id(self, rule_id: int) -> ArchiveCleaningRule | None:
+    def get_rule_by_id(self, rule_id: int) -> CleaningRuleDTO | None:
         stmt = select(ArchiveCleaningRule).where(ArchiveCleaningRule.rule_id == rule_id)
-        return self.db.scalars(stmt).one_or_none()
+        rule = self.db.scalars(stmt).one_or_none()
+        return CleaningRuleDTO.model_validate(rule, from_attributes=True) if rule else None
+
+    def deactivate_rule(self, rule_id: int) -> CleaningRuleDTO | None:
+        """Marks the rule as inactive and returns it; the caller owns the commit."""
+        rule = self.db.scalars(select(ArchiveCleaningRule).where(ArchiveCleaningRule.rule_id == rule_id)).one_or_none()
+        if rule is None:
+            return None
+
+        rule.is_active = False
+        self.db.flush()
+        return CleaningRuleDTO.model_validate(rule, from_attributes=True)
 
     def get_unprocessed_documents_for_rule(
         self, rule_id: int, target_column: str, limit: int = 500
