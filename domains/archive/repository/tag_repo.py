@@ -5,6 +5,7 @@ from sqlalchemy import CursorResult, Float, delete, desc, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
+from domains.archive.domain.normalization import normalize_stopword, normalize_tag
 from domains.archive.models import (
     ArchiveDocument,
     ArchiveDocumentTag,
@@ -44,7 +45,7 @@ class TagRepository:
         if not words:
             return {}
 
-        words_clean = [w.strip().lower() for w in words]
+        words_clean = [normalize_tag(w) for w in words]
 
         stmt = select(DomainSynonyms.synonym_name, DomainSynonyms.canonical_tag_id).where(
             DomainSynonyms.category == "TAG", DomainSynonyms.synonym_name.in_(words_clean)
@@ -66,7 +67,7 @@ class TagRepository:
         names_to_search = []
 
         for t in tags_list:
-            name_clean = t.name.strip().lower()
+            name_clean = normalize_tag(t.name)
             names_to_search.append(name_clean)
             insert_data.append(
                 {
@@ -93,7 +94,7 @@ class TagRepository:
         if not words_list:
             return 0
 
-        clean_words = [{"word": w.strip().lower()} for w in words_list if w.strip()]
+        clean_words = [{"word": normalize_stopword(w)} for w in words_list if w.strip()]
 
         if not clean_words:
             return 0

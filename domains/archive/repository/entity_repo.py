@@ -5,6 +5,7 @@ from sqlalchemy import CursorResult, delete, desc, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
+from domains.archive.domain.normalization import normalize_entity, normalize_stopword
 from domains.archive.exceptions import InvalidParam
 from domains.archive.models import (
     ArchiveDocumentEntity,
@@ -156,7 +157,7 @@ class EntityRepository:
             if entity_name:
                 stmt_stopword = (
                     insert(DomainStopwords)
-                    .values(word=entity_name.lower().strip(), word_scope=StopwordsScope.ENTITY)
+                    .values(word=normalize_stopword(entity_name), word_scope=StopwordsScope.ENTITY)
                     .on_conflict_do_nothing()
                 )
                 self.db.execute(stmt_stopword)
@@ -179,7 +180,7 @@ class EntityRepository:
             if tag_name:
                 stmt_stopword = (
                     insert(DomainStopwords)
-                    .values(word=tag_name.lower().strip(), word_scope=StopwordsScope.TAG)
+                    .values(word=normalize_stopword(tag_name), word_scope=StopwordsScope.TAG)
                     .on_conflict_do_nothing()
                 )
                 self.db.execute(stmt_stopword)
@@ -228,7 +229,7 @@ class EntityRepository:
         names_to_search = []
 
         for ent in entities_list:
-            name_clean = ent.name.strip().lower()
+            name_clean = normalize_entity(ent.name)
             names_to_search.append(name_clean)
             insert_data.append({"name": name_clean, "entity_type": ent.entity_type})
 
@@ -304,7 +305,7 @@ class EntityRepository:
     def save_entity_stopwords(self, words: list[str]) -> None:
         """Saves the words to the blacklist with the scope exclusive to Entities."""
         for word in words:
-            clean_word = word.strip().lower()
+            clean_word = normalize_stopword(word)
 
             # Checks whether it already exists to avoid a Unique Constraint error
             exists = self.db.query(DomainStopwords).filter_by(word=clean_word, word_scope=StopwordsScope.ENTITY).first()
@@ -315,7 +316,7 @@ class EntityRepository:
 
     def delete_entities_by_names(self, names: list[str]) -> int:
         """Deletes entities from the collection by searching for a list of exact names."""
-        clean_names = [n.strip().lower() for n in names]
+        clean_names = [normalize_entity(n) for n in names]
 
         deleted_rows = (
             self.db.query(ArchiveEntity)

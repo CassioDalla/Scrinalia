@@ -3,6 +3,7 @@ from collections.abc import Sequence
 from typing import Literal
 
 from core.logger import logger
+from domains.archive.domain.normalization import normalize_stopword, normalize_tag
 from domains.archive.exceptions import InvalidMergeError, InvalidParam
 from domains.archive.ports.document import DocumentRepositoryPort
 from domains.archive.ports.taxonomy import TagRepositoryPort
@@ -36,7 +37,7 @@ class TagService:
         (e.g. the stopword "rio" would turn "Rio Branco" into "Branco").
         """
         if self._stopwords is None:
-            self._stopwords = frozenset(word.strip().lower() for word in self.repo.get_stopwords() if word.strip())
+            self._stopwords = frozenset(normalize_stopword(word) for word in self.repo.get_stopwords() if word.strip())
 
         return self._stopwords
 
@@ -84,7 +85,7 @@ class TagService:
             return []
 
         # 1. Extracts only the lowercase names to check the synonyms in the database
-        names_to_search = [dto.name.strip().lower() for dto in dtos_from_worker]
+        names_to_search = [normalize_tag(dto.name) for dto in dtos_from_worker]
 
         # 2. Fetches the mapping from the Repository (Returns something like: {"prefeiruta": 45, "parques": 12})
         synonyms_map = self.repo.get_synonyms_mapping(names_to_search)
@@ -94,7 +95,7 @@ class TagService:
 
         # 3. The Business Rule Routing (The fine mesh)
         for dto in dtos_from_worker:
-            normalized_name = dto.name.strip().lower()
+            normalized_name = normalize_tag(dto.name)
 
             if normalized_name in synonyms_map:
                 # It is a known synonym! We discard the DTO and use the Canonical Tag ID
