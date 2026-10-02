@@ -12,6 +12,8 @@ from domains.archive.engines.NER.registry import EngineName as ExtractEngineName
 from domains.archive.engines.NER.registry import PresetName, get_engine
 from domains.archive.models import ArchiveDocument, ArchiveReviewStatus, DomainStopwords, StopwordsScope
 from domains.archive.repository import EntityRepository
+from domains.archive.runner_config import NerRunnerConfig
+from domains.archive.worker_stamp import NER
 
 
 def load_entity_blacklist(db_session: Session) -> set[str]:
@@ -46,6 +48,7 @@ def execute(
     preset: PresetName = "gpu",
     db_batch_size: int = 64,
     columns_to_extract: list[str] | None = None,
+    config: NerRunnerConfig | None = None,
     **engine_kwargs: Any,
 ) -> None:
     """
@@ -91,7 +94,8 @@ def execute(
     """
     logger.info(f"🚀 Starting the NER Worker (Engine: {engine_name} | Preset: {preset})")
 
-    columns_to_extract = columns_to_extract or ["original_title", "admin_bio_history", "provenance", "scope_content"]
+    config = config or NerRunnerConfig()
+    columns_to_extract = columns_to_extract or list(config.columns_to_extract)
     repository = EntityRepository(db)
 
     try:
@@ -114,7 +118,7 @@ def execute(
         or_(*filters_columns),
         or_(
             ArchiveDocument.execution_log.is_(None),
-            ~ArchiveDocument.execution_log.has_key("worker_ner_v1"),
+            ~ArchiveDocument.execution_log.has_key(NER.key),
         ),
     ]
 
@@ -157,9 +161,7 @@ def execute(
 
                 if not text_contextualized:
                     # Stamps empty docs so they do not enter a loop
-                    current_log = dict(doc.execution_log) if doc.execution_log else {}
-                    current_log["worker_ner_v1"] = "DONE"
-                    doc.execution_log = current_log
+                    doc.execution_log = NER.mark(doc.execution_log)
                     flag_modified(doc, "execution_log")
                     continue
 
@@ -218,9 +220,7 @@ def execute(
 
                     # 5. The Universal Protection Stamp
                     try:
-                        current_log = dict(doc.execution_log) if doc.execution_log else {}
-                        current_log["worker_ner_v1"] = stamp_status
-                        doc.execution_log = current_log
+                        doc.execution_log = NER.mark(doc.execution_log, status=stamp_status)
                         flag_modified(doc, "execution_log")
                     except Exception as e:
                         logger.critical(f"Critical failure stamping the error on doc {doc.description_id}: {e}")

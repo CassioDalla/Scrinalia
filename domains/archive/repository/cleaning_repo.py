@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from domains.archive.models import ArchiveCleaningRule, ArchiveDocument, ArchiveReviewStatus
+from domains.archive.worker_stamp import cleaning_rule_stamp
 
 
 class CleaningRepository:
@@ -34,7 +35,7 @@ class CleaningRepository:
         Documents validated by a human (``HUMAN_APPROVED``) are excluded: the AI must
         never overwrite a human's decision.
         """
-        rule_key = f"cleaning_rule_{rule_id}"
+        rule_key = cleaning_rule_stamp(rule_id).key
 
         stmt = (
             select(ArchiveDocument)

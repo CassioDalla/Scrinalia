@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.logger import logger
+from domains.archive.runner_config import IngestionRunnerConfig
 from domains.ingestion import repository
 from domains.ingestion.models import ScrapeStatus
 from domains.ingestion.ports import (
@@ -13,8 +14,6 @@ from domains.ingestion.ports import (
     IDetailAdapter,
     IDiscoveryAdapter,
 )
-
-MAX_RETRIES = 3
 
 
 def run_discovery_job(db_session: Session, adapter: IDiscoveryAdapter, max_pages: int | None = None):
@@ -51,6 +50,7 @@ def run_detail_scraping_job(
     force_retry_fatal: bool = False,
     ignore_sliding_window: bool = False,
     audit_ttl_days: int | None = None,
+    config: IngestionRunnerConfig | None = None,
 ):
     """
     Orchestrates queue consumption and raw data extraction.
@@ -68,7 +68,11 @@ def run_detail_scraping_job(
         audit_ttl_days (int | None): Time-To-Live (TTL) duration in days. Activates
             Audit Mode to reprocess completed (DONE) documents that have been inactive
             for X days, ensuring the capture of silent updates at the source.
+        config (IngestionRunnerConfig | None): Retry and window policy; defaults to the
+            standard configuration.
     """
+
+    config = config or IngestionRunnerConfig()
 
     # Time-To-Live configs
     if audit_ttl_days is not None:
@@ -76,8 +80,12 @@ def run_detail_scraping_job(
         scraped_before = datetime.now(UTC) - timedelta(days=audit_ttl_days)
         ignore_status = [ScrapeStatus.NOT_FOUND, ScrapeStatus.FATAL_ERROR]
     else:
-        discovered_after = None if ignore_sliding_window else (datetime.now(UTC) - timedelta(days=30))
-        scraped_before = None if ignore_sliding_window else (datetime.now(UTC) - timedelta(days=1))
+        discovered_after = (
+            None if ignore_sliding_window else (datetime.now(UTC) - timedelta(days=config.discovery_window_days))
+        )
+        scraped_before = (
+            None if ignore_sliding_window else (datetime.now(UTC) - timedelta(days=config.scraped_ttl_days))
+        )
         ignore_status = [ScrapeStatus.NOT_FOUND]
         if not force_retry_fatal:
             ignore_status.append(ScrapeStatus.FATAL_ERROR)
@@ -110,7 +118,7 @@ def run_detail_scraping_job(
 
         except AdapterNetworkError as e:
             logger.warning(f"⚠️ Instability on {doc_id}: {e}")
-            if queue.retry_count >= MAX_RETRIES:
+            if queue.retry_count >= config.max_retries:
                 repository.update_queue_status(db_session, doc_id, ScrapeStatus.FATAL_ERROR, error_msg=str(e))
             else:
                 repository.update_queue_status(

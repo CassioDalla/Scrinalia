@@ -8,6 +8,8 @@ from domains.archive.engines.base import TypologyEngine
 from domains.archive.engines.classification.registry import EngineName, PresetName, get_engine
 from domains.archive.models import ArchiveDocument, ArchiveReviewStatus
 from domains.archive.repository import TypologyRepository
+from domains.archive.runner_config import TypologyRunnerConfig
+from domains.archive.worker_stamp import TYPOLOGY
 
 
 def execute(
@@ -16,6 +18,7 @@ def execute(
     preset: PresetName = "cpu_local",
     db_batch_size: int = 64,
     columns_to_classify: list[str] | None = None,
+    config: TypologyRunnerConfig | None = None,
     **engine_kwargs,
 ) -> None:
     """
@@ -57,7 +60,8 @@ def execute(
 
     logger.info(f"🚀 Starting the Typology Classifier Worker (Engine: {engine_name} | Preset: {preset})")
 
-    columns_to_classify = columns_to_classify or ["original_title"]
+    config = config or TypologyRunnerConfig()
+    columns_to_classify = columns_to_classify or list(config.columns_to_classify)
 
     repository = TypologyRepository(db)
 
@@ -86,7 +90,7 @@ def execute(
         or_(*filters_columns),
         or_(
             ArchiveDocument.execution_log.is_(None),
-            ~ArchiveDocument.execution_log.has_key("worker_typology_classifier_v1"),
+            ~ArchiveDocument.execution_log.has_key(TYPOLOGY.key),
         ),
     ]
 
@@ -125,9 +129,7 @@ def execute(
                 text_to_classify = ". ".join(text_parts)
 
                 if not text_to_classify:
-                    current_log = dict(doc.execution_log) if doc.execution_log else {}
-                    current_log["worker_typology_classifier_v1"] = "DONE"
-                    doc.execution_log = current_log
+                    doc.execution_log = TYPOLOGY.mark(doc.execution_log)
                     flag_modified(doc, "execution_log")
 
                     continue
@@ -152,7 +154,7 @@ def execute(
                         best_label = result["labels"][0]
                         confidence_score = result["scores"][0]
 
-                        if confidence_score > 0.40:
+                        if confidence_score > config.confidence_threshold:
                             t_id = typologies_map.get(best_label)
 
                             if t_id is not None:
@@ -173,9 +175,7 @@ def execute(
                         logger.error(f"❌ Error updating document {doc.description_id}: {e}")
                         stamp_status = "ERROR"
                     try:
-                        current_log = dict(doc.execution_log) if doc.execution_log else {}
-                        current_log["worker_typology_classifier_v1"] = stamp_status
-                        doc.execution_log = current_log
+                        doc.execution_log = TYPOLOGY.mark(doc.execution_log, status=stamp_status)
                         flag_modified(doc, "execution_log")
                     except Exception as e:
                         logger.critical(f"Critical failure trying to stamp the error on doc {doc.description_id}: {e}")

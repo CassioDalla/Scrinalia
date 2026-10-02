@@ -6,6 +6,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from core.database import get_db
 from core.logger import logger
 from domains.archive.repository.cleaning_repo import CleaningRepository
+from domains.archive.worker_stamp import cleaning_rule_stamp
 
 BATCH_SIZE = 500
 
@@ -27,7 +28,7 @@ def execute(db: Session) -> None:
     logger.info(f"📋 Found {len(active_rules)} active rules. Starting the scan...")
 
     for rule in active_rules:
-        rule_key = f"cleaning_rule_{rule.rule_id}"
+        rule_key = cleaning_rule_stamp(rule.rule_id).key
 
         try:
             # Compiles the regex only once per rule

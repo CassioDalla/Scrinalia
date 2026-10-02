@@ -11,6 +11,7 @@ from core.database import get_db
 from core.logger import logger
 from core.storage import S3Storage
 from domains.archive.models import ArchiveDocument, ArchiveReviewStatus
+from domains.archive.worker_stamp import THUMBNAIL_FAILED
 
 
 def download_image_to_memory(url: str) -> BytesIO | None:
@@ -70,7 +71,7 @@ def execute(db: Session) -> None:
         ArchiveDocument.original_thumbnail_url.is_not(None)
         & ArchiveDocument.storage_thumbnail_uri.is_(None)
         & (ArchiveDocument.review_status != ArchiveReviewStatus.HUMAN_APPROVED)
-        & ~ArchiveDocument.execution_log.has_key("thumbnail_failed")
+        & ~ArchiveDocument.execution_log.has_key(THUMBNAIL_FAILED.key)
     )
 
     pending_documents = db.scalars(query).yield_per(50)
@@ -97,9 +98,7 @@ def execute(db: Session) -> None:
                     successes += 1
                 else:
                     # On download failure, stamps it in the JSONB so it is not retried on the next loop
-                    new_log = dict(doc.execution_log)
-                    new_log["thumbnail_failed"] = "True"
-                    doc.execution_log = new_log
+                    doc.execution_log = THUMBNAIL_FAILED.mark(doc.execution_log)
                     flag_modified(doc, "execution_log")
 
                 processed += 1
@@ -113,9 +112,7 @@ def execute(db: Session) -> None:
             logger.error(f"❌ Catastrophic error in document {doc.description_id}: {e}")
             # Stamp the failure so the document does not loop forever on a broken record.
             try:
-                new_log = dict(doc.execution_log) if doc.execution_log else {}
-                new_log["thumbnail_failed"] = "True"
-                doc.execution_log = new_log
+                doc.execution_log = THUMBNAIL_FAILED.mark(doc.execution_log)
                 flag_modified(doc, "execution_log")
                 db.commit()
             except Exception as stamp_error:
