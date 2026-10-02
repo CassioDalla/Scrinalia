@@ -8,6 +8,7 @@ from litestar.status_codes import (
 from sqlalchemy.exc import IntegrityError
 
 from domains.archive.exceptions import (
+    CleaningRuleNotFoundError,
     DocumentNotFoundError,
     DomainException,
     EngineExecutionError,
@@ -25,7 +26,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
     # Defines a default error in case the specific exception is not mapped
     status_code = HTTP_400_BAD_REQUEST
 
-    if isinstance(exc, (TagNotFoundError, DocumentNotFoundError)):
+    if isinstance(exc, (TagNotFoundError, DocumentNotFoundError, CleaningRuleNotFoundError)):
         status_code = HTTP_404_NOT_FOUND
 
     elif isinstance(exc, (InvalidParam, InvalidMergeError)):
@@ -52,12 +53,4 @@ def integrity_error_handler(request: Request, exc: IntegrityError) -> Response:
             "message": "Conflito estrutural no banco de dados. Operação abortada.",
         },
         status_code=HTTP_409_CONFLICT,
-    )
-
-
-def value_error_handler(request: Request, exc: ValueError) -> Response:
-    """Captures native Python validations raised by the Services."""
-    return Response(
-        content={"error_code": "ValueError", "message": str(exc)},
-        status_code=HTTP_400_BAD_REQUEST,
     )

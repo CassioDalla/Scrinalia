@@ -19,6 +19,13 @@ class DocumentNotFoundError(DomainException):
     pass
 
 
+class CleaningRuleNotFoundError(DomainException):
+    """Raised when a cleaning rule does not exist."""
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
 class InvalidMergeError(DomainException):
     """Raised when trying to merge a tag into itself or breaking synonym rules."""
 

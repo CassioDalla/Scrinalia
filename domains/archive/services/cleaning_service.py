@@ -1,6 +1,6 @@
 import re
 
-from domains.archive.exceptions import InvalidParam
+from domains.archive.exceptions import CleaningRuleNotFoundError, InvalidParam
 from domains.archive.ports.cleaning import CleaningRepositoryPort
 from domains.archive.schemas.cleaning_schema import (
     CleaningRuleCreateDTO,
@@ -71,6 +71,6 @@ class CleaningService:
         # the repository flushes and the use case never commits on its own.
         rule = self.repo.deactivate_rule(rule_id)
         if rule is None:
-            raise ValueError(f"Regra {rule_id} não encontrada.")
+            raise CleaningRuleNotFoundError(f"Regra {rule_id} não encontrada.")
 
         return rule

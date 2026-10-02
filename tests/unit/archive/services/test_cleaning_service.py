@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import ValidationError
 
-from domains.archive.exceptions import InvalidParam
+from domains.archive.exceptions import CleaningRuleNotFoundError, InvalidParam
 from domains.archive.models.governance import ArchiveCleaningRule
 from domains.archive.schemas.cleaning_schema import (
     CleanableDocumentDTO,
@@ -159,10 +159,10 @@ def test_deactivate_rule_success(cleaning_service, mock_repo):
 
 
 def test_deactivate_rule_not_found(cleaning_service, mock_repo):
-    """Tests whether it raises ValueError when the rule does not exist in the DB."""
+    """Tests whether a domain error is raised when the rule does not exist in the DB."""
     mock_repo.deactivate_rule.return_value = None
 
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(CleaningRuleNotFoundError) as exc_info:
         cleaning_service.deactivate_rule(999)
 
     assert "Regra 999 não encontrada" in str(exc_info.value)

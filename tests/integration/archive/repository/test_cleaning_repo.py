@@ -1,5 +1,7 @@
+import pytest
 from sqlalchemy import select
 
+from domains.archive.exceptions import CleaningRuleNotFoundError
 from domains.archive.models import ArchiveCleaningRule, ArchiveDocument, ArchiveReviewStatus
 from domains.archive.repository.cleaning_repo import CleaningRepository
 from domains.archive.schemas.cleaning_schema import CleaningUpdateCommand
@@ -24,14 +26,11 @@ def test_get_rule_by_id_returns_none_for_missing(use_test_db, db_session) -> Non
     assert CleaningRepository(db_session).get_rule_by_id(999) is None
 
 
-def test_deactivate_missing_rule_raises_value_error(use_test_db, db_session) -> None:
-    """The service must surface a domain ValueError for a missing rule."""
+def test_deactivate_missing_rule_raises_domain_error(use_test_db, db_session) -> None:
+    """The service must surface the domain error for a missing rule."""
     service = CleaningService(CleaningRepository(db_session))
-    try:
+    with pytest.raises(CleaningRuleNotFoundError, match="999"):
         service.deactivate_rule(999)
-        raise AssertionError("Expected ValueError for a missing rule")
-    except ValueError as exc:
-        assert "999" in str(exc)
 
 
 def test_get_unprocessed_documents_excludes_human_approved(use_test_db, db_session) -> None:
