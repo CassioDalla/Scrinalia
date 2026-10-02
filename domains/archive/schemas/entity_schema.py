@@ -2,6 +2,8 @@ from typing import Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from domains.archive.schemas.types import EntityName
+
 
 class NerSynonymRule(TypedDict):
     """
@@ -25,7 +27,7 @@ class ArchiveEntityDTO(BaseModel):
     before persistence.
     """
 
-    name: str = Field(description="Clean, formatted name of the entity.")
+    name: EntityName = Field(description="Clean, formatted name of the entity.")
     entity_type: Literal["PER", "ORG", "LOC"] = Field(
         description="Entity type. Restricted to Person, Organization or Location."
     )

@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from domains.archive.schemas.types import TagName
+
 
 class TagRelevanceCount(BaseModel):
     name: str
@@ -96,7 +98,7 @@ class ArchiveTagDTO(BaseModel):
     for observability metrics.
     """
 
-    name: str = Field(description="The associated keyword or concept, preferably in lowercase.")
+    name: TagName = Field(description="The associated keyword or concept, preferably in lowercase.")
     macro_category_id: int | None = Field(
         default=None, description="Id linking to the main semantic drawer (e.g. Urbanism, Health)"
     )

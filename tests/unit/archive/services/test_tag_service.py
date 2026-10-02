@@ -355,7 +355,7 @@ def test_process_worker_tags_mixed_synonyms_and_new(mocker: MockerFixture) -> No
     dtos_sent_for_creation = mock_tag_repo.get_or_create_tags.call_args[0][0]
 
     assert len(dtos_sent_for_creation) == 1
-    assert dtos_sent_for_creation[0].name == "IPTU"
+    assert dtos_sent_for_creation[0].name == "iptu"
 
 
 def test_process_worker_tags_deduplicates_ids(mocker: MockerFixture) -> None:

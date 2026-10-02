@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from domains.archive.schemas.types import SynonymName
+
 
 class SynonymCommand(BaseModel):
     """
@@ -12,7 +14,7 @@ class SynonymCommand(BaseModel):
     ``chk_exclusive_synonym_target`` database constraint.
     """
 
-    synonym_name: str = Field(description="Raw synonym spelling; stored normalized to lowercase.")
+    synonym_name: SynonymName = Field(description="Raw synonym spelling; stored normalized to lowercase.")
     category: Literal["TAG", "ORG", "LOC", "PER"]
     canonical_tag_id: int | None = None
     canonical_entity_id: int | None = None
