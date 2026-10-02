@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from typing import cast
 
-from sqlalchemy import CursorResult, Float, Row, delete, desc, func, select, text
+from sqlalchemy import CursorResult, Float, delete, desc, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
@@ -13,7 +13,15 @@ from domains.archive.models import (
     DomainStopwords,
     DomainSynonyms,
 )
-from domains.archive.schemas import ArchiveMacroCategoryEntityDTO, ArchiveTagDTO
+from domains.archive.schemas import (
+    ArchiveMacroCategoryEntityDTO,
+    ArchiveTagDTO,
+    TagIdentity,
+    TagPairSimilarity,
+    TagRelevanceCount,
+    TagRelevanceIdf,
+    TagSimilarity,
+)
 
 
 class TagRepository:
@@ -134,7 +142,7 @@ class TagRepository:
         result = self.db.execute(stmt)
         return cast(CursorResult, result).rowcount
 
-    def get_relevance_count(self, limit: int) -> Sequence[Row]:
+    def get_relevance_count(self, limit: int) -> Sequence[TagRelevanceCount]:
         stmt = (
             select(ArchiveTag.name, func.count(ArchiveDocumentTag.description_id).label("total_usage"))
             .join(ArchiveDocumentTag, ArchiveTag.tag_id == ArchiveDocumentTag.tag_id)
@@ -142,9 +150,9 @@ class TagRepository:
             .order_by(text("total_usage DESC"))
             .limit(limit)
         )
-        return self.db.execute(stmt).all()
+        return [TagRelevanceCount.model_validate(row) for row in self.db.execute(stmt).all()]
 
-    def get_relevance_tfidf(self, limit: int) -> Sequence[Row]:
+    def get_relevance_tfidf(self, limit: int) -> Sequence[TagRelevanceIdf]:
         total_docs = self.db.scalar(select(func.count(ArchiveDocument.description_id)))
         if not total_docs or total_docs == 0:
             return []
@@ -160,9 +168,9 @@ class TagRepository:
             .order_by(desc("score_tfidf"))
             .limit(limit)
         )
-        return self.db.execute(stmt).all()
+        return [TagRelevanceIdf.model_validate(row) for row in self.db.execute(stmt).all()]
 
-    def find_similar(self, target_lower: str, threshold: float) -> Sequence[Row]:
+    def find_similar(self, target_lower: str, threshold: float) -> Sequence[TagSimilarity]:
         self.db.execute(text("SET LOCAL pg_trgm.similarity_threshold = :threshold"), {"threshold": threshold})
         similarity = func.similarity(ArchiveTag.name, target_lower)
         stmt = (
@@ -172,9 +180,9 @@ class TagRepository:
             .order_by(desc("similarity"))
             .limit(15)
         )
-        return self.db.execute(stmt).all()
+        return [TagSimilarity.model_validate(row) for row in self.db.execute(stmt).all()]
 
-    def find_all_similar_pairs(self, threshold: float) -> Sequence[Row]:
+    def find_all_similar_pairs(self, threshold: float) -> Sequence[TagPairSimilarity]:
         self.db.execute(text("SET LOCAL pg_trgm.similarity_threshold = :threshold"), {"threshold": threshold})
         Tag1 = aliased(ArchiveTag)
         Tag2 = aliased(ArchiveTag)
@@ -194,15 +202,17 @@ class TagRepository:
             .where(Tag1.name.op("%")(Tag2.name))
             .order_by(desc("sim_score"), Tag1.name)
         )
-        return self.db.execute(stmt).all()
+        return [TagPairSimilarity.model_validate(row) for row in self.db.execute(stmt).all()]
 
     # --- Auxiliary Methods for the Tag Merge ---
 
-    def get_by_id(self, tag_id: int) -> ArchiveTag | None:
-        return self.db.scalar(select(ArchiveTag).where(ArchiveTag.tag_id == tag_id))
+    def get_by_id(self, tag_id: int) -> TagIdentity | None:
+        obj = self.db.scalar(select(ArchiveTag).where(ArchiveTag.tag_id == tag_id))
+        return TagIdentity.model_validate(obj) if obj else None
 
-    def get_by_ids(self, tag_ids: list[int]) -> Sequence[ArchiveTag]:
-        return self.db.scalars(select(ArchiveTag).where(ArchiveTag.tag_id.in_(tag_ids))).all()
+    def get_by_ids(self, tag_ids: list[int]) -> Sequence[TagIdentity]:
+        objs = self.db.scalars(select(ArchiveTag).where(ArchiveTag.tag_id.in_(tag_ids))).all()
+        return [TagIdentity.model_validate(obj) for obj in objs]
 
     def get_document_ids_by_tags(self, tag_ids: list[int]) -> Sequence[str]:
         return self.db.scalars(

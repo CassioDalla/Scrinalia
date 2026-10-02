@@ -105,3 +105,12 @@ class ArchiveTagDTO(BaseModel):
     )
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TagIdentity(BaseModel):
+    """Lightweight read view of a tag used by write-side flows (merge, lookups)."""
+
+    tag_id: int
+    name: str
+
+    model_config = ConfigDict(from_attributes=True)

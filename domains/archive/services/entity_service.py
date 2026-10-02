@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from typing import Literal
 
 from domains.archive.exceptions import InvalidParam
-from domains.archive.repository.entity_repo import EntityRepository
+from domains.archive.ports.entity import EntityRepositoryPort
 from domains.archive.schemas.entity_schema import (
     ConflictResolutionData,
     CrossDomainConflict,
@@ -19,7 +19,7 @@ class EntityService:
     named entities (People, Organizations, Locations) in the collection.
     """
 
-    def __init__(self, repo: EntityRepository):
+    def __init__(self, repo: EntityRepositoryPort):
         self.repo = repo
 
     def find_similar(
@@ -31,26 +31,10 @@ class EntityService:
         # Business rule: the search must always be sent in lowercase
         target_lower = target_name.strip().lower()
 
-        results = self.repo.find_similar(target_lower, entity_type, threshold)
-
-        return [EntitySimilarity.model_validate(r) for r in results]
+        return list(self.repo.find_similar(target_lower, entity_type, threshold))
 
     def find_all_similar_entity_pairs(self, threshold: float = 0.65) -> Sequence[EntityPairSimilarity]:
-
-        results = self.repo.find_all_similar_pairs(threshold)
-
-        return [
-            EntityPairSimilarity(
-                id_1=r.id_1,
-                name_1=r.name_1,
-                type_1=r.type_1,
-                id_2=r.id_2,
-                name_2=r.name_2,
-                type_2=r.type_2,
-                similarity=r.similarity,
-            )
-            for r in results
-        ]
+        return list(self.repo.find_all_similar_pairs(threshold))
 
     def merge(self, canonical_id: int, ids_to_merge: list[int], new_name: str | None = None) -> EntityMergeResponse:
         """
@@ -116,9 +100,7 @@ class EntityService:
         Counts the relevance of entities, optionally filtering by type.
         Maps the repository results to the pure Domain DTO.
         """
-        results = self.repo.get_relevance_count(entity_type, limit)
-
-        return [EntityRelevance.model_validate(r) for r in results]
+        return list(self.repo.get_relevance_count(entity_type, limit))
 
     def purge_orphan_entities(self) -> int:
         """
@@ -179,8 +161,7 @@ class EntityService:
 
     def find_cross_domain_conflicts(self, threshold: float = 0.85) -> Sequence[CrossDomainConflict]:
         """Scans the database looking for Tags and Entities that have the same name or very close spelling."""
-        results = self.repo.get_cross_domain_conflicts(threshold)
-        return [CrossDomainConflict.model_validate(dict(r._mapping)) for r in results]
+        return list(self.repo.get_cross_domain_conflicts(threshold))
 
     def resolve_cross_domain_conflict(
         self, winner: Literal["TAG", "ENTITY"], tag_id: int, entity_id: int

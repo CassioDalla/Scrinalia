@@ -6,13 +6,14 @@ from .document_schema import (
     DocumentSummary,
     DocumentTagSummary,
 )
-from .entity_schema import ArchiveEntityDTO
+from .entity_schema import ArchiveEntityDTO, EntityIdentity
 from .tag_schema import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
     MacroCategoriesSuggestionResponse,
     MacroCategorySuggested,
     MergeResponse,
+    TagIdentity,
     TagPairSimilarity,
     TagRelevanceCount,
     TagRelevanceIdf,
@@ -29,10 +30,12 @@ __all__ = [
     "DocumentListResponse",
     "DocumentSummary",
     "DocumentTagSummary",
+    "EntityIdentity",
     "EntityTagDecisionSchema",
     "MacroCategoriesSuggestionResponse",
     "MacroCategorySuggested",
     "MergeResponse",
+    "TagIdentity",
     "TagPairSimilarity",
     "TagRelevanceCount",
     "TagRelevanceIdf",

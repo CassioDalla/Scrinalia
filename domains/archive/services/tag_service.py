@@ -4,8 +4,8 @@ from typing import Literal
 
 from core.logger import logger
 from domains.archive.exceptions import InvalidMergeError, InvalidParam
+from domains.archive.ports.taxonomy import TagRepositoryPort
 from domains.archive.repository import DocumentRepository
-from domains.archive.repository.tag_repo import TagRepository
 from domains.archive.schemas import (
     ArchiveTagDTO,
     MergeResponse,
@@ -22,7 +22,7 @@ class TagService:
     the taxonomy and tags in the Archive layer.
     """
 
-    def __init__(self, repo: TagRepository, document_repo: DocumentRepository):
+    def __init__(self, repo: TagRepositoryPort, document_repo: DocumentRepository):
         self.repo = repo
         self.document_repo = document_repo
         self._stopwords: frozenset[str] | None = None
@@ -132,16 +132,14 @@ class TagService:
         """
         Counts how many times each tag appears associated with a document in the collection.
         """
-        results = self.repo.get_relevance_count(limit)
-        return [TagRelevanceCount.model_validate(r) for r in results]
+        return list(self.repo.get_relevance_count(limit))
 
     def get_tag_relevance_tfidf(self, limit: int = 30) -> Sequence[TagRelevanceIdf]:
         """
         Calculates the global relevance of tags using the native TF-IDF formula in PostgreSQL.
         Penalizes generic tags that appear throughout the collection and highlights specific terms.
         """
-        results = self.repo.get_relevance_tfidf(limit)
-        return [TagRelevanceIdf.model_validate(r) for r in results]
+        return list(self.repo.get_relevance_tfidf(limit))
 
     def find_similar_tags(self, target_tag: str, threshold: float = 0.5) -> Sequence[TagSimilarity]:
         """
@@ -152,17 +150,14 @@ class TagService:
 
         # Business rule: always search in lowercase
         target_lower = target_tag.strip().lower()
-        results = self.repo.find_similar(target_lower, threshold)
-
-        return [TagSimilarity.model_validate(r) for r in results]
+        return list(self.repo.find_similar(target_lower, threshold))
 
     def find_all_similar_tag_pairs(self, threshold: float = 0.65) -> Sequence[TagPairSimilarity]:
         """
         Scans the collection and cross-references all tags with each other to find
         pairs that are very similar (potential duplicates).
         """
-        results = self.repo.find_all_similar_pairs(threshold)
-        return [TagPairSimilarity.model_validate(r) for r in results]
+        return list(self.repo.find_all_similar_pairs(threshold))
 
     def merge(self, canonical_id: int, ids_to_merge: list[int]) -> MergeResponse:
         """

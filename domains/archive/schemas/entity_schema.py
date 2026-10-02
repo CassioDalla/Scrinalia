@@ -20,6 +20,16 @@ class ArchiveEntityDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class EntityIdentity(BaseModel):
+    """Lightweight read view of an entity used by write-side flows (merge, lookups)."""
+
+    entity_id: int
+    name: str
+    entity_type: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class EntitySimilarity(BaseModel):
     entity_id: int
     name: str

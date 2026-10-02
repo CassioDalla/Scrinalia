@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from typing import Literal, cast
 
-from sqlalchemy import CursorResult, Row, delete, desc, func, select, text
+from sqlalchemy import CursorResult, delete, desc, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
@@ -15,31 +15,40 @@ from domains.archive.models import (
     DomainSynonyms,
     StopwordsScope,
 )
-from domains.archive.schemas.entity_schema import ArchiveEntityDTO
+from domains.archive.schemas.entity_schema import (
+    ArchiveEntityDTO,
+    CrossDomainConflict,
+    EntityIdentity,
+    EntityPairSimilarity,
+    EntityRelevance,
+    EntitySimilarity,
+)
 
 
 class EntityRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_by_id(self, entity_id: int) -> ArchiveEntity | None:
-        return self.db.scalar(select(ArchiveEntity).where(ArchiveEntity.entity_id == entity_id))
+    def get_by_id(self, entity_id: int) -> EntityIdentity | None:
+        obj = self.db.scalar(select(ArchiveEntity).where(ArchiveEntity.entity_id == entity_id))
+        return EntityIdentity.model_validate(obj) if obj else None
 
-    def get_by_ids(self, entity_ids: list[int]) -> Sequence[ArchiveEntity]:
+    def get_by_ids(self, entity_ids: list[int]) -> Sequence[EntityIdentity]:
         if not entity_ids:
             return []
-        return self.db.scalars(select(ArchiveEntity).where(ArchiveEntity.entity_id.in_(entity_ids))).all()
+        objs = self.db.scalars(select(ArchiveEntity).where(ArchiveEntity.entity_id.in_(entity_ids))).all()
+        return [EntityIdentity.model_validate(obj) for obj in objs]
 
     def find_similar(
         self, target_name: str, entity_type: Literal["ORG", "PER", "LOC"] | None = None, threshold: float = 0.5
-    ) -> Sequence[Row]:
+    ) -> Sequence[EntitySimilarity]:
         """
         Searches for entities with typos or high similarity using the pg_trgm extension.
         Also returns the 'entity_type' to help the user decide whether the merge makes sense.
         """
 
         if not target_name:
-            raise InvalidParam("O parametro 'target_tag'é obrigatório")
+            raise InvalidParam("O parametro 'target_name' é obrigatório")
 
         self.db.execute(text("SET LOCAL pg_trgm.similarity_threshold = :threshold"), {"threshold": threshold})
 
@@ -59,9 +68,9 @@ class EntityRepository:
 
         stmt = stmt.order_by(desc("similarity")).limit(15)
 
-        return self.db.execute(stmt).fetchall()
+        return [EntitySimilarity.model_validate(row) for row in self.db.execute(stmt).fetchall()]
 
-    def find_all_similar_pairs(self, threshold: float = 0.65) -> Sequence[Row]:
+    def find_all_similar_pairs(self, threshold: float = 0.65) -> Sequence[EntityPairSimilarity]:
         """
         Scans the collection and cross-references all entities with each other to find
         pairs that are very similar (potential duplications or NER errors).
@@ -95,9 +104,9 @@ class EntityRepository:
             .order_by(desc("similarity"), Entity1.name)
         )
 
-        return self.db.execute(stmt).all()
+        return [EntityPairSimilarity.model_validate(row) for row in self.db.execute(stmt).all()]
 
-    def get_cross_domain_conflicts(self, threshold: float) -> Sequence[Row]:
+    def get_cross_domain_conflicts(self, threshold: float) -> Sequence[CrossDomainConflict]:
         """Searches for conflicts where the Tag name is identical or very similar to the Entity's."""
         self.db.execute(text("SET LOCAL pg_trgm.similarity_threshold = :threshold"), {"threshold": threshold})
 
@@ -119,7 +128,7 @@ class EntityRepository:
             )
             .order_by(desc("similarity"))
         )
-        return self.db.execute(stmt).all()
+        return [CrossDomainConflict.model_validate(dict(row._mapping)) for row in self.db.execute(stmt).all()]
 
     def resolve_cross_domain_conflict(self, winner: Literal["TAG", "ENTITY"], tag_id: int, entity_id: int) -> int:
         """
@@ -320,7 +329,7 @@ class EntityRepository:
 
     def get_relevance_count(
         self, entity_type: Literal["ORG", "PER", "LOC"] | None = None, limit: int = 30
-    ) -> Sequence[Row]:
+    ) -> Sequence[EntityRelevance]:
         """Fetches the most referenced entities in documents."""
         stmt = select(
             ArchiveEntity.entity_id,
@@ -333,7 +342,7 @@ class EntityRepository:
             stmt = stmt.where(ArchiveEntity.entity_type == entity_type)
 
         stmt = stmt.group_by(ArchiveEntity.entity_id).order_by(desc("total_usage")).limit(limit)
-        return self.db.execute(stmt).all()
+        return [EntityRelevance.model_validate(row) for row in self.db.execute(stmt).all()]
 
     def purge_orphan_entities(self) -> int:
         """Finds and deletes entities that do not have any linked document."""

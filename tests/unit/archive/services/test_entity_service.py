@@ -1,10 +1,9 @@
-from types import SimpleNamespace
-
 import pytest
 from pytest_mock import MockerFixture
 
 from domains.archive.exceptions import InvalidParam
 from domains.archive.repository import EntityRepository
+from domains.archive.schemas.entity_schema import CrossDomainConflict
 from domains.archive.services import EntityService
 
 # ==========================================
@@ -13,21 +12,19 @@ from domains.archive.services import EntityService
 
 
 def test_find_cross_domain_conflicts(mocker: MockerFixture) -> None:
-    """Guarantees that the service forwards the correct threshold to the repository and maps the DTOs."""
+    """Guarantees that the service forwards the correct threshold to the repository and returns the DTOs."""
     mock_ent_repo = mocker.Mock(spec=EntityRepository)
 
-    # Simulating the SQL query return (SQLAlchemy Row, which exposes _mapping)
-    mock_row = SimpleNamespace(
-        _mapping={
-            "tag_id": 1,
-            "tag_name": "Batel",
-            "entity_id": 99,
-            "entity_name": "Batel",
-            "entity_type": "LOC",
-            "similarity": 1.0,
-        }
+    # The port now returns domain DTOs directly (no SQLAlchemy Row leakage).
+    conflict = CrossDomainConflict(
+        tag_id=1,
+        tag_name="Batel",
+        entity_id=99,
+        entity_name="Batel",
+        entity_type="LOC",
+        similarity=1.0,
     )
-    mock_ent_repo.get_cross_domain_conflicts.return_value = [mock_row]
+    mock_ent_repo.get_cross_domain_conflicts.return_value = [conflict]
 
     service = EntityService(
         mock_ent_repo,
