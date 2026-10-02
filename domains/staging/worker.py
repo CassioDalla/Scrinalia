@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.logger import logger
+from core.unit_of_work import UnitOfWork
 from domains.staging.ports import RawRecordSource, StagingDocumentWriter
 from domains.staging.repository import SqlRawRecordSource, SqlStagingDocumentWriter
 from domains.staging.schemas import StagingDocumentDTO
@@ -12,6 +13,7 @@ def run_staging_pipeline(
     db_session: Session,
     source: RawRecordSource | None = None,
     writer: StagingDocumentWriter | None = None,
+    uow: UnitOfWork | None = None,
 ) -> None:
     """
     Orchestrates the transformation pipeline (Transform/Load) for the Staging layer.
@@ -34,6 +36,7 @@ def run_staging_pipeline(
 
     source = source or SqlRawRecordSource(db_session)
     writer = writer or SqlStagingDocumentWriter(db_session)
+    uow = uow or UnitOfWork(db_session)
 
     logger.info("🔍 Checking pending documents at the Ingestion Domain...")
     pending_records = source.next_batch()
@@ -73,10 +76,10 @@ def run_staging_pipeline(
             continue
 
     try:
-        db_session.commit()
+        uow.commit()
         logger.info(f"🎯 Staging Pipeline Completed! Success: {success} | failures: {failures}")
     except Exception as e:
-        db_session.rollback()
+        uow.rollback()
         logger.critical(f"🔥 Critical error during final commit:{e!s}")
 
 

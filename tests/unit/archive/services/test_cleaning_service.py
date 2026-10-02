@@ -144,7 +144,7 @@ def test_simulate_dry_run_invalid_regex(cleaning_service):
 # STATE CHANGE TESTS (Deactivate)
 # ==========================================
 def test_deactivate_rule_success(cleaning_service, mock_repo):
-    """Tests whether the rule is deactivated and the commit is triggered."""
+    """Tests whether the rule is deactivated and flushed, never committed, by the service."""
     # Instantiate the rule with is_active=True
     mock_rule = ArchiveCleaningRule(
         rule_id=99,
@@ -161,8 +161,9 @@ def test_deactivate_rule_success(cleaning_service, mock_repo):
 
     # Checks whether the property was changed to False
     assert result.is_active is False
-    # Checks whether our "brilliant laziness" triggered the commit on the DB
-    mock_repo.db.commit.assert_called_once()
+    # The service flushes; the transaction is owned by the caller (Unit of Work).
+    mock_repo.db.flush.assert_called_once()
+    mock_repo.db.commit.assert_not_called()
 
 
 def test_deactivate_rule_not_found(cleaning_service, mock_repo):

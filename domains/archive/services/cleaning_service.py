@@ -70,12 +70,13 @@ class CleaningService:
         return [CleaningRuleDTO.model_validate(r, from_attributes=True) for r in rules]
 
     def deactivate_rule(self, rule_id: int) -> CleaningRuleDTO:
-
         rule = self.repo.get_rule_by_id(rule_id=rule_id)
         if not rule:
             raise ValueError(f"Regra {rule_id} não encontrada.")
 
         rule.is_active = False
-        self.repo.db.commit()
+        # The transaction is owned by the caller (API middleware or worker context):
+        # the service must not commit on its own.
+        self.repo.db.flush()
 
         return CleaningRuleDTO.model_validate(rule, from_attributes=True)
