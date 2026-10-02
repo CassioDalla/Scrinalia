@@ -15,7 +15,7 @@ from domains.archive.repository import EntityRepository
 
 
 def load_entity_blacklist(db_session: Session) -> set[str]:
-    """Carrega todas as stopwords de entidades para um SET do Python (Busca O(1))."""
+    """Loads all entity stopwords into a Python SET (O(1) lookup)."""
     result = (
         db_session.query(DomainStopwords.word)
         .filter(DomainStopwords.word_scope.in_([StopwordsScope.ENTITY, StopwordsScope.ALL]))
@@ -25,16 +25,16 @@ def load_entity_blacklist(db_session: Session) -> set[str]:
 
 
 def _clean_raw_text(text: str) -> str:
-    """Helper para limpar ruídos básicos antes de enviar para a IA."""
+    """Helper to clean basic noise before sending it to the AI."""
 
     if not text:
         return ""
 
-    # 1. Remove URLs (http, https, www)
+    # 1. Removes URLs (http, https, www)
     text_no_urls = re.sub(r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+", "", text)
     text_no_urls = re.sub(r"www\.\S+", "", text_no_urls)
 
-    # 2. Remove e-mails
+    # 2. Removes e-mails
     text_no_urls = re.sub(r"[\w\.-]+@[\w\.-]+", "", text_no_urls)
 
     return text_no_urls.strip()
@@ -49,64 +49,64 @@ def execute(
     **engine_kwargs: Any,
 ) -> None:
     """
-    Orquestrador principal do pipeline de Extração de Entidades Nomeadas (NER).
+    Main orchestrator of the Named Entity Recognition (NER) pipeline.
 
-    Implementa um padrão de processamento assíncrono em lotes (batch processing)
-    com proteção de memória. O worker busca documentos no banco de dados que ainda
-    não possuem a chave 'worker_ner_v1' no campo JSON `execution_log`.
+    Implements an asynchronous batch processing pattern
+    with memory protection. The worker fetches documents from the database that do not
+    yet have the 'worker_ner_v1' key in the JSON column `execution_log`.
 
-    Para cada lote, o orquestrador:
-    1. Concatena e higieniza as colunas textuais configuradas.
-    2. Envia os textos para o motor de IA injetado (padrão Strategy via Registry)
-       junto com regras institucionais carregadas dinamicamente.
-    3. Persiste as entidades encontradas (UPSERT) e cria os relacionamentos N:N.
-    4. Aplica um carimbo universal ("DONE" ou "ERROR") no documento para garantir
-       que a fila avance, prevenindo loops infinitos em caso de falha de inferência.
+    For each batch, the orchestrator:
+    1. Concatenates and sanitizes the configured text columns.
+    2. Sends the texts to the injected AI engine (Strategy pattern via Registry)
+       together with institutional rules loaded dynamically.
+    3. Persists the found entities (UPSERT) and creates the N:N relationships.
+    4. Applies a universal stamp ("DONE" or "ERROR") on the document to guarantee
+       that the queue advances, preventing infinite loops on inference failure.
 
-    A sessão do banco é expurgada (expunge_all) a cada transação concluída para
-    evitar vazamento de memória (Memory Leak) em execuções de longa duração.
+    The database session is expunged (expunge_all) after each completed transaction to
+    avoid memory leaks in long-running executions.
 
     Args:
-        db (Session): Sessão ativa do SQLAlchemy injetada pelo chamador.
-        engine_name (ExtractEngineName, optional): Chave de registro do motor de
-            processamento NLP a ser instanciado. Padrão é "spacy_ner".
-        preset (PresetName, optional): Configuração predefinida de hardware/modelo
-            para o motor (ex: "gpu", "cpu_local"). Padrão é "gpu".
-        db_batch_size (int, optional): Limite de documentos puxados e commitados
-            por transação no banco de dados. Padrão é 64.
-        columns_to_extract (list[str] | None, optional): Lista de atributos da model
-            `ArchiveDocument` que formarão o contexto analisado pela IA. Se `None`,
-            utiliza `["original_title", "admin_bio_history", "provenance", "scope_content"]`.
-        **engine_kwargs (Any): Argumentos nomeados extras repassados diretamente ao
-            construtor do motor de IA para sobrescrever configurações do preset.
+        db (Session): Active SQLAlchemy session injected by the caller.
+        engine_name (ExtractEngineName, optional): Registration key of the NLP
+            processing engine to be instantiated. Default is "spacy_ner".
+        preset (PresetName, optional): Predefined hardware/model configuration
+            for the engine (e.g. "gpu", "cpu_local"). Default is "gpu".
+        db_batch_size (int, optional): Limit of documents fetched and committed
+            per transaction in the database. Default is 64.
+        columns_to_extract (list[str] | None, optional): List of attributes of the model
+            `ArchiveDocument` that will form the context analyzed by the AI. If `None`,
+            it uses `["original_title", "admin_bio_history", "provenance", "scope_content"]`.
+        **engine_kwargs (Any): Extra keyword arguments forwarded directly to the
+            AI engine constructor to override preset configurations.
 
     Raises:
-        Exception: Se houver uma falha crítica ao carregar o motor NLP ou as
-            dependências de hardware configuradas.
+        Exception: If there is a critical failure loading the NLP engine or the
+            configured hardware dependencies.
 
     Returns:
-        None. A esteira processa lotes continuamente até que a fila do banco de dados
-        esteja completamente vazia.
+        None. The pipeline processes batches continuously until the database queue
+        is completely empty.
 
     """
-    logger.info(f"🚀 Iniciando Worker de NER (Motor: {engine_name} | Preset: {preset})")
+    logger.info(f"🚀 Starting the NER Worker (Engine: {engine_name} | Preset: {preset})")
 
     columns_to_extract = columns_to_extract or ["original_title", "admin_bio_history", "provenance", "scope_content"]
     repository = EntityRepository(db)
 
     try:
-        logger.info("Carregando Motor de Extração e regras dinâmicas...")
-        regras_dinamicas = repository.get_ner_synonyms_rules()
-        # O motor deve ser capaz de receber essas regras no construtor ou via um método setup()
+        logger.info("Loading Extraction Engine and dynamic rules...")
+        dynamic_rules = repository.get_ner_synonyms_rules()
+        # The engine must be able to receive these rules in the constructor or via a setup() method
         engine: EntityExtractionEngine = get_engine(
-            engine_name=engine_name, preset=preset, custom_rules=regras_dinamicas, **engine_kwargs
+            engine_name=engine_name, preset=preset, custom_rules=dynamic_rules, **engine_kwargs
         )
 
     except Exception as e:
-        logger.error(f"❌ Erro ao instanciar o motor NER: {e}")
+        logger.error(f"❌ Error instantiating the NER engine: {e}")
         raise
 
-    # 1. Filtros (Procuramos docs que AINDA NÃO têm o carimbo do NER)
+    # 1. Filters (We look for docs that do NOT yet have the NER stamp)
     filters_columns = [getattr(ArchiveDocument, col).is_not(None) for col in columns_to_extract]
     where_cond = [
         or_(*filters_columns),
@@ -116,33 +116,33 @@ def execute(
         ),
     ]
 
-    # Pré-Query para os logs
+    # Pre-Query for the logs
     query_count = select(func.count()).select_from(ArchiveDocument).where(*where_cond)
     total_documents = db.scalar(query_count)
 
     if not total_documents:
-        logger.info("✨ Nenhum documento pendente para extração de entidades.")
+        logger.info("✨ No pending documents for entity extraction.")
         return
 
-    logger.info(f"🔍 Encontrados {total_documents} documentos para processar.")
+    logger.info(f"🔍 Found {total_documents} documents to process.")
 
     blacklist = load_entity_blacklist(db)
-    logger.info(f"🛡️ Carregadas {len(blacklist)} palavras na blacklist NER.")
+    logger.info(f"🛡️ Loaded {len(blacklist)} words into the NER blacklist.")
 
     processed_docs_count = 0
     while True:
         try:
             query = select(ArchiveDocument).where(*where_cond).limit(db_batch_size)
-            lote_docs = db.scalars(query).all()
+            batch_docs = db.scalars(query).all()
 
-            if not lote_docs:
+            if not batch_docs:
                 break
 
             texts_buffer = []
-            docs_valid = []
+            valid_docs = []
 
-            # 2. Preparação e Limpeza dos textos
-            for doc in lote_docs:
+            # 2. Preparation and Cleaning of the texts
+            for doc in batch_docs:
                 text_parts = []
 
                 for col in columns_to_extract:
@@ -154,43 +154,43 @@ def execute(
                 text_contextualized = _clean_raw_text(text_contextualized)
 
                 if not text_contextualized:
-                    # Carimba docs vazios para não entrarem em loop
-                    log_atual = dict(doc.execution_log) if doc.execution_log else {}
-                    log_atual["worker_ner_v1"] = "DONE"
-                    doc.execution_log = log_atual
+                    # Stamps empty docs so they do not enter a loop
+                    current_log = dict(doc.execution_log) if doc.execution_log else {}
+                    current_log["worker_ner_v1"] = "DONE"
+                    doc.execution_log = current_log
                     flag_modified(doc, "execution_log")
                     continue
 
-                docs_valid.append(doc)
+                valid_docs.append(doc)
                 texts_buffer.append(text_contextualized)
 
             batch_links_buffer = []
             if texts_buffer:
-                logger.info(f"🧠 Extraindo entidades de {len(texts_buffer)} documentos...")
+                logger.info(f"🧠 Extracting entities from {len(texts_buffer)} documents...")
 
-                # 3. Inferência Batch isolada no try/except
+                # 3. Batch inference isolated in the try/except
                 try:
-                    # O motor deve receber uma lista de textos e retornar uma lista de resultados
-                    # (onde cada resultado é uma lista de ArchiveEntityDTO)
+                    # The engine must receive a list of texts and return a list of results
+                    # (where each result is a list of ArchiveEntityDTO)
                     ner_results = engine.extract(texts_buffer)
                 except Exception as e:
-                    logger.error(f"❌ Falha no processamento da IA: {e}")
+                    logger.error(f"❌ Failure in the AI processing: {e}")
                     db.rollback()
                     break
 
-                # 4. Aplicação dos Resultados e Persistência no Banco
-                for doc, dtos_entities in zip(docs_valid, ner_results, strict=True):
-                    status_carimbo = "DONE"
+                # 4. Application of the Results and Persistence in the Database
+                for doc, dtos_entities in zip(valid_docs, ner_results, strict=True):
+                    stamp_status = "DONE"
                     doc = cast(ArchiveDocument, doc)
                     try:
-                        # Se a IA encontrou entidades, processamos os vínculos
+                        # If the AI found entities, we process the links
                         if dtos_entities:
-                            dtos_filtrados = [ent for ent in dtos_entities if ent.name.strip().lower() not in blacklist]
+                            filtered_dtos = [ent for ent in dtos_entities if ent.name.strip().lower() not in blacklist]
 
-                            if dtos_filtrados:
+                            if filtered_dtos:
                                 try:
                                     with db.begin_nested():
-                                        entity_ids = repository.get_or_create_entities(dtos_filtrados)
+                                        entity_ids = repository.get_or_create_entities(filtered_dtos)
 
                                         for e_id in entity_ids:
                                             batch_links_buffer.append(
@@ -198,53 +198,51 @@ def execute(
                                             )
 
                                         logger.debug(
-                                            f"Doc {doc.description_id} ➡️ {len(entity_ids)} entidades prontas para vínculo."
+                                            f"Doc {doc.description_id} ➡️ {len(entity_ids)} entities ready for linking."
                                         )
                                 except Exception as e_nested:
-                                    logger.error(f"❌ Erro transacional no doc {doc.description_id}: {e_nested}")
-                                    status_carimbo = "ERROR"
+                                    logger.error(f"❌ Transactional error in doc {doc.description_id}: {e_nested}")
+                                    stamp_status = "ERROR"
                             else:
-                                logger.debug(
-                                    f"Doc {doc.description_id} ➡️ Todas as entidades barradas pela Lista Negra."
-                                )
+                                logger.debug(f"Doc {doc.description_id} ➡️ All entities blocked by the Blacklist.")
                         else:
-                            logger.debug(f"Doc {doc.description_id} ➡️ Nenhuma entidade encontrada.")
+                            logger.debug(f"Doc {doc.description_id} ➡️ No entity found.")
 
                         processed_docs_count += 1
 
                     except Exception as e:
-                        logger.error(f"❌ Erro estrutural ao salvar entidades do doc {doc.description_id}: {e}")
-                        status_carimbo = "ERROR"
+                        logger.error(f"❌ Structural error saving entities for doc {doc.description_id}: {e}")
+                        stamp_status = "ERROR"
 
-                    # 5. O Carimbo de Proteção Universal
+                    # 5. The Universal Protection Stamp
                     try:
-                        log_atual = dict(doc.execution_log) if doc.execution_log else {}
-                        log_atual["worker_ner_v1"] = status_carimbo
-                        doc.execution_log = log_atual
+                        current_log = dict(doc.execution_log) if doc.execution_log else {}
+                        current_log["worker_ner_v1"] = stamp_status
+                        doc.execution_log = current_log
                         flag_modified(doc, "execution_log")
                     except Exception as e:
-                        logger.critical(f"Falha crítica ao carimbar erro no doc {doc.description_id}: {e}")
+                        logger.critical(f"Critical failure stamping the error on doc {doc.description_id}: {e}")
 
-            # 6. Commit de Lote e Limpeza de Memória
+            # 6. Batch Commit and Memory Cleanup
             try:
                 if batch_links_buffer:
                     repository.bulk_link_entities(batch_links_buffer)
 
                 db.commit()
-                logger.info(f"⏳ Progresso parcial: {processed_docs_count} documentos enriquecidos...")
+                logger.info(f"⏳ Partial progress: {processed_docs_count} documents enriched...")
             except Exception as e:
                 db.rollback()
-                logger.error(f"💥 Falha ao realizar commit no banco: {e}")
+                logger.error(f"💥 Failure committing to the database: {e}")
                 break
 
             db.expunge_all()
 
         except Exception as e:
-            logger.error(f"❌ Erro inesperado no laço principal do Worker NER: {e}")
+            logger.error(f"❌ Unexpected error in the main loop of the NER Worker: {e}")
             db.rollback()
             break
 
-    logger.success(f"✅ Worker NER finalizado! Total processado nesta rodada: {processed_docs_count}")
+    logger.success(f"✅ NER Worker finished! Total processed in this run: {processed_docs_count}")
 
 
 if __name__ == "__main__":

@@ -17,12 +17,12 @@ PRESETS: dict[PresetName, dict[str, Any]] = {
 
 def get_engine(engine_name: EngineName, preset: PresetName | None = None, **kwargs) -> ResolveTagEntityConflictEngine:
     """
-    Fábrica de motores de julgamento de conflitos de IA.
+    AI conflict-judging engine factory.
 
     Args:
-        engine_name: Nome do motor registrado em AVAILABLE_ENGINES.
-        preset: Nome de uma configuração base mapeada em PRESETS.
-        **kwargs: Configurações manuais. Sobrescrevem o preset se houver conflito.
+        engine_name: Name of the engine registered in AVAILABLE_ENGINES.
+        preset: Name of a base configuration mapped in PRESETS.
+        **kwargs: Manual configurations. They override the preset on conflict.
     """
     if engine_name not in AVAILABLE_ENGINES:
         raise ValueError(f"Motor '{engine_name}' não suportado. Opções: {list(AVAILABLE_ENGINES.keys())}")

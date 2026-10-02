@@ -6,7 +6,7 @@ from domains.archive.engines.clustering.stopwords import STOPWORDS_BR
 from domains.archive.engines.NER import registry as NerRegistry
 
 EngineName = Literal["bertopic"]
-PresetName = Literal["exploratorio_fino", "exploratorio_macro"]
+PresetName = Literal["exploratory_fine", "exploratory_macro"]
 
 
 AVAILABLE_ENGINES: dict[EngineName, type[TopicDiscoveryEngine]] = {
@@ -14,16 +14,16 @@ AVAILABLE_ENGINES: dict[EngineName, type[TopicDiscoveryEngine]] = {
 }
 
 PRESETS: dict[PresetName, dict[str, Any]] = {
-    "exploratorio_fino": {
+    "exploratory_fine": {
         "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
         "min_topic_size": 3,
-        "n_gram_range": (1, 2),  # Permite que a IA gere palavras-chave compostas
-        "nr_topics": "auto",  # Deixa a IA descobrir quantos tópicos existem naturalmente
+        "n_gram_range": (1, 2),  # Allows the AI to generate compound keywords
+        "nr_topics": "auto",  # Lets the AI discover how many topics naturally exist
         "use_spacy_lemmatizer": True,
     },
-    "exploratorio_macro": {
+    "exploratory_macro": {
         "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
-        "min_topic_size": 15,  # Exige mais documentos para formar um cluster (gavetas mais genéricas)
+        "min_topic_size": 15,  # Requires more documents to form a cluster (more generic drawers)
         "n_gram_range": (1, 1),
         "nr_topics": "auto",
         "use_spacy_lemmatizer": True,
@@ -49,8 +49,8 @@ def get_engine(engine_name: EngineName, preset: PresetName | None = None, **kwar
         if "analyzer" not in final_kwargs:
             spacy_engine = NerRegistry.get_engine("spacy_ner", preset="lemmatizer")
 
-            # O Scikit-Learn vai chamar esta função passando apenas o texto.
-            # Nós preenchemos o argumento 'stopwords' que faltava e repassamos pro seu motor!
+            # Scikit-Learn will call this function passing only the text.
+            # We fill in the missing 'stopwords' argument and forward it to its engine!
             def analyzer_wrapper(text: str) -> list[str]:
                 return spacy_engine.lemmatize(text, stopwords=STOPWORDS_BR)
 

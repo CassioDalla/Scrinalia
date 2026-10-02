@@ -7,7 +7,7 @@ from domains.archive.schemas import ArchiveEntityDTO, EntityTagDecisionSchema
 
 class TypologyEngine(Protocol):
     """
-    Contrato que todo motor de classificação do acervo deve seguir.
+    Contract that every archive classification engine must follow.
     """
 
     def classify(self, texts: list[str], candidate_labels: list[str], **kwargs) -> list[dict]: ...
@@ -15,7 +15,7 @@ class TypologyEngine(Protocol):
 
 class EntityExtractionEngine(Protocol):
     """
-    Contrato que todo motor de classificação do acervo deve seguir.
+    Contract that every archive classification engine must follow.
     """
 
     def extract(
@@ -23,8 +23,8 @@ class EntityExtractionEngine(Protocol):
         texts: list[str],
     ) -> list[list[ArchiveEntityDTO]]:
         """
-        Recebe uma lista de textos e retorna uma lista de resultados.
-        Cada resultado é uma lista de Entidades encontradas naquele respectivo texto.
+        Receives a list of texts and returns a list of results.
+        Each result is a list of Entities found in that respective text.
         """
         ...
 
@@ -32,16 +32,16 @@ class EntityExtractionEngine(Protocol):
 
 
 class TopicDiscoveryEngine(Protocol):
-    """Contrato usado pelos motores de clustering para"
-    descobrir tópicos no arcervo"""
+    """Contract used by clustering engines to
+    discover topics in the archive."""
 
     def discover_topics(self, texts: list[str]) -> tuple[list[int], DataFrame]: ...
 
 
 class ResolveTagEntityConflictEngine(Protocol):
     """
-    Contrato usado por motores de IA (LLMs) que decidem empates semânticos
-    entre duas taxonomias (ex: Tag vs Entidade).
+    Contract used by AI engines (LLMs) that decide semantic ties
+    between two taxonomies (e.g. Tag vs Entity).
     """
 
     def decide_conflict(self, tag_name: str, entity_name: str, entity_type: str) -> EntityTagDecisionSchema: ...

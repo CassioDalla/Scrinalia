@@ -1,4 +1,4 @@
 class OllamaTypologyEngine:
-    """Motor específico para classificar tipologias usando Ollama."""
+    """Engine specific to classifying typologies using Ollama."""
 
     pass

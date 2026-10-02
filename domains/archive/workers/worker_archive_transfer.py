@@ -9,35 +9,35 @@ from domains.archive.schemas.document_schema import ArchiveDocumentDTO
 from domains.archive.services.tag_service import TagService
 from domains.staging.models import StagingDocument
 
-# Tamanho do lote para o Batch Commit
+# Batch size for the Batch Commit
 BATCH_SIZE = 500
 
 
 def execute(db_session: Session) -> None:
     """
-    Orquestrador responsável por copiar os dados estruturados da camada Staging
-    e inicializar os registros na tabela fato da camada Archive.
+    Orchestrator responsible for copying the structured data from the Staging layer
+    and initializing the records in the fact table of the Archive layer.
     """
-    logger.info("🚀 Iniciando migração do Staging para Archive")
+    logger.info("🚀 Starting the migration from Staging to Archive")
 
-    # Instancia o dos Repos e Serviço
+    # Instantiates the Repositories and Service
     tag_repo = TagRepository(db_session)
     doc_repo = DocumentRepository(db_session)
     tag_service = TagService(tag_repo, doc_repo)
 
-    # yield_per(BATCH_SIZE) evita estourar a memória RAM ao buscar milhares de registros
+    # yield_per(BATCH_SIZE) avoids blowing up RAM when fetching thousands of records
     query = select(StagingDocument)
     documents_staging = db_session.scalars(query).yield_per(BATCH_SIZE)
 
-    sucess = 0
+    success_count = 0
     failures = 0
 
-    # BUFFER DE OTIMIZAÇÃO: Acumula os vínculos N:N para inserir todos de uma vez
+    # OPTIMIZATION BUFFER: Accumulates the N:N links to insert them all at once
     batch_links = []
 
     for doc_staging in documents_staging:
         try:
-            # 1. Monta o DTO com os metadados brutos (sem IA ainda)
+            # 1. Builds the DTO with the raw metadata (no AI yet)
             doc_dto = ArchiveDocumentDTO(
                 description_id=doc_staging.description_id,
                 original_title=doc_staging.title,
@@ -62,30 +62,30 @@ def execute(db_session: Session) -> None:
                 execution_log={},
             )
 
-            # 2. Persiste na tabela Fato (ArchiveDocuments)
+            # 2. Persists into the Fact table (ArchiveDocuments)
             with db_session.begin_nested():
                 was_saved = doc_repo.upsert_archive_document(doc_dto)
 
             if was_saved:
-                # 3. Extrai e higieniza as tags antigas via Serviço de Domínio
+                # 3. Extracts and sanitizes the old tags via the Domain Service
                 tags_dtos = tag_service.extract_and_clean_tags(doc_staging.indexing_points)
                 tag_ids = tag_service.process_worker_tags(tags_dtos)
 
                 if tag_ids:
                     batch_links.extend([{"description_id": doc_dto.description_id, "tag_id": t_id} for t_id in tag_ids])
 
-                sucess += 1
+                success_count += 1
 
-                if sucess > 0 and sucess % BATCH_SIZE == 0:
+                if success_count > 0 and success_count % BATCH_SIZE == 0:
                     if batch_links:
                         tag_repo.bulk_link_tags(batch_links)
                         batch_links.clear()
 
                     db_session.commit()
-                    logger.info(f"⏳ Progresso: {sucess} documentos transferidos para a Archive...")
+                    logger.info(f"⏳ Progress: {success_count} documents transferred to Archive...")
 
         except Exception as e:
-            logger.error(f"❌ Erro ao transferir o documento {doc_staging.description_id}: {e}")
+            logger.error(f"❌ Error transferring document {doc_staging.description_id}: {e}")
             failures += 1
             continue
 
@@ -93,10 +93,10 @@ def execute(db_session: Session) -> None:
         if batch_links:
             tag_repo.bulk_link_tags(batch_links)
         db_session.commit()
-        logger.success(f"✅ Transferência concluída! Sucessos: {sucess} | Falhas: {failures}")
+        logger.success(f"✅ Transfer completed! Successes: {success_count} | Failures: {failures}")
     except Exception as e:
         db_session.rollback()
-        logger.critical(f"🔥 Erro crítico no commit final da transferência: {e}")
+        logger.critical(f"🔥 Critical error in the final transfer commit: {e}")
 
 
 if __name__ == "__main__":

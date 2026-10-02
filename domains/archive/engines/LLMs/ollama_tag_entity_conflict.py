@@ -5,7 +5,7 @@ from domains.archive.schemas import EntityTagDecisionSchema
 
 
 class OllamaJudgeEngine:
-    """Motor especializado em usar LLMs locais (Ollama) para julgar conflitos."""
+    """Engine specialized in using local LLMs (Ollama) to judge conflicts."""
 
     def __init__(self, model: str = "granite4.1:3b", host: str = "http://localhost:11434", **kwargs):
         self.model = model
@@ -35,7 +35,7 @@ REGRA DE PERFORMANCE: No campo 'reason', você é OBRIGADO a citar o número da 
             "model": self.model,
             "prompt": prompt,
             "stream": False,
-            "options": {"temperature": 0.0},  # Crucial para ser determinístico/robusto
+            "options": {"temperature": 0.0},  # Crucial to be deterministic/robust
             "format": EntityTagDecisionSchema.model_json_schema(),
         }
 
@@ -48,6 +48,6 @@ REGRA DE PERFORMANCE: No campo 'reason', você é OBRIGADO a citar o número da 
             return EntityTagDecisionSchema.model_validate_json(raw_json_str)
 
         except Exception as e:
-            logger.error(f"Falha ao chamar Ollama para o termo '{tag_name}': {e}")
+            logger.error(f"Failed to call Ollama for the term '{tag_name}': {e}")
 
             return EntityTagDecisionSchema(winner="TAG", confidence=0.0, reason=f"Falha: {str(e)[:50]}")

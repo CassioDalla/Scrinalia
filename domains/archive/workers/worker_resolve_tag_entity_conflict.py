@@ -11,94 +11,94 @@ from domains.archive.repository import EntityRepository
 
 def execute(
     db: Session,
-    threshold_similaridade: float = 0.90,
+    similarity_threshold: float = 0.90,
     auto_resolve_threshold: float = 0.85,
     engine_name: EngineName = "ollama_judge",
     preset: PresetName = "gemma_4b_local",
 ) -> None:
     """
-    Worker que atua como Juiz (Human-in-the-Loop) para resolver colisões semânticas.
-    Usa um LLM estruturado para definir se um termo ambíguo deve pertencer
-    à taxonomia de Assuntos (Tags) ou Entidades Nomeadas (NER).
+    Worker that acts as a Judge (Human-in-the-Loop) to resolve semantic collisions.
+    Uses a structured LLM to define whether an ambiguous term should belong
+    to the Subject (Tags) taxonomy or to Named Entities (NER).
     """
-    logger.info(f"⚖️ Iniciando Worker Tag/Entity (Motor: {engine_name} | Preset: {preset})")
+    logger.info(f"⚖️ Starting the Tag/Entity Worker (Engine: {engine_name} | Preset: {preset})")
 
-    # 1. Instancia o repositório e a Engine de IA usando o Registry
+    # 1. Instantiates the repository and the AI Engine using the Registry
     ent_repo = EntityRepository(db)
 
     try:
         llm_engine = get_engine(engine_name=engine_name, preset=preset)
     except Exception as e:
-        logger.critical(f"❌ Falha ao carregar o motor de julgamento: {e}")
+        logger.critical(f"❌ Failure loading the judging engine: {e}")
         return
 
-    # 2. Varredura Trigamática: Busca as colisões no acervo (PostgreSQL)
-    logger.info("Iniciando Verredura de conflitos")
-    conflitos_brutos = ent_repo.get_cross_domain_conflicts(threshold_similaridade)
+    # 2. Trigram Scan: Looks for collisions in the archive (PostgreSQL)
+    logger.info("Starting conflict scan")
+    raw_conflicts = ent_repo.get_cross_domain_conflicts(similarity_threshold)
 
-    if not conflitos_brutos:
-        logger.info("✨ Varredura concluída. Nenhum conflito semântico pendente encontrado.")
+    if not raw_conflicts:
+        logger.info("✨ Scan completed. No pending semantic conflict found.")
         return
 
-    logger.info(f"✨ Varredura concluída. Encontrados: {len(conflitos_brutos)} conflitos")
+    logger.info(f"✨ Scan completed. Found: {len(raw_conflicts)} conflicts")
 
-    sucessos_auto = 0
-    enviados_revisao = 0
-    falhas = 0
+    auto_successes = 0
+    sent_to_review = 0
+    failures = 0
 
-    for row in conflitos_brutos:
-        # Assinatura digital única para identificar este conflito no JSONB da fila
-        payload_identificador = {"tag_id": row.tag_id, "entity_id": row.entity_id}
+    for row in raw_conflicts:
+        # Unique digital signature to identify this conflict in the queue JSONB
+        identifier_payload = {"tag_id": row.tag_id, "entity_id": row.entity_id}
 
-        # 3. Proteção contra Retrabalho: Verifica se este par já está na fila
-        ja_processado = db.scalar(
+        # 3. Protection against Rework: Checks whether this pair is already in the queue
+        already_processed = db.scalar(
             select(ArchiveAIReviewQueue.id).where(
                 ArchiveAIReviewQueue.anomaly_type == AnomalyType.CROSS_DOMAIN_COLLISION,
-                ArchiveAIReviewQueue.context_payload.contains(payload_identificador),
+                ArchiveAIReviewQueue.context_payload.contains(identifier_payload),
             )
         )
 
-        if ja_processado:
+        if already_processed:
             continue
 
         logger.info(
-            f"🧠 Consultando IA para a ambiguidade: '{row.tag_name}' (Tag) vs '{row.entity_name}' ({row.entity_type})..."
+            f"🧠 Consulting the AI for the ambiguity: '{row.tag_name}' (Tag) vs '{row.entity_name}' ({row.entity_type})..."
         )
 
         try:
-            # 4. Dispara a IA (Garante retorno estruturado via Pydantic/JSON)
-            decisao = llm_engine.decide_conflict(
+            # 4. Triggers the AI (Guarantees a structured return via Pydantic/JSON)
+            decision = llm_engine.decide_conflict(
                 tag_name=row.tag_name, entity_name=row.entity_name, entity_type=row.entity_type
             )
 
-            status_final = ArchiveReviewStatus.NEEDS_REVIEW
+            final_status = ArchiveReviewStatus.NEEDS_REVIEW
 
-            # 5. Ação Direta (Confiança Alta): O Repositório resolve a colisão de forma atómica
-            if decisao.confidence >= auto_resolve_threshold:
-                # Usamos um savepoint para proteger a iteração atual contra falhas estruturais (ex: Constraints)
+            # 5. Direct Action (High Confidence): The Repository resolves the collision atomically
+            if decision.confidence >= auto_resolve_threshold:
+                # We use a savepoint to protect the current iteration against structural failures (e.g. Constraints)
                 try:
                     with db.begin_nested():
                         ent_repo.resolve_cross_domain_conflict(
-                            winner=decisao.winner, tag_id=row.tag_id, entity_id=row.entity_id
+                            winner=decision.winner, tag_id=row.tag_id, entity_id=row.entity_id
                         )
 
-                    status_final = ArchiveReviewStatus.AI_APPROVED
-                    sucessos_auto += 1
-                    logger.success(f"✅ Auto-Resolvido como {decisao.winner} (Confiança: {decisao.confidence:.2f})")
+                    final_status = ArchiveReviewStatus.AI_APPROVED
+                    auto_successes += 1
+                    logger.success(f"✅ Auto-Resolved as {decision.winner} (Confidence: {decision.confidence:.2f})")
 
-                except Exception as e_bd:
-                    logger.error(f"❌ Erro de banco de dados ao tentar auto-resolver '{row.tag_name}': {e_bd}")
-                    falhas += 1
-                    status_final = ArchiveReviewStatus.NEEDS_REVIEW  # Força a ida para a revisão humana
-                    decisao.reason = f"FALHA NO BANCO: {e_bd} | " + decisao.reason
+                except Exception as db_error:
+                    logger.error(f"❌ Database error trying to auto-resolve '{row.tag_name}': {db_error}")
+                    failures += 1
+                    final_status = ArchiveReviewStatus.NEEDS_REVIEW  # Forces it to human review
+                    decision.reason = f"FALHA NO BANCO: {db_error} | " + decision.reason
             else:
-                enviados_revisao += 1
-                logger.warning(f"⚠️ Dúvida! Confiança: {decisao.confidence:.2f} | Motivo: {decisao.reason}")
+                sent_to_review += 1
+                logger.warning(f"⚠️ Doubt! Confidence: {decision.confidence:.2f} | Reason: {decision.reason}")
 
-            # 6. Gravação do Log na Fila Genérica (Para a UI do Streamlit ler depois)
-            novo_log = ArchiveAIReviewQueue(
+            # 6. Log Writing in the Generic Queue (For the Streamlit UI to read later)
+            new_log = ArchiveAIReviewQueue(
                 anomaly_type=AnomalyType.CROSS_DOMAIN_COLLISION,
-                status=status_final,
+                status=final_status,
                 context_payload={
                     "tag_id": row.tag_id,
                     "tag_name": row.tag_name,
@@ -106,25 +106,25 @@ def execute(
                     "entity_name": row.entity_name,
                     "entity_type": row.entity_type,
                 },
-                llm_decision=decisao.winner,
-                llm_confidence=decisao.confidence,
-                llm_reason=decisao.reason,
+                llm_decision=decision.winner,
+                llm_confidence=decision.confidence,
+                llm_reason=decision.reason,
             )
 
-            db.add(novo_log)
-            # Commit iterativo: Se o script for interrompido a meio (Timeout/OOM),
-            # não perdemos as dezenas de avaliações que a IA já processou.
+            db.add(new_log)
+            # Iterative commit: If the script is interrupted midway (Timeout/OOM),
+            # we do not lose the dozens of evaluations the AI already processed.
             db.commit()
 
         except Exception as e:
-            logger.error(f"❌ Erro grave ao processar o conflito '{row.tag_name}': {e}")
+            logger.error(f"❌ Severe error processing the conflict '{row.tag_name}': {e}")
             db.rollback()
-            falhas += 1
+            failures += 1
             continue
 
-    logger.info(f"🏁 Juiz IA finalizado. Total processado: {sucessos_auto + enviados_revisao + falhas}")
+    logger.info(f"🏁 AI Judge finished. Total processed: {auto_successes + sent_to_review + failures}")
     logger.info(
-        f"📊 Auto-resolvidos (Expurgados): {sucessos_auto} | Fila Humana: {enviados_revisao} | Falhas técnicas: {falhas}"
+        f"📊 Auto-resolved (Expunged): {auto_successes} | Human Queue: {sent_to_review} | Technical failures: {failures}"
     )
 
 

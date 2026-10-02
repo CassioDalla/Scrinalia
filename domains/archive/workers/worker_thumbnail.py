@@ -15,106 +15,104 @@ from domains.archive.models import ArchiveDocument
 
 def download_image_to_memory(url: str) -> BytesIO | None:
     """
-    Efetua o download HTTP disfarçado de navegador de utilizador e processa
-    os bytes da imagem, convertendo tudo para um padrão JPEG otimizado.
+    Performs the HTTP download disguised as a user browser and processes
+    the image bytes, converting everything to an optimized JPEG standard.
 
     Args:
-        url (str): O link público direto para a imagem original.
+        url (str): The direct public link to the original image.
 
     Returns:
-        BytesIO | None: Buffer de memória contendo a imagem JPEG, ou None em caso de falha.
+        BytesIO | None: Memory buffer containing the JPEG image, or None on failure.
     """
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     try:
-        resposta = requests.get(url, headers=headers, timeout=10)
-        if resposta.status_code == 200:
-            img = Image.open(BytesIO(resposta.content))
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            img = Image.open(BytesIO(response.content))
 
-            # Converte imagens PNG/GIF com transparência para RGB seguro
+            # Converts PNG/GIF images with transparency to safe RGB
             if img.mode in ("RGBA", "P"):
                 img = img.convert("RGB")
 
             output_buffer = BytesIO()
             img.save(output_buffer, format="JPEG", quality=100, subsampling=0)
 
-            # Volta o ponteiro de leitura para o início do ficheiro
+            # Returns the read pointer to the beginning of the file
             output_buffer.seek(0)
 
             return output_buffer
         else:
-            logger.warning(f"⚠️ Erro HTTP {resposta.status_code} ao acessar a: {url}")
+            logger.warning(f"⚠️ HTTP error {response.status_code} accessing: {url}")
             return None
     except Exception as e:
-        logger.error(f"❌ Falha de rede ao descarregar {url}: {e}")
+        logger.error(f"❌ Network failure downloading {url}: {e}")
         return None
 
 
 def execute(db: Session) -> None:
     """
-    Orquestrador assíncrono responsável por migrar imagens de um link externo
-    efémero para um Object Storage seguro (ex: MinIO/S3).
+    Asynchronous orchestrator responsible for migrating images from an ephemeral
+    external link to a secure Object Storage (e.g. MinIO/S3).
 
-    Varre a tabela Fato em busca de documentos que possuem o link original, mas
-    cuja URI de armazenamento local ainda está vazia.
+    Scans the Fact table for documents that have the original link but
+    whose local storage URI is still empty.
     """
-    logger.info("📸 Iniciando Worker de Thumbnails...")
+    logger.info("📸 Starting the Thumbnails Worker...")
 
     storage = S3Storage()
 
-    # Busca imagens que ainda não foram enviadas E que não falharam permanentemente
+    # Fetches images that have not yet been uploaded AND that have not failed permanently
     query = select(ArchiveDocument).where(
         ArchiveDocument.original_thumbnail_url.is_not(None)
         & ArchiveDocument.storage_thumbnail_uri.is_(None)
         & ~ArchiveDocument.execution_log.has_key("thumbnail_failed")
     )
 
-    documentos_pendentes = db.scalars(query).yield_per(50)
+    pending_documents = db.scalars(query).yield_per(50)
 
-    processados = 0
-    sucessos = 0
+    processed = 0
+    successes = 0
 
-    for doc in documentos_pendentes:
+    for doc in pending_documents:
         try:
             with db.begin_nested():
-                url_alvo = doc.original_thumbnail_url
+                target_url = doc.original_thumbnail_url
 
-                if not url_alvo:
+                if not target_url:
                     continue
 
-                nome_ficheiro = f"thumb_{doc.description_id}.jpg"
-                caminho_no_bucket = f"thumbnails/{nome_ficheiro}"
+                file_name = f"thumb_{doc.description_id}.jpg"
+                bucket_path = f"thumbnails/{file_name}"
 
-                bytes_imagem = download_image_to_memory(url_alvo)
+                image_bytes = download_image_to_memory(target_url)
 
-                if bytes_imagem:
-                    uri_final = storage.upload_file(file_stream=bytes_imagem, file_path=caminho_no_bucket)
-                    doc.storage_thumbnail_uri = uri_final
-                    sucessos += 1
+                if image_bytes:
+                    final_uri = storage.upload_file(file_stream=image_bytes, file_path=bucket_path)
+                    doc.storage_thumbnail_uri = final_uri
+                    successes += 1
                 else:
-                    # Em caso de falha de download, carimba no JSONB para não tentar no próximo loop
-                    novo_log = dict(doc.execution_log)
-                    novo_log["thumbnail_failed"] = "True"
-                    doc.execution_log = novo_log
+                    # On download failure, stamps it in the JSONB so it is not retried on the next loop
+                    new_log = dict(doc.execution_log)
+                    new_log["thumbnail_failed"] = "True"
+                    doc.execution_log = new_log
                     flag_modified(doc, "execution_log")
 
-                processados += 1
+                processed += 1
 
-                if processados % 50 == 0:
-                    logger.info(f"⏳ Progresso: {processados} imagens analisadas...")
+                if processed % 50 == 0:
+                    logger.info(f"⏳ Progress: {processed} images analyzed...")
 
                 time.sleep(0.5)
 
         except Exception as e:
-            logger.error(f"❌ Erro catastrófico no documento {doc.description_id}: {e}")
+            logger.error(f"❌ Catastrophic error in document {doc.description_id}: {e}")
             continue
 
     db.commit()
-    logger.success(
-        f"✅ Worker de Thumbnails finalizado! {sucessos} imagens guardadas com sucesso de {processados} tentativas."
-    )
+    logger.success(f"✅ Thumbnails Worker finished! {successes} images saved successfully out of {processed} attempts.")
 
 
 if __name__ == "__main__":

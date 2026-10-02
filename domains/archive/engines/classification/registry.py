@@ -19,28 +19,28 @@ PRESETS: dict[PresetName, dict[str, Any]] = {
 
 def get_engine(engine_name: EngineName, preset: PresetName | None = None, **kwargs) -> TypologyEngine:
     """
-    Fábrica de motores de tipologia.
+    Typology engine factory.
 
     Args:
-        engine_name: Nome do motor registrado em AVAILABLE_ENGINES.
-        preset: Nome de uma configuração base mapeada em PRESETS.
-        **kwargs: Configurações manuais. Sobrescrevem o preset se houver conflito.
+        engine_name: Name of the engine registered in AVAILABLE_ENGINES.
+        preset: Name of a base configuration mapped in PRESETS.
+        **kwargs: Manual configurations. They override the preset on conflict.
     """
     if engine_name not in AVAILABLE_ENGINES:
         raise ValueError(f"Motor '{engine_name}' não suportado. Opções: {list(AVAILABLE_ENGINES.keys())}")
 
     final_kwargs = {}
 
-    # 1. Se o utilizador pediu um preset, carregamos a base de configuração dele primeiro
+    # 1. If the user requested a preset, we load its base configuration first
     if preset:
         if preset not in PRESETS:
             raise ValueError(f"Preset '{preset}' não encontrado. Opções: {list(PRESETS.keys())}")
 
         final_kwargs.update(PRESETS[preset])
 
-    # 2. O utilizador tem SEMPRE a última palavra.
-    # O que vier no **kwargs manual sobrescreve as chaves do preset se tiverem o mesmo nome.
+    # 2. The user ALWAYS has the final say.
+    # Whatever comes in the manual **kwargs overrides preset keys with the same name.
     final_kwargs.update(kwargs)
 
-    # 3. Instancia o motor desempacotando o dicionário final combinado
+    # 3. Instantiates the engine by unpacking the final combined dictionary
     return AVAILABLE_ENGINES[engine_name](**final_kwargs)

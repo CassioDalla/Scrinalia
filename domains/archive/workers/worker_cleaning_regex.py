@@ -12,77 +12,77 @@ BATCH_SIZE = 500
 
 def execute(db: Session) -> None:
     """
-    Worker que aplica regras dinâmicas de Regex (Limpeza Textual) criadas pelos curadores.
-    Processa documentos de forma incremental usando o 'execution_log' como rastreador.
+    Worker that applies dynamic Regex rules (Text Cleaning) created by the curators.
+    Processes documents incrementally using the 'execution_log' as a tracker.
     """
-    logger.info("🧹 Iniciando Worker Limpador de Qualidade de Dados...")
+    logger.info("🧹 Starting the Data Quality Cleaner Worker...")
 
     repo = CleaningRepository(db)
     active_rules = repo.get_active_rules()
 
     if not active_rules:
-        logger.info("Nenhuma regra de limpeza ativa encontrada.")
+        logger.info("No active cleaning rule found.")
         return
 
-    logger.info(f"📋 Encontradas {len(active_rules)} regras ativas. Iniciando varredura...")
+    logger.info(f"📋 Found {len(active_rules)} active rules. Starting the scan...")
 
     for rule in active_rules:
         rule_key = f"cleaning_rule_{rule.rule_id}"
 
         try:
-            # Compila o regex apenas uma vez por regra
+            # Compiles the regex only once per rule
             compiled_regex = re.compile(rule.regex_pattern, re.IGNORECASE)
         except Exception as e:
-            logger.error(f"❌ Regra ID {rule.rule_id} ('{rule.rule_name}') tem sintaxe Regex inválida: {e}. Ignorando.")
+            logger.error(f"❌ Rule ID {rule.rule_id} ('{rule.rule_name}') has invalid Regex syntax: {e}. Skipping.")
             continue
 
-        docs_processados = 0
-        alteracoes_feitas = 0
+        processed_docs = 0
+        changes_made = 0
 
         while True:
-            # Pega o próximo lote de documentos que ainda não viram ESTA regra
-            lote_docs = repo.get_unprocessed_documents_for_rule(
+            # Fetches the next batch of documents that have not yet seen THIS rule
+            batch_docs = repo.get_unprocessed_documents_for_rule(
                 rule_id=rule.rule_id, target_column=rule.target_column, limit=BATCH_SIZE
             )
 
-            if not lote_docs:
-                break  # Fim da varredura para esta regra!
+            if not batch_docs:
+                break  # End of the scan for this rule!
 
             try:
-                for doc in lote_docs:
-                    texto_original = getattr(doc, rule.target_column)
+                for doc in batch_docs:
+                    original_text = getattr(doc, rule.target_column)
 
-                    if texto_original:
-                        # Aplica a limpeza Pythonica
-                        texto_limpo = compiled_regex.sub(rule.replacement_string, texto_original)
+                    if original_text:
+                        # Applies the Pythonic cleaning
+                        cleaned_text = compiled_regex.sub(rule.replacement_string, original_text)
 
-                        if texto_limpo != texto_original:
-                            # Sobrescreve a coluna na model
-                            setattr(doc, rule.target_column, texto_limpo)
-                            alteracoes_feitas += 1
+                        if cleaned_text != original_text:
+                            # Overwrites the column in the model
+                            setattr(doc, rule.target_column, cleaned_text)
+                            changes_made += 1
 
-                    # Independentemente de ter alterado ou não, carimbamos para nunca mais olhar
-                    log_atual = dict(doc.execution_log) if doc.execution_log else {}
-                    log_atual[rule_key] = "DONE"
-                    doc.execution_log = log_atual
+                    # Regardless of whether it changed or not, we stamp it so we never look again
+                    current_log = dict(doc.execution_log) if doc.execution_log else {}
+                    current_log[rule_key] = "DONE"
+                    doc.execution_log = current_log
                     flag_modified(doc, "execution_log")
 
-                    docs_processados += 1
+                    processed_docs += 1
 
-                # Comita o lote inteiro
+                # Commits the whole batch
                 db.commit()
 
             except Exception as e:
-                logger.error(f"💥 Erro ao comitar lote na Regra {rule.rule_id}: {e}")
+                logger.error(f"💥 Error committing batch in Rule {rule.rule_id}: {e}")
                 db.rollback()
-                break  # Pula para a próxima regra para não estagnar
+                break  # Skips to the next rule so it does not get stuck
 
-        if docs_processados > 0:
+        if processed_docs > 0:
             logger.success(
-                f"✅ Regra '{rule.rule_name}' concluída! Auditados: {docs_processados} | Alterados: {alteracoes_feitas}."
+                f"✅ Rule '{rule.rule_name}' completed! Audited: {processed_docs} | Changed: {changes_made}."
             )
 
-    logger.info("🏁 Varredura do Worker Limpador finalizada.")
+    logger.info("🏁 Cleaner Worker scan finished.")
 
 
 if __name__ == "__main__":

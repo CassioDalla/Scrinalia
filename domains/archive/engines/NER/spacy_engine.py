@@ -10,7 +10,7 @@ from domains.archive.schemas import ArchiveEntityDTO
 
 class SpacyEngine:
     """
-    Motor de Extração de Entidades Nomeadas (NER) utilizando spaCy.
+    Named Entity Recognition (NER) extraction engine using spaCy.
     """
 
     def __init__(
@@ -33,30 +33,28 @@ class SpacyEngine:
         try:
             self.nlp: Language = spacy.load(self.model_name, disable=self.disable)
         except OSError:
-            logger.error(
-                f"❌ Modelo {self.model_name} não encontrado. Execute: python -m spacy download {self.model_name}"
-            )
+            logger.error(f"❌ Model {self.model_name} not found. Run: python -m spacy download {self.model_name}")
             raise
 
-        # Injeção das regras institucionais (Dicionários dinâmicos do Banco de Dados)
+        # Injection of institutional rules (dynamic dictionaries from the Database)
         if custom_rules:
             ruler = cast(EntityRuler, self.nlp.add_pipe("entity_ruler", before="ner"))
             ruler.add_patterns(custom_rules)
-            logger.info(f"⚙️ {len(custom_rules)} regras institucionais carregadas no motor NER.")
+            logger.info(f"⚙️ {len(custom_rules)} institutional rules loaded into the NER engine.")
 
     def extract(self, texts: list[str]) -> list[list[ArchiveEntityDTO]]:
         """
-        Executa a inferência em lote usando nlp.pipe para máxima performance
-        para extrair Entidades Nomeadas (PER, ORG, LOC).
+        Runs batch inference using nlp.pipe for maximum performance
+        to extract Named Entities (PER, ORG, LOC).
 
-        Aplica filtros de Qualidade de Dados (tamanho de string) e remove
-        duplicidades exatas dentro do mesmo contexto de texto.
+        Applies Data Quality filters (string length) and removes
+        exact duplicates within the same text context.
 
         Args:
-            text (list[str]): Lista de textos concatenado do documento.
+            text (list[str]): List of concatenated texts from the document.
 
         Returns:
-            list[ArchiveEntityDTO]: Lista de contratos de entidades validados.
+            list[ArchiveEntityDTO]: List of validated entity contracts.
         """
         if not texts:
             return []
@@ -64,18 +62,18 @@ class SpacyEngine:
         results: list[list[ArchiveEntityDTO]] = []
         allowed_labels = {"PER", "ORG", "LOC"}
 
-        # nlp.pipe processa os textos em lote e otimiza o uso da memória/CPU
+        # nlp.pipe processes the texts in batches and optimizes memory/CPU usage
         for doc in self.nlp.pipe(texts):
             entities_found: list[ArchiveEntityDTO] = []
             seen_keys: set[tuple[str, str]] = set()
 
             for ent in doc.ents:
                 if ent.label_ in allowed_labels:
-                    # Se a regra do banco encontrou um ID canônico, use-o
-                    # Caso contrário, use o texto bruto normalizado.
+                    # If the database rule found a canonical ID, use it
+                    # Otherwise, use the normalized raw text.
                     clean_name = ent.ent_id_ if ent.ent_id_ else ent.text.strip().title()
 
-                    # Barreira de Data Quality: Evita ruídos de caracteres soltos ou anomalias gigantes
+                    # Data Quality barrier: avoids noise from stray characters or huge anomalies
                     if 2 < len(clean_name) < 150:
                         entity_type = cast(Literal["PER", "ORG", "LOC"], ent.label_)
                         key = (clean_name, entity_type)
@@ -83,7 +81,7 @@ class SpacyEngine:
                         if key not in seen_keys:
                             seen_keys.add(key)
                             entities_found.append(ArchiveEntityDTO(name=clean_name, entity_type=entity_type))
-            # Adiciona a lista de entidades validadas deste documento ao resultado final
+            # Adds the list of validated entities from this document to the final result
             results.append(entities_found)
 
         return results
@@ -93,13 +91,13 @@ class SpacyEngine:
         lemmas = []
 
         for token in doc:
-            # Só aceita palavras que: não são pontuação, não são espaços, e não são stopwords
+            # Only accepts words that: are not punctuation, are not spaces, and are not stopwords
 
             if token.is_punct or token.is_space or token.like_num:
                 continue
 
             lemma = token.lemma_
-            # Ignora stopwords, tokens classificados como stop pelo spaCy e palavras de 1 letra (como 'º' ou 'a')
+            # Ignores stopwords, tokens classified as stop by spaCy and 1-letter words (like 'º' or 'a')
             if lemma not in stopwords and not token.is_stop and len(lemma) > 2:
                 lemmas.append(lemma)
 

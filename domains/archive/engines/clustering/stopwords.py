@@ -2,7 +2,7 @@ STOPWORDS_BR = [
     "n",
     "nº",
     "º",
-    # Artigos e contrações
+    # Articles and contractions
     "a",
     "o",
     "as",
@@ -27,7 +27,7 @@ STOPWORDS_BR = [
     "pela",
     "pelos",
     "pelas",
-    # Pronomes
+    # Pronouns
     "eu",
     "tu",
     "ele",
@@ -69,7 +69,7 @@ STOPWORDS_BR = [
     "vossa",
     "vossos",
     "vossas",
-    # Preposições
+    # Prepositions
     "de",
     "em",
     "por",
@@ -90,7 +90,7 @@ STOPWORDS_BR = [
     "perto",
     "longe",
     "durante",
-    # Conjunções
+    # Conjunctions
     "e",
     "mas",
     "ou",
@@ -114,7 +114,7 @@ STOPWORDS_BR = [
     "ainda que",
     "a fim de",
     "com o objetivo de",
-    # Verbos auxiliares e comuns
+    # Auxiliary and common verbs
     "ser",
     "estar",
     "ter",
@@ -131,7 +131,7 @@ STOPWORDS_BR = [
     "tem",
     "tenho",
     "é",
-    # Demonstrativos
+    # Demonstratives
     "esse",
     "essa",
     "isso",
@@ -151,13 +151,13 @@ STOPWORDS_BR = [
     "daquilo",
     "nisto",
     "naquilo",
-    # Localizadores
+    # Locators
     "lá",
     "aqui",
     "ali",
     "onde",
     "aonde",
-    # Interjeições e expressões comuns
+    # Interjections and common expressions
     "ah",
     "oh",
     "ei",
@@ -175,7 +175,7 @@ STOPWORDS_BR = [
     "hein",
     "que que é isso",
     "quê",
-    # Gírias e expressões coloquiais
+    # Slang and colloquial expressions
     "cara",
     "mano",
     "mina",
@@ -232,7 +232,7 @@ STOPWORDS_BR = [
     "monstro",
     "mito",
     "lenda",
-    # Abreviações e siglas comuns na internet
+    # Common internet abbreviations and acronyms
     "pq",
     "tb",
     "tbm",
@@ -324,7 +324,7 @@ STOPWORDS_BR = [
     "causo",
     "sô",
     "ôxe",
-    # Regionalismos
+    # Regionalisms
     "bão",
     "ocê",
     "oxente",
@@ -343,7 +343,7 @@ STOPWORDS_BR = [
     "tu",
     "num é",
     "nera",
-    # Marcadores de discurso
+    # Discourse markers
     "tipo assim",
     "aí",
     "pois é",
@@ -360,7 +360,7 @@ STOPWORDS_BR = [
     "fechou",
     "combinado",
     "entendido",
-    # Expressões de afirmação e negação
+    # Affirmation and negation expressions
     "s",
     "n",
     "yep",
@@ -377,7 +377,7 @@ STOPWORDS_BR = [
     "quem sabe",
     "vai ver",
     "pode ser",
-    # Expressões de quantidade e intensidade
+    # Quantity and intensity expressions
     "bastante",
     "pra caramba",
     "pra cacete",
@@ -392,7 +392,7 @@ STOPWORDS_BR = [
     "um cadinho",
     "um tico",
     "uma belezura",
-    # Expressões de concordância
+    # Agreement expressions
     "tá bom",
     "tá bem",
     "tá certo",
@@ -402,7 +402,7 @@ STOPWORDS_BR = [
     "vamos",
     "bora lá",
     "tá de boa",
-    # Expressões de discordância
+    # Disagreement expressions
     "tá nada",
     "que nada",
     "nem a pau",
@@ -412,7 +412,7 @@ STOPWORDS_BR = [
     "tá louco",
     "tá doido",
     "nem pensar",
-    # Expressões de despedida
+    # Farewell expressions
     "tchau",
     "até logo",
     "até mais",
@@ -431,7 +431,7 @@ STOPWORDS_BR = [
     "se cuide",
     "fica bem",
     "fique bem",
-    # Expressões de saudação
+    # Greeting expressions
     "e aí",
     "fala",
     "fala aí",
@@ -445,7 +445,7 @@ STOPWORDS_BR = [
     "eae",
     "coé",
     "alô",
-    # Expressões de agradecimento
+    # Thank-you expressions
     "valeu",
     "obrigado",
     "obrigada",
@@ -458,7 +458,7 @@ STOPWORDS_BR = [
     "thx",
     "tanks",
     "tenks",
-    # Termos de internet e redes sociais
+    # Internet and social media terms
     "rs",
     "kkkk",
     "haha",
@@ -485,7 +485,7 @@ STOPWORDS_BR = [
     "trending",
     "viral",
     "viralizar",
-    # Expressões de dúvida
+    # Doubt expressions
     "será",
     "será mesmo",
     "não sei não",
@@ -495,7 +495,7 @@ STOPWORDS_BR = [
     "sei lá",
     "não faço ideia",
     "nem imagino",
-    # Conectores expandidos
+    # Expanded connectors
     "tanto quanto",
     "bem como",
     "a menos que",
@@ -535,7 +535,7 @@ STOPWORDS_BR = [
     "afinal",
     "a fim de que",
     "de modo a",
-    # Expressões expandidas
+    # Expanded expressions
     "você",
     "vocês",
     "porquê",
