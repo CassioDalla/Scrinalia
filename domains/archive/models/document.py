@@ -68,6 +68,9 @@ class ArchiveDocument(Base):
     )
 
     # --- Audit (Human-in-the-Loop) ---
+    # ``create_type=True`` here is the single owner of the native enum type; the
+    # other table that uses ArchiveReviewStatus passes ``create_type=False`` so a
+    # ``metadata.create_all`` creates the type exactly once.
     review_status: Mapped[ArchiveReviewStatus] = mapped_column(
         Enum(ArchiveReviewStatus, name="archive_review_status_enum", create_type=True),
         default=ArchiveReviewStatus.PENDING_AI,
