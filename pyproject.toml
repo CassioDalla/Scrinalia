@@ -1,7 +1,7 @@
 [project]
 name = "memoria-curitibana-etl"
 version = "0.1.0"
-description = "Add your description here"
+description = "Archival description cataloguing and AI-driven enrichment system (ISAD(G))"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -29,6 +29,15 @@ dependencies = [
 
 [tool.uv.sources]
 pt-core-news-lg = { url = "https://github.com/explosion/spacy-models/releases/download/pt_core_news_lg-3.8.0/pt_core_news_lg-3.8.0-py3-none-any.whl" }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# The application lives in src/ and is installed as a single internal namespace.
+# It is not published: see docs/adr/0002-src-layout-and-internal-namespace.md.
+packages = ["src/memoria_curitibana"]
 
 [tool.ruff]
 # Define o tamanho máximo da linha (88 é o padrão do Black, mas muitos preferem 120)
@@ -81,10 +90,9 @@ dev = [
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
-# The project is not packaged/installed; make top-level packages (core, domains, api)
-# importable when running pytest from the repo root.
-pythonpath = ["."]
-testpaths = ["tests"]
+# No pythonpath: the application is installed from src/ by `uv sync`, so the tests
+# import memoria_curitibana.* exactly like any other consumer would.
+testpaths = ["testing"]
 markers = [
     "unit: fast tests that never touch a database or load real models",
     "integration: tests that require a PostgreSQL test database",
@@ -95,15 +103,12 @@ markers = [
 # third-party noise and one-off tooling out of the gate. Tighten over time.
 typeCheckingMode = "basic"
 pythonVersion = "3.12"
-include = ["core", "domains", "api", "dashboard", "main.py"]
+include = ["src/memoria_curitibana", "main.py"]
 exclude = [
     "**/__pycache__",
     ".venv",
     "migrations",
-    "tests",
+    "testing",
     "Data",
-    "triage.py",
-    "verify_titles_gemma.py",
-    "verify_titles_new.py",
 ]
 reportMissingTypeStubs = false
