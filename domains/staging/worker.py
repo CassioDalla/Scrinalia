@@ -36,7 +36,7 @@ def run_staging_pipeline(db_session: Session) -> None:
     failures = 0
 
     for i, raw_data in enumerate(pending_records, start=1):
-        doc_id = raw_data.get("description_id", "DESCONHECIDO")
+        doc_id = raw_data.get("description_id", "UNKNOWN")
         try:
             # Validation and Cleaning (Pydantic)
             clean_record = StagingDocumentDTO.model_validate(raw_data)

@@ -32,37 +32,37 @@ class StagingDocumentDTO(BaseModel):
     thumb_down_link: str | None = None
 
     # --- ISAD(G) Standard Metadata (Treated as Flexible Strings) ---
-    reference_code: str | None = None  # Código Referência
-    level: str | None = None  # Nível
-    dimension_support: str | None = None  # Dimensão e Suporte
-    producers: str | None = None  # Nome do(s) Produtor(es)
-    admin_bio_history: str | None = None  # História Administrativa/Biográfia
-    admin_archival_history: str | None = None  # História Arquivística
-    provenance: str | None = None  # Procedência
-    scope_content: str | None = None  # Âmbito e Conteúdo (Antigo Resumo)
-    appraisal_destruction: str | None = None  # Avaliação, Eliminação e Temporalidade
-    accruals: str | None = None  # Incorporações
-    arrangement: str | None = None  # Sistema de Arranjo
-    access_conditions: str | None = None  # Acesso Público / Condições de Acesso
-    reproduction_conditions: str | None = None  # Condições de Reprodução
-    language_name: str | None = None  # Idioma
-    physical_characteristics: str | None = None  # Características físicas e requisitos técnicos
-    finding_aids: str | None = None  # Instrumentos de pesquisa
-    originals_location: str | None = None  # Existência e localização dos originais
-    copies_location: str | None = None  # Existência e localização de cópias
-    related_units: str | None = None  # Unidades de Descrição relacionadas
-    publication_notes: str | None = None  # Notas sobre publicação
-    conservation_notes: str | None = None  # Notas sobre conservação
-    general_notes: str | None = None  # Notas gerais
-    archivist_notes: str | None = None  # Notas do Arquivista
-    rules_conventions: str | None = None  # Regras ou convenções
-    description_dates: str | None = None  # Data(s) da(s) descrição(ões)
-    indexing_points: str | None = None  # Pontos de Acesso e Indexação de Assuntos
+    reference_code: str | None = None  # Reference Code
+    level: str | None = None  # Level
+    dimension_support: str | None = None  # Extent and Medium
+    producers: str | None = None  # Name of the Producer(s)
+    admin_bio_history: str | None = None  # Administrative/Biographical History
+    admin_archival_history: str | None = None  # Archival History
+    provenance: str | None = None  # Provenance
+    scope_content: str | None = None  # Scope and Content (Former Summary)
+    appraisal_destruction: str | None = None  # Appraisal, Destruction and Scheduling
+    accruals: str | None = None  # Accruals
+    arrangement: str | None = None  # System of Arrangement
+    access_conditions: str | None = None  # Public Access / Conditions of Access
+    reproduction_conditions: str | None = None  # Conditions of Reproduction
+    language_name: str | None = None  # Language
+    physical_characteristics: str | None = None  # Physical Characteristics and Technical Requirements
+    finding_aids: str | None = None  # Finding Aids
+    originals_location: str | None = None  # Existence and Location of Originals
+    copies_location: str | None = None  # Existence and Location of Copies
+    related_units: str | None = None  # Related Units of Description
+    publication_notes: str | None = None  # Notes on Publication
+    conservation_notes: str | None = None  # Notes on Conservation
+    general_notes: str | None = None  # General Notes
+    archivist_notes: str | None = None  # Archivist's Notes
+    rules_conventions: str | None = None  # Rules or Conventions
+    description_dates: str | None = None  # Date(s) of the Description(s)
+    indexing_points: str | None = None  # Access Points and Subject Indexing
 
     # Anything not mapped above falls here
     raw_metadata: dict[str, Any] = Field(default_factory=dict)
 
-    # TODO adicionar limpeza de " -  : ;" como separadores de tags
+    # TODO add cleaning of " -  : ;" as tag separators
 
     @field_validator("indexing_points", mode="before")
     @classmethod
@@ -150,23 +150,23 @@ class StagingDocumentDTO(BaseModel):
         if raw_date:
             data_str = str(raw_date).strip()
 
-            # Padrão 1: ISO 8601 ou YYYY-MM-DD (ex: 1929-07-05T03:00:00Z)
+            # Pattern 1: ISO 8601 or YYYY-MM-DD (e.g., 1929-07-05T03:00:00Z)
             match_iso = re.search(r"(\d{4})-(\d{2})-(\d{2})", data_str)
-            # Padrão 2: Brasileiro DD/MM/YYYY (ex: 05/07/1929)
+            # Pattern 2: Brazilian DD/MM/YYYY (e.g., 05/07/1929)
             match_br = re.search(r"(\d{2})/(\d{2})/(\d{4})", data_str)
-            # Padrão 3: Apenas o Ano (ex: 1924)
-            match_ano = re.search(r"^(\d{4})$", data_str)
+            # Pattern 3: Year only (e.g., 1924)
+            match_year = re.search(r"^(\d{4})$", data_str)
 
             try:
                 if match_iso:
-                    ano, mes, dia = map(int, match_iso.groups())
-                    staging_data["document_date"] = date(ano, mes, dia)
+                    year, month, day = map(int, match_iso.groups())
+                    staging_data["document_date"] = date(year, month, day)
                 elif match_br:
-                    dia, mes, ano = map(int, match_br.groups())
-                    staging_data["document_date"] = date(ano, mes, dia)
-                elif match_ano:
-                    ano = int(match_ano.group(1))
-                    staging_data["document_date"] = date(ano, 1, 1)  # Define como 1º de Janeiro do ano
+                    day, month, year = map(int, match_br.groups())
+                    staging_data["document_date"] = date(year, month, day)
+                elif match_year:
+                    year = int(match_year.group(1))
+                    staging_data["document_date"] = date(year, 1, 1)  # Defaults to January 1st of the year
             except ValueError:
                 pass
 
@@ -207,11 +207,11 @@ class StagingDocumentDTO(BaseModel):
 
         for html_key, value in payload.items():
             if html_key in keys_map:
-                name_attribute_pydantic = keys_map[html_key]
-                if staging_data.get(name_attribute_pydantic):
-                    staging_data[name_attribute_pydantic] += f" | {value}"
+                pydantic_attribute_name = keys_map[html_key]
+                if staging_data.get(pydantic_attribute_name):
+                    staging_data[pydantic_attribute_name] += f" | {value}"
                 else:
-                    staging_data[name_attribute_pydantic] = value
+                    staging_data[pydantic_attribute_name] = value
                 mapped_keys.append(html_key)
 
         # The Unknown "Trash" (Ensures we never lose data

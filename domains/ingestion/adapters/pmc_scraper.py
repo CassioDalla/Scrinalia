@@ -52,29 +52,29 @@ class PMCScraperAdapter(IDiscoveryAdapter, IDetailAdapter):
         current_page: int = initial_page
         processed_pages: int = 0
 
-        logger.info("🚀 Iniciando a coleta de ids")
+        logger.info("🚀 Starting ID collection")
 
         while True:
             if max_pages is not None and processed_pages >= max_pages:
-                logger.info(f"🛑 Limite de {max_pages} página(s) atingido. Encerrando.")
+                logger.info(f"🛑 Limit of {max_pages} page(s) reached. Stopping.")
                 break
 
-            logger.info(f"⏳ Processando página {current_page}...")
+            logger.info(f"⏳ Processing page {current_page}...")
             url = f"{self.base_url}{current_page}"
 
             try:
                 res = requests.get(url, headers=self.headers, timeout=10)
                 res.raise_for_status()
             except requests.exceptions.RequestException as e:
-                logger.error(f"❌ Erro ao acessar a página {current_page}: {e}")
+                logger.error(f"❌ Error accessing page {current_page}: {e}")
                 time.sleep(self.delay_requests)
-                continue  # Pula para a próxima se a listagem der erro
+                continue  # Skip to the next one if the listing fails
 
             soup = BeautifulSoup(res.text, "html.parser")
             boxes = soup.find_all("div", class_="boxResultado")
 
             if not boxes:
-                logger.info(f"⚠️ Nenhum resultado na página {current_page}. Fim da paginação.")
+                logger.info(f"⚠️ No results on page {current_page}. End of pagination.")
                 break
 
             for box in boxes:
@@ -117,29 +117,29 @@ class PMCScraperAdapter(IDiscoveryAdapter, IDetailAdapter):
             res.raise_for_status()
         except requests.exceptions.HTTPError as e:
             if e.response is not None and e.response.status_code == 404:
-                raise AdapterNotFoundError(f"Documento {description_id} não existe.") from e
+                raise AdapterNotFoundError(f"Document {description_id} does not exist.") from e
             raise AdapterNetworkError(str(e)) from e
         except requests.exceptions.RequestException as e:
             raise AdapterNetworkError(str(e)) from e
 
         try:
             soup = BeautifulSoup(res.text, "html.parser")
-            registro = {"_url_origem": url}
+            record = {"_url_origem": url}
 
-            # 1. Extrair o Título Principal
+            # 1. Extract the Main Title
             if (header_section := soup.find("div", class_="header-section")) and (h3_tag := header_section.find("h3")):
-                registro["title"] = h3_tag.text.strip()
+                record["title"] = h3_tag.text.strip()
 
-            # 2. Extrair Link de Download do Arquivo (se existir)
+            # 2. Extract the File Download Link (if present)
             if (
                 (info_arquivo := soup.find("div", class_="info-arquivo"))
                 and (btn_download := info_arquivo.find("a", class_="btn-download"))
                 and isinstance(btn_download, Tag)
                 and (link := btn_download.get("href"))
             ):
-                registro["attch_down_link"] = str(link)
+                record["attch_down_link"] = str(link)
 
-            # 2.1 Extrair o link de download da thumbnail
+            # 2.1 Extract the thumbnail download link
 
             if (
                 (info_arquivo := soup.find("div", class_="thumb-container"))
@@ -147,26 +147,26 @@ class PMCScraperAdapter(IDiscoveryAdapter, IDetailAdapter):
                 and isinstance(img, Tag)
                 and (link := img.get("src"))
             ):
-                registro["thumb_down_link"] = str(link)
+                record["thumb_down_link"] = str(link)
 
-            # 3. Extrair 'Informações Rápidas' (Quick Info)
+            # 3. Extract 'Quick Info'
             for item in soup.find_all("div", class_="quick-info-item"):
                 if (label_tag := item.find("span", class_="quick-info-label")) and (
                     value_tag := item.find("span", class_="quick-info-value")
                 ):
-                    chave = label_tag.text.strip()
-                    valor = value_tag.text.strip().replace("\n", " ").replace("\r", "")
-                    registro[chave] = valor
+                    key = label_tag.text.strip()
+                    value = value_tag.text.strip().replace("\n", " ").replace("\r", "")
+                    record[key] = value
 
-            # 4. Extrair os campos detalhados das Seções
+            # 4. Extract the detailed fields from the Sections
             for item in soup.find_all("div", class_="field-group"):
                 if (label_tag := item.find("span", class_="field-label")) and (
                     value_tag := item.find("div", class_="field-value")
                 ):
-                    chave = label_tag.text.strip()
-                    valor = value_tag.text.strip()
-                    registro[chave] = valor
+                    key = label_tag.text.strip()
+                    value = value_tag.text.strip()
+                    record[key] = value
 
-            return {k: v for k, v in registro.items() if v}
+            return {k: v for k, v in record.items() if v}
         except Exception as e:
-            raise AdapterFatalError(f"Erro ao fazer o parse do HTML: {e}") from e
+            raise AdapterFatalError(f"Error parsing the HTML: {e}") from e

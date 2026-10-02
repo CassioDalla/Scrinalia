@@ -88,16 +88,16 @@ def run_detail_scraping_job(
         db_session, discovered_after=discovered_after, scraped_before=scraped_before, ignore_status=ignore_status
     )
 
-    total_itens = len(batch)
-    if total_itens == 0:
+    total_items = len(batch)
+    if total_items == 0:
         logger.info("No documents pending in the queue.")
         return
 
-    logger.info(f"🚀 Starting extraction of {total_itens} itens details...")
+    logger.info(f"🚀 Starting extraction of {total_items} item details...")
 
     for index, queue in enumerate(batch, start=1):
         doc_id = queue.description_id
-        logger.info(f"⏳ Processing [{index}/{total_itens}] ID: {doc_id}")
+        logger.info(f"⏳ Processing [{index}/{total_items}] ID: {doc_id}")
 
         try:
             data_scraped = adapter.fetch_details(doc_id)
@@ -105,11 +105,11 @@ def run_detail_scraping_job(
             repository.update_queue_status(db_session, doc_id, ScrapeStatus.DONE)
 
         except AdapterNotFoundError as e:
-            logger.error(f"Erro 404: {e}")
+            logger.error(f"Error 404: {e}")
             repository.update_queue_status(db_session, doc_id, ScrapeStatus.NOT_FOUND, error_msg=str(e))
 
         except AdapterNetworkError as e:
-            logger.warning(f"⚠️ Instabilidade em {doc_id}: {e}")
+            logger.warning(f"⚠️ Instability on {doc_id}: {e}")
             if queue.retry_count >= MAX_RETRIES:
                 repository.update_queue_status(db_session, doc_id, ScrapeStatus.FATAL_ERROR, error_msg=str(e))
             else:
@@ -118,7 +118,7 @@ def run_detail_scraping_job(
                 )
 
         except (AdapterFatalError, Exception) as e:
-            logger.exception(f"💥 Erro fatal (Parsing/DB) no {doc_id}: {e}")
+            logger.exception(f"💥 Fatal error (Parsing/DB) on {doc_id}: {e}")
             repository.update_queue_status(db_session, doc_id, ScrapeStatus.FATAL_ERROR, error_msg=str(e))
 
 
