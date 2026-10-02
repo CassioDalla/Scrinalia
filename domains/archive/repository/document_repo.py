@@ -9,7 +9,7 @@ from domains.archive.models import (
     ArchiveDocument,
     ArchiveReviewStatus,
 )
-from domains.archive.schemas.document_schema import ArchiveDocumentDTO
+from domains.archive.schemas.document_schema import ArchiveDocumentDTO, DocumentSummary
 
 
 class DocumentRepository:
@@ -121,7 +121,7 @@ class DocumentRepository:
     # READING AND CURATION (HUMAN-IN-THE-LOOP)
     # ==========================================
 
-    def search(self, term: str | None = None, limit: int = 50, offset: int = 0) -> tuple[list[ArchiveDocument], int]:
+    def search(self, term: str | None = None, limit: int = 50, offset: int = 0) -> tuple[list[DocumentSummary], int]:
         """
         Simple textual search of the collection with pagination.
 
@@ -148,25 +148,27 @@ class DocumentRepository:
             .limit(limit)
             .offset(offset)
         )
-        return list(self.db.scalars(page_stmt).all()), total
+        docs = [DocumentSummary.model_validate(doc) for doc in self.db.scalars(page_stmt).all()]
+        return docs, total
 
-    def get_by_id(self, description_id: str) -> ArchiveDocument | None:
+    def get_by_id(self, description_id: str) -> DocumentSummary | None:
         """Loads a document with tags and entities for reading/editing."""
         stmt = (
             select(ArchiveDocument)
             .where(ArchiveDocument.description_id == description_id)
             .options(selectinload(ArchiveDocument.tags), selectinload(ArchiveDocument.entities))
         )
-        return self.db.scalars(stmt).first()
+        doc = self.db.scalars(stmt).first()
+        return DocumentSummary.model_validate(doc) if doc else None
 
-    def update_review(self, description_id: str, changes: dict) -> ArchiveDocument | None:
+    def update_review(self, description_id: str, changes: dict) -> DocumentSummary | None:
         """
         Applies the archivist's edits and shields the document against the AI.
 
         Any manually edited document becomes `HUMAN_APPROVED`, which
         prevents overwriting by the migration/AI pipeline.
         """
-        doc = self.get_by_id(description_id)
+        doc = self._get_orm_by_id(description_id)
         if doc is None:
             return None
 
@@ -174,4 +176,14 @@ class DocumentRepository:
             setattr(doc, field, value)
 
         doc.review_status = ArchiveReviewStatus.HUMAN_APPROVED
-        return doc
+        self.db.flush()
+        return DocumentSummary.model_validate(doc)
+
+    def _get_orm_by_id(self, description_id: str) -> ArchiveDocument | None:
+        """Internal ORM lookup used by write flows that need the managed entity."""
+        stmt = (
+            select(ArchiveDocument)
+            .where(ArchiveDocument.description_id == description_id)
+            .options(selectinload(ArchiveDocument.tags), selectinload(ArchiveDocument.entities))
+        )
+        return self.db.scalars(stmt).first()

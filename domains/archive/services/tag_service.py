@@ -4,8 +4,8 @@ from typing import Literal
 
 from core.logger import logger
 from domains.archive.exceptions import InvalidMergeError, InvalidParam
+from domains.archive.ports.document import DocumentRepositoryPort
 from domains.archive.ports.taxonomy import TagRepositoryPort
-from domains.archive.repository import DocumentRepository
 from domains.archive.schemas import (
     ArchiveTagDTO,
     MergeResponse,
@@ -22,7 +22,7 @@ class TagService:
     the taxonomy and tags in the Archive layer.
     """
 
-    def __init__(self, repo: TagRepositoryPort, document_repo: DocumentRepository):
+    def __init__(self, repo: TagRepositoryPort, document_repo: DocumentRepositoryPort):
         self.repo = repo
         self.document_repo = document_repo
         self._stopwords: frozenset[str] | None = None
