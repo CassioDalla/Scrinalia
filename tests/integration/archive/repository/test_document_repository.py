@@ -123,27 +123,6 @@ def test_upsert_archive_document_blocked_by_human_approved(use_test_db, db_sessi
 
 
 # ==========================================
-# AI TESTS
-# ==========================================
-
-
-def test_stamp_ai_execution(use_test_db, db_session, generate_archive_dto):
-    """Tests whether the mutable JSONB column saves the new log, preserving the ORM state."""
-    repo = DocumentRepository(db_session)
-    dto = generate_archive_dto(description_id="27", execution_log={"migracao_base": "DONE"})
-    repo.upsert_archive_document(dto)
-    db_session.commit()
-
-    repo.stamp_ai_execution("27", "ner_spacy_v1")
-    db_session.commit()
-
-    doc_db = db_session.execute(select(ArchiveDocument).filter_by(description_id="27")).scalar_one()
-
-    assert "migracao_base" in doc_db.execution_log
-    assert doc_db.execution_log["ner_spacy_v1"] == "DONE"
-
-
-# ==========================================
 # READING AND CURATION TESTS
 # ==========================================
 

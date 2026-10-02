@@ -3,7 +3,6 @@ import re
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy.orm.attributes import flag_modified
 
 from domains.archive.models import (
     ArchiveDocument,
@@ -29,8 +28,8 @@ class DocumentRepository:
 
         🚨 IMPORTANT FOR AI PIPELINES (WORKERS):
         DO NOT use this function to save AI enrichments (spaCy, mDeBERTa).
-        For Workers, use surgical UPDATE functions (such as stamp_ai_execution),
-        otherwise, the ON CONFLICT will block the operation and discard the AI data.
+        Workers update their columns surgically and stamp the ``execution_log``
+        via ``WorkerStamp``; the ON CONFLICT would otherwise discard the AI data.
 
         🔒 GOVERNANCE (HUMAN-IN-THE-LOOP):
         If the document has the 'HUMAN_APPROVED' status, PostgreSQL will block
@@ -101,22 +100,6 @@ class DocumentRepository:
                 clean_txt.append(". ".join(parts) + ".")
 
         return clean_txt
-
-    def stamp_ai_execution(self, description_id: str, worker_name: str) -> None:
-        """
-        Stamps the document with the signature of the AI Worker that finished the process.
-        This prevents the AI from redoing the same work if the server restarts.
-        """
-        stmt = select(ArchiveDocument).where(ArchiveDocument.description_id == description_id)
-        doc = self.db.execute(stmt).scalar_one_or_none()
-
-        if doc:
-            new_log = dict(doc.execution_log)
-            new_log[worker_name] = "DONE"
-
-            # Replaces and warns SQLAlchemy that the JSON was modified
-            doc.execution_log = new_log
-            flag_modified(doc, "execution_log")
 
     # ==========================================
     # READING AND CURATION (HUMAN-IN-THE-LOOP)
