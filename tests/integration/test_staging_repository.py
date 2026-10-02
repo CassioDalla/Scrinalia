@@ -2,7 +2,7 @@ from sqlalchemy import select
 
 from domains.ingestion.models import RawData
 from domains.staging.models import StagingDocument
-from domains.staging.repository import get_pending_raw_records, upsert_staging_document
+from domains.staging.repository import SqlRawRecordSource, upsert_staging_document
 from domains.staging.schemas import StagingDocumentDTO
 
 # ==========================================
@@ -21,7 +21,7 @@ def test_get_pending_raw_records_finds_new_document(use_test_db, db_session) -> 
     db_session.commit()
 
     # 2. Run the search
-    pending = get_pending_raw_records(db_session)
+    pending = SqlRawRecordSource(db_session).next_batch()
 
     assert len(pending) == 1
     assert pending[0]["description_id"] == "doc-inédito"
@@ -40,7 +40,7 @@ def test_get_pending_raw_records_ignores_synced_documents(use_test_db, db_sessio
     db_session.add_all([raw_data, staging_data])
     db_session.commit()
 
-    pending = get_pending_raw_records(db_session)
+    pending = SqlRawRecordSource(db_session).next_batch()
 
     # Should return nothing, since everything is up to date
     assert len(pending) == 0
@@ -59,7 +59,7 @@ def test_get_pending_raw_records_detects_hash_change(use_test_db, db_session) ->
     db_session.add_all([raw_data, staging_data])
     db_session.commit()
 
-    pending = get_pending_raw_records(db_session)
+    pending = SqlRawRecordSource(db_session).next_batch()
 
     # It must be picked up, because the hash changed!
     assert len(pending) == 1

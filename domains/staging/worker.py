@@ -3,27 +3,40 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.logger import logger
-from domains.staging import repository
+from domains.staging.ports import RawRecordSource, StagingDocumentWriter
+from domains.staging.repository import SqlRawRecordSource, SqlStagingDocumentWriter
 from domains.staging.schemas import StagingDocumentDTO
 
 
-def run_staging_pipeline(db_session: Session) -> None:
+def run_staging_pipeline(
+    db_session: Session,
+    source: RawRecordSource | None = None,
+    writer: StagingDocumentWriter | None = None,
+) -> None:
     """
     Orchestrates the transformation pipeline (Transform/Load) for the Staging layer.
 
     Executes the following atomic steps:
-    1. Fetches pending or outdated raw documents (RawData).
+    1. Fetches pending or outdated raw documents through the ``RawRecordSource`` port.
     2. Validates, sanitizes, and casts data types using the Pydantic schema.
-    3. Updates the structured relational database using repository upserts.
+    3. Persists through the ``StagingDocumentWriter`` port.
     4. Applies savepoints (begin_nested) to ensure faulty documents
     are skipped without aborting the entire batch transaction.
 
+    The ports default to their PostgreSQL adapters, but can be overridden (tests,
+    alternate sources) without the use case knowing about the ingestion ORM.
+
     Args:
         db_session (Session): Active SQLAlchemy session.
+        source (RawRecordSource | None): Input port; defaults to the SQL adapter.
+        writer (StagingDocumentWriter | None): Output port; defaults to the SQL adapter.
     """
 
+    source = source or SqlRawRecordSource(db_session)
+    writer = writer or SqlStagingDocumentWriter(db_session)
+
     logger.info("🔍 Checking pending documents at the Ingestion Domain...")
-    pending_records = repository.get_pending_raw_records(db_session)
+    pending_records = source.next_batch()
 
     total = len(pending_records)
     if total == 0:
@@ -43,7 +56,7 @@ def run_staging_pipeline(db_session: Session) -> None:
 
             # Persistency
             with db_session.begin_nested():
-                repository.upsert_staging_document(db_session, clean_record)
+                writer.save(clean_record)
 
             success += 1
             if i % 50 == 0:
