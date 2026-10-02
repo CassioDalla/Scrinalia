@@ -7,6 +7,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from core.database import get_db
 from core.logger import logger
+from core.unit_of_work import UnitOfWork
 from domains.archive.engines.base import EntityExtractionEngine
 from domains.archive.engines.NER.registry import EngineName as ExtractEngineName
 from domains.archive.engines.NER.registry import PresetName, get_engine
@@ -97,6 +98,7 @@ def execute(
     config = config or NerRunnerConfig()
     columns_to_extract = columns_to_extract or list(config.columns_to_extract)
     repository = EntityRepository(db)
+    uow = UnitOfWork(db)
 
     try:
         logger.info("Loading Extraction Engine and dynamic rules...")
@@ -179,7 +181,7 @@ def execute(
                     ner_results = engine.extract(texts_buffer)
                 except Exception as e:
                     logger.error(f"❌ Failure in the AI processing: {e}")
-                    db.rollback()
+                    uow.rollback()
                     break
 
                 # 4. Application of the Results and Persistence in the Database
@@ -230,10 +232,10 @@ def execute(
                 if batch_links_buffer:
                     repository.bulk_link_entities(batch_links_buffer)
 
-                db.commit()
+                uow.commit()
                 logger.info(f"⏳ Partial progress: {processed_docs_count} documents enriched...")
             except Exception as e:
-                db.rollback()
+                uow.rollback()
                 logger.error(f"💥 Failure committing to the database: {e}")
                 break
 
@@ -241,7 +243,7 @@ def execute(
 
         except Exception as e:
             logger.error(f"❌ Unexpected error in the main loop of the NER Worker: {e}")
-            db.rollback()
+            uow.rollback()
             break
 
     logger.success(f"✅ NER Worker finished! Total processed in this run: {processed_docs_count}")

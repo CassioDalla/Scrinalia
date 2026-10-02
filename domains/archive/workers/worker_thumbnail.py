@@ -10,6 +10,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from core.database import get_db
 from core.logger import logger
 from core.storage import S3Storage
+from core.unit_of_work import UnitOfWork
 from domains.archive.models import ArchiveDocument, ArchiveReviewStatus
 from domains.archive.worker_stamp import THUMBNAIL_FAILED
 
@@ -64,6 +65,7 @@ def execute(db: Session) -> None:
     logger.info("📸 Starting the Thumbnails Worker...")
 
     storage = S3Storage()
+    uow = UnitOfWork(db)
 
     # Fetches images that have not yet been uploaded AND that have not failed permanently.
     # HUMAN_APPROVED documents are left untouched.
@@ -114,13 +116,13 @@ def execute(db: Session) -> None:
             try:
                 doc.execution_log = THUMBNAIL_FAILED.mark(doc.execution_log)
                 flag_modified(doc, "execution_log")
-                db.commit()
+                uow.commit()
             except Exception as stamp_error:
                 logger.critical(f"🔥 Critical failure stamping the error on doc {doc.description_id}: {stamp_error}")
-                db.rollback()
+                uow.rollback()
             continue
 
-    db.commit()
+    uow.commit()
     logger.success(f"✅ Thumbnails Worker finished! {successes} images saved successfully out of {processed} attempts.")
 
 

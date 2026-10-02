@@ -5,6 +5,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from core.database import get_db
 from core.logger import logger
+from core.unit_of_work import UnitOfWork
 from domains.archive.repository.cleaning_repo import CleaningRepository
 from domains.archive.worker_stamp import cleaning_rule_stamp
 
@@ -19,6 +20,7 @@ def execute(db: Session) -> None:
     logger.info("🧹 Starting the Data Quality Cleaner Worker...")
 
     repo = CleaningRepository(db)
+    uow = UnitOfWork(db)
     active_rules = repo.get_active_rules()
 
     if not active_rules:
@@ -71,11 +73,11 @@ def execute(db: Session) -> None:
                     processed_docs += 1
 
                 # Commits the whole batch
-                db.commit()
+                uow.commit()
 
             except Exception as e:
                 logger.error(f"💥 Error committing batch in Rule {rule.rule_id}: {e}")
-                db.rollback()
+                uow.rollback()
                 break  # Skips to the next rule so it does not get stuck
 
         if processed_docs > 0:

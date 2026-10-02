@@ -4,6 +4,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from core.database import get_db
 from core.logger import logger
+from core.unit_of_work import UnitOfWork
 from domains.archive.engines.base import TypologyEngine
 from domains.archive.engines.classification.registry import EngineName, PresetName, get_engine
 from domains.archive.models import ArchiveDocument, ArchiveReviewStatus
@@ -64,6 +65,7 @@ def execute(
     columns_to_classify = columns_to_classify or list(config.columns_to_classify)
 
     repository = TypologyRepository(db)
+    uow = UnitOfWork(db)
 
     try:
         logger.info("Loading Processing Engine...")
@@ -144,7 +146,7 @@ def execute(
                     results = engine.classify(texts_buffer, candidate_labels, batch_size=1)
                 except Exception as e:
                     logger.error(f"❌ Error during pipeline inference: {e}")
-                    db.rollback()
+                    uow.rollback()
                     break
 
                 # Application of the results
@@ -181,10 +183,10 @@ def execute(
                         logger.critical(f"Critical failure trying to stamp the error on doc {doc.description_id}: {e}")
 
             try:
-                db.commit()
+                uow.commit()
                 logger.info(f"⏳ Partial progress: {total_processed} documents processed...")
             except Exception as e:
-                db.rollback()
+                uow.rollback()
                 logger.error(f"💥 Failure committing to the database: {e}")
                 break
 
@@ -192,7 +194,7 @@ def execute(
 
         except Exception as e:
             logger.error(f"❌ Unexpected error processing the batch: {e}")
-            db.rollback()
+            uow.rollback()
             break
 
     logger.success(f"✅ Typology Worker finished! Total processed in this run: {total_processed}")

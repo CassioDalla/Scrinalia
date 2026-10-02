@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.logger import logger
+from core.unit_of_work import UnitOfWork
 from domains.archive.engines.LLMs.registry import EngineName, PresetName, get_engine
 from domains.archive.models import ArchiveReviewStatus
 from domains.archive.models.governance import AnomalyType, ArchiveAIReviewQueue
@@ -25,6 +26,7 @@ def execute(
 
     # 1. Instantiates the repository and the AI Engine using the Registry
     ent_repo = EntityRepository(db)
+    uow = UnitOfWork(db)
 
     try:
         llm_engine = get_engine(engine_name=engine_name, preset=preset)
@@ -114,11 +116,11 @@ def execute(
             db.add(new_log)
             # Iterative commit: If the script is interrupted midway (Timeout/OOM),
             # we do not lose the dozens of evaluations the AI already processed.
-            db.commit()
+            uow.commit()
 
         except Exception as e:
             logger.error(f"❌ Severe error processing the conflict '{row.tag_name}': {e}")
-            db.rollback()
+            uow.rollback()
             failures += 1
             continue
 

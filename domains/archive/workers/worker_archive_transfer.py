@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.logger import logger
+from core.unit_of_work import UnitOfWork
 from domains.archive.models import ArchiveReviewStatus
 from domains.archive.repository import DocumentRepository, TagRepository
 from domains.archive.schemas.document_schema import ArchiveDocumentDTO
@@ -24,6 +25,7 @@ def execute(db_session: Session) -> None:
     tag_repo = TagRepository(db_session)
     doc_repo = DocumentRepository(db_session)
     tag_service = TagService(tag_repo, doc_repo)
+    uow = UnitOfWork(db_session)
 
     # yield_per(BATCH_SIZE) avoids blowing up RAM when fetching thousands of records
     query = select(StagingDocument)
@@ -81,7 +83,7 @@ def execute(db_session: Session) -> None:
                         tag_repo.bulk_link_tags(batch_links)
                         batch_links.clear()
 
-                    db_session.commit()
+                    uow.commit()
                     logger.info(f"⏳ Progress: {success_count} documents transferred to Archive...")
 
         except Exception as e:
@@ -92,10 +94,10 @@ def execute(db_session: Session) -> None:
     try:
         if batch_links:
             tag_repo.bulk_link_tags(batch_links)
-        db_session.commit()
+        uow.commit()
         logger.success(f"✅ Transfer completed! Successes: {success_count} | Failures: {failures}")
     except Exception as e:
-        db_session.rollback()
+        uow.rollback()
         logger.critical(f"🔥 Critical error in the final transfer commit: {e}")
 
 
