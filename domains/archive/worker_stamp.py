@@ -17,11 +17,11 @@ class WorkerStamp:
     key: str
     status: StampStatus = "DONE"
 
-    def applies_to(self, execution_log: dict | None) -> bool:
+    def applies_to(self, execution_log: dict[str, str] | None) -> bool:
         """True when the document has NOT been processed by this worker yet."""
         return not execution_log or self.key not in execution_log
 
-    def mark(self, execution_log: dict | None, status: StampStatus | None = None) -> dict:
+    def mark(self, execution_log: dict[str, str] | None, status: StampStatus | None = None) -> dict[str, str]:
         """Returns a new log dict with this worker's key set to the given status."""
         new_log = dict(execution_log) if execution_log else {}
         new_log[self.key] = status or self.status
