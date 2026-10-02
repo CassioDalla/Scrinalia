@@ -1,4 +1,4 @@
-from domains.archive.domain.governance import AI_LOCKED_REVIEW_STATUSES
+from domains.archive.domain.governance import AI_LOCKED_REVIEW_STATUSES, DocumentWritePolicy
 from domains.archive.domain.normalization import (
     is_blank,
     normalize_entity,
@@ -9,6 +9,7 @@ from domains.archive.domain.normalization import (
 
 __all__ = [
     "AI_LOCKED_REVIEW_STATUSES",
+    "DocumentWritePolicy",
     "is_blank",
     "normalize_entity",
     "normalize_stopword",

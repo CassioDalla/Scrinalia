@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
+from domains.archive.domain.governance import DocumentWritePolicy
 from domains.archive.models import ArchiveCleaningRule, ArchiveDocument
 from domains.archive.repository.governance import ai_writable_documents
 from domains.archive.schemas.cleaning_schema import (
@@ -99,6 +100,10 @@ class CleaningRepository:
         ).all()
 
         for doc in documents:
+            if not DocumentWritePolicy.can_ai_write(doc.review_status):
+                # A human approved the document after the scan; never overwrite human curation.
+                continue
+
             update = updates_by_id[doc.description_id]
             setattr(doc, update.target_column, update.new_text)
 

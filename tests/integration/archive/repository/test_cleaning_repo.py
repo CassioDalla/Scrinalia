@@ -109,3 +109,33 @@ def test_apply_cleaning_rewrites_column_and_stamps(use_test_db, db_session) -> N
     stored = db_session.get(ArchiveDocument, "doc_clean")
     assert stored.original_title == "Avenida Brasil"
     assert stored.execution_log == {"cleaning_rule_7": "DONE"}
+
+
+def test_apply_cleaning_skips_human_approved_documents(use_test_db, db_session) -> None:
+    """Race guard: a document approved after the scan must not be overwritten."""
+    doc = ArchiveDocument(
+        description_id="doc_locked",
+        original_title="av. Brasil",
+        staging_content_hash="h1",
+        review_status=ArchiveReviewStatus.HUMAN_APPROVED,
+    )
+    db_session.add(doc)
+    db_session.commit()
+
+    repo = CleaningRepository(db_session)
+    repo.apply_cleaning(
+        [
+            CleaningUpdateCommand(
+                description_id="doc_locked",
+                target_column="original_title",
+                new_text="Avenida Brasil",
+                stamp_key="cleaning_rule_9",
+            )
+        ]
+    )
+    db_session.commit()
+    db_session.expire_all()
+
+    stored = db_session.get(ArchiveDocument, "doc_locked")
+    assert stored.original_title == "av. Brasil"
+    assert (stored.execution_log or {}) == {}
