@@ -2,6 +2,7 @@ from sqlalchemy import select
 
 from domains.archive.models import ArchiveCleaningRule, ArchiveDocument, ArchiveReviewStatus
 from domains.archive.repository.cleaning_repo import CleaningRepository
+from domains.archive.schemas.cleaning_schema import CleaningUpdateCommand
 from domains.archive.services.cleaning_service import CleaningService
 
 
@@ -83,3 +84,28 @@ def test_deactivate_rule_success(use_test_db, db_session) -> None:
     db_session.expire_all()
     stored = db_session.execute(select(ArchiveCleaningRule).filter_by(rule_id=rule.rule_id)).scalar_one()
     assert stored.is_active is False
+
+
+def test_apply_cleaning_rewrites_column_and_stamps(use_test_db, db_session) -> None:
+    """The write command replaces the target column and records the rule stamp."""
+    doc = ArchiveDocument(description_id="doc_clean", original_title="av. Brasil", staging_content_hash="h1")
+    db_session.add(doc)
+    db_session.commit()
+
+    repo = CleaningRepository(db_session)
+    repo.apply_cleaning(
+        [
+            CleaningUpdateCommand(
+                description_id="doc_clean",
+                target_column="original_title",
+                new_text="Avenida Brasil",
+                stamp_key="cleaning_rule_7",
+            )
+        ]
+    )
+    db_session.commit()
+    db_session.expire_all()
+
+    stored = db_session.get(ArchiveDocument, "doc_clean")
+    assert stored.original_title == "Avenida Brasil"
+    assert stored.execution_log == {"cleaning_rule_7": "DONE"}

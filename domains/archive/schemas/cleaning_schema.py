@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 AllowedColumns = Literal["original_title", "scope_content", "admin_bio_history", "provenance", "archivist_notes"]
 
@@ -45,3 +45,19 @@ class DryRunResponseDTO(BaseModel):
     error_message: str | None = None
     matches_found: int = 0
     samples: list[DryRunMatchDTO] = []
+
+
+class CleanableDocumentDTO(BaseModel):
+    """Read view of a document that a cleaning rule may rewrite."""
+
+    description_id: str
+    text: str = Field(description="Current value of the rule's target column.")
+
+
+class CleaningUpdateCommand(BaseModel):
+    """Write command: replace the target column and stamp the rule in ``execution_log``."""
+
+    description_id: str
+    target_column: AllowedColumns
+    new_text: str
+    stamp_key: str

@@ -25,7 +25,7 @@ class CleaningService:
     def create_cleaning_rule(self, dto: CleaningRuleCreateDTO) -> CleaningRuleDTO:
         # Early validation (Fail Fast)
         self._validate_regex(dto.regex_pattern)
-        return self.repo.create_rule(dto.model_dump())
+        return self.repo.create_rule(dto)
 
     def simulate_dry_run(self, dto: DryRunRequestDTO) -> DryRunResponseDTO:
         """
@@ -41,7 +41,7 @@ class CleaningService:
 
         matches = []
         for doc in docs:
-            original_text = getattr(doc, dto.target_column)
+            original_text = doc.text
 
             # If the Regex finds something in this text
             if original_text and regex.search(original_text):

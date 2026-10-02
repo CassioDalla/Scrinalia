@@ -2,10 +2,17 @@ from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from domains.archive.models import ArchiveCleaningRule, ArchiveDocument
 from domains.archive.repository.governance import ai_writable_documents
-from domains.archive.schemas.cleaning_schema import CleaningRuleDTO
+from domains.archive.schemas.cleaning_schema import (
+    AllowedColumns,
+    CleanableDocumentDTO,
+    CleaningRuleCreateDTO,
+    CleaningRuleDTO,
+    CleaningUpdateCommand,
+)
 from domains.archive.worker_stamp import cleaning_rule_stamp
 
 
@@ -13,8 +20,8 @@ class CleaningRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_rule(self, rule_data: dict) -> CleaningRuleDTO:
-        rule = ArchiveCleaningRule(**rule_data)
+    def create_rule(self, rule_data: CleaningRuleCreateDTO) -> CleaningRuleDTO:
+        rule = ArchiveCleaningRule(**rule_data.model_dump())
         self.db.add(rule)
         self.db.flush()
         return CleaningRuleDTO.model_validate(rule, from_attributes=True)
@@ -39,8 +46,8 @@ class CleaningRepository:
         return CleaningRuleDTO.model_validate(rule, from_attributes=True)
 
     def get_unprocessed_documents_for_rule(
-        self, rule_id: int, target_column: str, limit: int = 500
-    ) -> Sequence[ArchiveDocument]:
+        self, rule_id: int, target_column: AllowedColumns, limit: int = 500
+    ) -> Sequence[CleanableDocumentDTO]:
         """
         Fetches documents that DO NOT YET have the 'rule_X' flag in execution_log
         and where the target column is NOT null.
@@ -49,10 +56,11 @@ class CleaningRepository:
         never overwrite a human's decision.
         """
         rule_key = cleaning_rule_stamp(rule_id).key
+        column = getattr(ArchiveDocument, target_column)
 
         stmt = (
-            select(ArchiveDocument)
-            .where(getattr(ArchiveDocument, target_column).is_not(None))
+            select(ArchiveDocument.description_id, column.label("text"))
+            .where(column.is_not(None))
             .where(ai_writable_documents())
             .where(
                 # Either the log does not exist, or if it does, it does not contain the rule key
@@ -60,14 +68,41 @@ class CleaningRepository:
             )
             .limit(limit)
         )
-        return self.db.scalars(stmt).all()
+        return [CleanableDocumentDTO.model_validate(row._mapping) for row in self.db.execute(stmt)]
 
-    def get_random_sample_for_dry_run(self, target_column: str, limit: int = 200) -> Sequence[ArchiveDocument]:
+    def get_random_sample_for_dry_run(
+        self, target_column: AllowedColumns, limit: int = 200
+    ) -> Sequence[CleanableDocumentDTO]:
         """Fetches a sample of non-null documents to try to find matches for the Dry-Run."""
+        column = getattr(ArchiveDocument, target_column)
         stmt = (
-            select(ArchiveDocument)
-            .where(getattr(ArchiveDocument, target_column).is_not(None))
+            select(ArchiveDocument.description_id, column.label("text"))
+            .where(column.is_not(None))
             .where(ai_writable_documents())
             .limit(limit)
         )
-        return self.db.scalars(stmt).all()
+        return [CleanableDocumentDTO.model_validate(row._mapping) for row in self.db.execute(stmt)]
+
+    def apply_cleaning(self, updates: Sequence[CleaningUpdateCommand]) -> None:
+        """
+        Applies a batch of column replacements and rule stamps.
+
+        The rows are loaded by description_id (usually already in the identity map
+        after the scan) and mutated in place; the caller owns the commit.
+        """
+        if not updates:
+            return
+
+        updates_by_id = {update.description_id: update for update in updates}
+        documents = self.db.scalars(
+            select(ArchiveDocument).where(ArchiveDocument.description_id.in_(updates_by_id))
+        ).all()
+
+        for doc in documents:
+            update = updates_by_id[doc.description_id]
+            setattr(doc, update.target_column, update.new_text)
+
+            current_log = dict(doc.execution_log) if doc.execution_log else {}
+            current_log[update.stamp_key] = "DONE"
+            doc.execution_log = current_log
+            flag_modified(doc, "execution_log")

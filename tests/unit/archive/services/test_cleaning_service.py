@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from domains.archive.exceptions import InvalidParam
 from domains.archive.models.governance import ArchiveCleaningRule
 from domains.archive.schemas.cleaning_schema import (
+    CleanableDocumentDTO,
     CleaningRuleCreateDTO,
     CleaningRuleDTO,
     DryRunRequestDTO,
@@ -30,14 +31,6 @@ def mock_repo():
 def cleaning_service(mock_repo):
     """Injects the fake repository into our real service."""
     return CleaningService(mock_repo)
-
-
-class MockArchiveDocument:
-    """Simple class to simulate the documents returned by the Repository."""
-
-    def __init__(self, description_id, text):
-        self.description_id = description_id
-        self.original_title = text  # We will simulate the 'original_title' column
 
 
 # ==========================================
@@ -111,9 +104,9 @@ def test_simulate_dry_run_with_matches(cleaning_service, mock_repo):
 
     # Mocks the repository to return 3 documents (2 with the anomaly, 1 clean)
     mock_repo.get_random_sample_for_dry_run.return_value = [
-        MockArchiveDocument("BR_01", "av. República Argentina"),
-        MockArchiveDocument("BR_02", "av Silva Jardim"),
-        MockArchiveDocument("BR_03", "Rua XV de Novembro"),  # Must not match
+        CleanableDocumentDTO(description_id="BR_01", text="av. República Argentina"),
+        CleanableDocumentDTO(description_id="BR_02", text="av Silva Jardim"),
+        CleanableDocumentDTO(description_id="BR_03", text="Rua XV de Novembro"),  # Must not match
     ]
 
     result = cleaning_service.simulate_dry_run(dto)

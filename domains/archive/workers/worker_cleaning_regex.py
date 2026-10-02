@@ -1,12 +1,12 @@
 import re
 
 from sqlalchemy.orm import Session
-from sqlalchemy.orm.attributes import flag_modified
 
 from core.database import get_db
 from core.logger import logger
 from core.unit_of_work import UnitOfWork
 from domains.archive.repository.cleaning_repo import CleaningRepository
+from domains.archive.schemas.cleaning_schema import CleaningUpdateCommand
 from domains.archive.worker_stamp import cleaning_rule_stamp
 
 BATCH_SIZE = 500
@@ -52,25 +52,24 @@ def execute(db: Session) -> None:
                 break  # End of the scan for this rule!
 
             try:
+                updates: list[CleaningUpdateCommand] = []
                 for doc in batch_docs:
-                    original_text = getattr(doc, rule.target_column)
+                    cleaned_text = compiled_regex.sub(rule.replacement_string, doc.text)
 
-                    if original_text:
-                        # Applies the Pythonic cleaning
-                        cleaned_text = compiled_regex.sub(rule.replacement_string, original_text)
+                    if cleaned_text != doc.text:
+                        changes_made += 1
 
-                        if cleaned_text != original_text:
-                            # Overwrites the column in the model
-                            setattr(doc, rule.target_column, cleaned_text)
-                            changes_made += 1
-
-                    # Regardless of whether it changed or not, we stamp it so we never look again
-                    current_log = dict(doc.execution_log) if doc.execution_log else {}
-                    current_log[rule_key] = "DONE"
-                    doc.execution_log = current_log
-                    flag_modified(doc, "execution_log")
-
+                    updates.append(
+                        CleaningUpdateCommand(
+                            description_id=doc.description_id,
+                            target_column=rule.target_column,
+                            new_text=cleaned_text,
+                            stamp_key=rule_key,
+                        )
+                    )
                     processed_docs += 1
+
+                repo.apply_cleaning(updates)
 
                 # Commits the whole batch
                 uow.commit()
