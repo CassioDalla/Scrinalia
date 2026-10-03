@@ -9,14 +9,17 @@ Three-layer pipeline, each layer a domain under `src/memoria_curitibana/domains/
 - Layout: `src/memoria_curitibana/` is the installed namespace (`api/`, `core/`, `domains/`,
   `dashboard/`). `main.py` at the root only re-exports `memoria_curitibana.asgi.app` so
   `uvicorn main:app` keeps working; put application code in the package, never in `main.py`.
-  `testing/`, `migrations/`, `scripts/` and `docs/` live **outside** the package on purpose.
+  `testing/`, `migrations/` and `docs/` live **outside** the package on purpose. There is no
+  `scripts/`: one-off tooling is deleted once it has served its purpose instead of being kept
+  at the root, where it rots with stale imports.
   See `docs/adr/0002-src-layout-and-internal-namespace.md`.
 - API: Litestar, assembled in `src/memoria_curitibana/asgi.py` (`create_app()`), NOT FastAPI.
   Decision recorded in `docs/adr/0001-litestar-as-http-framework.md`.
 - Front: Streamlit dashboard in `src/memoria_curitibana/dashboard/`, **temporary** — the intent is to migrate to a backend + React frontend. Treat the API as the stable interface and avoid coupling new features to Streamlit.
 - Code is written in **English**: filenames, identifiers, comments, docstrings, log messages and internal error messages. Only end-user-visible text stays Portuguese (see Language below). Commits follow Conventional Commits.
-- `README.md` is empty; the roadmap lives in `TODO.md` and the accepted architecture
-  decisions in `docs/adr/`.
+- `README.md` is the front door for newcomers (what the system is, how to run it); the roadmap
+  lives in `TODO.md` and the accepted architecture decisions in `docs/adr/`. Keep all three in
+  step with the code, and never state something in them that you have not verified.
 
 ## Commands
 Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).

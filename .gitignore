@@ -7,13 +7,16 @@ wheels/
 *.egg-info
 .vscode
 .env
-logs
+logs/
 .coverage
+coverage.xml
 /htmlcov
+.pytest_cache/
+.ruff_cache/
+*.log
 
 # Virtual environments
 .venv
-
 
 # Dados
 *.csv
