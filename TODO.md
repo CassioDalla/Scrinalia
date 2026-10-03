@@ -8,7 +8,7 @@ arquivístico (DDD + micro-workers + HITL).
 > pendente. Quando um item está parcialmente pronto, ele aparece como `[~]` com a descrição
 > explícita do que existe e do que falta.
 >
-> **Estado do gate de qualidade:** suíte **266 testes** passando (unit + integração),
+> **Estado do gate de qualidade:** suíte **270 testes** passando (unit + integração),
 > `ruff check`/`ruff format --check` limpos, `basedpyright` 0 erros,
 > `alembic upgrade head` + `alembic check` sem drift.
 
@@ -170,24 +170,33 @@ O eixo semântico de assuntos está modelado e pela metade implementado. Hoje a 
   single-label (usa a FK existente, zero migração). Multi-label exige tabela de junção.
   **Não fazer antes de resolver o defeito de rótulo abaixo.**
 
-### ⚠️ Defeito descoberto na verificação (bloqueia a qualidade do eixo)
+### ✅ Defeito de rótulo — **corrigido**
 
-- [ ] **Rótulo `"Nome - descrição"` faz o mDeBERTa colapsar todas as tags na primeira
-  categoria.** Achado durante a verificação ponta a ponta com engine real:
-  - Com rótulos **nus** (`["Urbanismo", "Saúde"]`) a classificação é **correta**:
-    `epidemia de dengue → Saúde (0.99)`, `pavimentação de vias → Urbanismo (0.99)`.
-  - Com os rótulos **descritivos** que o worker monta (`"Urbanismo - obras, vias e mobilidade
-    urbana"`), **todas** as 4 tags vão para Urbanismo — inclusive `epidemia de dengue` (0.73)
-    e `hospital municipal` (0.86), que deveriam ser Saúde.
-  - **Não é posição:** inverter a ordem da lista dá exatamente o mesmo resultado. É o
-    **conteúdo do rótulo**.
-  - **Não é novo:** o `worker_typology` usa o mesmo formato `f"{name}: {description}"`, logo
-    o defeito é anterior a esta sessão e afeta tipologia também. A convenção está isolada em
-    `get_active_macro_categories` (e em `TypologyRepository.get_active_typologies`).
-  - **Direção sugerida:** classificar contra o **nome nu** e usar a descrição como contexto
-    em outro ponto (ex.: `hypothesis_template`), com um teste que compare rótulo nu ×
-    descritivo no mesmo conjunto. Enquanto isso não for resolvido, um curador que preencha
-    a descrição **piora** o resultado.
+- [x] **Rótulo `"Nome: descrição"` fazia o mDeBERTa colapsar tudo na primeira categoria.**
+  Achado durante a verificação ponta a ponta com engine real e **corrigido**:
+  - **Causa raiz (medida, não suposta):** não era plumbing nem ordem de lista — o modelo
+    perde progressivamente o entailment conforme o rótulo cresce. Degradação gradual, e por
+    isso uma confiança alta não denuncia o erro:
+
+    | Descrição no rótulo | `epidemia de dengue` | Confiança |
+    | --- | --- | --- |
+    | sem descrição | **Saúde** ✅ | 0.99 |
+    | 1 palavra | **Saúde** ✅ | 0.99 |
+    | 2 palavras | **Saúde** ✅ | 0.90 |
+    | 4 palavras | **Saúde** ✅ | 0.62 |
+    | descrição longa | **Urbanismo** ❌ | 0.98 |
+
+  - **Correção:** os rótulos enviados ao engine passaram a ser o **nome nu**
+    (`get_active_macro_categories` e `get_active_typologies`).
+  - **`hypothesis_template` foi testado e descartado como canal:** com rótulos descritivos,
+    o template recomendado pelo model card *piora* o resultado (0.73 → 0.81 para o lado
+    errado). Não levar a descrição para o template.
+  - **A descrição permanece no schema** como documentação da gaveta para o curador, com o
+    motivo da exclusão registrado no docstring — para ninguém reintroduzir a concatenação.
+  - **Verificado com engine real:** macro categorias 4/4 corretas (era 0/4 no mesmo cenário),
+    tipologia 2/2, votos corretos no `DocumentSummary`.
+  - **Guardas de regressão:** 6 testes falham se a concatenação voltar (repositório, payload
+    do worker e unitário) — verificado reintroduzindo o bug de propósito.
 
 ### API e payload
 
@@ -351,15 +360,15 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 
 | Verificação | Resultado |
 | --- | --- |
-| `pytest` (unit + integração) | **266 passed** |
+| `pytest` (unit + integração) | **270 passed** |
 | `ruff check` / `ruff format --check` | limpos (180 arquivos) |
 | `basedpyright` | **0 errors, 0 warnings** |
 | `alembic upgrade head` + `alembic check` | aplica; **sem drift** |
 | `raw_data` → `run_staging_pipeline` | 2/2 docs; datas e ISAD(G) corretos |
 | worker `transfer` | 2 docs, 7 tags vinculadas |
 | worker `ner` (spaCy real) | entidades extraídas e vinculadas |
-| worker `typology` (mDeBERTa real) | classificou e carimbou |
-| worker `macro-category` (mDeBERTa real) | **todas as tags carimbadas, IDs e scores corretos** |
+| worker `typology` (mDeBERTa real) | classificou e carimbou; **2/2 corretas** após corrigir o rótulo |
+| worker `macro-category` (mDeBERTa real) | **4/4 categorias corretas** após corrigir o rótulo (antes: 0/4) |
 | `HUMAN_APPROVED` bloqueia IA | confirmado — o worker de tipologia ignorou o doc aprovado |
 | `reclassify_entity` → EntityRuler | PER→ORG propagou para o NER (ciclo completo) |
 | `POST /tags/suggest-macro` | **corrigido**: 41 tags → 3 clusters; 6 tags → vazio com mensagem |
@@ -368,11 +377,13 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 
 ### Bugs conhecidos e abertos
 
-1. **Rótulo `"Nome - descrição"` colapsa o mDeBERTa na primeira categoria** — afeta
-   `worker_macro_category` e `worker_typology` — Fase 1.5.
-2. **Ancoragem "isto é TAG" não existe** — o juiz LLM apaga a entidade sem gravar bloqueio
+1. **Ancoragem "isto é TAG" não existe** — o juiz LLM apaga a entidade sem gravar bloqueio
    durável — Fase 1.
-3. **Lematização de tags ausente** — duplicação na origem — Fase 3.
-4. **`semantic_search_vector` nunca preenchido** — a busca híbrida prometida não existe — Fase 3.
-5. **`is_anomaly`, `anomaly_reasons` sem produtor** — colunas mortas.
-6. **Sem autenticação** — bloqueio para exposição pública — Fase 4.
+2. **Lematização de tags ausente** — duplicação na origem — Fase 3.
+3. **`semantic_search_vector` nunca preenchido** — a busca híbrida prometida não existe — Fase 3.
+4. **`is_anomaly`, `anomaly_reasons` sem produtor** — colunas mortas.
+5. **Sem autenticação** — bloqueio para exposição pública — Fase 4.
+
+> **Corrigido em 2026-10-03:** o rótulo `"Nome: descrição"` colapsava o mDeBERTa na
+> primeira categoria, em `worker_macro_category` **e** `worker_typology`. Classificação
+> agora usa o nome nu; ver Fase 1.5 para a medição que isolou a causa.

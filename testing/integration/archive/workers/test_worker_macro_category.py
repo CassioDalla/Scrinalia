@@ -108,6 +108,54 @@ def test_worker_never_touches_already_categorized_tags(use_test_db, db_session, 
     ai_instance.classify.assert_not_called()
 
 
+def test_worker_sends_bare_category_names_to_the_engine(use_test_db, db_session, mock_registry):
+    """
+    Regression guard: the candidate labels reaching the engine must be bare names.
+
+    A ``"Name: description"`` label makes mDeBERTa collapse every tag onto one category
+    with high confidence, so this asserts the exact payload the engine receives.
+    """
+    db_session.add(ArchiveMacroCategory(name="Urbanismo", description="Obras, vias e mobilidade urbana"))
+    db_session.add(ArchiveMacroCategory(name="Saúde", description="Epidemias, hospitais e saneamento"))
+    db_session.add(ArchiveTag(name="pavimentação"))
+    db_session.commit()
+
+    MockClass = mock_registry(typology_registry)
+    ai_instance = MockClass.return_value
+    ai_instance.classify.return_value = [{"labels": ["Urbanismo"], "scores": [0.90]}]
+
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
+
+    args, kwargs = ai_instance.classify.call_args
+    _texts, candidate_labels = args
+    assert candidate_labels == ["Urbanismo", "Saúde"]
+    assert all(":" not in label for label in candidate_labels)
+    assert all("Obras" not in label and "Epidemias" not in label for label in candidate_labels)
+    assert kwargs["batch_size"] == 1
+
+
+def test_worker_links_correct_category_when_description_is_filled(use_test_db, db_session, mock_registry):
+    """A filled description must not change which label the engine is asked about."""
+    db_session.add(ArchiveMacroCategory(name="Urbanismo", description="Obras e vias"))
+    health = ArchiveMacroCategory(name="Saúde", description="Epidemias e hospitais")
+    db_session.add(health)
+    db_session.add(ArchiveTag(name="epidemia de dengue"))
+    db_session.commit()
+    health_id = health.category_id
+
+    # The engine answers with the bare name, which is what it now receives.
+    MockClass = mock_registry(typology_registry)
+    ai_instance = MockClass.return_value
+    ai_instance.classify.side_effect = lambda texts, candidate_labels, **kwargs: [
+        {"labels": [candidate_labels[1]], "scores": [0.99]} for _ in texts
+    ]
+
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
+
+    tag = db_session.query(ArchiveTag).filter_by(name="epidemia de dengue").one()
+    assert tag.macro_category_id == health_id
+
+
 def test_worker_respects_the_batch_size(use_test_db, db_session, mock_registry):
     category = ArchiveMacroCategory(name="Urbanismo")
     db_session.add(category)

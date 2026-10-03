@@ -146,28 +146,25 @@ class TagRepository:
 
     def get_active_macro_categories(self) -> dict[str, int]:
         """
-        Builds the label -> id map the classification engine reads.
+        Builds the name -> id map the classification engine reads.
 
-        The label mirrors the typology convention (``"Name: description"``) because the
-        description is the context the curator writes when converting a suggested cluster
-        into an official category, and it is what lets the zero-shot model tell apart
-        categories whose names are close.
+        Only the bare name is used as the candidate label. Concatenating the description
+        (``"Name: description"``) makes the model progressively lose the entailment as the
+        label grows, until it collapses every input onto a single category: measured on
+        ``mDeBERTa-v3-base-mnli-xnli``, ``"epidemia de dengue"`` is correctly labelled
+        "Saúde" (0.99) with bare names but flips to "Urbanismo" once the descriptions are
+        appended — with 0.98 confidence on the wrong label, so a threshold cannot catch it.
+        The description stays in the schema as curator-facing documentation, and is
+        deliberately kept out of the prompt.
 
         Returns:
-            dict[str, int]: e.g. ``{"Urbanismo: obras e vias": 3}``.
+            dict[str, int]: e.g. ``{"Urbanismo": 3}``.
         """
-        stmt = select(
-            ArchiveMacroCategory.category_id,
-            ArchiveMacroCategory.name,
-            ArchiveMacroCategory.description,
-        ).where(ArchiveMacroCategory.is_active.is_(True))
+        stmt = select(ArchiveMacroCategory.category_id, ArchiveMacroCategory.name).where(
+            ArchiveMacroCategory.is_active.is_(True)
+        )
 
-        categories_map: dict[str, int] = {}
-        for category_id, name, description in self.db.execute(stmt).all():
-            label = f"{name}: {description}" if description else name
-            categories_map[label] = category_id
-
-        return categories_map
+        return {name: category_id for category_id, name in self.db.execute(stmt).all()}
 
     def create_macro_category(self, name: str, description: str | None) -> ArchiveMacroCategoryEntityDTO:
         """Inserts an official macro category. Uniqueness of ``name`` is enforced by the schema."""

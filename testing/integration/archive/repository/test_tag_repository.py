@@ -232,7 +232,14 @@ def test_get_macro_categories_filters_inactive(use_test_db, db_session):
 
 
 def test_get_active_macro_categories_builds_classifier_labels(use_test_db, db_session):
-    """The label carries the description so the zero-shot model can disambiguate, and inactive ones are out."""
+    """
+    The classifier reads bare names, and inactive categories are excluded.
+
+    Regression: the label used to be ``"Name: description"``. Appending the description
+    made mDeBERTa progressively lose the entailment until it collapsed every tag onto a
+    single category, with high confidence on the wrong answer — so a curator who filled
+    the description made classification worse. The description stays as documentation.
+    """
     repo = TagRepository(db_session)
     urban = repo.create_macro_category(name="Urbanismo", description="Obras e vias")
     health = repo.create_macro_category(name="Saúde", description=None)
@@ -240,7 +247,8 @@ def test_get_active_macro_categories_builds_classifier_labels(use_test_db, db_se
     repo.update_macro_category(dead.category_id, {"is_active": False})
     db_session.commit()
 
-    assert repo.get_active_macro_categories() == {
-        "Urbanismo: Obras e vias": urban.category_id,
-        "Saúde": health.category_id,
-    }
+    labels = repo.get_active_macro_categories()
+
+    assert labels == {"Urbanismo": urban.category_id, "Saúde": health.category_id}
+    assert all(":" not in label for label in labels)
+    assert "Obras e vias" not in labels
