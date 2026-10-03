@@ -14,6 +14,7 @@ from memoria_curitibana.domains.archive.exceptions import (
     EngineExecutionError,
     InvalidMergeError,
     InvalidParam,
+    MacroCategoryNotFoundError,
     TagNotFoundError,
 )
 
@@ -26,7 +27,9 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
     # Defines a default error in case the specific exception is not mapped
     status_code = HTTP_400_BAD_REQUEST
 
-    if isinstance(exc, (TagNotFoundError, DocumentNotFoundError, CleaningRuleNotFoundError)):
+    if isinstance(
+        exc, (TagNotFoundError, DocumentNotFoundError, CleaningRuleNotFoundError, MacroCategoryNotFoundError)
+    ):
         status_code = HTTP_404_NOT_FOUND
 
     elif isinstance(exc, (InvalidParam, InvalidMergeError)):

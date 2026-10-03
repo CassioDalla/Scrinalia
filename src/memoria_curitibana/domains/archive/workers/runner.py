@@ -10,6 +10,7 @@ from memoria_curitibana.core.logger import logger
 from memoria_curitibana.domains.archive.workers import (
     worker_archive_transfer,
     worker_cleaning_regex,
+    worker_macro_category,
     worker_ner,
     worker_resolve_tag_entity_conflict,
     worker_thumbnail,
@@ -26,10 +27,21 @@ WORKERS: dict[str, WorkerFn] = {
     "typology": worker_typology.execute,
     "thumbnail": worker_thumbnail.execute,
     "conflict-judge": worker_resolve_tag_entity_conflict.execute,
+    "macro-category": worker_macro_category.execute,
 }
 
-# Recommended execution order for the enrichment pipeline.
-PIPELINE_ORDER = ["transfer", "cleaning", "ner", "typology", "thumbnail", "conflict-judge"]
+# Recommended execution order for the enrichment pipeline. The macro-category step runs
+# last: it depends on the tags already existing and on the curators having registered the
+# categories (usually from a cluster suggestion) it classifies against.
+PIPELINE_ORDER = [
+    "transfer",
+    "cleaning",
+    "ner",
+    "typology",
+    "thumbnail",
+    "conflict-judge",
+    "macro-category",
+]
 
 
 def run_worker(

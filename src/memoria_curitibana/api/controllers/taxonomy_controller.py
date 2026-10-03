@@ -12,12 +12,21 @@ from memoria_curitibana.api.schemas.taxonomy import (
     ConflictResolutionRequest,
     ConflictResolutionResponse,
     CrossDomainConflictListResponse,
+    MacroCategoryCreateRequest,
+    MacroCategoryUpdateRequest,
     MergeRequest,
     ReclassifyEntityRequest,
     StopwordsRequest,
     SuggestMacroRequest,
 )
-from memoria_curitibana.domains.archive.schemas import MergeEntityCommand, MergeTagsCommand, ResolveConflictCommand
+from memoria_curitibana.domains.archive.schemas import (
+    ArchiveMacroCategoryEntityDTO,
+    CreateMacroCategoryCommand,
+    MergeEntityCommand,
+    MergeTagsCommand,
+    ResolveConflictCommand,
+    UpdateMacroCategoryCommand,
+)
 from memoria_curitibana.domains.archive.schemas.entity_schema import EntityRelevanceResponse, EntitySimilarityResponse
 from memoria_curitibana.domains.archive.schemas.tag_schema import (
     MacroCategoriesSuggestionResponse,
@@ -93,15 +102,19 @@ class TaxonomyController(Controller):
             source_type=data.source_type, columns_to_extract=data.columns_to_extract
         )
 
-        if not texts_to_analyze or len(texts_to_analyze) < 10:
+        # Imported here because the suggestion worker reaches the clustering registry,
+        # which is what drags BERTopic (about ten seconds) into the process. Only this
+        # route needs it, so the API must not pay for it at import time. The guard below
+        # reads the worker's own floor, so the API cannot drift from the engine.
+        from memoria_curitibana.domains.archive.workers.worker_suggest_macro_category import (
+            MIN_TEXTS_TO_CLUSTER,
+            run_suggestion_engine,
+        )
+
+        if not texts_to_analyze or len(texts_to_analyze) < MIN_TEXTS_TO_CLUSTER:
             return MacroCategoriesSuggestionResponse(
                 total_suggestions=0, categories=[], message="⚠️ Textos insuficientes para formar clusters semânticos."
             )
-
-        # Imported here because the suggestion worker reaches the clustering registry,
-        # which is what drags BERTopic (about ten seconds) into the process. Only this
-        # route needs it, so the API must not pay for it at import time.
-        from memoria_curitibana.domains.archive.workers.worker_suggest_macro_category import run_suggestion_engine
 
         # anyio.to_process.run_sync receives the function and then its positional arguments.
         results = await anyio.to_process.run_sync(
@@ -110,6 +123,37 @@ class TaxonomyController(Controller):
         )
 
         return results
+
+    @get("/macro-categories", sync_to_thread=True)
+    def list_macro_categories(
+        self,
+        tag_service: NamedDependency[TagService],
+        only_active: FromQuery[bool] = False,
+    ) -> list[ArchiveMacroCategoryEntityDTO]:
+        """Lists the official macro categories (the subject axis of the collection)."""
+        return tag_service.list_macro_categories(only_active=only_active)
+
+    @post("/macro-categories", sync_to_thread=True)
+    def create_macro_category(
+        self,
+        tag_service: NamedDependency[TagService],
+        data: MacroCategoryCreateRequest,
+    ) -> ArchiveMacroCategoryEntityDTO:
+        """Registers a macro category. A duplicate name is rejected with 409."""
+        return tag_service.create_macro_category(
+            CreateMacroCategoryCommand(name=data.name, description=data.description)
+        )
+
+    @patch("/macro-categories/{category_id:int}", sync_to_thread=True)
+    def update_macro_category(
+        self,
+        tag_service: NamedDependency[TagService],
+        category_id: FromPath[int],
+        data: MacroCategoryUpdateRequest,
+    ) -> ArchiveMacroCategoryEntityDTO:
+        """Renames, re-describes or (de)activates a macro category."""
+        command = UpdateMacroCategoryCommand(**data.model_dump(exclude_unset=True))
+        return tag_service.update_macro_category(category_id, command)
 
     @get("/entities/relevance", sync_to_thread=True)
     def get_entity_relevance(

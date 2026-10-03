@@ -184,3 +184,63 @@ def test_bulk_link_tags_worker_optimization(use_test_db, db_session, generate_ar
     affected_docs = {v.description_id for v in links}
     assert "doc_bulk_1" in affected_docs
     assert "doc_bulk_2" in affected_docs
+
+
+# ==========================================
+# MACRO CATEGORY CRUD (SUBJECT AXIS)
+# ==========================================
+
+
+def test_create_macro_category_returns_the_persisted_entity(use_test_db, db_session):
+    repo = TagRepository(db_session)
+
+    created = repo.create_macro_category(name="Urbanismo", description="Obras e vias")
+
+    assert created.category_id is not None
+    assert created.name == "Urbanismo"
+    assert created.description == "Obras e vias"
+    assert created.is_active is True
+    assert db_session.get(ArchiveMacroCategory, created.category_id).name == "Urbanismo"
+
+
+def test_update_macro_category_renames_and_deactivates(use_test_db, db_session):
+    repo = TagRepository(db_session)
+    created = repo.create_macro_category(name="Saúde", description=None)
+
+    updated = repo.update_macro_category(created.category_id, {"name": "Saúde Pública", "is_active": False})
+
+    assert updated is not None
+    assert updated.name == "Saúde Pública"
+    assert updated.is_active is False
+
+
+def test_update_macro_category_returns_none_when_missing(use_test_db, db_session):
+    repo = TagRepository(db_session)
+
+    assert repo.update_macro_category(9999, {"name": "Fantasma"}) is None
+
+
+def test_get_macro_categories_filters_inactive(use_test_db, db_session):
+    repo = TagRepository(db_session)
+    repo.create_macro_category(name="Ativa", description=None)
+    inactive = repo.create_macro_category(name="Inativa", description=None)
+    repo.update_macro_category(inactive.category_id, {"is_active": False})
+    db_session.commit()
+
+    assert {c.name for c in repo.get_macro_categories()} == {"Ativa", "Inativa"}
+    assert [c.name for c in repo.get_macro_categories(only_active=True)] == ["Ativa"]
+
+
+def test_get_active_macro_categories_builds_classifier_labels(use_test_db, db_session):
+    """The label carries the description so the zero-shot model can disambiguate, and inactive ones are out."""
+    repo = TagRepository(db_session)
+    urban = repo.create_macro_category(name="Urbanismo", description="Obras e vias")
+    health = repo.create_macro_category(name="Saúde", description=None)
+    dead = repo.create_macro_category(name="Descontinuada", description="não deve entrar")
+    repo.update_macro_category(dead.category_id, {"is_active": False})
+    db_session.commit()
+
+    assert repo.get_active_macro_categories() == {
+        "Urbanismo: Obras e vias": urban.category_id,
+        "Saúde": health.category_id,
+    }

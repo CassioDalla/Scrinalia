@@ -12,6 +12,7 @@ from sqlalchemy import (
     Text,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from memoria_curitibana.core.base import Base
@@ -46,6 +47,12 @@ class ArchiveTag(Base):
     )
     ai_confidence_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 
+    # Idempotency ledger of the AI workers that processed this tag. Mirrors
+    # ``ArchiveDocument.execution_log``: the pending query filters on the absence
+    # of a versioned key instead of on nullable business columns, so a tag whose
+    # winner scored below the threshold is stamped and not retried forever.
+    execution_log: Mapped[dict[str, str] | None] = mapped_column(JSONB, nullable=True)
+
     descriptions: Mapped[list["ArchiveDocument"]] = relationship(
         secondary="archive_document_tags", back_populates="tags"
     )
@@ -60,6 +67,8 @@ class ArchiveTag(Base):
             postgresql_using="gin",
             postgresql_ops={"name": "gin_trgm_ops"},
         ),
+        # GIN index used by the macro-category worker to poll unprocessed tags.
+        Index("ix_archive_tags_exec_log", execution_log, postgresql_using="gin"),
     )
 
 

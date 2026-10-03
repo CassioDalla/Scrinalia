@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import cast
+from typing import Any, cast
 
 from sqlalchemy import CursorResult, Float, delete, desc, func, select, text
 from sqlalchemy.dialects.postgresql import insert
@@ -121,7 +121,13 @@ class TagRepository:
         results = self.db.scalars(stmt).all()
         return set(results)
 
-    def get_macro_categories(self) -> list[ArchiveMacroCategoryEntityDTO]:
+    def get_macro_categories(self, only_active: bool = False) -> list[ArchiveMacroCategoryEntityDTO]:
+        """
+        Lists the macro categories of the collection.
+
+        Args:
+            only_active: When ``True``, hides the categories a curator deactivated.
+        """
 
         stmt = select(
             ArchiveMacroCategory.category_id,
@@ -130,8 +136,57 @@ class TagRepository:
             ArchiveMacroCategory.is_active,
         )
 
+        if only_active:
+            stmt = stmt.where(ArchiveMacroCategory.is_active.is_(True))
+
+        stmt = stmt.order_by(ArchiveMacroCategory.name)
+
         results = self.db.execute(stmt).mappings().all()
         return [ArchiveMacroCategoryEntityDTO.model_validate(r) for r in results]
+
+    def get_active_macro_categories(self) -> dict[str, int]:
+        """
+        Builds the label -> id map the classification engine reads.
+
+        The label mirrors the typology convention (``"Name: description"``) because the
+        description is the context the curator writes when converting a suggested cluster
+        into an official category, and it is what lets the zero-shot model tell apart
+        categories whose names are close.
+
+        Returns:
+            dict[str, int]: e.g. ``{"Urbanismo: obras e vias": 3}``.
+        """
+        stmt = select(
+            ArchiveMacroCategory.category_id,
+            ArchiveMacroCategory.name,
+            ArchiveMacroCategory.description,
+        ).where(ArchiveMacroCategory.is_active.is_(True))
+
+        categories_map: dict[str, int] = {}
+        for category_id, name, description in self.db.execute(stmt).all():
+            label = f"{name}: {description}" if description else name
+            categories_map[label] = category_id
+
+        return categories_map
+
+    def create_macro_category(self, name: str, description: str | None) -> ArchiveMacroCategoryEntityDTO:
+        """Inserts an official macro category. Uniqueness of ``name`` is enforced by the schema."""
+        category = ArchiveMacroCategory(name=name, description=description)
+        self.db.add(category)
+        self.db.flush()
+        return ArchiveMacroCategoryEntityDTO.model_validate(category)
+
+    def update_macro_category(self, category_id: int, changes: dict[str, Any]) -> ArchiveMacroCategoryEntityDTO | None:
+        """Applies a partial update. Returns ``None`` when the category does not exist."""
+        category = self.db.get(ArchiveMacroCategory, category_id)
+        if category is None:
+            return None
+
+        for field, value in changes.items():
+            setattr(category, field, value)
+
+        self.db.flush()
+        return ArchiveMacroCategoryEntityDTO.model_validate(category)
 
     def purge_tags_by_stopwords(self, stopwords: set[str]) -> int:
         """Mass deletes all tags that match the stopwords list."""

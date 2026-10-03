@@ -4,11 +4,17 @@ from typing import Literal
 
 from memoria_curitibana.core.logger import logger
 from memoria_curitibana.domains.archive.domain.normalization import normalize_stopword, normalize_tag
-from memoria_curitibana.domains.archive.exceptions import InvalidMergeError, InvalidParam
+from memoria_curitibana.domains.archive.exceptions import (
+    InvalidMergeError,
+    InvalidParam,
+    MacroCategoryNotFoundError,
+)
 from memoria_curitibana.domains.archive.ports.document import DocumentRepositoryPort
 from memoria_curitibana.domains.archive.ports.taxonomy import TagRepositoryPort
 from memoria_curitibana.domains.archive.schemas import (
+    ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
+    CreateMacroCategoryCommand,
     MergeResponse,
     MergeTagsCommand,
     SynonymCommand,
@@ -16,6 +22,7 @@ from memoria_curitibana.domains.archive.schemas import (
     TagRelevanceCount,
     TagRelevanceIdf,
     TagSimilarity,
+    UpdateMacroCategoryCommand,
 )
 
 
@@ -229,3 +236,42 @@ class TagService:
             texts_to_analyze = self.document_repo.fetch_documents_for_clustering(columns_to_extract=columns_to_extract)
 
         return texts_to_analyze
+
+    # ==========================================
+    # MACRO CATEGORIES (SUBJECT AXIS)
+    # ==========================================
+
+    def list_macro_categories(self, only_active: bool = False) -> list[ArchiveMacroCategoryEntityDTO]:
+        """Lists the official macro categories of the collection."""
+        return self.repo.get_macro_categories(only_active=only_active)
+
+    def create_macro_category(self, command: CreateMacroCategoryCommand) -> ArchiveMacroCategoryEntityDTO:
+        """
+        Turns a curated cluster suggestion into an official macro category.
+
+        Uniqueness of the name is enforced by the schema, so a duplicate surfaces as an
+        ``IntegrityError`` and is translated to 409 by the API, not silently swallowed.
+        """
+        name = command.name.strip()
+        if not name:
+            raise InvalidParam("O nome da macro categoria não pode ser vazio.")
+
+        logger.info(f"🏷️ Registering macro category '{name}'...")
+        return self.repo.create_macro_category(name=name, description=command.description)
+
+    def update_macro_category(
+        self, category_id: int, command: UpdateMacroCategoryCommand
+    ) -> ArchiveMacroCategoryEntityDTO:
+        """Partially updates a macro category. Only the fields sent by the client are touched."""
+        changes = command.model_dump(exclude_unset=True)
+
+        if "name" in changes and changes["name"] is not None:
+            changes["name"] = changes["name"].strip()
+            if not changes["name"]:
+                raise InvalidParam("O nome da macro categoria não pode ser vazio.")
+
+        updated = self.repo.update_macro_category(category_id, changes)
+        if updated is None:
+            raise MacroCategoryNotFoundError(f"Macro categoria {category_id} não encontrada no acervo.")
+
+        return updated

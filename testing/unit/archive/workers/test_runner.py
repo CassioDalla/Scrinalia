@@ -77,3 +77,10 @@ def test_main_parses_arguments(monkeypatch) -> None:
     assert captured["preset"] == "gpu"
     assert captured["db_batch_size"] == 8
     assert captured["extra"] == {"columns_to_extract": "a"}
+
+
+def test_macro_category_worker_is_registered_last() -> None:
+    """The subject axis worker is reachable from the CLI and runs after the tag producers."""
+    assert "macro-category" in runner.WORKERS
+    assert runner.PIPELINE_ORDER[-1] == "macro-category"
+    assert set(runner.PIPELINE_ORDER) == set(runner.WORKERS)

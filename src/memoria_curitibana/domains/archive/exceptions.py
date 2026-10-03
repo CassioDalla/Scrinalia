@@ -26,6 +26,13 @@ class CleaningRuleNotFoundError(DomainException):
     pass
 
 
+class MacroCategoryNotFoundError(DomainException):
+    """Raised when a macro category does not exist in the Archive layer."""
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
 class InvalidMergeError(DomainException):
     """Raised when trying to merge a tag into itself or breaking synonym rules."""
 

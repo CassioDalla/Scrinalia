@@ -17,6 +17,13 @@ class NerRunnerConfig:
 
 
 @dataclass(frozen=True)
+class MacroCategoryRunnerConfig:
+    """Business thresholds for the macro-category (subject axis) classification worker."""
+
+    confidence_threshold: float = 0.40
+
+
+@dataclass(frozen=True)
 class IngestionRunnerConfig:
     """Retry and sliding-window policy for the ingestion worker."""
 

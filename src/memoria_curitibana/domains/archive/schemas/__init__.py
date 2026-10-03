@@ -1,5 +1,6 @@
 from .ai_schemas import EntityTagDecisionSchema
 from .command_schema import (
+    CreateMacroCategoryCommand,
     DocumentReviewCommand,
     EntityLinkCommand,
     MergeEntityCommand,
@@ -7,11 +8,13 @@ from .command_schema import (
     ResolveConflictCommand,
     SynonymCommand,
     TagLinkCommand,
+    UpdateMacroCategoryCommand,
 )
 from .document_schema import (
     ArchiveDocumentDTO,
     DocumentEntitySummary,
     DocumentListResponse,
+    DocumentMacroCategorySummary,
     DocumentSummary,
     DocumentTagSummary,
 )
@@ -35,8 +38,10 @@ __all__ = [
     "ArchiveEntityDTO",
     "ArchiveMacroCategoryEntityDTO",
     "ArchiveTagDTO",
+    "CreateMacroCategoryCommand",
     "DocumentEntitySummary",
     "DocumentListResponse",
+    "DocumentMacroCategorySummary",
     "DocumentReviewCommand",
     "DocumentSummary",
     "DocumentTagSummary",
@@ -58,4 +63,5 @@ __all__ = [
     "TagRelevanceIdf",
     "TagRelevanceResponse",
     "TagSimilarity",
+    "UpdateMacroCategoryCommand",
 ]

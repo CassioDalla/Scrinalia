@@ -1,10 +1,20 @@
 import pytest
 from pytest_mock import MockerFixture
 
-from memoria_curitibana.domains.archive.exceptions import InvalidMergeError, InvalidParam
+from memoria_curitibana.domains.archive.exceptions import (
+    InvalidMergeError,
+    InvalidParam,
+    MacroCategoryNotFoundError,
+)
 from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
 from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
-from memoria_curitibana.domains.archive.schemas import ArchiveTagDTO, MergeTagsCommand
+from memoria_curitibana.domains.archive.schemas import (
+    ArchiveMacroCategoryEntityDTO,
+    ArchiveTagDTO,
+    CreateMacroCategoryCommand,
+    MergeTagsCommand,
+    UpdateMacroCategoryCommand,
+)
 from memoria_curitibana.domains.archive.schemas.tag_schema import MergeResponse, TagIdentity
 from memoria_curitibana.domains.archive.services.tag_service import TagService
 
@@ -380,3 +390,63 @@ def test_process_worker_tags_deduplicates_ids(mocker: MockerFixture) -> None:
     # The result must have only ONE record of ID 12. The use of set() in the service guarantees this.
     assert len(result) == 1
     assert result == [12]
+
+
+# ==========================================
+# TESTS: Macro Category CRUD
+# ==========================================
+
+
+def _macro_dto(name: str = "Urbanismo") -> ArchiveMacroCategoryEntityDTO:
+    return ArchiveMacroCategoryEntityDTO(category_id=1, name=name, description=None, is_active=True)
+
+
+def test_create_macro_category_strips_name(mocker: MockerFixture) -> None:
+    """The curator's whitespace must not create a category distinct from the trimmed one."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    mock_tag_repo.create_macro_category.return_value = _macro_dto()
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+    service.create_macro_category(CreateMacroCategoryCommand(name="  Urbanismo  ", description="obras"))
+
+    mock_tag_repo.create_macro_category.assert_called_once_with(name="Urbanismo", description="obras")
+
+
+def test_create_macro_category_rejects_blank_name(mocker: MockerFixture) -> None:
+    """A name of spaces is rejected before touching the database."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+
+    with pytest.raises(InvalidParam, match="nome da macro categoria"):
+        service.create_macro_category(CreateMacroCategoryCommand(name="   "))
+
+    mock_tag_repo.create_macro_category.assert_not_called()
+
+
+def test_update_macro_category_raises_when_missing(mocker: MockerFixture) -> None:
+    """A patch on a non-existent category becomes a domain 404, not a silent success."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    mock_tag_repo.update_macro_category.return_value = None
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+
+    with pytest.raises(MacroCategoryNotFoundError):
+        service.update_macro_category(999, UpdateMacroCategoryCommand(is_active=False))
+
+    mock_tag_repo.update_macro_category.assert_called_once_with(999, {"is_active": False})
+
+
+def test_update_macro_category_only_sends_declared_fields(mocker: MockerFixture) -> None:
+    """exclude_unset keeps an untouched description from being wiped by a rename."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    mock_tag_repo.update_macro_category.return_value = _macro_dto("Novo Nome")
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+    service.update_macro_category(1, UpdateMacroCategoryCommand(name="  Novo Nome "))
+
+    mock_tag_repo.update_macro_category.assert_called_once_with(1, {"name": "Novo Nome"})

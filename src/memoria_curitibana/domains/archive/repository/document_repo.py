@@ -1,4 +1,5 @@
 import re
+from typing import Any
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert
@@ -7,10 +8,15 @@ from sqlalchemy.orm import Session, selectinload
 from memoria_curitibana.domains.archive.models import (
     ArchiveDocument,
     ArchiveReviewStatus,
+    ArchiveTag,
 )
 from memoria_curitibana.domains.archive.repository.governance import ai_writable_documents
 from memoria_curitibana.domains.archive.schemas.command_schema import DocumentReviewCommand
-from memoria_curitibana.domains.archive.schemas.document_schema import ArchiveDocumentDTO, DocumentSummary
+from memoria_curitibana.domains.archive.schemas.document_schema import (
+    ArchiveDocumentDTO,
+    DocumentMacroCategorySummary,
+    DocumentSummary,
+)
 
 
 class DocumentRepository:
@@ -105,6 +111,43 @@ class DocumentRepository:
     # READING AND CURATION (HUMAN-IN-THE-LOOP)
     # ==========================================
 
+    @staticmethod
+    def _eager_options() -> tuple[Any, ...]:
+        """Eager loads tags (with their macro category) and entities, avoiding N+1."""
+        return (
+            selectinload(ArchiveDocument.tags).selectinload(ArchiveTag.macro_category),
+            selectinload(ArchiveDocument.entities),
+        )
+
+    @staticmethod
+    def _to_summary(doc: ArchiveDocument) -> DocumentSummary:
+        """
+        Builds the read view and computes the macro-category majority vote.
+
+        The vote counts how many of the document's tags belong to each category, so a
+        document whose tags are mostly "Urbanismo" ranks Urbanismo first. It is derived
+        on read from the tags already eagerly loaded, which keeps a tag edit instantly
+        visible on every linked document without writing to ``archive_documents``.
+        """
+        summary = DocumentSummary.model_validate(doc)
+
+        votes: dict[int, DocumentMacroCategorySummary] = {}
+        for tag in doc.tags:
+            category = tag.macro_category
+            if category is None:
+                continue
+
+            current = votes.get(category.category_id)
+            if current is None:
+                votes[category.category_id] = DocumentMacroCategorySummary(
+                    category_id=category.category_id, name=category.name, tag_count=1
+                )
+            else:
+                current.tag_count += 1
+
+        summary.macro_categories = sorted(votes.values(), key=lambda vote: (-vote.tag_count, vote.name))
+        return summary
+
     def search(self, term: str | None = None, limit: int = 50, offset: int = 0) -> tuple[list[DocumentSummary], int]:
         """
         Simple textual search of the collection with pagination.
@@ -127,12 +170,9 @@ class DocumentRepository:
         total = self.db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
 
         page_stmt = (
-            stmt.options(selectinload(ArchiveDocument.tags), selectinload(ArchiveDocument.entities))
-            .order_by(ArchiveDocument.updated_at.desc())
-            .limit(limit)
-            .offset(offset)
+            stmt.options(*self._eager_options()).order_by(ArchiveDocument.updated_at.desc()).limit(limit).offset(offset)
         )
-        docs = [DocumentSummary.model_validate(doc) for doc in self.db.scalars(page_stmt).all()]
+        docs = [self._to_summary(doc) for doc in self.db.scalars(page_stmt).all()]
         return docs, total
 
     def get_by_id(self, description_id: str) -> DocumentSummary | None:
@@ -140,10 +180,10 @@ class DocumentRepository:
         stmt = (
             select(ArchiveDocument)
             .where(ArchiveDocument.description_id == description_id)
-            .options(selectinload(ArchiveDocument.tags), selectinload(ArchiveDocument.entities))
+            .options(*self._eager_options())
         )
         doc = self.db.scalars(stmt).first()
-        return DocumentSummary.model_validate(doc) if doc else None
+        return self._to_summary(doc) if doc else None
 
     def update_review(self, command: DocumentReviewCommand) -> DocumentSummary | None:
         """
@@ -162,13 +202,13 @@ class DocumentRepository:
 
         doc.review_status = ArchiveReviewStatus.HUMAN_APPROVED
         self.db.flush()
-        return DocumentSummary.model_validate(doc)
+        return self._to_summary(doc)
 
     def _get_orm_by_id(self, description_id: str) -> ArchiveDocument | None:
         """Internal ORM lookup used by write flows that need the managed entity."""
         stmt = (
             select(ArchiveDocument)
             .where(ArchiveDocument.description_id == description_id)
-            .options(selectinload(ArchiveDocument.tags), selectinload(ArchiveDocument.entities))
+            .options(*self._eager_options())
         )
         return self.db.scalars(stmt).first()

@@ -83,6 +83,16 @@ class DocumentEntitySummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class DocumentMacroCategorySummary(BaseModel):
+    """Vote of one macro category over the tags of a document."""
+
+    category_id: int
+    name: str
+    tag_count: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class DocumentSummary(BaseModel):
     """Read view of the collection, consumed by the API and the front-end."""
 
@@ -97,6 +107,9 @@ class DocumentSummary(BaseModel):
     admin_bio_history: str | None = None
     tags: list[DocumentTagSummary] = Field(default_factory=list)
     entities: list[DocumentEntitySummary] = Field(default_factory=list)
+    # Majority vote over ``tags``: how many of this document's tags belong to each
+    # macro category, ordered by count. Built by the repository on read.
+    macro_categories: list[DocumentMacroCategorySummary] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 

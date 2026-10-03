@@ -22,6 +22,23 @@ class SuggestMacroRequest(BaseModel):
     columns_to_extract: list[str] | None = None
 
 
+class MacroCategoryCreateRequest(BaseModel):
+    """Official macro category the curator creates from a suggested cluster."""
+
+    name: str = Field(min_length=1, max_length=100)
+    description: str | None = Field(
+        default=None, description="Context read by the classifier to tell similar categories apart."
+    )
+
+
+class MacroCategoryUpdateRequest(BaseModel):
+    """Partial edit of a macro category."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    description: str | None = None
+    is_active: bool | None = None
+
+
 class ReclassifyEntityRequest(BaseModel):
     new_type: Literal["ORG", "PER", "LOC"]
 

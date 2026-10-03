@@ -2,7 +2,10 @@ from sqlalchemy import select
 
 from memoria_curitibana.domains.archive.models import (
     ArchiveDocument,
+    ArchiveDocumentTag,
+    ArchiveMacroCategory,
     ArchiveReviewStatus,
+    ArchiveTag,
 )
 from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
 from memoria_curitibana.domains.archive.schemas.command_schema import DocumentReviewCommand
@@ -168,3 +171,85 @@ def test_update_review_blinds_document_as_human_approved(use_test_db, db_session
 def test_update_review_returns_none_for_missing_document(use_test_db, db_session):
     repo = DocumentRepository(db_session)
     assert repo.update_review(DocumentReviewCommand(description_id="nao-existe", final_title="x")) is None
+
+
+# ==========================================
+# MACRO CATEGORY VOTE (SUBJECT AXIS)
+# ==========================================
+
+
+def _link_tag(db_session, description_id: str, tag_id: int) -> None:
+    db_session.add(ArchiveDocumentTag(description_id=description_id, tag_id=tag_id))
+
+
+def test_search_votes_macro_categories_by_tag_count(use_test_db, db_session, generate_archive_doc):
+    """The read view exposes the winning category first, counting only categorized tags."""
+    repo = DocumentRepository(db_session)
+    urban = ArchiveMacroCategory(name="Urbanismo")
+    health = ArchiveMacroCategory(name="Saúde")
+    db_session.add_all([urban, health])
+    db_session.flush()
+
+    doc = generate_archive_doc(description_id="vote_1", original_title="Plano Urbano de Curitiba")
+
+    tags = [
+        ArchiveTag(name="pavimentação", macro_category_id=urban.category_id),
+        ArchiveTag(name="calçamento", macro_category_id=urban.category_id),
+        ArchiveTag(name="dengue", macro_category_id=health.category_id),
+        ArchiveTag(name="sem categoria", macro_category_id=None),
+    ]
+    db_session.add_all(tags)
+    db_session.commit()
+
+    for tag in tags:
+        _link_tag(db_session, doc.description_id, tag.tag_id)
+    db_session.commit()
+
+    docs, total = repo.search(term="Plano Urbano")
+
+    assert total == 1
+    assert [(vote.name, vote.tag_count) for vote in docs[0].macro_categories] == [("Urbanismo", 2), ("Saúde", 1)]
+
+    detail = repo.get_by_id(doc.description_id)
+    assert detail is not None
+    assert [(vote.category_id, vote.tag_count) for vote in detail.macro_categories] == [
+        (urban.category_id, 2),
+        (health.category_id, 1),
+    ]
+
+
+def test_tag_edit_reflects_on_documents_without_touching_the_documents_table(
+    use_test_db, db_session, generate_archive_doc
+):
+    """
+    Editing a tag's macro category must be visible on every linked document immediately,
+    and must not write to ``archive_documents`` (the vote is derived on read).
+    """
+    repo = DocumentRepository(db_session)
+    urban = ArchiveMacroCategory(name="Urbanismo")
+    health = ArchiveMacroCategory(name="Saúde")
+    db_session.add_all([urban, health])
+    db_session.flush()
+
+    doc = generate_archive_doc(description_id="reflect_1", original_title="Documento Refletido")
+    tag = ArchiveTag(name="habitação", macro_category_id=urban.category_id)
+    db_session.add(tag)
+    db_session.commit()
+
+    _link_tag(db_session, doc.description_id, tag.tag_id)
+    db_session.commit()
+
+    before = db_session.get(ArchiveDocument, doc.description_id)
+    assert before is not None
+    updated_at_before = before.updated_at
+
+    tag.macro_category_id = health.category_id
+    db_session.commit()
+    db_session.expire_all()
+
+    after = db_session.get(ArchiveDocument, doc.description_id)
+    assert after is not None
+    assert after.updated_at == updated_at_before
+
+    docs, _ = repo.search(term="Documento Refletido")
+    assert [vote.name for vote in docs[0].macro_categories] == ["Saúde"]

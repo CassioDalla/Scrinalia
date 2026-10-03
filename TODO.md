@@ -1,241 +1,378 @@
 # 🗺️ Roadmap & TO-DO: Motor de Enriquecimento de Arquivos (AI-Driven)
 
-Este documento centraliza o planeamento arquitetural e as próximas etapas de desenvolvimento do sistema de curadoria e enriquecimento de dados arquivísticos, baseado em arquitetura orientada a domínio (DDD) e micro-workers.
+Documento central de planejamento do sistema de curadoria e enriquecimento de acervo
+arquivístico (DDD + micro-workers + HITL).
 
-## 🟢 Fase 1: Fundação e Core Pipeline de IA (Em Fechamento)
-O objetivo desta fase é estabelecer a fundação de dados robusta e a esteira de Inteligência Híbrida (Humano + IA) descentralizada.
-
-- [x] **Camadas Ingestion & Staging (Antigas Bronze/Silver):** Extração, limpeza e controle de linhagem (Hash CDC) do acervo base.
-- [x] **Camada Archive (Antiga Gold):** Modelagem dimensional, schemas Pydantic estritos, trava de idempotência e índices GIN para alta performance.
-- [x] **Infraestrutura de Testes:** Suíte completa no Pytest (Mocks, Savepoints no BD, isolamento de transações).
-- [x] **Worker de Transferência (`worker_archive_transfer.py`):** Carga inicial isolada, limpeza de taxonomia via `TagService` e inicialização do `execution_log`.
-- [x] **Worker NER (`worker_ner.py`):** Extração de entidades (LOC, PER, ORG) via `spaCy` com filtros de Data Quality e EntityRuler dinâmico.
-- [x] **Worker Thumbnail (`worker_thumbnail.py`):** Download resiliente e upload para Object Storage (S3/MinIO) com fallback de erros.
-- [x] **Worker Typology (`worker_typology.py`):** Classifica os documentos com base nas Tipologias cadastradas no Banco
-  - [x] Engine mdeberta aplicando *Zero-Shot Classification* 
-- [ ] **Worker Categorizador/Taxonomia (`worker_mdeberta.py`):**
-  - [ ] Consumir textos pendentes e aplicar *Zero-Shot Classification* para descobrir Macro-Categorias.
-  - [ ] Integrar com `TagService` para ignorar documentos que já foram classificados por heurística.
-- [ ] **Worker Validador LLM (`worker_ollama.py` ou Granite):**
-  - [ ] Implementar parser defensivo (Pydantic/Instructor) e *retries* para lidar com LLMs locais.
-  - [ ] Avaliar coerência textual, atributos dos dados e sinalizar anomalias textuais (`is_anomaly`).
-  - [ ] Configurar prompt de classificação estrita (JSON Output) focado apenas em similaridade semântica: avaliar pares de entidades e sugerir fusões (merges).
-  - [ ] Criar tabela transacional no banco: `entity_merge_suggestions` para armazenar as ideias da IA.
-
-## 🟡 Fase 2: APIs e Governança (Human-in-the-Loop)
-Dar utilidade aos dados isolando o banco de dados do *Front-end* e permitindo a atuação dos arquivistas sobre as decisões da IA.
-
-- [X] **Camada de API (Litestar):**
-  - [X] Roteamento RESTful seguindo o padrão DDD: controllers em `api/controllers/`, serviços por domínio.
-  - [X] *Endpoints* de leitura (paginação do acervo) e escrita (aprovação humana).
-  - [X] Composição por request com `provide_unit_of_work` (`api/dependencies.py`) dono da transação.
-  - Decisão registrada em [`docs/adr/0001-litestar-as-http-framework.md`](docs/adr/0001-litestar-as-http-framework.md) — o roadmap previa FastAPI, a implementação seguiu com Litestar.
-- [X] **Serviço de Entidades (`EntityService`):**
-  - [X] Espelhar a lógica do `TagService`: criar funções para fundir (`merge`) Entidades duplicadas e popular a tabela `domain_synonyms`.
-- [ ] **Painel de Curadoria (Front-end HITL):**
-  - [x] Dashboard inicial em Streamlit/Gradio para visualização de metadados.
-  - [X] **Ação Global:** Tela dedicada à resolução de entidades/tags. O utilizador aprova fusões (ex: "Prefeitura" -> "PMC") que alimentam os sinônimos automaticamente.
-  - [ ] **Ação Local:** Botão de edição no documento individual. Ao salvar, altera o status para `HUMAN_APPROVED`, blindando o documento contra re-processamento da IA.
-
-## 🟠 Fase 3: Descoberta e Performance (Escala)
-Tornar o acervo pesquisável e otimizar a infraestrutura para lidar com grandes volumes de dados de forma rápida.
-
-- [ ] **Motor de Busca Híbrida (Hybrid Search):**
-  - [ ] *Full-Text Search:* Implementar busca léxica nativa no PostgreSQL usando o campo `semantic_search_vector` (lematizado sem stopwords).
-  - [ ] *Semantic Search:* Gerar embeddings do texto e usar a extensão `pgvector` para buscas por similaridade de conceito ("procurar por desastres naturais" encontrar "enchentes").
-- [ ] **Observabilidade e CI/CD:**
-  - [ ] Configurar GitHub Actions para rodar a suíte do `pytest` automaticamente a cada *commit*.
-  - [ ] Adicionar rastreamento de erros nos *workers* (ex: Sentry) para monitorizar falhas de IA silenciosas em produção.
-
-## 🔴 Fase 4: Agentes Ativos e Interoperabilidade (v2.0) - IDÉIAS
-Transformar o repositório numa ferramenta open-source inteligente e capaz de dialogar com sistemas externos.
-
-- [ ] **Sistema de Adapters (Plugins Ingestion):**
-  - [ ] Criar uma interface padrão (Abstract Base Class) para que qualquer instituição possa plugar os seus próprios *scrapers* sem alterar o *Core Engine*.
-- [ ] **Worker de Visão Computacional (OCR / VLM):**
-  - [ ] Extrair texto bruto diretamente de URLs de imagens históricas armazenadas no MinIO e injetar na tabela fato.
-- [ ] **Chatbot Arquivista (RAG - Retrieval-Augmented Generation):**
-  - [ ] Permitir que o utilizador converse com o acervo ("Quais foram as obras públicas mencionadas em Curitiba na década de 50?"), cruzando dados da tabela de Entidades com o LLM.
-- [ ] **Exportação para Preservação (OAIS):**
-  - [ ] Criar rotinas de empacotamento de dados estruturados (DIPs) para envio a sistemas de guarda permanente (ex: Archivematica).
-
-
-
-
-
-
-  --
-
-
-
-  📝 TODO: Pipeline de Macro Categorias e Classificação de Tags
-1. Banco de Dados (Modelagem e Migrações)
-
-    [x] Criar a Model ArchiveMacroCategory:
-        Definir colunas: category_id, name (unique), description, is_active, created_at.
-        Definir relationship tags apontando para ArchiveTag.
-    [x] Atualizar a Model ArchiveTag:
-        Adicionar a Foreign Key macro_category_id (com ondelete="SET NULL").
-        Manter/Adicionar a coluna ai_confidence_score (pois a classificação da IA ocorre na Tag, não no documento).
-        Definir relationship macro_category apontando para a model correspondente.
-
-
-2. Helper Exploratório (Descoberta de "Gavetas" com BERTopic)
-    [x] Criar a Lógica do BERTopic:
-        Desenvolver o helper que busca as infinitas tags "soltas" do acervo.
-        Processar os embeddings das tags e clusterizá-las semanticamente.
-    [ ] Criar o Controller / Endpoint:
-        Criar a rota no API para acionar o helper manualmente quando necessário.
-    [ ] Ação Humana:
-        Analisar os clusters gerados pelo BERTopic e cadastrar oficialmente as Macro Categorias (Assuntos) na tabela archive_macro_categories (ex: Urbanismo, Legislação, Administração).
-
-3. Worker de Classificação (Bibliotecário de Tags com mDeBERTa)
-
-    [ ] Criar worker_macro_category.py (ou worker_tag_classifier.py):
-        Implementar o padrão de loop que criamos no NER (while True, paginação com limit, etc).
-        A Query: Buscar na tabela ArchiveTag apenas as tags órfãs (WHERE macro_category_id IS NULL).
-
-    [ ] Integração com a IA Genérica:
-        Instanciar o motor: engine = get_engine("deberta_typology", preset="gpu_local").
-        Enviar o nome da Tag para a IA classificar de acordo com a lista de Macro Categorias cadastradas.
-
-    [ ] Persistência Segura:
-        Atualizar a Tag com o macro_category_id escolhido e o ai_confidence_score.
-        Usar blocos try/except com db.rollback() e limpeza de memória (db.expunge_all()) para evitar vazamentos e locks.
-        Gravar logs de execução para evitar reprocessamento de tags com erro.
-
-4. Backend (API Payload)
-
-    [ ] Ajustar as Queries de Leitura de Documentos:
-        Ao carregar um documento, fazer o JOIN das suas Tags com as suas respectivas Macro Categorias.
-    [ ] Lógica de "Voto Majoritário" no Backend:
-        Agrupar as Macro Categorias encontradas no documento.
-        Contar o número de tags que pertencem a cada uma.
-    [ ] Modelar o Schema Pydantic:
-        Devolver o payload enriquecido com a lista ordenada (quem tem mais tags primeiro):
-        JSON
-        "macro_categories": [
-          {"id": 1, "name": "Urbanismo", "tag_count": 3},
-          {"id": 2, "name": "Legislação", "tag_count": 1}
-        ]
-
-5. Frontend (Regras de UI/UX para Badges)
-    [ ] Regra de Renderização Padrão (Sem Filtros):
-        Quando o usuário está apenas explorando o acervo, o site lê a posição [0] do array (vencedor por votos) e exibe: [ 🏙️ Urbanismo ] [+1].
-    [ ] Regra de Relevância Contextual (Com Filtro Ativo):
-        Se o usuário aplicar um filtro por "Legislação", o frontend varre o array de macro_categories do documento.
-        Se "Legislação" existir no array, o frontend ignora o ganhador da votação e exibe: [ ⚖️ Legislação ] no topo para gerar confiança no resultado da busca.
-
-6. Testes (TDD/Integração)
-
-    [ ] Testar o Repositório/DB: Garantir que atualizar uma Tag reflete em todos os documentos atrelados a ela sem precisar tocar na tabela de documentos.
-    [ ] Testar o Worker: Usar o padrão de Fixture Factory parametrizada (mock_registry) para garantir que o worker lida com o batch size e salva os IDs corretos.
-
-
-
-
-    Esse é um dos problemas mais complexos (e fascinantes) de se resolver quando cruzamos a Ciência da Computação com a Arquivologia. Você acabou de esbarrar no clássico conflito entre **Vocabulário Controlado (Assuntos)** e **Ontologia (Entidades)**.
-
-A sua intuição está certíssima em ter receio de deixar a IA apagar dados baseada em suposições (como o caso de "parques").
-
-Vamos desatar esse nó respondendo às suas duas perguntas centrais e, em seguida, montar a arquitetura do fluxo de dados ideal para o seu MVP.
-
-### 1. Devo ignorar os pontos de acesso (tags originais) e extrair do zero com IA?
-
-**Não.** Os pontos de acesso legados são ouro arquivístico, mesmo vindo com lixo. Eles refletem a indexação histórica e humana daquele acervo. A IA atual não tem o contexto histórico para saber por que um arquivista na década de 90 colocou determinada palavra lá. O nosso papel não é substituir a história, é higienizá-la e enriquecê-la.
-
-### 2. Usar o mDeBERTa no texto em vez das tags gera apenas uma classificação?
-
-**Só se você usar a função matemática errada na saída do modelo.** Se você usar o modelo com ativação *Softmax* (que força a soma das probabilidades a dar 100%), ele vai escolher apenas um vencedor (ex: Legislação 90%, Urbanismo 10%).
-Porém, se você configurar a saída (ou o *pipeline* zero-shot) para **Multi-Label Classification** (usando *Sigmoid*, onde cada classe é avaliada independentemente de 0 a 100%), um decreto pode perfeitamente pontuar "Legislação (95%)" e "Urbanismo (88%)" ao mesmo tempo.
+> **Como ler este documento.** Cada item marcado `[x]` foi **verificado em execução real**
+> (Postgres + engines de verdade), não apenas lido no código. Os itens `[ ]` são trabalho
+> pendente. Quando um item está parcialmente pronto, ele aparece como `[~]` com a descrição
+> explícita do que existe e do que falta.
+>
+> **Estado do gate de qualidade:** suíte **266 testes** passando (unit + integração),
+> `ruff check`/`ruff format --check` limpos, `basedpyright` 0 erros,
+> `alembic upgrade head` + `alembic check` sem drift.
 
 ---
 
-### A Solução Arquitetural: Separação de Poderes
+## 📊 Panorama
 
-O erro que gera essa confusão mental é tentar tratar tudo como "Tag". Precisamos separar o seu modelo de dados em três eixos semânticos completamente distintos:
+| Fase | Escopo | Estado |
+| --- | --- | --- |
+| 1 | Fundação, pipeline de IA e governança de base | **Praticamente fechada** |
+| 1.5 | Macro Categorias (eixo de Assuntos) | **Núcleo fechado** — resta o front e o defeito de rótulo |
+| 2 | API + Curadoria humana (HITL) | **Fechada no essencial**, faltam ações locais |
+| 3 | Descoberta, escala e observabilidade | **Parcial** — busca é o maior buraco |
+| 4 | Interoperabilidade, agentes e publicação | Não iniciada |
 
-1. **Macro Categorias (Temas do Documento):** Legislação, Urbanismo, Finanças.
-2. **Entidades Nomeadas (NER):** Prefeitura (ORG), João (PER), Curitiba (LOC).
-3. **Descritores (As antigas "Tags"):** IPTU, asfalto, parques, alvará.
+O sistema **funciona ponta a ponta** até a camada Archive: ingestão → staging → archive →
+enriquecimento por IA → curadoria humana → bloqueio de reprocessamento. O que falta não é
+"fazer funcionar", é **fechar os eixos semânticos** (macro categorias, ancoragem
+tag↔entidade) e **tornar o acervo pesquisável de verdade**.
 
-Aqui está o fluxo de trabalho (o *Pipeline*) que resolve o paradoxo de "apagar coisas úteis":
+---
 
-#### Passo 1: O spaCy no Texto (O lugar certo do NER)
+## 🟢 Fase 1 — Fundação e Core Pipeline de IA
 
-O seu *worker* de NER deve **continuar rodando no conteúdo original/descrição**, e não nas tags. Modelos como o spaCy dependem de contexto gramatical (sujeito, verbo, predicado) para inferir se "Parques" é um local ou um sujeito na frase. Rodar NER em tags soltas destrói a precisão do modelo. Extraia as Entidades e salve-as na tabela `ArchiveEntity`.
+### Camadas e modelagem
 
-#### Passo 2: A Higienização Passiva das Tags
+- [x] **Camadas Ingestion & Staging:** extração, limpeza e controle de linhagem (Hash CDC).
+  Verificado: `raw_data` → `run_staging_pipeline` converte payload cru em colunas ISAD(G)
+  tipadas, parseia datas (`15/03/1954` → `1954-03-15`, `1972-05-10`) e normaliza
+  `pontos de acesso` em tags. Documentos não mapeados caem em `raw_metadata` (zero perda).
+- [x] **Camada Archive:** modelagem, schemas Pydantic estritos, trava de idempotência
+  (`execution_log` JSONB) e índice GIN `ix_archive_exec_log`.
+- [x] **Infraestrutura de Testes:** Pytest com savepoints, isolamento transacional,
+  marcação automática `unit`/`integration` por caminho.
+- [x] **Migrações:** Alembic é dona do schema; `pg_trgm` criado na migração inicial;
+  `alembic check` sem drift.
 
-Você importa as tags originais e faz aquela limpeza básica de *stopwords* e caracteres especiais que já programamos no repositório. Salve todas elas na tabela `ArchiveTag`. Não apague nenhuma baseada no spaCy ainda.
+### Workers de enriquecimento
 
-#### Passo 3: O "Soft-Match" (Cruzamento no Banco, não Deleção)
+- [x] **Worker de Transferência** (`transfer`): carga staging→archive, limpeza de taxonomia
+  via `TagService`, inicialização do `execution_log`.
+- [x] **Worker NER** (`ner`): extração LOC/PER/ORG via spaCy `pt_core_news_lg`, EntityRuler
+  dinâmico alimentado pelo banco, filtros de Data Quality e blacklist de stopwords.
+- [x] **Worker Thumbnail** (`thumbnail`): download resiliente, conversão para JPEG,
+  upload para Object Storage com carimbo de falha (`thumbnail_failed`) para não reprocessar.
+- [x] **Worker Typology** (`typology`): classificação zero-shot com mDeBERTa
+  (`MoritzLaurer/mDeBERTa-v3-base-mnli-xnli`) contra as tipologias ativas do banco,
+  com limiar de confiança configurável.
+- [x] **Worker Cleaning** (`cleaning`): aplica regras Regex dinâmicas criadas pelos
+  curadores, com carimbo por regra (`cleaning_rule_{id}`).
+- [x] **Worker Juiz de Conflito** (`conflict-judge`): LLM local (Ollama) decide se um termo
+  ambíguo é TAG ou ENTITY, com resolução automática acima do limiar e fila de revisão abaixo.
+- [x] **Runner unificado** (`workers/runner.py`) com descoberta por assinatura, `--engine`,
+  `--preset`, `--batch` e `--option key=value`.
 
-Aqui está o pulo do gato para o seu problema do "Parques".
-Você cria uma query ou *worker* simples que compara os nomes que caíram na tabela de Entidades com os nomes da tabela de Tags.
+### Governança (Human-in-the-Loop)
 
-* Se a Tag "Curitiba" existir na tabela de Tags e também existir "Curitiba" na tabela de Entidades como LOC, você **não apaga a Tag**.
-* Você cria um campo booleano na sua tabela de tags chamado `is_potential_entity = True`.
+- [x] **Bloqueio de reescrita por IA:** `ai_writable_documents()` exclui `HUMAN_APPROVED`
+  e `REJECTED`. Verificado nos **6 workers** (transfer, cleaning, ner, typology, thumbnail,
+  conflict-judge) — nenhum worker escreve sobre documento aprovado por humano.
+- [x] **Fila de revisão da IA:** `archive_ai_review_queue` com `AnomalyType`,
+  decisão/confiança/justificativa do LLM e payload de contexto em JSONB.
+- [x] **Anti-rework do juiz:** o worker verifica `context_payload.contains(...)` antes de
+  reconsultar o LLM para o mesmo par (tag, entidade).
 
-#### Passo 4: A Decisão Humana (Streamlit)
+### ⚠️ Lacunas reais da Fase 1
 
-Lá na sua página de **Governança de Taxonomia** no Streamlit, você adiciona um filtro: *"Mostrar Tags que a IA acha que são Entidades"*.
-O seu usuário (curador) vai ver a lista e bater o olho:
+- [ ] **Ancoragem negativa "isto é TAG, não entidade" não existe.**
+  É o buraco mais importante da fase. O ciclo de correção do NER **funciona**, mas só em
+  uma direção:
+  - ✅ `reclassify_entity` grava um sinônimo de ancoragem → `get_ner_synonyms_rules` injeta
+    no EntityRuler → o spaCy passa a extrair com o rótulo corrigido. Verificado ponta a ponta
+    (entidade `prefeiruta` PER→ORG, regra criada, o engine passou a extrair `ORG`).
+  - ❌ Quando o **juiz LLM decide que o vencedor é a TAG** (`iptu`), o entity é apagado mas
+    **nenhuma regra de bloqueio é gravada**. O termo não fica marcado como "não é entidade";
+    a única rede é o blacklist global de `DomainStopwords`.
+  - ❌ O `CheckConstraint chk_exclusive_synonym_target` **impede representar** um sinônimo
+    de TAG que aponte para uma entidade: `category='TAG'` exige `canonical_tag_id` e proíbe
+    `canonical_entity_id`. E `get_ner_synonyms_rules` filtra `category IN ('ORG','LOC','PER')`,
+    então sinônimos de TAG **nunca** chegam ao NER.
+  - **Impacto:** a decisão humana/LLM "isto é assunto, não nome próprio" não é durável em
+    nível de termo. Sem uma entidade-alvo vigilante, a partir de amanhã o NER recria o falso
+    positivo e o conflito volta para a fila de revisão.
+  - **Direção sugerida:** um catálogo explícito de termos vetados para NER (distinto do
+    blacklist genérico de stopwords), alimentado pelo juiz e pela reclassificação humana.
+- [ ] **`ai_confidence_score` da Tag nunca é escrito.** ~~A coluna existe na model e é exposta
+  no schema, mas nenhum worker a preenche (o `transfer` sempre grava `None`).~~ **Resolvido:**
+  o `worker_macro_category` passou a preenchê-la (ver Fase 1.5).
+- [ ] **`is_anomaly` / `anomaly_reasons` do documento nunca são preenchidos.** Modelados,
+  indexados, e sem nenhum produtor.
+- [x] **`worker_macro_category.py` existe.** Ver Fase 1.5 — fechado.
 
-* "Prefeitura" -> O curador clica em `Converter para Entidade`. O sistema apaga a tag e vincula o documento à Entidade.
-* "Parques" -> O curador vê que o spaCy errou, clica em `Manter como Assunto`. O sistema tira o *flag* e o termo continua sendo uma tag maravilhosa para o domínio de urbanismo.
+---
 
-#### Passo 5: mDeBERTa no Texto (Multi-Label)
+## 🔵 Fase 1.5 — Macro Categorias (eixo de Assuntos) — **PRIORIDADE**
 
-Você passa o escopo/resumo do documento (e não as tags) pelo mDeBERTa configurado para *Multi-Label*. Ele vai sugerir as **Macro Categorias**. O fato de o documento ter a tag "parques" é um detalhe; o mDeBERTa vai olhar o texto dizendo "criação de áreas de lazer" e classificar como "Urbanismo".
+O eixo semântico de assuntos está modelado e pela metade implementado. Hoje a IA **sugere**
+"gavetas" mas nada as consome.
 
-### Resumo do porquê isso devolve a sua paz de espírito:
+> **Sessão de 2026-10-03:** o núcleo do eixo foi fechado (sugestão → cadastro humano → worker →
+> payload). A UI do Streamlit ficou de fora por decisão explícita, já que o front será
+> substituído. Restam os itens de front-end e o defeito de rótulo descrito no fim da seção.
 
-Você para de tentar fazer o computador tomar a decisão final e letal (apagar dados). A sua API passa a atuar como um **motor de sugestão**.
-O código extrai o melhor dos textos (com spaCy e mDeBERTa), cruza com as tags originais cheias de lixo, levanta uma "bandeira amarela" (o *flag* `is_potential_entity`) onde há dúvida semântica, e deixa a interface limpa no Litestar/Streamlit para o humano dar o clique final.
+### Banco de dados
 
+- [x] **Model `ArchiveMacroCategory`:** `category_id`, `name` (unique), `description`,
+  `is_active`, `created_at`, relationship `tags`.
+- [x] **FK em `ArchiveTag`:** `macro_category_id` com `ondelete="SET NULL"` + índice.
+- [x] **`ai_confidence_score` em `ArchiveTag`:** tem produtor (o `worker_macro_category`).
+- [x] **`execution_log` JSONB em `ArchiveTag`** + índice GIN `ix_archive_tags_exec_log`
+  (migração `b7f1c2d4e9a0`). A tag ganhou ledger de idempotência próprio: `WorkerStamp`
+  opera sobre `ArchiveDocument.execution_log`, e `archive_tags` não tinha equivalente.
 
+### Descoberta de categorias (BERTopic)
 
+- [x] **Engine de clustering:** `BERTopicEngine` com presets `exploratory_fine` e
+  `exploratory_macro`, analyzer lematizado via spaCy + stopwords do domínio.
+- [x] **Helper de coleta:** `TagRepository.fetch_tags_for_clustering()` busca apenas tags
+  com `macro_category_id IS NULL` (as "órfãs").
+- [x] **Endpoint:** `POST /api/v1/taxonomy/tags/suggest-macro` (`source_type`: tags|documents).
+- [x] **BUG corrigido — o endpoint quebrava no preset padrão.**
+  Verificado com 41 tags reais: com o `min_topic_size` fixo de 15 o engine estourava
+  `Found array with 0 sample(s) (shape=(0, 384))` e devolvia `422 EngineExecutionError`.
+  - **Correção:** `min_topic_size` passou a ser dimensionado pelo corpus
+    (`max(2, min(ceiling_do_preset, len // 10))`) e o preset virou **intenção, não
+    configuração rígida**: se o macro não formar cluster, há uma retentativa com
+    `exploratory_fine`. Corpus que não clusteriza nenhuma vez devolve
+    `total_suggestions=0` com mensagem, **nunca 422**.
+  - **Verificado com engine real:** 41 tags → `min_topic_size=4` → 3 clusters coerentes
+    ("Lei - Urbanização - Transporte", "Legislação - Livre - Portario",
+    "Saúde - Sanitário - Pôr"). Corpus de 6 tags → resposta vazia com mensagem, sem exceção.
+  - **Importante:** apenas `ValueError` de configuração (engine/preset inexistente) ainda
+    vira `EngineExecutionError`. Erro de configuração não é mascarado como "sem dados".
+- [x] **Guard de volume reflete a restrição real do modelo:** a rota deixou de usar o `10`
+  arbitrário e passou a ler `MIN_TEXTS_TO_CLUSTER` (5) do próprio worker, então a API não
+  pode divergir do engine.
+- [x] **Ação humana de cadastro:** rotas `POST/GET/PATCH /api/v1/taxonomy/macro-categories`
+  (cadastrar, listar com `only_active`, renomear/re-descrever/(des)ativar).
+  Sem `DELETE`: desativar basta e a FK já é `SET NULL`. É o pré-requisito do worker — sem
+  categoria cadastrada não há contra o que classificar.
 
+### Classificação de tags
 
+- [x] **`worker_macro_category.py` EXISTE** (`macro-category` no runner, último do
+  `PIPELINE_ORDER`):
+  - [x] Loop em lotes sobre tags órfãs (`macro_category_id IS NULL`), com **cursor por
+    `tag_id`**: um `force` que ressuscita órfãs carimbadas continua sendo finito.
+  - [x] `get_engine("deberta_typology", preset=...)` classificando o nome da tag contra as
+    macro categorias ativas.
+  - [x] Persiste `macro_category_id` + `ai_confidence_score` **na própria Tag**.
+  - [x] Carimbo de idempotência por tag (`MACRO_CATEGORY` = `worker_macro_category_v1`).
+  - [x] `try/except` com `db.rollback()` e `db.expunge_all()`.
+  - [x] **`ai_confidence_score` é gravado mesmo abaixo do limiar** (0.40, igual ao de
+    tipologia): o "quase acerto" fica observável em vez de invisível.
+  - [x] **`force=True` via `--option force=true`:** uma tag carimbada mas órfã (o curador
+    cadastrou a categoria que faltava depois) pode ser reclassificada.
+- [x] **Registrado no `runner.py`** (`WORKERS` + `PIPELINE_ORDER`).
+- [ ] **Considerar multi-label (Sigmoid) em vez de Softmax.** Decisão desta sessão foi
+  single-label (usa a FK existente, zero migração). Multi-label exige tabela de junção.
+  **Não fazer antes de resolver o defeito de rótulo abaixo.**
 
-O Seu Problema Real: A Normalização de Tags
+### ⚠️ Defeito descoberto na verificação (bloqueia a qualidade do eixo)
 
-Você tocou na ferida das tags: “grafias quase idênticas” (ex: "parque" e "parques", "lei municipal" e "leis municipais").
+- [ ] **Rótulo `"Nome - descrição"` faz o mDeBERTa colapsar todas as tags na primeira
+  categoria.** Achado durante a verificação ponta a ponta com engine real:
+  - Com rótulos **nus** (`["Urbanismo", "Saúde"]`) a classificação é **correta**:
+    `epidemia de dengue → Saúde (0.99)`, `pavimentação de vias → Urbanismo (0.99)`.
+  - Com os rótulos **descritivos** que o worker monta (`"Urbanismo - obras, vias e mobilidade
+    urbana"`), **todas** as 4 tags vão para Urbanismo — inclusive `epidemia de dengue` (0.73)
+    e `hospital municipal` (0.86), que deveriam ser Saúde.
+  - **Não é posição:** inverter a ordem da lista dá exatamente o mesmo resultado. É o
+    **conteúdo do rótulo**.
+  - **Não é novo:** o `worker_typology` usa o mesmo formato `f"{name}: {description}"`, logo
+    o defeito é anterior a esta sessão e afeta tipologia também. A convenção está isolada em
+    `get_active_macro_categories` (e em `TypologyRepository.get_active_typologies`).
+  - **Direção sugerida:** classificar contra o **nome nu** e usar a descrição como contexto
+    em outro ponto (ex.: `hypothesis_template`), com um teste que compare rótulo nu ×
+    descritivo no mesmo conjunto. Enquanto isso não for resolvido, um curador que preencha
+    a descrição **piora** o resultado.
 
-A lematização é a ferramenta perfeita para isso, mas ela deve ser aplicada apenas nas tags soltas, como uma etapa de higienização dos pontos de acesso, e nunca no texto do documento que vai para a IA.
+### API e payload
 
-Como você já tem o spaCy no seu projeto, você tem o melhor lematizador do ecossistema nas mãos. O fluxo ideal no seu TagService seria:
-Passo 1: Lematização das Tags Isoladas
+- [x] **Voto majoritário no backend:** `DocumentRepository` conta quantas tags do documento
+  pertencem a cada categoria, ordenado por contagem (desempate por nome).
+- [x] **`DocumentSummary` enriquecido** com `macro_categories: [{category_id, name, tag_count}]`.
+- [x] **JOIN das tags com suas macro categorias** nos 3 pontos de leitura (`search`,
+  `get_by_id`, `update_review`) via `selectinload(...).selectinload(ArchiveTag.macro_category)`
+  — sem N+1. O voto é **derivado na leitura**: editar uma tag reflete em todos os documentos
+  atrelados **sem escrever na tabela de documentos** (verificado por teste de `updated_at`).
 
-Quando você ingere os pontos de acesso (tags originais), você passa a string da tag pelo spaCy especificamente para extrair o lemma_.
-Python
+### Front-end (regras de badge) — **não iniciado**
 
-import spacy
+- [ ] **Renderização padrão:** sem filtro ativo, exibir a categoria vencedora `[0]` + contador
+  de secundárias (`[ 🏙️ Urbanismo ] [+1]`).
+- [ ] **Relevância contextual:** com filtro ativo por "Legislação", se o documento contiver
+  essa categoria no array, exibi-la no topo ignorando o vencedor por votos.
+- [ ] **Aba macro do Streamlit:** hoje é um `st.info("aguardando embeddings")`. O caminho
+  "analisar cluster → cadastrar categoria" já existe na API; falta a tela. Decidir se vale
+  investir no Streamlit ou levar direto para o front novo.
 
-# Carrega o modelo em português (já deve estar no seu projeto)
-nlp = spacy.load("pt_core_news_sm") 
+### Testes
 
-def normalizar_tag(nome_da_tag: str) -> str:
-    doc = nlp(nome_da_tag.lower())
-    # Junta os lemmas (ex: "leis municipais" vira "lei municipal")
-    return " ".join([token.lemma_ for token in doc])
+- [x] Repositório: atualizar uma Tag reflete em todos os documentos atrelados **sem** tocar
+  na tabela de documentos.
+- [x] Worker: `mock_registry` validando batch size, persistência dos IDs corretos, limiar,
+  `force`, ausência de categorias e rollback em OOM.
+- [x] Worker: engine real (`deberta_typology`) contra Postgres real, ponta a ponta.
 
-Passo 2: O Agrupamento (Merge) Automático
+---
 
-Com essa função, você resolve 80% do lixo do seu acervo automaticamente na ingestão:
+## 🟡 Fase 2 — APIs e Governança (Human-in-the-Loop)
 
-    A tag "Parques" entra no sistema. O lema dela é "parque".
+### Camada de API (Litestar)
 
-    A tag "parque" entra no sistema. O lema dela é "parque".
+- [x] **Roteamento RESTful DDD:** controllers em `api/controllers/` (`Taxonomy`, `Documents`,
+  `Data Quality`), serviços por domínio.
+- [x] **Leitura:** listagem paginada do acervo, busca textual, detalhe com tags e entidades.
+- [x] **Escrita:** aprovação humana (`PATCH /documents/{id}`) que muda o status para
+  `HUMAN_APPROVED` e blinda o documento.
+- [x] **Composição por request:** `provide_unit_of_work` (`api/dependencies.py`) dono da
+  transação — commit no sucesso, rollback na exceção.
+- [x] **Erros de domínio:** handler global para `DomainException` + `IntegrityError`.
+- [x] **Anotações explícitas** de parâmetros Litestar (`NamedDependency`, `FromPath`,
+  `FromQuery`) e `sync_to_thread` em todas as rotas — pronto para Litestar 3.0.
+- Decisão registrada em [`docs/adr/0001-litestar-as-http-framework.md`](docs/adr/0001-litestar-as-http-framework.md).
 
-    O seu banco de dados (que já está preparado com DDD) percebe que ambas apontam para a mesma string normalizada. Em vez de criar dois IDs diferentes, ele amarra os dois documentos ao mesmo ArchiveTag com nome "parque".
+### Serviços de Taxonomia
 
-Passo 3: Distância de Levenshtein (Tratamento de Erros de Digitação)
+- [x] **`TagService`:** relevância (TF-IDF e contagem), similaridade fuzzy via `pg_trgm`,
+  merge com transferência de vínculos, sinônimos de ancoragem, stopwords, purge.
+- [x] **`EntityService`:** relevância, similaridade, merge, reclassificação com ancoragem,
+  purga de órfãs, blacklist de falsos positivos, resolução de conflito entre domínios.
+- [x] **`DocumentService`:** busca, detalhe e revisão humana.
+- [x] **`CleaningService`:** CRUD de regras + dry-run (simulação de impacto antes de salvar).
 
-A lematização resolve plural e conjugação, mas não resolve erro de digitação de quem cadastrou no sistema nos anos 90 (ex: "Prefeiruta" em vez de "Prefeitura").
-Para isso, você não usa IA. Você usa a matemática clássica diretamente no PostgreSQL, que é incrivelmente rápido com o módulo pg_trgm (Trigramas).
+### Painel de Curadoria (Streamlit — **temporário**)
 
-Você pode criar uma query no seu repositório para o curador bater o olho na interface do Litestar/Streamlit:
-"Quais tags têm 90% de semelhança na digitação, mas são IDs diferentes?"
-Isso permite que o curador use aquela rota maravilhosa /tags/merge que criamos para fundir "Prefeiruta" em "Prefeitura" em um clique.
+- [x] **5 páginas funcionais**, todas consumindo a API por HTTP (nunca Postgres direto):
+  Vitrine de Busca, Tags e Assuntos, Entidades Nomeadas, Conflitos de Domínio,
+  Qualidade de Dados.
+- [x] **Ação Global:** mesclagem de tags e entidades, reclassificação, blacklist,
+  resolução de conflitos.
+- [~] **Ação Local no documento:** `PATCH` existe e funciona (verificado: `final_title` +
+  `archivist_notes` → `HUMAN_APPROVED`), mas aceita **apenas 3 campos**
+  (`final_title`, `scope_content`, `archivist_notes`).
+- [ ] **Editar tags/entidades de um documento individual pela UI.** Hoje só é possível por
+  rotas globais de merge, não no contexto do documento.
+- [ ] **Confirmar que a Vitrine reflete os enriquecimentos.** O `DocumentSummary` expõe
+  macro categorias desde a sessão de 2026-10-03, mas **ainda não expõe a tipologia** — a
+  vitrine segue sem mostrar todo o resultado da IA.
+
+---
+
+## 🟠 Fase 3 — Descoberta, Performance e Observabilidade
+
+### Motor de Busca
+
+- [~] **Busca textual:** `DocumentRepository.search()` faz `ILIKE '%termo%'` em
+  `original_title`, `final_title` e `scope_content`. Funciona e tem paginação, mas é
+  *contains* sem ranking, sem stemming, sem índice de texto — não escala.
+- [ ] **Full-Text Search nativo (PostgreSQL):**
+  - [ ] Preencher `semantic_search_vector`. **A coluna existe e nunca é escrita** —
+    hoje é `None` em todos os documentos.
+  - [ ] Coluna `tsvector` + índice GIN com dicionário `portuguese`.
+  - [ ] Trocar o `ILIKE` por `@@` com ranking (`ts_rank`).
+- [ ] **Busca em tags e entidades:** hoje a busca cobre só 3 colunas do documento. As ~40
+  tags e as entidades não entram na busca.
+- [ ] **Busca semântica (pgvector):** embeddings + similaridade de conceito
+  ("desastres naturais" encontrar "enchentes"). Requer trocar a imagem para
+  `pgvector/pgvector` e adicionar a extensão via migração.
+- [ ] **Filtros facetados:** por tipologia, macro categoria, tipo de entidade, década.
+
+### Qualidade de dados
+
+- [x] **Lei de normalização de tags:** separadores `,` e `|`, stopwords por escopo
+  (TAG/ENTITY/ALL), rejeição de tags muito curtas/longas, normalização lowercase+trim.
+- [ ] **Lematização de tags (não implementada).** `normalize_tag()` é apenas
+  `strip().lower()`. Consequência verificada: "parque"/"parques" e
+  "lei municipal"/"leis municipais" permanecem entradas distintas.
+  - O spaCy **já está** no projeto e o lematizador **já funciona** (é usado no BERTopic
+    via `entity.lemmatize`), só não é aplicado na ingestão de tags.
+  - [ ] Aplicar lematização em `extract_and_clean_tags`, com cuidado para não destruir
+    termos técnicos e nomes próprios.
+  - [ ] Aplicar **nas tags soltas**, nunca no texto do documento que vai para a IA.
+- [ ] **Deduplicação automática por trigramas:** o `pg_trgm` já está instalado e a rota
+  `/tags/similar` já encontra pares (verificado: `prefeitura` × `prefeiruta` = 0.375).
+  Falta o passo de agrupar e sugerir merges em lote.
+
+### Observabilidade e operação
+
+- [x] **CI:** GitHub Actions roda ruff + basedpyright + `alembic check` + pytest em Postgres.
+- [x] **Logging:** loguru com sinks por nível, interceptação de logs de terceiros
+  (uvicorn/Litestar) e `InterceptHandler`.
+- [ ] **Rastreamento de erros nos workers** (ex.: Sentry) para capturar falhas silenciosas
+  de IA em produção.
+- [ ] **Health/readiness endpoint** (`/health`) verificando o banco.
+- [ ] **Retomada e agendamento:** não há scheduler nem retry policy para os workers; hoje
+  são executados manualmente pelo runner.
+- [ ] **Testes de pipeline com engines reais.** A suíte usa `mock_registry` (correto para
+  isolamento), mas isso deixa invisível a classe de bug que quebrou o `suggest-macro`.
+  Precisa de um teste de fumaça opcional marcado como `slow`/`e2e`.
+
+---
+
+## 🔴 Fase 4 — Interoperabilidade e Publicação (v2.0)
+
+### Autenticação e exposição pública — **última etapa antes de trocar o front**
+
+> Decisão de sequenciamento: auth entra **depois** da troca de front-end, imediatamente antes
+> de tornar o sistema público. Não é bloqueio para as fases 1.5–3.
+
+- [ ] **Autenticação e autorização.** Hoje **não existe nenhuma**: sem auth, sem CORS, sem
+  rate limit. Qualquer cliente alcança rotas que aprovam documentos e fundem taxonomia.
+- [ ] **Trilha de auditoria por usuário.** `ArchiveCleaningRule.created_by` e o
+  `PATCH /documents` não registram quem fez o quê.
+- [ ] **CORS / headers de segurança / rate limit.**
+- [ ] **Migrar do Streamlit para back-end + React.** O Streamlit é declaradamente temporário;
+  a API é o contrato estável. Manter as regras de badge (Fase 1.5) no novo front.
+
+### Interoperabilidade
+
+- [~] **Sistema de Adapters (Plugins de Ingestão):** as ABCs `IDiscoveryAdapter` e
+  `IDetailAdapter` **já existem** e o `PMCScraperAdapter` as implementa com tradução de
+  erros HTTP/HTML em exceções de domínio. Falta:
+  - [ ] Registro/descoberta dinâmica de adapters (hoje é instanciação direta no `__main__`).
+  - [ ] Configuração por instituição (como um novo adapter é plugado sem alterar o core).
+  - [ ] Segundo adapter real para provar que a abstração se sustenta.
+- [ ] **Worker de Visão Computacional (OCR/VLM):** extrair texto de imagens históricas no
+  MinIO e injetar na tabela fato.
+- [ ] **Chatbot Arquivista (RAG):** conversar com o acervo cruzando entidades, tags e
+  macro categorias com o LLM.
+- [ ] **Exportação para Preservação (OAIS):** empacotamento de DIPs para sistemas de guarda
+  permanente (ex.: Archivematica).
+
+---
+
+## ✅ Verificação executada (evidências)
+
+Tudo abaixo foi executado contra Postgres real + engines reais, não apenas inspecionado:
+
+| Verificação | Resultado |
+| --- | --- |
+| `pytest` (unit + integração) | **266 passed** |
+| `ruff check` / `ruff format --check` | limpos (180 arquivos) |
+| `basedpyright` | **0 errors, 0 warnings** |
+| `alembic upgrade head` + `alembic check` | aplica; **sem drift** |
+| `raw_data` → `run_staging_pipeline` | 2/2 docs; datas e ISAD(G) corretos |
+| worker `transfer` | 2 docs, 7 tags vinculadas |
+| worker `ner` (spaCy real) | entidades extraídas e vinculadas |
+| worker `typology` (mDeBERTa real) | classificou e carimbou |
+| worker `macro-category` (mDeBERTa real) | **todas as tags carimbadas, IDs e scores corretos** |
+| `HUMAN_APPROVED` bloqueia IA | confirmado — o worker de tipologia ignorou o doc aprovado |
+| `reclassify_entity` → EntityRuler | PER→ORG propagou para o NER (ciclo completo) |
+| `POST /tags/suggest-macro` | **corrigido**: 41 tags → 3 clusters; 6 tags → vazio com mensagem |
+| Voto majoritário no `DocumentSummary` | derivado na leitura; editar tag **não** escreve em `archive_documents` |
+| Leitura/escrita via HTTP | listagem, busca, detalhe, merge, cleaning, conflitos: OK |
+
+### Bugs conhecidos e abertos
+
+1. **Rótulo `"Nome - descrição"` colapsa o mDeBERTa na primeira categoria** — afeta
+   `worker_macro_category` e `worker_typology` — Fase 1.5.
+2. **Ancoragem "isto é TAG" não existe** — o juiz LLM apaga a entidade sem gravar bloqueio
+   durável — Fase 1.
+3. **Lematização de tags ausente** — duplicação na origem — Fase 3.
+4. **`semantic_search_vector` nunca preenchido** — a busca híbrida prometida não existe — Fase 3.
+5. **`is_anomaly`, `anomaly_reasons` sem produtor** — colunas mortas.
+6. **Sem autenticação** — bloqueio para exposição pública — Fase 4.

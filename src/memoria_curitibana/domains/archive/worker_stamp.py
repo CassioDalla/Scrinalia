@@ -32,6 +32,8 @@ class WorkerStamp:
 # string from being duplicated (and drifting) across queries and workers.
 NER = WorkerStamp("worker_ner_v1")
 TYPOLOGY = WorkerStamp("worker_typology_classifier_v1")
+# Stamp written on ``ArchiveTag.execution_log`` (tags have their own ledger).
+MACRO_CATEGORY = WorkerStamp("worker_macro_category_v1")
 THUMBNAIL = WorkerStamp("thumbnail")
 THUMBNAIL_FAILED = WorkerStamp("thumbnail_failed", status="True")
 

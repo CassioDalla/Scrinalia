@@ -64,3 +64,18 @@ class EntityLinkCommand(BaseModel):
 
     description_id: str
     entity_id: int
+
+
+class CreateMacroCategoryCommand(BaseModel):
+    """Command creating an official macro category from a curated cluster."""
+
+    name: str = Field(min_length=1, max_length=100, description="Official name of the semantic drawer.")
+    description: str | None = Field(default=None, description="Context the classifier reads to disambiguate.")
+
+
+class UpdateMacroCategoryCommand(BaseModel):
+    """Partial update of a macro category and its activation state."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    description: str | None = None
+    is_active: bool | None = None

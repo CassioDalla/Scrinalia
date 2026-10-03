@@ -10,7 +10,12 @@ from litestar.testing import TestClient
 from sqlalchemy.exc import IntegrityError
 
 from memoria_curitibana.asgi import create_app
-from memoria_curitibana.domains.archive.exceptions import InvalidMergeError, TagNotFoundError
+from memoria_curitibana.domains.archive.exceptions import (
+    InvalidMergeError,
+    MacroCategoryNotFoundError,
+    TagNotFoundError,
+)
+from memoria_curitibana.domains.archive.schemas import ArchiveMacroCategoryEntityDTO
 from memoria_curitibana.domains.archive.schemas.tag_schema import TagRelevanceIdf  # <-- Import the DTO
 from memoria_curitibana.domains.archive.services.entity_service import EntityService
 from memoria_curitibana.domains.archive.services.tag_service import TagService
@@ -117,3 +122,71 @@ def test_route_triggers_409_on_database_conflict(client: TestClient, mocker):
     assert response.status_code == HTTP_409_CONFLICT
     assert response.json()["error_code"] == "IntegrityError"
     assert "Conflito estrutural" in response.json()["message"]
+
+
+# ==========================================
+# 3. MACRO CATEGORIES (SUBJECT AXIS)
+# ==========================================
+
+
+def _category_dto(category_id: int = 1, name: str = "Urbanismo") -> ArchiveMacroCategoryEntityDTO:
+    return ArchiveMacroCategoryEntityDTO(category_id=category_id, name=name, description=None, is_active=True)
+
+
+def test_list_macro_categories_returns_200(client: TestClient, mocker):
+    mock_service = mocker.patch.object(TagService, "list_macro_categories")
+    mock_service.return_value = [_category_dto()]
+
+    response = client.get("/api/v1/taxonomy/macro-categories?only_active=true")
+
+    assert response.status_code == HTTP_200_OK
+    assert response.json()[0]["name"] == "Urbanismo"
+    mock_service.assert_called_once_with(only_active=True)
+
+
+def test_create_macro_category_returns_201(client: TestClient, mocker):
+    mock_service = mocker.patch.object(TagService, "create_macro_category")
+    mock_service.return_value = _category_dto(category_id=5, name="Saúde")
+
+    response = client.post(
+        "/api/v1/taxonomy/macro-categories", json={"name": "Saúde", "description": "Epidemias e hospitais"}
+    )
+
+    assert response.status_code == HTTP_201_CREATED
+    assert response.json()["category_id"] == 5
+
+    command = mock_service.call_args[0][0]
+    assert command.name == "Saúde"
+    assert command.description == "Epidemias e hospitais"
+
+
+def test_update_macro_category_returns_200(client: TestClient, mocker):
+    mock_service = mocker.patch.object(TagService, "update_macro_category")
+    mock_service.return_value = _category_dto()
+
+    response = client.patch("/api/v1/taxonomy/macro-categories/1", json={"is_active": False})
+
+    assert response.status_code == HTTP_200_OK
+    command = mock_service.call_args[0][1]
+    # exclude_unset: an absent description must not be sent as None
+    assert command.model_dump(exclude_unset=True) == {"is_active": False}
+
+
+def test_update_macro_category_triggers_404_when_missing(client: TestClient, mocker):
+    mock_service = mocker.patch.object(TagService, "update_macro_category")
+    mock_service.side_effect = MacroCategoryNotFoundError("Macro categoria 999 não encontrada no acervo.")
+
+    response = client.patch("/api/v1/taxonomy/macro-categories/999", json={"is_active": False})
+
+    assert response.status_code == HTTP_404_NOT_FOUND
+    assert response.json()["error_code"] == "MacroCategoryNotFoundError"
+
+
+def test_create_macro_category_triggers_409_on_duplicate_name(client: TestClient, mocker):
+    mock_service = mocker.patch.object(TagService, "create_macro_category")
+    mock_service.side_effect = IntegrityError("statement", "params", "orig")  # type: ignore
+
+    response = client.post("/api/v1/taxonomy/macro-categories", json={"name": "Urbanismo"})
+
+    assert response.status_code == HTTP_409_CONFLICT
+    assert response.json()["error_code"] == "IntegrityError"
