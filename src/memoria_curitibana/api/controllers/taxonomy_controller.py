@@ -36,6 +36,7 @@ from memoria_curitibana.domains.archive.schemas.entity_schema import (
 from memoria_curitibana.domains.archive.schemas.tag_schema import (
     MacroCategoriesSuggestionResponse,
     MergeResponse,
+    TagMergeSuggestion,
     TagPairSimilarity,
     TagRelevanceResponse,
     TagSimilarity,
@@ -88,6 +89,22 @@ class TaxonomyController(Controller):
         response = tag_service.merge(MergeTagsCommand(canonical_id=data.canonical_id, ids_to_merge=data.ids_to_merge))
 
         return response
+
+    @get("/tags/merge-suggestions", sync_to_thread=True)
+    def suggest_tag_merges(
+        self,
+        tag_service: NamedDependency[TagService],
+        threshold: FromQuery[float] = 0.65,
+        limit: FromQuery[int] = 50,
+    ) -> list[TagMergeSuggestion]:
+        """
+        Groups tags that probably mean the same thing (typos by trigram, plural by rule).
+
+        Suggestion only: nothing is merged here, the archivist approves through
+        ``POST /tags/merge``. That is deliberate — lemmatizing at ingestion would change
+        the identity of every new tag and could invent forms.
+        """
+        return tag_service.suggest_merges(threshold=threshold, limit=limit)
 
     @post("/tags/stopwords/purge", sync_to_thread=True)
     def purge_stopwords(self, tag_service: NamedDependency[TagService], data: StopwordsRequest) -> dict:

@@ -13,8 +13,14 @@ class RawRecordSource(Protocol):
     be plugged in.
     """
 
-    def next_batch(self) -> Sequence[RawRecord]:
-        """Returns the raw records that are new or whose source content changed."""
+    def next_batch(self, force: bool = False) -> Sequence[RawRecord]:
+        """
+        Returns the raw records that are new or whose source content changed.
+
+        ``force`` ignores the content-hash comparison and returns everything: a parser
+        change does not touch the source payload, so the CDC alone would never re-parse
+        the collection.
+        """
         ...
 
 

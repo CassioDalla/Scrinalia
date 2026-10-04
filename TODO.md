@@ -8,7 +8,7 @@ arquivístico (DDD + micro-workers + HITL).
 > pendente. Quando um item está parcialmente pronto, ele aparece como `[~]` com a descrição
 > explícita do que existe e do que falta.
 >
-> **Estado do gate de qualidade:** suíte **419 testes** passando (unit + integração),
+> **Estado do gate de qualidade:** suíte **508 testes** passando (unit + integração),
 > `ruff check`/`ruff format --check` limpos, `basedpyright` 0 erros,
 > `alembic upgrade head` + `alembic check` sem drift.
 
@@ -22,7 +22,7 @@ arquivístico (DDD + micro-workers + HITL).
 | 1.5 | Macro Categorias (eixo de Assuntos) | **Núcleo fechado** — resta o front e o defeito de rótulo |
 | 2 | API + Curadoria humana (HITL) | **Fechada no essencial**, faltam ações locais |
 | 3 | Descoberta, escala e observabilidade | **Parcial** — busca lexical fechada; semântica funciona mas com qualidade fraca; faltam lematização de tags e operação |
-| **3.5** | **Qualidade do dado de entrada** | **EM ANDAMENTO — A fechada, B fechada, C/D pendentes** (ver abaixo) |
+| **3.5** | **Qualidade do dado de entrada** | **A–D fechadas** (sem UI, por decisão); resta medir o efeito no ranking do que for aprovado |
 | 4 | Interoperabilidade, agentes e publicação | Não iniciada |
 
 O sistema **funciona ponta a ponta** até a camada Archive: ingestão → staging → archive →
@@ -502,29 +502,54 @@ Leituras que ficam registradas:
 5. **Relevância é proxy derivada do título** e são 16 consultas: o número serve para
    comparar dois rankings, não para coroar modelo. Não afirmar mais do que isso.
 
-### Fase C — Template de título e campos mortos
+### Fase C — Template de título, validador e curadoria humana — ✅ **FECHADA (2026-10-04)**
 
-- [ ] **Título repetido (`"Registros Fotográficos - X"`):** a máquina **propõe** a parte fixa e
-  o arquivista confirma; o candidato a `final_title` derivado é sugerido, nunca gravado
-  sozinho.
-- [ ] **`final_title` — decidir com número:** ou ganha produtor de verdade (derivação assistida
-  + revisão humana), ou **sai do schema**. Hoje é `NULL` em 100% do acervo e está exposto no
-  `DocumentSummary`: promessa não cumprida.
-- [ ] **`is_anomaly` / `anomaly_reasons` — decidir:** ou ganham produtor (validador estrutural:
-  data no futuro, título vazio, escopo que era 100% boilerplate, entidade impossível), ou saem
-  do schema. Modelados, indexados e sem produtor desde o schema inicial.
-- [ ] **Regra geral a aplicar sem exceção:** *ou o campo ganha produtor na fase em que foi
-  modelado, ou sai do schema.*
+- [x] **Título repetido (`"Registros Fotográficos - X"`):** a máquina **propõe** a parte fixa
+  (candidato com escopo `TITLE`, 2467 documentos) e o arquivista confirma. O
+  `suggested_final_title` é derivado **na leitura** e desaparece quando o arquivista grava
+  `final_title`.
+- [x] **`final_title` — decidido com número:** o produtor é o **arquivista**. A API passou a
+  aceitar **qualquer campo ISAD(G)** no `PATCH /documents/{id}` (título, data, código de
+  referência, nível, produtor, histórias, procedência, idioma, notas), com `changed_by` e
+  `review_note`. Cada campo que muda entra em `archive_document_revisions` (antes/depois em
+  JSONB) e há rota de leitura do histórico.
+- [x] **`is_anomaly` / `anomaly_reasons` — decidido:** ganharam **produtor**. O worker
+  `quality-validator` (antes do `embedding` no pipeline) grava códigos (`AnomalyReason`) e
+  marca `NEEDS_REVIEW`, nunca `HUMAN_APPROVED`.
+- [x] **Validador estrutural:** data ausente/sentinela, data no futuro, título vazio/curto,
+  título todo em maiúsculas, título apenas com o template fixo, escopo 100% boilerplate, sem
+  tags/tipologia/entidades.
+- [x] **Regex do arquivista:** `ArchiveCleaningRule` ganhou `rule_kind`
+  (`REWRITE`/`VALIDATE`/`LLM_CHECK`) + `anomaly_reason`. O worker de limpeza filtra
+  `REWRITE` explicitamente — sem isso uma regra de validação **reescreveria** o texto.
+- [x] **LLM opcional e desligado por padrão:** só uma regra `LLM_CHECK` **ativa** constrói um
+  modelo (`engines/title_quality/`, motor `ollama_title_check`). Sem regra, custo zero — e um
+  teste garante que o motor não é instanciado.
+- [x] **Regra geral aplicada:** nenhum campo ficou sem produtor nem foi removido sem número.
 
-### Fase D — Cobertura e vocabulário
+### Fase D — Cobertura e vocabulário — ✅ **FECHADA (2026-10-04)**
 
-- [ ] **1925 documentos sem data (53%).** Investigar se a data existe na origem e não é
-  parseada (o `staging` já parseia `15/03/1954`, `1972-05-10` e ano solto) ou se realmente não
-  existe. Sem isso, a faceta de data e o mapa por bairro nascem pela metade.
-- [ ] **Lematização de tags** (o Buraco 4, ainda aberto): "parque"/"parques" seguem distintos.
-  Aplicar **nas tags**, nunca no texto do documento — e provar que não destrói nomes próprios.
-- [ ] **Deduplicação de tags por trigramas em lote:** `/tags/similar` já encontra os pares;
-  falta agrupar e sugerir merges — de novo, **sugerir**, com o arquivista aprovando.
+- [x] **Os 1925 sem data: investigados e resolvidos até o limite do dado.** Medido:
+  **1682 são o sentinela `"00/00/0000"`** (não há data na origem) e **243 têm expressão real
+  que o parser não entendia**. O parser virou função pura (`domains/staging/dates.py`) com
+  sentinelas explícitas, décadas ("Década de 1980", "Anos 90"), intervalos ("1951-1953",
+  "1920 a 2006") e aproximações ("Após 1996", "Meados de 1970").
+  **Medido no acervo real: 201 datas recuperadas; cobertura de 47,0% → 52,6%.**
+  Os 1690 restantes não têm data na origem — nenhum parser os recupera.
+- [x] **O caminho até o archive foi consertado.** Dois defeitos reais impediam a correção de
+  chegar lá: (1) o staging é CDC por hash do **payload cru**, então mudar o parser não
+  reprocessava nada → `force` explícito no `run_staging_pipeline`; (2) o transfer reusava
+  esse hash cru como chave do archive, então a mudança nunca apareceria →
+  `StagingRecord.parsed_content_hash()`, o hash do que a camada **parseou**.
+- [x] **Lematização: decidida como sugestão, não como reescrita.** `singular_candidates` gera
+  hipóteses regulares (incluindo `-ões/-ães/-ais/-éis/-óis/-is/-ns`), que só viram sugestão
+  quando o singular **já existe** como tag. Nenhuma tag é criada, renomeada ou destruída.
+- [x] **Deduplicação em lote por trigramas + plural:** `GET /tags/merge-suggestions` devolve
+  clusters com canônico (a grafia mais usada), membros com contagem e o motivo (`TRIGRAM`,
+  `PLURAL`, `MIXED`). Verificado no acervo real: **200 clusters**, incluindo
+  `igrejas/igreja` (2467 documentos), `casa/casas` (387), `obras/obra/obras.`,
+  `comércio/comércios` e o erro de digitação `uma casa/um casa`. Nada é mesclado: a aprovação
+  continua em `POST /tags/merge`.
 
 ### Observabilidade e operação
 
@@ -580,7 +605,7 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 
 | Verificação | Resultado |
 | --- | --- |
-| `pytest` (unit + integração) | **419 passed** |
+| `pytest` (unit + integração) | **508 passed** |
 | `ruff check` / `ruff format --check` | limpos (192 arquivos) |
 | `basedpyright` | **0 errors, 0 warnings** |
 | `alembic upgrade head` + `alembic check` | aplica (inclui downgrade/upgrade); **sem drift** |
@@ -614,6 +639,8 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 | **Catálogo de trechos verificado no acervo real** | 3608 documentos → **5 candidatos**: bloco de `scope_content` (2467 docs, 2 variantes), `IPPUC…` (2467), `Registros Fotográficos -` (2467), `Projeto de uma` (627), `Pesquisa: Não foram encontradas informações` (276) |
 | **Dry-run de curadoria** | bloco: 2467 documentos afetados de 3608 varridos, `scope_content` → `''`; prefixo de título: 2467 afetados, título → parte específica |
 | **Normalização SQL × Python** | idênticas em 200 valores reais de `scope_content`, incluindo tab e U+00A0 (o `[[:space:]]` do Postgres **não** cobre NBSP e o `\s` do Python cobre: por isso a classe de espaços é explícita e compartilhada) |
+| **Datas recuperadas (acervo real)** | 201 documentos saíram de "sem data": 58 "Década de 1980", 34 "Década de 1990", 17 "Anos 90", 15 "Anos 1990", 13 "Década de 1960", 7 "Após 1996", 6 "1951-1953", 4 "Final da década de 1980", 3 "Meados de 1993", 1 "1929-1986"… Cobertura 47,0% → **52,6%**; 1690 seguem sem data na origem (sentinela) |
+| **Sugestões de merge de tags (acervo real)** | **200 clusters**: `igrejas/igreja` (2467 docs), `alvenaria/alvenaria.` (827), `casa/casas` (387), `uma casa/um casa` (314, erro de digitação), `comércio/comércios` (310), `trilho de trilhos de trem` (294). Nada mesclado: só sugestão |
 | **Medição antes/depois (16 consultas, 3608 docs, MiniLM real)** | separação média entre pares 0.769 → 0.504; com o escopo de produção Hit@10 0.562 → **0.625**, Recall@10 0.292 → **0.333**, precisão@10 por termo 0.294 → **0.381**, MRR 0.358 → 0.339 |
 | ⚠️ **Aprovar tudo o que a máquina sugeriu PIORA o ranking** | conjunto completo (com os prefixos de título): Hit@10 **0.500** (pior que 0.562 sem trecho nenhum). O prefixo de título derruba o ranking (0.562 → 0.500) e é exatamente o que o `suggested_final_title` precisa → nasceu o `scope` do template |
 
@@ -622,16 +649,21 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 1. ~~**Ancoragem "isto é TAG" não existe**~~ — **corrigido**: catálogo
    `domain_ner_exclusions` alimentado pelo juiz e pelo curador, com undo e expurgo retroativo.
    Ver Fase 1.
-2. **Lematização de tags ausente** — duplicação na origem — Fase 3.
+2. ~~**Lematização de tags ausente**~~ — **resolvido como sugestão** (Fase 3.5-D):
+   `GET /tags/merge-suggestions` agrupa plural/singular e trigramas; nenhuma tag é reescrita
+   na ingestão, porque isso mudaria a identidade de toda tag nova e poderia inventar formas.
 3. ~~**`semantic_search_vector` nunca preenchido** — a busca híbrida prometida não existia.~~
    **Resolvido (Buraco 3):** a coluna morta foi removida e substituída por
    `search_vector` gerado pelo Postgres (Fase 3).
-4. **`is_anomaly`, `anomaly_reasons` sem produtor** — colunas mortas.
+4. ~~**`is_anomaly`, `anomaly_reasons` sem produtor**~~ — **resolvido** (Fase 3.5-C):
+   o worker `quality-validator` os preenche e marca `NEEDS_REVIEW`.
 5. **Sem autenticação** — bloqueio para exposição pública — Fase 4.
-6. **Busca semântica com qualidade fraca** — funciona ponta a ponta, mas o ranking por
-   similaridade não é melhor que a lexical para o usuário no acervo atual. O gargalo medido é
-   o texto embedado (título curto + escopo genérico repetido), não o armazenamento nem o
-   modelo. Ver Fase 3 e `.analysis/`.
+6. **Busca semântica com qualidade fraca** — **parcialmente endereçado e ainda aberto.**
+   O gargalo medido era o texto embedado, e a Fase 3.5-B tratou a causa: com o escopo de
+   produção o Hit@10 sobe de 0.562 para 0.625 e a precisão por termo do título de 0.294 para
+   0.381 (16 consultas, proxy derivada do título). **Isso não é "pronto":** a busca híbrida
+   (RRF) continua pendente e o MRR caiu 0.019. A medição é o que autoriza (ou não) afirmar
+   melhoria — ver a tabela de evidências.
 
 > **Corrigido em 2026-10-03:** o rótulo `"Nome: descrição"` colapsava o mDeBERTa na
 > primeira categoria, em `worker_macro_category` **e** `worker_typology`. Classificação
@@ -664,3 +696,22 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 > diverge das models em 43 pontos (falta `archive_tags.execution_log`, por exemplo). A
 > verificação desta sessão rodou em bancos limpos criados por `alembic upgrade head`, com
 > os dados reais copiados. Ver a armadilha correspondente em `.analysis/`.
+
+---
+
+> **Fase 3.5 fechada em 2026-10-04 (A–D, sem UI).** O sistema deixou de "só rodar": agora ele
+> **identifica, propõe, mede e deixa a decisão com o arquivista**, e o dado de entrada começa a
+> ser arrumado sem que nada do acervo seja apagado ou reescrito por conta própria.
+>
+> O que sustenta a fase, em uma frase cada:
+>
+> 1. **A máquina propõe; o arquivista decide** — catálogo de trechos, sugestões de merge e
+>    validador de anomalias jamais escrevem no acervo; reescrevem só o **texto que a IA lê**.
+> 2. **Uma única definição de texto efetivo**, em SQL, usada pelo embedding, pelo NER e pela
+>    tipologia — sem dualidade Python/SQL que possa divergir.
+> 3. **Nada é afirmado sem número.** A medição antes/depois contradisse a hipótese inicial
+>    (aprovar tudo piorava o ranking) e foi ela que criou o `scope` do template. O ganho
+>    registrado (+0.062 de Hit@10, +0.087 de precisão por termo) vale para **as 16 consultas
+>    do conjunto rotulado**, que é um proxy derivado do título — não é uma promessa universal.
+> 4. **A dívida ficou explícita, não maquiada:** os 1690 documentos sem data não têm data na
+>    origem; a busca híbrida (RRF) segue pendente; a UI de curadoria está fora por decisão.

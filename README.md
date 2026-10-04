@@ -32,12 +32,15 @@ Enrichment runs as independent workers over the archive layer:
 
 ```
 transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-category
+         -> quality-validator -> embedding
 ```
 
 Each worker stamps a versioned key in the document's `execution_log`, so re-running a
-worker only touches documents it has not already processed. The macro-category worker runs
-last and stamps the **tag** (`archive_tags.execution_log`) instead, because it classifies
-the subject axis rather than a document.
+worker only touches documents it has not already processed. The macro-category worker stamps
+the **tag** (`archive_tags.execution_log`) instead, because it classifies the subject axis
+rather than a document. The quality validator grades the record (missing date, suspicious
+title, scope that was only boilerplate) and sends it to human review, and the embedding runs
+last because every text mutation has to happen before it.
 
 ## Requirements
 
@@ -86,7 +89,7 @@ uv run python -m memoria_curitibana.domains.archive.workers.runner <name> \
 ```
 
 Available names: `transfer`, `cleaning`, `ner`, `typology`, `thumbnail`, `conflict-judge`,
-`macro-category`.
+`macro-category`, `quality-validator`, `embedding`.
 Each `worker_*.py` also carries an `execute(db, ...)` function and a `__main__` block, so a
 single worker can be run directly while developing.
 

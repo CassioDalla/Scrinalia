@@ -2,7 +2,11 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from memoria_curitibana.domains.archive.models import ArchiveDocumentTag, ArchiveMacroCategory, ArchiveTag
+from memoria_curitibana.domains.archive.models import (
+    ArchiveDocumentTag,
+    ArchiveMacroCategory,
+    ArchiveTag,
+)
 from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
 from memoria_curitibana.domains.archive.schemas.command_schema import TagLinkCommand
 from memoria_curitibana.domains.archive.schemas.tag_schema import ArchiveTagDTO
@@ -252,3 +256,84 @@ def test_get_active_macro_categories_builds_classifier_labels(use_test_db, db_se
     assert labels == {"Urbanismo": urban.category_id, "Saúde": health.category_id}
     assert all(":" not in label for label in labels)
     assert "Obras e vias" not in labels
+
+
+# ==========================================
+# MERGE SUGGESTIONS (plural + trigram, never a merge)
+# ==========================================
+
+
+def test_merge_suggestions_group_plural_and_singular(db_session, generate_archive_doc):
+    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+
+    plural = ArchiveTag(name="livros")
+    singular = ArchiveTag(name="livro")
+    db_session.add_all([plural, singular])
+    db_session.flush()
+    doc = generate_archive_doc(original_title="Doc")
+    db_session.add_all(
+        [
+            ArchiveDocumentTag(description_id=doc.description_id, tag_id=plural.tag_id),
+            ArchiveDocumentTag(description_id=doc.description_id, tag_id=singular.tag_id),
+        ]
+    )
+    db_session.flush()
+
+    suggestions = TagRepository(db_session).find_merge_suggestions(threshold=0.99)
+
+    cluster = next(s for s in suggestions if "livros" in [m.name for m in s.members])
+    assert {member.name for member in cluster.members} == {"livro", "livros"}
+    assert cluster.reason == "PLURAL"
+    # Both tags hang from the same document, so the canonical keeps the most used spelling.
+    assert cluster.canonical_name in {"livro", "livros"}
+    assert cluster.total_documents == 1
+
+
+def test_merge_suggestions_canonical_is_the_most_used_spelling(db_session, generate_archive_doc):
+    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+
+    popular = ArchiveTag(name="casas")
+    rare = ArchiveTag(name="casa")
+    db_session.add_all([popular, rare])
+    db_session.flush()
+    for index in range(3):
+        doc = generate_archive_doc(original_title=f"Doc {index}")
+        db_session.add(ArchiveDocumentTag(description_id=doc.description_id, tag_id=popular.tag_id))
+    doc = generate_archive_doc(original_title="Doc raro")
+    db_session.add(ArchiveDocumentTag(description_id=doc.description_id, tag_id=rare.tag_id))
+    db_session.flush()
+
+    suggestions = TagRepository(db_session).find_merge_suggestions(threshold=0.99)
+
+    cluster = next(s for s in suggestions if "casa" in [m.name for m in s.members])
+    assert cluster.canonical_name == "casas"
+    assert cluster.total_documents == 4
+
+
+def test_merge_suggestions_never_merge_anything(db_session, generate_archive_doc):
+    from sqlalchemy import func, select
+
+    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+
+    db_session.add_all([ArchiveTag(name="obras"), ArchiveTag(name="obra")])
+    db_session.flush()
+
+    TagRepository(db_session).find_merge_suggestions()
+
+    assert db_session.scalar(select(func.count()).select_from(ArchiveTag)) == 2
+
+
+def test_merge_suggestions_respect_the_limit(db_session):
+    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+
+    for singular, plural in (("livro", "livros"), ("casa", "casas"), ("carro", "carros")):
+        db_session.add_all([ArchiveTag(name=singular), ArchiveTag(name=plural)])
+    db_session.flush()
+
+    assert len(TagRepository(db_session).find_merge_suggestions(limit=2)) == 2
+
+
+def test_merge_suggestions_of_an_empty_catalog_are_empty(db_session):
+    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+
+    assert TagRepository(db_session).find_merge_suggestions() == []

@@ -216,6 +216,9 @@ def mock_staging_doc():
         doc.document_date = None
         doc.scope_content = "Resumo do documento"
         doc.raw_content_hash = raw_content_hash
+        # The transfer keys the archive CDC on the *parsed* record (a parser fix must move it),
+        # so the double answers with a deterministic value derived from the raw hash.
+        doc.parsed_content_hash = lambda: f"parsed-{raw_content_hash}"
         doc.reference_code = "BR PR"
         doc.level = "Dossiê"
         doc.producers = "Prefeitura"

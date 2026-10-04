@@ -4,6 +4,8 @@ from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict
 
+from memoria_curitibana.core.content_hash import ContentHash
+
 
 class StagingRecord(BaseModel):
     """Read model of a structured staging document, decoupled from the staging ORM."""
@@ -26,6 +28,16 @@ class StagingRecord(BaseModel):
     archivist_notes: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    def parsed_content_hash(self) -> str:
+        """
+        Hash of what this layer *parsed*, used as the archive CDC key.
+
+        The raw payload hash cannot see a parser change: fixing the date parser leaves the
+        source byte-identical, so the archive would keep the old value forever. Hashing the
+        parsed record makes the transfer notice it, exactly like a real source change.
+        """
+        return str(ContentHash.of(self.model_dump(mode="json")))
 
 
 class StagingRecordSource(Protocol):

@@ -14,6 +14,7 @@ def run_staging_pipeline(
     source: RawRecordSource | None = None,
     writer: StagingDocumentWriter | None = None,
     uow: UnitOfWork | None = None,
+    force: bool = False,
 ) -> None:
     """
     Orchestrates the transformation pipeline (Transform/Load) for the Staging layer.
@@ -32,6 +33,8 @@ def run_staging_pipeline(
         db_session (Session): Active SQLAlchemy session.
         source (RawRecordSource | None): Input port; defaults to the SQL adapter.
         writer (StagingDocumentWriter | None): Output port; defaults to the SQL adapter.
+        force (bool): Re-parses every raw record instead of only the changed ones. Required
+            after a parser change, because the source payload hash did not change.
     """
 
     source = source or SqlRawRecordSource(db_session)
@@ -39,7 +42,7 @@ def run_staging_pipeline(
     uow = uow or UnitOfWork(db_session)
 
     logger.info("🔍 Checking pending documents at the Ingestion Domain...")
-    pending_records = source.next_batch()
+    pending_records = source.next_batch(force=force)
 
     total = len(pending_records)
     if total == 0:
@@ -91,5 +94,11 @@ def run_staging_pipeline(
 
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Runs the staging transform.")
+    parser.add_argument("--force", action="store_true", help="Re-parses every raw record, ignoring the CDC.")
+    args = parser.parse_args()
+
     with get_db() as db:
-        run_staging_pipeline(db)
+        run_staging_pipeline(db, force=args.force)

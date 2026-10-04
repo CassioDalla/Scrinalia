@@ -11,7 +11,7 @@ class InMemoryRawSource:
     def __init__(self, records: Sequence[RawRecord]):
         self._records = list(records)
 
-    def next_batch(self) -> Sequence[RawRecord]:
+    def next_batch(self, force: bool = False) -> Sequence[RawRecord]:
         return self._records
 
 

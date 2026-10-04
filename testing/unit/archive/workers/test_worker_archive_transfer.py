@@ -1,6 +1,7 @@
 from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
+from memoria_curitibana.domains.archive.ports.staging_source import StagingRecord
 from memoria_curitibana.domains.archive.schemas.command_schema import TagLinkCommand
 from memoria_curitibana.domains.archive.schemas.document_schema import ArchiveDocumentDTO
 from memoria_curitibana.domains.archive.workers import worker_archive_transfer
@@ -55,7 +56,8 @@ def test_run_archive_transfer_full_flow(mocker: MockerFixture, mock_staging_doc)
     sent_dto: ArchiveDocumentDTO = args[0]  # Takes the first argument sent
 
     assert sent_dto.description_id == "doc-100"
-    assert sent_dto.staging_content_hash == "hash_123"
+    # The CDC key is the hash of the parsed record, not of the raw payload.
+    assert sent_dto.staging_content_hash == StagingRecord.model_validate(staging_doc).parsed_content_hash()
     assert sent_dto.execution_log == {}
 
     # 5. VALIDATIONS: Business Rule Calls (TagService)

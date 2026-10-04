@@ -60,6 +60,40 @@ class TagPairSimilarity(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class TagCount(BaseModel):
+    """A tag and how many documents link to it (used by the merge suggestions)."""
+
+    tag_id: int
+    name: str
+    document_count: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TagMergeMember(BaseModel):
+    """One tag inside a proposed merge cluster."""
+
+    tag_id: int
+    name: str
+    document_count: int
+
+
+class TagMergeSuggestion(BaseModel):
+    """
+    A group of tags that probably mean the same thing.
+
+    Suggestion only: the archivist approves it through ``/tags/merge``. ``reason`` records
+    how the group was formed (``TRIGRAM`` for spelling closeness, ``PLURAL`` for
+    singular/plural, ``MIXED`` for both), so the evidence travels with the proposal.
+    """
+
+    canonical_id: int
+    canonical_name: str
+    total_documents: int
+    reason: str
+    members: list[TagMergeMember]
+
+
 class MergeResponse(BaseModel):
     documents_updated: int
     tags_deleted: int

@@ -19,14 +19,13 @@ class SqlRawRecordSource:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def next_batch(self) -> list[RawRecord]:
-        stmt = (
-            select(RawData.description_id, RawData.payload, RawData.content_hash, RawData.raw_title)
-            .outerjoin(StagingDocument, RawData.description_id == StagingDocument.description_id)
-            .where(
+    def next_batch(self, force: bool = False) -> list[RawRecord]:
+        """Pending records by CDC, or every record when ``force`` asks for a full re-parse."""
+        stmt = select(RawData.description_id, RawData.payload, RawData.content_hash, RawData.raw_title)
+        if not force:
+            stmt = stmt.outerjoin(StagingDocument, RawData.description_id == StagingDocument.description_id).where(
                 (StagingDocument.description_id.is_(None)) | (StagingDocument.raw_content_hash != RawData.content_hash)
             )
-        )
         return [RawRecord.model_validate(row._mapping) for row in self.db.execute(stmt)]
 
 

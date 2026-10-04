@@ -5,6 +5,7 @@ from memoria_curitibana.domains.archive.domain.normalization import (
     normalize_stopword,
     normalize_synonym,
     normalize_tag,
+    singular_candidates,
 )
 
 __all__ = [
@@ -15,4 +16,5 @@ __all__ = [
     "normalize_stopword",
     "normalize_synonym",
     "normalize_tag",
+    "singular_candidates",
 ]

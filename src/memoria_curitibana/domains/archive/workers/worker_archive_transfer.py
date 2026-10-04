@@ -52,7 +52,8 @@ def execute(
                 original_title=doc_staging.title,
                 document_date=doc_staging.document_date,
                 summary=doc_staging.scope_content,
-                staging_content_hash=doc_staging.raw_content_hash,
+                # Parsed content, not the raw payload: a parser fix must reach the archive.
+                staging_content_hash=doc_staging.parsed_content_hash(),
                 original_thumbnail_url=doc_staging.thumb_down_link,
                 storage_thumbnail_uri=None,
                 reference_code=doc_staging.reference_code,

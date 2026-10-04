@@ -18,6 +18,7 @@ from memoria_curitibana.domains.archive.schemas import (
     MergeResponse,
     MergeTagsCommand,
     SynonymCommand,
+    TagMergeSuggestion,
     TagPairSimilarity,
     TagRelevanceCount,
     TagRelevanceIdf,
@@ -161,6 +162,18 @@ class TagService:
         # Business rule: always search in lowercase
         target_lower = target_tag.strip().lower()
         return list(self.repo.find_similar(target_lower, threshold))
+
+    def suggest_merges(self, threshold: float = 0.65, limit: int = 50) -> list[TagMergeSuggestion]:
+        """
+        Proposes groups of tags that probably mean the same thing.
+
+        Suggestion only, like every other curation flow of this phase: nothing is merged,
+        the archivist approves through ``merge``.
+        """
+        if not 0 < threshold <= 1:
+            raise InvalidParam("O parâmetro 'threshold' deve estar entre 0 e 1.")
+
+        return self.repo.find_merge_suggestions(threshold=threshold, limit=limit)
 
     def find_all_similar_tag_pairs(self, threshold: float = 0.65) -> Sequence[TagPairSimilarity]:
         """

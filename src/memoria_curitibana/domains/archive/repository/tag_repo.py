@@ -1,3 +1,4 @@
+from collections import defaultdict
 from collections.abc import Sequence
 from typing import Any, cast
 
@@ -5,7 +6,12 @@ from sqlalchemy import CursorResult, Float, delete, desc, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
-from memoria_curitibana.domains.archive.domain.normalization import normalize_stopword, normalize_synonym, normalize_tag
+from memoria_curitibana.domains.archive.domain.normalization import (
+    normalize_stopword,
+    normalize_synonym,
+    normalize_tag,
+    singular_candidates,
+)
 from memoria_curitibana.domains.archive.models import (
     ArchiveDocument,
     ArchiveDocumentTag,
@@ -19,8 +25,11 @@ from memoria_curitibana.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
     SynonymCommand,
+    TagCount,
     TagIdentity,
     TagLinkCommand,
+    TagMergeMember,
+    TagMergeSuggestion,
     TagPairSimilarity,
     TagRelevanceCount,
     TagRelevanceIdf,
@@ -256,6 +265,112 @@ class TagRepository:
             .order_by(desc("sim_score"), Tag1.name)
         )
         return [TagPairSimilarity.model_validate(row) for row in self.db.execute(stmt).all()]
+
+    def get_all_tags_with_counts(self) -> Sequence[TagCount]:
+        """
+        Every tag with how many documents link to it.
+
+        One grouped join instead of a count per cluster: the merge suggestions compare the
+        whole taxonomy at once.
+        """
+        stmt = (
+            select(
+                ArchiveTag.tag_id,
+                ArchiveTag.name,
+                func.count(ArchiveDocumentTag.description_id).label("document_count"),
+            )
+            .outerjoin(ArchiveDocumentTag, ArchiveDocumentTag.tag_id == ArchiveTag.tag_id)
+            .group_by(ArchiveTag.tag_id, ArchiveTag.name)
+        )
+        return [TagCount.model_validate(row) for row in self.db.execute(stmt).all()]
+
+    def find_merge_suggestions(self, threshold: float = 0.65, limit: int = 50) -> list[TagMergeSuggestion]:
+        """
+        Groups tags that probably mean the same thing, without merging anything.
+
+        Two independent pieces of evidence, because each one alone misses the measured
+        cases: ``pg_trgm`` catches typos ("prefeiruta") and the plural rules catch
+        "livros"/"livro", which are far apart for a trigram. Both only ever *propose*:
+        the archivist approves through the existing merge route.
+
+        The canonical member is the tag attached to the most documents, so approving the
+        suggestion keeps the spelling the collection already uses the most.
+        """
+        catalog = {row.tag_id: row for row in self.get_all_tags_with_counts()}
+        if not catalog:
+            return []
+
+        by_name = {row.name: row.tag_id for row in catalog.values()}
+        parent: dict[int, int] = {tag_id: tag_id for tag_id in catalog}
+        reasons: dict[frozenset[int], set[str]] = {}
+
+        def find(tag_id: int) -> int:
+            while parent[tag_id] != tag_id:
+                parent[tag_id] = parent[parent[tag_id]]
+                tag_id = parent[tag_id]
+            return tag_id
+
+        def union(left: int, right: int, reason: str) -> None:
+            root_left, root_right = find(left), find(right)
+            if root_left != root_right:
+                parent[root_right] = root_left
+            reasons.setdefault(frozenset((left, right)), set()).add(reason)
+
+        for pair in self.find_all_similar_pairs(threshold):
+            union(pair.id_1, pair.id_2, "TRIGRAM")
+
+        for row in catalog.values():
+            for candidate in singular_candidates(row.name):
+                singular_id = by_name.get(candidate)
+                if singular_id is not None and singular_id != row.tag_id:
+                    union(row.tag_id, singular_id, "PLURAL")
+
+        clusters: dict[int, list[int]] = {}
+        for tag_id in catalog:
+            clusters.setdefault(find(tag_id), []).append(tag_id)
+
+        # The union of documents, not the sum of the members: a document linked to both
+        # "livro" and "livros" is one document, and summing would inflate the evidence.
+        grouped_members = [members for members in clusters.values() if len(members) > 1]
+        documents_by_tag: dict[int, set[str]] = defaultdict(set)
+        if grouped_members:
+            rows = self.db.execute(
+                select(ArchiveDocumentTag.tag_id, ArchiveDocumentTag.description_id).where(
+                    ArchiveDocumentTag.tag_id.in_([tag_id for members in grouped_members for tag_id in members])
+                )
+            ).all()
+            for tag_id, description_id in rows:
+                documents_by_tag[tag_id].add(description_id)
+
+        suggestions: list[TagMergeSuggestion] = []
+        for members in grouped_members:
+            ordered = sorted(members, key=lambda tag_id: (-catalog[tag_id].document_count, catalog[tag_id].name))
+            canonical = catalog[ordered[0]]
+            cluster_reasons = {
+                reason
+                for index, member in enumerate(members)
+                for other in members[index + 1 :]
+                for reason in reasons.get(frozenset((member, other)), set())
+            }
+            suggestions.append(
+                TagMergeSuggestion(
+                    canonical_id=canonical.tag_id,
+                    canonical_name=canonical.name,
+                    total_documents=len(set().union(*(documents_by_tag[tag_id] for tag_id in members))),
+                    reason=cluster_reasons.pop() if len(cluster_reasons) == 1 else "MIXED",
+                    members=[
+                        TagMergeMember(
+                            tag_id=catalog[tag_id].tag_id,
+                            name=catalog[tag_id].name,
+                            document_count=catalog[tag_id].document_count,
+                        )
+                        for tag_id in ordered
+                    ],
+                )
+            )
+
+        suggestions.sort(key=lambda suggestion: (-suggestion.total_documents, suggestion.canonical_name))
+        return suggestions[:limit]
 
     # --- Auxiliary Methods for the Tag Merge ---
 

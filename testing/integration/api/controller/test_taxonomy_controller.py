@@ -258,3 +258,35 @@ def test_remove_ner_exclusions_returns_200(client: TestClient, mocker):
     assert response.status_code == HTTP_200_OK
     assert response.json()["removed"] == 1
     mock_service.assert_called_once_with(["iptu"])
+
+
+# ==========================================
+# TAG MERGE SUGGESTIONS (suggestion only)
+# ==========================================
+
+
+def test_merge_suggestions_route_serialises_the_clusters(client: TestClient, mocker):
+    from memoria_curitibana.domains.archive.schemas.tag_schema import TagMergeMember, TagMergeSuggestion
+
+    mocked = mocker.patch.object(TagService, "suggest_merges")
+    mocked.return_value = [
+        TagMergeSuggestion(
+            canonical_id=1,
+            canonical_name="casas",
+            total_documents=4,
+            reason="PLURAL",
+            members=[
+                TagMergeMember(tag_id=1, name="casas", document_count=3),
+                TagMergeMember(tag_id=2, name="casa", document_count=1),
+            ],
+        )
+    ]
+
+    response = client.get("/api/v1/taxonomy/tags/merge-suggestions?threshold=0.8&limit=10")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body[0]["canonical_name"] == "casas"
+    assert body[0]["reason"] == "PLURAL"
+    assert len(body[0]["members"]) == 2
+    assert mocked.call_args.kwargs == {"threshold": 0.8, "limit": 10}

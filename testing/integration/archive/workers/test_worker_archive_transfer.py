@@ -1,6 +1,7 @@
 from sqlalchemy import select
 
 from memoria_curitibana.domains.archive.models import ArchiveDocument, ArchiveDocumentTag, ArchiveTag
+from memoria_curitibana.domains.archive.ports.staging_source import StagingRecord
 from memoria_curitibana.domains.archive.workers import worker_archive_transfer
 from memoria_curitibana.domains.staging.models import StagingDocument
 
@@ -45,7 +46,10 @@ def test_integration_worker_etl_end_to_end(use_test_db, db_session):
     # Validating whether the title ended up in the right place (even with the dirty spaces, the DTO must have passed)
     doc_1_db = next(d for d in migrated_docs if d.description_id == "br_pr_123")
     assert doc_1_db.original_title == "  Ata da Reunião  "
-    assert doc_1_db.staging_content_hash == "hash_novo_1"
+    # The archive CDC key is the hash of what staging *parsed*, not of the raw payload:
+    # otherwise a parser fix could never reach this layer.
+    assert doc_1_db.staging_content_hash == StagingRecord.model_validate(doc1).parsed_content_hash()
+    assert doc_1_db.staging_content_hash != "hash_novo_1"
 
     # 4. TAG VALIDATION (Creation and Cleaning)
     generated_tags = db_session.scalars(select(ArchiveTag.name)).all()

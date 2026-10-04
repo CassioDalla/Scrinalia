@@ -4,6 +4,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from memoria_curitibana.domains.staging.dates import parse_document_date
+
 
 class RawRecord(BaseModel):
     """
@@ -163,27 +165,9 @@ class StagingDocumentDTO(BaseModel):
 
         raw_date = payload.get("Data de Produção") or payload.get("Data")
         if raw_date:
-            data_str = str(raw_date).strip()
-
-            # Pattern 1: ISO 8601 or YYYY-MM-DD (e.g., 1929-07-05T03:00:00Z)
-            match_iso = re.search(r"(\d{4})-(\d{2})-(\d{2})", data_str)
-            # Pattern 2: Brazilian DD/MM/YYYY (e.g., 05/07/1929)
-            match_br = re.search(r"(\d{2})/(\d{2})/(\d{4})", data_str)
-            # Pattern 3: Year only (e.g., 1924)
-            match_year = re.search(r"^(\d{4})$", data_str)
-
-            try:
-                if match_iso:
-                    year, month, day = map(int, match_iso.groups())
-                    staging_data["document_date"] = date(year, month, day)
-                elif match_br:
-                    day, month, year = map(int, match_br.groups())
-                    staging_data["document_date"] = date(year, month, day)
-                elif match_year:
-                    year = int(match_year.group(1))
-                    staging_data["document_date"] = date(year, 1, 1)  # Defaults to January 1st of the year
-            except ValueError:
-                pass
+            parsed_date = parse_document_date(raw_date)
+            if parsed_date:
+                staging_data["document_date"] = parsed_date
 
         # From -> To Mapping (ISAD-G)
         # If the key on the left exists in the JSON, assign it to the attribute on the right
