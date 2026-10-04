@@ -1,5 +1,6 @@
 from datetime import date
 
+import pytest
 from sqlalchemy import select
 
 from memoria_curitibana.domains.archive.models import (
@@ -511,3 +512,76 @@ def test_search_combines_term_and_facet_with_stable_pagination(use_test_db, db_s
     assert total == 2
     assert len(first_page) == 1 and len(second_page) == 1
     assert {first_page[0].description_id, second_page[0].description_id} == {"c1", "c2"}
+
+
+# ==========================================
+# SEMANTIC SEARCH (EMBEDDINGS)
+# ==========================================
+
+
+def _vector(*components: float) -> list[float]:
+    """Builds a 384-dim vector with the given leading components (rest zero)."""
+    base = [0.0] * 384
+    for index, value in enumerate(components):
+        base[index] = value
+    return base
+
+
+def test_semantic_search_orders_by_cosine_similarity_and_skips_documents_without_embedding(
+    use_test_db, db_session, generate_archive_doc
+):
+    repo = DocumentRepository(db_session)
+    generate_archive_doc(description_id="sem1", original_title="Enchentes", embedding=_vector(1.0))
+    generate_archive_doc(description_id="sem2", original_title="Obras", embedding=_vector(0.0, 1.0))
+    generate_archive_doc(description_id="sem3", original_title="Sem vetor")
+
+    docs, total = repo.search(DocumentSearchQuery(term="alagamento", mode="semantic"), query_embedding=_vector(1.0))
+
+    # Only embedded documents are candidates; the closest one comes first.
+    assert total == 2
+    assert [doc.description_id for doc in docs] == ["sem1", "sem2"]
+    assert docs[0].rank == pytest.approx(1.0, abs=1e-5)
+    assert docs[1].rank == pytest.approx(0.0, abs=1e-5)
+
+
+def test_semantic_search_respects_facets(use_test_db, db_session, generate_archive_doc):
+    repo = DocumentRepository(db_session)
+    dossier = ArchiveTypology(name="Dossiê")
+    photo = ArchiveTypology(name="Fotografia")
+    db_session.add_all([dossier, photo])
+    db_session.commit()
+
+    generate_archive_doc(
+        description_id="fac1", original_title="A", embedding=_vector(1.0), typology_id=dossier.typology_id
+    )
+    generate_archive_doc(
+        description_id="fac2", original_title="B", embedding=_vector(1.0), typology_id=photo.typology_id
+    )
+
+    docs, total = repo.search(
+        DocumentSearchQuery(term="x", mode="semantic", typology_id=photo.typology_id),
+        query_embedding=_vector(1.0),
+    )
+
+    assert (total, [doc.description_id for doc in docs]) == (1, ["fac2"])
+
+
+def test_semantic_mode_without_a_query_embedding_falls_back_to_browsing(use_test_db, db_session, generate_archive_doc):
+    """A semantic request with no term carries no vector, so it must not crash."""
+    repo = DocumentRepository(db_session)
+    generate_archive_doc(description_id="noemb", original_title="Qualquer", embedding=_vector(1.0))
+
+    docs, total = repo.search(DocumentSearchQuery(mode="semantic"))
+
+    assert total == 1
+    assert docs[0].rank is None
+
+
+def test_lexical_mode_ignores_the_query_embedding(use_test_db, db_session, generate_archive_doc):
+    repo = DocumentRepository(db_session)
+    generate_archive_doc(description_id="lex1", original_title="Matadouro Municipal", embedding=_vector(1.0))
+
+    docs, total = repo.search(DocumentSearchQuery(term="matadouro"), query_embedding=_vector(1.0))
+
+    assert total == 1
+    assert docs[0].rank is not None and docs[0].rank > 0

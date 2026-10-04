@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -13,6 +14,10 @@ class DocumentSearchQuery(BaseModel):
     """
 
     term: str | None = Field(default=None, description="Free-text search term.")
+    mode: Literal["lexical", "semantic"] = Field(
+        default="lexical",
+        description="lexical: full-text ranking. semantic: cosine similarity over the embeddings.",
+    )
     typology_id: int | None = Field(default=None, description="Only documents classified with this typology.")
     macro_category_id: int | None = Field(
         default=None, description="Only documents having at least one tag of this macro category."

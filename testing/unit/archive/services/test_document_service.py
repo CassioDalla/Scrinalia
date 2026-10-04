@@ -38,12 +38,60 @@ def test_search_maps_repository_results() -> None:
     query = DocumentSearchQuery(term="x", limit=10, offset=5)
     result = service.search(query)
 
-    repo.search.assert_called_once_with(query)
+    repo.search.assert_called_once_with(query, query_embedding=None)
     assert isinstance(result, DocumentListResponse)
     assert result.total == 2
     assert result.limit == 10
     assert result.offset == 5
     assert [item.description_id for item in result.items] == ["doc-1", "doc-2"]
+
+
+def test_lexical_search_never_builds_the_embedding_engine() -> None:
+    """A lexical request must not pay the cost of loading the embedding model."""
+    repo = Mock(spec=DocumentRepository)
+    repo.search.return_value = ([], 0)
+    embedder = Mock()
+    service = DocumentService(repo, embedder=embedder)
+
+    service.search(DocumentSearchQuery(term="matadouro"))
+
+    embedder.assert_not_called()
+    assert repo.search.call_args.kwargs["query_embedding"] is None
+
+
+def test_semantic_search_embeds_the_term_and_passes_the_vector() -> None:
+    repo = Mock(spec=DocumentRepository)
+    repo.search.return_value = ([], 0)
+    engine = Mock()
+    engine.embed.return_value = [[0.1, 0.2]]
+    embedder = Mock(return_value=engine)
+    service = DocumentService(repo, embedder=embedder)
+
+    service.search(DocumentSearchQuery(term="enchentes", mode="semantic"))
+
+    engine.embed.assert_called_once_with(["enchentes"])
+    assert repo.search.call_args.kwargs["query_embedding"] == [0.1, 0.2]
+
+
+def test_semantic_search_builds_the_engine_only_once() -> None:
+    repo = Mock(spec=DocumentRepository)
+    repo.search.return_value = ([], 0)
+    engine = Mock()
+    engine.embed.return_value = [[0.0]]
+    embedder = Mock(return_value=engine)
+    service = DocumentService(repo, embedder=embedder)
+
+    service.search(DocumentSearchQuery(term="a", mode="semantic"))
+    service.search(DocumentSearchQuery(term="b", mode="semantic"))
+
+    embedder.assert_called_once()
+
+
+def test_semantic_search_without_an_embedder_fails_loudly() -> None:
+    service = DocumentService(Mock(spec=DocumentRepository))
+
+    with pytest.raises(RuntimeError, match="embedding engine"):
+        service.search(DocumentSearchQuery(term="x", mode="semantic"))
 
 
 def test_get_raises_when_missing() -> None:

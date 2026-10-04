@@ -1,10 +1,11 @@
 import re
 from typing import Any
 
-from sqlalchemy import and_, case, exists, func, or_, select
+from sqlalchemy import Float, and_, bindparam, case, exists, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, selectinload
 
+from memoria_curitibana.core.types import Vector
 from memoria_curitibana.domains.archive.domain.search import build_tsquery, tokenize
 from memoria_curitibana.domains.archive.models import (
     ArchiveDocument,
@@ -14,6 +15,7 @@ from memoria_curitibana.domains.archive.models import (
     ArchiveReviewStatus,
     ArchiveTag,
 )
+from memoria_curitibana.domains.archive.models.document import EMBEDDING_DIMENSIONS
 from memoria_curitibana.domains.archive.repository.governance import ai_writable_documents
 from memoria_curitibana.domains.archive.schemas.command_schema import DocumentReviewCommand
 from memoria_curitibana.domains.archive.schemas.document_schema import (
@@ -244,7 +246,39 @@ class DocumentRepository:
         )
         return [self._to_summary(doc) for doc in self.db.scalars(page_stmt).all()]
 
-    def search(self, query: DocumentSearchQuery) -> tuple[list[DocumentSummary], int]:
+    def _semantic_search(
+        self, base_stmt: Any, query: DocumentSearchQuery, query_embedding: list[float]
+    ) -> tuple[list[DocumentSummary], int]:
+        """
+        Ranks the embedded documents by cosine similarity to the query vector.
+
+        Only documents that already have an embedding are candidates, so the worker has
+        to have run before semantic search returns anything. ``rank`` is the cosine
+        similarity (1 = same direction), which is friendlier to read than the raw
+        distance the index is ordered by.
+        """
+        query_vector = bindparam("query_embedding", value=query_embedding, type_=Vector(EMBEDDING_DIMENSIONS))
+        # ``return_type`` matters: without it SQLAlchemy infers the operator result from
+        # the left operand (the vector column), and then ``1 - distance`` would try to
+        # bind the literal 1 as a vector.
+        distance = ArchiveDocument.embedding.op("<=>", return_type=Float)(query_vector)
+        rank = (1 - distance).label("rank")
+
+        stmt = base_stmt.where(ArchiveDocument.embedding.is_not(None)).add_columns(rank)
+        total = self._count(stmt)
+
+        page_stmt = (
+            stmt.options(*self._eager_options())
+            .order_by(distance.asc(), ArchiveDocument.updated_at.desc(), ArchiveDocument.description_id)
+            .limit(query.limit)
+            .offset(query.offset)
+        )
+        rows = self.db.execute(page_stmt).all()
+        return [self._to_summary(doc, float(relevance)) for doc, relevance in rows], total
+
+    def search(
+        self, query: DocumentSearchQuery, query_embedding: list[float] | None = None
+    ) -> tuple[list[DocumentSummary], int]:
         """
         Searches the collection with native full-text ranking and facets.
 
@@ -256,8 +290,15 @@ class DocumentRepository:
         a normal search never scans the text columns. It is there to keep a mid-word
         fragment (which FTS cannot see) from returning an empty page when no tag or
         entity matches either.
+
+        When ``query.mode`` is ``semantic`` and a ``query_embedding`` is provided, the
+        full-text clause is replaced by the cosine-distance ranking; the facets still
+        apply.
         """
         base_stmt = select(ArchiveDocument).where(*self._facet_filters(query))
+
+        if query.mode == "semantic" and query_embedding is not None:
+            return self._semantic_search(base_stmt, query, query_embedding)
 
         tokens = tokenize(query.term) if query.term else []
         tsquery = build_tsquery(tokens)

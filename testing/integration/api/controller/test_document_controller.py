@@ -62,6 +62,28 @@ def test_list_documents_returns_the_page_envelope(client: TestClient, mocker):
     assert body["items"][0]["description_id"] == "doc-1"
     query = mock_search.call_args.args[0]
     assert (query.term, query.limit, query.offset) == (None, 50, 0)
+    assert query.mode == "lexical"
+
+
+def test_list_documents_forwards_the_search_mode(client: TestClient, mocker):
+    """The semantic mode is part of the HTTP contract."""
+    mock_search = mocker.patch.object(DocumentService, "search")
+    mock_search.return_value = DocumentListResponse(total=0, limit=50, offset=0, items=[])
+
+    response = client.get("/api/v1/documents/?term=enchentes&mode=semantic")
+
+    assert response.status_code == HTTP_200_OK
+    assert mock_search.call_args.args[0].mode == "semantic"
+
+
+def test_list_documents_rejects_an_unknown_mode(client: TestClient, mocker):
+    """An unsupported mode must be a 400, not a silent fallback."""
+    mock_search = mocker.patch.object(DocumentService, "search")
+
+    response = client.get("/api/v1/documents/?mode=telepatia")
+
+    assert response.status_code == 400
+    mock_search.assert_not_called()
 
 
 def test_list_documents_forwards_the_search_term_and_pagination(client: TestClient, mocker):

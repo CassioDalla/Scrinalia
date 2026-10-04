@@ -1,11 +1,13 @@
 """Composition root of the HTTP layer: one transaction and its services per request."""
 
 from collections.abc import Iterator
+from functools import lru_cache
 
 from litestar.di import NamedDependency
 
 from memoria_curitibana.core.database import create_session
 from memoria_curitibana.core.unit_of_work import UnitOfWork
+from memoria_curitibana.domains.archive.engines.base import EmbeddingEngine
 from memoria_curitibana.domains.archive.repository.cleaning_repo import CleaningRepository
 from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
 from memoria_curitibana.domains.archive.repository.entity_repo import EntityRepository
@@ -14,6 +16,20 @@ from memoria_curitibana.domains.archive.services.cleaning_service import Cleanin
 from memoria_curitibana.domains.archive.services.document_service import DocumentService
 from memoria_curitibana.domains.archive.services.entity_service import EntityService
 from memoria_curitibana.domains.archive.services.tag_service import TagService
+
+
+@lru_cache(maxsize=1)
+def provide_embedding_engine() -> EmbeddingEngine:
+    """
+    Process-wide embedding engine used by semantic search.
+
+    Cached on purpose: loading the model costs seconds and hundreds of MB, and it must
+    happen at most once per process, only when the first semantic request arrives. The
+    registry is imported here so a lexical request never pays the engine import either.
+    """
+    from memoria_curitibana.domains.archive.engines.embeddings.registry import get_engine
+
+    return get_engine("sentence_transformer", preset="multilingual_minilm")
 
 
 def provide_unit_of_work() -> Iterator[UnitOfWork]:
@@ -55,4 +71,4 @@ def provide_cleaning_service(unit_of_work: NamedDependency[UnitOfWork]) -> Clean
 
 def provide_document_service(unit_of_work: NamedDependency[UnitOfWork]) -> DocumentService:
     """Builds the collection reading/curation service with the request transaction."""
-    return DocumentService(DocumentRepository(unit_of_work.db))
+    return DocumentService(DocumentRepository(unit_of_work.db), embedder=provide_embedding_engine)

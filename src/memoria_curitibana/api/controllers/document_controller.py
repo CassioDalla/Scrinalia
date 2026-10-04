@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Literal
 
 from litestar import Controller, get, patch
 from litestar.di import NamedDependency, Provide
@@ -25,6 +26,7 @@ class DocumentController(Controller):
         self,
         document_service: NamedDependency[DocumentService],
         term: FromQuery[str | None] = None,
+        mode: FromQuery[Literal["lexical", "semantic"]] = "lexical",
         typology_id: FromQuery[int | None] = None,
         macro_category_id: FromQuery[int | None] = None,
         entity_type: FromQuery[str | None] = None,
@@ -33,10 +35,11 @@ class DocumentController(Controller):
         limit: FromQuery[int] = 50,
         offset: FromQuery[int] = 0,
     ) -> DocumentListResponse:
-        """Lists/paginates the collection with full-text ranking and faceted filters."""
+        """Lists/paginates the collection with full-text or semantic ranking and facet filters."""
         return document_service.search(
             DocumentSearchQuery(
                 term=term,
+                mode=mode,
                 typology_id=typology_id,
                 macro_category_id=macro_category_id,
                 entity_type=entity_type,
