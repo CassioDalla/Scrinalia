@@ -21,7 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:15
+        # Same image as docker-compose.test.yml: the migrations need the pgvector
+        # extension, which the stock postgres image does not ship.
+        image: pgvector/pgvector:pg15
         env:
           POSTGRES_USER: test_user
           POSTGRES_PASSWORD: test_password

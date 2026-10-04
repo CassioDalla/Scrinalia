@@ -1,6 +1,10 @@
 services:
   postgres_test:
-    image: postgres:15 # Use a mesma versão do seu banco oficial
+    # Same PostgreSQL major version and same pgvector extension as the official dev
+    # image. The test database is built from the models, so it needs the extensions the
+    # generated/vector columns depend on. PostGIS is deliberately absent here: no
+    # migration enables it yet, and CI uses this same image.
+    image: pgvector/pgvector:pg15
     container_name: memoria_curitibana_db_test
     environment:
       POSTGRES_USER: test_user
