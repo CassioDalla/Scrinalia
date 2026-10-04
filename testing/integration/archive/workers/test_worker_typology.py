@@ -68,7 +68,7 @@ def test_worker_integration_updates_database_correctly(
     updated_doc = db_session.get(ArchiveDocument, doc_id)
 
     assert updated_doc.typology_id == expected_typology_id
-    assert updated_doc.execution_log["worker_typology_classifier_v1"] == "DONE"
+    assert updated_doc.execution_log["worker_typology_classifier_v2"] == "DONE"
 
 
 def test_worker_exits_gracefully_without_typologies(db_session, mock_registry):
@@ -92,7 +92,7 @@ def test_worker_exits_gracefully_without_pending_documents(
     generate_typology(id=1, name="Dossiê")
 
     # We create a document that WAS ALREADY processed by this version of the worker
-    generate_archive_doc(execution_log={"worker_typology_classifier_v1": "DONE"})
+    generate_archive_doc(execution_log={"worker_typology_classifier_v2": "DONE"})
 
     MockClass = mock_registry(typology_registry)
     ai_instance = MockClass.return_value
@@ -132,7 +132,7 @@ def test_worker_ignores_empty_documents_and_stamps_done(
     # But the document MUST be stamped so it does not loop on the next round
     updated_doc = db_session.get(ArchiveDocument, doc_id)
     assert updated_doc.typology_id is None
-    assert updated_doc.execution_log["worker_typology_classifier_v1"] == "DONE"
+    assert updated_doc.execution_log["worker_typology_classifier_v2"] == "DONE"
 
 
 def test_worker_ignores_low_ai_confidence(db_session, generate_typology, generate_archive_doc, mock_registry):
@@ -157,7 +157,7 @@ def test_worker_ignores_low_ai_confidence(db_session, generate_typology, generat
     # It must not file
     assert updated_doc.typology_id is None
     # It must stamp as done
-    assert updated_doc.execution_log["worker_typology_classifier_v1"] == "DONE"
+    assert updated_doc.execution_log["worker_typology_classifier_v2"] == "DONE"
 
 
 def test_worker_handles_ai_hallucination(db_session, generate_typology, generate_archive_doc, mock_registry):
@@ -181,7 +181,7 @@ def test_worker_handles_ai_hallucination(db_session, generate_typology, generate
 
     # It cannot break with KeyError, it must remain null
     assert updated_doc.typology_id is None
-    assert updated_doc.execution_log["worker_typology_classifier_v1"] == "DONE"
+    assert updated_doc.execution_log["worker_typology_classifier_v2"] == "DONE"
 
 
 def test_worker_rolls_back_on_ai_failure(db_session, generate_typology, generate_archive_doc, mock_registry):
@@ -207,7 +207,7 @@ def test_worker_rolls_back_on_ai_failure(db_session, generate_typology, generate
     # Since a rollback and break occurred at AI processing time, the document
     # must remain untouched in the database (no stamp) to be retried later.
     assert updated_doc.typology_id is None
-    assert updated_doc.execution_log is None or "worker_typology_classifier_v1" not in updated_doc.execution_log
+    assert updated_doc.execution_log is None or "worker_typology_classifier_v2" not in updated_doc.execution_log
 
 
 def test_worker_rolls_back_on_commit_failure(db_session, generate_typology, generate_archive_doc, mock_registry):
@@ -232,4 +232,36 @@ def test_worker_rolls_back_on_commit_failure(db_session, generate_typology, gene
     updated_doc = db_session.get(ArchiveDocument, doc_id)
 
     assert updated_doc.typology_id is None
-    assert updated_doc.execution_log is None or "worker_typology_classifier_v1" not in updated_doc.execution_log
+    assert updated_doc.execution_log is None or "worker_typology_classifier_v2" not in updated_doc.execution_log
+
+
+BLOCK = "Acervo de 35.327 fotografias que retratam a cidade de Curitiba no âmbito do Planejamento"
+
+
+def test_worker_typology_classifies_the_text_without_the_approved_excerpt(
+    use_test_db,
+    db_session,
+    generate_archive_doc,
+    generate_typology,
+    mock_registry,
+):
+    """Fase 3.5-B: the shared boilerplate is what pulled every document to the same label."""
+    from memoria_curitibana.domains.archive.repository.text_quality_repo import TextQualityRepository
+    from memoria_curitibana.domains.archive.schemas.text_quality_schema import TemplateCreateCommand
+
+    real_typology = generate_typology(id=97, name="dossiê")
+    generate_archive_doc(description_id="typ_cut", original_title="Rua Izaac", scope_content=BLOCK)
+    TextQualityRepository(db_session).create_template(TemplateCreateCommand(text=BLOCK))
+
+    MockClass = mock_registry(typology_registry)
+    ai_instance = MockClass.return_value
+    ai_instance.classify.return_value = [{"labels": [real_typology.name], "scores": [0.99]}]
+
+    execute(
+        db=db_session,
+        engine_name="motor_fake",  # type: ignore
+        preset="preset_teste",  # type: ignore
+        columns_to_classify=["original_title", "scope_content"],
+    )
+
+    assert ai_instance.classify.call_args.args[0] == ["Rua Izaac"]

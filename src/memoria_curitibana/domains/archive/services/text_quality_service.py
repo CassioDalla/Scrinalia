@@ -142,6 +142,7 @@ class TextQualityService:
                 TemplateSuggestion(
                     text=candidate.text,
                     variants=candidate.variants,
+                    scope=candidate.scope,  # type: ignore[arg-type]
                     occurrence_count=candidate.occurrence_count,
                     sample_document_ids=candidate.sample_document_ids,
                     columns=candidate.columns,
@@ -156,16 +157,31 @@ class TextQualityService:
         )
 
     def dry_run(self, request: TemplateDryRunRequest) -> TemplateDryRunResponse:
-        """Shows the impact of an excerpt before it is approved."""
+        """Shows the impact of an excerpt on the text the chosen consumers read."""
         rule = self._rule_from(request.text, request.variants, request.action, request.replacement)
         if not rule.matchers:
             raise InvalidParam("O trecho não pode ser vazio.")
 
-        return self.repo.dry_run([rule], list(AI_TEXT_COLUMNS), sample_limit=request.sample_limit)
+        return self.repo.dry_run(
+            [rule], self._columns_for_scope(list(request.scope)), sample_limit=request.sample_limit
+        )
 
     # ==========================================
     # INTERNALS
     # ==========================================
+
+    @staticmethod
+    def _columns_for_scope(scope: list[str]) -> list[str]:
+        """
+        Which columns the requested consumers read.
+
+        A title-scoped excerpt is about the title field alone (the derived suggestion); a
+        general one is about the whole AI text. Keeping them apart is what the measurement
+        asked for: the title prefix helps the suggestion and hurts the vector.
+        """
+        if scope == ["TITLE"]:
+            return ["original_title"]
+        return list(AI_TEXT_COLUMNS)
 
     @staticmethod
     def _rule_from(text: str, variants: list[str], action: str, replacement: str) -> ExcerptRule:
@@ -182,6 +198,7 @@ class TextQualityService:
         return (
             previous.matchers != updated.matchers
             or previous.replacement != updated.replacement
+            or previous.scope != updated.scope
             or previous.applies != updated.applies
         )
 
@@ -191,7 +208,7 @@ class TextQualityService:
             return template
 
         rule = self._rule_from(template.text, template.variants, template.action, template.replacement)
-        affected = self.repo.count_affected_documents([rule], list(AI_TEXT_COLUMNS))
+        affected = self.repo.count_affected_documents([rule], self._columns_for_scope(list(template.scope)))
 
         # ``occurrence_count`` is evidence, not a decision, so it is not part of the
         # editable command surface; it is written through this dedicated path.
@@ -199,6 +216,12 @@ class TextQualityService:
 
     def _requeue_documents(self, template: TextTemplateDTO) -> int:
         if not template.applies:
+            return 0
+
+        # A title-only excerpt changes nothing the workers produced: the suggested title is
+        # derived on read. The embedding re-queues by itself (its stamp is the hash of the
+        # effective text); only the status-stamped readers have to be told.
+        if "NER" not in template.scope:
             return 0
 
         return self.repo.requeue_documents(

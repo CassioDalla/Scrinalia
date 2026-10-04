@@ -35,6 +35,14 @@ EXCERPT_MIN_LENGTH = 40
 #: is 23 characters ("Registros Fotográficos -") and it is repeated in 2467 documents.
 TITLE_PREFIX_MIN_LENGTH = 12
 
+#: Consumers of the AI text. An excerpt declares which of them must stop reading it:
+#: ``EMBEDDING`` (the semantic vector), ``NER`` (extraction and classification text) and
+#: ``TITLE`` (the derived title suggestion — the stored title is never rewritten).
+TEMPLATE_SCOPES: tuple[str, ...] = ("EMBEDDING", "NER", "TITLE")
+
+#: What an excerpt affects when the curator says nothing.
+DEFAULT_TEMPLATE_SCOPE: tuple[str, ...] = ("EMBEDDING", "NER")
+
 #: Sentence boundaries used to look for boilerplate *inside* an otherwise distinct
 #: field (the measured case: a shared block followed by a document-specific sentence).
 _SEGMENT_SPLIT_RE = re.compile(r"(?<=[.;!?])\s+|\n+")
@@ -123,6 +131,7 @@ class SuggestionCandidate:
     sample_document_ids: list[str] = field(default_factory=list)
     columns: list[str] = field(default_factory=list)
     variants: list[str] = field(default_factory=list)
+    scope: list[str] = field(default_factory=lambda: list(DEFAULT_TEMPLATE_SCOPE))
 
 
 class ExcerptSuggestionAggregator:
@@ -238,6 +247,11 @@ class ExcerptSuggestionAggregator:
                     sample_document_ids=sorted(documents)[: self.SAMPLE_LIMIT],
                     columns=columns,
                     variants=variants,
+                    # A decision about the title field is proposed for the derived title, not
+                    # for the embedded text: measurement showed that subtracting the repeated
+                    # title prefix from the vector made the ranking worse, while it is exactly
+                    # what the title suggestion needs.
+                    scope=["TITLE"] if columns == ["original_title"] else list(DEFAULT_TEMPLATE_SCOPE),
                 )
             )
 
@@ -270,7 +284,14 @@ class ExcerptSuggestionAggregator:
                     candidate.text in spelling for spelling in (other.text, *other.variants)
                 ):
                     return True
-                if other.text in self._prefixes and candidate.text.startswith(f"{other.text} "):
+                # A whole field is never a "refinement" of its own prefix: without this the
+                # repeated title and its prefix would prune each other and neither would be
+                # proposed.
+                if (
+                    candidate.text not in self._whole_values
+                    and other.text in self._prefixes
+                    and candidate.text.startswith(f"{other.text} ")
+                ):
                     return True
             return False
 

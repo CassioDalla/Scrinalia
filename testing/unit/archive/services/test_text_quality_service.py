@@ -217,3 +217,58 @@ def test_dry_run_ignores_the_replacement_when_the_action_is_ignore(
 def test_quality_validator_stamp_is_part_of_the_dependent_set() -> None:
     """The validator reads the effective text, so an excerpt change must re-queue it."""
     assert QUALITY_VALIDATOR in TEXT_DEPENDENT_STAMPS
+
+
+# ==========================================
+# SCOPE PER CONSUMER
+# ==========================================
+
+
+def test_suggest_forwards_the_proposed_scope(service: TextQualityService, repo: MagicMock) -> None:
+    repo.iter_text_columns.return_value = [
+        (f"doc-{index}", "original_title", "Registros Fotográficos - Rua número 123456789") for index in range(60)
+    ]
+
+    response = service.suggest_templates(min_ratio=0.05)
+
+    assert response.candidates[0].scope == ["TITLE"]
+
+
+def test_dry_run_of_a_title_excerpt_previews_only_the_title(service: TextQualityService, repo: MagicMock) -> None:
+    service.dry_run(TemplateDryRunRequest(text="Registros Fotográficos -", scope=["TITLE"]))
+
+    _rules, columns = repo.dry_run.call_args.args[:2]
+    assert columns == ["original_title"]
+
+
+def test_dry_run_of_a_general_excerpt_previews_the_whole_ai_text(service: TextQualityService, repo: MagicMock) -> None:
+    service.dry_run(TemplateDryRunRequest(text=BLOCK, scope=["EMBEDDING", "NER"]))
+
+    _rules, columns = repo.dry_run.call_args.args[:2]
+    assert "scope_content" in columns and "original_title" in columns
+
+
+def test_a_title_only_excerpt_does_not_requeue_the_ai_workers(service: TextQualityService, repo: MagicMock) -> None:
+    """Nothing the workers produced depends on the derived title."""
+    repo.create_template.return_value = _template(scope=["TITLE"])
+    repo.count_affected_documents.return_value = 2467
+    repo.refresh_occurrence_count.return_value = _template(scope=["TITLE"], occurrence_count=2467)
+
+    template, requeued = service.create_template(TemplateCreateCommand(text="Registros Fotográficos -"))
+
+    assert requeued == 0
+    assert template.scope == ["TITLE"]
+    repo.requeue_documents.assert_not_called()
+
+
+def test_changing_the_scope_changes_the_effect(service: TextQualityService, repo: MagicMock) -> None:
+    approved = _template(scope=["EMBEDDING", "NER"])
+    repo.get_template.return_value = approved
+    repo.update_template.return_value = _template(scope=["EMBEDDING"])
+    repo.refresh_occurrence_count.return_value = _template(scope=["EMBEDDING"])
+    repo.find_documents_with_excerpt.return_value = ["doc-1"]
+    repo.requeue_documents.return_value = 1
+
+    _template_result, requeued = service.update_template(1, TemplateUpdateCommand(scope=["EMBEDDING"]))
+
+    assert requeued == 1

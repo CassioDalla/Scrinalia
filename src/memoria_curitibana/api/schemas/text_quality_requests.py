@@ -1,6 +1,10 @@
 from pydantic import BaseModel, ConfigDict, Field
 
-from memoria_curitibana.domains.archive.schemas.text_quality_schema import TemplateAction, TemplateStatus
+from memoria_curitibana.domains.archive.schemas.text_quality_schema import (
+    TemplateAction,
+    TemplateScope,
+    TemplateStatus,
+)
 
 
 class CreateTextTemplateRequest(BaseModel):
@@ -9,6 +13,10 @@ class CreateTextTemplateRequest(BaseModel):
     text: str = Field(min_length=1, description="Trecho repetido que a IA não deve mais ler.")
     action: TemplateAction = "IGNORE"
     replacement: str = Field(default="", description="Texto que substitui o trecho quando action=REPLACE.")
+    scope: list[TemplateScope] = Field(
+        default_factory=lambda: ["EMBEDDING", "NER"],
+        description="Quem deixa de ler o trecho: EMBEDDING (vetor), NER (extração/classificação) e TITLE (título sugerido).",
+    )
     reason: str | None = None
     variants: list[str] = Field(default_factory=list, description="Outras grafias do mesmo trecho.")
     changed_by: str | None = Field(default=None, description="Quem decidiu (autoria, enquanto não há autenticação).")
@@ -22,6 +30,7 @@ class UpdateTextTemplateRequest(BaseModel):
     text: str | None = None
     action: TemplateAction | None = None
     replacement: str | None = None
+    scope: list[TemplateScope] | None = None
     reason: str | None = None
     variants: list[str] | None = None
     status: TemplateStatus | None = None
@@ -44,6 +53,7 @@ class DryRunTextTemplateRequest(BaseModel):
     text: str = Field(min_length=1)
     action: TemplateAction = "IGNORE"
     replacement: str = ""
+    scope: list[TemplateScope] = Field(default_factory=lambda: ["EMBEDDING", "NER"])
     variants: list[str] = Field(default_factory=list)
     sample_limit: int = Field(default=5, ge=1, le=50)
 

@@ -37,7 +37,7 @@ def test_worker_ner_integration_skips_human_approved(
 
     db_session.expire_all()
     approved = db_session.get(ArchiveDocument, "doc_human")
-    assert approved.execution_log is None or "worker_ner_v1" not in approved.execution_log
+    assert approved.execution_log is None or "worker_ner_v2" not in approved.execution_log
 
 
 @patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
@@ -75,7 +75,7 @@ def test_worker_ner_integration_real_database(
 
     # Checks whether the JSONB was written perfectly to disk
     assert updated_doc.execution_log is not None
-    assert updated_doc.execution_log["worker_ner_v1"] == "DONE"
+    assert updated_doc.execution_log["worker_ner_v2"] == "DONE"
 
     # Confirms the correct sending of the concatenated text to the AI
     args, _ = ner_engine_mock.extract.call_args
@@ -100,7 +100,7 @@ def test_worker_ner_integration_ignores_already_processed_documents(mock_get_eng
     """Integration: Validates whether the SQLAlchemy WHERE query respects the JSONB negation in PostgreSQL."""
     # We insert a document into the real database that ALREADY HAS the stamp
     old_doc = generate_archive_doc(
-        original_title="Documento Antigo", execution_log={"worker_ner_v1": "DONE", "algum_outro_worker": "ERROR"}
+        original_title="Documento Antigo", execution_log={"worker_ner_v2": "DONE", "algum_outro_worker": "ERROR"}
     )
     db_session.add(old_doc)
     db_session.commit()
@@ -137,9 +137,9 @@ def test_worker_ner_integration_processes_multiple_batches(mock_get_engine, db_s
     db_session.expire_all()
 
     # All 3 documents must have the DONE stamp saved in the database
-    assert db_session.get(ArchiveDocument, "doc-1").execution_log["worker_ner_v1"] == "DONE"
-    assert db_session.get(ArchiveDocument, "doc-2").execution_log["worker_ner_v1"] == "DONE"
-    assert db_session.get(ArchiveDocument, "doc-3").execution_log["worker_ner_v1"] == "DONE"
+    assert db_session.get(ArchiveDocument, "doc-1").execution_log["worker_ner_v2"] == "DONE"
+    assert db_session.get(ArchiveDocument, "doc-2").execution_log["worker_ner_v2"] == "DONE"
+    assert db_session.get(ArchiveDocument, "doc-3").execution_log["worker_ner_v2"] == "DONE"
 
     # The AI inference (batch extract) must have been called exactly 2 times
     assert ner_engine_mock.extract.call_count == 2
@@ -168,7 +168,7 @@ def test_worker_ner_integration_ignores_fully_null_rows(mock_get_engine, db_sess
     # The document in the database must remain untouched (no execution_log created)
     db_session.expire_all()
     verified_doc = db_session.get(ArchiveDocument, "doc_fantasma")
-    assert verified_doc.execution_log is None or "worker_ner_v1" not in verified_doc.execution_log
+    assert verified_doc.execution_log is None or "worker_ner_v2" not in verified_doc.execution_log
 
 
 # ==========================================
@@ -231,7 +231,7 @@ def test_worker_ner_does_not_recreate_an_excluded_entity(mock_get_engine, db_ses
     links = db_session.scalars(select(ArchiveDocumentEntity)).all()
     assert len(links) == 1
 
-    assert db_session.get(ArchiveDocument, "doc_excluded").execution_log["worker_ner_v1"] == "DONE"
+    assert db_session.get(ArchiveDocument, "doc_excluded").execution_log["worker_ner_v2"] == "DONE"
 
 
 @patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
@@ -360,3 +360,26 @@ def test_entity_scoped_stopword_is_still_honoured_by_the_purge_of_tags(use_test_
     db_session.commit()
 
     assert TagRepository(db_session).get_stopwords() == {"lixo"}
+
+
+BLOCK = "Acervo de 35.327 fotografias que retratam a cidade de Curitiba no âmbito do Planejamento"
+
+
+@patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
+def test_worker_ner_extracts_from_the_text_without_the_approved_excerpt(
+    mock_get_engine,
+    use_test_db,
+    db_session,
+    generate_archive_doc,
+):
+    """Fase 3.5-B: the boilerplate the archivist discarded stops feeding the extractor."""
+    from memoria_curitibana.domains.archive.repository.text_quality_repo import TextQualityRepository
+    from memoria_curitibana.domains.archive.schemas.text_quality_schema import TemplateCreateCommand
+
+    generate_archive_doc(description_id="doc_cut", original_title="Rua Izaac", scope_content=BLOCK)
+    TextQualityRepository(db_session).create_template(TemplateCreateCommand(text=BLOCK))
+
+    mock_get_engine.return_value.extract.return_value = [[]]
+    execute(db=db_session, columns_to_extract=["original_title", "scope_content"])
+
+    assert mock_get_engine.return_value.extract.call_args.args[0] == ["Rua Izaac"]

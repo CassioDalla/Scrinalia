@@ -35,12 +35,13 @@ def _add_template(db_session, **overrides) -> DomainTextTemplate:
         "fingerprint": (overrides.get("text") or "x") * 1,
         "action": "IGNORE",
         "replacement": "",
+        "scope": ["EMBEDDING", "NER"],
         "source": "HUMAN",
         "status": "APPROVED",
         "is_active": True,
     }
     data.update(overrides)
-    data["fingerprint"] = f"{data['text']}-{data['status']}-{data['is_active']}"[:64]
+    data["fingerprint"] = f"{data['text']}-{data['status']}-{data['is_active']}-{data['scope']}"[:64]
     row = DomainTextTemplate(**data)
     db_session.add(row)
     db_session.flush()
@@ -279,10 +280,10 @@ def test_find_documents_with_excerpt_normalizes_before_matching(
 def test_requeue_removes_only_the_given_stamps(repo: TextQualityRepository, generate_archive_doc) -> None:
     doc = generate_archive_doc(
         original_title="Rua A",
-        execution_log={"worker_ner_v1": "DONE", "worker_embedding_v1": "abc", "thumbnail": "True"},
+        execution_log={"worker_ner_v2": "DONE", "worker_embedding_v1": "abc", "thumbnail": "True"},
     )
 
-    changed = repo.requeue_documents([doc.description_id], ["worker_ner_v1", "worker_quality_validator_v1"])
+    changed = repo.requeue_documents([doc.description_id], ["worker_ner_v2", "worker_quality_validator_v1"])
 
     assert changed == 1
     assert doc.execution_log == {"worker_embedding_v1": "abc", "thumbnail": "True"}
@@ -291,14 +292,14 @@ def test_requeue_removes_only_the_given_stamps(repo: TextQualityRepository, gene
 def test_requeue_handles_a_document_without_a_log(repo: TextQualityRepository, generate_archive_doc) -> None:
     doc = generate_archive_doc(original_title="Rua B", execution_log=None)
 
-    assert repo.requeue_documents([doc.description_id], ["worker_ner_v1"]) == 1
+    assert repo.requeue_documents([doc.description_id], ["worker_ner_v2"]) == 1
     assert doc.execution_log == {}
 
 
 def test_requeue_without_keys_or_ids_is_a_noop(repo: TextQualityRepository, generate_archive_doc) -> None:
-    doc = generate_archive_doc(original_title="Rua C", execution_log={"worker_ner_v1": "DONE"})
+    doc = generate_archive_doc(original_title="Rua C", execution_log={"worker_ner_v2": "DONE"})
 
-    assert repo.requeue_documents([], ["worker_ner_v1"]) == 0
+    assert repo.requeue_documents([], ["worker_ner_v2"]) == 0
     assert repo.requeue_documents([doc.description_id], []) == 0
 
 
@@ -309,3 +310,52 @@ def test_iter_text_columns_streams_every_requested_column(repo: TextQualityRepos
 
     assert ("original_title", "Rua D") in {(column, value) for _id, column, value in rows}
     assert all(description_id == doc.description_id for description_id, _column, _value in rows)
+
+
+# ==========================================
+# SCOPE PER CONSUMER (measured decision)
+# ==========================================
+
+
+def test_active_rules_are_filtered_by_scope(repo: TextQualityRepository, db_session) -> None:
+    _add_template(db_session, text="Registros Fotográficos -", scope=["TITLE"])
+    _add_template(db_session, text=BLOCK, scope=["EMBEDDING", "NER"])
+    db_session.flush()
+
+    titles = [rule.matchers[0] for rule in repo.get_active_rules("TITLE")]
+    embeddings = [rule.matchers[0] for rule in repo.get_active_rules("EMBEDDING")]
+    everything = [rule.matchers[0] for rule in repo.get_active_rules()]
+
+    assert titles == ["Registros Fotográficos -"]
+    assert embeddings == [BLOCK]
+    assert set(everything) == {BLOCK, "Registros Fotográficos -"}
+
+
+def test_a_title_only_excerpt_never_reaches_the_embedded_text(
+    repo: TextQualityRepository, db_session, generate_archive_doc
+) -> None:
+    """
+    Regression for the measured finding: subtracting the repeated title prefix from the
+    embedded text made Hit@10 fall from 0.562 to 0.500, while the title suggestion needs
+    exactly that subtraction.
+    """
+    doc = generate_archive_doc(original_title="Registros Fotográficos - Rua A", scope_content=BLOCK)
+    _add_template(db_session, text="Registros Fotográficos -", scope=["TITLE"])
+    _add_template(db_session, text=BLOCK, scope=["EMBEDDING"])
+    db_session.flush()
+    condition = ArchiveDocument.description_id == doc.description_id
+
+    embedded = db_session.scalar(select(embedding_text_sql(repo.get_active_rules("EMBEDDING"))).where(condition))
+    suggested = db_session.scalar(select(effective_title_sql(repo.get_active_rules("TITLE"))).where(condition))
+
+    assert embedded == "Registros Fotográficos - Rua A"
+    assert suggested == "Rua A"
+
+
+def test_the_scope_is_validated_by_the_database(repo: TextQualityRepository, db_session) -> None:
+    """The check constraint keeps a typo from silently disabling an excerpt."""
+    from sqlalchemy.exc import IntegrityError
+
+    # ``_add_template`` flushes, and that is exactly where PostgreSQL must refuse the row.
+    with pytest.raises(IntegrityError):
+        _add_template(db_session, text="trecho qualquer com tamanho suficiente", scope=["EMBEDDINGS"])

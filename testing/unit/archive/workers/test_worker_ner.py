@@ -74,6 +74,11 @@ BLACKLIST_PATH = "memoria_curitibana.domains.archive.workers.worker_ner.load_ent
 def _mock_session(mocker: MockerFixture):
     mock_db = mocker.MagicMock(spec=Session)
     mock_db.scalar.return_value = 1
+    # The approved-excerpt catalogue is read from the same session: the unit test owns an
+    # empty one, so the composed text arrives exactly as the query returned it.
+    mocker.patch(
+        "memoria_curitibana.domains.archive.workers.worker_ner.TextQualityRepository"
+    ).return_value.get_active_rules.return_value = []
     return mock_db
 
 
@@ -95,7 +100,7 @@ def test_worker_ner_unit_ideal_flow(mocker: MockerFixture) -> None:
 
     # 1 document on the first round, empty on the second to break the while
     test_doc = MockArchiveDocument("doc-1", "Ofício", "Conteúdo sobre obras.")
-    mock_db.scalars.return_value.all.side_effect = [[test_doc], []]
+    mock_db.execute.return_value.all.side_effect = [[(test_doc, "Ofício. Conteúdo sobre obras.")], []]
 
     worker_ner.execute(db=mock_db, engine_name="spacy_ner")
 
@@ -109,7 +114,7 @@ def test_worker_ner_unit_ideal_flow(mocker: MockerFixture) -> None:
     mock_repo.bulk_link_entities.assert_called_once_with([EntityLinkCommand(description_id="doc-1", entity_id=101)])
 
     # Was the success stamp applied in the document's memory?
-    assert test_doc.execution_log["worker_ner_v1"] == "DONE"  # type: ignore
+    assert test_doc.execution_log["worker_ner_v2"] == "DONE"  # type: ignore
     mock_flag_modified.assert_called_once_with(test_doc, "execution_log")
     mock_db.commit.assert_called_once()
 
@@ -125,7 +130,7 @@ def test_worker_ner_ignores_empty_texts(mocker: MockerFixture) -> None:
 
     # Document that, after removing the email, becomes empty
     empty_doc = MockArchiveDocument("doc-2", "   ", "contato@email.com")
-    mock_db.scalars.return_value.all.side_effect = [[empty_doc], []]
+    mock_db.execute.return_value.all.side_effect = [[(empty_doc, "contato@email.com")], []]
 
     worker_ner.execute(db=mock_db)
 
@@ -133,7 +138,7 @@ def test_worker_ner_ignores_empty_texts(mocker: MockerFixture) -> None:
     mock_get_engine.return_value.extract.assert_not_called()
 
     # But the document MUST be stamped so it does not loop forever in the queue
-    assert empty_doc.execution_log["worker_ner_v1"] == "DONE"  # type: ignore
+    assert empty_doc.execution_log["worker_ner_v2"] == "DONE"  # type: ignore
     mock_flag_modified.assert_called_once()
 
 
@@ -146,7 +151,7 @@ def test_worker_ner_ai_failure_rolls_back(mocker: MockerFixture) -> None:
     mocker.patch(BLACKLIST_PATH, return_value=set())
 
     test_doc = MockArchiveDocument("doc-3", "Texto válido para forçar a IA a rodar")
-    mock_db.scalars.return_value.all.side_effect = [[test_doc], []]
+    mock_db.execute.return_value.all.side_effect = [[(test_doc, "Texto válido para forçar a IA a rodar")], []]
 
     # Force the NLP engine to explode
     mock_get_engine.return_value.extract.side_effect = Exception("Out of Memory")
@@ -173,7 +178,7 @@ def test_worker_ner_repository_failure_stamps_error(mocker: MockerFixture) -> No
     mock_get_engine.return_value.extract.return_value = [[ArchiveEntityDTO(name="Prefeitura", entity_type="ORG")]]
 
     test_doc = MockArchiveDocument("doc-4", "Texto válido")
-    mock_db.scalars.return_value.all.side_effect = [[test_doc], []]
+    mock_db.execute.return_value.all.side_effect = [[(test_doc, "Texto válido")], []]
 
     # Force a structural failure (e.g., Foreign Key error) when saving the entity
     mock_repo_class.return_value.get_or_create_entities.side_effect = Exception("DB Constraints Failed")
@@ -181,7 +186,7 @@ def test_worker_ner_repository_failure_stamps_error(mocker: MockerFixture) -> No
     worker_ner.execute(db=mock_db)
 
     # Did the anti-infinite-loop shield work? The document MUST be stamped with ERROR.
-    assert test_doc.execution_log["worker_ner_v1"] == "ERROR"  # type: ignore
+    assert test_doc.execution_log["worker_ner_v2"] == "ERROR"  # type: ignore
     mock_flag_modified.assert_called_once()
 
     # The batch moves on and commits the others (or the error itself in the log)

@@ -1,12 +1,17 @@
 """Contracts of the text-quality catalog (repeated excerpts the curation decided on)."""
 
-from typing import Literal
+from typing import Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from memoria_curitibana.domains.archive.domain.text_quality import AI_TEXT_COLUMNS, normalize_excerpt
+from memoria_curitibana.domains.archive.domain.text_quality import (
+    AI_TEXT_COLUMNS,
+    DEFAULT_TEMPLATE_SCOPE,
+    normalize_excerpt,
+)
 
 TemplateAction = Literal["IGNORE", "REPLACE"]
+TemplateScope = Literal["EMBEDDING", "NER", "TITLE"]
 TemplateSource = Literal["SUGGESTED", "HUMAN"]
 TemplateStatus = Literal["SUGGESTED", "APPROVED", "REJECTED"]
 
@@ -20,6 +25,9 @@ class TextTemplateDTO(BaseModel):
     variants: list[str] = Field(default_factory=list)
     action: TemplateAction = "IGNORE"
     replacement: str = ""
+    scope: list[TemplateScope] = Field(
+        default_factory=lambda: cast("list[TemplateScope]", list(DEFAULT_TEMPLATE_SCOPE))
+    )
     reason: str | None = None
     source: TemplateSource = "HUMAN"
     status: TemplateStatus = "SUGGESTED"
@@ -52,6 +60,9 @@ class TemplateCreateCommand(BaseModel):
     text: str
     action: TemplateAction = "IGNORE"
     replacement: str = ""
+    scope: list[TemplateScope] = Field(
+        default_factory=lambda: cast("list[TemplateScope]", list(DEFAULT_TEMPLATE_SCOPE))
+    )
     reason: str | None = None
     variants: list[str] = Field(default_factory=list)
     created_by: str | None = None
@@ -70,6 +81,7 @@ class TemplateUpdateCommand(BaseModel):
     text: str | None = None
     action: TemplateAction | None = None
     replacement: str | None = None
+    scope: list[TemplateScope] | None = None
     reason: str | None = None
     variants: list[str] | None = None
     status: TemplateStatus | None = None
@@ -82,6 +94,9 @@ class TemplateSuggestion(BaseModel):
 
     text: str
     variants: list[str] = Field(default_factory=list)
+    scope: list[TemplateScope] = Field(
+        default_factory=lambda: cast("list[TemplateScope]", list(DEFAULT_TEMPLATE_SCOPE))
+    )
     occurrence_count: int
     sample_document_ids: list[str] = Field(default_factory=list)
     columns: list[str] = Field(default_factory=list)
@@ -102,6 +117,9 @@ class TemplateDryRunRequest(BaseModel):
     text: str
     action: TemplateAction = "IGNORE"
     replacement: str = ""
+    scope: list[TemplateScope] = Field(
+        default_factory=lambda: cast("list[TemplateScope]", list(DEFAULT_TEMPLATE_SCOPE))
+    )
     variants: list[str] = Field(default_factory=list)
     sample_limit: int = 5
 

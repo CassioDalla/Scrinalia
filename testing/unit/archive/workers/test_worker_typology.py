@@ -21,8 +21,11 @@ class MockArchiveDocument:
 
 
 def test_worker_typology_unit_ideal_flow(mocker: MockerFixture) -> None:
-    """Good Scenario: Texts are concatenated ignoring nulls, the AI classifies and the doc is updated."""
+    """Good Scenario: The composed text is classified and the document is updated."""
     mock_db = mocker.Mock(spec=Session)
+    mocker.patch(
+        "memoria_curitibana.domains.archive.workers.worker_typology.TextQualityRepository"
+    ).return_value.get_active_rules.return_value = []
 
     # 1. Mocks of the External Classes/Functions in the Worker scope
     mock_repo_class = mocker.patch("memoria_curitibana.domains.archive.workers.worker_typology.TypologyRepository")
@@ -38,9 +41,8 @@ def test_worker_typology_unit_ideal_flow(mocker: MockerFixture) -> None:
     mock_classifier_engine.classify.return_value = [{"labels": ["Contrato"], "scores": [0.95]}]
 
     # 3. Simulates the database queue (1 document on the 1st round, breaks the loop on the 2nd)
-    # We send the content as None to test whether it ignores the Null and does not concatenate junk
     test_doc = MockArchiveDocument("doc-1", "Contrato de Prestação de Serviços", None)
-    mock_db.scalars.return_value.all.side_effect = [[test_doc], []]
+    mock_db.execute.return_value.all.side_effect = [[(test_doc, "Contrato de Prestação de Serviços")], []]
 
     # 4. Execution
     worker_typology.execute(
@@ -53,12 +55,12 @@ def test_worker_typology_unit_ideal_flow(mocker: MockerFixture) -> None:
     # 5. AI verifications
     mock_classifier_engine.classify.assert_called_once()
     args, _ = mock_classifier_engine.classify.call_args
-    # Confirms whether the columns were cleaned, joined with a period and the "scope_content" field (None) ignored
+    # The composition is PostgreSQL's job; the worker forwards what the query returned.
     assert args[0] == ["Contrato de Prestação de Serviços"]
 
     # 6. Persistence verifications
     assert test_doc.typology_id == 1
-    assert test_doc.execution_log["worker_typology_classifier_v1"] == "DONE"  # type: ignore
+    assert test_doc.execution_log["worker_typology_classifier_v2"] == "DONE"  # type: ignore
 
     mock_flag_modified.assert_called_once_with(test_doc, "execution_log")
     mock_db.commit.assert_called_once()
@@ -67,6 +69,9 @@ def test_worker_typology_unit_ideal_flow(mocker: MockerFixture) -> None:
 def test_worker_typology_ignores_empty_texts(mocker: MockerFixture) -> None:
     """Edge Scenario: Documents with no useful text must be skipped by the AI, but stamped in the DB."""
     mock_db = mocker.Mock(spec=Session)
+    mocker.patch(
+        "memoria_curitibana.domains.archive.workers.worker_typology.TextQualityRepository"
+    ).return_value.get_active_rules.return_value = []
 
     mocker.patch("memoria_curitibana.domains.archive.workers.worker_typology.TypologyRepository")
     mock_get_engine = mocker.patch("memoria_curitibana.domains.archive.workers.worker_typology.get_engine")
@@ -74,7 +79,7 @@ def test_worker_typology_ignores_empty_texts(mocker: MockerFixture) -> None:
 
     # Document where everything is empty
     empty_doc = MockArchiveDocument("doc-2", "   ", None)
-    mock_db.scalars.return_value.all.side_effect = [[empty_doc], []]
+    mock_db.execute.return_value.all.side_effect = [[(empty_doc, "   ")], []]
 
     worker_typology.execute(db=mock_db)
 
@@ -82,19 +87,22 @@ def test_worker_typology_ignores_empty_texts(mocker: MockerFixture) -> None:
     mock_get_engine.return_value.classify.assert_not_called()
 
     # The stamp must have been applied so the Worker does not loop again tomorrow
-    assert empty_doc.execution_log["worker_typology_classifier_v1"] == "DONE"  # type: ignore
+    assert empty_doc.execution_log["worker_typology_classifier_v2"] == "DONE"  # type: ignore
     mock_flag_modified.assert_called_once()
 
 
 def test_worker_typology_ai_failure_rolls_back(mocker: MockerFixture) -> None:
     """Bad Scenario: If the Zero-Shot engine throws a memory error, the transaction aborts and rolls back."""
     mock_db = mocker.Mock(spec=Session)
+    mocker.patch(
+        "memoria_curitibana.domains.archive.workers.worker_typology.TextQualityRepository"
+    ).return_value.get_active_rules.return_value = []
 
     mocker.patch("memoria_curitibana.domains.archive.workers.worker_typology.TypologyRepository")
     mock_get_engine = mocker.patch("memoria_curitibana.domains.archive.workers.worker_typology.get_engine")
 
     test_doc = MockArchiveDocument("doc-3", "Texto super complexo", "Muitas palavras")
-    mock_db.scalars.return_value.all.side_effect = [[test_doc], []]
+    mock_db.execute.return_value.all.side_effect = [[(test_doc, "Texto super complexo. Muitas palavras")], []]
 
     # Force the NLP engine to explode
     mock_get_engine.return_value.classify.side_effect = Exception("Out of Memory na GPU")

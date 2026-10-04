@@ -47,12 +47,18 @@ class ExcerptRule:
     replacement: str = ""
 
 
-def excerpt_rules(templates: Sequence[TextTemplateDTO]) -> list[ExcerptRule]:
-    """Active rules, in catalog order, ready to be applied by ``effective_column_sql``."""
+def excerpt_rules(templates: Sequence[TextTemplateDTO], scope: str | None = None) -> list[ExcerptRule]:
+    """
+    Active rules, in catalog order, ready to be applied by ``effective_column_sql``.
+
+    ``scope`` selects the consumer asking for the text: an excerpt only takes part when
+    its own scope includes that consumer, which is how a title template stays out of the
+    embedded vector and inside the title suggestion.
+    """
     return [
         ExcerptRule(matchers=tuple(template.matchers), replacement=template.replacement)
         for template in templates
-        if template.applies
+        if template.applies and (scope is None or scope in template.scope)
     ]
 
 
@@ -145,9 +151,9 @@ class TextQualityRepository:
         )
         return [TextTemplateDTO.model_validate(row) for row in self.db.scalars(stmt).all()]
 
-    def get_active_rules(self) -> list[ExcerptRule]:
+    def get_active_rules(self, scope: str | None = None) -> list[ExcerptRule]:
         """Convenience wrapper: the active catalog already converted to SQL rules."""
-        return excerpt_rules(self.get_active_templates())
+        return excerpt_rules(self.get_active_templates(), scope=scope)
 
     # ==========================================
     # CATALOG WRITES
@@ -160,6 +166,7 @@ class TextQualityRepository:
             text=text,
             fingerprint=excerpt_fingerprint(text),
             variants=[normalize_excerpt(variant) for variant in command.variants if normalize_excerpt(variant)],
+            scope=list(command.scope),
             action=command.action,
             replacement=command.replacement,
             reason=command.reason,
@@ -188,6 +195,7 @@ class TextQualityRepository:
                 "text": normalize_excerpt(candidate.text),
                 "fingerprint": excerpt_fingerprint(candidate.text),
                 "variants": [normalize_excerpt(variant) for variant in candidate.variants],
+                "scope": list(candidate.scope),
                 "action": "IGNORE",
                 "replacement": "",
                 "source": "SUGGESTED",

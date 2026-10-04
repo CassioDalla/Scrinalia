@@ -8,7 +8,7 @@ arquivístico (DDD + micro-workers + HITL).
 > pendente. Quando um item está parcialmente pronto, ele aparece como `[~]` com a descrição
 > explícita do que existe e do que falta.
 >
-> **Estado do gate de qualidade:** suíte **343 testes** passando (unit + integração),
+> **Estado do gate de qualidade:** suíte **419 testes** passando (unit + integração),
 > `ruff check`/`ruff format --check` limpos, `basedpyright` 0 erros,
 > `alembic upgrade head` + `alembic check` sem drift.
 
@@ -22,7 +22,7 @@ arquivístico (DDD + micro-workers + HITL).
 | 1.5 | Macro Categorias (eixo de Assuntos) | **Núcleo fechado** — resta o front e o defeito de rótulo |
 | 2 | API + Curadoria humana (HITL) | **Fechada no essencial**, faltam ações locais |
 | 3 | Descoberta, escala e observabilidade | **Parcial** — busca lexical fechada; semântica funciona mas com qualidade fraca; faltam lematização de tags e operação |
-| **3.5** | **Qualidade do dado de entrada** | **PRIORIDADE MÁXIMA — planejada, não iniciada** (ver abaixo) |
+| **3.5** | **Qualidade do dado de entrada** | **EM ANDAMENTO — A fechada, B fechada, C/D pendentes** (ver abaixo) |
 | 4 | Interoperabilidade, agentes e publicação | Não iniciada |
 
 O sistema **funciona ponta a ponta** até a camada Archive: ingestão → staging → archive →
@@ -393,15 +393,15 @@ O eixo semântico de assuntos está modelado e pela metade implementado. Hoje a 
 > **Não implementar limpeza automática destrutiva.** Nenhuma fase abaixo pode apagar ou
 > reescrever dado do acervo sem aprovação humana registrada.
 
-### Diagnóstico medido (acervo real, 3608 documentos — 2026-10-03)
+### Diagnóstico medido (acervo real, 3608 documentos — 2026-10-03/04)
 
 | Sintoma medido | Número | Consequência |
 | --- | --- | --- |
 | `scope_content` preenchido, mas **12 textos distintos** | 2477 docs | **1930 docs (53%)** compartilham o mesmo bloco "Acervo de 35.327 fotografias…" |
-| `admin_bio_history` repetido | 682 docs com o mesmo texto | o histórico institucional some como sinal |
-| `provenance` preenchido em **99,8%** | 3600 docs | preenchimento em massa; quase sempre o mesmo valor → inútil como sinal |
-| `original_title` | 2232 distintos p/ 3608 docs | template `"Registros Fotográficos - X"` (um título repetido 46×) |
-| `document_date` ausente | **1925 docs (53%)** | metade do acervo fora da faceta de data e do mapa futuro |
+| `admin_bio_history` distinto | **2916 valores distintos** para 3608 docs; top repetido = 22 | **correção de 2026-10-04:** o TODO dizia "682 docs com o mesmo texto". É falso hoje: esse campo é o **texto específico do documento** e era soterrado pelo bloco. A "pobreza de sinal" do embedding era do `scope_content`, não do acervo |
+| `provenance` preenchido em **99,8%** | 3600 docs, **2 valores cobrem 99,5%** (IPPUC 2467 · SMU 1125) | campo de instituição; inútil como sinal por documento |
+| `original_title` | 2232 distintos p/ 3608 docs | template `"Registros Fotográficos - X"` em **2467 títulos** (um título repetido 46×) |
+| `document_date` ausente | **1925 docs (53%)** | **1682 são o sentinela `"00/00/0000"`** na origem (não é data perdida); só ~243 têm expressão real não parseada ("Década de 1980", "1951-1953", "Após 1996") |
 | `final_title` preenchido | **0** | coluna morta (terceira do mesmo padrão) |
 
 **Prova do efeito no embedding** (modelo real, `paraphrase-multilingual-MiniLM-L12-v2`):
@@ -414,43 +414,93 @@ O eixo semântico de assuntos está modelado e pela metade implementado. Hoje a 
 O bloco de boilerplate **sozinho** tem 0,95 de similaridade com o documento de enchente: ele
 domina o vetor. Remover o texto repetido **melhora a separação em ~4×**.
 
-### Fase A — Ferramenta de curadoria de boilerplate
+### Fase A — Ferramenta de curadoria de boilerplate — ✅ **FECHADA (2026-10-04)**
 
 O arquivista é quem manda; a máquina só aponta. Nada aqui altera dado do acervo.
 
-- [ ] **Modelar `DomainTextTemplate`** (nome provisório): catálogo de trechos repetidos com
-  `text`/`fingerprint` (unique), `scope` (DEFAULT/IGNORE/REPLACE), `replacement`, `reason`,
-  `source` (`SUGGESTED`/`HUMAN`), `is_active`, `created_by`, `created_at`.
-  Mesmo espírito de `domain_ner_exclusions` e `domain_stopwords`: decisão durável, auditável e
-  reversível.
-- [ ] **Rotina de sugestão por frequência** (não destrutiva): agrupar por
-  normalização de espaços e apontar trechos acima de um limiar de repetição (ex.: > 20% do
-  acervo), com contagem e amostra de documentos. **Ela só escreve sugestões** (`source=SUGGESTED`),
-  nunca aplica.
-- [ ] **Rotas de curadoria** (mesmo padrão de `/entities/ner-exclusions`):
-  `GET` (listar sugeridos + aprovados), `POST` (aprovar/editar/rejeitar um trecho),
-  `DELETE` (desfazer, com expurgo retroativo do efeito).
-- [ ] **Dry-run obrigatório:** mostrar quantos documentos e quais seriam afetados antes de
-  qualquer aplicação (`CleaningService` já faz simulação de impacto — reusar a ideia).
-- [ ] **UI:** tela de curadoria (aba de Qualidade de Dados, que já existe) listando candidatos
-  com contagem, texto e amostra, com aprovar/editar/rejeitar. Decidir o quanto investir no
-  Streamlit sabendo que ele será substituído.
-- [ ] **Testes:** sugestão por frequência (limiar, normalização), aprovação/rejeição, undo
-  retroativo e dry-run.
+- [x] **`DomainTextTemplate`** (`domain_text_templates`, migração `c5b784678746` + `cecb7bcf7f7d`):
+  `text`, `fingerprint` (unique, SHA-256 do texto normalizado), `variants` (grafias
+  quase-idênticas aprovadas como um grupo), `action` (`IGNORE`/`REPLACE`), `replacement`,
+  `scope` (**`EMBEDDING`/`NER`/`TITLE`** — ver Fase B), `reason`, `source`, `status`
+  (`SUGGESTED`/`APPROVED`/`REJECTED`), `occurrence_count`, `sample_document_ids`,
+  `is_active`, `created_by`.
+- [x] **Sugestão por frequência** (`POST /quality/text-templates/suggest`): lê o acervo e
+  propõe valores inteiros, segmentos de frase e **prefixos de título**, agrupando
+  quase-duplicatas e contando a **união de documentos** (nunca a soma — o prefixo
+  `"Registros Fotográficos"` é prefixo da própria variante `"... -"`, e somar dobrava a
+  evidência). Idempotente por fingerprint e **nunca sobrescreve decisão humana**.
+- [x] **Rotas de curadoria:** `GET` (lista), `POST` (cadastro/aprovação), `PATCH`
+  (editar/aprovar/desativar/rejeitar), `DELETE` (undo com expurgo retroativo).
+- [x] **Dry-run obrigatório** (`POST /preview`): quantos documentos mudam, com amostras
+  antes/depois por coluna. A aprovação recalcula a evidência pelo mesmo SQL.
+- [x] **Undo retroativo:** ao remover ou editar um trecho, os documentos afetados têm os
+  carimbos que leem texto removidos (`worker_ner_v2`, `worker_typology_classifier_v2`,
+  `worker_quality_validator_v1`). O embedding não precisa de ajuda: o carimbo dele é o MD5
+  do texto efetivo.
+- [x] **Verificado no acervo real:** 3608 documentos → **5 candidatos** coerentes: o bloco
+  (2467 docs, 2 variantes), `IPPUC…` (2467), `Registros Fotográficos -` (2467),
+  `Projeto de uma` (627) e `Pesquisa: Não foram encontradas informações` (276).
+- [ ] **UI:** fora de escopo por decisão explícita (o front será substituído).
+- [x] **Testes:** 79 novos (unit + integração) cobrindo limiar, normalização de espaços
+  (inclusive NBSP), união de variantes, pruning, idempotência, decisão humana preservada,
+  dry-run, requeue e as rotas.
 
-### Fase B — Consumo do que foi aprovado (destrava a IA)
+#### Duas armadilhas que só a execução real mostrou
 
-Só depois de a Fase A existir e ter decisões humanas registradas.
+1. **O piso de frequência descartava a variante de 57 documentos.** Ela sozinha ficava
+   abaixo do limiar, e o bloco (2410) parecia mais raro que uma frase dentro dele (2467),
+   então a frase nunca era podada. Correção: agrupar por **forma** (texto sem espaços)
+   antes de aplicar o piso.
+2. **`execution_log` pode conter o `null` do JSON**, não SQL NULL (o tipo mantém
+   `none_as_null=False`). `coalesce` não cobre esse caso e `jsonb - text` estoura
+   *"cannot delete from scalar"*. Correção: normalizar com `jsonb_typeof(...) = 'null'`.
 
-- [ ] **`build_embedding_text` subtrai os trechos aprovados** antes de compor o texto. O hash
-  de idempotência do `worker_embedding` **já é MD5 do texto**, então mudar a composição
-  re-queija tudo sozinho, sem `force` e sem carimbo novo.
-- [ ] **NER, typology e macro-category leem o texto limpo**, não o cru: o boilerplate hoje
-  também polui a extração de entidades e a classificação.
-- [ ] **Medir antes/depois com um conjunto rotulado** (10–20 pares consulta→documento
-  esperado). Sem número, não se afirma melhoria — foi exatamente a ausência disso que deixou a
-  busca semântica "pronta" e inútil.
-- [ ] **Registrar o ganho medido** no TODO e no roadmap, na tabela de evidências.
+### Fase B — Consumo do que foi aprovado (destrava a IA) — ✅ **FECHADA (2026-10-04)**
+
+- [x] **Composição única em SQL.** `repository/text_quality_repo.py` constrói o "texto
+  efetivo" (normaliza espaços + aplica os trechos aprovados) como expressão SQL. O
+  embedding usa a **mesma expressão** para selecionar o texto e calcular o MD5 do carimbo —
+  sem dualidade Python/SQL que possa divergir. NER e tipologia passam a **selecionar o
+  texto já composto** do banco em vez de remontá-lo em Python.
+- [x] **Carimbos v2** (`worker_ner_v2`, `worker_typology_classifier_v2`) para reprocessar o
+  acervo com o texto limpo.
+- [x] **Escopo por consumidor — descoberto pela medição, não suposto.** O `scope` existe
+  porque um trecho pode ajudar um consumidor e atrapalhar outro (ver a tabela abaixo).
+- [x] **Conjunto rotulado + medição antes/depois:** `testing/evaluation/retrieval_pairs.json`
+  (16 consultas, relevância derivada do título — proxy documentado) e
+  `testing/evaluation/retrieval_quality.py`, que recomputa os candidatos **em memória** e
+  mede os dois rankings com o modelo real, sem escrever no banco.
+- [x] **Registrar o ganho medido** — tabela de evidências abaixo.
+
+#### ⚠️ O que a medição mudou no desenho
+
+Medido com o acervo real e o MiniLM real (16 consultas, `k=10`):
+
+| Trechos aplicados ao texto embedado | Similaridade média entre pares (separação) | Hit@10 | Recall@10 | MRR | Precisão@10 por termo |
+| --- | --- | --- | --- | --- | --- |
+| nenhum (antes) | 0.769 | 0.562 | 0.292 | **0.358** | 0.294 |
+| só o bloco de `scope_content` | 0.545 | **0.625** | 0.287 | 0.327 | 0.375 |
+| só `provenance` (IPPUC) | 0.504 | **0.625** | 0.321 | 0.339 | 0.381 |
+| só o prefixo de título | 0.768 | 0.500 | 0.308 | 0.350 | 0.306 |
+| só `admin_bio_history` ("Pesquisa:…") | 0.769 | 0.562 | 0.292 | 0.352 | 0.294 |
+| bloco + proveniência + "Pesquisa" (**sem os prefixos**) | 0.504 | **0.625** | **0.333** | 0.339 | **0.381** |
+| conjunto completo sugerido (com os prefixos) | 0.423 | 0.500 | 0.225 | 0.277 | 0.300 |
+
+Leituras que ficam registradas:
+
+1. **A separação dos vetores melhora muito** (0.769 → 0.504) — confirma o diagnóstico da
+   sessão D: o bloco dominava o vetor.
+2. **Mas separação não é recuperação.** O conjunto completo sugerido **piora** o ranking
+   (Hit@10 0.562 → 0.500). Aprovar tudo o que a máquina propôs teria sido um erro — e é
+   exatamente por isso que a decisão é humana.
+3. **O prefixo de título é o vilão:** subtraí-lo do texto embedado derruba o Hit@10
+   (0.562 → 0.500), embora seja justamente o que o `suggested_final_title` precisa. Daí o
+   campo `scope`: propostas de título nascem `TITLE` e **não** entram no vetor.
+4. **Com o escopo de produção** (bloco + proveniência + "Pesquisa", sem os prefixos) o
+   ganho aparece: Hit@10 **+0.062**, Recall@10 **+0.042**, precisão por termo **+0.087**.
+   O MRR cai 0.019 — não esconder: o topo ficou um pouco menos preciso, a cauda melhorou.
+5. **Relevância é proxy derivada do título** e são 16 consultas: o número serve para
+   comparar dois rankings, não para coroar modelo. Não afirmar mais do que isso.
 
 ### Fase C — Template de título e campos mortos
 
@@ -530,7 +580,7 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 
 | Verificação | Resultado |
 | --- | --- |
-| `pytest` (unit + integração) | **343 passed** |
+| `pytest` (unit + integração) | **419 passed** |
 | `ruff check` / `ruff format --check` | limpos (192 arquivos) |
 | `basedpyright` | **0 errors, 0 warnings** |
 | `alembic upgrade head` + `alembic check` | aplica (inclui downgrade/upgrade); **sem drift** |
@@ -561,6 +611,11 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 | **Embedding persistido corretamente** | `cos(guardado, recalculado) = 1.0` e o `<=>` do Postgres bate exatamente com o cosseno calculado em Python |
 | **Busca semântica ponta a ponta (HTTP)** | `mode=semantic` responde, `rank` é a similaridade e decresce, facetas continuam valendo (tipologia 64 · LOC 3509), `mode` inválido → **400** |
 | ⚠️ **Qualidade semântica (medida, NÃO aprovada)** | "enchentes" × "Enchente em região marginalizada" = **0.33**; topo de "desastres naturais" = acidentes de trânsito. `mpnet-base` (768) medido no mesmo corpus discrimina **pior** (0.265 vs 0.361) → o gargalo é o texto, não o modelo |
+| **Catálogo de trechos verificado no acervo real** | 3608 documentos → **5 candidatos**: bloco de `scope_content` (2467 docs, 2 variantes), `IPPUC…` (2467), `Registros Fotográficos -` (2467), `Projeto de uma` (627), `Pesquisa: Não foram encontradas informações` (276) |
+| **Dry-run de curadoria** | bloco: 2467 documentos afetados de 3608 varridos, `scope_content` → `''`; prefixo de título: 2467 afetados, título → parte específica |
+| **Normalização SQL × Python** | idênticas em 200 valores reais de `scope_content`, incluindo tab e U+00A0 (o `[[:space:]]` do Postgres **não** cobre NBSP e o `\s` do Python cobre: por isso a classe de espaços é explícita e compartilhada) |
+| **Medição antes/depois (16 consultas, 3608 docs, MiniLM real)** | separação média entre pares 0.769 → 0.504; com o escopo de produção Hit@10 0.562 → **0.625**, Recall@10 0.292 → **0.333**, precisão@10 por termo 0.294 → **0.381**, MRR 0.358 → 0.339 |
+| ⚠️ **Aprovar tudo o que a máquina sugeriu PIORA o ranking** | conjunto completo (com os prefixos de título): Hit@10 **0.500** (pior que 0.562 sem trecho nenhum). O prefixo de título derruba o ranking (0.562 → 0.500) e é exatamente o que o `suggested_final_title` precisa → nasceu o `scope` do template |
 
 ### Bugs conhecidos e abertos
 

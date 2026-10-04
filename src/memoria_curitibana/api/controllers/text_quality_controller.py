@@ -67,6 +67,7 @@ class TextQualityController(Controller):
                 text=data.text,
                 action=data.action,
                 replacement=data.replacement,
+                scope=data.scope,
                 variants=data.variants,
                 sample_limit=data.sample_limit,
             )
@@ -84,6 +85,7 @@ class TextQualityController(Controller):
                 text=data.text,
                 action=data.action,
                 replacement=data.replacement,
+                scope=data.scope,
                 reason=data.reason,
                 variants=data.variants,
                 created_by=data.changed_by,

@@ -20,6 +20,10 @@ from memoria_curitibana.domains.archive.models import (
 )
 from memoria_curitibana.domains.archive.repository import EntityRepository
 from memoria_curitibana.domains.archive.repository.governance import ai_writable_documents
+from memoria_curitibana.domains.archive.repository.text_quality_repo import (
+    TextQualityRepository,
+    composed_text_sql,
+)
 from memoria_curitibana.domains.archive.schemas.command_schema import EntityLinkCommand
 from memoria_curitibana.domains.archive.worker_stamp import NER
 
@@ -101,7 +105,7 @@ def execute(
 
     Implements an asynchronous batch processing pattern
     with memory protection. The worker fetches documents from the database that do not
-    yet have the 'worker_ner_v1' key in the JSON column `execution_log`.
+    yet have the 'worker_ner_v2' key in the JSON column `execution_log`.
 
     For each batch, the orchestrator:
     1. Concatenates and sanitizes the configured text columns.
@@ -181,29 +185,29 @@ def execute(
     blacklist = load_entity_blacklist(db)
     logger.info(f"🛡️ Loaded {len(blacklist)} blocked terms (stopwords + NER exclusions).")
 
+    # The approved excerpts are subtracted from the extracted text (and from the hash the
+    # embedding stamp uses), so boilerplate stops feeding the entity extractor.
+    rules = TextQualityRepository(db).get_active_rules("NER")
+    text_expression = composed_text_sql(columns_to_extract, rules, separator=". ")
+    logger.info(f"🧹 {len(rules)} approved excerpt(s) will be kept out of the extracted text.")
+
     processed_docs_count = 0
     while True:
         try:
-            query = select(ArchiveDocument).where(*where_cond).limit(db_batch_size)
-            batch_docs = db.scalars(query).all()
+            query = (
+                select(ArchiveDocument, text_expression.label("effective_text")).where(*where_cond).limit(db_batch_size)
+            )
+            batch_rows = db.execute(query).all()
 
-            if not batch_docs:
+            if not batch_rows:
                 break
 
             texts_buffer = []
             valid_docs = []
 
-            # 2. Preparation and Cleaning of the texts
-            for doc in batch_docs:
-                text_parts = []
-
-                for col in columns_to_extract:
-                    value = getattr(doc, col, None)
-                    if value and str(value).strip():
-                        text_parts.append(str(value).strip())
-
-                text_contextualized = ". ".join(text_parts)
-                text_contextualized = _clean_raw_text(text_contextualized)
+            # 2. Preparation and Cleaning of the texts (already composed by PostgreSQL)
+            for doc, raw_text in batch_rows:
+                text_contextualized = _clean_raw_text(raw_text or "")
 
                 if not text_contextualized:
                     # Stamps empty docs so they do not enter a loop

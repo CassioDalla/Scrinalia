@@ -187,6 +187,15 @@ class DomainTextTemplate(Base):
     action: Mapped[str] = mapped_column(String(10), nullable=False, default="IGNORE", server_default="IGNORE")
     replacement: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
 
+    # Who must stop reading the excerpt: ``EMBEDDING`` (the semantic vector), ``NER`` (the
+    # text read by extraction and classification) and ``TITLE`` (the derived title
+    # suggestion). The split exists because measurement showed one excerpt can help one
+    # consumer and hurt another: removing the title prefix from the *embedded* text made
+    # the ranking worse while being exactly what the title suggestion needs.
+    scope: Mapped[list[str]] = mapped_column(
+        ARRAY(String(20)), nullable=False, default=lambda: ["EMBEDDING", "NER"], server_default="{EMBEDDING,NER}"
+    )
+
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Who authored the row (``SUGGESTED`` by the frequency routine, ``HUMAN`` by a curator)
@@ -211,6 +220,10 @@ class DomainTextTemplate(Base):
         CheckConstraint("action IN ('IGNORE', 'REPLACE')", name="chk_text_template_action"),
         CheckConstraint("source IN ('SUGGESTED', 'HUMAN')", name="chk_text_template_source"),
         CheckConstraint("status IN ('SUGGESTED', 'APPROVED', 'REJECTED')", name="chk_text_template_status"),
+        CheckConstraint(
+            "array_length(scope, 1) >= 1 AND scope <@ ARRAY['EMBEDDING', 'NER', 'TITLE']::varchar[]",
+            name="chk_text_template_scope",
+        ),
     )
 
 

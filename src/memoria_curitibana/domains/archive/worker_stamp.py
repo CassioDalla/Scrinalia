@@ -39,10 +39,10 @@ class WorkerStamp:
         return new_log
 
 
-# Canonical stamps. Keeping them as module constants prevents the "worker_ner_v1"
+# Canonical stamps. Keeping them as module constants prevents the "worker_ner_v2"
 # string from being duplicated (and drifting) across queries and workers.
-NER = WorkerStamp("worker_ner_v1")
-TYPOLOGY = WorkerStamp("worker_typology_classifier_v1")
+NER = WorkerStamp("worker_ner_v2")
+TYPOLOGY = WorkerStamp("worker_typology_classifier_v2")
 # Stamp written on ``ArchiveTag.execution_log`` (tags have their own ledger).
 MACRO_CATEGORY = WorkerStamp("worker_macro_category_v1")
 # Unlike the others, this one stores the hash of the embedded text instead of a status,

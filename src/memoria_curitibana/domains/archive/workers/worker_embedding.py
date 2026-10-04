@@ -8,46 +8,12 @@ from memoria_curitibana.core.unit_of_work import UnitOfWork
 from memoria_curitibana.domains.archive.engines.base import EmbeddingEngine
 from memoria_curitibana.domains.archive.engines.embeddings.registry import EngineName, PresetName, get_engine
 from memoria_curitibana.domains.archive.models import ArchiveDocument, ArchiveReviewStatus
-from memoria_curitibana.domains.archive.worker_stamp import EMBEDDING
-
-# Columns whose content is embedded. The hash covers both title spellings, so replacing
-# the original title with a human ``final_title`` also re-queues the document.
-EMBEDDING_COLUMNS: tuple[str, ...] = (
-    "original_title",
-    "final_title",
-    "scope_content",
-    "admin_bio_history",
-    "provenance",
+from memoria_curitibana.domains.archive.repository.text_quality_repo import (
+    TextQualityRepository,
+    embedding_hash_sql,
+    embedding_text_sql,
 )
-
-
-def text_hash_expression() -> ColumnElement[str]:
-    """
-    MD5 of the embedded content, computed by PostgreSQL.
-
-    The worker stores this hash as its idempotency stamp, which turns the pending query
-    into a pure SQL comparison: a document is pending when its stored hash differs from
-    the current one. Computing the hash in SQL keeps the read side and the write side
-    using exactly the same definition.
-    """
-    parts = [func.nullif(func.btrim(getattr(ArchiveDocument, column)), "") for column in EMBEDDING_COLUMNS]
-    return func.md5(func.concat_ws("\n", *parts))
-
-
-def build_embedding_text(doc: ArchiveDocument) -> str:
-    """Composes the text handed to the embedding model: title first, then the body."""
-    parts: list[str] = []
-
-    title = doc.final_title or doc.original_title
-    if title and title.strip():
-        parts.append(title.strip())
-
-    for column in ("scope_content", "admin_bio_history", "provenance"):
-        value = getattr(doc, column)
-        if value and str(value).strip():
-            parts.append(str(value).strip())
-
-    return "\n".join(parts)
+from memoria_curitibana.domains.archive.worker_stamp import EMBEDDING
 
 
 def execute(
@@ -75,6 +41,11 @@ def execute(
     Documents in ``REJECTED`` are skipped: they are not served, so there is nothing to
     index. Documents with no text at all are stamped without a vector so they leave the
     queue instead of being retried forever.
+
+    The text and its hash are both computed by PostgreSQL from the approved excerpts
+    (``repository.text_quality_repo``), so the composition has exactly one definition:
+    a boilerplate block the archivist discarded never reaches the vector, and the stamp
+    moves as soon as the catalogue changes.
 
     Args:
         db (Session): Database session.
@@ -107,7 +78,14 @@ def execute(
         logger.error(f"❌ Error loading the model: {e}")
         raise
 
-    text_hash = text_hash_expression()
+    # The excerpts the curation approved are subtracted from the text the model reads —
+    # and from the hash that keys the stamp, because both come from the same SQL
+    # expression. Approving an excerpt therefore re-queues its documents by itself.
+    rules = TextQualityRepository(db).get_active_rules("EMBEDDING")
+    logger.info(f"🧹 {len(rules)} approved excerpt(s) will be kept out of the embedded text.")
+
+    text_hash = embedding_hash_sql(rules)
+    text_expression = embedding_text_sql(rules)
 
     where_cond: list[ColumnElement[bool]] = [
         ArchiveDocument.review_status != ArchiveReviewStatus.REJECTED,
@@ -132,7 +110,7 @@ def execute(
     while True:
         try:
             query = (
-                select(ArchiveDocument, text_hash.label("text_hash"))
+                select(ArchiveDocument, text_expression.label("effective_text"), text_hash.label("text_hash"))
                 .where(*where_cond, ArchiveDocument.description_id > last_id)
                 .order_by(ArchiveDocument.description_id)
                 .limit(db_batch_size)
@@ -147,9 +125,7 @@ def execute(
             texts: list[str] = []
             pending_docs: list[tuple[ArchiveDocument, str]] = []
 
-            for doc, current_hash in rows:
-                text = build_embedding_text(doc)
-
+            for doc, text, current_hash in rows:
                 if not text:
                     # Nothing to embed: stamp it so it leaves the queue for good.
                     doc.execution_log = EMBEDDING.mark_value(doc.execution_log, current_hash)

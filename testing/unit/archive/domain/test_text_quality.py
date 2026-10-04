@@ -158,3 +158,31 @@ def test_aggregator_reports_the_columns_where_the_excerpt_appears() -> None:
 
     candidate = next(c for c in aggregator.candidates(min_count=1) if c.text == BLOCK)
     assert candidate.columns == ["admin_bio_history", "scope_content"]
+
+
+# ==========================================
+# SCOPE PER CONSUMER (measured decision)
+# ==========================================
+
+
+def test_aggregator_scopes_a_title_prefix_to_the_title_suggestion() -> None:
+    """
+    Removing the repeated title prefix from the embedded vector made the ranking worse in
+    the benchmark, while it is exactly what the derived title needs: the proposal carries
+    the scope that the measurement justified.
+    """
+    aggregator = ExcerptSuggestionAggregator()
+    for index in range(6):
+        aggregator.observe(f"doc-{index}", "original_title", f"Registros Fotográficos - Rua número {index}")
+
+    candidate = next(c for c in aggregator.candidates(min_count=5) if c.text.startswith("Registros Fotográficos"))
+    assert candidate.scope == ["TITLE"]
+
+
+def test_aggregator_scopes_a_body_excerpt_to_the_ai_text() -> None:
+    aggregator = ExcerptSuggestionAggregator()
+    for index in range(6):
+        aggregator.observe(f"doc-{index}", "scope_content", BLOCK)
+
+    candidate = next(c for c in aggregator.candidates(min_count=5) if c.text == BLOCK)
+    assert candidate.scope == ["EMBEDDING", "NER"]

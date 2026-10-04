@@ -1,5 +1,7 @@
 from memoria_curitibana.domains.archive.engines.embeddings import registry as embeddings_registry
 from memoria_curitibana.domains.archive.models import ArchiveDocument, ArchiveReviewStatus
+from memoria_curitibana.domains.archive.repository.text_quality_repo import TextQualityRepository
+from memoria_curitibana.domains.archive.schemas.text_quality_schema import TemplateCreateCommand, TemplateUpdateCommand
 from memoria_curitibana.domains.archive.workers.worker_embedding import execute
 
 # The fake engine must answer with the column dimension, or PostgreSQL rejects the insert.
@@ -139,3 +141,76 @@ def test_worker_passes_the_composed_text_to_the_engine(use_test_db, db_session, 
 
     texts = engine.embed.call_args.args[0]
     assert texts == ["Título final\nEscopo"]
+
+
+# ==========================================
+# APPROVED EXCERPTS (Fase 3.5-B)
+# ==========================================
+
+BLOCK = "Acervo de 35.327 fotografias que retratam a cidade de Curitiba no âmbito do Planejamento"
+
+
+def test_worker_subtracts_the_approved_excerpt_from_the_embedded_text(
+    use_test_db, db_session, mock_registry, generate_archive_doc
+):
+    """The boilerplate the archivist discarded never reaches the vector."""
+    generate_archive_doc(description_id="cut1", original_title="Rua Izaac", scope_content=BLOCK)
+    TextQualityRepository(db_session).create_template(TemplateCreateCommand(text=BLOCK))
+    engine = _fake_engine(mock_registry)
+
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
+
+    texts = engine.embed.call_args.args[0]
+    assert texts == ["Rua Izaac"]
+
+
+def test_worker_ignores_a_suggestion_that_was_not_approved(
+    use_test_db, db_session, mock_registry, generate_archive_doc
+):
+    generate_archive_doc(description_id="cut2", original_title="Rua Izaac", scope_content=BLOCK)
+    repository = TextQualityRepository(db_session)
+    suggestion = repository.create_template(TemplateCreateCommand(text=BLOCK))
+    repository.update_template(suggestion.template_id, TemplateUpdateCommand(status="SUGGESTED", is_active=False))
+    engine = _fake_engine(mock_registry)
+
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
+
+    assert engine.embed.call_args.args[0] == [f"Rua Izaac\n{BLOCK}"]
+
+
+def test_approving_an_excerpt_reembeds_only_the_documents_it_affects(
+    use_test_db, db_session, mock_registry, generate_archive_doc
+):
+    """The stamp is the MD5 of the effective text, so the catalogue re-queues by itself."""
+    generate_archive_doc(description_id="cut3", original_title="Rua A", scope_content=BLOCK)
+    generate_archive_doc(description_id="cut4", original_title="Rua B", scope_content="escopo próprio")
+    engine = _fake_engine(mock_registry)
+
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
+    engine.embed.reset_mock()
+
+    TextQualityRepository(db_session).create_template(TemplateCreateCommand(text=BLOCK))
+
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
+
+    engine.embed.assert_called_once()
+    assert engine.embed.call_args.args[0] == ["Rua A"]
+
+
+def test_worker_reembeds_when_an_approved_excerpt_is_undone(
+    use_test_db, db_session, mock_registry, generate_archive_doc
+):
+    generate_archive_doc(description_id="cut5", original_title="Rua A", scope_content=BLOCK)
+    repository = TextQualityRepository(db_session)
+    template = repository.create_template(TemplateCreateCommand(text=BLOCK))
+    engine = _fake_engine(mock_registry)
+
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
+    engine.embed.reset_mock()
+
+    repository.delete_template(template.template_id)
+
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
+
+    engine.embed.assert_called_once()
+    assert engine.embed.call_args.args[0] == [f"Rua A\n{BLOCK}"]

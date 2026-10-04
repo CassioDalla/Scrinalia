@@ -11,6 +11,10 @@ from memoria_curitibana.domains.archive.engines.classification.registry import E
 from memoria_curitibana.domains.archive.models import ArchiveDocument
 from memoria_curitibana.domains.archive.repository import TypologyRepository
 from memoria_curitibana.domains.archive.repository.governance import ai_writable_documents
+from memoria_curitibana.domains.archive.repository.text_quality_repo import (
+    TextQualityRepository,
+    composed_text_sql,
+)
 from memoria_curitibana.domains.archive.worker_stamp import TYPOLOGY
 
 
@@ -105,30 +109,31 @@ def execute(
 
     logger.info(f"🔍 Found {total_documents} documents to classify.")
 
+    # Catalog excerpts approved by the archivist are subtracted before classifying: the
+    # shared boilerplate is what pulled every document towards the same typology.
+    rules = TextQualityRepository(db).get_active_rules("NER")
+    text_expression = composed_text_sql(columns_to_classify, rules, separator=". ")
+    logger.info(f"🧹 {len(rules)} approved excerpt(s) will be kept out of the classified text.")
+
     total_processed = 0
 
     while True:
         try:
-            query = select(ArchiveDocument).where(*where_cond).limit(db_batch_size)
+            query = (
+                select(ArchiveDocument, text_expression.label("effective_text")).where(*where_cond).limit(db_batch_size)
+            )
 
-            batch_docs = db.scalars(query).all()
+            batch_rows = db.execute(query).all()
 
-            if not batch_docs:
+            if not batch_rows:
                 break
 
             texts_buffer = []
             valid_docs = []
 
-            # Text preparation
-            for doc in batch_docs:
-                text_parts = []
-
-                for col in columns_to_classify:
-                    value = getattr(doc, col, None)
-                    if value and str(value).strip():
-                        text_parts.append(str(value).strip())
-
-                text_to_classify = ". ".join(text_parts)
+            # Text preparation (already composed by PostgreSQL)
+            for doc, raw_text in batch_rows:
+                text_to_classify = (raw_text or "").strip()
 
                 if not text_to_classify:
                     doc.execution_log = TYPOLOGY.mark(doc.execution_log)
