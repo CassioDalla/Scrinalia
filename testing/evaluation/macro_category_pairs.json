@@ -1,0 +1,380 @@
+{
+  "description": "Conjunto rotulado do eixo de assuntos (Fase 1.5, defeito 2/2 — entregável B2). Cada par traz o palpite de categoria e a JUSTIFICATIVA, para o curador corrigir com o raciocínio à vista em vez de aceitar ou rejeitar às cegas. O rótulo é humano: é isto que separa este conjunto do retrieval_pairs.json, que é um proxy derivado do título.",
+  "collection": "memoriacuritibana (3608 documentos, 6142 tags)",
+  "sampling": "As 44 tags de maior document_count que TÊM categoria de assunto, excluindo as que a guarda determinística (NENHUMA) ou a faceta já reivindicam — elas não têm assunto e contaminariam a medição. Medido: o top 50 por document_count cobre 40% dos vínculos documento↔tag.",
+  "vocabulary": [
+    "Urbanismo e Arquitetura",
+    "Mobilidade e Transporte",
+    "Religião",
+    "Meio Ambiente e Áreas Verdes",
+    "Economia e Comércio",
+    "Educação e Cultura",
+    "Patrimônio e Preservação",
+    "Assistência e Questões Sociais"
+  ],
+  "instructions_for_the_curator": [
+    "Corrija 'expected' quando o palpite estiver errado e escreva o motivo em 'note'.",
+    "Se a tag não for assunto nenhum, troque expected por null e explique — é a classe NENHUMA.",
+    "Se faltar uma gaveta, escreva o nome dela em 'expected' mesmo que não exista no vocabulário: é assim que o vocabulário cresce.",
+    "As entradas com 'needs_decision': true são as que eu não consegui decidir sozinho. Comece por elas.",
+    "Quatro tags estão marcadas 'already_covered' como CONTROLE POSITIVO: o modelo já acerta nelas hoje. Se ele errar essas, algo quebrou de verdade."
+  ],
+  "pairs": [
+    {
+      "name": "igrejas",
+      "documents": 2467,
+      "expected": "Religião",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "A maior tag do acervo. É o caso que abriu esta sessão: sem a gaveta Religião o modelo só podia responder 'Instituição'."
+    },
+    {
+      "name": "residencial",
+      "documents": 941,
+      "expected": "Urbanismo e Arquitetura",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Tipologia construtiva. Hoje cai em Localidade (0.514)."
+    },
+    {
+      "name": "alvenaria",
+      "documents": 826,
+      "expected": "Urbanismo e Arquitetura",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Material de construção. É o exemplo canônico do defeito: hoje em Mobilidade com 0.42."
+    },
+    {
+      "name": "casa",
+      "documents": 387,
+      "expected": "Urbanismo e Arquitetura",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Tipologia construtiva. Hoje em Mobilidade (0.431)."
+    },
+    {
+      "name": "uma casa",
+      "documents": 313,
+      "expected": "Urbanismo e Arquitetura",
+      "confidence": "media",
+      "needs_decision": false,
+      "note": "Ruído de extração de 'casa' (a Fase E já propõe o merge). Enquanto existir, o rótulo é o de casa."
+    },
+    {
+      "name": "madeira",
+      "documents": 283,
+      "expected": "Urbanismo e Arquitetura",
+      "confidence": "media",
+      "needs_decision": true,
+      "note": "DECISÃO: material de construção (Urbanismo) ou recurso natural (Meio Ambiente)? Palpitei Urbanismo porque o acervo é de arquitetura."
+    },
+    {
+      "name": "casa histórica",
+      "documents": 264,
+      "expected": "Urbanismo e Arquitetura",
+      "confidence": "media",
+      "needs_decision": true,
+      "note": "DECISÃO: 'casa' é Urbanismo e 'histórica' puxa Patrimônio. Palpitei Urbanismo pela tipologia; mude se o acervo usar o termo como marca de preservação."
+    },
+    {
+      "name": "eclético",
+      "documents": 261,
+      "expected": "Urbanismo e Arquitetura",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Estilo arquitetônico. Hoje em Mobilidade (0.521)."
+    },
+    {
+      "name": "patrimônio histórico",
+      "documents": 256,
+      "expected": "Patrimônio e Preservação",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "O nome da gaveta."
+    },
+    {
+      "name": "uip",
+      "documents": 186,
+      "expected": "Patrimônio e Preservação",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Sigla de Unidade de Interesse de Preservação — instrumento de tombamento do IPPUC."
+    },
+    {
+      "name": "unidade de interesse de preservação",
+      "documents": 183,
+      "expected": "Patrimônio e Preservação",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Forma por extenso da UIP."
+    },
+    {
+      "name": "parque",
+      "documents": 203,
+      "expected": "Meio Ambiente e Áreas Verdes",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Hoje em Mobilidade (0.493)."
+    },
+    {
+      "name": "jardim botânico",
+      "documents": 201,
+      "expected": "Meio Ambiente e Áreas Verdes",
+      "confidence": "media",
+      "needs_decision": true,
+      "note": "DECISÃO: é o parque (Meio Ambiente) e também o bairro (Lugar). Palpitei o parque; a faceta PLACE pode registrar o bairro em paralelo."
+    },
+    {
+      "name": "parque iguaçu",
+      "documents": 144,
+      "expected": "Meio Ambiente e Áreas Verdes",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Nome próprio de parque. É ao mesmo tempo assunto (área verde) e lugar — bom teste de que os dois eixos coexistem."
+    },
+    {
+      "name": "parque náutico",
+      "documents": 117,
+      "expected": "Meio Ambiente e Áreas Verdes",
+      "confidence": "media",
+      "needs_decision": true,
+      "note": "DECISÃO: área verde (Meio Ambiente) ou equipamento esportivo (Educação e Cultura)? Palpitei o espaço verde."
+    },
+    {
+      "name": "parque municipal do iguaçu",
+      "documents": 92,
+      "expected": "Meio Ambiente e Áreas Verdes",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Variante de 'parque iguaçu'; candidata a merge."
+    },
+    {
+      "name": "rio",
+      "documents": 145,
+      "expected": "Meio Ambiente e Áreas Verdes",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Curso d'água."
+    },
+    {
+      "name": "comércio",
+      "documents": 193,
+      "expected": "Economia e Comércio",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "O nome da gaveta."
+    },
+    {
+      "name": "comércios",
+      "documents": 163,
+      "expected": "Economia e Comércio",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Plural; candidata a merge com 'comércio'."
+    },
+    {
+      "name": "loja",
+      "documents": 124,
+      "expected": "Economia e Comércio",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Estabelecimento comercial."
+    },
+    {
+      "name": "esporte",
+      "documents": 80,
+      "expected": "Educação e Cultura",
+      "confidence": "media",
+      "needs_decision": true,
+      "note": "DECISÃO: esporte em Educação e Cultura, ou gaveta própria de Esporte e Lazer? Palpitei Cultura."
+    },
+    {
+      "name": "imigração",
+      "documents": 85,
+      "expected": "Assistência e Questões Sociais",
+      "confidence": "media",
+      "needs_decision": true,
+      "note": "DECISÃO: movimento social (Assistência) ou tema histórico-cultural (Educação e Cultura)? Palpitei Social."
+    },
+    {
+      "name": "memorial",
+      "documents": 81,
+      "expected": "Patrimônio e Preservação",
+      "confidence": "media",
+      "needs_decision": true,
+      "note": "DECISÃO: 'Memorial de Curitiba' é instituição, 'memorial' genérico é monumento. Palpitei Patrimônio; se for sempre a instituição, vira faceta INSTITUTION."
+    },
+    {
+      "name": "prédio",
+      "documents": 81,
+      "expected": "Urbanismo e Arquitetura",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Tipologia construtiva."
+    },
+    {
+      "name": "prédios",
+      "documents": 81,
+      "expected": "Urbanismo e Arquitetura",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Plural de 'prédio'; candidata a merge."
+    },
+    {
+      "name": "construção",
+      "documents": 138,
+      "expected": "Urbanismo e Arquitetura",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Ato de construir."
+    },
+    {
+      "name": "obra",
+      "documents": 128,
+      "expected": "Urbanismo e Arquitetura",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Obra construída."
+    },
+    {
+      "name": "obras",
+      "documents": 150,
+      "expected": "Urbanismo e Arquitetura",
+      "confidence": "media",
+      "needs_decision": true,
+      "note": "DECISÃO: obras construídas (Urbanismo) ou obras públicas como programa (Administração, que foi cortada por falta de evidência)? Palpitei Urbanismo."
+    },
+    {
+      "name": "um muro",
+      "documents": 140,
+      "expected": "Urbanismo e Arquitetura",
+      "confidence": "media",
+      "needs_decision": false,
+      "note": "Elemento construtivo com artigo — ruído de extração. Mesmo rótulo de 'muro'."
+    },
+    {
+      "name": "ecletismo",
+      "documents": 95,
+      "expected": "Urbanismo e Arquitetura",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Variante de 'eclético'; candidata a merge."
+    },
+    {
+      "name": "linha férrea",
+      "documents": 308,
+      "expected": "Mobilidade e Transporte",
+      "confidence": "alta",
+      "needs_decision": false,
+      "already_covered": true,
+      "note": "CONTROLE POSITIVO: o modelo já acerta hoje. Se errar esta, algo quebrou de verdade."
+    },
+    {
+      "name": "trem",
+      "documents": 302,
+      "expected": "Mobilidade e Transporte",
+      "confidence": "alta",
+      "needs_decision": false,
+      "already_covered": true,
+      "note": "CONTROLE POSITIVO."
+    },
+    {
+      "name": "rede ferroviária",
+      "documents": 298,
+      "expected": "Mobilidade e Transporte",
+      "confidence": "alta",
+      "needs_decision": false,
+      "already_covered": true,
+      "note": "CONTROLE POSITIVO."
+    },
+    {
+      "name": "carros",
+      "documents": 228,
+      "expected": "Mobilidade e Transporte",
+      "confidence": "alta",
+      "needs_decision": false,
+      "already_covered": true,
+      "note": "CONTROLE POSITIVO."
+    },
+    {
+      "name": "trilho de trem",
+      "documents": 292,
+      "expected": "Mobilidade e Transporte",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Infraestrutura ferroviária."
+    },
+    {
+      "name": "pedestres",
+      "documents": 205,
+      "expected": "Mobilidade e Transporte",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Circulação de pessoas."
+    },
+    {
+      "name": "veículos",
+      "documents": 156,
+      "expected": "Mobilidade e Transporte",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Meios de transporte."
+    },
+    {
+      "name": "ônibus",
+      "documents": 93,
+      "expected": "Mobilidade e Transporte",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Transporte público."
+    },
+    {
+      "name": "rodoferroviária",
+      "documents": 118,
+      "expected": "Mobilidade e Transporte",
+      "confidence": "alta",
+      "needs_decision": false,
+      "note": "Estação rodoferroviária."
+    },
+    {
+      "name": "circulação",
+      "documents": 99,
+      "expected": "Mobilidade e Transporte",
+      "confidence": "media",
+      "needs_decision": true,
+      "note": "DECISÃO: circulação viária (Mobilidade) ou de pessoas no espaço construído (Urbanismo)? Palpitei Mobilidade."
+    },
+    {
+      "name": "pessoas",
+      "documents": 166,
+      "expected": null,
+      "confidence": "baixa",
+      "needs_decision": true,
+      "note": "NENHUMA candidata: 'pessoas' é genérico demais para ser assunto. Palpitei null; mude se o acervo usar como categoria social."
+    },
+    {
+      "name": "vista aérea",
+      "documents": 89,
+      "expected": null,
+      "confidence": "baixa",
+      "needs_decision": true,
+      "note": "NENHUMA: é ponto de vista fotográfico, não assunto — provavelmente deveria ser tipologia, não tag."
+    },
+    {
+      "name": "capanema",
+      "documents": 91,
+      "expected": null,
+      "confidence": "baixa",
+      "needs_decision": true,
+      "note": "NENHUMA ou faceta PLACE: nome próprio (Viaduto Capanema / Estádio Vila Capanema). Não é assunto."
+    },
+    {
+      "name": "largo da ordem",
+      "documents": 81,
+      "expected": null,
+      "confidence": "media",
+      "needs_decision": true,
+      "note": "FACETA PLACE, não assunto: logradouro. Confirma a decisão do dono de que nome de rua vai para lugar, não para NENHUMA."
+    }
+  ]
+}

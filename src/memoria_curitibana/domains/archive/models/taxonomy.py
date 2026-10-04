@@ -30,17 +30,25 @@ class ArchiveMacroCategory(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    #: The proposition the NLI model reads instead of the bare name.
+    #: The hypothesis the curator writes for the NLI model, when the bare name is not enough.
     #:
-    #: ``mDeBERTa-mnli`` answers "does the text entail the label?", and a noun phrase is not a
-    #: proposition: measured on the real collection, ``alvenaria`` and ``1924`` were both
-    #: confidently classified into "Mobilidade e Transporte" (0.42 and 0.73) because the
-    #: entailment had no sentence to reason about and chose by lexical proximity. Writing the
-    #: hypothesis is a **curation** decision — the archivist knows what the drawer means — so
-    #: it lives in the database and is edited without a deploy.
+    #: **Measured, and the measurement contradicts the intuition that created this column.**
+    #: The hypothesis was "a noun phrase is not a proposition, so writing a sentence fixes the
+    #: classification". On a 44-tag human-labelled set (B1/B3, ``testing/evaluation``), turning
+    #: the label into a sentence scored **0.000** — zero correct answers out of 40 subject tags,
+    #: on two models and two wordings, with 65% of them collapsing into a single drawer. The
+    #: baseline it was supposed to beat is the bare name, at 0.500 (mDeBERTa) and 0.575
+    #: (xlm-roberta). A mixed label set, where the sentence competes against bare names, makes
+    #: the format look better (0.450) while still losing to the baseline: that arrangement is
+    #: what the earlier plan most likely measured.
     #:
-    #: ``None`` falls back to ``name``, which keeps the previous behaviour for a drawer the
-    #: curator has not described yet.
+    #: So the column is a **curation escape hatch, not the default**. ``None`` — the bare name —
+    #: is the measured best and stays the behaviour for every drawer nobody writes here. A
+    #: curator who wants to try another wording can, and the hash-keyed stamp re-queues the
+    #: tags by itself; but do not seed this column with sentences expecting an improvement.
+    #:
+    #: Whatever is written here is what the model reasons about, so it must stay a short
+    #: statement about a subject, never the ``description`` below.
     classifier_label: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)

@@ -86,6 +86,14 @@ dev = [
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
     "ruff>=0.16.10",
+    # Only for `testing/evaluation/macro_category_quality.py`: transformers 5.x needs it
+    # to convert the sentencepiece tokenizer of the alternate zero-shot model. Never
+    # imported by the application.
+    "tiktoken>=0.14.0",
+    # Same reason: it is what reads the `sentencepiece.bpe.model` of the alternate
+    # tokenizer. Without it transformers falls back to a tiktoken extractor that cannot
+    # parse the file at all.
+    "sentencepiece>=0.2.2",
 ]
 
 [tool.pytest.ini_options]
