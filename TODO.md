@@ -8,7 +8,7 @@ arquivístico (DDD + micro-workers + HITL).
 > pendente. Quando um item está parcialmente pronto, ele aparece como `[~]` com a descrição
 > explícita do que existe e do que falta.
 >
-> **Estado do gate de qualidade:** suíte **319 testes** passando (unit + integração),
+> **Estado do gate de qualidade:** suíte **343 testes** passando (unit + integração),
 > `ruff check`/`ruff format --check` limpos, `basedpyright` 0 erros,
 > `alembic upgrade head` + `alembic check` sem drift.
 
@@ -21,7 +21,7 @@ arquivístico (DDD + micro-workers + HITL).
 | 1 | Fundação, pipeline de IA e governança de base | **Praticamente fechada** |
 | 1.5 | Macro Categorias (eixo de Assuntos) | **Núcleo fechado** — resta o front e o defeito de rótulo |
 | 2 | API + Curadoria humana (HITL) | **Fechada no essencial**, faltam ações locais |
-| 3 | Descoberta, escala e observabilidade | **Parcial** — busca fechada; faltam lematização de tags e operação |
+| 3 | Descoberta, escala e observabilidade | **Parcial** — busca lexical fechada; semântica funciona mas com qualidade fraca; faltam lematização de tags e operação |
 | 4 | Interoperabilidade, agentes e publicação | Não iniciada |
 
 O sistema **funciona ponta a ponta** até a camada Archive: ingestão → staging → archive →
@@ -311,10 +311,46 @@ O eixo semântico de assuntos está modelado e pela metade implementado. Hoje a 
   `entity_type` (LOC/PER/ORG) e `date_from`/`date_to`. As facetas valem para a página e
   para o `total`.
 - [x] **`rank` exposto no `DocumentSummary`** (relevância), para o front explicar a ordem.
-- [ ] **Busca semântica (pgvector):** embeddings + similaridade de conceito
-  ("desastres naturais" encontrar "enchentes"). Requer trocar a imagem para
-  `pgvector/pgvector` e adicionar a extensão via migração. **Adiada de propósito** —
-  decisão desta sessão: primeiro a busca lexical de verdade, que já não existia.
+- [x] **Busca semântica (pgvector) — IMPLEMENTADA.** `mode=semantic` na listagem busca por
+  conceito em vez de por palavra:
+  - [x] **Infra:** imagem própria `docker/postgres/Dockerfile` (`pgvector/pgvector:pg15` +
+    PostGIS 3.6). O `postgis/postgis` oficial ainda é Debian 11 (bullseye), cujo repositório
+    PGDG foi aposentado — nem `apt-get update` funciona. PostGIS fica **instalado e não
+    habilitado**: o mapa por bairro/pin é trabalho futuro e uma migração de uma linha o liga.
+  - [x] **Migração `e7b2c4a91d38`:** extensão `vector`, coluna `ArchiveDocument.embedding`
+    `vector(384)` e índice **HNSW** (`vector_cosine_ops`). HNSW e não IVFFlat porque não exige
+    treino e mantém recall conforme o acervo cresce. O tipo `Vector` é local
+    (`core/types.py`) — mapear a coluna é tudo que o projeto precisa, sem trazer o pacote
+    `pgvector`. A dimensão é guardada por teste (`EMBEDDING_DIMENSIONS` × preset do engine).
+  - [x] **Engine plugável** `engines/embeddings/` (`sentence_transformer`, preset
+    `multilingual_minilm` = `paraphrase-multilingual-MiniLM-L12-v2`, 384 dims), reusando o
+    modelo que o BERTopic já usava. Import pesado só na construção.
+  - [x] **Worker `embedding`** (último do `PIPELINE_ORDER`, roda depois de todo texto mutado).
+    O carimbo é o **MD5 do texto embedado**, calculado pelo Postgres (`WorkerStamp.mark_value`),
+    e não um status: o predicado de pendência vira uma comparação SQL única que cobre a
+    primeira execução **e** qualquer mudança posterior de texto.
+  - [x] **Exceção de governança documentada:** é o único worker que **não** aplica
+    `ai_writable_documents()`. O embedding é índice derivado do texto, não conteúdo
+    arquivístico: se o humano edita um documento `HUMAN_APPROVED`, o vetor precisa ser
+    refeito, senão a busca semântica serve dado obsoleto. Ele escreve **apenas** a coluna
+    `embedding` e o próprio carimbo; `REJECTED` é ignorado.
+  - [x] **Busca:** o termo é embedado no **serviço** (não no repositório) via fábrica de
+    engine injetada e **cacheada por processo** — uma busca lexical não carrega o modelo.
+    Facetas continuam valendo; `rank` passa a ser a similaridade de cosseno.
+  - [x] **Verificado no acervo real:** worker com o modelo de verdade embedou **3608/3608**
+    documentos em ~1 min (CPU), 0 pendentes depois, 384 dims em todos, e
+    `cos(guardado, recalculado) = 1.0` com o `<=>` do Postgres batendo exatamente.
+  - [ ] ⚠️ **Qualidade semântica medida é FRACA — próximo passo obrigatório.** Com o acervo
+    real, "enchentes" dá no máximo **0.33** para "Enchente em região marginalizada" e o topo
+    da busca por "desastres naturais" são documentos de *acidente de trânsito*.
+    **Não é bug de armazenamento** (verificado acima) nem falta de modelo maior: o
+    `paraphrase-multilingual-mpnet-base-v2` (768 dims) foi medido no mesmo corpus e
+    discrimina **pior** (0.265 vs 0.361). Causa provável: o texto embedado é curto/genérico
+    (título + um bloco de escopo repetido em milhares de itens), então falta sinal.
+    Ver `.analysis/` para as hipóteses. **Não vender a busca semântica como pronta antes
+    disso:** ela funciona ponta a ponta, mas ainda não é melhor que a lexical para o usuário.
+- [ ] **Busca híbrida (RRF):** fundir o ranking lexical e o vetorial. Ficou de fora por
+  decisão explícita desta sessão; é o passo natural depois de a qualidade semântica subir.
 
 ### Qualidade de dados
 
@@ -386,8 +422,8 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 
 | Verificação | Resultado |
 | --- | --- |
-| `pytest` (unit + integração) | **319 passed** |
-| `ruff check` / `ruff format --check` | limpos (185 arquivos) |
+| `pytest` (unit + integração) | **343 passed** |
+| `ruff check` / `ruff format --check` | limpos (192 arquivos) |
 | `basedpyright` | **0 errors, 0 warnings** |
 | `alembic upgrade head` + `alembic check` | aplica (inclui downgrade/upgrade); **sem drift** |
 | `raw_data` → `run_staging_pipeline` | 2/2 docs; datas e ISAD(G) corretos |
@@ -411,6 +447,12 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 | **Índices usados** (`EXPLAIN`) | `ix_archive_documents_search_vector` (GIN) na FTS e `idx_archive_tags_name_trgm` no `ILIKE` de tag |
 | **Fallback de substring** | fragmento no meio da palavra (sem tag/entidade que case) recupera a contagem do `ILIKE` antigo, sem `rank` |
 | Migração em banco limpo | `upgrade head` → `check` (exit 0) → `downgrade -1` → `upgrade head` → `check` sem drift |
+| **Imagem com pgvector + PostGIS** | `CREATE EXTENSION vector` funciona; `vector 0.8.7`, `postgis 3.6.4` e `unaccent` disponíveis no mesmo container |
+| **Banco de dev reconstruído** | 15 tabelas copiadas (3608 docs · 6182 tags · 3808 entidades · 4785 de ingestão), `alembic check` **sem drift**, busca lexical ainda OK (`historica` → 2489) |
+| **Worker `embedding` (modelo real, CPU)** | **3608/3608** documentos embedados em ~1 min; 0 pendentes na segunda execução; 384 dims em todos |
+| **Embedding persistido corretamente** | `cos(guardado, recalculado) = 1.0` e o `<=>` do Postgres bate exatamente com o cosseno calculado em Python |
+| **Busca semântica ponta a ponta (HTTP)** | `mode=semantic` responde, `rank` é a similaridade e decresce, facetas continuam valendo (tipologia 64 · LOC 3509), `mode` inválido → **400** |
+| ⚠️ **Qualidade semântica (medida, NÃO aprovada)** | "enchentes" × "Enchente em região marginalizada" = **0.33**; topo de "desastres naturais" = acidentes de trânsito. `mpnet-base` (768) medido no mesmo corpus discrimina **pior** (0.265 vs 0.361) → o gargalo é o texto, não o modelo |
 
 ### Bugs conhecidos e abertos
 
@@ -423,6 +465,10 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
    `search_vector` gerado pelo Postgres (Fase 3).
 4. **`is_anomaly`, `anomaly_reasons` sem produtor** — colunas mortas.
 5. **Sem autenticação** — bloqueio para exposição pública — Fase 4.
+6. **Busca semântica com qualidade fraca** — funciona ponta a ponta, mas o ranking por
+   similaridade não é melhor que a lexical para o usuário no acervo atual. O gargalo medido é
+   o texto embedado (título curto + escopo genérico repetido), não o armazenamento nem o
+   modelo. Ver Fase 3 e `.analysis/`.
 
 > **Corrigido em 2026-10-03:** o rótulo `"Nome: descrição"` colapsava o mDeBERTa na
 > primeira categoria, em `worker_macro_category` **e** `worker_typology`. Classificação
@@ -441,6 +487,14 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 > **gerado pelo Postgres** (`search_vector`), logo nunca fica obsoleto nem depende de
 > worker. Medição no acervo real: `historica` saiu de 0 (ILIKE) para 2489 resultados.
 > **Não reintroduzir `semantic_search_vector` nem concatenar descrição em rótulo.**
+>
+> **Fechado em 2026-10-03 (Busca semântica):** o `pgvector` entrou no lugar de uma imagem que
+> não o suportava, o worker `embedding` populou o acervo inteiro com o modelo real e
+> `mode=semantic` responde com ranking por cosseno e facetas. **Com uma ressalva registrada
+> de propósito:** a qualidade do ranking semântico no acervo atual é fraca e está medida na
+> tabela de evidências — o armazenamento foi verificado (`cos = 1.0`) e um modelo maior foi
+> medido e descartado, então o trabalho seguinte é **o texto** (o que se embeda), não a
+> infraestrutura.
 >
 > **Achado de ambiente (2026-10-03):** o volume de desenvolvimento
 > (`memoriacuritibana`) **não é gerenciado pelo Alembic** — não tem `alembic_version` e
