@@ -96,12 +96,14 @@ def engine():
     """Creates the connection to the test database and builds the table structure only once."""
     engine = create_engine(TEST_DATABASE_URL)
 
-    # pg_trgm must exist before create_all builds the fuzzy-search GIN indexes, and
-    # the immutable unaccent wrapper before it builds the generated search_vector.
+    # pg_trgm must exist before create_all builds the fuzzy-search GIN indexes, the
+    # immutable unaccent wrapper before it builds the generated search_vector, and
+    # pgvector before it builds the embedding column and its HNSW index.
     with engine.begin() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent"))
         conn.execute(text(IMMUTABLE_UNACCENT_SQL))
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
     # Creates all tables based on your Models
     Base.metadata.create_all(bind=engine)

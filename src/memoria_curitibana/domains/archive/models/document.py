@@ -19,12 +19,19 @@ from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from memoria_curitibana.core.base import Base
+from memoria_curitibana.core.types import Vector
 
 from .enums import ArchiveReviewStatus
 
 if TYPE_CHECKING:
     from .entity import ArchiveEntity
     from .taxonomy import ArchiveTag, ArchiveTypology
+
+
+# Dimension of the embedding model used by the ``multilingual_minilm`` preset
+# (``paraphrase-multilingual-MiniLM-L12-v2``). The vector column and the engine preset
+# must agree; a unit test guards the pair so changing one without the other fails.
+EMBEDDING_DIMENSIONS = 384
 
 
 # Lexical search vector, computed by PostgreSQL itself.
@@ -89,6 +96,14 @@ class ArchiveDocument(Base):
 
     # Example: {"ner_spacy_v1": "DONE", "mdeberta_tags": "PENDING"}
     execution_log: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+    # Semantic search vector, produced by the ``embedding`` worker from the document
+    # text. Unlike ``search_vector`` PostgreSQL cannot generate it, so it is the one
+    # AI-produced column that is refreshed even on a HUMAN_APPROVED document: it is a
+    # derived index of the text, not archival content. The worker keys it on a hash of
+    # the embedded text, so a human edit refreshes it without an AI rewrite.
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIMENSIONS), nullable=True)
+
     typology_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("archive_typologies.typology_id", ondelete="SET NULL"), nullable=True, index=True
     )
@@ -123,4 +138,12 @@ class ArchiveDocument(Base):
         Index("ix_archive_exec_log", execution_log, postgresql_using="gin"),
         # Native full-text search over the generated ``search_vector`` column.
         Index("ix_archive_documents_search_vector", "search_vector", postgresql_using="gin"),
+        # Approximate nearest neighbour over the embeddings. HNSW needs no training
+        # data (unlike IVFFlat) and keeps recall high as the collection grows.
+        Index(
+            "ix_archive_documents_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
     )
