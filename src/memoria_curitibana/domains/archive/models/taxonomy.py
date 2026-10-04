@@ -29,6 +29,20 @@ class ArchiveMacroCategory(Base):
     category_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    #: The proposition the NLI model reads instead of the bare name.
+    #:
+    #: ``mDeBERTa-mnli`` answers "does the text entail the label?", and a noun phrase is not a
+    #: proposition: measured on the real collection, ``alvenaria`` and ``1924`` were both
+    #: confidently classified into "Mobilidade e Transporte" (0.42 and 0.73) because the
+    #: entailment had no sentence to reason about and chose by lexical proximity. Writing the
+    #: hypothesis is a **curation** decision — the archivist knows what the drawer means — so
+    #: it lives in the database and is edited without a deploy.
+    #:
+    #: ``None`` falls back to ``name``, which keeps the previous behaviour for a drawer the
+    #: curator has not described yet.
+    classifier_label: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

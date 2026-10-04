@@ -35,6 +35,7 @@ from memoria_curitibana.domains.archive.domain.tag_merge import (
     cluster_fingerprint,
     has_digits,
 )
+from memoria_curitibana.domains.archive.domain.vocabulary import classifier_labels
 from memoria_curitibana.domains.archive.exceptions import (
     InvalidParam,
     MergeAlreadyUndoneError,
@@ -185,6 +186,7 @@ class TagRepository:
             ArchiveMacroCategory.category_id,
             ArchiveMacroCategory.name,
             ArchiveMacroCategory.description,
+            ArchiveMacroCategory.classifier_label,
             ArchiveMacroCategory.is_active,
         )
 
@@ -198,29 +200,37 @@ class TagRepository:
 
     def get_active_macro_categories(self) -> dict[str, int]:
         """
-        Builds the name -> id map the classification engine reads.
+        Builds the label -> id map the classification engine reads.
 
-        Only the bare name is used as the candidate label. Concatenating the description
-        (``"Name: description"``) makes the model progressively lose the entailment as the
-        label grows, until it collapses every input onto a single category: measured on
-        ``mDeBERTa-v3-base-mnli-xnli``, ``"epidemia de dengue"`` is correctly labelled
-        "Saúde" (0.99) with bare names but flips to "Urbanismo" once the descriptions are
-        appended — with 0.98 confidence on the wrong label, so a threshold cannot catch it.
-        The description stays in the schema as curator-facing documentation, and is
-        deliberately kept out of the prompt.
+        The label is ``classifier_label`` when the curator wrote one and the bare ``name``
+        otherwise (see :func:`domain.vocabulary.classifier_labels`). The **description is
+        never used**: concatenating it (``"Name: description"``) makes the model
+        progressively lose the entailment as the label grows, until it collapses every input
+        onto a single drawer — measured on ``mDeBERTa-v3-base-mnli-xnli``, ``"epidemia de
+        dengue"`` is correctly labelled "Saúde" (0.99) with bare names but flips to
+        "Urbanismo" once the descriptions are appended, with 0.98 confidence on the wrong
+        label, so a threshold cannot catch it. The description stays in the schema as
+        curator-facing documentation and is deliberately kept out of the prompt.
 
         Returns:
-            dict[str, int]: e.g. ``{"Urbanismo": 3}``.
+            dict[str, int]: e.g. ``{"Urbanismo e Arquitetura": 3}``.
         """
-        stmt = select(ArchiveMacroCategory.category_id, ArchiveMacroCategory.name).where(
-            ArchiveMacroCategory.is_active.is_(True)
-        )
+        stmt = select(
+            ArchiveMacroCategory.category_id,
+            ArchiveMacroCategory.name,
+            ArchiveMacroCategory.classifier_label,
+        ).where(ArchiveMacroCategory.is_active.is_(True))
 
-        return {name: category_id for category_id, name in self.db.execute(stmt).all()}
+        rows = self.db.execute(stmt).all()
+        categories = {name: category_id for category_id, name, _label in rows}
+        labels = {name: label for _category_id, name, label in rows}
+        return classifier_labels(categories, labels)
 
-    def create_macro_category(self, name: str, description: str | None) -> ArchiveMacroCategoryEntityDTO:
+    def create_macro_category(
+        self, name: str, description: str | None, classifier_label: str | None = None
+    ) -> ArchiveMacroCategoryEntityDTO:
         """Inserts an official macro category. Uniqueness of ``name`` is enforced by the schema."""
-        category = ArchiveMacroCategory(name=name, description=description)
+        category = ArchiveMacroCategory(name=name, description=description, classifier_label=classifier_label)
         self.db.add(category)
         self.db.flush()
         return ArchiveMacroCategoryEntityDTO.model_validate(category)

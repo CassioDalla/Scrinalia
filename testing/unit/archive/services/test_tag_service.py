@@ -732,7 +732,9 @@ def test_create_macro_category_strips_name(mocker: MockerFixture) -> None:
     service = TagService(mock_tag_repo, mock_doc_repo)
     service.create_macro_category(CreateMacroCategoryCommand(name="  Urbanismo  ", description="obras"))
 
-    mock_tag_repo.create_macro_category.assert_called_once_with(name="Urbanismo", description="obras")
+    mock_tag_repo.create_macro_category.assert_called_once_with(
+        name="Urbanismo", description="obras", classifier_label=None
+    )
 
 
 def test_create_macro_category_rejects_blank_name(mocker: MockerFixture) -> None:

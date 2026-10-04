@@ -96,7 +96,12 @@ class CreateMacroCategoryCommand(BaseModel):
     """Command creating an official macro category from a curated cluster."""
 
     name: str = Field(min_length=1, max_length=100, description="Official name of the semantic drawer.")
-    description: str | None = Field(default=None, description="Context the classifier reads to disambiguate.")
+    description: str | None = Field(default=None, description="Curator-facing documentation; never sent to the model.")
+    classifier_label: str | None = Field(
+        default=None,
+        description="The proposition the NLI model reads, e.g. 'um assunto sobre obras e construção'. "
+        "When omitted the bare name is used.",
+    )
 
 
 class UpdateMacroCategoryCommand(BaseModel):
@@ -104,4 +109,5 @@ class UpdateMacroCategoryCommand(BaseModel):
 
     name: str | None = Field(default=None, min_length=1, max_length=100)
     description: str | None = None
+    classifier_label: str | None = None
     is_active: bool | None = None

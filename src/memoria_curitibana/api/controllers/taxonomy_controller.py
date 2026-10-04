@@ -295,7 +295,9 @@ class TaxonomyController(Controller):
     ) -> ArchiveMacroCategoryEntityDTO:
         """Registers a macro category. A duplicate name is rejected with 409."""
         return tag_service.create_macro_category(
-            CreateMacroCategoryCommand(name=data.name, description=data.description)
+            CreateMacroCategoryCommand(
+                name=data.name, description=data.description, classifier_label=data.classifier_label
+            )
         )
 
     @patch("/macro-categories/{category_id:int}", sync_to_thread=True)
@@ -305,7 +307,7 @@ class TaxonomyController(Controller):
         category_id: FromPath[int],
         data: MacroCategoryUpdateRequest,
     ) -> ArchiveMacroCategoryEntityDTO:
-        """Renames, re-describes or (de)activates a macro category."""
+        """Renames, re-describes, rewrites the classifier label or (de)activates a macro category."""
         command = UpdateMacroCategoryCommand(**data.model_dump(exclude_unset=True))
         return tag_service.update_macro_category(category_id, command)
 

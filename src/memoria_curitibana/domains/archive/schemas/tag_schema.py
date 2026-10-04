@@ -337,6 +337,8 @@ class ArchiveMacroCategoryEntityDTO(BaseModel):
     category_id: int
     name: str
     description: str | None
+    #: The proposition the NLI model reads; ``None`` falls back to ``name``.
+    classifier_label: str | None = None
     is_active: bool
 
     model_config = ConfigDict(from_attributes=True)

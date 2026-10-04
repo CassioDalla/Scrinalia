@@ -6,6 +6,7 @@ from memoria_curitibana.core.database import get_db
 from memoria_curitibana.core.logger import logger
 from memoria_curitibana.core.runner_config import MacroCategoryRunnerConfig
 from memoria_curitibana.core.unit_of_work import UnitOfWork
+from memoria_curitibana.domains.archive.domain.vocabulary import is_subject_candidate, label_set_fingerprint
 from memoria_curitibana.domains.archive.engines.base import TypologyEngine
 from memoria_curitibana.domains.archive.engines.classification.registry import EngineName, PresetName, get_engine
 from memoria_curitibana.domains.archive.models import ArchiveTag
@@ -81,17 +82,27 @@ def execute(
         return
 
     candidate_labels = list(categories_map.keys())
-    logger.info(f"📂 {len(candidate_labels)} macro categories loaded.")
+
+    # The stamp is the identity of the label set, not a status. Rewriting one label — or
+    # registering, retiring or renaming a drawer — changes this hash, which is what puts the
+    # already-classified tags back in the queue. A status stamp could not do that, and the
+    # failure is not hypothetical: the V3 migration retired ``Instituição`` while its tags
+    # kept ``worker_macro_category_v1: DONE``, so the correction would never have reached
+    # them. Same trick as ``worker_embedding``, applied to a catalog instead of a text.
+    label_fingerprint = label_set_fingerprint(categories_map)
+    logger.info(f"📂 {len(candidate_labels)} macro categories loaded (labels {label_fingerprint[:12]}).")
 
     where_cond: list[ColumnElement[bool]] = [ArchiveTag.macro_category_id.is_(None)]
 
     if not force:
-        # A tag already stamped by this worker left the queue, even if it stayed orphan
-        # because the best score was below the threshold.
+        # A tag whose stamp already carries this label set left the queue, even if it stayed
+        # orphan because the best score was below the threshold. A stamp with a *different*
+        # value is pending: the vocabulary changed under it.
         where_cond.append(
             or_(
                 ArchiveTag.execution_log.is_(None),
                 ~ArchiveTag.execution_log.has_key(MACRO_CATEGORY.key),
+                func.coalesce(ArchiveTag.execution_log[MACRO_CATEGORY.key].astext, "") != label_fingerprint,
             )
         )
 
@@ -124,15 +135,40 @@ def execute(
 
             logger.info(f"🧠 Processing batch of {len(batch_tags)} tags in the AI...")
 
+            # The deterministic guard runs first: a bare year, a placeholder or a street is
+            # not a subject and never reaches the model. Measured, this is ~1.600 documents
+            # that today receive a confident wrong answer (``1924`` -> "Mobilidade" with
+            # 0.73), and a rule cannot hallucinate the way an abstention threshold can.
+            classifiable = [tag for tag in batch_tags if is_subject_candidate(tag.name)]
+            skipped = len(batch_tags) - len(classifiable)
+
             try:
-                results = engine.classify([tag.name for tag in batch_tags], candidate_labels, batch_size=1)
+                results = (
+                    engine.classify([tag.name for tag in classifiable], candidate_labels, batch_size=1)
+                    if classifiable
+                    else []
+                )
             except Exception as e:
                 logger.error(f"❌ Error during pipeline inference: {e}")
                 uow.rollback()
                 break
 
-            for tag, result in zip(batch_tags, results, strict=True):
-                stamp_status = "DONE"
+            if skipped:
+                logger.debug(f"⏭️ {skipped} tag(s) skipped as non-subjects (date, placeholder or street).")
+
+            # Stamped as processed with the current label set: the guard is a verdict, not a
+            # failure, so a re-run must not revisit them unless the vocabulary changes.
+            for tag in batch_tags:
+                if is_subject_candidate(tag.name):
+                    continue
+                tag.macro_category_id = None
+                tag.ai_confidence_score = None
+                tag.execution_log = MACRO_CATEGORY.mark_value(tag.execution_log, label_fingerprint)
+                flag_modified(tag, "execution_log")
+                total_processed += 1
+
+            for tag, result in zip(classifiable, results, strict=True):
+                stamp_value = label_fingerprint
                 try:
                     best_label = result["labels"][0]
                     confidence_score = float(result["scores"][0])
@@ -155,10 +191,12 @@ def execute(
 
                 except Exception as e:
                     logger.error(f"❌ Error updating tag {tag.tag_id}: {e}")
-                    stamp_status = "ERROR"
+                    # An error must NOT be recorded as the current label set, otherwise the
+                    # failure would look processed and the tag would never be retried.
+                    stamp_value = "ERROR"
 
                 try:
-                    tag.execution_log = MACRO_CATEGORY.mark(tag.execution_log, status=stamp_status)
+                    tag.execution_log = MACRO_CATEGORY.mark_value(tag.execution_log, stamp_value)
                     flag_modified(tag, "execution_log")
                 except Exception as e:
                     logger.critical(f"Critical failure trying to stamp the error on tag {tag.tag_id}: {e}")

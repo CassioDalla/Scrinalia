@@ -467,7 +467,8 @@ class TagService:
             raise InvalidParam("O nome da macro categoria não pode ser vazio.")
 
         logger.info(f"🏷️ Registering macro category '{name}'...")
-        return self.repo.create_macro_category(name=name, description=command.description)
+        label = command.classifier_label.strip() if command.classifier_label else None
+        return self.repo.create_macro_category(name=name, description=command.description, classifier_label=label)
 
     def update_macro_category(
         self, category_id: int, command: UpdateMacroCategoryCommand
@@ -479,6 +480,12 @@ class TagService:
             changes["name"] = changes["name"].strip()
             if not changes["name"]:
                 raise InvalidParam("O nome da macro categoria não pode ser vazio.")
+
+        # Blanking the label is how the curator falls back to the bare name; storing "" would
+        # send the model an empty hypothesis, which is worse than the name it replaced.
+        if "classifier_label" in changes:
+            label = changes["classifier_label"]
+            changes["classifier_label"] = label.strip() if label and label.strip() else None
 
         updated = self.repo.update_macro_category(category_id, changes)
         if updated is None:

@@ -66,8 +66,10 @@ class MacroCategoryCreateRequest(BaseModel):
     """Official macro category the curator creates from a suggested cluster."""
 
     name: str = Field(min_length=1, max_length=100)
-    description: str | None = Field(
-        default=None, description="Context read by the classifier to tell similar categories apart."
+    description: str | None = Field(default=None, description="Curator-facing documentation. Never sent to the model.")
+    classifier_label: str | None = Field(
+        default=None,
+        description="The proposition the NLI model reads. Omitted means the bare name is used.",
     )
 
 
@@ -76,6 +78,7 @@ class MacroCategoryUpdateRequest(BaseModel):
 
     name: str | None = Field(default=None, min_length=1, max_length=100)
     description: str | None = None
+    classifier_label: str | None = None
     is_active: bool | None = None
 
 
