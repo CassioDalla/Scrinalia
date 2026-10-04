@@ -1,8 +1,22 @@
 from collections import defaultdict
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, Float, delete, desc, func, select, text
+from sqlalchemy import (
+    CursorResult,
+    Float,
+    Text,
+    case,
+    column,
+    delete,
+    desc,
+    func,
+    select,
+    text,
+    update,
+    values,
+)
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
@@ -12,11 +26,22 @@ from memoria_curitibana.domains.archive.domain.normalization import (
     normalize_tag,
     singular_candidates,
 )
+from memoria_curitibana.domains.archive.domain.tag_merge import (
+    REVIEW_CATEGORY_WOULD_BE_LOST,
+    REVIEW_MEMBER_IS_SYNONYM,
+    REVIEW_MEMBER_WITH_DIGITS,
+    REVIEW_WEAK_MEMBER,
+    WEAK_MEMBER_SIMILARITY,
+    cluster_fingerprint,
+    has_digits,
+)
+from memoria_curitibana.domains.archive.exceptions import InvalidParam
 from memoria_curitibana.domains.archive.models import (
     ArchiveDocument,
     ArchiveDocumentTag,
     ArchiveMacroCategory,
     ArchiveTag,
+    ArchiveTagMergeProposal,
     DomainStopwords,
     DomainSynonyms,
     StopwordsScope,
@@ -24,11 +49,15 @@ from memoria_curitibana.domains.archive.models import (
 from memoria_curitibana.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
+    MergePlan,
+    MergeResponse,
     SynonymCommand,
     TagCount,
     TagIdentity,
     TagLinkCommand,
+    TagMergeImpact,
     TagMergeMember,
+    TagMergeProposalDTO,
     TagMergeSuggestion,
     TagPairSimilarity,
     TagRelevanceCount,
@@ -268,19 +297,28 @@ class TagRepository:
 
     def get_all_tags_with_counts(self) -> Sequence[TagCount]:
         """
-        Every tag with how many documents link to it.
+        Every tag with how many documents link to it, and its own classification.
 
         One grouped join instead of a count per cluster: the merge suggestions compare the
-        whole taxonomy at once.
+        whole taxonomy at once. The macro category and the confidence score travel with the
+        row because ``CATEGORY_WOULD_BE_LOST`` is a warning the curator must see before
+        approving a merge, and asking per tag would be an N+1.
         """
         stmt = (
             select(
                 ArchiveTag.tag_id,
                 ArchiveTag.name,
+                ArchiveTag.macro_category_id,
+                ArchiveTag.ai_confidence_score,
                 func.count(ArchiveDocumentTag.description_id).label("document_count"),
             )
             .outerjoin(ArchiveDocumentTag, ArchiveDocumentTag.tag_id == ArchiveTag.tag_id)
-            .group_by(ArchiveTag.tag_id, ArchiveTag.name)
+            .group_by(
+                ArchiveTag.tag_id,
+                ArchiveTag.name,
+                ArchiveTag.macro_category_id,
+                ArchiveTag.ai_confidence_score,
+            )
         )
         return [TagCount.model_validate(row) for row in self.db.execute(stmt).all()]
 
@@ -372,7 +410,304 @@ class TagRepository:
         suggestions.sort(key=lambda suggestion: (-suggestion.total_documents, suggestion.canonical_name))
         return suggestions[:limit]
 
+    # ==========================================
+    # MERGE PROPOSALS (the curation catalog)
+    # ==========================================
+
+    def get_tag_synonym_names(self) -> set[str]:
+        """Every spelling already redirected to a canonical tag."""
+        stmt = select(DomainSynonyms.synonym_name).where(DomainSynonyms.category == "TAG")
+        return set(self.db.scalars(stmt).all())
+
+    def get_synonym_names_pointing_to(self, tag_ids: Sequence[int]) -> list[str]:
+        """The spellings that would be orphaned by deleting ``tag_ids`` (the cascade target)."""
+        if not tag_ids:
+            return []
+
+        stmt = select(DomainSynonyms.synonym_name).where(
+            DomainSynonyms.category == "TAG", DomainSynonyms.canonical_tag_id.in_(list(tag_ids))
+        )
+        return list(self.db.scalars(stmt).all())
+
+    def _find_weak_members(self, pairs: Sequence[tuple[str, str]]) -> set[str]:
+        """
+        Members whose similarity to their canonical is below the warning threshold.
+
+        One query over a ``VALUES`` list instead of a round trip per member: the flag is
+        evidence for the curator, and N+1 in a suggestion run over the whole catalog would
+        be paid on every call.
+        """
+        if not pairs:
+            return set()
+
+        candidate = values(column("canonical", Text), column("member", Text), name="candidate").data(list(pairs))
+        score = func.similarity(candidate.c.canonical, candidate.c.member)
+        stmt = select(candidate.c.member).where(score < WEAK_MEMBER_SIMILARITY)
+        return set(self.db.scalars(stmt).all())
+
+    def upsert_merge_proposals(self, suggestions: Sequence[TagMergeSuggestion]) -> int:
+        """
+        Persists the suggested clusters, refreshing evidence and never a human decision.
+
+        The ``WHERE`` on the conflict target is the whole point (same rule as the excerpt
+        catalog): re-running the suggester refreshes a cluster that is still pending and
+        leaves an approved or rejected one exactly as the archivist left it. Returns how many
+        rows were actually written, so a re-run over decided clusters reports zero.
+        """
+        if not suggestions:
+            return 0
+
+        catalog = {row.tag_id: row for row in self.get_all_tags_with_counts()}
+        synonym_names = self.get_tag_synonym_names()
+        weak_members = self._find_weak_members(
+            [
+                (suggestion.canonical_name, member.name)
+                for suggestion in suggestions
+                for member in suggestion.members[1:]
+            ]
+        )
+
+        rows = []
+        for suggestion in suggestions:
+            absorbed = suggestion.members[1:]
+            canonical = catalog.get(suggestion.canonical_id)
+            canonical_is_orphan = canonical is None or canonical.macro_category_id is None
+            loses_category = canonical_is_orphan and any(
+                catalog.get(member.tag_id) is not None and catalog[member.tag_id].macro_category_id is not None
+                for member in absorbed
+            )
+
+            flags: list[str] = []
+            if any(has_digits(member.name) for member in absorbed):
+                flags.append(REVIEW_MEMBER_WITH_DIGITS)
+            if any(member.name in weak_members for member in absorbed):
+                flags.append(REVIEW_WEAK_MEMBER)
+            if loses_category:
+                flags.append(REVIEW_CATEGORY_WOULD_BE_LOST)
+            if any(member.name in synonym_names for member in absorbed):
+                flags.append(REVIEW_MEMBER_IS_SYNONYM)
+
+            rows.append(
+                {
+                    "fingerprint": cluster_fingerprint(
+                        suggestion.canonical_name, [member.name for member in suggestion.members]
+                    ),
+                    "canonical_id": suggestion.canonical_id,
+                    "canonical_name": suggestion.canonical_name,
+                    "members": [
+                        {"tag_id": member.tag_id, "name": member.name, "document_count": member.document_count}
+                        for member in suggestion.members
+                    ],
+                    "reason": suggestion.reason,
+                    "review_flags": flags,
+                    "total_documents": suggestion.total_documents,
+                    "status": "SUGGESTED",
+                }
+            )
+
+        base = insert(ArchiveTagMergeProposal)
+        stmt = (
+            base.values(rows)
+            .on_conflict_do_update(
+                index_elements=["fingerprint"],
+                set_={
+                    "canonical_id": base.excluded.canonical_id,
+                    "canonical_name": base.excluded.canonical_name,
+                    "members": base.excluded.members,
+                    "reason": base.excluded.reason,
+                    "review_flags": base.excluded.review_flags,
+                    "total_documents": base.excluded.total_documents,
+                    "updated_at": func.now(),
+                },
+                where=(ArchiveTagMergeProposal.status == "SUGGESTED"),
+            )
+            .returning(ArchiveTagMergeProposal.proposal_id)
+        )
+        return len(self.db.execute(stmt).all())
+
+    def _merge_proposal_filters(
+        self,
+        status: str | None,
+        reason: str | None,
+        min_documents: int,
+        flagged_only: bool,
+    ) -> list[Any]:
+        filters: list[Any] = []
+        if status is not None:
+            filters.append(ArchiveTagMergeProposal.status == status)
+        if reason is not None:
+            filters.append(ArchiveTagMergeProposal.reason == reason)
+        if min_documents:
+            filters.append(ArchiveTagMergeProposal.total_documents >= min_documents)
+        if flagged_only:
+            # ``array_length`` is NULL for the empty array, so an unflagged row never passes.
+            filters.append(func.array_length(ArchiveTagMergeProposal.review_flags, 1) > 0)
+        return filters
+
+    def count_merge_proposals(
+        self,
+        status: str | None = None,
+        reason: str | None = None,
+        min_documents: int = 0,
+        flagged_only: bool = False,
+    ) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(ArchiveTagMergeProposal)
+            .where(*self._merge_proposal_filters(status, reason, min_documents, flagged_only))
+        )
+        return self.db.scalar(stmt) or 0
+
+    def list_merge_proposals(
+        self,
+        status: str | None = None,
+        reason: str | None = None,
+        min_documents: int = 0,
+        flagged_only: bool = False,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[TagMergeProposalDTO]:
+        """
+        One page of proposals, pending work first.
+
+        The order is not cosmetic: with hundreds of clusters the archivist walks the list, so
+        what is still undecided comes before what was already decided, and inside each group
+        the clusters that move the most documents come first.
+        """
+        pending_first = case(
+            (ArchiveTagMergeProposal.status == "SUGGESTED", 0),
+            (ArchiveTagMergeProposal.status == "APPROVED", 1),
+            else_=2,
+        )
+        stmt = (
+            select(ArchiveTagMergeProposal)
+            .where(*self._merge_proposal_filters(status, reason, min_documents, flagged_only))
+            .order_by(
+                pending_first,
+                ArchiveTagMergeProposal.total_documents.desc(),
+                ArchiveTagMergeProposal.canonical_name,
+            )
+            .limit(limit)
+            .offset(offset)
+        )
+        return [TagMergeProposalDTO.model_validate(row) for row in self.db.scalars(stmt).all()]
+
+    def get_merge_proposal(self, proposal_id: int) -> TagMergeProposalDTO | None:
+        row = self.db.get(ArchiveTagMergeProposal, proposal_id)
+        return TagMergeProposalDTO.model_validate(row) if row else None
+
+    def decide_merge_proposal(
+        self,
+        proposal_id: int,
+        status: str,
+        decided_by: str | None,
+        note: str | None,
+    ) -> TagMergeProposalDTO | None:
+        """
+        Records the human verdict. Approving states the intent; it does not merge anything.
+
+        Keeping decision and execution apart is what lets the merge be applied later with the
+        reversible ledger, instead of turning a click in a listing into an irreversible write.
+        """
+        row = self.db.get(ArchiveTagMergeProposal, proposal_id)
+        if row is None:
+            return None
+
+        row.status = status
+        row.decided_by = decided_by
+        row.decided_at = datetime.now(UTC)
+        row.decision_note = note
+        self.db.flush()
+        return TagMergeProposalDTO.model_validate(row)
+
     # --- Auxiliary Methods for the Tag Merge ---
+
+    def plan_merge(self, canonical_id: int, ids_to_merge: Sequence[int]) -> MergePlan:
+        """
+        Everything the merge would change, computed without writing anything.
+
+        Single definition of the operation: the dry-run returns this plan (trimmed) and
+        ``apply_merge`` executes it, so the preview cannot promise something different from
+        what the merge does. Same reasoning as the AI text composition living in one SQL
+        expression instead of two implementations.
+        """
+        catalog = {row.tag_id: row for row in self.get_all_tags_with_counts()}
+        canonical = catalog.get(canonical_id)
+        if canonical is None:
+            raise InvalidParam(f"A tag canônica informada (ID {canonical_id}) não existe no acervo.")
+
+        dead_ids = [tag_id for tag_id in dict.fromkeys(ids_to_merge) if tag_id != canonical_id and tag_id in catalog]
+        impacted = [
+            TagMergeImpact(
+                tag_id=catalog[tag_id].tag_id,
+                name=catalog[tag_id].name,
+                document_count=catalog[tag_id].document_count,
+                macro_category_id=catalog[tag_id].macro_category_id,
+                ai_confidence_score=catalog[tag_id].ai_confidence_score,
+            )
+            for tag_id in dead_ids
+        ]
+
+        document_ids = sorted(set(self.get_document_ids_by_tags(dead_ids)))
+        synonym_names = [normalize_tag(member.name) for member in impacted]
+        repointed = sorted(set(self.get_synonym_names_pointing_to(dead_ids)))
+
+        weak_members = self._find_weak_members([(canonical.name, member.name) for member in impacted])
+        category_would_be_lost = canonical.macro_category_id is None and any(
+            member.macro_category_id is not None for member in impacted
+        )
+
+        flags: list[str] = []
+        if any(has_digits(member.name) for member in impacted):
+            flags.append(REVIEW_MEMBER_WITH_DIGITS)
+        if weak_members:
+            flags.append(REVIEW_WEAK_MEMBER)
+        if category_would_be_lost:
+            flags.append(REVIEW_CATEGORY_WOULD_BE_LOST)
+        if set(synonym_names) & self.get_tag_synonym_names():
+            flags.append(REVIEW_MEMBER_IS_SYNONYM)
+
+        return MergePlan(
+            canonical_id=canonical_id,
+            canonical_name=canonical.name,
+            canonical_document_count=canonical.document_count,
+            ids_to_merge=dead_ids,
+            impacted=impacted,
+            document_ids=document_ids,
+            synonym_names=synonym_names,
+            repointed_synonyms=repointed,
+            review_flags=flags,
+            category_would_be_lost=category_would_be_lost,
+        )
+
+    def apply_merge(self, plan: MergePlan) -> MergeResponse:
+        """
+        Executes exactly what ``plan_merge`` described.
+
+        The order matters and is the Fase 0 fix: the spellings already absorbed by the tags
+        being deleted are moved to the canonical *before* the delete, because the synonym FK
+        cascades and the deletion would otherwise forget the earlier curation.
+        """
+        if plan.document_ids:
+            self.link_documents_to_tag(set(plan.document_ids), plan.canonical_id)
+
+        self.repoint_synonyms(list(plan.ids_to_merge), plan.canonical_id)
+
+        if plan.synonym_names:
+            self.create_synonyms(
+                [
+                    SynonymCommand(
+                        synonym_name=name,
+                        category="TAG",
+                        canonical_tag_id=plan.canonical_id,
+                        canonical_entity_id=None,
+                    )
+                    for name in plan.synonym_names
+                ]
+            )
+
+        tags_deleted = self.delete_tags(list(plan.ids_to_merge))
+        return MergeResponse(documents_updated=len(plan.document_ids), tags_deleted=tags_deleted)
 
     def get_by_id(self, tag_id: int) -> TagIdentity | None:
         obj = self.db.scalar(select(ArchiveTag).where(ArchiveTag.tag_id == tag_id))
@@ -417,6 +752,17 @@ class TagRepository:
         self.db.execute(stmt)
 
     def create_synonyms(self, synonyms_data: list[SynonymCommand]) -> None:
+        """
+        Registers the spellings the ingestion must redirect to a canonical label.
+
+        The upsert (instead of ``on_conflict_do_nothing``) matters when a canonical is
+        absorbed into a new one: the spelling already had a mapping and it has to *move*.
+        Silently keeping the old target made a re-merge look successful while changing
+        nothing, and left the ingestion pointing at a tag that no longer exists.
+        """
+        if not synonyms_data:
+            return
+
         rows = [
             {
                 "synonym_name": normalize_synonym(item.synonym_name),
@@ -426,8 +772,34 @@ class TagRepository:
             }
             for item in synonyms_data
         ]
-        stmt = insert(DomainSynonyms).values(rows).on_conflict_do_nothing()
+        stmt = insert(DomainSynonyms).values(rows)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["synonym_name", "category"],
+            set_={
+                "canonical_tag_id": stmt.excluded.canonical_tag_id,
+                "canonical_entity_id": stmt.excluded.canonical_entity_id,
+            },
+        )
         self.db.execute(stmt)
+
+    def repoint_synonyms(self, from_tag_ids: list[int], to_tag_id: int) -> int:
+        """
+        Moves every synonym that pointed at a tag being merged onto the surviving canonical.
+
+        ``domain_synonyms.canonical_tag_id`` is ``ON DELETE CASCADE``: without this step,
+        deleting the absorbed tag destroys the spellings that had already been absorbed into
+        it, and the next ingestion recreates them as brand-new tags. The curation is undone
+        by the very merge that was supposed to make it durable.
+        """
+        if not from_tag_ids or to_tag_id in from_tag_ids:
+            return 0
+
+        stmt = (
+            update(DomainSynonyms)
+            .where(DomainSynonyms.category == "TAG", DomainSynonyms.canonical_tag_id.in_(from_tag_ids))
+            .values(canonical_tag_id=to_tag_id)
+        )
+        return cast(CursorResult, self.db.execute(stmt)).rowcount
 
     def delete_tags(self, tag_ids: list[int]) -> int:
         self.db.execute(delete(ArchiveDocumentTag).where(ArchiveDocumentTag.tag_id.in_(tag_ids)))

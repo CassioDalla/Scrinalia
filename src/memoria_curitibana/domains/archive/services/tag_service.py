@@ -8,6 +8,7 @@ from memoria_curitibana.domains.archive.exceptions import (
     InvalidMergeError,
     InvalidParam,
     MacroCategoryNotFoundError,
+    TagMergeProposalNotFoundError,
 )
 from memoria_curitibana.domains.archive.ports.document import DocumentRepositoryPort
 from memoria_curitibana.domains.archive.ports.taxonomy import TagRepositoryPort
@@ -15,16 +16,24 @@ from memoria_curitibana.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
     CreateMacroCategoryCommand,
+    MergePreviewCommand,
+    MergePreviewResponse,
     MergeResponse,
+    MergeSuggestionRunResponse,
     MergeTagsCommand,
-    SynonymCommand,
-    TagMergeSuggestion,
+    TagMergeDecisionCommand,
+    TagMergeProposalDTO,
+    TagMergeProposalListResponse,
     TagPairSimilarity,
     TagRelevanceCount,
     TagRelevanceIdf,
     TagSimilarity,
     UpdateMacroCategoryCommand,
 )
+
+#: Upper bound of one page of proposals. The real collection produced hundreds of clusters,
+#: so paging is the default and a client cannot ask for the whole catalog in one request.
+MAX_MERGE_PROPOSALS_PAGE = 200
 
 
 class TagService:
@@ -163,17 +172,26 @@ class TagService:
         target_lower = target_tag.strip().lower()
         return list(self.repo.find_similar(target_lower, threshold))
 
-    def suggest_merges(self, threshold: float = 0.65, limit: int = 50) -> list[TagMergeSuggestion]:
+    def suggest_merges(self, threshold: float = 0.65, limit: int = 50) -> MergeSuggestionRunResponse:
         """
-        Proposes groups of tags that probably mean the same thing.
+        Computes the probable duplicate clusters and registers them as proposals.
 
-        Suggestion only, like every other curation flow of this phase: nothing is merged,
-        the archivist approves through ``merge``.
+        Suggestion only, like every other curation flow of this phase: nothing is merged and
+        no decision is taken. Persisting them is what makes the review finite — the same
+        cluster is not re-proposed after a human rejected it.
         """
         if not 0 < threshold <= 1:
             raise InvalidParam("O parâmetro 'threshold' deve estar entre 0 e 1.")
 
-        return self.repo.find_merge_suggestions(threshold=threshold, limit=limit)
+        suggestions = self.repo.find_merge_suggestions(threshold=threshold, limit=limit)
+        persisted = self.repo.upsert_merge_proposals(suggestions)
+
+        return MergeSuggestionRunResponse(
+            clusters_found=len(suggestions),
+            persisted=persisted,
+            pending=self.repo.count_merge_proposals(status="SUGGESTED"),
+            flagged=self.repo.count_merge_proposals(status="SUGGESTED", flagged_only=True),
+        )
 
     def find_all_similar_tag_pairs(self, threshold: float = 0.65) -> Sequence[TagPairSimilarity]:
         """
@@ -182,13 +200,109 @@ class TagService:
         """
         return list(self.repo.find_all_similar_pairs(threshold))
 
+    # ==========================================
+    # MERGE PROPOSALS (the curation flow)
+    # ==========================================
+
+    def list_merge_proposals(
+        self,
+        status: str | None = None,
+        reason: str | None = None,
+        min_documents: int = 0,
+        flagged_only: bool = False,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> TagMergeProposalListResponse:
+        """One page of proposals with the total matching the same filters (no silent truncation)."""
+        if limit <= 0 or limit > MAX_MERGE_PROPOSALS_PAGE:
+            raise InvalidParam(f"O parâmetro 'limit' deve estar entre 1 e {MAX_MERGE_PROPOSALS_PAGE}.")
+        if offset < 0:
+            raise InvalidParam("O parâmetro 'offset' não pode ser negativo.")
+
+        total = self.repo.count_merge_proposals(
+            status=status, reason=reason, min_documents=min_documents, flagged_only=flagged_only
+        )
+        items = self.repo.list_merge_proposals(
+            status=status,
+            reason=reason,
+            min_documents=min_documents,
+            flagged_only=flagged_only,
+            limit=limit,
+            offset=offset,
+        )
+        return TagMergeProposalListResponse(total=total, limit=limit, offset=offset, items=items)
+
+    def decide_merge_proposal(self, proposal_id: int, command: TagMergeDecisionCommand) -> TagMergeProposalDTO:
+        """
+        Records the archivist's verdict on a proposal.
+
+        Approval means "this cluster should be unified"; the merge itself is applied later,
+        with the ledger that makes it reversible. A click on a listing never writes to the
+        collection on its own.
+        """
+        updated = self.repo.decide_merge_proposal(
+            proposal_id, status=command.status, decided_by=command.decided_by, note=command.note
+        )
+        if updated is None:
+            raise TagMergeProposalNotFoundError(
+                f"Proposta de mesclagem {proposal_id} não encontrada no catálogo de curadoria."
+            )
+        return updated
+
     def merge(self, command: MergeTagsCommand) -> MergeResponse:
         """
-        Orchestrates the merging of tags, normalizing synonyms and delegating persistence to the Repo.
-        """
-        canonical_id = command.canonical_id
-        ids_to_merge = command.ids_to_merge
+        Merges tags: computes the plan and applies it.
 
+        The plan is the single definition of the operation, shared with the dry-run, so the
+        preview cannot diverge from what the merge really does.
+        """
+        self._validate_merge_inputs(command.canonical_id, command.ids_to_merge)
+        plan = self.repo.plan_merge(command.canonical_id, command.ids_to_merge)
+        return self.repo.apply_merge(plan)
+
+    def preview_merge(self, command: MergePreviewCommand) -> MergePreviewResponse:
+        """
+        Dry-run of a merge: what changes, what is lost and why to look twice.
+
+        Read-only by construction (it only calls ``plan_merge``), which is the point: the
+        archivist decides with a number, not with the hope that the merge is harmless.
+        """
+        canonical_id, ids_to_merge = self._resolve_merge_source(command)
+        self._validate_merge_inputs(canonical_id, ids_to_merge)
+        plan = self.repo.plan_merge(canonical_id, ids_to_merge)
+
+        return MergePreviewResponse(
+            canonical_id=plan.canonical_id,
+            canonical_name=plan.canonical_name,
+            documents_updated=plan.documents_updated,
+            links_rewritten=plan.links_rewritten,
+            tags_deleted=plan.impacted,
+            synonyms_created=plan.synonym_names,
+            synonyms_repointed=plan.repointed_synonyms,
+            review_flags=plan.review_flags,
+            category_would_be_lost=plan.category_would_be_lost,
+        )
+
+    def _resolve_merge_source(self, command: MergePreviewCommand) -> tuple[int, list[int]]:
+        """Turns either a persisted proposal or an ad-hoc pair into ``(canonical, ids)``."""
+        if command.proposal_id is not None:
+            proposal = self.repo.get_merge_proposal(command.proposal_id)
+            if proposal is None:
+                raise TagMergeProposalNotFoundError(
+                    f"Proposta de mesclagem {command.proposal_id} não encontrada no catálogo de curadoria."
+                )
+            if proposal.canonical_id is None:
+                raise InvalidParam("A proposta não tem mais uma tag canônica válida para simular.")
+
+            ids = [member.tag_id for member in proposal.members if member.tag_id != proposal.canonical_id]
+            return proposal.canonical_id, ids
+
+        if command.canonical_id is None:
+            raise InvalidParam("Informe 'proposal_id' ou 'canonical_id' com 'ids_to_merge'.")
+        return command.canonical_id, list(command.ids_to_merge)
+
+    def _validate_merge_inputs(self, canonical_id: int, ids_to_merge: Sequence[int]) -> None:
+        """The business rules a merge (and its dry-run, identically) has to respect."""
         if not ids_to_merge:
             raise InvalidParam("A lista de tags para mesclar não pode estar vazia.")
 
@@ -198,35 +312,6 @@ class TagService:
         canonical_exists = self.repo.get_by_id(canonical_id)
         if not canonical_exists:
             raise InvalidParam(f"A tag canônica informada (ID {canonical_id}) não existe no acervo.")
-
-        # 1. Fetches the names of the dead ones and normalizes them so the Worker can find them later
-        dead_tags = self.repo.get_by_ids(ids_to_merge)
-        synonym_names = [normalize_tag(t.name) for t in dead_tags]
-
-        # 2. Transfers the links
-        raw_docs = self.repo.get_document_ids_by_tags(ids_to_merge)
-        unique_docs = set(raw_docs)
-
-        if unique_docs:
-            self.repo.link_documents_to_tag(unique_docs, canonical_id)
-
-        # 3. Saves Synonyms
-        if synonym_names:
-            synonyms_data = [
-                SynonymCommand(
-                    synonym_name=name,
-                    category="TAG",
-                    canonical_tag_id=canonical_id,
-                    canonical_entity_id=None,
-                )
-                for name in synonym_names
-            ]
-            self.repo.create_synonyms(synonyms_data)
-
-        # 4. Deletes the garbage
-        tags_deleted = self.repo.delete_tags(ids_to_merge)
-
-        return MergeResponse(documents_updated=len(unique_docs), tags_deleted=tags_deleted)
 
     def get_text_to_suggest_macro_category(
         self,

@@ -1,5 +1,7 @@
+import pytest
 from sqlalchemy import select, text
 
+from memoria_curitibana.domains.archive.exceptions import TagMergeProposalNotFoundError
 from memoria_curitibana.domains.archive.models import (
     ArchiveDocumentTag,
     ArchiveMacroCategory,
@@ -8,7 +10,12 @@ from memoria_curitibana.domains.archive.models import (
 )
 from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
 from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
-from memoria_curitibana.domains.archive.schemas import MergeTagsCommand
+from memoria_curitibana.domains.archive.schemas import (
+    ArchiveTagDTO,
+    MergePreviewCommand,
+    MergeTagsCommand,
+    TagMergeDecisionCommand,
+)
 from memoria_curitibana.domains.archive.schemas.tag_schema import TagRelevanceCount
 from memoria_curitibana.domains.archive.services.tag_service import TagService
 
@@ -236,6 +243,170 @@ def test_merge_tags_idempotency_conflict(use_test_db, db_session, generate_archi
     assert res.tags_deleted == 1
     link_count = db_session.query(ArchiveDocumentTag).count()
     assert link_count == 1  # Only the official one remained
+
+
+def test_chained_merge_keeps_the_mapping_of_the_surviving_canonical(use_test_db, db_session):
+    """
+    ``a -> b`` followed by ``b -> c`` must not forget that ``a`` was absorbed.
+
+    ``domain_synonyms.canonical_tag_id`` is ``ON DELETE CASCADE``, so deleting ``b`` in the
+    second merge used to take the synonym created by the first merge with it. The spelling
+    then came back as a brand-new tag at the next ingestion, silently undoing the curation
+    the archivist had approved.
+    """
+    tag_repo = TagRepository(db_session)
+    service = TagService(tag_repo, DocumentRepository(db_session))
+
+    plural = ArchiveTag(name="parques")
+    singular = ArchiveTag(name="parque")
+    final = ArchiveTag(name="área verde")
+    db_session.add_all([plural, singular, final])
+    db_session.commit()
+
+    service.merge(MergeTagsCommand(canonical_id=singular.tag_id, ids_to_merge=[plural.tag_id]))
+    db_session.commit()
+    service.merge(MergeTagsCommand(canonical_id=final.tag_id, ids_to_merge=[singular.tag_id]))
+    db_session.commit()
+
+    assert tag_repo.get_synonyms_mapping(["parques", "parque"]) == {
+        "parques": final.tag_id,
+        "parque": final.tag_id,
+    }
+
+
+def test_no_synonym_points_to_a_deleted_tag_after_a_merge_chain(use_test_db, db_session):
+    """The cascade must never leave a synonym whose canonical tag no longer exists."""
+    tag_repo = TagRepository(db_session)
+    service = TagService(tag_repo, DocumentRepository(db_session))
+
+    first = ArchiveTag(name="prefeiruta")
+    second = ArchiveTag(name="prefeitura")
+    third = ArchiveTag(name="prefeitura de curitiba")
+    db_session.add_all([first, second, third])
+    db_session.commit()
+
+    service.merge(MergeTagsCommand(canonical_id=second.tag_id, ids_to_merge=[first.tag_id]))
+    db_session.commit()
+    service.merge(MergeTagsCommand(canonical_id=third.tag_id, ids_to_merge=[second.tag_id]))
+    db_session.commit()
+
+    dangling = db_session.execute(
+        text(
+            """
+            SELECT count(*) FROM domain_synonyms ds
+            WHERE ds.category = 'TAG'
+              AND NOT EXISTS (SELECT 1 FROM archive_tags t WHERE t.tag_id = ds.canonical_tag_id)
+            """
+        )
+    ).scalar_one()
+
+    assert dangling == 0
+
+
+def test_ingestion_after_a_merge_chain_links_the_surviving_canonical(use_test_db, db_session):
+    """
+    A document arriving with an absorbed spelling must land on the canonical tag.
+
+    This is the prevention half of the dedup: the synonyms written by the merges are what
+    stop the ingestion from recreating the duplicate forever.
+    """
+    tag_repo = TagRepository(db_session)
+    service = TagService(tag_repo, DocumentRepository(db_session))
+
+    plural = ArchiveTag(name="licenças")
+    singular = ArchiveTag(name="licença")
+    final = ArchiveTag(name="licenciamento")
+    db_session.add_all([plural, singular, final])
+    db_session.commit()
+
+    service.merge(MergeTagsCommand(canonical_id=singular.tag_id, ids_to_merge=[plural.tag_id]))
+    db_session.commit()
+    service.merge(MergeTagsCommand(canonical_id=final.tag_id, ids_to_merge=[singular.tag_id]))
+    db_session.commit()
+
+    assert service.process_worker_tags([ArchiveTagDTO(name="licenças")]) == [final.tag_id]
+    assert "licenças" not in db_session.scalars(select(ArchiveTag.name)).all()
+
+
+# ==========================================
+# MERGE PROPOSALS AND DRY-RUN (Fase 3.5 / Buraco 4)
+# ==========================================
+
+
+def test_preview_merge_is_read_only_and_matches_the_applied_merge(use_test_db, db_session, generate_archive_doc):
+    """
+    The dry-run never writes, and its numbers are the ones the merge really produces.
+
+    Pinning the two together is the point: a preview that promises something else is worse
+    than no preview, because the whole decision rests on it.
+    """
+    from sqlalchemy import func
+
+    from memoria_curitibana.domains.archive.models import ArchiveTag
+
+    tag_repo = TagRepository(db_session)
+    service = TagService(tag_repo, DocumentRepository(db_session))
+
+    canonical = ArchiveTag(name="rua")
+    variant = ArchiveTag(name="ruas")
+    db_session.add_all([canonical, variant])
+    db_session.flush()
+    for index in range(3):
+        doc = generate_archive_doc(original_title=f"Doc {index}")
+        db_session.add(ArchiveDocumentTag(description_id=doc.description_id, tag_id=variant.tag_id))
+    db_session.flush()
+
+    preview = service.preview_merge(MergePreviewCommand(canonical_id=canonical.tag_id, ids_to_merge=[variant.tag_id]))
+
+    assert db_session.scalar(select(func.count()).select_from(ArchiveTag)) == 2  # nothing was deleted
+
+    result = service.merge(MergeTagsCommand(canonical_id=canonical.tag_id, ids_to_merge=[variant.tag_id]))
+    db_session.commit()
+
+    assert preview.documents_updated == result.documents_updated == 3
+    assert preview.links_rewritten == 3
+    assert len(preview.tags_deleted) == result.tags_deleted == 1
+    assert preview.synonyms_created == ["ruas"]
+
+
+def test_suggest_merges_registers_proposals_and_records_the_decision(use_test_db, db_session):
+    """The run persists the clusters and the verdict keeps author, time and note."""
+    tag_repo = TagRepository(db_session)
+    service = TagService(tag_repo, DocumentRepository(db_session))
+
+    db_session.add_all([ArchiveTag(name="casa"), ArchiveTag(name="casas")])
+    db_session.commit()
+
+    run = service.suggest_merges(threshold=0.99)
+
+    assert run.clusters_found == 1
+    assert run.persisted == 1
+    assert run.pending == 1
+
+    page = service.list_merge_proposals(status="SUGGESTED")
+    assert page.total == 1
+    proposal = page.items[0]
+    assert proposal.canonical_name in {"casa", "casas"}
+
+    decided = service.decide_merge_proposal(
+        proposal.proposal_id,
+        TagMergeDecisionCommand(status="APPROVED", decided_by="arquivista", note="mesmo conceito"),
+    )
+
+    assert decided.status == "APPROVED"
+    assert decided.decided_by == "arquivista"
+    assert decided.decided_at is not None
+    assert decided.decision_note == "mesmo conceito"
+    # Recording the verdict does not merge anything: both tags are still there.
+    assert set(db_session.scalars(select(ArchiveTag.name)).all()) == {"casa", "casas"}
+
+
+def test_decide_an_unknown_proposal_raises_a_domain_404(use_test_db, db_session):
+    """A PATCH on a proposal that does not exist is a 404, never a silent success."""
+    service = TagService(TagRepository(db_session), DocumentRepository(db_session))
+
+    with pytest.raises(TagMergeProposalNotFoundError):
+        service.decide_merge_proposal(999_999, TagMergeDecisionCommand(status="REJECTED"))
 
 
 # ==========================================

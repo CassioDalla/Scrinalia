@@ -1,6 +1,7 @@
+from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from memoria_curitibana.domains.archive.schemas.types import TagName
 
@@ -66,6 +67,10 @@ class TagCount(BaseModel):
     tag_id: int
     name: str
     document_count: int = 0
+    # The curator needs to know whether a merge would drop a classification, so the catalog
+    # read carries the tag's own macro category and confidence score.
+    macro_category_id: int | None = None
+    ai_confidence_score: float | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -99,6 +104,133 @@ class MergeResponse(BaseModel):
     tags_deleted: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ==========================================
+# TAG MERGE PROPOSALS (curation flow)
+# ==========================================
+
+
+class TagMergeProposalDTO(BaseModel):
+    """
+    A persisted cluster proposal plus the human decision about it.
+
+    The evidence (``members``, ``total_documents``, ``review_flags``) is refreshed by every
+    suggestion run; the decision (``status``, ``decided_by``, ``decided_at``) is written only
+    by a human and is never overwritten by the routine.
+    """
+
+    proposal_id: int
+    fingerprint: str
+    canonical_id: int | None = None
+    canonical_name: str
+    reason: str
+    total_documents: int
+    review_flags: list[str] = Field(default_factory=list)
+    members: list[TagMergeMember] = Field(default_factory=list)
+    status: Literal["SUGGESTED", "APPROVED", "REJECTED"]
+    decided_by: str | None = None
+    decided_at: datetime | None = None
+    decision_note: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TagMergeProposalListResponse(BaseModel):
+    """One page of proposals; ``total`` counts every row matching the filters."""
+
+    total: int
+    limit: int
+    offset: int
+    items: list[TagMergeProposalDTO] = Field(default_factory=list)
+
+
+class TagMergeDecisionCommand(BaseModel):
+    """The archivist's verdict on one proposal. Approval records intent, it does not merge."""
+
+    status: Literal["APPROVED", "REJECTED"]
+    decided_by: str | None = Field(default=None, description="Who decided; free text until authentication exists.")
+    note: str | None = Field(default=None, description="Why; kept for auditing.")
+
+
+class MergeSuggestionRunResponse(BaseModel):
+    """Result of one suggestion run over the tag catalog."""
+
+    clusters_found: int
+    persisted: int = Field(description="Rows written or refreshed; a decided proposal is never touched.")
+    pending: int = Field(description="Proposals still waiting for a human decision.")
+    flagged: int = Field(description="Pending proposals carrying at least one review flag.")
+
+
+class TagMergeImpact(BaseModel):
+    """One tag a merge would absorb, with what disappears along with it."""
+
+    tag_id: int
+    name: str
+    document_count: int
+    macro_category_id: int | None = None
+    ai_confidence_score: float | None = None
+
+
+class MergePlan(BaseModel):
+    """
+    Everything a merge would do, computed before anything is written.
+
+    Read side of the operation: the dry-run returns it (trimmed) and the apply consumes it, so
+    the preview cannot promise something different from what the merge does. It is the same
+    lesson as the AI text composition living in one SQL expression.
+    """
+
+    canonical_id: int
+    canonical_name: str
+    canonical_document_count: int = 0
+    ids_to_merge: list[int] = Field(default_factory=list)
+    impacted: list[TagMergeImpact] = Field(default_factory=list)
+    document_ids: list[str] = Field(default_factory=list)
+    synonym_names: list[str] = Field(default_factory=list)
+    repointed_synonyms: list[str] = Field(default_factory=list)
+    review_flags: list[str] = Field(default_factory=list)
+    category_would_be_lost: bool = False
+
+    @property
+    def documents_updated(self) -> int:
+        """Distinct documents the merge touches (the union, never the sum)."""
+        return len(self.document_ids)
+
+    @property
+    def links_rewritten(self) -> int:
+        """Links moved: one per document the absorbed tags carried."""
+        return sum(member.document_count for member in self.impacted)
+
+
+class MergePreviewCommand(BaseModel):
+    """Asks what a merge would change. Either a persisted proposal or an ad-hoc pair."""
+
+    proposal_id: int | None = None
+    canonical_id: int | None = None
+    ids_to_merge: list[int] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _one_source_of_truth(self) -> "MergePreviewCommand":
+        if self.proposal_id is None and (self.canonical_id is None or not self.ids_to_merge):
+            raise ValueError("either proposal_id or canonical_id + ids_to_merge is required")
+        if self.proposal_id is not None and (self.canonical_id is not None or self.ids_to_merge):
+            raise ValueError("proposal_id cannot be combined with canonical_id/ids_to_merge")
+        return self
+
+
+class MergePreviewResponse(BaseModel):
+    """Dry-run report: what changes, what is lost and why the curator should look twice."""
+
+    canonical_id: int
+    canonical_name: str
+    documents_updated: int
+    links_rewritten: int
+    tags_deleted: list[TagMergeImpact] = Field(default_factory=list)
+    synonyms_created: list[str] = Field(default_factory=list)
+    synonyms_repointed: list[str] = Field(default_factory=list)
+    review_flags: list[str] = Field(default_factory=list)
+    category_would_be_lost: bool = False
 
 
 class MacroCategorySuggested(BaseModel):

@@ -40,6 +40,13 @@ class TextTemplateNotFoundError(DomainException):
     pass
 
 
+class TagMergeProposalNotFoundError(DomainException):
+    """Raised when a tag-merge proposal does not exist in the curation catalog."""
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
 class InvalidMergeError(DomainException):
     """Raised when trying to merge a tag into itself or breaking synonym rules."""
 

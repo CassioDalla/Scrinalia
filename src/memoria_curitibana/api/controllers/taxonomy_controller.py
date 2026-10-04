@@ -14,7 +14,10 @@ from memoria_curitibana.api.schemas.taxonomy import (
     CrossDomainConflictListResponse,
     MacroCategoryCreateRequest,
     MacroCategoryUpdateRequest,
+    MergePreviewRequest,
+    MergeProposalDecisionRequest,
     MergeRequest,
+    MergeSuggestionRequest,
     NerExclusionRequest,
     ReclassifyEntityRequest,
     StopwordsRequest,
@@ -24,8 +27,13 @@ from memoria_curitibana.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     CreateMacroCategoryCommand,
     MergeEntityCommand,
+    MergePreviewCommand,
+    MergePreviewResponse,
+    MergeSuggestionRunResponse,
     MergeTagsCommand,
     ResolveConflictCommand,
+    TagMergeDecisionCommand,
+    TagMergeProposalListResponse,
     UpdateMacroCategoryCommand,
 )
 from memoria_curitibana.domains.archive.schemas.entity_schema import (
@@ -36,7 +44,6 @@ from memoria_curitibana.domains.archive.schemas.entity_schema import (
 from memoria_curitibana.domains.archive.schemas.tag_schema import (
     MacroCategoriesSuggestionResponse,
     MergeResponse,
-    TagMergeSuggestion,
     TagPairSimilarity,
     TagRelevanceResponse,
     TagSimilarity,
@@ -90,21 +97,84 @@ class TaxonomyController(Controller):
 
         return response
 
-    @get("/tags/merge-suggestions", sync_to_thread=True)
+    @post("/tags/merge/preview", status_code=200, sync_to_thread=True)
+    def preview_tag_merge(
+        self,
+        tag_service: NamedDependency[TagService],
+        data: MergePreviewRequest,
+    ) -> MergePreviewResponse:
+        """
+        Dry-run of a merge: how many documents change, what is lost and what to review.
+
+        Read-only. The archivist approves with the number in hand, never on the hope that the
+        cluster the routine proposed is harmless — measurement showed it often is not
+        (``rua 24 de maio`` <- ``rua 13 de maio``).
+        """
+        return tag_service.preview_merge(
+            MergePreviewCommand(
+                proposal_id=data.proposal_id,
+                canonical_id=data.canonical_id,
+                ids_to_merge=data.ids_to_merge,
+            )
+        )
+
+    @post("/tags/merge-proposals/suggest", status_code=200, sync_to_thread=True)
     def suggest_tag_merges(
         self,
         tag_service: NamedDependency[TagService],
-        threshold: FromQuery[float] = 0.65,
-        limit: FromQuery[int] = 50,
-    ) -> list[TagMergeSuggestion]:
+        data: MergeSuggestionRequest,
+    ) -> MergeSuggestionRunResponse:
         """
-        Groups tags that probably mean the same thing (typos by trigram, plural by rule).
+        Scans the tag catalog, groups probable duplicates and registers them as proposals.
 
-        Suggestion only: nothing is merged here, the archivist approves through
-        ``POST /tags/merge``. That is deliberate — lemmatizing at ingestion would change
-        the identity of every new tag and could invent forms.
+        Nothing is merged and no decision is taken: the routine only ever writes ``SUGGESTED``
+        and never touches a cluster a human already approved or rejected.
         """
-        return tag_service.suggest_merges(threshold=threshold, limit=limit)
+        return tag_service.suggest_merges(threshold=data.threshold, limit=data.limit)
+
+    @get("/tags/merge-proposals", sync_to_thread=True)
+    def list_tag_merge_proposals(
+        self,
+        tag_service: NamedDependency[TagService],
+        status: FromQuery[Literal["SUGGESTED", "APPROVED", "REJECTED"] | None] = None,
+        reason: FromQuery[Literal["TRIGRAM", "PLURAL", "MIXED"] | None] = None,
+        min_documents: FromQuery[int] = 0,
+        flagged_only: FromQuery[bool] = False,
+        limit: FromQuery[int] = 50,
+        offset: FromQuery[int] = 0,
+    ) -> TagMergeProposalListResponse:
+        """
+        One page of proposals, pending work first, with the total for the same filters.
+
+        Pagination is not a nicety here: the real collection produced hundreds of clusters,
+        and before this catalog the route returned the first fifty without saying how many
+        existed.
+        """
+        return tag_service.list_merge_proposals(
+            status=status,
+            reason=reason,
+            min_documents=min_documents,
+            flagged_only=flagged_only,
+            limit=limit,
+            offset=offset,
+        )
+
+    @patch("/tags/merge-proposals/{proposal_id:int}", sync_to_thread=True)
+    def decide_tag_merge_proposal(
+        self,
+        tag_service: NamedDependency[TagService],
+        proposal_id: FromPath[int],
+        data: MergeProposalDecisionRequest,
+    ) -> dict:
+        """Approves or rejects a proposed cluster. Approval records intent, it does not merge."""
+        proposal = tag_service.decide_merge_proposal(
+            proposal_id,
+            TagMergeDecisionCommand(status=data.status, decided_by=data.decided_by, note=data.note),
+        )
+        return {
+            "message": "Decisão registrada. A mesclagem só será aplicada quando o lote for executado.",
+            "data": proposal.model_dump(),
+        }
 
     @post("/tags/stopwords/purge", sync_to_thread=True)
     def purge_stopwords(self, tag_service: NamedDependency[TagService], data: StopwordsRequest) -> dict:

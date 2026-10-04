@@ -5,6 +5,7 @@ from memoria_curitibana.domains.archive.exceptions import (
     InvalidMergeError,
     InvalidParam,
     MacroCategoryNotFoundError,
+    TagMergeProposalNotFoundError,
 )
 from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
 from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
@@ -12,10 +13,20 @@ from memoria_curitibana.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
     CreateMacroCategoryCommand,
+    MergePlan,
+    MergePreviewCommand,
     MergeTagsCommand,
+    TagMergeDecisionCommand,
+    TagMergeImpact,
+    TagMergeMember,
+    TagMergeSuggestion,
     UpdateMacroCategoryCommand,
 )
-from memoria_curitibana.domains.archive.schemas.tag_schema import MergeResponse, TagIdentity
+from memoria_curitibana.domains.archive.schemas.tag_schema import (
+    MergeResponse,
+    TagIdentity,
+    TagMergeProposalDTO,
+)
 from memoria_curitibana.domains.archive.services.tag_service import TagService
 
 # ==========================================
@@ -153,31 +164,33 @@ def test_purge_stopwords_empty_stopwords_table(mocker: MockerFixture) -> None:
 # ==========================================
 
 
-def test_merge_tags_transfers_and_deletes_success(mocker: MockerFixture) -> None:
-    """Happy Path: Transfers the documents, saves synonyms and deletes the old tags."""
+def test_merge_tags_validates_then_plans_and_applies(mocker: MockerFixture) -> None:
+    """
+    The service validates the rules and delegates to the shared plan/apply pair.
+
+    Planning and applying are separate on purpose: the dry-run calls only the first half, so
+    what the preview promises is what the merge does.
+    """
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
-
-    # 1. Simulate the canonical validation and the lookup of the tags that will be killed
     mock_tag_repo.get_by_id.return_value = TagIdentity(tag_id=1, name="prefeitura")
-    mock_tag_repo.get_by_ids.return_value = [TagIdentity(tag_id=2, name="prefeituta")]
 
-    # 2. Simulate the lookup of documents that had the old tag
-    mock_tag_repo.get_document_ids_by_tags.return_value = ["doc-1", "doc-2"]
-
-    # 3. Simulate the final delete return
-    mock_tag_repo.delete_tags.return_value = 1
+    plan = MergePlan(
+        canonical_id=1,
+        canonical_name="prefeitura",
+        ids_to_merge=[2],
+        document_ids=["doc-1", "doc-2"],
+    )
+    mock_tag_repo.plan_merge.return_value = plan
+    mock_tag_repo.apply_merge.return_value = MergeResponse(documents_updated=2, tags_deleted=1)
 
     service = TagService(mock_tag_repo, mock_doc_repo)
     res: MergeResponse = service.merge(MergeTagsCommand(canonical_id=1, ids_to_merge=[2]))
 
     assert res.documents_updated == 2
     assert res.tags_deleted == 1
-
-    # Checks the Service coordination
-    mock_tag_repo.link_documents_to_tag.assert_called_once_with({"doc-1", "doc-2"}, 1)
-    mock_tag_repo.create_synonyms.assert_called_once()
-    mock_tag_repo.delete_tags.assert_called_once_with([2])
+    mock_tag_repo.plan_merge.assert_called_once_with(1, [2])
+    mock_tag_repo.apply_merge.assert_called_once_with(plan)
 
 
 def test_merge_tags_empty_list(mocker: MockerFixture) -> None:
@@ -191,6 +204,7 @@ def test_merge_tags_empty_list(mocker: MockerFixture) -> None:
 
     assert "A lista de tags para mesclar não pode estar vazia." in str(exc_info.value)
     mock_tag_repo.get_by_id.assert_not_called()
+    mock_tag_repo.plan_merge.assert_not_called()
 
 
 def test_merge_tags_canonical_id_in_ids_to_merge(mocker: MockerFixture) -> None:
@@ -204,33 +218,192 @@ def test_merge_tags_canonical_id_in_ids_to_merge(mocker: MockerFixture) -> None:
 
     assert "O ID da tag canônica não pode estar na lista de exclusão." in str(exc_info.value)
     mock_tag_repo.get_by_id.assert_not_called()
+    mock_tag_repo.plan_merge.assert_not_called()
 
 
-def test_merge_tags_no_documents_affected(mocker: MockerFixture) -> None:
-    """
-    Partial Path: The tag exists, but no document uses it.
-    It must skip the document transfer, but STILL create the synonym and delete it.
-    """
+def test_merge_tags_missing_canonical(mocker: MockerFixture) -> None:
+    """Bad Path: the canonical tag does not exist, so nothing is planned or written."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
-
-    mock_tag_repo.get_by_id.return_value = TagIdentity(tag_id=1, name="oficial")
-    mock_tag_repo.get_by_ids.return_value = [TagIdentity(tag_id=2, name="tag_sem_uso")]
-
-    # No document uses the tag
-    mock_tag_repo.get_document_ids_by_tags.return_value = []
-    mock_tag_repo.delete_tags.return_value = 1
+    mock_tag_repo.get_by_id.return_value = None
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    res = service.merge(MergeTagsCommand(canonical_id=1, ids_to_merge=[2]))
 
-    assert res.documents_updated == 0
-    assert res.tags_deleted == 1
+    with pytest.raises(InvalidParam, match="não existe no acervo"):
+        service.merge(MergeTagsCommand(canonical_id=1, ids_to_merge=[2]))
 
-    # Since there are no documents, the transfer INSERT is skipped!
-    mock_tag_repo.link_documents_to_tag.assert_not_called()
-    mock_tag_repo.create_synonyms.assert_called_once()
-    mock_tag_repo.delete_tags.assert_called_once_with([2])
+    mock_tag_repo.plan_merge.assert_not_called()
+    mock_tag_repo.apply_merge.assert_not_called()
+
+
+# ==========================================
+# TESTS: dry-run and merge proposals
+# ==========================================
+
+
+def test_preview_merge_is_read_only(mocker: MockerFixture) -> None:
+    """The dry-run computes the plan and never applies it."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    mock_tag_repo.get_by_id.return_value = TagIdentity(tag_id=1, name="rua")
+
+    mock_tag_repo.plan_merge.return_value = MergePlan(
+        canonical_id=1,
+        canonical_name="rua",
+        ids_to_merge=[2, 3],
+        impacted=[
+            TagMergeImpact(tag_id=2, name="ruas", document_count=8),
+            TagMergeImpact(tag_id=3, name="rua 7", document_count=3),
+        ],
+        document_ids=["doc-1", "doc-2"],
+        synonym_names=["ruas", "rua 7"],
+        review_flags=["MEMBER_WITH_DIGITS"],
+    )
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+    preview = service.preview_merge(MergePreviewCommand(canonical_id=1, ids_to_merge=[2, 3]))
+
+    assert preview.documents_updated == 2
+    assert preview.links_rewritten == 11
+    assert {member.name for member in preview.tags_deleted} == {"ruas", "rua 7"}
+    assert preview.review_flags == ["MEMBER_WITH_DIGITS"]
+    mock_tag_repo.apply_merge.assert_not_called()
+
+
+def test_preview_merge_by_proposal_uses_its_members(mocker: MockerFixture) -> None:
+    """A persisted proposal is enough to ask for the dry-run; its members become the ids."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    mock_tag_repo.get_merge_proposal.return_value = TagMergeProposalDTO(
+        proposal_id=7,
+        fingerprint="abc",
+        canonical_id=1,
+        canonical_name="casa",
+        reason="PLURAL",
+        total_documents=4,
+        status="SUGGESTED",
+        members=[
+            TagMergeMember(tag_id=1, name="casa", document_count=3),
+            TagMergeMember(tag_id=2, name="casas", document_count=1),
+        ],
+    )
+    mock_tag_repo.get_by_id.return_value = TagIdentity(tag_id=1, name="casa")
+    mock_tag_repo.plan_merge.return_value = MergePlan(canonical_id=1, canonical_name="casa", ids_to_merge=[2])
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+    service.preview_merge(MergePreviewCommand(proposal_id=7))
+
+    mock_tag_repo.plan_merge.assert_called_once_with(1, [2])
+
+
+def test_decide_merge_proposal_records_the_author(mocker: MockerFixture) -> None:
+    """The verdict carries who decided and when, so the approval is auditable."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    mock_tag_repo.decide_merge_proposal.return_value = TagMergeProposalDTO(
+        proposal_id=7,
+        fingerprint="abc",
+        canonical_name="casa",
+        reason="PLURAL",
+        total_documents=4,
+        status="APPROVED",
+        decided_by="arquivista",
+    )
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+    result = service.decide_merge_proposal(
+        7, TagMergeDecisionCommand(status="APPROVED", decided_by="arquivista", note="mesmo conceito")
+    )
+
+    assert result.status == "APPROVED"
+    mock_tag_repo.decide_merge_proposal.assert_called_once_with(
+        7, status="APPROVED", decided_by="arquivista", note="mesmo conceito"
+    )
+    # The decision is not the merge: nothing was applied.
+    mock_tag_repo.apply_merge.assert_not_called()
+
+
+def test_decide_unknown_proposal_raises_not_found(mocker: MockerFixture) -> None:
+    """A PATCH on a proposal that does not exist becomes a domain 404, not a silent success."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    mock_tag_repo.decide_merge_proposal.return_value = None
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+
+    with pytest.raises(TagMergeProposalNotFoundError):
+        service.decide_merge_proposal(999, TagMergeDecisionCommand(status="REJECTED"))
+
+
+def test_list_merge_proposals_rejects_a_page_beyond_the_cap(mocker: MockerFixture) -> None:
+    """A client cannot ask the whole catalog in one request."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    service = TagService(mock_tag_repo, mock_doc_repo)
+
+    with pytest.raises(InvalidParam, match="limit"):
+        service.list_merge_proposals(limit=10_000)
+
+    mock_tag_repo.list_merge_proposals.assert_not_called()
+
+
+def test_list_merge_proposals_reports_the_total_with_the_page(mocker: MockerFixture) -> None:
+    """The total matches the filters, so the caller knows how much is left outside the page."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    mock_tag_repo.count_merge_proposals.return_value = 411
+    mock_tag_repo.list_merge_proposals.return_value = []
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+    page = service.list_merge_proposals(status="SUGGESTED", limit=10, offset=20)
+
+    assert page.total == 411
+    assert page.limit == 10
+    assert page.offset == 20
+    mock_tag_repo.list_merge_proposals.assert_called_once_with(
+        status="SUGGESTED", reason=None, min_documents=0, flagged_only=False, limit=10, offset=20
+    )
+
+
+def test_suggest_merges_persists_and_reports_the_pending_backlog(mocker: MockerFixture) -> None:
+    """The run registers the clusters and reports what is still waiting for a human."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    mock_tag_repo.find_merge_suggestions.return_value = [
+        TagMergeSuggestion(
+            canonical_id=1,
+            canonical_name="casa",
+            total_documents=4,
+            reason="PLURAL",
+            members=[
+                TagMergeMember(tag_id=1, name="casa", document_count=3),
+                TagMergeMember(tag_id=2, name="casas", document_count=1),
+            ],
+        )
+    ]
+    mock_tag_repo.upsert_merge_proposals.return_value = 1
+    mock_tag_repo.count_merge_proposals.side_effect = [411, 60]
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+    run = service.suggest_merges(threshold=0.7, limit=100)
+
+    assert run.clusters_found == 1
+    assert run.persisted == 1
+    assert run.pending == 411
+    assert run.flagged == 60
+    mock_tag_repo.find_merge_suggestions.assert_called_once_with(threshold=0.7, limit=100)
+
+
+def test_suggest_merges_rejects_an_out_of_range_threshold(mocker: MockerFixture) -> None:
+    """An impossible threshold is a domain error, not an empty result."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    service = TagService(mock_tag_repo, mock_doc_repo)
+
+    with pytest.raises(InvalidParam, match="threshold"):
+        service.suggest_merges(threshold=1.5)
+
+    mock_tag_repo.find_merge_suggestions.assert_not_called()
 
 
 # ==========================================

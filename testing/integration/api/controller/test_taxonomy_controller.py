@@ -15,11 +15,15 @@ from memoria_curitibana.asgi import create_app
 from memoria_curitibana.domains.archive.exceptions import (
     InvalidMergeError,
     MacroCategoryNotFoundError,
+    TagMergeProposalNotFoundError,
     TagNotFoundError,
 )
 from memoria_curitibana.domains.archive.schemas import ArchiveMacroCategoryEntityDTO
 from memoria_curitibana.domains.archive.schemas.entity_schema import NerExclusion
-from memoria_curitibana.domains.archive.schemas.tag_schema import TagRelevanceIdf  # <-- Import the DTO
+from memoria_curitibana.domains.archive.schemas.tag_schema import (  # <-- Import the DTO
+    TagMergeProposalDTO,
+    TagRelevanceIdf,
+)
 from memoria_curitibana.domains.archive.services.entity_service import EntityService
 from memoria_curitibana.domains.archive.services.tag_service import TagService
 
@@ -261,32 +265,128 @@ def test_remove_ner_exclusions_returns_200(client: TestClient, mocker):
 
 
 # ==========================================
-# TAG MERGE SUGGESTIONS (suggestion only)
+# TAG MERGE PROPOSALS (persisted evidence + decision) AND DRY-RUN
 # ==========================================
 
 
-def test_merge_suggestions_route_serialises_the_clusters(client: TestClient, mocker):
-    from memoria_curitibana.domains.archive.schemas.tag_schema import TagMergeMember, TagMergeSuggestion
+def _stored_proposal(**overrides) -> "TagMergeProposalDTO":
+    from memoria_curitibana.domains.archive.schemas.tag_schema import TagMergeMember, TagMergeProposalDTO
+
+    data = {
+        "proposal_id": 7,
+        "fingerprint": "fingerprint",
+        "canonical_id": 1,
+        "canonical_name": "rua",
+        "reason": "TRIGRAM",
+        "total_documents": 11,
+        "review_flags": ["MEMBER_WITH_DIGITS"],
+        "status": "SUGGESTED",
+        "members": [
+            TagMergeMember(tag_id=1, name="rua", document_count=8),
+            TagMergeMember(tag_id=2, name="rua 7", document_count=3),
+        ],
+    }
+    data.update(overrides)
+    return TagMergeProposalDTO(**data)
+
+
+def test_suggest_tag_merges_route_registers_the_proposals(client: TestClient, mocker):
+    from memoria_curitibana.domains.archive.schemas.tag_schema import MergeSuggestionRunResponse
 
     mocked = mocker.patch.object(TagService, "suggest_merges")
-    mocked.return_value = [
-        TagMergeSuggestion(
-            canonical_id=1,
-            canonical_name="casas",
-            total_documents=4,
-            reason="PLURAL",
-            members=[
-                TagMergeMember(tag_id=1, name="casas", document_count=3),
-                TagMergeMember(tag_id=2, name="casa", document_count=1),
-            ],
-        )
-    ]
+    mocked.return_value = MergeSuggestionRunResponse(clusters_found=411, persisted=411, pending=411, flagged=60)
 
-    response = client.get("/api/v1/taxonomy/tags/merge-suggestions?threshold=0.8&limit=10")
+    response = client.post("/api/v1/taxonomy/tags/merge-proposals/suggest", json={"threshold": 0.8, "limit": 100})
 
-    assert response.status_code == 200
+    assert response.status_code == HTTP_200_OK
     body = response.json()
-    assert body[0]["canonical_name"] == "casas"
-    assert body[0]["reason"] == "PLURAL"
-    assert len(body[0]["members"]) == 2
-    assert mocked.call_args.kwargs == {"threshold": 0.8, "limit": 10}
+    assert body["clusters_found"] == 411
+    assert body["pending"] == 411
+    assert body["flagged"] == 60
+    assert mocked.call_args.kwargs == {"threshold": 0.8, "limit": 100}
+
+
+def test_list_tag_merge_proposals_route_paginates_with_a_total(client: TestClient, mocker):
+    from memoria_curitibana.domains.archive.schemas.tag_schema import TagMergeProposalListResponse
+
+    mocked = mocker.patch.object(TagService, "list_merge_proposals")
+    mocked.return_value = TagMergeProposalListResponse(total=411, limit=50, offset=0, items=[_stored_proposal()])
+
+    response = client.get("/api/v1/taxonomy/tags/merge-proposals?status=SUGGESTED&flagged_only=true&limit=50")
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["total"] == 411
+    assert body["items"][0]["canonical_name"] == "rua"
+    assert body["items"][0]["members"][1]["name"] == "rua 7"
+    assert mocked.call_args.kwargs == {
+        "status": "SUGGESTED",
+        "reason": None,
+        "min_documents": 0,
+        "flagged_only": True,
+        "limit": 50,
+        "offset": 0,
+    }
+
+
+def test_decide_tag_merge_proposal_route_returns_the_verdict(client: TestClient, mocker):
+    mocked = mocker.patch.object(TagService, "decide_merge_proposal")
+    mocked.return_value = _stored_proposal(status="APPROVED", decided_by="arquivista")
+
+    response = client.patch(
+        "/api/v1/taxonomy/tags/merge-proposals/7",
+        json={"status": "APPROVED", "decided_by": "arquivista", "note": "mesmo conceito"},
+    )
+
+    assert response.status_code == HTTP_200_OK
+    assert response.json()["data"]["status"] == "APPROVED"
+
+    proposal_id, command = mocked.call_args[0]
+    assert proposal_id == 7
+    assert command.status == "APPROVED"
+    assert command.decided_by == "arquivista"
+    assert command.note == "mesmo conceito"
+
+
+def test_decide_tag_merge_proposal_route_maps_a_missing_proposal_to_404(client: TestClient, mocker):
+    mocker.patch.object(
+        TagService, "decide_merge_proposal", side_effect=TagMergeProposalNotFoundError("não encontrada")
+    )
+
+    response = client.patch("/api/v1/taxonomy/tags/merge-proposals/999", json={"status": "REJECTED"})
+
+    assert response.status_code == HTTP_404_NOT_FOUND
+    assert response.json()["error_code"] == "TagMergeProposalNotFoundError"
+
+
+def test_preview_tag_merge_route_returns_the_impact(client: TestClient, mocker):
+    from memoria_curitibana.domains.archive.schemas.tag_schema import MergePreviewResponse, TagMergeImpact
+
+    mocked = mocker.patch.object(TagService, "preview_merge")
+    mocked.return_value = MergePreviewResponse(
+        canonical_id=1,
+        canonical_name="rua",
+        documents_updated=5,
+        links_rewritten=7,
+        tags_deleted=[TagMergeImpact(tag_id=2, name="rua 7", document_count=7)],
+        synonyms_created=["rua 7"],
+        review_flags=["MEMBER_WITH_DIGITS"],
+        category_would_be_lost=False,
+    )
+
+    response = client.post("/api/v1/taxonomy/tags/merge/preview", json={"proposal_id": 7})
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["documents_updated"] == 5
+    assert body["review_flags"] == ["MEMBER_WITH_DIGITS"]
+    assert mocked.call_args[0][0].proposal_id == 7
+
+
+def test_preview_tag_merge_route_rejects_two_sources(client: TestClient):
+    response = client.post(
+        "/api/v1/taxonomy/tags/merge/preview",
+        json={"proposal_id": 7, "canonical_id": 1, "ids_to_merge": [2]},
+    )
+
+    assert response.status_code == HTTP_400_BAD_REQUEST

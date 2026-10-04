@@ -8,7 +8,7 @@ arquivístico (DDD + micro-workers + HITL).
 > pendente. Quando um item está parcialmente pronto, ele aparece como `[~]` com a descrição
 > explícita do que existe e do que falta.
 >
-> **Estado do gate de qualidade:** suíte **508 testes** passando (unit + integração),
+> **Estado do gate de qualidade:** suíte **543 testes** passando (unit + integração),
 > `ruff check`/`ruff format --check` limpos, `basedpyright` 0 erros,
 > `alembic upgrade head` + `alembic check` sem drift.
 
@@ -544,12 +544,65 @@ Leituras que ficam registradas:
 - [x] **Lematização: decidida como sugestão, não como reescrita.** `singular_candidates` gera
   hipóteses regulares (incluindo `-ões/-ães/-ais/-éis/-óis/-is/-ns`), que só viram sugestão
   quando o singular **já existe** como tag. Nenhuma tag é criada, renomeada ou destruída.
-- [x] **Deduplicação em lote por trigramas + plural:** `GET /tags/merge-suggestions` devolve
-  clusters com canônico (a grafia mais usada), membros com contagem e o motivo (`TRIGRAM`,
-  `PLURAL`, `MIXED`). Verificado no acervo real: **200 clusters**, incluindo
-  `igrejas/igreja` (2467 documentos), `casa/casas` (387), `obras/obra/obras.`,
-  `comércio/comércios` e o erro de digitação `uma casa/um casa`. Nada é mesclado: a aprovação
-  continua em `POST /tags/merge`.
+- [x] **Deduplicação em lote por trigramas + plural:** a sugestão agrupa clusters com canônico
+  (a grafia mais usada), membros com contagem e o motivo (`TRIGRAM`, `PLURAL`, `MIXED`).
+  Verificado no acervo real: `igrejas/igreja`, `casa/casas`, `alvenaria/alvenaria.`,
+  `comércio/comércios` e o erro de digitação `uma casa/um casa`.
+  **Re-medido em 2026-10-04** (mesmo `threshold=0.65`, sem o teto de 50 da rota antiga):
+  **411 clusters**, 466 tags absorvidas, 2074 documentos tocados — a medição anterior
+  registrava 200 e o `limit` padrão da rota escondia o resto. O ciclo de curadoria desses
+  merges está na **Fase E**; nada é mesclado sem decisão humana registrada.
+
+### Fase E — Ciclo de curadoria dos merges de tags — **Entrega 1 fechada (2026-10-04)**
+
+> O buraco não era "falta lematizar": era que a máquina propunha e **nada consumia**. A rota
+> de sugestão devolvia no máximo 50 clusters, sem `total`, e a única rota que efetivava era
+> destrutiva, uma por vez, sem dry-run, sem undo e sem autoria. Detalhe do plano e das
+> medições em `.analysis/buraco-4-plano.md`.
+
+- [x] **Defeitos latentes do merge, reproduzidos e corrigidos.** O plano supunha "sinônimo
+  órfão"; a execução mostrou que `domain_synonyms.canonical_tag_id` é `ON DELETE CASCADE`,
+  então o modo de falha é a **ressurreição do termo absorvido** num merge encadeado
+  (`parques → parque → área verde`): o sinônimo era apagado junto com a tag intermediária e a
+  próxima ingestão recriava a tag. Correções: `repoint_synonyms()` antes do delete e
+  `create_synonyms` como *upsert* (reapontar um sinônimo deixou de ser um no-op silencioso).
+  Guardas: merge encadeado mantém o mapeamento; nenhum sinônimo aponta para tag morta; a
+  ingestão seguinte vincula ao canônico **sem** recriar a tag absorvida.
+- [x] **Catálogo de propostas durável** (`archive_tag_merge_proposals`, migração
+  `acfe0e1d9f1f`): `fingerprint` único (SHA-256 do canônico + nomes ordenados), snapshot dos
+  membros em JSONB, `reason`, `review_flags`, `total_documents`, `status` e autoria
+  (`decided_by`/`decided_at`/`decision_note`). O *upsert* só atualiza a evidência de propostas
+  ainda `SUGGESTED` — **uma decisão humana nunca é sobrescrita** (re-execução devolve
+  `persisted=0`), então o arquivista não reavalia os mesmos 411 clusters toda vez.
+- [x] **Rotas de curadoria:** `POST /tags/merge-proposals/suggest` (calcula e persiste),
+  `GET /tags/merge-proposals` com `total`, paginação e filtros (`status`, `reason`,
+  `min_documents`, `flagged_only`) e `PATCH /tags/merge-proposals/{id}` que **registra** a
+  decisão. A rota antiga `GET /tags/merge-suggestions` saiu: recomputar na leitura criava duas
+  fontes de verdade.
+- [x] **Dry-run com definição única** (`POST /tags/merge/preview`): `plan_merge()` é puro e
+  descreve o impacto (documentos, vínculos reescritos, tags absorvidas com categoria e score,
+  sinônimos criados/reapontados, flags); `apply_merge()` executa exatamente o plano, e
+  `merge()` passou a ser plano + aplicação. Um teste de integração fixa que **o preview e o
+  merge produzem os mesmos números** — dry-run que mente é pior que nenhum.
+- [x] **Flags de revisão medidas:** `MEMBER_WITH_DIGITS` (onde os falsos positivos se
+  concentram: `rua 24 de maio` ← `rua 13 de maio`), `WEAK_MEMBER`,
+  `CATEGORY_WOULD_BE_LOST` e `MEMBER_IS_SYNONYM`. **A flag não é veredito:** entre os 58
+  clusters com dígito há `br-116 ← br 116` (correto) e `rua ← ruas, rua 7, rua 4` (errado).
+- [x] **Relatório do acervo real, só leitura:** `testing/evaluation/tag_merge_review.py` →
+  `.analysis/tag_merge_report.json`. Medido: 411 clusters, 466 tags absorvidas, 2074
+  documentos, **350 clusters sem flag**, 58 com dígito, 3 `WEAK_MEMBER`, 0 de categoria em
+  risco (nenhuma tag tem macro categoria no acervo hoje).
+- [ ] **Aplicar as decisões (Entrega 2).** Aprovar hoje **não mescla**: registra a intenção.
+  A aplicação em lote fica para a entrega seguinte, junto com o ledger que a torna reversível
+  — aplicar antes disso criaria um caminho destrutivo sem undo, o oposto do que esta fase
+  existe para consertar. Falta: `archive_taxonomy_merge_log` (snapshot da tag absorvida e dos
+  vínculos) + `DELETE /tags/merge/{id}`, `POST /tags/merge/batch` com SAVEPOINT por cluster,
+  e a aprovação medida de um subconjunto no acervo real.
+- [ ] **Mesmos dois defeitos no caminho de entidades** (228 pares similares):
+  `EntityRepository.create_synonyms` e `EntityService.merge` têm o `on_conflict_do_nothing` e
+  a ausência de reapontamento antes do delete — merge encadeado de entidade também ressuscita
+  o termo. Pré-requisito da iteração de entidades.
+
 
 ### Observabilidade e operação
 
@@ -640,7 +693,13 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 | **Dry-run de curadoria** | bloco: 2467 documentos afetados de 3608 varridos, `scope_content` → `''`; prefixo de título: 2467 afetados, título → parte específica |
 | **Normalização SQL × Python** | idênticas em 200 valores reais de `scope_content`, incluindo tab e U+00A0 (o `[[:space:]]` do Postgres **não** cobre NBSP e o `\s` do Python cobre: por isso a classe de espaços é explícita e compartilhada) |
 | **Datas recuperadas (acervo real)** | 201 documentos saíram de "sem data": 58 "Década de 1980", 34 "Década de 1990", 17 "Anos 90", 15 "Anos 1990", 13 "Década de 1960", 7 "Após 1996", 6 "1951-1953", 4 "Final da década de 1980", 3 "Meados de 1993", 1 "1929-1986"… Cobertura 47,0% → **52,6%**; 1690 seguem sem data na origem (sentinela) |
-| **Sugestões de merge de tags (acervo real)** | **200 clusters**: `igrejas/igreja` (2467 docs), `alvenaria/alvenaria.` (827), `casa/casas` (387), `uma casa/um casa` (314, erro de digitação), `comércio/comércios` (310), `trilho de trilhos de trem` (294). Nada mesclado: só sugestão |
+| **Sugestões de merge de tags (acervo real, re-medido)** | **411 clusters** (267 `TRIGRAM` · 101 `MIXED` · 43 `PLURAL`), 466 tags absorvidas, 2074 documentos tocados. A medição anterior registrava 200: o `limit` padrão de 50 da rota escondia o resto |
+| **Ciclo de merges — Fase E (Entrega 1)** | defeitos latentes reproduzidos como teste que falha (3) e corrigidos; merge encadeado não ressuscita o termo; ingestão pós-merge vincula ao canônico sem recriar a tag |
+| **Dry-run = apply (verificado)** | preview e merge produzem os mesmos números na mesma fixture (`documents_updated`, `links_rewritten`, tags deletadas) — a promessa do dry-run está presa ao que o merge faz |
+| **Decisão humana preservada (verificado)** | re-executar o sugeridor depois de uma decisão devolve `persisted=0` e o status continua `REJECTED`/`APPROVED` |
+| **Flags no acervo real** | 350 de 411 clusters sem nenhuma flag; 58 com `MEMBER_WITH_DIGITS` (mistos: `br-116 ← br 116` correto, `rua ← rua 7` errado); 3 `WEAK_MEMBER`; 0 `CATEGORY_WOULD_BE_LOST` |
+| **Rotas ponta a ponta (HTTP, acervo real)** | `POST /tags/merge/preview` 200 com flags e impacto reais; canônica inexistente → 400; `PATCH` de proposta inexistente → 404; `limit` acima do teto → 400; nenhuma proposta ou tag foi escrita pelas rotas de leitura |
+| **Migração `acfe0e1d9f1f` em banco limpo** | `upgrade head` → `check` (exit 0) → `downgrade -1` → `upgrade head` → `check` sem drift |
 | **Medição antes/depois (16 consultas, 3608 docs, MiniLM real)** | separação média entre pares 0.769 → 0.504; com o escopo de produção Hit@10 0.562 → **0.625**, Recall@10 0.292 → **0.333**, precisão@10 por termo 0.294 → **0.381**, MRR 0.358 → 0.339 |
 | ⚠️ **Aprovar tudo o que a máquina sugeriu PIORA o ranking** | conjunto completo (com os prefixos de título): Hit@10 **0.500** (pior que 0.562 sem trecho nenhum). O prefixo de título derruba o ranking (0.562 → 0.500) e é exatamente o que o `suggested_final_title` precisa → nasceu o `scope` do template |
 
@@ -650,8 +709,10 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
    `domain_ner_exclusions` alimentado pelo juiz e pelo curador, com undo e expurgo retroativo.
    Ver Fase 1.
 2. ~~**Lematização de tags ausente**~~ — **resolvido como sugestão** (Fase 3.5-D):
-   `GET /tags/merge-suggestions` agrupa plural/singular e trigramas; nenhuma tag é reescrita
-   na ingestão, porque isso mudaria a identidade de toda tag nova e poderia inventar formas.
+   nenhuma tag é reescrita na ingestão, porque isso mudaria a identidade de toda tag nova e
+   poderia inventar formas. O ciclo da sugestão foi fechado na **Fase E** (Entrega 1):
+   catálogo de propostas com decisão persistida e dry-run. **O que segue aberto é aplicar as
+   decisões** (Entrega 2, com ledger e undo) — hoje aprovar registra a intenção e não mescla.
 3. ~~**`semantic_search_vector` nunca preenchido** — a busca híbrida prometida não existia.~~
    **Resolvido (Buraco 3):** a coluna morta foi removida e substituída por
    `search_vector` gerado pelo Postgres (Fase 3).

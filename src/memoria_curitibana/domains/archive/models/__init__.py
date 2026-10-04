@@ -10,7 +10,7 @@ from .governance import (
     DomainSynonyms,
     DomainTextTemplate,
 )
-from .taxonomy import ArchiveMacroCategory, ArchiveTag, ArchiveTypology
+from .taxonomy import ArchiveMacroCategory, ArchiveTag, ArchiveTagMergeProposal, ArchiveTypology
 
 __all__ = [
     "AnomalyReason",
@@ -25,6 +25,7 @@ __all__ = [
     "ArchiveMacroCategory",
     "ArchiveReviewStatus",
     "ArchiveTag",
+    "ArchiveTagMergeProposal",
     "ArchiveTypology",
     "DomainNerExclusion",
     "DomainStopwords",

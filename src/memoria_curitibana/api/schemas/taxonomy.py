@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from memoria_curitibana.domains.archive.schemas.entity_schema import ConflictResolutionData, CrossDomainConflict
 
@@ -9,6 +9,37 @@ class MergeRequest(BaseModel):
     canonical_id: int
     ids_to_merge: list[int] = Field(min_length=1, description="List of IDs that will be merged and deleted.")
     new_name: str | None = None
+
+
+class MergeSuggestionRequest(BaseModel):
+    """Parameters of a suggestion run over the tag catalog."""
+
+    threshold: float = Field(default=0.65, gt=0, le=1, description="pg_trgm similarity floor.")
+    limit: int = Field(default=50, ge=1, le=500, description="How many clusters the run may register.")
+
+
+class MergeProposalDecisionRequest(BaseModel):
+    """The archivist's verdict on one proposed cluster. It records intent; it does not merge."""
+
+    status: Literal["APPROVED", "REJECTED"]
+    decided_by: str | None = Field(default=None, description="Who decided; free text until authentication exists.")
+    note: str | None = Field(default=None, description="Why; kept for auditing.")
+
+
+class MergePreviewRequest(BaseModel):
+    """Dry-run of a merge, by persisted proposal or by an explicit canonical + ids."""
+
+    proposal_id: int | None = None
+    canonical_id: int | None = None
+    ids_to_merge: list[int] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _one_source_of_truth(self) -> "MergePreviewRequest":
+        if self.proposal_id is None and (self.canonical_id is None or not self.ids_to_merge):
+            raise ValueError("informe 'proposal_id' ou 'canonical_id' com 'ids_to_merge'")
+        if self.proposal_id is not None and (self.canonical_id is not None or self.ids_to_merge):
+            raise ValueError("'proposal_id' não pode ser combinado com 'canonical_id'/'ids_to_merge'")
+        return self
 
 
 class StopwordsRequest(BaseModel):

@@ -2,6 +2,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from memoria_curitibana.domains.archive.exceptions import InvalidParam
 from memoria_curitibana.domains.archive.models import (
     ArchiveDocumentTag,
     ArchiveMacroCategory,
@@ -337,3 +338,241 @@ def test_merge_suggestions_of_an_empty_catalog_are_empty(db_session):
     from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
 
     assert TagRepository(db_session).find_merge_suggestions() == []
+
+
+# ==========================================
+# SYNONYM WRITES (the merge ledger of spellings)
+# ==========================================
+
+
+def test_create_synonyms_repoints_an_existing_mapping(use_test_db, db_session):
+    """
+    Writing the same spelling again must move it, not be silently ignored.
+
+    ``on_conflict_do_nothing`` kept the first canonical forever, so correcting the target of
+    an already-absorbed spelling was impossible — the write looked successful and changed
+    nothing.
+    """
+    from memoria_curitibana.domains.archive.schemas import SynonymCommand
+
+    repo = TagRepository(db_session)
+    first = ArchiveTag(name="foto")
+    second = ArchiveTag(name="imagem")
+    db_session.add_all([first, second])
+    db_session.commit()
+
+    repo.create_synonyms(
+        [SynonymCommand(synonym_name="fotu", category="TAG", canonical_tag_id=first.tag_id, canonical_entity_id=None)]
+    )
+    repo.create_synonyms(
+        [SynonymCommand(synonym_name="fotu", category="TAG", canonical_tag_id=second.tag_id, canonical_entity_id=None)]
+    )
+    db_session.flush()
+
+    assert repo.get_synonyms_mapping(["fotu"]) == {"fotu": second.tag_id}
+
+
+# ==========================================
+# MERGE PROPOSALS (persisted evidence + human decision)
+# ==========================================
+
+
+def _suggestion(canonical: ArchiveTag, members: list[ArchiveTag], reason: str = "PLURAL"):
+    from memoria_curitibana.domains.archive.schemas import TagMergeMember, TagMergeSuggestion
+
+    ordered = [canonical, *members]
+    return TagMergeSuggestion(
+        canonical_id=canonical.tag_id,
+        canonical_name=canonical.name,
+        total_documents=0,
+        reason=reason,
+        members=[TagMergeMember(tag_id=tag.tag_id, name=tag.name, document_count=0) for tag in ordered],
+    )
+
+
+def test_upsert_merge_proposals_registers_the_cluster_with_evidence(use_test_db, db_session):
+    """The suggestion is persisted with its members and its own identity, pending decision."""
+    repo = TagRepository(db_session)
+    canonical = ArchiveTag(name="casa")
+    variant = ArchiveTag(name="casas")
+    db_session.add_all([canonical, variant])
+    db_session.commit()
+
+    assert repo.upsert_merge_proposals([_suggestion(canonical, [variant])]) == 1
+
+    page = repo.list_merge_proposals()
+    assert repo.count_merge_proposals() == 1
+    assert len(page) == 1
+
+    proposal = page[0]
+    assert proposal.status == "SUGGESTED"
+    assert proposal.canonical_name == "casa"
+    assert proposal.reason == "PLURAL"
+    assert [member.name for member in proposal.members] == ["casa", "casas"]
+    assert proposal.fingerprint
+    assert proposal.decided_by is None
+
+
+def test_upsert_merge_proposals_never_overwrites_a_human_decision(use_test_db, db_session):
+    """
+    Re-running the suggester must not resurrect a rejected cluster.
+
+    Without the guard on the conflict target, the archivist would re-review the same
+    hundreds of proposals on every run.
+    """
+    repo = TagRepository(db_session)
+    canonical = ArchiveTag(name="rua 13 de maio")
+    variant = ArchiveTag(name="rua 23 de maio")
+    db_session.add_all([canonical, variant])
+    db_session.commit()
+    suggestion = _suggestion(canonical, [variant], reason="TRIGRAM")
+
+    assert repo.upsert_merge_proposals([suggestion]) == 1
+    proposal_id = repo.list_merge_proposals()[0].proposal_id
+
+    decided = repo.decide_merge_proposal(proposal_id, "REJECTED", "arquivista", "são ruas diferentes")
+    assert decided is not None
+    assert decided.status == "REJECTED"
+    assert decided.decided_by == "arquivista"
+    assert decided.decided_at is not None
+
+    assert repo.upsert_merge_proposals([suggestion]) == 0
+    assert repo.get_merge_proposal(proposal_id).status == "REJECTED"
+
+
+def test_merge_proposals_flag_the_number_bearing_members(use_test_db, db_session):
+    """The measured bad merges (rua <- rua 7) arrive flagged for the curator."""
+    repo = TagRepository(db_session)
+    canonical = ArchiveTag(name="rua")
+    variant = ArchiveTag(name="rua 7")
+    db_session.add_all([canonical, variant])
+    db_session.commit()
+
+    repo.upsert_merge_proposals([_suggestion(canonical, [variant], reason="TRIGRAM")])
+
+    assert "MEMBER_WITH_DIGITS" in repo.list_merge_proposals()[0].review_flags
+
+
+def test_merge_proposals_flag_a_classification_that_would_be_lost(use_test_db, db_session):
+    """An orphan canonical absorbing a classified tag would silently drop the classification."""
+    repo = TagRepository(db_session)
+    macro = ArchiveMacroCategory(name="Urbanismo", description="Obras e vias")
+    db_session.add(macro)
+    db_session.flush()
+
+    canonical = ArchiveTag(name="obra")
+    variant = ArchiveTag(name="obras", macro_category_id=macro.category_id)
+    db_session.add_all([canonical, variant])
+    db_session.commit()
+
+    repo.upsert_merge_proposals([_suggestion(canonical, [variant])])
+
+    assert "CATEGORY_WOULD_BE_LOST" in repo.list_merge_proposals()[0].review_flags
+
+
+def test_merge_proposals_are_paginated_with_a_total(use_test_db, db_session):
+    """The listing reports how many clusters match, not only the page (the old route hid them)."""
+    repo = TagRepository(db_session)
+    suggestions = []
+    for singular, plural in (("livro", "livros"), ("casa", "casas"), ("carro", "carros")):
+        canonical = ArchiveTag(name=singular)
+        variant = ArchiveTag(name=plural)
+        db_session.add_all([canonical, variant])
+        db_session.flush()
+        suggestions.append(_suggestion(canonical, [variant]))
+
+    repo.upsert_merge_proposals(suggestions)
+
+    first_page = repo.list_merge_proposals(limit=2)
+    assert repo.count_merge_proposals() == 3
+    assert len(first_page) == 2
+    assert len(repo.list_merge_proposals(limit=2, offset=2)) == 1
+
+
+def test_merge_proposals_put_pending_work_first(use_test_db, db_session):
+    """A decided cluster must not bury the ones still waiting for the archivist."""
+    repo = TagRepository(db_session)
+    decided_tag = ArchiveTag(name="igreja")
+    decided_variant = ArchiveTag(name="igrejas")
+    pending_tag = ArchiveTag(name="lote")
+    pending_variant = ArchiveTag(name="lotes")
+    db_session.add_all([decided_tag, decided_variant, pending_tag, pending_variant])
+    db_session.commit()
+
+    repo.upsert_merge_proposals(
+        [_suggestion(decided_tag, [decided_variant]), _suggestion(pending_tag, [pending_variant])]
+    )
+    decided_id = next(
+        proposal.proposal_id for proposal in repo.list_merge_proposals() if proposal.canonical_name == "igreja"
+    )
+    repo.decide_merge_proposal(decided_id, "APPROVED", "arquivista", None)
+
+    first = repo.list_merge_proposals()[0]
+    assert first.canonical_name == "lote"
+    assert first.status == "SUGGESTED"
+
+
+# ==========================================
+# MERGE PLAN (single definition of the write)
+# ==========================================
+
+
+def test_plan_merge_describes_the_impact_without_writing(use_test_db, db_session, generate_archive_doc):
+    """The dry-run is read-only: no tag, link or synonym changes."""
+    from sqlalchemy import func
+
+    from memoria_curitibana.domains.archive.models import DomainSynonyms
+
+    repo = TagRepository(db_session)
+    canonical = ArchiveTag(name="rua")
+    variant = ArchiveTag(name="ruas")
+    db_session.add_all([canonical, variant])
+    db_session.flush()
+
+    doc = generate_archive_doc(original_title="Doc")
+    db_session.add(ArchiveDocumentTag(description_id=doc.description_id, tag_id=variant.tag_id))
+    db_session.flush()
+
+    plan = repo.plan_merge(canonical.tag_id, [variant.tag_id])
+
+    assert plan.canonical_name == "rua"
+    assert plan.ids_to_merge == [variant.tag_id]
+    assert plan.documents_updated == 1
+    assert plan.links_rewritten == 1
+    assert plan.synonym_names == ["ruas"]
+    assert [member.name for member in plan.impacted] == ["ruas"]
+
+    # Nothing was written.
+    assert db_session.scalar(select(func.count()).select_from(ArchiveTag)) == 2
+    assert db_session.scalar(select(func.count()).select_from(DomainSynonyms)) == 0
+    assert db_session.scalar(select(func.count()).select_from(ArchiveDocumentTag)) == 1
+
+
+def test_plan_merge_raises_when_the_canonical_does_not_exist(use_test_db, db_session):
+    """A missing canonical is a domain error, not an empty plan."""
+    with pytest.raises(InvalidParam, match="não existe no acervo"):
+        TagRepository(db_session).plan_merge(999_999, [1])
+
+
+def test_apply_merge_executes_exactly_the_plan(use_test_db, db_session, generate_archive_doc):
+    """Applying the plan moves the links, absorbs the spellings and deletes the tags."""
+    repo = TagRepository(db_session)
+    canonical = ArchiveTag(name="prefeitura")
+    variant = ArchiveTag(name="prefeiruta")
+    db_session.add_all([canonical, variant])
+    db_session.flush()
+
+    doc = generate_archive_doc(original_title="Doc")
+    db_session.add(ArchiveDocumentTag(description_id=doc.description_id, tag_id=variant.tag_id))
+    db_session.flush()
+
+    plan = repo.plan_merge(canonical.tag_id, [variant.tag_id])
+    response = repo.apply_merge(plan)
+    db_session.flush()
+
+    assert response.documents_updated == 1
+    assert response.tags_deleted == 1
+    assert repo.get_synonyms_mapping(["prefeiruta"]) == {"prefeiruta": canonical.tag_id}
+    links = db_session.scalars(select(ArchiveDocumentTag)).all()
+    assert [(link.description_id, link.tag_id) for link in links] == [(doc.description_id, canonical.tag_id)]
+    assert db_session.scalars(select(ArchiveTag.name)).all() == ["prefeitura"]

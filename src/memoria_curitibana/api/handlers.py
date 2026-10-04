@@ -15,6 +15,7 @@ from memoria_curitibana.domains.archive.exceptions import (
     InvalidMergeError,
     InvalidParam,
     MacroCategoryNotFoundError,
+    TagMergeProposalNotFoundError,
     TagNotFoundError,
     TextTemplateNotFoundError,
 )
@@ -32,6 +33,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
         exc,
         (
             TagNotFoundError,
+            TagMergeProposalNotFoundError,
             DocumentNotFoundError,
             CleaningRuleNotFoundError,
             MacroCategoryNotFoundError,
