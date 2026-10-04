@@ -1,14 +1,20 @@
+from datetime import date
+
 from sqlalchemy import select
 
 from memoria_curitibana.domains.archive.models import (
     ArchiveDocument,
+    ArchiveDocumentEntity,
     ArchiveDocumentTag,
+    ArchiveEntity,
     ArchiveMacroCategory,
     ArchiveReviewStatus,
     ArchiveTag,
+    ArchiveTypology,
 )
 from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
 from memoria_curitibana.domains.archive.schemas.command_schema import DocumentReviewCommand
+from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
 
 # ==========================================
 # UPSERT AND DATA PIPELINE (ETL) TESTS
@@ -141,11 +147,11 @@ def test_search_filters_by_term_and_paginates(use_test_db, db_session, generate_
     )
     db_session.commit()
 
-    docs, total = repo.search(term="Matadouro")
+    docs, total = repo.search(DocumentSearchQuery(term="Matadouro"))
     assert total == 1
     assert docs[0].description_id == "s1"
 
-    page, total_overall = repo.search(limit=1, offset=0)
+    page, total_overall = repo.search(DocumentSearchQuery(limit=1, offset=0))
     assert total_overall == 2
     assert len(page) == 1
 
@@ -205,7 +211,7 @@ def test_search_votes_macro_categories_by_tag_count(use_test_db, db_session, gen
         _link_tag(db_session, doc.description_id, tag.tag_id)
     db_session.commit()
 
-    docs, total = repo.search(term="Plano Urbano")
+    docs, total = repo.search(DocumentSearchQuery(term="Plano Urbano"))
 
     assert total == 1
     assert [(vote.name, vote.tag_count) for vote in docs[0].macro_categories] == [("Urbanismo", 2), ("Saúde", 1)]
@@ -251,5 +257,257 @@ def test_tag_edit_reflects_on_documents_without_touching_the_documents_table(
     assert after is not None
     assert after.updated_at == updated_at_before
 
-    docs, _ = repo.search(term="Documento Refletido")
+    docs, _ = repo.search(DocumentSearchQuery(term="Documento Refletido"))
     assert [vote.name for vote in docs[0].macro_categories] == ["Saúde"]
+
+
+# ==========================================
+# FULL-TEXT SEARCH (TERM)
+# ==========================================
+
+
+def test_search_stems_portuguese_and_ignores_accents(use_test_db, db_session, generate_archive_dto):
+    """The portuguese dictionary stems (enchente ~ enchentes) and unaccent folds accents."""
+    repo = DocumentRepository(db_session)
+    repo.upsert_archive_document(
+        generate_archive_dto(
+            description_id="fts1",
+            original_title="Enchentes no Batel",
+            scope_content="A praça do Gaúcho alagou",
+            staging_content_hash="h1",
+        )
+    )
+    repo.upsert_archive_document(
+        generate_archive_dto(
+            description_id="fts2",
+            original_title="Relatório de obras",
+            scope_content="Pavimentação concluída",
+            staging_content_hash="h2",
+        )
+    )
+    db_session.commit()
+
+    # A singular query finds the stored plural.
+    docs, total = repo.search(DocumentSearchQuery(term="enchente"))
+    assert (total, [doc.description_id for doc in docs]) == (1, ["fts1"])
+
+    # A query without the accent finds the accented word.
+    docs, _ = repo.search(DocumentSearchQuery(term="gaucho"))
+    assert [doc.description_id for doc in docs] == ["fts1"]
+
+    # A prefix of a word still being typed.
+    docs, _ = repo.search(DocumentSearchQuery(term="relat"))
+    assert [doc.description_id for doc in docs] == ["fts2"]
+
+
+def test_search_ranks_title_hits_above_body_hits(use_test_db, db_session, generate_archive_dto):
+    """Title weight A beats body weight B, and the relevance is exposed on the read view."""
+    repo = DocumentRepository(db_session)
+    repo.upsert_archive_document(
+        generate_archive_dto(
+            description_id="rank_title",
+            original_title="Matadouro Municipal",
+            scope_content="Sem relação com o termo",
+            staging_content_hash="h1",
+        )
+    )
+    repo.upsert_archive_document(
+        generate_archive_dto(
+            description_id="rank_body",
+            original_title="Relatório anual",
+            scope_content="Reforma do matadouro municipal",
+            staging_content_hash="h2",
+        )
+    )
+    db_session.commit()
+
+    docs, total = repo.search(DocumentSearchQuery(term="matadouro"))
+
+    assert total == 2
+    assert [doc.description_id for doc in docs] == ["rank_title", "rank_body"]
+    assert docs[0].rank is not None and docs[1].rank is not None
+    assert docs[0].rank > docs[1].rank > 0
+
+
+def test_search_without_a_term_does_not_expose_a_rank(use_test_db, db_session, generate_archive_doc):
+    """Browsing the collection is not a search: there is no relevance to show."""
+    repo = DocumentRepository(db_session)
+    generate_archive_doc(description_id="browse1", original_title="Qualquer um")
+
+    docs, total = repo.search(DocumentSearchQuery())
+
+    assert total == 1
+    assert docs[0].rank is None
+
+
+def test_search_returns_empty_for_a_term_that_matches_nothing(use_test_db, db_session, generate_archive_doc):
+    repo = DocumentRepository(db_session)
+    generate_archive_doc(description_id="none1", original_title="Documento qualquer")
+
+    docs, total = repo.search(DocumentSearchQuery(term="zznada"))
+
+    assert (total, docs) == (0, [])
+
+
+def test_search_falls_back_to_substring_for_a_mid_word_term(use_test_db, db_session, generate_archive_dto):
+    """FTS cannot see inside a word, so the old contains behaviour is kept as a fallback."""
+    repo = DocumentRepository(db_session)
+    repo.upsert_archive_document(
+        generate_archive_dto(description_id="fb1", original_title="Urbanismo em Curitiba", staging_content_hash="h1")
+    )
+    db_session.commit()
+
+    docs, total = repo.search(DocumentSearchQuery(term="rbanis"))
+
+    assert (total, [doc.description_id for doc in docs]) == (1, ["fb1"])
+
+
+# ==========================================
+# SEARCH ACROSS TAGS AND ENTITIES
+# ==========================================
+
+
+def test_search_finds_a_document_through_its_tag_and_entity(use_test_db, db_session, generate_archive_doc):
+    """A document whose own text lacks the term must still surface through the taxonomy."""
+    repo = DocumentRepository(db_session)
+    doc = generate_archive_doc(
+        description_id="tax1", original_title="Documento sem pistas", scope_content="texto neutro"
+    )
+    tag = ArchiveTag(name="pavimentação asfáltica")
+    entity = ArchiveEntity(name="Batel", entity_type="LOC")
+    db_session.add_all([tag, entity])
+    db_session.commit()
+    db_session.add_all(
+        [
+            ArchiveDocumentTag(description_id=doc.description_id, tag_id=tag.tag_id),
+            ArchiveDocumentEntity(description_id=doc.description_id, entity_id=entity.entity_id),
+        ]
+    )
+    db_session.commit()
+
+    by_tag, total_tag = repo.search(DocumentSearchQuery(term="pavimentação"))
+    assert (total_tag, [item.description_id for item in by_tag]) == (1, ["tax1"])
+    assert by_tag[0].rank is not None and by_tag[0].rank > 0
+
+    by_entity, total_entity = repo.search(DocumentSearchQuery(term="batel"))
+    assert (total_entity, [item.description_id for item in by_entity]) == (1, ["tax1"])
+
+
+def test_search_does_not_duplicate_a_document_with_several_matching_tags(use_test_db, db_session, generate_archive_doc):
+    """``EXISTS`` instead of a join: the page and the total must not double-count."""
+    repo = DocumentRepository(db_session)
+    doc = generate_archive_doc(description_id="dup1", original_title="Sem o termo no texto")
+    tags = [ArchiveTag(name="saneamento básico"), ArchiveTag(name="saneamento urbano")]
+    db_session.add_all(tags)
+    db_session.commit()
+    for tag in tags:
+        _link_tag(db_session, doc.description_id, tag.tag_id)
+    db_session.commit()
+
+    docs, total = repo.search(DocumentSearchQuery(term="saneamento"))
+
+    assert total == 1
+    assert [item.description_id for item in docs] == ["dup1"]
+
+
+# ==========================================
+# FACETED FILTERS
+# ==========================================
+
+
+def test_search_filters_by_typology(use_test_db, db_session, generate_archive_doc):
+    repo = DocumentRepository(db_session)
+    dossier = ArchiveTypology(name="Dossiê")
+    photo = ArchiveTypology(name="Fotografia")
+    db_session.add_all([dossier, photo])
+    db_session.commit()
+    generate_archive_doc(description_id="t1", original_title="Doc dossiê", typology_id=dossier.typology_id)
+    generate_archive_doc(description_id="t2", original_title="Doc foto", typology_id=photo.typology_id)
+
+    docs, total = repo.search(DocumentSearchQuery(typology_id=photo.typology_id))
+
+    assert (total, [item.description_id for item in docs]) == (1, ["t2"])
+
+
+def test_search_filters_by_macro_category(use_test_db, db_session, generate_archive_doc):
+    repo = DocumentRepository(db_session)
+    urban = ArchiveMacroCategory(name="Urbanismo")
+    db_session.add(urban)
+    db_session.flush()
+    tag = ArchiveTag(name="pavimentação", macro_category_id=urban.category_id)
+    db_session.add(tag)
+    db_session.commit()
+
+    with_category = generate_archive_doc(description_id="mc1", original_title="Com gaveta")
+    generate_archive_doc(description_id="mc2", original_title="Sem gaveta")
+    _link_tag(db_session, with_category.description_id, tag.tag_id)
+    db_session.commit()
+
+    docs, total = repo.search(DocumentSearchQuery(macro_category_id=urban.category_id))
+
+    assert (total, [item.description_id for item in docs]) == (1, ["mc1"])
+
+
+def test_search_filters_by_entity_type(use_test_db, db_session, generate_archive_doc):
+    repo = DocumentRepository(db_session)
+    place = ArchiveEntity(name="Batel", entity_type="LOC")
+    institution = ArchiveEntity(name="Prefeitura de Curitiba", entity_type="ORG")
+    db_session.add_all([place, institution])
+    db_session.commit()
+
+    doc_place = generate_archive_doc(description_id="e1", original_title="Lugar")
+    doc_org = generate_archive_doc(description_id="e2", original_title="Instituição")
+    db_session.add_all(
+        [
+            ArchiveDocumentEntity(description_id=doc_place.description_id, entity_id=place.entity_id),
+            ArchiveDocumentEntity(description_id=doc_org.description_id, entity_id=institution.entity_id),
+        ]
+    )
+    db_session.commit()
+
+    docs, total = repo.search(DocumentSearchQuery(entity_type="ORG"))
+
+    assert (total, [item.description_id for item in docs]) == (1, ["e2"])
+
+
+def test_search_filters_by_date_range(use_test_db, db_session, generate_archive_doc):
+    repo = DocumentRepository(db_session)
+    generate_archive_doc(description_id="d1954", original_title="Antigo", document_date=date(1954, 3, 15))
+    generate_archive_doc(description_id="d1980", original_title="Recente", document_date=date(1980, 5, 10))
+    generate_archive_doc(description_id="dNone", original_title="Sem data")
+
+    docs, total = repo.search(DocumentSearchQuery(date_from=date(1950, 1, 1), date_to=date(1960, 12, 31)))
+    assert (total, [item.description_id for item in docs]) == (1, ["d1954"])
+
+    docs, total = repo.search(DocumentSearchQuery(date_from=date(1960, 1, 1)))
+    assert (total, [item.description_id for item in docs]) == (1, ["d1980"])
+
+
+def test_search_combines_term_and_facet_with_stable_pagination(use_test_db, db_session, generate_archive_doc):
+    repo = DocumentRepository(db_session)
+    urban = ArchiveMacroCategory(name="Urbanismo")
+    health = ArchiveMacroCategory(name="Saúde")
+    db_session.add_all([urban, health])
+    db_session.flush()
+    urban_tag = ArchiveTag(name="pavimentação urbana", macro_category_id=urban.category_id)
+    health_tag = ArchiveTag(name="pavimentação sanitária", macro_category_id=health.category_id)
+    db_session.add_all([urban_tag, health_tag])
+    db_session.commit()
+
+    for description_id in ("c1", "c2"):
+        doc = generate_archive_doc(description_id=description_id, original_title=f"Pavimentação {description_id}")
+        _link_tag(db_session, doc.description_id, urban_tag.tag_id)
+    other = generate_archive_doc(description_id="c3", original_title="Pavimentação sanitária")
+    _link_tag(db_session, other.description_id, health_tag.tag_id)
+    db_session.commit()
+
+    first_page, total = repo.search(
+        DocumentSearchQuery(term="pavimentação", macro_category_id=urban.category_id, limit=1, offset=0)
+    )
+    second_page, _ = repo.search(
+        DocumentSearchQuery(term="pavimentação", macro_category_id=urban.category_id, limit=1, offset=1)
+    )
+
+    assert total == 2
+    assert len(first_page) == 1 and len(second_page) == 1
+    assert {first_page[0].description_id, second_page[0].description_id} == {"c1", "c2"}

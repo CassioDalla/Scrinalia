@@ -2,6 +2,7 @@ from typing import Protocol
 
 from memoria_curitibana.domains.archive.schemas.command_schema import DocumentReviewCommand
 from memoria_curitibana.domains.archive.schemas.document_schema import ArchiveDocumentDTO, DocumentSummary
+from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
 
 
 class DocumentRepositoryPort(Protocol):
@@ -13,9 +14,7 @@ class DocumentRepositoryPort(Protocol):
     """
 
     # --- Read (showcase / curation) ---
-    def search(
-        self, term: str | None = None, limit: int = 50, offset: int = 0
-    ) -> tuple[list[DocumentSummary], int]: ...
+    def search(self, query: DocumentSearchQuery) -> tuple[list[DocumentSummary], int]: ...
     def get_by_id(self, description_id: str) -> DocumentSummary | None: ...
     def fetch_documents_for_clustering(self, columns_to_extract: list[str] | None = None) -> list[str]: ...
 

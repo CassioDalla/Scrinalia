@@ -8,6 +8,7 @@ from memoria_curitibana.domains.archive.models import ArchiveReviewStatus
 from memoria_curitibana.domains.archive.repository import DocumentRepository
 from memoria_curitibana.domains.archive.schemas.command_schema import DocumentReviewCommand
 from memoria_curitibana.domains.archive.schemas.document_schema import DocumentListResponse
+from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
 from memoria_curitibana.domains.archive.services.document_service import DocumentService
 
 
@@ -34,11 +35,14 @@ def test_search_maps_repository_results() -> None:
     repo.search.return_value = ([_fake_doc("doc-1"), _fake_doc("doc-2")], 2)
     service = DocumentService(repo)
 
-    result = service.search(term="x", limit=10, offset=5)
+    query = DocumentSearchQuery(term="x", limit=10, offset=5)
+    result = service.search(query)
 
-    repo.search.assert_called_once_with(term="x", limit=10, offset=5)
+    repo.search.assert_called_once_with(query)
     assert isinstance(result, DocumentListResponse)
     assert result.total == 2
+    assert result.limit == 10
+    assert result.offset == 5
     assert [item.description_id for item in result.items] == ["doc-1", "doc-2"]
 
 

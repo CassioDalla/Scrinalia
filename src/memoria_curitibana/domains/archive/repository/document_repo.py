@@ -1,12 +1,16 @@
 import re
 from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, selectinload
 
+from memoria_curitibana.domains.archive.domain.search import build_tsquery, tokenize
 from memoria_curitibana.domains.archive.models import (
     ArchiveDocument,
+    ArchiveDocumentEntity,
+    ArchiveDocumentTag,
+    ArchiveEntity,
     ArchiveReviewStatus,
     ArchiveTag,
 )
@@ -17,6 +21,12 @@ from memoria_curitibana.domains.archive.schemas.document_schema import (
     DocumentMacroCategorySummary,
     DocumentSummary,
 )
+from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
+
+# A document that matches only through its tags or entities (not through its own
+# text) still has to surface in the page, so a taxonomy hit outranks a document
+# with a very weak text match. It stacks once per axis.
+TAXONOMY_MATCH_BOOST = 0.2
 
 
 class DocumentRepository:
@@ -120,7 +130,7 @@ class DocumentRepository:
         )
 
     @staticmethod
-    def _to_summary(doc: ArchiveDocument) -> DocumentSummary:
+    def _to_summary(doc: ArchiveDocument, rank: float | None = None) -> DocumentSummary:
         """
         Builds the read view and computes the macro-category majority vote.
 
@@ -128,8 +138,12 @@ class DocumentRepository:
         document whose tags are mostly "Urbanismo" ranks Urbanismo first. It is derived
         on read from the tags already eagerly loaded, which keeps a tag edit instantly
         visible on every linked document without writing to ``archive_documents``.
+
+        ``rank`` is the relevance score of a free-text search, and stays ``None`` when
+        the caller is browsing the collection instead of searching it.
         """
         summary = DocumentSummary.model_validate(doc)
+        summary.rank = rank
 
         votes: dict[int, DocumentMacroCategorySummary] = {}
         for tag in doc.tags:
@@ -148,32 +162,148 @@ class DocumentRepository:
         summary.macro_categories = sorted(votes.values(), key=lambda vote: (-vote.tag_count, vote.name))
         return summary
 
-    def search(self, term: str | None = None, limit: int = 50, offset: int = 0) -> tuple[list[DocumentSummary], int]:
-        """
-        Simple textual search of the collection with pagination.
+    @staticmethod
+    def _facet_filters(query: DocumentSearchQuery) -> list[Any]:
+        """Builds the facet predicates shared by the count and the page query."""
+        filters: list[Any] = []
 
-        Returns the page of documents (with tags and entities already loaded
-        via eager loading, avoiding the N+1 problem) and the total number of records.
-        """
-        stmt = select(ArchiveDocument)
-
-        if term:
-            like = f"%{term}%"
-            stmt = stmt.where(
-                or_(
-                    ArchiveDocument.original_title.ilike(like),
-                    ArchiveDocument.final_title.ilike(like),
-                    ArchiveDocument.scope_content.ilike(like),
+        if query.typology_id is not None:
+            filters.append(ArchiveDocument.typology_id == query.typology_id)
+        if query.date_from is not None:
+            filters.append(ArchiveDocument.document_date >= query.date_from)
+        if query.date_to is not None:
+            filters.append(ArchiveDocument.document_date <= query.date_to)
+        if query.macro_category_id is not None:
+            filters.append(
+                exists(
+                    select(1)
+                    .select_from(ArchiveDocumentTag)
+                    .join(ArchiveTag, ArchiveDocumentTag.tag_id == ArchiveTag.tag_id)
+                    .where(
+                        ArchiveDocumentTag.description_id == ArchiveDocument.description_id,
+                        ArchiveTag.macro_category_id == query.macro_category_id,
+                    )
+                )
+            )
+        if query.entity_type is not None:
+            filters.append(
+                exists(
+                    select(1)
+                    .select_from(ArchiveDocumentEntity)
+                    .join(ArchiveEntity, ArchiveDocumentEntity.entity_id == ArchiveEntity.entity_id)
+                    .where(
+                        ArchiveDocumentEntity.description_id == ArchiveDocument.description_id,
+                        ArchiveEntity.entity_type == query.entity_type,
+                    )
                 )
             )
 
-        total = self.db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+        return filters
 
-        page_stmt = (
-            stmt.options(*self._eager_options()).order_by(ArchiveDocument.updated_at.desc()).limit(limit).offset(offset)
+    @staticmethod
+    def _taxonomy_match(link_model: Any, name_model: Any, join_on: Any, name_column: Any, tokens: list[str]) -> Any:
+        """
+        ``EXISTS`` on a link table whose related name contains every search token.
+
+        ``EXISTS`` instead of a join keeps a document with several matching tags from
+        being duplicated in the page or double-counted in ``total``. The ``ILIKE`` on
+        the names is what the existing ``gin_trgm_ops`` indexes accelerate.
+        """
+        return exists(
+            select(1)
+            .select_from(link_model)
+            .join(name_model, join_on)
+            .where(
+                link_model.description_id == ArchiveDocument.description_id,
+                *(name_column.ilike(f"%{token}%") for token in tokens),
+            )
         )
-        docs = [self._to_summary(doc) for doc in self.db.scalars(page_stmt).all()]
-        return docs, total
+
+    @staticmethod
+    def _contains_condition(tokens: list[str]) -> Any:
+        """
+        Legacy substring match over the document text.
+
+        Full-text search is lexeme/prefix based and misses a term in the middle of a
+        word ("rbanis" does not match "urbanismo"). When the ranked query finds
+        nothing, this condition replaces it so partial words keep working.
+        """
+        columns = (ArchiveDocument.final_title, ArchiveDocument.original_title, ArchiveDocument.scope_content)
+        return or_(*(and_(*(column.ilike(f"%{token}%") for token in tokens)) for column in columns))
+
+    def _count(self, stmt: Any) -> int:
+        return self.db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+
+    def _browse_page(self, stmt: Any, query: DocumentSearchQuery) -> list[DocumentSummary]:
+        """Page of documents with no relevance: most recently updated first."""
+        page_stmt = (
+            stmt.options(*self._eager_options())
+            .order_by(ArchiveDocument.updated_at.desc(), ArchiveDocument.description_id)
+            .limit(query.limit)
+            .offset(query.offset)
+        )
+        return [self._to_summary(doc) for doc in self.db.scalars(page_stmt).all()]
+
+    def search(self, query: DocumentSearchQuery) -> tuple[list[DocumentSummary], int]:
+        """
+        Searches the collection with native full-text ranking and facets.
+
+        The term is matched against the generated ``search_vector`` (Portuguese
+        dictionary, accent-insensitive, titles weighted above the body) **and** against
+        the tag/entity names. Facets are applied to the page and to the total.
+
+        The substring fallback runs only when the ranked query finds nothing at all, so
+        a normal search never scans the text columns. It is there to keep a mid-word
+        fragment (which FTS cannot see) from returning an empty page when no tag or
+        entity matches either.
+        """
+        base_stmt = select(ArchiveDocument).where(*self._facet_filters(query))
+
+        tokens = tokenize(query.term) if query.term else []
+        tsquery = build_tsquery(tokens)
+
+        if tsquery:
+            ts_query = func.to_tsquery("portuguese", func.immutable_unaccent(tsquery))
+            tag_match = self._taxonomy_match(
+                ArchiveDocumentTag, ArchiveTag, ArchiveDocumentTag.tag_id == ArchiveTag.tag_id, ArchiveTag.name, tokens
+            )
+            entity_match = self._taxonomy_match(
+                ArchiveDocumentEntity,
+                ArchiveEntity,
+                ArchiveDocumentEntity.entity_id == ArchiveEntity.entity_id,
+                ArchiveEntity.name,
+                tokens,
+            )
+            rank = (
+                func.ts_rank(ArchiveDocument.search_vector, ts_query)
+                + case((tag_match, TAXONOMY_MATCH_BOOST), else_=0.0)
+                + case((entity_match, TAXONOMY_MATCH_BOOST), else_=0.0)
+            ).label("rank")
+            # The relevance has to be selected, not only ordered by, so the read view
+            # can expose it and the caller can explain the ordering.
+            ranked_stmt = base_stmt.where(
+                or_(ArchiveDocument.search_vector.op("@@")(ts_query), tag_match, entity_match)
+            ).add_columns(rank)
+
+            total = self._count(ranked_stmt)
+            if total:
+                page_stmt = (
+                    ranked_stmt.options(*self._eager_options())
+                    .order_by(rank.desc(), ArchiveDocument.updated_at.desc(), ArchiveDocument.description_id)
+                    .limit(query.limit)
+                    .offset(query.offset)
+                )
+                rows = self.db.execute(page_stmt).all()
+                return [self._to_summary(doc, float(relevance)) for doc, relevance in rows], total
+
+            if tokens:
+                fallback_stmt = base_stmt.where(self._contains_condition(tokens))
+                total = self._count(fallback_stmt)
+                if total:
+                    return self._browse_page(fallback_stmt, query), total
+            return [], 0
+
+        return self._browse_page(base_stmt, query), self._count(base_stmt)
 
     def get_by_id(self, description_id: str) -> DocumentSummary | None:
         """Loads a document with tags and entities for reading/editing."""

@@ -109,6 +109,9 @@ class DocumentSummary(BaseModel):
     # Majority vote over ``tags``: how many of this document's tags belong to each
     # macro category, ordered by count. Built by the repository on read.
     macro_categories: list[DocumentMacroCategorySummary] = Field(default_factory=list)
+    # Relevance of a free-text search (higher is better). ``None`` when browsing the
+    # collection without a term; the page is always ordered by it when present.
+    rank: float | None = Field(default=None, description="Full-text relevance score.")
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -19,6 +19,7 @@ from .document_schema import (
     DocumentTagSummary,
 )
 from .entity_schema import ArchiveEntityDTO, EntityIdentity, NerExclusion, NerExclusionSource, NerSynonymRule
+from .query_schema import DocumentSearchQuery
 from .tag_schema import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
@@ -43,6 +44,7 @@ __all__ = [
     "DocumentListResponse",
     "DocumentMacroCategorySummary",
     "DocumentReviewCommand",
+    "DocumentSearchQuery",
     "DocumentSummary",
     "DocumentTagSummary",
     "EntityIdentity",

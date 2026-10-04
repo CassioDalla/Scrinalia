@@ -5,6 +5,7 @@ from memoria_curitibana.domains.archive.schemas.document_schema import (
     DocumentListResponse,
     DocumentSummary,
 )
+from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
 
 
 class DocumentService:
@@ -18,9 +19,9 @@ class DocumentService:
     def __init__(self, repo: DocumentRepositoryPort) -> None:
         self.repo = repo
 
-    def search(self, term: str | None = None, limit: int = 50, offset: int = 0) -> DocumentListResponse:
-        docs, total = self.repo.search(term=term, limit=limit, offset=offset)
-        return DocumentListResponse(total=total, limit=limit, offset=offset, items=list(docs))
+    def search(self, query: DocumentSearchQuery) -> DocumentListResponse:
+        docs, total = self.repo.search(query)
+        return DocumentListResponse(total=total, limit=query.limit, offset=query.offset, items=list(docs))
 
     def get(self, description_id: str) -> DocumentSummary:
         doc = self.repo.get_by_id(description_id)

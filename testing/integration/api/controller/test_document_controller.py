@@ -60,7 +60,8 @@ def test_list_documents_returns_the_page_envelope(client: TestClient, mocker):
     assert body["total"] == 1
     assert body["limit"] == 50
     assert body["items"][0]["description_id"] == "doc-1"
-    mock_search.assert_called_once_with(term=None, limit=50, offset=0)
+    query = mock_search.call_args.args[0]
+    assert (query.term, query.limit, query.offset) == (None, 50, 0)
 
 
 def test_list_documents_forwards_the_search_term_and_pagination(client: TestClient, mocker):
@@ -71,7 +72,25 @@ def test_list_documents_forwards_the_search_term_and_pagination(client: TestClie
     response = client.get("/api/v1/documents/?term=avenida&limit=10&offset=20")
 
     assert response.status_code == HTTP_200_OK
-    mock_search.assert_called_once_with(term="avenida", limit=10, offset=20)
+    query = mock_search.call_args.args[0]
+    assert (query.term, query.limit, query.offset) == ("avenida", 10, 20)
+
+
+def test_list_documents_forwards_every_facet(client: TestClient, mocker):
+    """Facets are part of the HTTP contract, so each one must reach the service."""
+    mock_search = mocker.patch.object(DocumentService, "search")
+    mock_search.return_value = DocumentListResponse(total=0, limit=50, offset=0, items=[])
+
+    response = client.get(
+        "/api/v1/documents/?typology_id=7&macro_category_id=3&entity_type=ORG&date_from=1950-01-01&date_to=1959-12-31"
+    )
+
+    assert response.status_code == HTTP_200_OK
+    query = mock_search.call_args.args[0]
+    assert query.typology_id == 7
+    assert query.macro_category_id == 3
+    assert query.entity_type == "ORG"
+    assert (query.date_from, query.date_to) == (date(1950, 1, 1), date(1959, 12, 31))
 
 
 # ==========================================
