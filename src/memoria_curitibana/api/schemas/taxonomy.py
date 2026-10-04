@@ -43,6 +43,13 @@ class ReclassifyEntityRequest(BaseModel):
     new_type: Literal["ORG", "PER", "LOC"]
 
 
+class NerExclusionRequest(BaseModel):
+    """Terms a curator declares to belong to the subject axis, not to named entities."""
+
+    words: list[str] = Field(min_length=1, description="Terms to keep out of the NER extraction.")
+    reason: str | None = Field(default=None, description="Why the decision was made; kept for auditing.")
+
+
 class ConflictResolutionResponse(BaseModel):
     message: str
     data: ConflictResolutionData

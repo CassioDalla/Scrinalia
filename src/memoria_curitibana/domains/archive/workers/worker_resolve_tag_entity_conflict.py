@@ -81,7 +81,7 @@ def execute(
                 try:
                     with db.begin_nested():
                         ent_repo.resolve_cross_domain_conflict(
-                            winner=decision.winner, tag_id=row.tag_id, entity_id=row.entity_id
+                            winner=decision.winner, tag_id=row.tag_id, entity_id=row.entity_id, source="JUDGE"
                         )
 
                     final_status = ArchiveReviewStatus.AI_APPROVED

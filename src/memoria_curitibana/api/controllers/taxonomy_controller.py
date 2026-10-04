@@ -15,6 +15,7 @@ from memoria_curitibana.api.schemas.taxonomy import (
     MacroCategoryCreateRequest,
     MacroCategoryUpdateRequest,
     MergeRequest,
+    NerExclusionRequest,
     ReclassifyEntityRequest,
     StopwordsRequest,
     SuggestMacroRequest,
@@ -27,7 +28,11 @@ from memoria_curitibana.domains.archive.schemas import (
     ResolveConflictCommand,
     UpdateMacroCategoryCommand,
 )
-from memoria_curitibana.domains.archive.schemas.entity_schema import EntityRelevanceResponse, EntitySimilarityResponse
+from memoria_curitibana.domains.archive.schemas.entity_schema import (
+    EntityRelevanceResponse,
+    EntitySimilarityResponse,
+    NerExclusion,
+)
 from memoria_curitibana.domains.archive.schemas.tag_schema import (
     MacroCategoriesSuggestionResponse,
     MergeResponse,
@@ -223,6 +228,32 @@ class TaxonomyController(Controller):
         entity_service.delete_entity(entity_id)
 
         return {"message": f"Entidade {entity_id} excluída com sucesso da base de dados."}
+
+    # ==========================================
+    # ROUTES: NER EXCLUSIONS (the subject axis owns the term)
+    # ==========================================
+
+    @get("/entities/ner-exclusions", sync_to_thread=True)
+    def list_ner_exclusions(self, entity_service: NamedDependency[EntityService]) -> list[NerExclusion]:
+        """Lists the terms the curation keeps out of the NER extraction."""
+        return list(entity_service.list_ner_exclusions())
+
+    @post("/entities/ner-exclusions", status_code=201, sync_to_thread=True)
+    def create_ner_exclusions(self, entity_service: NamedDependency[EntityService], data: NerExclusionRequest) -> dict:
+        """Bans terms from NER and purges the entities already extracted from them."""
+        entities_deleted = entity_service.exclude_terms_from_ner(data.words, reason=data.reason)
+
+        return {
+            "message": "Termos marcados como assunto: o extrator não os tratará mais como entidade.",
+            "entities_deleted": entities_deleted,
+        }
+
+    @delete("/entities/ner-exclusions", status_code=200, sync_to_thread=True)
+    def remove_ner_exclusions(self, entity_service: NamedDependency[EntityService], data: NerExclusionRequest) -> dict:
+        """Undoes the ban and re-opens the terms for the NER engine."""
+        removed = entity_service.remove_ner_exclusions(data.words)
+
+        return {"message": "Exclusões removidas: o extrator voltará a considerar esses termos.", "removed": removed}
 
     # ==========================================
     # ROUTES: DOMAIN CLASH (Cross-Domain)
