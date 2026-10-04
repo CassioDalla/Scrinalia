@@ -65,7 +65,6 @@ def execute(
                 language_name=doc_staging.language_name,
                 archivist_notes=doc_staging.archivist_notes,
                 final_title=None,
-                semantic_search_vector=None,
                 anomaly_reasons=None,
                 review_status=ArchiveReviewStatus.PENDING_AI,
                 execution_log={},

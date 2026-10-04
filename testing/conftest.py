@@ -22,6 +22,21 @@ TESTS_FOLDER = Path(__file__).parent
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql://test_user:test_password@localhost:5433/test_db")
 
+# ``unaccent(regdictionary, text)`` is STABLE, so a generated column / index cannot
+# use it directly. This IMMUTABLE wrapper pins the fixed unaccent dictionary and is
+# the same one created by the ``d4e7a1c9f3b2`` migration; the test database is built
+# from the models, so the function must exist before ``create_all`` builds the
+# generated ``search_vector`` column that references it.
+IMMUTABLE_UNACCENT_SQL = """
+CREATE OR REPLACE FUNCTION public.immutable_unaccent(txt text)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+STRICT
+AS $$ SELECT public.unaccent('public.unaccent'::regdictionary, txt) $$;
+"""
+
 
 @pytest.fixture
 def mock_registry(monkeypatch):
@@ -81,9 +96,12 @@ def engine():
     """Creates the connection to the test database and builds the table structure only once."""
     engine = create_engine(TEST_DATABASE_URL)
 
-    # pg_trgm must exist before create_all builds the fuzzy-search GIN indexes.
+    # pg_trgm must exist before create_all builds the fuzzy-search GIN indexes, and
+    # the immutable unaccent wrapper before it builds the generated search_vector.
     with engine.begin() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent"))
+        conn.execute(text(IMMUTABLE_UNACCENT_SQL))
 
     # Creates all tables based on your Models
     Base.metadata.create_all(bind=engine)
