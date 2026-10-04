@@ -81,6 +81,42 @@ class DomainSynonyms(Base):
     )
 
 
+class DomainNerExclusion(Base):
+    """
+    Terms the curation decided belong to the TAG axis, not to named entities.
+
+    This is deliberately **not** a ``DomainStopwords`` row: a stopword is noise to be
+    dropped from every extraction, while an exclusion is a *decision* that a
+    legitimate term is owned by the subject axis. Keeping them apart is what lets a
+    curator undo an exclusion without touching the generic blacklist, and is what
+    gives the decision a traceable provenance: which tag justified it, and whether a
+    human or the LLM judge decided.
+    """
+
+    __tablename__ = "domain_ner_exclusions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    # The extracted spelling, stored normalized to lowercase like entity names.
+    term: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Who decided: a human curator ("HUMAN") or the LLM conflict judge ("JUDGE").
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="HUMAN", server_default="HUMAN")
+
+    # The tag that justifies the exclusion, when the decision came from a cross-domain
+    # clash. ``SET NULL`` on purpose: deleting the tag must not silently re-open the
+    # NER false positive this row exists to prevent.
+    tag_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("archive_tags.tag_id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (CheckConstraint("source IN ('JUDGE', 'HUMAN')", name="chk_ner_exclusion_source"),)
+
+
 class ArchiveAIReviewQueue(Base):
     """Unified queue for AI auditing. Stores context in JSONB."""
 

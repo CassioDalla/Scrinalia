@@ -16,6 +16,7 @@ from memoria_curitibana.domains.archive.models import (
     ArchiveDocumentTag,
     ArchiveEntity,
     ArchiveTag,
+    DomainNerExclusion,
     DomainStopwords,
     DomainSynonyms,
     StopwordsScope,
@@ -28,6 +29,8 @@ from memoria_curitibana.domains.archive.schemas.entity_schema import (
     EntityPairSimilarity,
     EntityRelevance,
     EntitySimilarity,
+    NerExclusion,
+    NerExclusionSource,
     NerSynonymRule,
 )
 
@@ -137,11 +140,21 @@ class EntityRepository:
         )
         return [CrossDomainConflict.model_validate(dict(row._mapping)) for row in self.db.execute(stmt).all()]
 
-    def resolve_cross_domain_conflict(self, winner: Literal["TAG", "ENTITY"], tag_id: int, entity_id: int) -> int:
+    def resolve_cross_domain_conflict(
+        self,
+        winner: Literal["TAG", "ENTITY"],
+        tag_id: int,
+        entity_id: int,
+        source: NerExclusionSource = "HUMAN",
+    ) -> int:
         """
-        Transfers the documents to the winner and deletes the loser atomically and
-        adds the loser's name to the blacklist of its respective domain.
+        Transfers the documents to the winner and deletes the loser atomically.
         Returns the number of documents transferred.
+
+        The losing term is blocked for the future in the vocabulary of the winning
+        domain, so the conflict cannot be recreated by the next pipeline run:
+        when the TAG wins the term enters the NER exclusion catalog; when the ENTITY
+        wins the tag name is added to the tag-scoped stopwords.
         """
         transferred_docs = 0
 
@@ -161,12 +174,14 @@ class EntityRepository:
             self.db.execute(delete(ArchiveEntity).where(ArchiveEntity.entity_id == entity_id))
 
             if entity_name:
-                stmt_stopword = (
-                    insert(DomainStopwords)
-                    .values(word=normalize_stopword(entity_name), word_scope=StopwordsScope.ENTITY)
-                    .on_conflict_do_nothing()
+                # The subject axis owns the spelling: an exclusion, not a generic
+                # stopword, so the decision stays auditable and reversible.
+                self.add_ner_exclusions(
+                    [entity_name],
+                    source=source,
+                    reason="cross-domain clash: the TAG won over the named entity",
+                    tag_id=tag_id,
                 )
-                self.db.execute(stmt_stopword)
 
         elif winner == "ENTITY":
             tag_name = self.db.scalar(select(ArchiveTag.name).where(ArchiveTag.tag_id == tag_id))
@@ -199,12 +214,16 @@ class EntityRepository:
         """
         Loads the semantic normalization rules exclusive to the NER pipeline (spaCy).
         Ignores TAG synonyms, returning only mappings to Canonical Entities.
+
+        Spellings recorded in the NER exclusion catalog are dropped: an excluded term
+        must not re-enter through the positive dictionary either.
         """
 
         stmt = (
             select(DomainSynonyms.synonym_name, DomainSynonyms.category, ArchiveEntity.name.label("canonical_entity"))
             .join(ArchiveEntity, DomainSynonyms.canonical_entity_id == ArchiveEntity.entity_id)
             .where(DomainSynonyms.category.in_(["ORG", "LOC", "PER"]))
+            .where(~DomainSynonyms.synonym_name.in_(select(DomainNerExclusion.term)))
         )
 
         results = self.db.execute(stmt).all()
@@ -213,6 +232,49 @@ class EntityRepository:
         return [
             NerSynonymRule(pattern=row.synonym_name, label=row.category, id=row.canonical_entity) for row in results
         ]
+
+    # --- NER exclusions: the subject axis owns the spelling ---
+
+    def get_ner_exclusion_terms(self) -> set[str]:
+        """Terms the curation excluded from NER extraction, normalized to lowercase."""
+        return set(self.db.scalars(select(DomainNerExclusion.term)).all())
+
+    def list_ner_exclusions(self) -> Sequence[NerExclusion]:
+        """Full catalog, ordered by term, for the curation API."""
+        stmt = select(DomainNerExclusion).order_by(DomainNerExclusion.term)
+        return [NerExclusion.model_validate(row) for row in self.db.scalars(stmt).all()]
+
+    def add_ner_exclusions(
+        self,
+        terms: Sequence[str],
+        *,
+        source: NerExclusionSource = "HUMAN",
+        reason: str | None = None,
+        tag_id: int | None = None,
+    ) -> int:
+        """Registers exclusions idempotently. Returns how many terms were actually inserted."""
+        rows = [
+            {"term": normalize_entity(term), "source": source, "reason": reason, "tag_id": tag_id}
+            for term in terms
+            if term.strip()
+        ]
+
+        if not rows:
+            return 0
+
+        stmt = insert(DomainNerExclusion).values(rows).on_conflict_do_nothing(index_elements=["term"])
+        result = cast(CursorResult, self.db.execute(stmt))
+        return result.rowcount
+
+    def remove_ner_exclusions(self, terms: Sequence[str]) -> int:
+        """Re-opens NER for the given terms. Returns how many exclusions were removed."""
+        clean_terms = [normalize_entity(term) for term in terms if term.strip()]
+
+        if not clean_terms:
+            return 0
+
+        result = self.db.execute(delete(DomainNerExclusion).where(DomainNerExclusion.term.in_(clean_terms)))
+        return cast(CursorResult, result).rowcount
 
     def get_or_create_entities(self, entities_list: list[ArchiveEntityDTO]) -> list[int]:
         """

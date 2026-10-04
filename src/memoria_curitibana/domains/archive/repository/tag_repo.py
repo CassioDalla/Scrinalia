@@ -13,6 +13,7 @@ from memoria_curitibana.domains.archive.models import (
     ArchiveTag,
     DomainStopwords,
     DomainSynonyms,
+    StopwordsScope,
 )
 from memoria_curitibana.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
@@ -108,16 +109,19 @@ class TagRepository:
 
     def get_stopwords(self) -> set[str]:
         """
-        Retrieves all domain stopwords registered in the database.
-        Returns a set (Set) of stopwords
+        Retrieves the stopwords that apply to the TAG axis, in lowercase.
 
-        Args:
-            db (Session): Active SQLAlchemy session.
+        Only ``TAG`` and ``ALL`` scopes are returned. An ``ENTITY``-scoped word is a
+        ban on NER extraction, not a statement about the subject axis, and reading it
+        here made the curation purge delete tags that the curator had deliberately
+        kept — the exact opposite of the recorded decision.
 
         Returns:
-            set[str]: Set containing all stopwords in lowercase letters.
+            set[str]: Set containing the stopwords in lowercase letters.
         """
-        stmt = select(DomainStopwords.word)
+        stmt = select(DomainStopwords.word).where(
+            DomainStopwords.word_scope.in_([StopwordsScope.TAG, StopwordsScope.ALL])
+        )
         results = self.db.scalars(stmt).all()
         return set(results)
 

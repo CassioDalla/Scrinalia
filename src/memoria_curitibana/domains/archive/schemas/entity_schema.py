@@ -1,8 +1,12 @@
+from datetime import datetime
 from typing import Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from memoria_curitibana.domains.archive.schemas.types import EntityName
+
+# Who recorded a NER exclusion: a human curator or the LLM conflict judge.
+NerExclusionSource = Literal["JUDGE", "HUMAN"]
 
 
 class NerSynonymRule(TypedDict):
@@ -118,3 +122,15 @@ class CrossDomainConflict(BaseModel):
 class ConflictResolutionData(BaseModel):
     winner: Literal["TAG", "ENTITY"]
     documents_transferred: int
+
+
+class NerExclusion(BaseModel):
+    """A durable decision that a spelling belongs to the TAG axis, not to NER."""
+
+    term: str
+    reason: str | None
+    source: NerExclusionSource
+    tag_id: int | None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

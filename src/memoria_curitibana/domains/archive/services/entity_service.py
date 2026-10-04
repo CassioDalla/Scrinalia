@@ -16,6 +16,7 @@ from memoria_curitibana.domains.archive.schemas.entity_schema import (
     EntityPairSimilarity,
     EntityRelevance,
     EntitySimilarity,
+    NerExclusion,
 )
 
 
@@ -168,12 +169,69 @@ class EntityService:
 
         self.repo.delete_entities([entity_id])
 
+    def exclude_terms_from_ner(
+        self,
+        words: list[str],
+        *,
+        reason: str | None = None,
+        tag_id: int | None = None,
+        source: Literal["JUDGE", "HUMAN"] = "HUMAN",
+    ) -> int:
+        """
+        Records the durable decision "this term is a subject, not a named entity".
+
+        This is the negative counterpart of ``reclassify_entity``: instead of teaching
+        the NER a different label, it keeps the term out of the extraction for good
+        and purges the entities already created from it.
+
+        Args:
+            words: Raw spellings to exclude. Normalized (lowercase) before storage.
+            reason: Free text explaining the decision, kept for the curator.
+            tag_id: The tag that justifies the exclusion, when it came from a clash.
+            source: ``JUDGE`` for the LLM conflict worker, ``HUMAN`` for the curator.
+
+        Returns:
+            int: How many existing entities were deleted from the collection.
+        """
+        clean_words = [normalize_entity(word) for word in words if word.strip()]
+        if not clean_words:
+            return 0
+
+        self.repo.add_ner_exclusions(clean_words, source=source, reason=reason, tag_id=tag_id)
+
+        # The exclusion also applies to the past: entities built from that spelling are
+        # purged. Links are dropped by cascade; the caller decides whether the documents
+        # should receive the winning tag (``resolve_cross_domain_conflict`` does it).
+        return self.repo.delete_entities_by_names(clean_words)
+
+    def list_ner_exclusions(self) -> Sequence[NerExclusion]:
+        """Lists every term currently excluded from NER extraction."""
+        return self.repo.list_ner_exclusions()
+
+    def remove_ner_exclusions(self, words: list[str]) -> int:
+        """Undoes an exclusion, re-opening the term for the NER engine."""
+        clean_words = [normalize_entity(word) for word in words if word.strip()]
+        if not clean_words:
+            return 0
+
+        return self.repo.remove_ner_exclusions(clean_words)
+
     def find_cross_domain_conflicts(self, threshold: float = 0.85) -> Sequence[CrossDomainConflict]:
         """Scans the database looking for Tags and Entities that have the same name or very close spelling."""
         return list(self.repo.get_cross_domain_conflicts(threshold))
 
-    def resolve_cross_domain_conflict(self, command: ResolveConflictCommand) -> ConflictResolutionData:
-        """Resolves the conflict by transferring the relationships to the winner and purging the loser."""
-        transferred_docs = self.repo.resolve_cross_domain_conflict(command.winner, command.tag_id, command.entity_id)
+    def resolve_cross_domain_conflict(
+        self, command: ResolveConflictCommand, source: Literal["JUDGE", "HUMAN"] = "HUMAN"
+    ) -> ConflictResolutionData:
+        """
+        Resolves the conflict by transferring the relationships to the winner and purging the loser.
+
+        Args:
+            command: Winner and the pair being resolved.
+            source: Who decided, forwarded to the NER exclusion catalog when the TAG wins.
+        """
+        transferred_docs = self.repo.resolve_cross_domain_conflict(
+            command.winner, command.tag_id, command.entity_id, source=source
+        )
 
         return ConflictResolutionData(winner=command.winner, documents_transferred=transferred_docs)
