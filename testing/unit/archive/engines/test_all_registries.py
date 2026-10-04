@@ -2,10 +2,12 @@ import pytest
 
 from memoria_curitibana.domains.archive.engines.classification import registry as typology_registry
 from memoria_curitibana.domains.archive.engines.clustering import registry as cluster_registry
+from memoria_curitibana.domains.archive.engines.embeddings import registry as embeddings_registry
 from memoria_curitibana.domains.archive.engines.NER import registry as ner_registry
+from memoria_curitibana.domains.archive.models.document import EMBEDDING_DIMENSIONS
 
 # Put them all in a list
-ALL_REGISTRIES = [typology_registry, ner_registry, cluster_registry]
+ALL_REGISTRIES = [typology_registry, ner_registry, cluster_registry, embeddings_registry]
 
 
 @pytest.mark.parametrize("reg_module", ALL_REGISTRIES)
@@ -48,3 +50,8 @@ def test_get_engine_loads_preset_correctly(mock_registry, reg_module):
 
     # 3. Check that the factory forwarded the right data
     mock_engine_class.assert_called_once_with(model="falso", device="cpu")
+
+
+def test_embedding_preset_dimension_matches_the_column() -> None:
+    """A model swap that changes the dimension must fail here, not in PostgreSQL."""
+    assert embeddings_registry.PRESETS["multilingual_minilm"]["dimensions"] == EMBEDDING_DIMENSIONS

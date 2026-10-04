@@ -10,6 +10,7 @@ from memoria_curitibana.core.logger import logger
 from memoria_curitibana.domains.archive.workers import (
     worker_archive_transfer,
     worker_cleaning_regex,
+    worker_embedding,
     worker_macro_category,
     worker_ner,
     worker_resolve_tag_entity_conflict,
@@ -28,11 +29,14 @@ WORKERS: dict[str, WorkerFn] = {
     "thumbnail": worker_thumbnail.execute,
     "conflict-judge": worker_resolve_tag_entity_conflict.execute,
     "macro-category": worker_macro_category.execute,
+    "embedding": worker_embedding.execute,
 }
 
 # Recommended execution order for the enrichment pipeline. The macro-category step runs
 # last: it depends on the tags already existing and on the curators having registered the
-# categories (usually from a cluster suggestion) it classifies against.
+# categories (usually from a cluster suggestion) it classifies against. The embedding
+# step runs after every worker that can change the document text, because it embeds that
+# text and keys its stamp on a hash of it.
 PIPELINE_ORDER = [
     "transfer",
     "cleaning",
@@ -41,7 +45,24 @@ PIPELINE_ORDER = [
     "thumbnail",
     "conflict-judge",
     "macro-category",
+    "embedding",
 ]
+
+
+def _coerce_option(value: Any) -> Any:
+    """Turns the CLI ``true``/``false`` strings into booleans.
+
+    ``--option force=false`` used to arrive as the truthy string ``"false"``, so a
+    boolean flag could not be switched off from the command line. Values that are not
+    strings (a programmatic caller passing a real bool or number) are left untouched.
+    """
+    if not isinstance(value, str):
+        return value
+
+    lowered = value.strip().lower()
+    if lowered in {"true", "false"}:
+        return lowered == "true"
+    return value
 
 
 def run_worker(
@@ -76,7 +97,7 @@ def run_worker(
 
     for key, value in (extra or {}).items():
         if key in params or accepts_var_kwargs:
-            kwargs[key] = value
+            kwargs[key] = _coerce_option(value)
 
     logger.info(f"🚀 Runner executing the worker '{name}'...")
     with db_factory() as db:

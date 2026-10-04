@@ -27,6 +27,17 @@ class WorkerStamp:
         new_log[self.key] = status or self.status
         return new_log
 
+    def mark_value(self, execution_log: dict[str, str] | None, value: str) -> dict[str, str]:
+        """
+        Returns a new log dict with this worker's key set to an arbitrary value.
+
+        Used by the content-keyed workers: the stamp is the hash of the text they
+        processed, so a later text change makes the document pending again.
+        """
+        new_log = dict(execution_log) if execution_log else {}
+        new_log[self.key] = value
+        return new_log
+
 
 # Canonical stamps. Keeping them as module constants prevents the "worker_ner_v1"
 # string from being duplicated (and drifting) across queries and workers.
@@ -34,6 +45,9 @@ NER = WorkerStamp("worker_ner_v1")
 TYPOLOGY = WorkerStamp("worker_typology_classifier_v1")
 # Stamp written on ``ArchiveTag.execution_log`` (tags have their own ledger).
 MACRO_CATEGORY = WorkerStamp("worker_macro_category_v1")
+# Unlike the others, this one stores the hash of the embedded text instead of a status,
+# so a human edit that changes the text puts the document back in the queue.
+EMBEDDING = WorkerStamp("worker_embedding_v1")
 THUMBNAIL = WorkerStamp("thumbnail")
 THUMBNAIL_FAILED = WorkerStamp("thumbnail_failed", status="True")
 

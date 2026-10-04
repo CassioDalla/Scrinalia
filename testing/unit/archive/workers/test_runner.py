@@ -79,8 +79,31 @@ def test_main_parses_arguments(monkeypatch) -> None:
     assert captured["extra"] == {"columns_to_extract": "a"}
 
 
-def test_macro_category_worker_is_registered_last() -> None:
-    """The subject axis worker is reachable from the CLI and runs after the tag producers."""
+def test_worker_pipeline_order_is_complete() -> None:
+    """Every registered worker appears in the pipeline, with the text-dependent ones last."""
     assert "macro-category" in runner.WORKERS
-    assert runner.PIPELINE_ORDER[-1] == "macro-category"
+    assert "embedding" in runner.WORKERS
+    assert runner.PIPELINE_ORDER[-1] == "embedding"
+    assert runner.PIPELINE_ORDER[-2] == "macro-category"
     assert set(runner.PIPELINE_ORDER) == set(runner.WORKERS)
+
+
+def test_run_worker_coerces_boolean_options(monkeypatch) -> None:
+    """``--option force=false`` must arrive as ``False``, not as the truthy string."""
+    captured: dict = {}
+    sentinel = object()
+
+    def fake_worker(db, force=None, similarity_threshold=None):
+        captured.update(force=force, similarity_threshold=similarity_threshold)
+
+    monkeypatch.setitem(runner.WORKERS, "fake_bool", fake_worker)
+
+    runner.run_worker(
+        "fake_bool",
+        extra={"force": "false", "similarity_threshold": 0.8},
+        db_factory=lambda: _fake_db_factory(sentinel),
+    )
+
+    assert captured["force"] is False
+    # A non-string value from a programmatic caller is forwarded untouched.
+    assert captured["similarity_threshold"] == 0.8

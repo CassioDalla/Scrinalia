@@ -38,6 +38,18 @@ class TopicDiscoveryEngine(Protocol):
     def discover_topics(self, texts: list[str]) -> tuple[list[int], DataFrame]: ...
 
 
+class EmbeddingEngine(Protocol):
+    """
+    Contract used by the semantic-search engines to turn text into vectors.
+
+    The vectors are stored on the document and compared with cosine distance, so the
+    engine owns both the model and its dimension; the column dimension and the preset
+    are guarded by a test.
+    """
+
+    def embed(self, texts: list[str]) -> list[list[float]]: ...
+
+
 class ResolveTagEntityConflictEngine(Protocol):
     """
     Contract used by AI engines (LLMs) that decide semantic ties
