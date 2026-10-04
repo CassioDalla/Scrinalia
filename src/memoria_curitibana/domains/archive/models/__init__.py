@@ -8,6 +8,7 @@ from .governance import (
     DomainNerExclusion,
     DomainStopwords,
     DomainSynonyms,
+    DomainTextTemplate,
 )
 from .taxonomy import ArchiveMacroCategory, ArchiveTag, ArchiveTypology
 
@@ -26,5 +27,6 @@ __all__ = [
     "DomainNerExclusion",
     "DomainStopwords",
     "DomainSynonyms",
+    "DomainTextTemplate",
     "StopwordsScope",
 ]

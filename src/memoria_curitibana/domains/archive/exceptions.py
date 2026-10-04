@@ -33,6 +33,13 @@ class MacroCategoryNotFoundError(DomainException):
     pass
 
 
+class TextTemplateNotFoundError(DomainException):
+    """Raised when a repeated-excerpt catalog row does not exist."""
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
 class InvalidMergeError(DomainException):
     """Raised when trying to merge a tag into itself or breaking synonym rules."""
 

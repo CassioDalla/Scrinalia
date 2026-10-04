@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import (
+    ARRAY,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -144,6 +145,75 @@ class ArchiveAIReviewQueue(Base):
     llm_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class DomainTextTemplate(Base):
+    """
+    Catalog of repeated excerpts the curation decided to keep out of the AI text.
+
+    Same governance spirit as ``DomainNerExclusion``: a durable, auditable, reversible
+    **decision**, never an automatic cleanup. The excerpts alone do not touch the
+    archival record; they only change the text the AI reads, so the collection keeps its
+    original ISAD(G) values and a human can undo the decision at any time.
+
+    Why a row is not just ``(text, replacement)``:
+
+    * ``fingerprint`` makes the catalog idempotent: the frequency routine can run again
+      without duplicating what a human already approved. Two texts that differ only in
+      whitespace are the same excerpt.
+    * ``variants`` carries the near-duplicates found in the corpus ("cidadão,Liceu" vs
+      "cidadão, Liceu"), so one decision removes every spelling instead of leaving two
+      thirds of the boilerplate behind.
+    * ``status`` separates "the machine proposed it" from "a human rejected it", which is
+      what stops a re-run of the suggestion from resurrecting a discarded candidate.
+    * ``occurrence_count``/``sample_document_ids`` are the numbers the archivist needs to
+      decide; they are refreshed by the suggestion run and by the dry-run, never guessed.
+    """
+
+    __tablename__ = "domain_text_templates"
+
+    template_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    # Canonical spelling of the excerpt, whitespace-normalized and trimmed.
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # SHA-256 of the normalized text. Unique so the suggestion routine is idempotent.
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+
+    # Additional spellings matched exactly like ``text``; near-duplicates of one decision.
+    variants: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, default=list, server_default="{}")
+
+    # IGNORE subtracts the excerpt from the AI text; REPLACE substitutes ``replacement``.
+    # A native enum was avoided on purpose: this is a catalog whose semantics may grow,
+    # and the project already models ``DomainNerExclusion.source`` as String + check.
+    action: Mapped[str] = mapped_column(String(10), nullable=False, default="IGNORE", server_default="IGNORE")
+    replacement: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Who authored the row (``SUGGESTED`` by the frequency routine, ``HUMAN`` by a curator)
+    # and where it is in the curation flow (``SUGGESTED`` -> ``APPROVED``/``REJECTED``).
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="HUMAN", server_default="HUMAN")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="SUGGESTED", server_default="SUGGESTED")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+
+    # Evidence attached to the decision, so the archivist decides with a number.
+    occurrence_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    sample_document_ids: Mapped[list[str]] = mapped_column(
+        ARRAY(String(50)), nullable=False, default=list, server_default="{}"
+    )
+
+    created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint("action IN ('IGNORE', 'REPLACE')", name="chk_text_template_action"),
+        CheckConstraint("source IN ('SUGGESTED', 'HUMAN')", name="chk_text_template_source"),
+        CheckConstraint("status IN ('SUGGESTED', 'APPROVED', 'REJECTED')", name="chk_text_template_status"),
+    )
+
+
 class ArchiveCleaningRule(Base):
     """
     Table that stores the dynamic cleaning rules (Regex) created by users.
@@ -154,6 +224,14 @@ class ArchiveCleaningRule(Base):
     rule_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     rule_name: Mapped[str] = mapped_column(String(150), nullable=False)
 
+    # What the rule does. ``REWRITE`` is the original behaviour (the worker replaces every
+    # match); ``VALIDATE`` only *flags* a match as an anomaly and never rewrites the text;
+    # ``LLM_CHECK`` is the opt-in for the language-model check, which is off by default and
+    # only runs while such a rule exists and is active.
+    rule_kind: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="REWRITE", server_default="REWRITE", index=True
+    )
+
     # E.g.: "original_title", "scope_content"
     target_column: Mapped[str] = mapped_column(String(50), nullable=False)
 
@@ -163,7 +241,18 @@ class ArchiveCleaningRule(Base):
     # E.g.: "Avenida" (If empty, acts as an exclusion)
     replacement_string: Mapped[str] = mapped_column(Text, default="", server_default="")
 
+    # Anomaly written to ``ArchiveDocument.anomaly_reasons`` when a VALIDATE rule matches.
+    anomaly_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Optional engine/preset for an ``LLM_CHECK`` rule; ignored by the other kinds.
+    engine_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    preset: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     # Tracks who created it
     created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("rule_kind IN ('REWRITE', 'VALIDATE', 'LLM_CHECK')", name="chk_cleaning_rule_kind"),
+    )

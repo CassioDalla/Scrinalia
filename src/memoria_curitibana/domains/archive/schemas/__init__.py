@@ -33,6 +33,17 @@ from .tag_schema import (
     TagRelevanceResponse,
     TagSimilarity,
 )
+from .text_quality_schema import (
+    TemplateCreateCommand,
+    TemplateDryRunMatch,
+    TemplateDryRunRequest,
+    TemplateDryRunResponse,
+    TemplateSuggestion,
+    TemplateSuggestionResponse,
+    TemplateUpdateCommand,
+    TextTemplateApplicationConfig,
+    TextTemplateDTO,
+)
 
 __all__ = [
     "ArchiveDocumentDTO",
@@ -67,5 +78,14 @@ __all__ = [
     "TagRelevanceIdf",
     "TagRelevanceResponse",
     "TagSimilarity",
+    "TemplateCreateCommand",
+    "TemplateDryRunMatch",
+    "TemplateDryRunRequest",
+    "TemplateDryRunResponse",
+    "TemplateSuggestion",
+    "TemplateSuggestionResponse",
+    "TemplateUpdateCommand",
+    "TextTemplateApplicationConfig",
+    "TextTemplateDTO",
     "UpdateMacroCategoryCommand",
 ]

@@ -16,6 +16,7 @@ from memoria_curitibana.domains.archive.exceptions import (
     InvalidParam,
     MacroCategoryNotFoundError,
     TagNotFoundError,
+    TextTemplateNotFoundError,
 )
 
 
@@ -28,7 +29,14 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
     status_code = HTTP_400_BAD_REQUEST
 
     if isinstance(
-        exc, (TagNotFoundError, DocumentNotFoundError, CleaningRuleNotFoundError, MacroCategoryNotFoundError)
+        exc,
+        (
+            TagNotFoundError,
+            DocumentNotFoundError,
+            CleaningRuleNotFoundError,
+            MacroCategoryNotFoundError,
+            TextTemplateNotFoundError,
+        ),
     ):
         status_code = HTTP_404_NOT_FOUND
 

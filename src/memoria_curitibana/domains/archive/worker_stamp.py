@@ -50,8 +50,17 @@ MACRO_CATEGORY = WorkerStamp("worker_macro_category_v1")
 EMBEDDING = WorkerStamp("worker_embedding_v1")
 THUMBNAIL = WorkerStamp("thumbnail")
 THUMBNAIL_FAILED = WorkerStamp("thumbnail_failed", status="True")
+# Structural anomaly validation (Fase 3.5-C). Status-stamped: its reasons depend on the
+# catalog, not only on the document text, so a catalog change re-queues explicitly.
+QUALITY_VALIDATOR = WorkerStamp("worker_quality_validator_v1")
 
 
 def cleaning_rule_stamp(rule_id: int) -> WorkerStamp:
     """Builds the per-rule stamp used by the dynamic cleaning rules."""
     return WorkerStamp(f"cleaning_rule_{rule_id}")
+
+
+#: Stamps that must be invalidated when the AI text composition changes (an excerpt
+#: approved, edited or undone). The embedding is deliberately absent: its stamp *is* a
+#: hash of the effective text, so it re-queues by itself and needs no help.
+TEXT_DEPENDENT_STAMPS: tuple[WorkerStamp, ...] = (NER, TYPOLOGY, QUALITY_VALIDATOR)

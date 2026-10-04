@@ -12,10 +12,12 @@ from memoria_curitibana.domains.archive.repository.cleaning_repo import Cleaning
 from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
 from memoria_curitibana.domains.archive.repository.entity_repo import EntityRepository
 from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+from memoria_curitibana.domains.archive.repository.text_quality_repo import TextQualityRepository
 from memoria_curitibana.domains.archive.services.cleaning_service import CleaningService
 from memoria_curitibana.domains.archive.services.document_service import DocumentService
 from memoria_curitibana.domains.archive.services.entity_service import EntityService
 from memoria_curitibana.domains.archive.services.tag_service import TagService
+from memoria_curitibana.domains.archive.services.text_quality_service import TextQualityService
 
 
 @lru_cache(maxsize=1)
@@ -67,6 +69,11 @@ def provide_entity_service(unit_of_work: NamedDependency[UnitOfWork]) -> EntityS
 def provide_cleaning_service(unit_of_work: NamedDependency[UnitOfWork]) -> CleaningService:
     """Builds the cleaning service by injecting its repository."""
     return CleaningService(CleaningRepository(unit_of_work.db))
+
+
+def provide_text_quality_service(unit_of_work: NamedDependency[UnitOfWork]) -> TextQualityService:
+    """Builds the repeated-excerpt curation service over the request transaction."""
+    return TextQualityService(TextQualityRepository(unit_of_work.db))
 
 
 def provide_document_service(unit_of_work: NamedDependency[UnitOfWork]) -> DocumentService:
