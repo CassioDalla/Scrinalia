@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, selectinload
 
 from memoria_curitibana.core.types import Vector
+from memoria_curitibana.domains.archive.domain.normalization import normalize_synonym
 from memoria_curitibana.domains.archive.domain.search import build_tsquery, tokenize
 from memoria_curitibana.domains.archive.models import (
     ArchiveDocument,
@@ -16,6 +17,7 @@ from memoria_curitibana.domains.archive.models import (
     ArchiveEntity,
     ArchiveReviewStatus,
     ArchiveTag,
+    DomainSynonyms,
 )
 from memoria_curitibana.domains.archive.models.document import EMBEDDING_DIMENSIONS
 from memoria_curitibana.domains.archive.repository.governance import ai_writable_documents
@@ -239,23 +241,57 @@ class DocumentRepository:
         return filters
 
     @staticmethod
-    def _taxonomy_match(link_model: Any, name_model: Any, join_on: Any, name_column: Any, tokens: list[str]) -> Any:
+    def _taxonomy_match(
+        link_model: Any,
+        name_model: Any,
+        join_on: Any,
+        name_column: Any,
+        tokens: list[str],
+        canonical_synonym: Any | None = None,
+    ) -> Any:
         """
         ``EXISTS`` on a link table whose related name contains every search token.
 
         ``EXISTS`` instead of a join keeps a document with several matching tags from
         being duplicated in the page or double-counted in ``total``. The ``ILIKE`` on
         the names is what the existing ``gin_trgm_ops`` indexes accelerate.
+
+        ``canonical_synonym`` adds the direct path from an absorbed spelling to the
+        canonical it was merged into (see ``_merged_spelling_match``), as an *alternative*
+        to the token condition — the token semantics (all tokens required) stay untouched.
         """
+        token_condition = and_(*(name_column.ilike(f"%{token}%") for token in tokens))
+        condition = token_condition if canonical_synonym is None else or_(token_condition, canonical_synonym)
+
         return exists(
             select(1)
             .select_from(link_model)
             .join(name_model, join_on)
-            .where(
-                link_model.description_id == ArchiveDocument.description_id,
-                *(name_column.ilike(f"%{token}%") for token in tokens),
-            )
+            .where(link_model.description_id == ArchiveDocument.description_id, condition)
         )
+
+    @staticmethod
+    def _merged_spelling_match(id_column: Any, canonical_column: Any, categories: list[str], term: str) -> Any:
+        """
+        Matches the canonical row a searched spelling was merged into.
+
+        The dedup deletes the absorbed spelling, so without this the user who types it loses
+        the documents that were reachable only through it. Measured on the real collection
+        after canonicalising 40 plural pairs: ``lojas`` lost 42 of its 54 documents and
+        ``homens`` lost 30 of 35 — the full-text stemmer covers the ones whose *text* carries
+        the word, not the ones that only had the tag. The synonym the merge wrote is the
+        mapping that closes the gap.
+        """
+        normalized = normalize_synonym(term)
+        if not normalized:
+            return None
+
+        targets = select(canonical_column).where(
+            DomainSynonyms.category.in_(categories),
+            DomainSynonyms.synonym_name == normalized,
+            canonical_column.is_not(None),
+        )
+        return id_column.in_(targets)
 
     @staticmethod
     def _contains_condition(tokens: list[str]) -> Any:
@@ -341,8 +377,16 @@ class DocumentRepository:
 
         if tsquery:
             ts_query = func.to_tsquery("portuguese", func.immutable_unaccent(tsquery))
+            merged_term = " ".join(tokens)
             tag_match = self._taxonomy_match(
-                ArchiveDocumentTag, ArchiveTag, ArchiveDocumentTag.tag_id == ArchiveTag.tag_id, ArchiveTag.name, tokens
+                ArchiveDocumentTag,
+                ArchiveTag,
+                ArchiveDocumentTag.tag_id == ArchiveTag.tag_id,
+                ArchiveTag.name,
+                tokens,
+                canonical_synonym=self._merged_spelling_match(
+                    ArchiveTag.tag_id, DomainSynonyms.canonical_tag_id, ["TAG"], merged_term
+                ),
             )
             entity_match = self._taxonomy_match(
                 ArchiveDocumentEntity,
@@ -350,6 +394,12 @@ class DocumentRepository:
                 ArchiveDocumentEntity.entity_id == ArchiveEntity.entity_id,
                 ArchiveEntity.name,
                 tokens,
+                canonical_synonym=self._merged_spelling_match(
+                    ArchiveEntity.entity_id,
+                    DomainSynonyms.canonical_entity_id,
+                    ["ORG", "PER", "LOC"],
+                    merged_term,
+                ),
             )
             rank = (
                 func.ts_rank(ArchiveDocument.search_vector, ts_query)

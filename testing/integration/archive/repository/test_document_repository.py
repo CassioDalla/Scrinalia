@@ -12,6 +12,7 @@ from memoria_curitibana.domains.archive.models import (
     ArchiveReviewStatus,
     ArchiveTag,
     ArchiveTypology,
+    DomainSynonyms,
 )
 from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
 from memoria_curitibana.domains.archive.schemas.command_schema import DocumentReviewCommand
@@ -409,6 +410,53 @@ def test_search_does_not_duplicate_a_document_with_several_matching_tags(use_tes
 
     assert total == 1
     assert [item.description_id for item in docs] == ["dup1"]
+
+
+def test_search_still_finds_a_document_through_a_spelling_that_was_merged(
+    use_test_db, db_session, generate_archive_doc
+):
+    """
+    After the dedup, the absorbed spelling has to keep reaching its documents.
+
+    The tag axis matches names by ``ILIKE``, without stemming, so a document reachable only
+    through the tag "lojas" would disappear from the search for "lojas" once the tag was
+    merged into "loja". Measured on the real collection before this fix: ``lojas`` lost 42 of
+    its 54 documents and ``homens`` lost 30 of 35. The synonym written by the merge is what
+    connects the two, so the search reads it.
+    """
+
+    repo = DocumentRepository(db_session)
+    doc = generate_archive_doc(description_id="merged1", original_title="Sem o termo no texto", scope_content="neutro")
+    canonical = ArchiveTag(name="loja")
+    db_session.add(canonical)
+    db_session.commit()
+    _link_tag(db_session, doc.description_id, canonical.tag_id)
+    # The merge wrote this mapping when it absorbed "lojas".
+    db_session.add(DomainSynonyms(synonym_name="lojas", category="TAG", canonical_tag_id=canonical.tag_id))
+    db_session.commit()
+
+    merged_spelling, total = repo.search(DocumentSearchQuery(term="lojas"))
+    assert (total, [item.description_id for item in merged_spelling]) == (1, ["merged1"])
+
+    # The canonical spelling obviously keeps working, and so does the entity axis.
+    canonical_spelling, total_canonical = repo.search(DocumentSearchQuery(term="loja"))
+    assert (total_canonical, [item.description_id for item in canonical_spelling]) == (1, ["merged1"])
+
+
+def test_search_still_finds_a_document_through_a_merged_entity_spelling(use_test_db, db_session, generate_archive_doc):
+    """The entity axis has the same gap after an entity merge, and the same mapping closes it."""
+    repo = DocumentRepository(db_session)
+    doc = generate_archive_doc(description_id="merged_entity", original_title="Sem o termo no texto")
+    canonical = ArchiveEntity(name="prefeitura de curitiba", entity_type="ORG")
+    db_session.add(canonical)
+    db_session.commit()
+    db_session.add(ArchiveDocumentEntity(description_id=doc.description_id, entity_id=canonical.entity_id))
+    db_session.add(DomainSynonyms(synonym_name="prefeiruta", category="ORG", canonical_entity_id=canonical.entity_id))
+    db_session.commit()
+
+    docs, total = repo.search(DocumentSearchQuery(term="prefeiruta"))
+
+    assert (total, [item.description_id for item in docs]) == (1, ["merged_entity"])
 
 
 # ==========================================

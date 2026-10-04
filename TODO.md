@@ -616,11 +616,24 @@ Leituras que ficam registradas:
   antes de `delete_entities` (`canonical_entity_id` também é `ON DELETE CASCADE`). Guardas:
   merge encadeado de entidade mantém o mapeamento, nenhum sinônimo aponta para entidade morta,
   e reapontar move de verdade.
-- [ ] **Aplicar no acervo real (decisão do arquivista, pendente).** A capacidade está pronta e
-  verificada; a escrita no banco de desenvolvimento **não foi feita** porque é destrutiva no
-  acervo e a decisão é humana. Subconjunto mais defensável medido: **40 clusters `PLURAL` sem
-  flag** (40 tags absorvidas, 513 vínculos) — a regra de plural só dispara quando o singular já
-  existe como tag. Desfazível pelo ledger, cluster a cluster.
+- [x] **Aplicado no acervo real (decisão do arquivista, 2026-10-04).** Os **40 clusters
+  `PLURAL` sem flag** foram aprovados e aplicados: **40/40 sem falha em 2,9 s**. Efeito medido:
+  tags **6182 → 6142**, vínculos **41592 → 41452** (as 140 diferenças são documentos que tinham
+  **as duas** grafias e ficaram com um vínculo só), sinônimos TAG **14 → 54**, documentos
+  inalterados (3608) e buscas de sanidade idênticas (`historica` 2489, `enchentes` 17). O
+  relatório com os `merge_id` está em `.analysis/tag_merge_applied.json`; os 371 clusters
+  restantes continuam pendentes de revisão humana.
+- [x] **Undo exercitado ao vivo no acervo real.** O menor cluster aplicado (`vendas ← venda`,
+  merge_id 9) foi desfeito e reaplicado: a tag voltou com o `tag_id` e o vínculo originais, o
+  vínculo que o merge criara saiu do canônico (41 → 40) e a reaplicação devolveu o estado
+  final (41). O ledger guarda os dois eventos (9 desfeito, 41 ativo) — a trilha não some.
+- [x] **Achado colateral, medido e corrigido: a busca perdia a grafia absorvida.** O eixo de
+  tags casa nome por `ILIKE`, sem stemming e sem sinônimos, então os documentos alcançáveis
+  **só** pela grafia absorvida sumiam da busca por ela (medido: `lojas` perdia 42 dos 54,
+  `homens` 30 dos 35 — o FTS cobre quem tem a palavra no texto, não quem só tinha a tag).
+  `DocumentRepository.search` passou a mapear o termo pelo `domain_synonyms` nos **dois** eixos
+  (tag e entidade). Re-medido: **0 perdidos** em `casas`, `carro`, `lojas` e `homens`, com as
+  buscas conhecidas inalteradas.
 - [ ] **Catálogo de propostas de entidades** (228 pares similares), reusando o dry-run e o
   ledger que já existem para tags.
 
@@ -726,6 +739,9 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 | **Lote com falha isolada (teste de integração)** | um cluster com canônico inexistente entra em `failed` e é revertido pelo SAVEPOINT; o cluster bom é aplicado e gera ledger; reaplicar o mesmo cluster é reportado, não reescrito |
 | **Migração `63bcc576d926` em banco limpo** | `upgrade head` → `check` → `downgrade -1` → `upgrade head` → `check` sem drift |
 | **Merge encadeado de entidade (defeito irmão)** | `a→b` e `b→c` mantém `a` e `b` apontando para `c`; nenhum sinônimo de entidade aponta para entidade morta; reapontar uma grafia de entidade a move de verdade |
+| **Aplicação no acervo real (40 clusters `PLURAL` sem flag)** | 40/40 sem falha em 2,9 s; tags 6182 → **6142**, vínculos 41592 → **41452**, sinônimos TAG 14 → **54**, documentos 3608 e buscas de sanidade inalteradas (`historica` 2489, `enchentes` 17) |
+| **Undo ao vivo no acervo real** | `vendas ← venda` (merge_id 9) desfeito e reaplicado: tag, `tag_id` e vínculo restaurados exatamente; o vínculo criado saiu do canônico (41 → 40) e a reaplicação voltou a 41; ledger com os dois eventos |
+| **Busca pela grafia absorvida (antes/depois da correção)** | antes: `lojas` perdia 42 de 54 documentos e `homens` 30 de 35; depois do mapeamento por `domain_synonyms`: **0 perdidos** nos dois eixos, e `casas`/`carro` seguem 100% alcançáveis |
 | **Medição antes/depois (16 consultas, 3608 docs, MiniLM real)** | separação média entre pares 0.769 → 0.504; com o escopo de produção Hit@10 0.562 → **0.625**, Recall@10 0.292 → **0.333**, precisão@10 por termo 0.294 → **0.381**, MRR 0.358 → 0.339 |
 | ⚠️ **Aprovar tudo o que a máquina sugeriu PIORA o ranking** | conjunto completo (com os prefixos de título): Hit@10 **0.500** (pior que 0.562 sem trecho nenhum). O prefixo de título derruba o ranking (0.562 → 0.500) e é exatamente o que o `suggested_final_title` precisa → nasceu o `scope` do template |
 
