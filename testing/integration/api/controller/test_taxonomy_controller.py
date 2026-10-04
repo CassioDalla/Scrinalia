@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import pytest
 from litestar.status_codes import (
     HTTP_200_OK,
@@ -16,6 +18,7 @@ from memoria_curitibana.domains.archive.exceptions import (
     TagNotFoundError,
 )
 from memoria_curitibana.domains.archive.schemas import ArchiveMacroCategoryEntityDTO
+from memoria_curitibana.domains.archive.schemas.entity_schema import NerExclusion
 from memoria_curitibana.domains.archive.schemas.tag_schema import TagRelevanceIdf  # <-- Import the DTO
 from memoria_curitibana.domains.archive.services.entity_service import EntityService
 from memoria_curitibana.domains.archive.services.tag_service import TagService
@@ -190,3 +193,68 @@ def test_create_macro_category_triggers_409_on_duplicate_name(client: TestClient
 
     assert response.status_code == HTTP_409_CONFLICT
     assert response.json()["error_code"] == "IntegrityError"
+
+
+# ==========================================
+# 4. NER EXCLUSIONS (THE SUBJECT AXIS OWNS THE TERM)
+# ==========================================
+
+
+def test_create_ner_exclusions_returns_201(client: TestClient, mocker):
+    """The curator bans a term from NER and learns how many entities were purged."""
+    mock_service = mocker.patch.object(EntityService, "exclude_terms_from_ner")
+    mock_service.return_value = 3
+
+    response = client.post(
+        "/api/v1/taxonomy/entities/ner-exclusions",
+        json={"words": ["IPTU"], "reason": "é assunto, não entidade"},
+    )
+
+    assert response.status_code == HTTP_201_CREATED
+    assert response.json()["entities_deleted"] == 3
+    mock_service.assert_called_once_with(["IPTU"], reason="é assunto, não entidade")
+
+
+def test_create_ner_exclusions_rejects_empty_list(client: TestClient, mocker):
+    """An empty request cannot silently mean 'ban everything'."""
+    mock_service = mocker.patch.object(EntityService, "exclude_terms_from_ner")
+
+    response = client.post("/api/v1/taxonomy/entities/ner-exclusions", json={"words": []})
+
+    assert response.status_code == HTTP_400_BAD_REQUEST
+    mock_service.assert_not_called()
+
+
+def test_list_ner_exclusions_returns_200(client: TestClient, mocker):
+    mock_service = mocker.patch.object(EntityService, "list_ner_exclusions")
+    mock_service.return_value = [
+        NerExclusion(
+            term="iptu",
+            reason="assunto, não entidade",
+            source="JUDGE",
+            tag_id=7,
+            created_at=datetime(2026, 10, 3, tzinfo=UTC),
+        )
+    ]
+
+    response = client.get("/api/v1/taxonomy/entities/ner-exclusions")
+
+    assert response.status_code == HTTP_200_OK
+    assert response.json()[0]["term"] == "iptu"
+    assert response.json()[0]["source"] == "JUDGE"
+
+
+def test_remove_ner_exclusions_returns_200(client: TestClient, mocker):
+    """Undoing the decision re-opens the term for the extractor."""
+    mock_service = mocker.patch.object(EntityService, "remove_ner_exclusions")
+    mock_service.return_value = 1
+
+    response = client.request(
+        "DELETE",
+        "/api/v1/taxonomy/entities/ner-exclusions",
+        json={"words": ["iptu"]},
+    )
+
+    assert response.status_code == HTTP_200_OK
+    assert response.json()["removed"] == 1
+    mock_service.assert_called_once_with(["iptu"])

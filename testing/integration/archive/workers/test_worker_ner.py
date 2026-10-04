@@ -7,9 +7,14 @@ from memoria_curitibana.domains.archive.models import (
     ArchiveDocumentEntity,
     ArchiveEntity,
     ArchiveReviewStatus,
+    ArchiveTag,
+    DomainNerExclusion,
+    DomainStopwords,
 )
+from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
+from memoria_curitibana.domains.archive.repository.entity_repo import EntityRepository
 from memoria_curitibana.domains.archive.schemas.entity_schema import ArchiveEntityDTO
-from memoria_curitibana.domains.archive.workers.worker_ner import execute
+from memoria_curitibana.domains.archive.workers.worker_ner import execute, load_entity_blacklist
 
 
 @patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
@@ -164,3 +169,194 @@ def test_worker_ner_integration_ignores_fully_null_rows(mock_get_engine, db_sess
     db_session.expire_all()
     verified_doc = db_session.get(ArchiveDocument, "doc_fantasma")
     assert verified_doc.execution_log is None or "worker_ner_v1" not in verified_doc.execution_log
+
+
+# ==========================================
+# NER EXCLUSIONS — the negative anchoring cycle
+# ==========================================
+
+
+def test_load_entity_blacklist_merges_stopwords_and_exclusions(use_test_db, db_session):
+    """Noise and curation decisions share one filter but keep separate origins."""
+    db_session.add_all(
+        [
+            DomainStopwords(word="lixo", word_scope="ENTITY"),
+            DomainStopwords(word="generico", word_scope="ALL"),
+            DomainStopwords(word="ofício", word_scope="TAG"),  # tag-only: must stay out
+            DomainNerExclusion(term="iptu", source="JUDGE"),
+        ]
+    )
+    db_session.commit()
+
+    blacklist = load_entity_blacklist(db_session)
+
+    assert blacklist == {"lixo", "generico", "iptu"}
+
+
+@patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
+def test_worker_ner_does_not_recreate_an_excluded_entity(mock_get_engine, db_session, generate_archive_doc):
+    """THE NEGATIVE CYCLE, end to end.
+
+    The judge decided the term is a TAG, so the exclusion is in the catalog. On the
+    next run the engine still returns the same entity (a real spaCy would), and the
+    worker must drop it: no entity row, no link, but the document is stamped DONE so
+    the queue advances instead of retrying forever.
+    """
+    mock_get_engine.return_value.extract.return_value = [
+        [
+            ArchiveEntityDTO(name="IPTU", entity_type="ORG"),
+            ArchiveEntityDTO(name="Curitiba", entity_type="LOC"),
+        ]
+    ]
+
+    doc = generate_archive_doc(
+        description_id="doc_excluded",
+        original_title="Guia do IPTU",
+        scope_content="O IPTU de Curitiba foi reajustado.",
+    )
+    db_session.add(doc)
+    db_session.commit()
+
+    # The curation already settled the clash: "iptu" belongs to the subject axis.
+    EntityRepository(db_session).add_ner_exclusions(["iptu"], source="JUDGE", reason="assunto, não entidade")
+    db_session.commit()
+
+    execute(db=db_session)
+
+    db_session.expire_all()
+    stored_names = set(db_session.scalars(select(ArchiveEntity.name)).all())
+    assert "iptu" not in stored_names
+    assert "curitiba" in stored_names
+
+    links = db_session.scalars(select(ArchiveDocumentEntity)).all()
+    assert len(links) == 1
+
+    assert db_session.get(ArchiveDocument, "doc_excluded").execution_log["worker_ner_v1"] == "DONE"
+
+
+@patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
+def test_worker_ner_blocks_an_excluded_term_merged_into_a_longer_entity(
+    mock_get_engine, db_session, generate_archive_doc
+):
+    """Regression, found with the real spaCy engine.
+
+    The model merges neighbouring tokens, so excluding "iptu" is not enough when the
+    filter compares whole names: the engine returns "IPTU do Batel" and the false
+    positive survives the exclusion. The block must work on token boundaries.
+    """
+    mock_get_engine.return_value.extract.return_value = [
+        [
+            ArchiveEntityDTO(name="IPTU do Batel", entity_type="LOC"),
+            ArchiveEntityDTO(name="Iptuana", entity_type="LOC"),
+        ]
+    ]
+
+    doc = generate_archive_doc(
+        description_id="doc_merged",
+        original_title="Guia do IPTU",
+        scope_content="O IPTU do Batel foi reajustado.",
+    )
+    db_session.add(doc)
+    db_session.commit()
+
+    EntityRepository(db_session).add_ner_exclusions(["iptu"], source="JUDGE")
+    db_session.commit()
+
+    execute(db=db_session)
+
+    db_session.expire_all()
+    stored_names = set(db_session.scalars(select(ArchiveEntity.name)).all())
+    assert "iptu do batel" not in stored_names
+    # Token boundaries hold: a different word containing the letters is untouched.
+    assert "iptuana" in stored_names
+
+
+@patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
+def test_worker_ner_recreates_the_entity_after_the_exclusion_is_removed(
+    mock_get_engine, db_session, generate_archive_doc
+):
+    """The exclusion is reversible: withdrawing it re-opens the extraction.
+
+    This is what makes the mechanism a curation decision instead of a one-way door.
+    """
+    mock_get_engine.return_value.extract.return_value = [[ArchiveEntityDTO(name="IPTU", entity_type="ORG")]]
+
+    doc = generate_archive_doc(
+        description_id="doc_reopened",
+        original_title="Guia do IPTU",
+        scope_content="O IPTU de Curitiba foi reajustado.",
+    )
+    db_session.add(doc)
+    db_session.commit()
+
+    repo = EntityRepository(db_session)
+    repo.add_ner_exclusions(["iptu"], source="JUDGE")
+    db_session.commit()
+    repo.remove_ner_exclusions(["iptu"])
+    db_session.commit()
+
+    execute(db=db_session)
+
+    db_session.expire_all()
+    assert set(db_session.scalars(select(ArchiveEntity.name)).all()) == {"iptu"}
+
+
+def test_excluded_entity_never_comes_back_through_a_synonym_rule(use_test_db, db_session):
+    """The exclusion also closes the positive door: the EntityRuler must not receive
+    a pattern for a vetoed spelling, otherwise spaCy would re-create it with ``ent_id_``."""
+    from memoria_curitibana.domains.archive.models import DomainSynonyms
+
+    entity = ArchiveEntity(name="Iptu", entity_type="ORG")
+    db_session.add(entity)
+    db_session.commit()
+
+    db_session.add(DomainSynonyms(synonym_name="iptu", category="ORG", canonical_entity_id=entity.entity_id))
+    db_session.commit()
+
+    repo = EntityRepository(db_session)
+    assert len(repo.get_ner_synonyms_rules()) == 1
+
+    repo.add_ner_exclusions(["iptu"], source="HUMAN")
+    db_session.commit()
+
+    assert repo.get_ner_synonyms_rules() == []
+
+
+def test_purging_tag_stopwords_spares_the_winning_tag(use_test_db, db_session):
+    """Regression guard for the collateral damage of storing exclusions as stopwords.
+
+    ``TagRepository.get_stopwords`` used to read every scope, so an ENTITY-scoped ban
+    on "iptu" made the subject-axis purge delete the tag the curator had just kept.
+    """
+    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+    from memoria_curitibana.domains.archive.services.tag_service import TagService
+
+    tag = ArchiveTag(name="iptu")
+    db_session.add(tag)
+    db_session.commit()
+
+    entity = ArchiveEntity(name="IPTU", entity_type="ORG")
+    db_session.add(entity)
+    db_session.commit()
+
+    EntityRepository(db_session).resolve_cross_domain_conflict(
+        winner="TAG", tag_id=tag.tag_id, entity_id=entity.entity_id, source="JUDGE"
+    )
+    db_session.commit()
+
+    tag_repo = TagRepository(db_session)
+    service = TagService(tag_repo, DocumentRepository(db_session))
+    deleted = service.purge_stopwords()
+
+    assert deleted == 0
+    assert db_session.get(ArchiveTag, tag.tag_id) is not None
+
+
+def test_entity_scoped_stopword_is_still_honoured_by_the_purge_of_tags(use_test_db, db_session):
+    """The scope filter must not break the legitimate TAG/ALL behaviour."""
+    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+
+    db_session.add_all([ArchiveTag(name="lixo"), DomainStopwords(word="lixo", word_scope="ALL")])
+    db_session.commit()
+
+    assert TagRepository(db_session).get_stopwords() == {"lixo"}

@@ -36,6 +36,34 @@ def test_clean_raw_text_empty():
 
 
 # ==========================================
+# 1b. BLOCKED-NAME MATCHING
+# ==========================================
+
+
+def test_is_blocked_entity_name_matches_exactly():
+    assert worker_ner.is_blocked_entity_name("IPTU", {"iptu"})
+
+
+def test_is_blocked_entity_name_matches_a_token_inside_a_merged_entity():
+    """Regression, found with the real spaCy engine.
+
+    Excluding "iptu" but matching the name exactly let the model's merged output
+    ("IPTU do Batel") straight through — the false positive survived the exclusion.
+    """
+    assert worker_ner.is_blocked_entity_name("IPTU do Batel", {"iptu"})
+
+
+def test_is_blocked_entity_name_respects_token_boundaries():
+    """A legitimate name that merely contains the letters must never be blocked."""
+    assert not worker_ner.is_blocked_entity_name("Iptuana", {"iptu"})
+    assert not worker_ner.is_blocked_entity_name("Prefeitura de Curitiba", {"iptu"})
+
+
+def test_is_blocked_entity_name_ignores_empty_blacklist():
+    assert not worker_ner.is_blocked_entity_name("IPTU", set())
+
+
+# ==========================================
 # 2. WORKER ORCHESTRATION TESTS
 # ==========================================
 

@@ -54,7 +54,9 @@ def test_high_confidence_resolves_and_records_ai_approved(db_session, mocker, mo
 
     worker.execute(db=db_session, auto_resolve_threshold=0.85)
 
-    resolve.assert_called_once_with(winner="ENTITY", tag_id=1, entity_id=10)
+    # ``source="JUDGE"`` records the LLM as the author of the decision in the NER
+    # exclusion catalog, so a curator can tell an AI call from their own.
+    resolve.assert_called_once_with(winner="ENTITY", tag_id=1, entity_id=10, source="JUDGE")
     entries = _queue_entries(db_session)
     assert len(entries) == 1
     assert entries[0].status == ArchiveReviewStatus.AI_APPROVED
