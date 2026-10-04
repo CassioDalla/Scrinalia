@@ -451,6 +451,37 @@ class TagService:
     # MACRO CATEGORIES (SUBJECT AXIS)
     # ==========================================
 
+    def list_subject_exclusions(self) -> list[str]:
+        """Lists the terms the curation decided are not a subject."""
+        return sorted(self.repo.get_subject_exclusions())
+
+    def exclude_terms_from_subjects(self, words: list[str], reason: str | None = None) -> int:
+        """
+        Records that a term is not a subject, so the classifier stops guessing at it.
+
+        This is the curated half of the NENHUMA class. The deterministic guard in
+        ``domain.vocabulary`` matches a form; the terms that reach here have none — a generic
+        ``pessoas``, a photographic ``vista aérea``, an unknown proper noun — and the model,
+        unable to abstain, answers them confidently and wrongly.
+
+        Unlike the NER exclusion this does **not** purge anything: the term stays a tag of the
+        collection and stays reachable by search. Only the subject classifier is silenced.
+        """
+        clean_words = [normalize_tag(word) for word in words if word.strip()]
+        if not clean_words:
+            raise InvalidParam("Nenhum termo válido foi informado.")
+
+        logger.info(f"🚫 Marking {len(clean_words)} term(s) as not-a-subject...")
+        return self.repo.add_subject_exclusions(clean_words, source="HUMAN", reason=reason)
+
+    def remove_subject_exclusions(self, words: list[str]) -> int:
+        """Undoes the decision and puts the terms back in the classification queue."""
+        clean_words = [normalize_tag(word) for word in words if word.strip()]
+        if not clean_words:
+            return 0
+
+        return self.repo.remove_subject_exclusions(clean_words)
+
     def list_macro_categories(self, only_active: bool = False) -> list[ArchiveMacroCategoryEntityDTO]:
         """Lists the official macro categories of the collection."""
         return self.repo.get_macro_categories(only_active=only_active)

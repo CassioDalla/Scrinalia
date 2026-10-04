@@ -1,7 +1,7 @@
 from collections import defaultdict
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from sqlalchemy import (
     CursorResult,
@@ -49,6 +49,7 @@ from memoria_curitibana.domains.archive.models import (
     ArchiveTagMergeProposal,
     ArchiveTaxonomyMergeLog,
     DomainStopwords,
+    DomainSubjectExclusion,
     DomainSynonyms,
     StopwordsScope,
 )
@@ -75,6 +76,9 @@ from memoria_curitibana.domains.archive.schemas import (
     TagRelevanceIdf,
     TagSimilarity,
 )
+
+#: Who recorded a subject exclusion: the archivist, or the deterministic guard.
+SubjectExclusionSource = Literal["HUMAN", "RULE"]
 
 
 class TagRepository:
@@ -246,6 +250,45 @@ class TagRepository:
 
         self.db.flush()
         return ArchiveMacroCategoryEntityDTO.model_validate(category)
+
+    def get_subject_exclusions(self) -> set[str]:
+        """
+        The curated list of terms that are not a subject, in lowercase.
+
+        Read by ``worker_macro_category`` before the model is asked anything. It is the second
+        half of the NENHUMA class: the deterministic guard covers what has a recognisable
+        form, and this covers the judgements no rule reaches (``pessoas``, ``vista aérea``).
+        """
+        stmt = select(DomainSubjectExclusion.term)
+        return set(self.db.scalars(stmt).all())
+
+    def add_subject_exclusions(
+        self,
+        terms: Sequence[str],
+        *,
+        source: SubjectExclusionSource = "HUMAN",
+        reason: str | None = None,
+    ) -> int:
+        """Registers exclusions idempotently. Returns how many terms were actually inserted."""
+        rows = [{"term": normalize_tag(term), "source": source, "reason": reason} for term in terms if term.strip()]
+
+        if not rows:
+            return 0
+
+        stmt = insert(DomainSubjectExclusion).values(rows).on_conflict_do_nothing(index_elements=["term"])
+        result = cast(CursorResult, self.db.execute(stmt))
+        return result.rowcount
+
+    def remove_subject_exclusions(self, terms: Sequence[str]) -> int:
+        """Re-opens the subject classifier for the given terms. Returns how many were removed."""
+        clean_terms = [normalize_tag(term) for term in terms if term.strip()]
+
+        if not clean_terms:
+            return 0
+
+        stmt = delete(DomainSubjectExclusion).where(DomainSubjectExclusion.term.in_(clean_terms))
+        result = cast(CursorResult, self.db.execute(stmt))
+        return result.rowcount
 
     def purge_tags_by_stopwords(self, stopwords: set[str]) -> int:
         """Mass deletes all tags that match the stopwords list."""

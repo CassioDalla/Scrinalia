@@ -93,6 +93,13 @@ class NerExclusionRequest(BaseModel):
     reason: str | None = Field(default=None, description="Why the decision was made; kept for auditing.")
 
 
+class SubjectExclusionRequest(BaseModel):
+    """Terms a curator declares to be no subject at all (the second half of NENHUMA)."""
+
+    words: list[str] = Field(min_length=1, description="Terms to keep out of the subject classifier.")
+    reason: str | None = Field(default=None, description="Why the decision was made; kept for auditing.")
+
+
 class ConflictResolutionResponse(BaseModel):
     message: str
     data: ConflictResolutionData

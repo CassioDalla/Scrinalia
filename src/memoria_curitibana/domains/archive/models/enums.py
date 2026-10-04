@@ -26,6 +26,12 @@ class StopwordsScope(enum.StrEnum):
 
 class AnomalyType(enum.StrEnum):
     CROSS_DOMAIN_COLLISION = "CROSS_DOMAIN_COLLISION"
+    #: The subject classifier was not confident enough to give the tag a drawer, so it stays
+    #: orphan and a curator decides. Measured on the labelled set, the confidence separates a
+    #: right answer from a wrong one by ~0.25 (0.705 vs 0.455 on bare names), which is what
+    #: makes routing on it meaningful instead of cosmetic. An empty badge beats a wrong badge
+    #: in a UI that is about to amplify both.
+    SUBJECT_LOW_CONFIDENCE = "SUBJECT_LOW_CONFIDENCE"
 
 
 class TagFacetType(enum.StrEnum):

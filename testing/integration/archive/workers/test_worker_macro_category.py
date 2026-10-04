@@ -323,3 +323,183 @@ def test_the_guard_keeps_non_subjects_out_on_a_real_database(use_test_db, db_ses
         assert tag.ai_confidence_score is None
         # Stamped, otherwise the batch would revisit them on every run.
         assert "worker_macro_category_v1" in tag.execution_log
+
+
+# ==========================================
+# THE CONFIDENCE FLOOR AND THE REVIEW QUEUE
+# ==========================================
+
+
+def test_a_guess_below_the_floor_goes_to_the_review_queue(use_test_db, db_session, mock_registry):
+    """
+    Below 0.55 the tag is not linked **and** the curator gets a decision to make.
+
+    Measured on the labelled set, a wrong answer averages 0.455 and a right one 0.705, so
+    the floor is what separates them. A silent orphan would read as "nothing to see here",
+    which is the opposite of the truth.
+    """
+    from memoria_curitibana.domains.archive.models import AnomalyType, ArchiveAIReviewQueue, ArchiveReviewStatus
+
+    category = ArchiveMacroCategory(name="Urbanismo")
+    db_session.add(category)
+    db_session.commit()
+
+    tag = ArchiveTag(name="termo duvidoso")
+    db_session.add(tag)
+    db_session.commit()
+    tag_id = tag.tag_id
+
+    _fake_engine(mock_registry, "Urbanismo", 0.45)
+
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
+
+    updated = db_session.get(ArchiveTag, tag_id)
+    assert updated.macro_category_id is None
+    assert updated.ai_confidence_score == pytest.approx(0.45)
+
+    queued = db_session.query(ArchiveAIReviewQueue).filter_by(anomaly_type=AnomalyType.SUBJECT_LOW_CONFIDENCE).all()
+    assert len(queued) == 1
+    assert queued[0].status == ArchiveReviewStatus.NEEDS_REVIEW
+    assert queued[0].context_payload["tag_id"] == tag_id
+    assert queued[0].context_payload["tag_name"] == "termo duvidoso"
+    assert queued[0].llm_confidence == pytest.approx(0.45)
+    assert queued[0].llm_decision == "Urbanismo"
+
+
+def test_a_confident_answer_is_linked_and_never_queued(use_test_db, db_session, mock_registry):
+    """The queue is for doubts; a settled tag must not add noise to it."""
+    from memoria_curitibana.domains.archive.models import AnomalyType, ArchiveAIReviewQueue
+
+    category = ArchiveMacroCategory(name="Religião")
+    db_session.add(category)
+    db_session.commit()
+    # Read eagerly: the worker calls ``expunge_all()`` and detaches the instances.
+    category_id = category.category_id
+
+    tag = ArchiveTag(name="igrejas")
+    db_session.add(tag)
+    db_session.commit()
+    tag_id = tag.tag_id
+
+    _fake_engine(mock_registry, "Religião", 0.95)
+
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
+
+    assert db_session.get(ArchiveTag, tag_id).macro_category_id == category_id
+    queued = db_session.query(ArchiveAIReviewQueue).filter_by(anomaly_type=AnomalyType.SUBJECT_LOW_CONFIDENCE).all()
+    assert queued == []
+
+
+def test_the_floor_is_higher_than_the_measured_average_of_a_wrong_answer(use_test_db, db_session, mock_registry):
+    """
+    A score that used to pass (0.40, the old floor) must now be routed to review.
+
+    This is the number the measurement changed, so it is pinned: 0.45 is above the old
+    threshold and below the measured mean of a wrong answer.
+    """
+    from memoria_curitibana.domains.archive.models import AnomalyType, ArchiveAIReviewQueue
+
+    db_session.add(ArchiveMacroCategory(name="Urbanismo"))
+    db_session.add(ArchiveTag(name="alvenaria"))
+    db_session.commit()
+
+    _fake_engine(mock_registry, "Urbanismo", 0.44)
+
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
+
+    assert (
+        db_session.query(ArchiveAIReviewQueue).filter_by(anomaly_type=AnomalyType.SUBJECT_LOW_CONFIDENCE).count() == 1
+    )
+
+
+# ==========================================
+# THE CURATED HALF OF NENHUMA
+# ==========================================
+
+
+def test_a_curated_exclusion_never_reaches_the_model(use_test_db, db_session, mock_registry):
+    """
+    ``pessoas`` is too generic to be an aboutness and no rule can tell — so a human does.
+
+    The deterministic guard matches a form; these three were the ones it could not reach in
+    the labelled set, which is why the catalogue exists next to it.
+    """
+    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+
+    db_session.add(ArchiveMacroCategory(name="Urbanismo"))
+    not_subjects = ["pessoas", "vista aérea", "capanema"]
+    db_session.add_all([ArchiveTag(name=name) for name in not_subjects])
+    db_session.add(ArchiveTag(name="parque"))
+    db_session.commit()
+
+    TagRepository(db_session).add_subject_exclusions(not_subjects, reason="não é assunto")
+    db_session.commit()
+
+    ai_instance = _fake_engine(mock_registry, "Urbanismo", 0.95)
+
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
+
+    # Only the real subject was classified.
+    args, _kwargs = ai_instance.classify.call_args
+    assert args[0] == ["parque"]
+
+    for tag in db_session.query(ArchiveTag).filter(ArchiveTag.name.in_(not_subjects)):
+        assert tag.macro_category_id is None
+        # Stamped, so the batch does not revisit them forever.
+        assert "worker_macro_category_v1" in tag.execution_log
+
+
+def test_an_excluded_term_stays_a_reachable_tag(use_test_db, db_session, mock_registry):
+    """
+    The exclusion silences the classifier, not the term.
+
+    ``pessoas`` reaches 166 documents and a search for it must still work: the decision is
+    "this is not a subject", never "this is not in the collection".
+    """
+    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+
+    db_session.add(ArchiveTag(name="vista aérea"))
+    db_session.commit()
+
+    TagRepository(db_session).add_subject_exclusions(["vista aérea"], reason="ponto de vista")
+    db_session.commit()
+
+    assert db_session.query(ArchiveTag).filter_by(name="vista aérea").count() == 1
+
+
+def test_the_exclusion_catalogue_is_idempotent(use_test_db, db_session):
+    """A re-run of the curation must not duplicate the row or raise."""
+    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+
+    repository = TagRepository(db_session)
+    assert repository.add_subject_exclusions(["pessoas"]) == 1
+    db_session.commit()
+    assert repository.add_subject_exclusions(["pessoas"]) == 0
+    db_session.commit()
+    assert repository.get_subject_exclusions() == {"pessoas"}
+
+
+def test_undoing_an_exclusion_reopens_the_classifier(use_test_db, db_session, mock_registry):
+    """The catalogue is reversible: removing the row puts the tag back in the queue."""
+    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+
+    category = ArchiveMacroCategory(name="Assistência e Questões Sociais")
+    db_session.add(category)
+    db_session.add(ArchiveTag(name="pessoas"))
+    db_session.commit()
+    category_id = category.category_id
+
+    repository = TagRepository(db_session)
+    repository.add_subject_exclusions(["pessoas"], reason="engano")
+    db_session.commit()
+
+    ai_instance = _fake_engine(mock_registry, "Assistência e Questões Sociais", 0.95)
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
+    ai_instance.classify.assert_not_called()
+
+    assert repository.remove_subject_exclusions(["pessoas"]) == 1
+    db_session.commit()
+
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste", force=True)  # type: ignore
+    ai_instance.classify.assert_called_once()
+    assert db_session.query(ArchiveTag).filter_by(name="pessoas").one().macro_category_id == category_id

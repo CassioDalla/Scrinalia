@@ -7,6 +7,7 @@ from .governance import (
     ArchiveCleaningRule,
     DomainNerExclusion,
     DomainStopwords,
+    DomainSubjectExclusion,
     DomainSynonyms,
     DomainTextTemplate,
 )
@@ -38,6 +39,7 @@ __all__ = [
     "ArchiveTypology",
     "DomainNerExclusion",
     "DomainStopwords",
+    "DomainSubjectExclusion",
     "DomainSynonyms",
     "DomainTextTemplate",
     "StopwordsScope",

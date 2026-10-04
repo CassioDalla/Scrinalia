@@ -22,6 +22,7 @@ from memoria_curitibana.api.schemas.taxonomy import (
     NerExclusionRequest,
     ReclassifyEntityRequest,
     StopwordsRequest,
+    SubjectExclusionRequest,
     SuggestMacroRequest,
 )
 from memoria_curitibana.domains.archive.schemas import (
@@ -277,6 +278,43 @@ class TaxonomyController(Controller):
         )
 
         return results
+
+    # ==========================================
+    # ROUTES: SUBJECT EXCLUSIONS (the term is not an "about")
+    # ==========================================
+
+    @get("/tags/subject-exclusions", sync_to_thread=True)
+    def list_subject_exclusions(self, tag_service: NamedDependency[TagService]) -> list[str]:
+        """Lists the terms the curation decided are not a subject."""
+        return tag_service.list_subject_exclusions()
+
+    @post("/tags/subject-exclusions", status_code=201, sync_to_thread=True)
+    def create_subject_exclusions(
+        self, tag_service: NamedDependency[TagService], data: SubjectExclusionRequest
+    ) -> dict:
+        """
+        Records that a term is not a subject, so the classifier stops guessing at it.
+
+        Nothing is deleted: the term stays a tag of the collection and stays reachable by
+        search. Only the subject classification is silenced, which is what turns "the model
+        answers confidently and wrongly" into "the curator decided".
+        """
+        created = tag_service.exclude_terms_from_subjects(data.words, reason=data.reason)
+        return {
+            "message": "Termos marcados como não-assunto: o classificador de assuntos vai ignorá-los.",
+            "created": created,
+        }
+
+    @delete("/tags/subject-exclusions", status_code=200, sync_to_thread=True)
+    def remove_subject_exclusions(
+        self, tag_service: NamedDependency[TagService], data: SubjectExclusionRequest
+    ) -> dict:
+        """Undoes the decision and puts the terms back in the classification queue."""
+        removed = tag_service.remove_subject_exclusions(data.words)
+        return {
+            "message": "Exclusões removidas: o classificador voltará a considerar esses termos.",
+            "removed": removed,
+        }
 
     @get("/macro-categories", sync_to_thread=True)
     def list_macro_categories(

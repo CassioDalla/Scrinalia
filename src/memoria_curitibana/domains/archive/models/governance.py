@@ -118,6 +118,46 @@ class DomainNerExclusion(Base):
     __table_args__ = (CheckConstraint("source IN ('JUDGE', 'HUMAN')", name="chk_ner_exclusion_source"),)
 
 
+class DomainSubjectExclusion(Base):
+    """
+    Terms the curation decided are not a *subject* at all.
+
+    The deterministic guard in ``domain.vocabulary`` covers what has a recognisable **form**:
+    a bare year, a placeholder, a street, a number with a unit. Measured against the labelled
+    set it catches one of four non-subjects, because the rest are semantic judgements with no
+    shape to match — ``pessoas`` (166 documents) is too generic to be an aboutness,
+    ``vista aérea`` (89) is a photographic point of view, ``capanema`` (91) is a proper noun
+    the guard has never seen. No rule reaches those, and the model cannot abstain: asked to
+    choose, it chooses confidently and wrongly.
+
+    So the second half of the class is a **decision**, and this table is where it lives —
+    deliberately the same shape as :class:`DomainNerExclusion`, because the two are the same
+    kind of statement about a different axis: "this term belongs to no subject drawer, and a
+    human said so". Keeping it apart from ``DomainStopwords`` is what lets a curator undo it
+    without touching the generic purge, and gives it provenance (``reason``, ``source``).
+
+    Unlike ``DomainNerExclusion`` the verdict is not merely "do not extract": an excluded term
+    must also never be **classified**, and it stays a tag of the collection, reachable by
+    search. The exclusion silences the subject classifier, not the term.
+    """
+
+    __tablename__ = "domain_subject_exclusions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    # The tag spelling, normalized to lowercase like every other taxonomy key.
+    term: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Who decided: a human curator, or the deterministic guard recorded for auditability.
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="HUMAN", server_default="HUMAN")
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (CheckConstraint("source IN ('HUMAN', 'RULE')", name="chk_subject_exclusion_source"),)
+
+
 class ArchiveAIReviewQueue(Base):
     """Unified queue for AI auditing. Stores context in JSONB."""
 

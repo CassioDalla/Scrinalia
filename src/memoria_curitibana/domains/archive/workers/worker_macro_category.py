@@ -6,10 +6,16 @@ from memoria_curitibana.core.database import get_db
 from memoria_curitibana.core.logger import logger
 from memoria_curitibana.core.runner_config import MacroCategoryRunnerConfig
 from memoria_curitibana.core.unit_of_work import UnitOfWork
+from memoria_curitibana.domains.archive.domain.normalization import normalize_tag
 from memoria_curitibana.domains.archive.domain.vocabulary import is_subject_candidate, label_set_fingerprint
 from memoria_curitibana.domains.archive.engines.base import TypologyEngine
 from memoria_curitibana.domains.archive.engines.classification.registry import EngineName, PresetName, get_engine
-from memoria_curitibana.domains.archive.models import ArchiveTag
+from memoria_curitibana.domains.archive.models import (
+    AnomalyType,
+    ArchiveAIReviewQueue,
+    ArchiveReviewStatus,
+    ArchiveTag,
+)
 from memoria_curitibana.domains.archive.repository import TagRepository
 from memoria_curitibana.domains.archive.worker_stamp import MACRO_CATEGORY
 
@@ -89,8 +95,15 @@ def execute(
     # failure is not hypothetical: the V3 migration retired ``Instituição`` while its tags
     # kept ``worker_macro_category_v1: DONE``, so the correction would never have reached
     # them. Same trick as ``worker_embedding``, applied to a catalog instead of a text.
+    # The curated half of the NENHUMA class. The deterministic guard covers what has a
+    # recognisable form; these are the judgements no rule reaches (``pessoas``, ``vista
+    # aérea``, ``capanema``), where the model cannot abstain and answers confidently wrong.
+    excluded_terms = repository.get_subject_exclusions()
+
     label_fingerprint = label_set_fingerprint(categories_map)
     logger.info(f"📂 {len(candidate_labels)} macro categories loaded (labels {label_fingerprint[:12]}).")
+    if excluded_terms:
+        logger.info(f"🚫 {len(excluded_terms)} curated subject exclusion(s) will be honoured.")
 
     where_cond: list[ColumnElement[bool]] = [ArchiveTag.macro_category_id.is_(None)]
 
@@ -139,7 +152,11 @@ def execute(
             # not a subject and never reaches the model. Measured, this is ~1.600 documents
             # that today receive a confident wrong answer (``1924`` -> "Mobilidade" with
             # 0.73), and a rule cannot hallucinate the way an abstention threshold can.
-            classifiable = [tag for tag in batch_tags if is_subject_candidate(tag.name)]
+            classifiable = [
+                tag
+                for tag in batch_tags
+                if is_subject_candidate(tag.name) and normalize_tag(tag.name) not in excluded_terms
+            ]
             skipped = len(batch_tags) - len(classifiable)
 
             try:
@@ -159,7 +176,7 @@ def execute(
             # Stamped as processed with the current label set: the guard is a verdict, not a
             # failure, so a re-run must not revisit them unless the vocabulary changes.
             for tag in batch_tags:
-                if is_subject_candidate(tag.name):
+                if tag in classifiable:
                     continue
                 tag.macro_category_id = None
                 tag.ai_confidence_score = None
@@ -185,7 +202,24 @@ def execute(
                         else:
                             logger.warning(f"Tag {tag.tag_id}: category '{best_label}' not found in the database map.")
                     else:
-                        logger.debug(f"Tag {tag.tag_id} ignored (Low confidence)")
+                        # Not linked, and it must not vanish: the curator gets a decision to
+                        # make. Below the floor the model is guessing (measured: a wrong
+                        # answer averages 0.455), and a silent orphan reads as "nothing to
+                        # see here" — the opposite of the truth.
+                        logger.debug(f"Tag {tag.tag_id} '{tag.name}' sent to review ({confidence_score:.1%})")
+                        db.add(
+                            ArchiveAIReviewQueue(
+                                anomaly_type=AnomalyType.SUBJECT_LOW_CONFIDENCE,
+                                status=ArchiveReviewStatus.NEEDS_REVIEW,
+                                context_payload={"tag_id": tag.tag_id, "tag_name": tag.name},
+                                llm_decision=best_label,
+                                llm_confidence=confidence_score,
+                                llm_reason=(
+                                    f"A classificação de assunto não atingiu o limiar "
+                                    f"({config.confidence_threshold:.2f}); a tag ficou sem gaveta."
+                                ),
+                            )
+                        )
 
                     total_processed += 1
 
