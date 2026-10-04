@@ -8,7 +8,7 @@ arquivístico (DDD + micro-workers + HITL).
 > pendente. Quando um item está parcialmente pronto, ele aparece como `[~]` com a descrição
 > explícita do que existe e do que falta.
 >
-> **Estado do gate de qualidade:** suíte **301 testes** passando (unit + integração),
+> **Estado do gate de qualidade:** suíte **319 testes** passando (unit + integração),
 > `ruff check`/`ruff format --check` limpos, `basedpyright` 0 erros,
 > `alembic upgrade head` + `alembic check` sem drift.
 
@@ -21,7 +21,7 @@ arquivístico (DDD + micro-workers + HITL).
 | 1 | Fundação, pipeline de IA e governança de base | **Praticamente fechada** |
 | 1.5 | Macro Categorias (eixo de Assuntos) | **Núcleo fechado** — resta o front e o defeito de rótulo |
 | 2 | API + Curadoria humana (HITL) | **Fechada no essencial**, faltam ações locais |
-| 3 | Descoberta, escala e observabilidade | **Parcial** — busca é o maior buraco |
+| 3 | Descoberta, escala e observabilidade | **Parcial** — busca fechada; faltam lematização de tags e operação |
 | 4 | Interoperabilidade, agentes e publicação | Não iniciada |
 
 O sistema **funciona ponta a ponta** até a camada Archive: ingestão → staging → archive →
@@ -277,20 +277,44 @@ O eixo semântico de assuntos está modelado e pela metade implementado. Hoje a 
 
 ### Motor de Busca
 
-- [~] **Busca textual:** `DocumentRepository.search()` faz `ILIKE '%termo%'` em
-  `original_title`, `final_title` e `scope_content`. Funciona e tem paginação, mas é
-  *contains* sem ranking, sem stemming, sem índice de texto — não escala.
-- [ ] **Full-Text Search nativo (PostgreSQL):**
-  - [ ] Preencher `semantic_search_vector`. **A coluna existe e nunca é escrita** —
-    hoje é `None` em todos os documentos.
-  - [ ] Coluna `tsvector` + índice GIN com dicionário `portuguese`.
-  - [ ] Trocar o `ILIKE` por `@@` com ranking (`ts_rank`).
-- [ ] **Busca em tags e entidades:** hoje a busca cobre só 3 colunas do documento. As ~40
-  tags e as entidades não entram na busca.
+> **Sessão de 2026-10-03 (Buraco 3):** a busca deixou de ser `ILIKE` e passou a ser
+> full-text nativa com ranking, alcançando tags e entidades e com filtros facetados.
+> Ver a evidência no fim do documento.
+
+- [x] **Busca textual com ranking:** `DocumentRepository.search()` deixou o
+  `ILIKE '%termo%'` e passou a usar `search_vector @@ to_tsquery(...)` com
+  `ts_rank`. Ordenação: relevância, depois `updated_at` e `description_id`
+  (paginação estável).
+- [x] **Full-Text Search nativo (PostgreSQL):**
+  - [x] **Coluna morta resolvida por remoção:** `semantic_search_vector` (Text, sempre
+    `None`) foi **dropada** na migração `d4e7a1c9f3b2`. O roadmap §3 manda escolher entre
+    dar produtor ao campo ou tirá-lo do schema — não havia produtor honesto, então saiu.
+  - [x] **`search_vector tsvector` GERADO (STORED) + índice GIN** com dicionário
+    `portuguese`. Por ser coluna gerada pelo Postgres, é sempre consistente com o texto,
+    inclusive depois de edição humana (`update_review`) — sem worker e sem carimbo.
+  - [x] **Título pesa mais que corpo:** `setweight(..., 'A')` em
+    `final_title`/`original_title` e `'B'` em `scope_content`/`admin_bio_history`/`provenance`.
+  - [x] **Acento-insensível:** o dicionário `portuguese` sozinho **não** é confiável
+    (`gaucho` não achava `Gaúcho`; medido). Entrou `unaccent` + wrapper
+    `immutable_unaccent` (`unaccent(regdictionary,text)` é STABLE e não pode ir em coluna
+    gerada). Ganho medido no acervo real: `historica` → **0** no ILIKE antigo, **2489** agora.
+  - [x] **Prefixo do último token** (`matad:*`): busca enquanto se digita, com o
+    `to_tsquery` aplicando o mesmo stemming do vetor.
+  - [x] **Fallback de substring** para fragmento no meio da palavra, que o FTS não vê:
+    só roda quando a busca ranqueada (FTS + tags + entidades) não acha **nada**, para não
+    varrer a tabela em toda busca.
+- [x] **Busca em tags e entidades:** a busca cobre `archive_tags.name` e
+  `archive_entities.name` por `EXISTS` + `ILIKE` (acelerado pelos índices `gin_trgm_ops`
+  que já existiam). `EXISTS` evita duplicar documento com várias tags que casam e evita
+  contar duas vezes no `total`. Casamento por taxonomia entra no ranking com bônus.
+- [x] **Filtros facetados:** `typology_id`, `macro_category_id` (qualquer tag da gaveta),
+  `entity_type` (LOC/PER/ORG) e `date_from`/`date_to`. As facetas valem para a página e
+  para o `total`.
+- [x] **`rank` exposto no `DocumentSummary`** (relevância), para o front explicar a ordem.
 - [ ] **Busca semântica (pgvector):** embeddings + similaridade de conceito
   ("desastres naturais" encontrar "enchentes"). Requer trocar a imagem para
-  `pgvector/pgvector` e adicionar a extensão via migração.
-- [ ] **Filtros facetados:** por tipologia, macro categoria, tipo de entidade, década.
+  `pgvector/pgvector` e adicionar a extensão via migração. **Adiada de propósito** —
+  decisão desta sessão: primeiro a busca lexical de verdade, que já não existia.
 
 ### Qualidade de dados
 
@@ -362,8 +386,8 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 
 | Verificação | Resultado |
 | --- | --- |
-| `pytest` (unit + integração) | **301 passed** |
-| `ruff check` / `ruff format --check` | limpos (181 arquivos) |
+| `pytest` (unit + integração) | **319 passed** |
+| `ruff check` / `ruff format --check` | limpos (185 arquivos) |
 | `basedpyright` | **0 errors, 0 warnings** |
 | `alembic upgrade head` + `alembic check` | aplica (inclui downgrade/upgrade); **sem drift** |
 | `raw_data` → `run_staging_pipeline` | 2/2 docs; datas e ISAD(G) corretos |
@@ -379,6 +403,14 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 | `POST /tags/suggest-macro` | **corrigido**: 41 tags → 3 clusters; 6 tags → vazio com mensagem |
 | Voto majoritário no `DocumentSummary` | derivado na leitura; editar tag **não** escreve em `archive_documents` |
 | Leitura/escrita via HTTP | listagem, busca, detalhe, merge, cleaning, conflitos: OK |
+| **Busca FTS com acento** (acervo real, 3608 docs) | `historica` → **2489** documentos; o `ILIKE` antigo devolvia **0** |
+| **Busca FTS com stemming** (acervo real) | `enchentes` → 17; o `ILIKE` antigo devolvia 0 |
+| **Busca alcança tags/entidades** (acervo real) | `matadouro` → 27; o `ILIKE` antigo devolvia 12 |
+| **Ranking título > corpo** (acervo real + HTTP) | página de `curitiba` ordenada por `rank` decrescente, título no topo |
+| **Facetas** (acervo real + HTTP) | tipologia 64 · `entity_type=LOC` 3509 · década de 1950 4 · macro categoria 2467, todas batendo com o SQL |
+| **Índices usados** (`EXPLAIN`) | `ix_archive_documents_search_vector` (GIN) na FTS e `idx_archive_tags_name_trgm` no `ILIKE` de tag |
+| **Fallback de substring** | fragmento no meio da palavra (sem tag/entidade que case) recupera a contagem do `ILIKE` antigo, sem `rank` |
+| Migração em banco limpo | `upgrade head` → `check` (exit 0) → `downgrade -1` → `upgrade head` → `check` sem drift |
 
 ### Bugs conhecidos e abertos
 
@@ -386,7 +418,9 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
    `domain_ner_exclusions` alimentado pelo juiz e pelo curador, com undo e expurgo retroativo.
    Ver Fase 1.
 2. **Lematização de tags ausente** — duplicação na origem — Fase 3.
-3. **`semantic_search_vector` nunca preenchido** — a busca híbrida prometida não existe — Fase 3.
+3. ~~**`semantic_search_vector` nunca preenchido** — a busca híbrida prometida não existia.~~
+   **Resolvido (Buraco 3):** a coluna morta foi removida e substituída por
+   `search_vector` gerado pelo Postgres (Fase 3).
 4. **`is_anomaly`, `anomaly_reasons` sem produtor** — colunas mortas.
 5. **Sem autenticação** — bloqueio para exposição pública — Fase 4.
 
@@ -399,3 +433,17 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 > e a tag que a justifica; o NER respeita o veto (inclusive contra tokens fundidos pelo
 > modelo) e o sinônimo positivo não o fura. A verificação com engine real revelou um
 > vazamento que nenhum teste com `mock_registry` pegaria — ver Fase 1.
+>
+> **Fechado em 2026-10-03 (Buraco 3):** a busca virou full-text nativa com ranking
+> (título > corpo), acento-insensível (`unaccent` + wrapper `IMMUTABLE`) e passou a
+> alcançar tags e entidades, com facetas de tipologia, macro categoria, tipo de entidade
+> e intervalo de datas. A coluna morta `semantic_search_vector` saiu; o vetor agora é
+> **gerado pelo Postgres** (`search_vector`), logo nunca fica obsoleto nem depende de
+> worker. Medição no acervo real: `historica` saiu de 0 (ILIKE) para 2489 resultados.
+> **Não reintroduzir `semantic_search_vector` nem concatenar descrição em rótulo.**
+>
+> **Achado de ambiente (2026-10-03):** o volume de desenvolvimento
+> (`memoriacuritibana`) **não é gerenciado pelo Alembic** — não tem `alembic_version` e
+> diverge das models em 43 pontos (falta `archive_tags.execution_log`, por exemplo). A
+> verificação desta sessão rodou em bancos limpos criados por `alembic upgrade head`, com
+> os dados reais copiados. Ver a armadilha correspondente em `.analysis/`.
