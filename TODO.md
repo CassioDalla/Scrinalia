@@ -22,12 +22,21 @@ arquivístico (DDD + micro-workers + HITL).
 | 1.5 | Macro Categorias (eixo de Assuntos) | **Núcleo fechado** — resta o front e o defeito de rótulo |
 | 2 | API + Curadoria humana (HITL) | **Fechada no essencial**, faltam ações locais |
 | 3 | Descoberta, escala e observabilidade | **Parcial** — busca lexical fechada; semântica funciona mas com qualidade fraca; faltam lematização de tags e operação |
+| **3.5** | **Qualidade do dado de entrada** | **PRIORIDADE MÁXIMA — planejada, não iniciada** (ver abaixo) |
 | 4 | Interoperabilidade, agentes e publicação | Não iniciada |
 
 O sistema **funciona ponta a ponta** até a camada Archive: ingestão → staging → archive →
 enriquecimento por IA → curadoria humana → bloqueio de reprocessamento. O que falta não é
-"fazer funcionar", é **fechar os eixos semânticos** (macro categorias, ancoragem
-tag↔entidade) e **tornar o acervo pesquisável de verdade**.
+"fazer funcionar", é **arrumar o dado de entrada** — que é a razão de o sistema existir —,
+**fechar os eixos semânticos** (macro categorias, ancoragem tag↔entidade) e **tornar o acervo
+pesquisável de verdade**.
+
+> **Correção de rota (2026-10-03, decisão do dono do produto).** A busca semântica fechou
+> ponta a ponta e mesmo assim não serve ao usuário; medido, o gargalo é o **dado de origem**
+> (53% do acervo compartilha o mesmo bloco de escopo, 99,8% tem a mesma proveniência, 53% não
+> tem data). A prioridade passou a ser a **Fase 3.5**, e o princípio é explícito: **a máquina
+> identifica e propõe; o arquivista decide.** Nada é apagado ou reescrito sem decisão humana
+> registrada.
 
 ---
 
@@ -367,6 +376,105 @@ O eixo semântico de assuntos está modelado e pela metade implementado. Hoje a 
 - [ ] **Deduplicação automática por trigramas:** o `pg_trgm` já está instalado e a rota
   `/tags/similar` já encontra pares (verificado: `prefeitura` × `prefeiruta` = 0.375).
   Falta o passo de agrupar e sugerir merges em lote.
+
+---
+
+## 🧹 Fase 3.5 — Qualidade do dado de entrada — **PRIORIDADE MÁXIMA**
+
+> **Por que esta fase existe:** o sistema foi construído para *arrumar a bagunça* do dado de
+> origem. A busca semântica fechou ponta a ponta e mesmo assim **não serve ao usuário**, e a
+> causa medida não é infraestrutura nem modelo — é o dado que entra.
+>
+> **Princípio de governança (decisão do dono do produto, 2026-10-03):** *o sistema não decide
+> o que é lixo.* A máquina **identifica e propõe**; **o arquivista decide**. Toda remoção passa
+> pela curadoria, com dry-run, undo e trilha de quem decidiu. Isso vale para boilerplate,
+> template de título e qualquer valor derivado.
+>
+> **Não implementar limpeza automática destrutiva.** Nenhuma fase abaixo pode apagar ou
+> reescrever dado do acervo sem aprovação humana registrada.
+
+### Diagnóstico medido (acervo real, 3608 documentos — 2026-10-03)
+
+| Sintoma medido | Número | Consequência |
+| --- | --- | --- |
+| `scope_content` preenchido, mas **12 textos distintos** | 2477 docs | **1930 docs (53%)** compartilham o mesmo bloco "Acervo de 35.327 fotografias…" |
+| `admin_bio_history` repetido | 682 docs com o mesmo texto | o histórico institucional some como sinal |
+| `provenance` preenchido em **99,8%** | 3600 docs | preenchimento em massa; quase sempre o mesmo valor → inútil como sinal |
+| `original_title` | 2232 distintos p/ 3608 docs | template `"Registros Fotográficos - X"` (um título repetido 46×) |
+| `document_date` ausente | **1925 docs (53%)** | metade do acervo fora da faceta de data e do mapa futuro |
+| `final_title` preenchido | **0** | coluna morta (terceira do mesmo padrão) |
+
+**Prova do efeito no embedding** (modelo real, `paraphrase-multilingual-MiniLM-L12-v2`):
+
+| Par de documentos (assuntos **diferentes**) | Texto de hoje | Só o título |
+| --- | --- | --- |
+| enchente × matadouro (deveria ser baixo) | **0,4478** | **0,1038** |
+| matadouro × matadouro (deveria ser alto) | 0,6537 | 0,7650 |
+
+O bloco de boilerplate **sozinho** tem 0,95 de similaridade com o documento de enchente: ele
+domina o vetor. Remover o texto repetido **melhora a separação em ~4×**.
+
+### Fase A — Ferramenta de curadoria de boilerplate
+
+O arquivista é quem manda; a máquina só aponta. Nada aqui altera dado do acervo.
+
+- [ ] **Modelar `DomainTextTemplate`** (nome provisório): catálogo de trechos repetidos com
+  `text`/`fingerprint` (unique), `scope` (DEFAULT/IGNORE/REPLACE), `replacement`, `reason`,
+  `source` (`SUGGESTED`/`HUMAN`), `is_active`, `created_by`, `created_at`.
+  Mesmo espírito de `domain_ner_exclusions` e `domain_stopwords`: decisão durável, auditável e
+  reversível.
+- [ ] **Rotina de sugestão por frequência** (não destrutiva): agrupar por
+  normalização de espaços e apontar trechos acima de um limiar de repetição (ex.: > 20% do
+  acervo), com contagem e amostra de documentos. **Ela só escreve sugestões** (`source=SUGGESTED`),
+  nunca aplica.
+- [ ] **Rotas de curadoria** (mesmo padrão de `/entities/ner-exclusions`):
+  `GET` (listar sugeridos + aprovados), `POST` (aprovar/editar/rejeitar um trecho),
+  `DELETE` (desfazer, com expurgo retroativo do efeito).
+- [ ] **Dry-run obrigatório:** mostrar quantos documentos e quais seriam afetados antes de
+  qualquer aplicação (`CleaningService` já faz simulação de impacto — reusar a ideia).
+- [ ] **UI:** tela de curadoria (aba de Qualidade de Dados, que já existe) listando candidatos
+  com contagem, texto e amostra, com aprovar/editar/rejeitar. Decidir o quanto investir no
+  Streamlit sabendo que ele será substituído.
+- [ ] **Testes:** sugestão por frequência (limiar, normalização), aprovação/rejeição, undo
+  retroativo e dry-run.
+
+### Fase B — Consumo do que foi aprovado (destrava a IA)
+
+Só depois de a Fase A existir e ter decisões humanas registradas.
+
+- [ ] **`build_embedding_text` subtrai os trechos aprovados** antes de compor o texto. O hash
+  de idempotência do `worker_embedding` **já é MD5 do texto**, então mudar a composição
+  re-queija tudo sozinho, sem `force` e sem carimbo novo.
+- [ ] **NER, typology e macro-category leem o texto limpo**, não o cru: o boilerplate hoje
+  também polui a extração de entidades e a classificação.
+- [ ] **Medir antes/depois com um conjunto rotulado** (10–20 pares consulta→documento
+  esperado). Sem número, não se afirma melhoria — foi exatamente a ausência disso que deixou a
+  busca semântica "pronta" e inútil.
+- [ ] **Registrar o ganho medido** no TODO e no roadmap, na tabela de evidências.
+
+### Fase C — Template de título e campos mortos
+
+- [ ] **Título repetido (`"Registros Fotográficos - X"`):** a máquina **propõe** a parte fixa e
+  o arquivista confirma; o candidato a `final_title` derivado é sugerido, nunca gravado
+  sozinho.
+- [ ] **`final_title` — decidir com número:** ou ganha produtor de verdade (derivação assistida
+  + revisão humana), ou **sai do schema**. Hoje é `NULL` em 100% do acervo e está exposto no
+  `DocumentSummary`: promessa não cumprida.
+- [ ] **`is_anomaly` / `anomaly_reasons` — decidir:** ou ganham produtor (validador estrutural:
+  data no futuro, título vazio, escopo que era 100% boilerplate, entidade impossível), ou saem
+  do schema. Modelados, indexados e sem produtor desde o schema inicial.
+- [ ] **Regra geral a aplicar sem exceção:** *ou o campo ganha produtor na fase em que foi
+  modelado, ou sai do schema.*
+
+### Fase D — Cobertura e vocabulário
+
+- [ ] **1925 documentos sem data (53%).** Investigar se a data existe na origem e não é
+  parseada (o `staging` já parseia `15/03/1954`, `1972-05-10` e ano solto) ou se realmente não
+  existe. Sem isso, a faceta de data e o mapa por bairro nascem pela metade.
+- [ ] **Lematização de tags** (o Buraco 4, ainda aberto): "parque"/"parques" seguem distintos.
+  Aplicar **nas tags**, nunca no texto do documento — e provar que não destrói nomes próprios.
+- [ ] **Deduplicação de tags por trigramas em lote:** `/tags/similar` já encontra os pares;
+  falta agrupar e sugerir merges — de novo, **sugerir**, com o arquivista aprovando.
 
 ### Observabilidade e operação
 
