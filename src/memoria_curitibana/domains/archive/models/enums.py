@@ -28,6 +28,26 @@ class AnomalyType(enum.StrEnum):
     CROSS_DOMAIN_COLLISION = "CROSS_DOMAIN_COLLISION"
 
 
+class TagFacetType(enum.StrEnum):
+    """
+    Which non-subject axis a tag belongs to.
+
+    ``ArchiveTag.macro_category_id`` answers "what is this about?". Some tags have no honest
+    answer to that question but a very clear answer to a different one: ``ippuc`` is *who
+    produced*, ``curitiba`` is *where*. Before this existed those terms competed with
+    ``alvenaria`` for the same subject drawer, which is a measured cause of the systematic
+    misclassification (``alvenaria`` landing in "Mobilidade e Transporte").
+
+    Deliberately a separate table rather than a second column: a tag carries at most one
+    subject but can carry a place *and* an institution at once.
+    """
+
+    #: The producer or the body the record is about (``ippuc``, ``pmc``, ``urbs``).
+    INSTITUTION = "INSTITUTION"
+    #: A toponym or a street address (``curitiba``, ``centro``, ``rua xv de novembro``).
+    PLACE = "PLACE"
+
+
 class AnomalyReason(enum.StrEnum):
     """
     Why the structural validator marked a document.

@@ -52,13 +52,18 @@ class ArchiveTag(Base):
     # Idempotency ledger of the AI workers that processed this tag. Mirrors
     # ``ArchiveDocument.execution_log``: the pending query filters on the absence
     # of a versioned key instead of on nullable business columns, so a tag whose
-    # winner scored below the threshold is stamped and not retried forever.
+    # winner scored below the threshold is stamped and not retried forever. For the
+    # content-keyed variant (``MACRO_CATEGORY``) the *value* is the hash of the label
+    # set the tag was classified against, so rewriting a curator label re-queues it.
     execution_log: Mapped[dict[str, str] | None] = mapped_column(JSONB, nullable=True)
 
     descriptions: Mapped[list["ArchiveDocument"]] = relationship(
         secondary="archive_document_tags", back_populates="tags"
     )
     macro_category: Mapped["ArchiveMacroCategory"] = relationship(back_populates="tags")
+    facets: Mapped[list["ArchiveTagFacet"]] = relationship(
+        back_populates="tag", cascade="all, delete-orphan", passive_deletes=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -71,6 +76,44 @@ class ArchiveTag(Base):
         ),
         # GIN index used by the macro-category worker to poll unprocessed tags.
         Index("ix_archive_tags_exec_log", execution_log, postgresql_using="gin"),
+    )
+
+
+class ArchiveTagFacet(Base):
+    """
+    The non-subject axis of a tag: what it *is*, when it is not an *about*.
+
+    ``archive_tags.macro_category_id`` holds one subject drawer and nothing else. A tag like
+    ``ippuc`` (2.376 documents) or ``curitiba`` (1.865) has no subject but is unmistakably a
+    producer or a place; forcing them into the subject axis is a measured cause of the
+    classification defect, because they competed with ``alvenaria`` for the same slot. This
+    table is where those statements live instead.
+
+    The primary key is ``(tag_id, facet_type)``: a tag can be a place *and* an institution,
+    but not twice the same one. ``value`` carries the canonical spelling the curator chose,
+    which is what the facets read — the tag name is the evidence, the value is the decision.
+    Nothing writes here automatically: a facet is a curation act, never an AI inference.
+    """
+
+    __tablename__ = "archive_tag_facets"
+
+    tag_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("archive_tags.tag_id", ondelete="CASCADE"), primary_key=True
+    )
+    facet_type: Mapped[str] = mapped_column(String(20), primary_key=True)
+
+    #: The canonical value of the facet (``IPPUC``, ``Curitiba``). Falls back to the tag
+    #: name when the curator only confirms the axis without renaming the spelling.
+    value: Mapped[str] = mapped_column(String(100), nullable=False)
+
+    created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    tag: Mapped["ArchiveTag"] = relationship(back_populates="facets")
+
+    __table_args__ = (
+        CheckConstraint("facet_type IN ('INSTITUTION', 'PLACE')", name="chk_tag_facet_type"),
+        Index("ix_archive_tag_facets_type_value", facet_type, value),
     )
 
 
