@@ -22,6 +22,7 @@ raw tag list.
 statements about something other than a subject. Deciding is still the archivist's.
 """
 
+import hashlib
 import re
 
 #: The subject drawers, in the order the tree of the archive reads. Populated by the
@@ -154,3 +155,49 @@ _PLACE_NAME = re.compile(
     r"pinhais|mandirituba|balsa nova|região metropolitana de curitiba|rmc)$",
     re.IGNORECASE,
 )
+
+
+def classifier_labels(categories: dict[str, int], labels: dict[str, str | None] | None = None) -> dict[str, int]:
+    """
+    Builds the label set the NLI model reads, from the drawers the curator registered.
+
+    The label is ``classifier_label`` when the curator wrote one, and the bare ``name``
+    otherwise. The description is **never** used, in either case: concatenating it makes the
+    model progressively lose the entailment as the label grows, until it collapses every
+    input onto a single drawer — measured, and guarded by tests that fail if it comes back.
+
+    Args:
+        categories: ``{name: category_id}`` of the active drawers.
+        labels: ``{name: classifier_label | None}``. A missing key falls back to the name,
+            so a repository that has not been taught about the column still works.
+
+    Returns:
+        ``{label: category_id}``. Two drawers that write the same label collapse into one
+        entry, and the last one wins — the label is what the model sees, so two identical
+        labels are indistinguishable to it and the classifier could never separate them.
+    """
+    resolved: dict[str, int] = {}
+    for name, category_id in categories.items():
+        raw_label = (labels or {}).get(name)
+        label = (raw_label or name).strip() or name
+        resolved[label] = category_id
+    return resolved
+
+
+def label_set_fingerprint(labels: dict[str, int]) -> str:
+    """
+    Stable identity of the label set a tag was classified against.
+
+    This is what makes the macro-category worker re-queue by itself when a curator rewrites a
+    label: the stamp stores this hash instead of ``"DONE"``, so a changed label set makes
+    every stamped tag pending again. Without it the correction would never reach the
+    collection — the exact failure the V3 migration exposed, where a tag kept
+    ``worker_macro_category_v1: DONE`` while its drawer had been retired.
+
+    Sorted and joined before hashing, so the order the rows came back in cannot produce two
+    different hashes for the same vocabulary (which would re-queue the collection forever).
+    The category ids are part of the payload because a drawer that is *replaced* under the
+    same label must also invalidate the stamp.
+    """
+    payload = "\x1f".join(f"{label}\x1e{category_id}" for label, category_id in sorted(labels.items()))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
