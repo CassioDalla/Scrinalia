@@ -12,7 +12,12 @@ from memoria_curitibana.core.unit_of_work import UnitOfWork
 from memoria_curitibana.domains.archive.engines.base import EntityExtractionEngine
 from memoria_curitibana.domains.archive.engines.NER.registry import EngineName as ExtractEngineName
 from memoria_curitibana.domains.archive.engines.NER.registry import PresetName, get_engine
-from memoria_curitibana.domains.archive.models import ArchiveDocument, DomainStopwords, StopwordsScope
+from memoria_curitibana.domains.archive.models import (
+    ArchiveDocument,
+    DomainNerExclusion,
+    DomainStopwords,
+    StopwordsScope,
+)
 from memoria_curitibana.domains.archive.repository import EntityRepository
 from memoria_curitibana.domains.archive.repository.governance import ai_writable_documents
 from memoria_curitibana.domains.archive.schemas.command_schema import EntityLinkCommand
@@ -20,13 +25,50 @@ from memoria_curitibana.domains.archive.worker_stamp import NER
 
 
 def load_entity_blacklist(db_session: Session) -> set[str]:
-    """Loads all entity stopwords into a Python SET (O(1) lookup)."""
-    result = (
+    """
+    Loads every spelling the NER must not extract.
+
+    Two independent sources are merged, because they answer different questions:
+
+    * ``DomainStopwords`` (scope ENTITY/ALL): generic noise ("lixo", "ofício"), dropped
+      from every extraction.
+    * ``DomainNerExclusion``: a curation decision that the spelling belongs to the
+      subject axis (a tag), recorded when the LLM judge or a human settled a
+      tag x entity clash. It is *not* noise — the term is a legitimate subject — so it
+      lives in its own catalog, where it can be listed, explained and undone.
+
+    Returns:
+        set[str]: Lowercase terms for O(1) filtering.
+    """
+    stopwords = (
         db_session.query(DomainStopwords.word)
         .filter(DomainStopwords.word_scope.in_([StopwordsScope.ENTITY, StopwordsScope.ALL]))
         .all()
     )
-    return {row[0].lower() for row in result}
+    excluded = db_session.query(DomainNerExclusion.term).all()
+
+    return {row[0].lower() for row in stopwords} | {row[0].lower() for row in excluded}
+
+
+def is_blocked_entity_name(name: str, blacklist: set[str]) -> bool:
+    """
+    True when the extracted spelling is, or contains, a blocked term.
+
+    The exact-match check is not enough, and the real engine shows why: spaCy merges
+    neighbouring tokens, so with "iptu" excluded the model still returns the single
+    entity ``"IPTU do Batel"``. An exact comparison against the blacklist lets that
+    false positive straight through — the very leak the exclusion catalog exists to
+    close. Matching on token boundaries blocks the merged form while leaving
+    legitimate names that merely contain the letters untouched (``"iptu"`` blocks
+    ``"iptu do batel"``, but never ``"iptuana"``).
+    """
+    normalized = name.strip().lower()
+
+    if normalized in blacklist:
+        return True
+
+    tokens = {token for token in re.split(r"\W+", normalized) if token}
+    return bool(tokens & blacklist)
 
 
 def _clean_raw_text(text: str) -> str:
@@ -137,7 +179,7 @@ def execute(
     logger.info(f"🔍 Found {total_documents} documents to process.")
 
     blacklist = load_entity_blacklist(db)
-    logger.info(f"🛡️ Loaded {len(blacklist)} words into the NER blacklist.")
+    logger.info(f"🛡️ Loaded {len(blacklist)} blocked terms (stopwords + NER exclusions).")
 
     processed_docs_count = 0
     while True:
@@ -193,7 +235,9 @@ def execute(
                     try:
                         # If the AI found entities, we process the links
                         if dtos_entities:
-                            filtered_dtos = [ent for ent in dtos_entities if ent.name.strip().lower() not in blacklist]
+                            filtered_dtos = [
+                                ent for ent in dtos_entities if not is_blocked_entity_name(ent.name, blacklist)
+                            ]
 
                             if filtered_dtos:
                                 try:
