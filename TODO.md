@@ -8,7 +8,7 @@ arquivístico (DDD + micro-workers + HITL).
 > pendente. Quando um item está parcialmente pronto, ele aparece como `[~]` com a descrição
 > explícita do que existe e do que falta.
 >
-> **Estado do gate de qualidade:** suíte **270 testes** passando (unit + integração),
+> **Estado do gate de qualidade:** suíte **301 testes** passando (unit + integração),
 > `ruff check`/`ruff format --check` limpos, `basedpyright` 0 erros,
 > `alembic upgrade head` + `alembic check` sem drift.
 
@@ -76,29 +76,31 @@ tag↔entidade) e **tornar o acervo pesquisável de verdade**.
 
 ### ⚠️ Lacunas reais da Fase 1
 
-- [ ] **Ancoragem negativa "isto é TAG, não entidade" não existe.**
-  É o buraco mais importante da fase. O ciclo de correção do NER **funciona**, mas só em
-  uma direção:
+- [x] **Ancoragem negativa "isto é TAG, não entidade" — FECHADA (Buraco 2).**
+  O ciclo de correção agora funciona nas **duas** direções:
   - ✅ `reclassify_entity` grava um sinônimo de ancoragem → `get_ner_synonyms_rules` injeta
     no EntityRuler → o spaCy passa a extrair com o rótulo corrigido. Verificado ponta a ponta
     (entidade `prefeiruta` PER→ORG, regra criada, o engine passou a extrair `ORG`).
-  - ❌ Quando o **juiz LLM decide que o vencedor é a TAG** (`iptu`), o entity é apagado mas
-    **nenhuma regra de bloqueio é gravada**. O termo não fica marcado como "não é entidade";
-    a única rede é o blacklist global de `DomainStopwords`.
-  - ❌ O `CheckConstraint chk_exclusive_synonym_target` **impede representar** um sinônimo
-    de TAG que aponte para uma entidade: `category='TAG'` exige `canonical_tag_id` e proíbe
-    `canonical_entity_id`. E `get_ner_synonyms_rules` filtra `category IN ('ORG','LOC','PER')`,
-    então sinônimos de TAG **nunca** chegam ao NER.
-  - **Impacto:** a decisão humana/LLM "isto é assunto, não nome próprio" não é durável em
-    nível de termo. Sem uma entidade-alvo vigilante, a partir de amanhã o NER recria o falso
-    positivo e o conflito volta para a fila de revisão.
-  - **Direção sugerida:** um catálogo explícito de termos vetados para NER (distinto do
-    blacklist genérico de stopwords), alimentado pelo juiz e pela reclassificação humana.
-- [ ] **`ai_confidence_score` da Tag nunca é escrito.** ~~A coluna existe na model e é exposta
-  no schema, mas nenhum worker a preenche (o `transfer` sempre grava `None`).~~ **Resolvido:**
-  o `worker_macro_category` passou a preenchê-la (ver Fase 1.5).
+  - ✅ **Quando o juiz LLM (ou o curador) decide que o vencedor é a TAG, a decisão fica
+    durável**: o termo entra no catálogo `domain_ner_exclusions` com motivo, autor
+    (`JUDGE`/`HUMAN`) e a tag que o justifica. O NER deixa de recriar o falso positivo.
+  - ✅ **Antes o mecanismo existia pela metade e com efeito colateral:** o
+    `resolve_cross_domain_conflict` gravava um `DomainStopwords(ENTITY)`, indistinguível do
+    lixo genérico, sem motivo nem vínculo, e — pior — `TagRepository.get_stopwords()` lia
+    **todos** os escopos, então a ação "purgar stopwords" do eixo de Tags **apagava a tag
+    vencedora** (`iptu`), exatamente o oposto da decisão registrada.
+  - ✅ **Achado da verificação com engine real:** o spaCy funde tokens vizinhos e devolve
+    `"IPTU do Batel"` como **uma** entidade. Comparar o nome inteiro contra o blacklist
+    deixava o falso positivo passar — o filtro passou a casar por **limite de token**
+    (`is_blocked_entity_name`), bloqueando `"iptu do batel"` sem tocar em `"iptuana"`.
+    Nenhum teste com `mock_registry` pegaria isso: o mock devolve o nome exato que recebeu.
+  - ✅ **O sinônimo positivo também não fura o veto:** `get_ner_synonyms_rules` exclui
+    spellings vetados, senão o EntityRuler reintroduziria o termo via `ent_id_`.
 - [ ] **`is_anomaly` / `anomaly_reasons` do documento nunca são preenchidos.** Modelados,
   indexados, e sem nenhum produtor.
+- [x] **`ai_confidence_score` da Tag nunca é escrito.** ~~A coluna existe na model e é exposta
+  no schema, mas nenhum worker a preenche (o `transfer` sempre grava `None`).~~ **Resolvido:**
+  o `worker_macro_category` passou a preenchê-la (ver Fase 1.5).
 - [x] **`worker_macro_category.py` existe.** Ver Fase 1.5 — fechado.
 
 ---
@@ -360,10 +362,10 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 
 | Verificação | Resultado |
 | --- | --- |
-| `pytest` (unit + integração) | **270 passed** |
-| `ruff check` / `ruff format --check` | limpos (180 arquivos) |
+| `pytest` (unit + integração) | **301 passed** |
+| `ruff check` / `ruff format --check` | limpos (181 arquivos) |
 | `basedpyright` | **0 errors, 0 warnings** |
-| `alembic upgrade head` + `alembic check` | aplica; **sem drift** |
+| `alembic upgrade head` + `alembic check` | aplica (inclui downgrade/upgrade); **sem drift** |
 | `raw_data` → `run_staging_pipeline` | 2/2 docs; datas e ISAD(G) corretos |
 | worker `transfer` | 2 docs, 7 tags vinculadas |
 | worker `ner` (spaCy real) | entidades extraídas e vinculadas |
@@ -371,14 +373,18 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 | worker `macro-category` (mDeBERTa real) | **4/4 categorias corretas** após corrigir o rótulo (antes: 0/4) |
 | `HUMAN_APPROVED` bloqueia IA | confirmado — o worker de tipologia ignorou o doc aprovado |
 | `reclassify_entity` → EntityRuler | PER→ORG propagou para o NER (ciclo completo) |
+| **Ciclo negativo do NER** (engine real + Postgres real) | termo vetado `iptu` → **bloqueado**; `prefeitura de curitiba` preservada; regra de sinônimo vetada não entra no EntityRuler |
+| **Vazamento por token fundido** (achado na verificação real) | spaCy devolve `"IPTU do Batel"` como uma entidade; o filtro por limite de token bloqueia, sem afetar `"iptuana"` |
+| `get_stopwords` só TAG/ALL | o purge do eixo de Tags **não** apaga mais a tag vencedora de um conflito |
 | `POST /tags/suggest-macro` | **corrigido**: 41 tags → 3 clusters; 6 tags → vazio com mensagem |
 | Voto majoritário no `DocumentSummary` | derivado na leitura; editar tag **não** escreve em `archive_documents` |
 | Leitura/escrita via HTTP | listagem, busca, detalhe, merge, cleaning, conflitos: OK |
 
 ### Bugs conhecidos e abertos
 
-1. **Ancoragem "isto é TAG" não existe** — o juiz LLM apaga a entidade sem gravar bloqueio
-   durável — Fase 1.
+1. ~~**Ancoragem "isto é TAG" não existe**~~ — **corrigido**: catálogo
+   `domain_ner_exclusions` alimentado pelo juiz e pelo curador, com undo e expurgo retroativo.
+   Ver Fase 1.
 2. **Lematização de tags ausente** — duplicação na origem — Fase 3.
 3. **`semantic_search_vector` nunca preenchido** — a busca híbrida prometida não existe — Fase 3.
 4. **`is_anomaly`, `anomaly_reasons` sem produtor** — colunas mortas.
@@ -387,3 +393,9 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 > **Corrigido em 2026-10-03:** o rótulo `"Nome: descrição"` colapsava o mDeBERTa na
 > primeira categoria, em `worker_macro_category` **e** `worker_typology`. Classificação
 > agora usa o nome nu; ver Fase 1.5 para a medição que isolou a causa.
+>
+> **Fechado em 2026-10-03 (Buraco 2):** a ancoragem negativa do NER existe. O catálogo
+> `domain_ner_exclusions` guarda a decisão "isto é assunto, não entidade" com motivo, autor
+> e a tag que a justifica; o NER respeita o veto (inclusive contra tokens fundidos pelo
+> modelo) e o sinônimo positivo não o fura. A verificação com engine real revelou um
+> vazamento que nenhum teste com `mock_registry` pegaria — ver Fase 1.
