@@ -13,6 +13,15 @@ class CreateCleaningRuleRequest(BaseModel):
     target_column: AllowedColumns = Field(..., description="Target column for cleaning.")
     regex_pattern: str = Field(..., description="Python-compatible Regex pattern.")
     replacement_string: str = Field(default="", description="What to replace it with. Leave empty to delete.")
+    rule_kind: Literal["REWRITE", "VALIDATE", "LLM_CHECK"] = Field(
+        default="REWRITE",
+        description="REWRITE replaces the match; VALIDATE only flags an anomaly; LLM_CHECK asks a model about the title.",
+    )
+    anomaly_reason: str | None = Field(
+        default=None, description="Reason written to the document when a VALIDATE rule matches."
+    )
+    engine_name: str | None = Field(default=None, description="Engine used by an LLM_CHECK rule.")
+    preset: str | None = Field(default=None, description="Preset used by an LLM_CHECK rule.")
 
 
 class DryRunRequest(BaseModel):

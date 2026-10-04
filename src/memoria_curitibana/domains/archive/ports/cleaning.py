@@ -7,6 +7,7 @@ from memoria_curitibana.domains.archive.schemas.cleaning_schema import (
     CleaningRuleCreateDTO,
     CleaningRuleDTO,
     CleaningUpdateCommand,
+    RuleKind,
 )
 
 
@@ -20,7 +21,7 @@ class CleaningRepositoryPort(Protocol):
 
     # --- Rule reads/writes ---
     def create_rule(self, rule_data: CleaningRuleCreateDTO) -> CleaningRuleDTO: ...
-    def get_active_rules(self) -> Sequence[CleaningRuleDTO]: ...
+    def get_active_rules(self, rule_kind: RuleKind | None = None) -> Sequence[CleaningRuleDTO]: ...
     def get_rule_by_id(self, rule_id: int) -> CleaningRuleDTO | None: ...
     def deactivate_rule(self, rule_id: int) -> CleaningRuleDTO | None: ...
 

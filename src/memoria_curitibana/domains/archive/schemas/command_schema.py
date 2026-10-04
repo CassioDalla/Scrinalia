@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -44,12 +45,36 @@ class ResolveConflictCommand(BaseModel):
 
 
 class DocumentReviewCommand(BaseModel):
-    """Command carrying the archivist's manual edits for one document."""
+    """
+    Command carrying the archivist's manual edits for one document.
+
+    The archivist fixes the whole record, not only the title: every ISAD(G) field the
+    Archive layer stores is editable here, and ``changed_by`` answers "who" until
+    authentication exists (phase 4). Fields left unset are untouched, so the command is a
+    partial patch and the audit trail records only what really changed.
+    """
 
     description_id: str
+
+    # Descriptive identity
+    original_title: str | None = None
     final_title: str | None = None
+    document_date: date | None = None
+
+    # ISAD(G)
+    reference_code: str | None = None
+    level: str | None = None
+    producers: str | None = None
+    admin_bio_history: str | None = None
+    admin_archival_history: str | None = None
+    provenance: str | None = None
     scope_content: str | None = None
+    language_name: str | None = None
     archivist_notes: str | None = None
+
+    # Authorship and note of the review itself
+    changed_by: str | None = Field(default=None, description="Who reviewed; free text until authentication exists.")
+    review_note: str | None = Field(default=None, description="Why the edit was made; stored in the audit trail.")
 
 
 class TagLinkCommand(BaseModel):

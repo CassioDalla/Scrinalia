@@ -13,6 +13,7 @@ from memoria_curitibana.domains.archive.workers import (
     worker_embedding,
     worker_macro_category,
     worker_ner,
+    worker_quality_validator,
     worker_resolve_tag_entity_conflict,
     worker_thumbnail,
     worker_typology,
@@ -29,6 +30,7 @@ WORKERS: dict[str, WorkerFn] = {
     "thumbnail": worker_thumbnail.execute,
     "conflict-judge": worker_resolve_tag_entity_conflict.execute,
     "macro-category": worker_macro_category.execute,
+    "quality-validator": worker_quality_validator.execute,
     "embedding": worker_embedding.execute,
 }
 
@@ -36,7 +38,8 @@ WORKERS: dict[str, WorkerFn] = {
 # last: it depends on the tags already existing and on the curators having registered the
 # categories (usually from a cluster suggestion) it classifies against. The embedding
 # step runs after every worker that can change the document text, because it embeds that
-# text and keys its stamp on a hash of it.
+# text and keys its stamp on a hash of it. The quality validator runs before it: it
+# reads the tags, the typology and the entities the earlier workers produced.
 PIPELINE_ORDER = [
     "transfer",
     "cleaning",
@@ -45,6 +48,7 @@ PIPELINE_ORDER = [
     "thumbnail",
     "conflict-judge",
     "macro-category",
+    "quality-validator",
     "embedding",
 ]
 

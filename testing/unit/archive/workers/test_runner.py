@@ -82,9 +82,13 @@ def test_main_parses_arguments(monkeypatch) -> None:
 def test_worker_pipeline_order_is_complete() -> None:
     """Every registered worker appears in the pipeline, with the text-dependent ones last."""
     assert "macro-category" in runner.WORKERS
+    assert "quality-validator" in runner.WORKERS
     assert "embedding" in runner.WORKERS
     assert runner.PIPELINE_ORDER[-1] == "embedding"
-    assert runner.PIPELINE_ORDER[-2] == "macro-category"
+    # The validator reads the tags, the typology and the entities, and the embedding is
+    # always last because every text mutation has to happen before it.
+    assert runner.PIPELINE_ORDER[-2] == "quality-validator"
+    assert runner.PIPELINE_ORDER[-3] == "macro-category"
     assert set(runner.PIPELINE_ORDER) == set(runner.WORKERS)
 
 

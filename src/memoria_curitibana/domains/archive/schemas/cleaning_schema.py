@@ -4,6 +4,11 @@ from pydantic import BaseModel, Field
 
 AllowedColumns = Literal["original_title", "scope_content", "admin_bio_history", "provenance", "archivist_notes"]
 
+#: What a registered rule does. ``REWRITE`` is the original behaviour (the worker replaces
+#: every match); ``VALIDATE`` only flags a match as an anomaly and never touches the text;
+#: ``LLM_CHECK`` is the opt-in for a language-model opinion about the title.
+RuleKind = Literal["REWRITE", "VALIDATE", "LLM_CHECK"]
+
 
 class CleaningRuleCreateDTO(BaseModel):
     """DTO to create a rule."""
@@ -12,6 +17,10 @@ class CleaningRuleCreateDTO(BaseModel):
     target_column: AllowedColumns
     regex_pattern: str
     replacement_string: str
+    rule_kind: RuleKind = "REWRITE"
+    anomaly_reason: str | None = None
+    engine_name: str | None = None
+    preset: str | None = None
     created_by: str | None = None
 
 

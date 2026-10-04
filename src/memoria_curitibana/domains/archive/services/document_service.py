@@ -6,6 +6,7 @@ from memoria_curitibana.domains.archive.ports.document import DocumentRepository
 from memoria_curitibana.domains.archive.schemas.command_schema import DocumentReviewCommand
 from memoria_curitibana.domains.archive.schemas.document_schema import (
     DocumentListResponse,
+    DocumentRevisionDTO,
     DocumentSummary,
 )
 from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
@@ -54,6 +55,10 @@ class DocumentService:
         if doc is None:
             raise DocumentNotFoundError(f"Documento '{description_id}' não encontrado no acervo.")
         return doc
+
+    def list_revisions(self, description_id: str) -> list[DocumentRevisionDTO]:
+        """Human review audit trail of one document."""
+        return self.repo.list_revisions(description_id)
 
     def update_review(self, command: DocumentReviewCommand) -> DocumentSummary:
         doc = self.repo.update_review(command)

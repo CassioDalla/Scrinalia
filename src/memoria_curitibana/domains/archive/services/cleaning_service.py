@@ -63,8 +63,8 @@ class CleaningService:
 
         return DryRunResponseDTO(is_valid_regex=True, matches_found=len(matches), samples=matches)
 
-    def get_active_rules(self) -> list[CleaningRuleDTO]:
-        return list(self.repo.get_active_rules())
+    def get_active_rules(self, rule_kind: str | None = None) -> list[CleaningRuleDTO]:
+        return list(self.repo.get_active_rules(rule_kind=rule_kind))  # type: ignore[arg-type]
 
     def deactivate_rule(self, rule_id: int) -> CleaningRuleDTO:
         # The transaction is owned by the caller (API middleware or worker context):

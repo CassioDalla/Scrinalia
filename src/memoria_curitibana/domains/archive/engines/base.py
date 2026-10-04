@@ -2,7 +2,11 @@ from typing import Protocol
 
 from pandas import DataFrame
 
-from memoria_curitibana.domains.archive.schemas import ArchiveEntityDTO, EntityTagDecisionSchema
+from memoria_curitibana.domains.archive.schemas import (
+    ArchiveEntityDTO,
+    EntityTagDecisionSchema,
+    TitleQualityDecision,
+)
 
 
 class TypologyEngine(Protocol):
@@ -57,3 +61,14 @@ class ResolveTagEntityConflictEngine(Protocol):
     """
 
     def decide_conflict(self, tag_name: str, entity_name: str, entity_type: str) -> EntityTagDecisionSchema: ...
+
+
+class TitleQualityEngine(Protocol):
+    """
+    Contract for the optional language-model opinion about a title.
+
+    It exists so the anomaly validator can call an LLM without owning one: the archivist
+    has to register an active ``LLM_CHECK`` rule, and only then is an engine built.
+    """
+
+    def check_title(self, title: str) -> TitleQualityDecision: ...

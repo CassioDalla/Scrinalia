@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -101,9 +101,26 @@ class DocumentSummary(BaseModel):
     document_date: date | None = None
     review_status: ArchiveReviewStatus
     is_anomaly: bool = False
+    anomaly_reasons: list[str] | None = Field(default=None, description="Codes written by the quality validator.")
     storage_thumbnail_uri: str | None = None
-    scope_content: str | None = None
+
+    # ISAD(G) fields the archivist may correct; exposed so the API can show what is there.
+    reference_code: str | None = None
+    level: str | None = None
+    producers: str | None = None
     admin_bio_history: str | None = None
+    admin_archival_history: str | None = None
+    provenance: str | None = None
+    scope_content: str | None = None
+    language_name: str | None = None
+    archivist_notes: str | None = None
+
+    # Derived on read from the title-scoped excerpts: the machine proposes the title
+    # without the repeated fixed part, and only the archivist writes ``final_title``.
+    suggested_final_title: str | None = Field(
+        default=None, description="Title proposal; never stored, disappears once final_title is written."
+    )
+
     tags: list[DocumentTagSummary] = Field(default_factory=list)
     entities: list[DocumentEntitySummary] = Field(default_factory=list)
     # Majority vote over ``tags``: how many of this document's tags belong to each
@@ -112,6 +129,18 @@ class DocumentSummary(BaseModel):
     # Relevance of a free-text search (higher is better). ``None`` when browsing the
     # collection without a term; the page is always ordered by it when present.
     rank: float | None = Field(default=None, description="Full-text relevance score.")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DocumentRevisionDTO(BaseModel):
+    """One entry of the human review audit trail (before/after of every changed field)."""
+
+    revision_id: int
+    changed_by: str | None = None
+    changes: dict = Field(default_factory=dict)
+    note: str | None = None
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -21,7 +21,8 @@ def execute(db: Session) -> None:
 
     repo = CleaningRepository(db)
     uow = UnitOfWork(db)
-    active_rules = repo.get_active_rules()
+    # Only REWRITE rules: a VALIDATE rule flags an anomaly and must never substitute text.
+    active_rules = repo.get_active_rules(rule_kind="REWRITE")
 
     if not active_rules:
         logger.info("No active cleaning rule found.")

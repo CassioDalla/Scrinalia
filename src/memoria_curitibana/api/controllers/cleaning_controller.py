@@ -37,6 +37,10 @@ class CleaningController(Controller):
             target_column=data.target_column,
             regex_pattern=data.regex_pattern,
             replacement_string=data.replacement_string,
+            rule_kind=data.rule_kind,
+            anomaly_reason=data.anomaly_reason,
+            engine_name=data.engine_name,
+            preset=data.preset,
             created_by=None,
         )
 

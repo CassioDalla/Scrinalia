@@ -26,3 +26,28 @@ class StopwordsScope(enum.StrEnum):
 
 class AnomalyType(enum.StrEnum):
     CROSS_DOMAIN_COLLISION = "CROSS_DOMAIN_COLLISION"
+
+
+class AnomalyReason(enum.StrEnum):
+    """
+    Why the structural validator marked a document.
+
+    Stored as text inside ``ArchiveDocument.anomaly_reasons`` (an ARRAY), so these are
+    stable codes rather than prose: the front-end and the API can group and translate them,
+    and the archivist still sees the free reason attached to a matched rule.
+    """
+
+    MISSING_DATE = "MISSING_DATE"
+    FUTURE_DATE = "FUTURE_DATE"
+    EMPTY_TITLE = "EMPTY_TITLE"
+    ALL_CAPS_TITLE = "ALL_CAPS_TITLE"
+    REPEATED_TITLE = "REPEATED_TITLE"
+    TITLE_ONLY_TEMPLATE = "TITLE_ONLY_TEMPLATE"
+    SCOPE_ONLY_BOILERPLATE = "SCOPE_ONLY_BOILERPLATE"
+    NO_TAGS = "NO_TAGS"
+    NO_TYPOLOGY = "NO_TYPOLOGY"
+    NO_ENTITIES = "NO_ENTITIES"
+    #: A ``VALIDATE`` regex registered by an archivist matched; the rule name follows.
+    RULE_MATCH = "RULE_MATCH"
+    #: The optional language-model check considered the title suspicious.
+    LLM_SUSPECT = "LLM_SUSPECT"

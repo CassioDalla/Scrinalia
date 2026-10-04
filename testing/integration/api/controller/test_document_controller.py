@@ -174,3 +174,69 @@ def test_update_document_rejects_unknown_fields(client: TestClient, mocker):
 
     assert response.status_code == 400
     mock_update.assert_not_called()
+
+
+# ==========================================
+# HUMAN CURATION: WIDE PATCH AND AUDIT TRAIL
+# ==========================================
+
+
+def test_patch_accepts_any_isad_g_field_and_the_author(client: TestClient, mocker):
+    """The archivist fixes the whole record, not only the title."""
+    mock_update = mocker.patch.object(DocumentService, "update_review")
+    mock_update.return_value = _summary("doc-1")
+
+    response = client.patch(
+        "/api/v1/documents/doc-1",
+        json={
+            "document_date": "1954-03-15",
+            "reference_code": "BR PR IPPUC",
+            "level": "Item",
+            "provenance": "IPPUC",
+            "changed_by": "ana",
+            "review_note": "Data conferida no original",
+        },
+    )
+
+    assert response.status_code == HTTP_200_OK
+    command = mock_update.call_args.args[0]
+    assert command.document_date == date(1954, 3, 15)
+    assert command.reference_code == "BR PR IPPUC"
+    assert command.changed_by == "ana"
+    assert command.review_note == "Data conferida no original"
+    # Fields the client did not send stay unset, so the audit trail ignores them.
+    assert command.original_title is None
+
+
+def test_patch_rejects_an_unknown_field(client: TestClient, mocker):
+    mock_update = mocker.patch.object(DocumentService, "update_review")
+
+    response = client.patch("/api/v1/documents/doc-1", json={"review_status": "HUMAN_APPROVED"})
+
+    assert response.status_code == 400
+    mock_update.assert_not_called()
+
+
+def test_list_revisions_serialises_the_trail(client: TestClient, mocker):
+    from datetime import UTC, datetime
+
+    from memoria_curitibana.domains.archive.schemas.document_schema import DocumentRevisionDTO
+
+    mocked = mocker.patch.object(DocumentService, "list_revisions")
+    mocked.return_value = [
+        DocumentRevisionDTO(
+            revision_id=2,
+            changed_by="ana",
+            changes={"original_title": {"old": "A", "new": "B"}},
+            note="correção",
+            created_at=datetime(2026, 10, 4, 12, 0, tzinfo=UTC),
+        )
+    ]
+
+    response = client.get("/api/v1/documents/doc-1/revisions")
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body[0]["changed_by"] == "ana"
+    assert body[0]["changes"]["original_title"]["new"] == "B"
+    mocked.assert_called_once_with("doc-1")

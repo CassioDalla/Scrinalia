@@ -1,4 +1,4 @@
-from .ai_schemas import EntityTagDecisionSchema
+from .ai_schemas import EntityTagDecisionSchema, TitleQualityDecision
 from .command_schema import (
     CreateMacroCategoryCommand,
     DocumentReviewCommand,
@@ -15,6 +15,7 @@ from .document_schema import (
     DocumentEntitySummary,
     DocumentListResponse,
     DocumentMacroCategorySummary,
+    DocumentRevisionDTO,
     DocumentSummary,
     DocumentTagSummary,
 )
@@ -55,6 +56,7 @@ __all__ = [
     "DocumentListResponse",
     "DocumentMacroCategorySummary",
     "DocumentReviewCommand",
+    "DocumentRevisionDTO",
     "DocumentSearchQuery",
     "DocumentSummary",
     "DocumentTagSummary",
@@ -87,5 +89,6 @@ __all__ = [
     "TemplateUpdateCommand",
     "TextTemplateApplicationConfig",
     "TextTemplateDTO",
+    "TitleQualityDecision",
     "UpdateMacroCategoryCommand",
 ]

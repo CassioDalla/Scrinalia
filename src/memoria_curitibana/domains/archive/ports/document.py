@@ -1,7 +1,11 @@
 from typing import Protocol
 
 from memoria_curitibana.domains.archive.schemas.command_schema import DocumentReviewCommand
-from memoria_curitibana.domains.archive.schemas.document_schema import ArchiveDocumentDTO, DocumentSummary
+from memoria_curitibana.domains.archive.schemas.document_schema import (
+    ArchiveDocumentDTO,
+    DocumentRevisionDTO,
+    DocumentSummary,
+)
 from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
 
 
@@ -19,6 +23,7 @@ class DocumentRepositoryPort(Protocol):
     ) -> tuple[list[DocumentSummary], int]: ...
     def get_by_id(self, description_id: str) -> DocumentSummary | None: ...
     def fetch_documents_for_clustering(self, columns_to_extract: list[str] | None = None) -> list[str]: ...
+    def list_revisions(self, description_id: str) -> list[DocumentRevisionDTO]: ...
 
     # --- Write ---
     def upsert_archive_document(self, doc_data: ArchiveDocumentDTO) -> bool: ...

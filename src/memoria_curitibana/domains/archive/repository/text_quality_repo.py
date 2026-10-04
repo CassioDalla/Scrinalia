@@ -117,6 +117,21 @@ def composed_text_sql(
     return cast(ColumnElement[str], func.concat_ws(separator, *parts))
 
 
+def apply_excerpts_in_python(text: str | None, rules: Sequence[ExcerptRule]) -> str:
+    """
+    Mirror of ``effective_column_sql`` for values already loaded as Python strings.
+
+    Used by the read side (the derived title), where adding the expression to every query
+    would buy nothing. An integration test pins it against the SQL expression on real rows,
+    so the mirror cannot silently drift; the idempotency stamps never use this path.
+    """
+    value = normalize_excerpt(text or "")
+    for rule in rules:
+        for matcher in rule.matchers:
+            value = value.replace(matcher, rule.replacement or "")
+    return value.strip()
+
+
 class TextQualityRepository:
     """Catalog persistence plus the document scans the curation needs."""
 

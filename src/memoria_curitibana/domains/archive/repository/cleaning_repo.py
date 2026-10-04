@@ -13,6 +13,7 @@ from memoria_curitibana.domains.archive.schemas.cleaning_schema import (
     CleaningRuleCreateDTO,
     CleaningRuleDTO,
     CleaningUpdateCommand,
+    RuleKind,
 )
 from memoria_curitibana.domains.archive.worker_stamp import cleaning_rule_stamp
 
@@ -27,8 +28,16 @@ class CleaningRepository:
         self.db.flush()
         return CleaningRuleDTO.model_validate(rule, from_attributes=True)
 
-    def get_active_rules(self) -> Sequence[CleaningRuleDTO]:
+    def get_active_rules(self, rule_kind: RuleKind | None = None) -> Sequence[CleaningRuleDTO]:
+        """
+        Active rules, optionally restricted to one kind.
+
+        The filter is not a convenience: the cleaning worker must only see ``REWRITE``
+        rules, otherwise a validation rule would rewrite the text with its replacement.
+        """
         stmt = select(ArchiveCleaningRule).where(ArchiveCleaningRule.is_active.is_(True))
+        if rule_kind is not None:
+            stmt = stmt.where(ArchiveCleaningRule.rule_kind == rule_kind)
         return [CleaningRuleDTO.model_validate(rule, from_attributes=True) for rule in self.db.scalars(stmt).all()]
 
     def get_rule_by_id(self, rule_id: int) -> CleaningRuleDTO | None:

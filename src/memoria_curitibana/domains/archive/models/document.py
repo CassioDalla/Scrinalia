@@ -147,3 +147,31 @@ class ArchiveDocument(Base):
             postgresql_ops={"embedding": "vector_cosine_ops"},
         ),
     )
+
+
+class ArchiveDocumentRevision(Base):
+    """
+    Audit trail of every human edit made to a document.
+
+    The archivist can now correct any ISAD(G) field, and authentication only arrives in
+    phase 4, so authorship travels in the request (``changed_by``) until there is a real
+    user. What matters already is the *what*: the before/after of every field that changed,
+    stored as JSONB, so a decision can be explained and reverted with evidence.
+    """
+
+    __tablename__ = "archive_document_revisions"
+
+    revision_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    description_id: Mapped[str] = mapped_column(
+        String(50), ForeignKey("archive_documents.description_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    # Free text until authentication exists; then it will carry the authenticated user.
+    changed_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    # ``{"scope_content": {"old": "...", "new": "..."}}`` — only the fields that changed.
+    changes: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

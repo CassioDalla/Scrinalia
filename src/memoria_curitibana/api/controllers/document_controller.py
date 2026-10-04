@@ -8,7 +8,11 @@ from litestar.params import FromPath, FromQuery
 from memoria_curitibana.api.dependencies import provide_document_service
 from memoria_curitibana.api.schemas.documents import DocumentUpdateRequest
 from memoria_curitibana.domains.archive.schemas.command_schema import DocumentReviewCommand
-from memoria_curitibana.domains.archive.schemas.document_schema import DocumentListResponse, DocumentSummary
+from memoria_curitibana.domains.archive.schemas.document_schema import (
+    DocumentListResponse,
+    DocumentRevisionDTO,
+    DocumentSummary,
+)
 from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
 from memoria_curitibana.domains.archive.services.document_service import DocumentService
 
@@ -57,6 +61,13 @@ class DocumentController(Controller):
         """Returns a specific document with its tags and entities."""
         return document_service.get(description_id)
 
+    @get("/{description_id:str}/revisions", sync_to_thread=True)
+    def list_revisions(
+        self, document_service: NamedDependency[DocumentService], description_id: FromPath[str]
+    ) -> list[DocumentRevisionDTO]:
+        """Human review audit trail: who changed what, and from which value to which."""
+        return document_service.list_revisions(description_id)
+
     @patch("/{description_id:str}", sync_to_thread=True)
     def update_document(
         self,
@@ -64,7 +75,7 @@ class DocumentController(Controller):
         description_id: FromPath[str],
         data: DocumentUpdateRequest,
     ) -> DocumentSummary:
-        """Applies the human review and marks the document as HUMAN_APPROVED."""
+        """Applies the human review, records the changes and marks the document HUMAN_APPROVED."""
         return document_service.update_review(
             DocumentReviewCommand(description_id=description_id, **data.model_dump(exclude_unset=True))
         )

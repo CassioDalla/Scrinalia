@@ -1,7 +1,7 @@
 from .associations import ArchiveDocumentEntity, ArchiveDocumentTag
-from .document import ArchiveDocument
+from .document import ArchiveDocument, ArchiveDocumentRevision
 from .entity import ArchiveEntity
-from .enums import AnomalyType, ArchiveReviewStatus, StopwordsScope
+from .enums import AnomalyReason, AnomalyType, ArchiveReviewStatus, StopwordsScope
 from .governance import (
     ArchiveAIReviewQueue,
     ArchiveCleaningRule,
@@ -13,11 +13,13 @@ from .governance import (
 from .taxonomy import ArchiveMacroCategory, ArchiveTag, ArchiveTypology
 
 __all__ = [
+    "AnomalyReason",
     "AnomalyType",
     "ArchiveAIReviewQueue",
     "ArchiveCleaningRule",
     "ArchiveDocument",
     "ArchiveDocumentEntity",
+    "ArchiveDocumentRevision",
     "ArchiveDocumentTag",
     "ArchiveEntity",
     "ArchiveMacroCategory",

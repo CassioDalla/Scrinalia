@@ -1,4 +1,5 @@
 import re
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import Float, and_, bindparam, case, exists, func, or_, select
@@ -10,6 +11,7 @@ from memoria_curitibana.domains.archive.domain.search import build_tsquery, toke
 from memoria_curitibana.domains.archive.models import (
     ArchiveDocument,
     ArchiveDocumentEntity,
+    ArchiveDocumentRevision,
     ArchiveDocumentTag,
     ArchiveEntity,
     ArchiveReviewStatus,
@@ -17,10 +19,16 @@ from memoria_curitibana.domains.archive.models import (
 )
 from memoria_curitibana.domains.archive.models.document import EMBEDDING_DIMENSIONS
 from memoria_curitibana.domains.archive.repository.governance import ai_writable_documents
+from memoria_curitibana.domains.archive.repository.text_quality_repo import (
+    ExcerptRule,
+    TextQualityRepository,
+    apply_excerpts_in_python,
+)
 from memoria_curitibana.domains.archive.schemas.command_schema import DocumentReviewCommand
 from memoria_curitibana.domains.archive.schemas.document_schema import (
     ArchiveDocumentDTO,
     DocumentMacroCategorySummary,
+    DocumentRevisionDTO,
     DocumentSummary,
 )
 from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
@@ -31,9 +39,18 @@ from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSear
 TAXONOMY_MATCH_BOOST = 0.2
 
 
+def _jsonable(value: Any) -> Any:
+    """Turns a column value into something JSONB can hold (dates become ISO strings)."""
+    if isinstance(value, date | datetime):
+        return value.isoformat()
+    return value
+
+
 class DocumentRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
+        # Title-scoped excerpts are read at most once per repository, on the first summary.
+        self._title_rules: list[ExcerptRule] | None = None
 
     def upsert_archive_document(self, doc_data: ArchiveDocumentDTO) -> bool:
         """
@@ -131,10 +148,9 @@ class DocumentRepository:
             selectinload(ArchiveDocument.entities),
         )
 
-    @staticmethod
-    def _to_summary(doc: ArchiveDocument, rank: float | None = None) -> DocumentSummary:
+    def _to_summary(self, doc: ArchiveDocument, rank: float | None = None) -> DocumentSummary:
         """
-        Builds the read view and computes the macro-category majority vote.
+        Builds the read view, the macro-category vote and the suggested title.
 
         The vote counts how many of the document's tags belong to each category, so a
         document whose tags are mostly "Urbanismo" ranks Urbanismo first. It is derived
@@ -146,6 +162,7 @@ class DocumentRepository:
         """
         summary = DocumentSummary.model_validate(doc)
         summary.rank = rank
+        summary.suggested_final_title = self._suggest_title(doc)
 
         votes: dict[int, DocumentMacroCategorySummary] = {}
         for tag in doc.tags:
@@ -163,6 +180,25 @@ class DocumentRepository:
 
         summary.macro_categories = sorted(votes.values(), key=lambda vote: (-vote.tag_count, vote.name))
         return summary
+
+    def _suggest_title(self, doc: ArchiveDocument) -> str | None:
+        """
+        Title without the fixed part the curation approved, or ``None`` when there is none.
+
+        Derived on read: the machine proposes and the archivist writes ``final_title``.
+        Once the human wrote it there is nothing left to propose, so the suggestion
+        disappears instead of nagging.
+        """
+        if doc.final_title or not (doc.original_title or "").strip():
+            return None
+
+        if self._title_rules is None:
+            self._title_rules = TextQualityRepository(self.db).get_active_rules("TITLE")
+        if not self._title_rules:
+            return None
+
+        suggested = apply_excerpts_in_python(doc.original_title, self._title_rules)
+        return suggested or None
 
     @staticmethod
     def _facet_filters(query: DocumentSearchQuery) -> list[Any]:
@@ -362,18 +398,48 @@ class DocumentRepository:
 
         Any manually edited document becomes `HUMAN_APPROVED`, which
         prevents overwriting by the migration/AI pipeline.
+
+        Every field that actually changes is written to ``archive_document_revisions`` with
+        its before/after and the author, so a correction can be explained later. Fields the
+        command did not send are left untouched, and a field sent with the same value is not
+        recorded as a change.
         """
         doc = self._get_orm_by_id(command.description_id)
         if doc is None:
             return None
 
-        changes = command.model_dump(exclude_unset=True, exclude={"description_id"})
+        changes = command.model_dump(exclude_unset=True, exclude={"description_id", "changed_by", "review_note"})
+        diff: dict[str, dict[str, Any]] = {}
+
         for field, value in changes.items():
+            previous = getattr(doc, field)
+            if previous == value:
+                continue
+            diff[field] = {"old": _jsonable(previous), "new": _jsonable(value)}
             setattr(doc, field, value)
+
+        if diff:
+            self.db.add(
+                ArchiveDocumentRevision(
+                    description_id=doc.description_id,
+                    changed_by=command.changed_by,
+                    changes=diff,
+                    note=command.review_note,
+                )
+            )
 
         doc.review_status = ArchiveReviewStatus.HUMAN_APPROVED
         self.db.flush()
         return self._to_summary(doc)
+
+    def list_revisions(self, description_id: str) -> list[DocumentRevisionDTO]:
+        """Audit trail of one document, newest first."""
+        stmt = (
+            select(ArchiveDocumentRevision)
+            .where(ArchiveDocumentRevision.description_id == description_id)
+            .order_by(ArchiveDocumentRevision.created_at.desc(), ArchiveDocumentRevision.revision_id.desc())
+        )
+        return [DocumentRevisionDTO.model_validate(row) for row in self.db.scalars(stmt).all()]
 
     def _get_orm_by_id(self, description_id: str) -> ArchiveDocument | None:
         """Internal ORM lookup used by write flows that need the managed entity."""
