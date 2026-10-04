@@ -12,7 +12,10 @@ from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
 from memoria_curitibana.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
+    BatchMergeResponse,
     CreateMacroCategoryCommand,
+    MergeBatchApplied,
+    MergeBatchCommand,
     MergePlan,
     MergePreviewCommand,
     MergeTagsCommand,
@@ -190,7 +193,23 @@ def test_merge_tags_validates_then_plans_and_applies(mocker: MockerFixture) -> N
     assert res.documents_updated == 2
     assert res.tags_deleted == 1
     mock_tag_repo.plan_merge.assert_called_once_with(1, [2])
-    mock_tag_repo.apply_merge.assert_called_once_with(plan)
+    mock_tag_repo.apply_merge.assert_called_once_with(plan, changed_by=None)
+
+
+def test_merge_passes_the_author_to_the_ledger(mocker: MockerFixture) -> None:
+    """Without the author the ledger would not answer 'who merged this'."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    mock_tag_repo.get_by_id.return_value = TagIdentity(tag_id=1, name="casa")
+    plan = MergePlan(canonical_id=1, canonical_name="casa", ids_to_merge=[2])
+    mock_tag_repo.plan_merge.return_value = plan
+    mock_tag_repo.apply_merge.return_value = MergeResponse(documents_updated=0, tags_deleted=1, merge_ids=[9])
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+    response = service.merge(MergeTagsCommand(canonical_id=1, ids_to_merge=[2], changed_by="arquivista"))
+
+    assert response.merge_ids == [9]
+    mock_tag_repo.apply_merge.assert_called_once_with(plan, changed_by="arquivista")
 
 
 def test_merge_tags_empty_list(mocker: MockerFixture) -> None:
@@ -404,6 +423,136 @@ def test_suggest_merges_rejects_an_out_of_range_threshold(mocker: MockerFixture)
         service.suggest_merges(threshold=1.5)
 
     mock_tag_repo.find_merge_suggestions.assert_not_called()
+
+
+# ==========================================
+# TESTS: batch application and audit trail
+# ==========================================
+
+
+def _proposal(
+    proposal_id: int, *, status: str, canonical_id: int, canonical_name: str, members: list
+) -> TagMergeProposalDTO:
+    return TagMergeProposalDTO(
+        proposal_id=proposal_id,
+        fingerprint=f"fp-{proposal_id}",
+        canonical_id=canonical_id,
+        canonical_name=canonical_name,
+        reason="PLURAL",
+        total_documents=2,
+        status=status,
+        members=members,
+    )
+
+
+def test_merge_batch_approves_pending_clusters_and_reports_the_rejected(mocker: MockerFixture) -> None:
+    """The batch is the decision for the pending ones; a rejected cluster is refused, not applied."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+
+    pending = _proposal(
+        1,
+        status="SUGGESTED",
+        canonical_id=10,
+        canonical_name="casa",
+        members=[
+            TagMergeMember(tag_id=10, name="casa", document_count=1),
+            TagMergeMember(tag_id=11, name="casas", document_count=1),
+        ],
+    )
+    rejected = _proposal(
+        2,
+        status="REJECTED",
+        canonical_id=20,
+        canonical_name="lote",
+        members=[
+            TagMergeMember(tag_id=20, name="lote", document_count=1),
+            TagMergeMember(tag_id=21, name="lotes", document_count=1),
+        ],
+    )
+    mock_tag_repo.get_merge_proposal.side_effect = lambda proposal_id: {1: pending, 2: rejected}.get(proposal_id)
+    mock_tag_repo.plan_merge.return_value = MergePlan(
+        canonical_id=10, canonical_name="casa", ids_to_merge=[11], document_ids=["doc-1"]
+    )
+    mock_tag_repo.apply_merge_batch.return_value = BatchMergeResponse(
+        applied=[MergeBatchApplied(proposal_id=1, merge_ids=[7], documents_updated=1, tags_deleted=1)],
+        failed=[],
+    )
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+    result = service.merge_batch(MergeBatchCommand(proposal_ids=[1, 2], changed_by="arquivista", note="lote"))
+
+    assert [entry.proposal_id for entry in result.applied] == [1]
+    assert len(result.failed) == 1
+    assert result.failed[0].proposal_id == 2
+    assert "rejeitada" in result.failed[0].error
+
+    # Including a pending cluster approves it, with the author of the batch.
+    mock_tag_repo.decide_merge_proposal.assert_called_once_with(
+        1, status="APPROVED", decided_by="arquivista", note="lote"
+    )
+
+    entries = mock_tag_repo.apply_merge_batch.call_args[0][0]
+    assert [entry.proposal_id for entry in entries] == [1]
+    assert entries[0].cluster_fingerprint == "fp-1"
+
+
+def test_merge_batch_refuses_more_clusters_than_the_cap(mocker: MockerFixture) -> None:
+    """Each cluster is a savepoint inside one transaction, so the request has to stay bounded."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    service = TagService(mock_tag_repo, mock_doc_repo)
+
+    with pytest.raises(InvalidParam, match="lote aceita"):
+        service.merge_batch(MergeBatchCommand(proposal_ids=list(range(1, 500))))
+
+    mock_tag_repo.apply_merge_batch.assert_not_called()
+
+
+def test_merge_batch_reports_a_proposal_without_a_canonical(mocker: MockerFixture) -> None:
+    """A stale proposal is a named failure, not a crash that takes the batch down."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    mock_tag_repo.get_merge_proposal.return_value = _proposal(
+        3, status="SUGGESTED", canonical_id=30, canonical_name="obra", members=[]
+    ).model_copy(update={"canonical_id": None})
+    mock_tag_repo.apply_merge_batch.return_value = BatchMergeResponse()
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+    result = service.merge_batch(MergeBatchCommand(proposal_ids=[3]))
+
+    assert result.applied == []
+    assert "canônica" in result.failed[0].error
+
+
+def test_list_merge_log_rejects_a_page_beyond_the_cap(mocker: MockerFixture) -> None:
+    """The audit trail is paged like every other listing."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    service = TagService(mock_tag_repo, mock_doc_repo)
+
+    with pytest.raises(InvalidParam, match="limit"):
+        service.list_merge_log(limit=10_000)
+
+    mock_tag_repo.list_merge_log.assert_not_called()
+
+
+def test_list_merge_log_reports_the_total_with_the_page(mocker: MockerFixture) -> None:
+    """The total matches the filters, so the caller knows how much is left outside the page."""
+    mock_tag_repo = mocker.Mock(spec=TagRepository)
+    mock_doc_repo = mocker.Mock(spec=DocumentRepository)
+    mock_tag_repo.count_merge_log.return_value = 12
+    mock_tag_repo.list_merge_log.return_value = []
+
+    service = TagService(mock_tag_repo, mock_doc_repo)
+    page = service.list_merge_log(canonical_id=4, changed_by="arquivista", include_undone=False, limit=5, offset=5)
+
+    assert page.total == 12
+    assert page.limit == 5
+    assert page.offset == 5
+    mock_tag_repo.list_merge_log.assert_called_once_with(
+        canonical_id=4, changed_by="arquivista", include_undone=False, limit=5, offset=5
+    )
 
 
 # ==========================================

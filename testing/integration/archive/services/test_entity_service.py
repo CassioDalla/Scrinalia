@@ -66,3 +66,114 @@ def test_resolve_cross_domain_conflict_tag_wins(use_test_db, db_session, generat
     new_link = db_session.scalars(select(ArchiveDocumentTag)).all()
     assert len(new_link) == 1
     assert new_link[0].tag_id == tag.tag_id
+
+
+# ==========================================
+# MERGE CHAINS (the same defects the tag path had)
+# ==========================================
+
+
+def _merge(repo: EntityRepository, canonical_id: int, ids_to_merge: list[int]) -> None:
+    from memoria_curitibana.domains.archive.schemas import MergeEntityCommand
+    from memoria_curitibana.domains.archive.services.entity_service import EntityService
+
+    EntityService(repo).merge(MergeEntityCommand(canonical_id=canonical_id, ids_to_merge=ids_to_merge))
+
+
+def test_chained_entity_merge_keeps_the_mapping_of_the_surviving_canonical(use_test_db, db_session):
+    """
+    ``a -> b`` then ``b -> c`` must not forget that ``a`` was absorbed.
+
+    ``domain_synonyms.canonical_entity_id`` is ``ON DELETE CASCADE``, so deleting ``b`` used to
+    take the synonym of the first merge with it and the extraction recreated the term. Same
+    defect and same fix as the tag path.
+    """
+    from memoria_curitibana.domains.archive.models import DomainSynonyms
+
+    repo = EntityRepository(db_session)
+    first = ArchiveEntity(name="prefeiruta", entity_type="ORG")
+    second = ArchiveEntity(name="prefeitura", entity_type="ORG")
+    third = ArchiveEntity(name="prefeitura de curitiba", entity_type="ORG")
+    db_session.add_all([first, second, third])
+    db_session.commit()
+
+    _merge(repo, second.entity_id, [first.entity_id])
+    db_session.commit()
+    _merge(repo, third.entity_id, [second.entity_id])
+    db_session.commit()
+
+    mapping = dict(
+        db_session.execute(
+            select(DomainSynonyms.synonym_name, DomainSynonyms.canonical_entity_id).where(
+                DomainSynonyms.category == "ORG"
+            )
+        ).all()
+    )
+    assert mapping == {
+        "prefeiruta": third.entity_id,
+        "prefeitura": third.entity_id,
+    }
+
+
+def test_no_entity_synonym_points_to_a_deleted_entity_after_a_merge_chain(use_test_db, db_session):
+    """The cascade must never leave an entity synonym whose canonical is gone."""
+
+    repo = EntityRepository(db_session)
+    first = ArchiveEntity(name="ippuc", entity_type="ORG")
+    second = ArchiveEntity(name="ippuc.", entity_type="ORG")
+    third = ArchiveEntity(name="instituto ippuc", entity_type="ORG")
+    db_session.add_all([first, second, third])
+    db_session.commit()
+
+    _merge(repo, second.entity_id, [first.entity_id])
+    db_session.commit()
+    _merge(repo, third.entity_id, [second.entity_id])
+    db_session.commit()
+
+    dangling = db_session.execute(
+        text(
+            """
+            SELECT count(*) FROM domain_synonyms ds
+            WHERE ds.category IN ('ORG', 'PER', 'LOC')
+              AND NOT EXISTS (SELECT 1 FROM archive_entities e WHERE e.entity_id = ds.canonical_entity_id)
+            """
+        )
+    ).scalar_one()
+
+    assert dangling == 0
+
+
+def test_create_synonyms_repoints_an_existing_entity_mapping(use_test_db, db_session):
+    """Re-pointing an entity spelling must move it, not be silently ignored."""
+    from memoria_curitibana.domains.archive.schemas import SynonymCommand
+
+    repo = EntityRepository(db_session)
+    first = ArchiveEntity(name="ippuc", entity_type="ORG")
+    second = ArchiveEntity(name="instituto ippuc", entity_type="ORG")
+    db_session.add_all([first, second])
+    db_session.commit()
+
+    repo.create_synonyms(
+        [
+            SynonymCommand(
+                synonym_name="ippuc antigo",
+                category="ORG",
+                canonical_tag_id=None,
+                canonical_entity_id=first.entity_id,
+            )
+        ]
+    )
+    repo.create_synonyms(
+        [
+            SynonymCommand(
+                synonym_name="ippuc antigo",
+                category="ORG",
+                canonical_tag_id=None,
+                canonical_entity_id=second.entity_id,
+            )
+        ]
+    )
+    db_session.flush()
+
+    rules = {rule["pattern"]: rule["id"] for rule in repo.get_ner_synonyms_rules()}
+    assert rules["ippuc antigo"] == "instituto ippuc"

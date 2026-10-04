@@ -9,6 +9,15 @@ class MergeRequest(BaseModel):
     canonical_id: int
     ids_to_merge: list[int] = Field(min_length=1, description="List of IDs that will be merged and deleted.")
     new_name: str | None = None
+    changed_by: str | None = Field(default=None, description="Who merged; free text until authentication exists.")
+
+
+class MergeBatchRequest(BaseModel):
+    """Applies a set of proposals. Including a pending one is the archivist's decision."""
+
+    proposal_ids: list[int] = Field(min_length=1, description="Proposals to apply, in order.")
+    changed_by: str | None = Field(default=None, description="Who decided; free text until authentication exists.")
+    note: str | None = Field(default=None, description="Why; kept for auditing.")
 
 
 class MergeSuggestionRequest(BaseModel):

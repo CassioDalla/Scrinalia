@@ -8,7 +8,7 @@ arquivístico (DDD + micro-workers + HITL).
 > pendente. Quando um item está parcialmente pronto, ele aparece como `[~]` com a descrição
 > explícita do que existe e do que falta.
 >
-> **Estado do gate de qualidade:** suíte **543 testes** passando (unit + integração),
+> **Estado do gate de qualidade:** suíte **572 testes** passando (unit + integração),
 > `ruff check`/`ruff format --check` limpos, `basedpyright` 0 erros,
 > `alembic upgrade head` + `alembic check` sem drift.
 
@@ -592,16 +592,37 @@ Leituras que ficam registradas:
   `.analysis/tag_merge_report.json`. Medido: 411 clusters, 466 tags absorvidas, 2074
   documentos, **350 clusters sem flag**, 58 com dígito, 3 `WEAK_MEMBER`, 0 de categoria em
   risco (nenhuma tag tem macro categoria no acervo hoje).
-- [ ] **Aplicar as decisões (Entrega 2).** Aprovar hoje **não mescla**: registra a intenção.
-  A aplicação em lote fica para a entrega seguinte, junto com o ledger que a torna reversível
-  — aplicar antes disso criaria um caminho destrutivo sem undo, o oposto do que esta fase
-  existe para consertar. Falta: `archive_taxonomy_merge_log` (snapshot da tag absorvida e dos
-  vínculos) + `DELETE /tags/merge/{id}`, `POST /tags/merge/batch` com SAVEPOINT por cluster,
-  e a aprovação medida de um subconjunto no acervo real.
-- [ ] **Mesmos dois defeitos no caminho de entidades** (228 pares similares):
-  `EntityRepository.create_synonyms` e `EntityService.merge` têm o `on_conflict_do_nothing` e
-  a ausência de reapontamento antes do delete — merge encadeado de entidade também ressuscita
-  o termo. Pré-requisito da iteração de entidades.
+- [x] **Ledger reversível e undo sem perda (Entrega 2).** `archive_taxonomy_merge_log`
+  (migração `63bcc576d926`), uma linha por tag absorvida, gravado **antes** de o merge tocar
+  em qualquer coisa: snapshot da linha (nome, categoria, score, `execution_log`, `created_at`),
+  os documentos daquela tag, os vínculos que o merge **criou** e o estado das grafias.
+  `undo_merge` restaura a tag com o `tag_id` original, os vínculos, a classificação e as
+  grafias. Três achados da implementação: (1) restaurar a tag não bastava — sem apagar os
+  vínculos criados o documento ficaria com as **duas** grafias, daí `created_link_ids`;
+  (2) **nenhum `setval` é necessário**, porque o id veio da própria sequence (a armadilha dos
+  seeds com id explícito não se aplica), e há teste criando tags depois do undo; (3) grafias
+  têm **três** estados (criada pelo merge, já existente apontando para outra tag, ou apontando
+  para a tag absorvida) e o undo restaura cada um.
+- [x] **Aplicação em lote com isolamento real.** `POST /tags/merge/batch` roda cada cluster num
+  SAVEPOINT: um cluster ruim entra em `failed` e os bons são aplicados (commit único do
+  `provide_unit_of_work`). Incluir um `SUGGESTED` no lote **é** a decisão (vira `APPROVED` com
+  `decided_by`); `REJECTED` é recusado; um cluster já aplicado é reportado, não reescrito.
+- [x] **Auditoria e undo por HTTP.** `GET /tags/merge-log` (paginado; filtros por canônico,
+  autor e desfeitos) e `DELETE /tags/merge-log/{merge_id}` (single-shot: a segunda tentativa é
+  **409**; id inexistente é **404**). O ledger é o recurso — único desvio de nomenclatura em
+  relação ao plano, que dizia `DELETE /tags/merge/{id}`.
+- [x] **Mesmos dois defeitos no caminho de entidades — corrigidos.**
+  `EntityRepository.create_synonyms` virou upsert e `EntityService.merge` reaponta os sinônimos
+  antes de `delete_entities` (`canonical_entity_id` também é `ON DELETE CASCADE`). Guardas:
+  merge encadeado de entidade mantém o mapeamento, nenhum sinônimo aponta para entidade morta,
+  e reapontar move de verdade.
+- [ ] **Aplicar no acervo real (decisão do arquivista, pendente).** A capacidade está pronta e
+  verificada; a escrita no banco de desenvolvimento **não foi feita** porque é destrutiva no
+  acervo e a decisão é humana. Subconjunto mais defensável medido: **40 clusters `PLURAL` sem
+  flag** (40 tags absorvidas, 513 vínculos) — a regra de plural só dispara quando o singular já
+  existe como tag. Desfazível pelo ledger, cluster a cluster.
+- [ ] **Catálogo de propostas de entidades** (228 pares similares), reusando o dry-run e o
+  ledger que já existem para tags.
 
 
 ### Observabilidade e operação
@@ -700,6 +721,11 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 | **Flags no acervo real** | 350 de 411 clusters sem nenhuma flag; 58 com `MEMBER_WITH_DIGITS` (mistos: `br-116 ← br 116` correto, `rua ← rua 7` errado); 3 `WEAK_MEMBER`; 0 `CATEGORY_WOULD_BE_LOST` |
 | **Rotas ponta a ponta (HTTP, acervo real)** | `POST /tags/merge/preview` 200 com flags e impacto reais; canônica inexistente → 400; `PATCH` de proposta inexistente → 404; `limit` acima do teto → 400; nenhuma proposta ou tag foi escrita pelas rotas de leitura |
 | **Migração `acfe0e1d9f1f` em banco limpo** | `upgrade head` → `check` (exit 0) → `downgrade -1` → `upgrade head` → `check` sem drift |
+| **Ciclo completo por HTTP (banco descartável, Entrega 2)** | `suggest` → `preview` → `PATCH` approve → `batch` → `GET merge-log` → `DELETE merge-log/{id}`; a tag absorvida volta com o vínculo no lugar, a segunda tentativa de undo é **409** e um id inexistente é **404** |
+| **Undo sem perda (testes de integração)** | restaura `tag_id`, nome, categoria, score, `execution_log` e vínculos; apaga **só** os vínculos que o merge criou (documento que já tinha as duas grafias mantém as duas); devolve grafias nos três estados; tolera documento apagado depois do merge; a sequence sobrevive (criar tag depois do undo não colide) |
+| **Lote com falha isolada (teste de integração)** | um cluster com canônico inexistente entra em `failed` e é revertido pelo SAVEPOINT; o cluster bom é aplicado e gera ledger; reaplicar o mesmo cluster é reportado, não reescrito |
+| **Migração `63bcc576d926` em banco limpo** | `upgrade head` → `check` → `downgrade -1` → `upgrade head` → `check` sem drift |
+| **Merge encadeado de entidade (defeito irmão)** | `a→b` e `b→c` mantém `a` e `b` apontando para `c`; nenhum sinônimo de entidade aponta para entidade morta; reapontar uma grafia de entidade a move de verdade |
 | **Medição antes/depois (16 consultas, 3608 docs, MiniLM real)** | separação média entre pares 0.769 → 0.504; com o escopo de produção Hit@10 0.562 → **0.625**, Recall@10 0.292 → **0.333**, precisão@10 por termo 0.294 → **0.381**, MRR 0.358 → 0.339 |
 | ⚠️ **Aprovar tudo o que a máquina sugeriu PIORA o ranking** | conjunto completo (com os prefixos de título): Hit@10 **0.500** (pior que 0.562 sem trecho nenhum). O prefixo de título derruba o ranking (0.562 → 0.500) e é exatamente o que o `suggested_final_title` precisa → nasceu o `scope` do template |
 

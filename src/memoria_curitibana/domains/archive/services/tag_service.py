@@ -5,6 +5,7 @@ from typing import Literal
 from memoria_curitibana.core.logger import logger
 from memoria_curitibana.domains.archive.domain.normalization import normalize_stopword, normalize_tag
 from memoria_curitibana.domains.archive.exceptions import (
+    DomainException,
     InvalidMergeError,
     InvalidParam,
     MacroCategoryNotFoundError,
@@ -15,7 +16,13 @@ from memoria_curitibana.domains.archive.ports.taxonomy import TagRepositoryPort
 from memoria_curitibana.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
+    BatchMergeResponse,
     CreateMacroCategoryCommand,
+    MergeBatchCommand,
+    MergeBatchEntry,
+    MergeBatchFailure,
+    MergeLogEntryDTO,
+    MergeLogListResponse,
     MergePreviewCommand,
     MergePreviewResponse,
     MergeResponse,
@@ -34,6 +41,13 @@ from memoria_curitibana.domains.archive.schemas import (
 #: Upper bound of one page of proposals. The real collection produced hundreds of clusters,
 #: so paging is the default and a client cannot ask for the whole catalog in one request.
 MAX_MERGE_PROPOSALS_PAGE = 200
+
+#: Upper bound of one batch. Each cluster is applied in its own savepoint, but the request is
+#: still a single transaction, so it has to stay bounded.
+MAX_MERGE_BATCH_CLUSTERS = 200
+
+#: Upper bound of one page of the merge ledger.
+MAX_MERGE_LOG_PAGE = 200
 
 
 class TagService:
@@ -254,11 +268,109 @@ class TagService:
         Merges tags: computes the plan and applies it.
 
         The plan is the single definition of the operation, shared with the dry-run, so the
-        preview cannot diverge from what the merge really does.
+        preview cannot diverge from what the merge really does. The apply writes the ledger,
+        which is what lets the same operation be undone later.
         """
         self._validate_merge_inputs(command.canonical_id, command.ids_to_merge)
         plan = self.repo.plan_merge(command.canonical_id, command.ids_to_merge)
-        return self.repo.apply_merge(plan)
+        return self.repo.apply_merge(plan, changed_by=command.changed_by)
+
+    def merge_batch(self, command: MergeBatchCommand) -> BatchMergeResponse:
+        """
+        Applies several approved clusters, one savepoint each.
+
+        Including a pending proposal in the batch **is** the archivist's decision, so it is
+        recorded as approved; a rejected one is never applied, because rejecting is a decision
+        too. A cluster that fails is reported and the others are committed — the unit of work
+        still owns the single final commit.
+        """
+        proposal_ids = list(dict.fromkeys(command.proposal_ids))
+        if len(proposal_ids) > MAX_MERGE_BATCH_CLUSTERS:
+            raise InvalidParam(f"O lote aceita no máximo {MAX_MERGE_BATCH_CLUSTERS} clusters por requisição.")
+
+        entries: list[MergeBatchEntry] = []
+        failures: list[MergeBatchFailure] = []
+
+        for proposal_id in proposal_ids:
+            proposal = self.repo.get_merge_proposal(proposal_id)
+            if proposal is None:
+                failures.append(MergeBatchFailure(proposal_id=proposal_id, error="Proposta não encontrada."))
+                continue
+            if proposal.status == "REJECTED":
+                failures.append(MergeBatchFailure(proposal_id=proposal_id, error="Proposta rejeitada pelo curador."))
+                continue
+            if proposal.canonical_id is None:
+                failures.append(MergeBatchFailure(proposal_id=proposal_id, error="A proposta não tem tag canônica."))
+                continue
+
+            ids_to_merge = [member.tag_id for member in proposal.members if member.tag_id != proposal.canonical_id]
+            try:
+                plan = self.repo.plan_merge(proposal.canonical_id, ids_to_merge)
+            except DomainException as exc:
+                failures.append(MergeBatchFailure(proposal_id=proposal_id, error=str(exc)))
+                continue
+
+            if not plan.ids_to_merge:
+                failures.append(
+                    MergeBatchFailure(
+                        proposal_id=proposal_id,
+                        error="Os membros já não existem no acervo (a mesclagem já foi aplicada?).",
+                    )
+                )
+                continue
+
+            if proposal.status == "SUGGESTED":
+                self.repo.decide_merge_proposal(
+                    proposal_id, status="APPROVED", decided_by=command.changed_by, note=command.note
+                )
+
+            entries.append(
+                MergeBatchEntry(proposal_id=proposal_id, cluster_fingerprint=proposal.fingerprint, plan=plan)
+            )
+
+        result = self.repo.apply_merge_batch(entries, changed_by=command.changed_by, note=command.note)
+
+        if result.failed:
+            logger.warning(f"⚠️ {len(result.failed)} clusters do lote não foram aplicados: {result.failed}")
+
+        return BatchMergeResponse(applied=result.applied, failed=[*failures, *result.failed])
+
+    def undo_merge(self, merge_id: int, undone_by: str | None = None) -> MergeLogEntryDTO:
+        """
+        Reverses one merge from the ledger, restoring the tag, its links and its spellings.
+
+        The repository raises ``MergeLogNotFoundError`` (404) or ``MergeAlreadyUndoneError``
+        (409); the service does not translate them, the API handler owns that mapping.
+        """
+        entry = self.repo.undo_merge(merge_id, undone_by=undone_by)
+        logger.info(f"↩️ Mesclagem {merge_id} desfeita: '{entry.absorbed_name}' restaurada.")
+        return entry
+
+    def list_merge_log(
+        self,
+        canonical_id: int | None = None,
+        changed_by: str | None = None,
+        include_undone: bool = True,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> MergeLogListResponse:
+        """The audit trail of the merges, with the total matching the same filters."""
+        if limit <= 0 or limit > MAX_MERGE_LOG_PAGE:
+            raise InvalidParam(f"O parâmetro 'limit' deve estar entre 1 e {MAX_MERGE_LOG_PAGE}.")
+        if offset < 0:
+            raise InvalidParam("O parâmetro 'offset' não pode ser negativo.")
+
+        total = self.repo.count_merge_log(
+            canonical_id=canonical_id, changed_by=changed_by, include_undone=include_undone
+        )
+        items = self.repo.list_merge_log(
+            canonical_id=canonical_id,
+            changed_by=changed_by,
+            include_undone=include_undone,
+            limit=limit,
+            offset=offset,
+        )
+        return MergeLogListResponse(total=total, limit=limit, offset=offset, items=items)
 
     def preview_merge(self, command: MergePreviewCommand) -> MergePreviewResponse:
         """

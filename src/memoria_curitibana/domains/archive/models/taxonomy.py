@@ -132,6 +132,63 @@ class ArchiveTagMergeProposal(Base):
     )
 
 
+class ArchiveTaxonomyMergeLog(Base):
+    """
+    Ledger of every absorbed tag, with enough detail to undo the merge without loss.
+
+    One row **per absorbed tag**, not per cluster: the unit of undo is the tag. The row keeps
+    a full snapshot of the deleted tag (name, category, confidence, the AI execution log) and
+    the exact documents that carried it, so the reverse operation restores the row and its
+    links instead of an approximation of them. Nothing less would make the promise of the
+    curation flow true: a merge approved by a human has to be revertible by a human.
+
+    ``undone_at`` makes the undo single-shot and keeps the trail readable after the fact —
+    the row is never deleted, so the history of "this was merged, then undone" survives.
+    ``synonym_*`` and ``repointed_synonym_names`` capture the spelling state *before* the
+    merge, because the reverse has to restore what was there instead of guessing it.
+    """
+
+    __tablename__ = "archive_taxonomy_merge_log"
+
+    merge_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    # The proposal that authorised this merge (null for an ad-hoc merge); grouping only,
+    # deliberately not a foreign key so the ledger outlives the catalogue.
+    cluster_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+
+    # Snapshots: the canonical survives today, but it can be absorbed by a later merge, so
+    # what undo restores must not depend on reading the current catalogue.
+    canonical_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    canonical_name: Mapped[str] = mapped_column(String(100), nullable=False)
+
+    absorbed_tag_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    absorbed_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    absorbed_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+    # Exactly the documents that carried the absorbed tag (a union would over-link on undo).
+    document_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+
+    # The subset the merge newly linked to the canonical (i.e. the documents that did not
+    # have it before). Undo removes exactly these links: restoring the tag without removing
+    # them would leave the document with both spellings, which is not the pre-merge state.
+    created_link_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+
+    # The spelling equal to the absorbed name was created by this merge (undo deletes it), or
+    # already existed pointing somewhere else (undo moves it back to that place).
+    synonym_created: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    synonym_previous_tag_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Spellings that pointed *at* the absorbed tag and were moved to the canonical.
+    repointed_synonym_names: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+
+    changed_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    undone_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    undone_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+
 class ArchiveTypology(Base):
     __tablename__ = "archive_typologies"
 

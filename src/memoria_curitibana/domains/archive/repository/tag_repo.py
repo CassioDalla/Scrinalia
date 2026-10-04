@@ -35,13 +35,18 @@ from memoria_curitibana.domains.archive.domain.tag_merge import (
     cluster_fingerprint,
     has_digits,
 )
-from memoria_curitibana.domains.archive.exceptions import InvalidParam
+from memoria_curitibana.domains.archive.exceptions import (
+    InvalidParam,
+    MergeAlreadyUndoneError,
+    MergeLogNotFoundError,
+)
 from memoria_curitibana.domains.archive.models import (
     ArchiveDocument,
     ArchiveDocumentTag,
     ArchiveMacroCategory,
     ArchiveTag,
     ArchiveTagMergeProposal,
+    ArchiveTaxonomyMergeLog,
     DomainStopwords,
     DomainSynonyms,
     StopwordsScope,
@@ -49,6 +54,11 @@ from memoria_curitibana.domains.archive.models import (
 from memoria_curitibana.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
+    BatchMergeResponse,
+    MergeBatchApplied,
+    MergeBatchEntry,
+    MergeBatchFailure,
+    MergeLogEntryDTO,
     MergePlan,
     MergeResponse,
     SynonymCommand,
@@ -648,7 +658,8 @@ class TagRepository:
             for tag_id in dead_ids
         ]
 
-        document_ids = sorted(set(self.get_document_ids_by_tags(dead_ids)))
+        documents_by_tag = self.get_document_ids_grouped_by_tags(dead_ids)
+        document_ids = sorted({document_id for ids in documents_by_tag.values() for document_id in ids})
         synonym_names = [normalize_tag(member.name) for member in impacted]
         repointed = sorted(set(self.get_synonym_names_pointing_to(dead_ids)))
 
@@ -674,20 +685,33 @@ class TagRepository:
             ids_to_merge=dead_ids,
             impacted=impacted,
             document_ids=document_ids,
+            documents_by_tag=documents_by_tag,
             synonym_names=synonym_names,
             repointed_synonyms=repointed,
             review_flags=flags,
             category_would_be_lost=category_would_be_lost,
         )
 
-    def apply_merge(self, plan: MergePlan) -> MergeResponse:
+    def apply_merge(
+        self,
+        plan: MergePlan,
+        cluster_fingerprint: str | None = None,
+        changed_by: str | None = None,
+        note: str | None = None,
+    ) -> MergeResponse:
         """
-        Executes exactly what ``plan_merge`` described.
+        Executes exactly what ``plan_merge`` described, after writing the undo ledger.
 
-        The order matters and is the Fase 0 fix: the spellings already absorbed by the tags
-        being deleted are moved to the canonical *before* the delete, because the synonym FK
-        cascades and the deletion would otherwise forget the earlier curation.
+        The order matters twice. The ledger is written **before** anything changes, because
+        what it snapshots (the spelling state) is exactly what the merge is about to modify.
+        And the spellings already absorbed by the tags being deleted are moved to the canonical
+        *before* the delete, because the synonym FK cascades and deleting first would forget
+        the earlier curation (the Fase 0 fix).
         """
+        merge_ids = self.write_merge_log(
+            plan, cluster_fingerprint=cluster_fingerprint, changed_by=changed_by, note=note
+        )
+
         if plan.document_ids:
             self.link_documents_to_tag(set(plan.document_ids), plan.canonical_id)
 
@@ -707,20 +731,331 @@ class TagRepository:
             )
 
         tags_deleted = self.delete_tags(list(plan.ids_to_merge))
-        return MergeResponse(documents_updated=len(plan.document_ids), tags_deleted=tags_deleted)
+        return MergeResponse(documents_updated=len(plan.document_ids), tags_deleted=tags_deleted, merge_ids=merge_ids)
+
+    # --- The ledger: what a merge would have to restore ---
+
+    def write_merge_log(
+        self,
+        plan: MergePlan,
+        cluster_fingerprint: str | None = None,
+        changed_by: str | None = None,
+        note: str | None = None,
+    ) -> list[int]:
+        """
+        Snapshots every tag the plan absorbs. Returns the ledger ids, oldest first.
+
+        Reads the current rows instead of trusting the plan for the fields the dry-run does not
+        carry (``execution_log``, ``created_at``) and captures the spelling state before the
+        merge touches it — an undo that guesses either of those is not a lossless undo.
+        """
+        if not plan.ids_to_merge:
+            return []
+
+        tags = {
+            tag.tag_id: tag
+            for tag in self.db.scalars(select(ArchiveTag).where(ArchiveTag.tag_id.in_(plan.ids_to_merge))).all()
+        }
+        spellings_of_dead = self._synonym_names_by_canonical(plan.ids_to_merge)
+        mapped_spellings = self._synonym_targets_by_name(plan.synonym_names)
+        # Documents that already carried the canonical: the merge does not create those links,
+        # so undo must not remove them either.
+        already_canonical = set(self.get_document_ids_grouped_by_tags([plan.canonical_id]).get(plan.canonical_id, []))
+
+        rows = []
+        for tag_id in plan.ids_to_merge:
+            tag = tags.get(tag_id)
+            if tag is None:
+                continue
+
+            name = normalize_tag(tag.name)
+            previous_target = mapped_spellings.get(name)
+            documents = plan.documents_by_tag.get(tag_id, [])
+            rows.append(
+                {
+                    "cluster_fingerprint": cluster_fingerprint,
+                    "canonical_id": plan.canonical_id,
+                    "canonical_name": plan.canonical_name,
+                    "absorbed_tag_id": tag.tag_id,
+                    "absorbed_name": name,
+                    "absorbed_snapshot": {
+                        "name": tag.name,
+                        "macro_category_id": tag.macro_category_id,
+                        "ai_confidence_score": tag.ai_confidence_score,
+                        "execution_log": tag.execution_log,
+                        "created_at": tag.created_at.isoformat() if tag.created_at else None,
+                    },
+                    # Only for the restore path: the live links are the ones in the plan.
+                    "document_ids": documents,
+                    "created_link_ids": [doc for doc in documents if doc not in already_canonical],
+                    "synonym_created": previous_target is None,
+                    "synonym_previous_tag_id": previous_target,
+                    "repointed_synonym_names": spellings_of_dead.get(tag_id, []),
+                    "changed_by": changed_by,
+                    "note": note,
+                }
+            )
+
+        if not rows:
+            return []
+
+        stmt = insert(ArchiveTaxonomyMergeLog).values(rows).returning(ArchiveTaxonomyMergeLog.merge_id)
+        return list(self.db.scalars(stmt).all())
+
+    def _synonym_names_by_canonical(self, tag_ids: Sequence[int]) -> dict[int, list[str]]:
+        """Spellings each tag absorbs today, keyed by the tag they point at."""
+        if not tag_ids:
+            return {}
+
+        stmt = select(DomainSynonyms.canonical_tag_id, DomainSynonyms.synonym_name).where(
+            DomainSynonyms.category == "TAG", DomainSynonyms.canonical_tag_id.in_(list(tag_ids))
+        )
+        grouped: dict[int, list[str]] = defaultdict(list)
+        for canonical_tag_id, synonym_name in self.db.execute(stmt).all():
+            if canonical_tag_id is not None:
+                grouped[canonical_tag_id].append(synonym_name)
+        return grouped
+
+    def _synonym_targets_by_name(self, names: Sequence[str]) -> dict[str, int]:
+        """Where each spelling points today, so the undo can restore (or drop) that mapping."""
+        if not names:
+            return {}
+
+        stmt = select(DomainSynonyms.synonym_name, DomainSynonyms.canonical_tag_id).where(
+            DomainSynonyms.category == "TAG", DomainSynonyms.synonym_name.in_(list(names))
+        )
+        return {
+            synonym_name: canonical_tag_id
+            for synonym_name, canonical_tag_id in self.db.execute(stmt).all()
+            if canonical_tag_id is not None
+        }
+
+    def undo_merge(self, merge_id: int, undone_by: str | None = None) -> MergeLogEntryDTO:
+        """
+        Reverses one merge: restores the tag, its links, its classification and its spellings.
+
+        Exact by construction — the id and the row come from the snapshot, the links from the
+        per-tag list, and the spelling state from what was captured before the merge. Only
+        documents that still exist are re-linked: a document deleted after the merge must not
+        make the undo impossible.
+        """
+        row = self.db.get(ArchiveTaxonomyMergeLog, merge_id)
+        if row is None:
+            raise MergeLogNotFoundError(f"Registro de mesclagem {merge_id} não encontrado no ledger.")
+        if row.undone_at is not None:
+            raise MergeAlreadyUndoneError(
+                f"A mesclagem {merge_id} já foi desfeita em {row.undone_at:%Y-%m-%d %H:%M:%S}."
+            )
+
+        snapshot = row.absorbed_snapshot or {}
+        restored = ArchiveTag(
+            tag_id=row.absorbed_tag_id,
+            name=snapshot.get("name") or row.absorbed_name,
+            macro_category_id=snapshot.get("macro_category_id"),
+            ai_confidence_score=snapshot.get("ai_confidence_score"),
+            execution_log=snapshot.get("execution_log"),
+        )
+        created_at = snapshot.get("created_at")
+        if created_at:
+            restored.created_at = datetime.fromisoformat(created_at)
+        self.db.add(restored)
+        self.db.flush()
+
+        # The sequence already allocated this id once, so re-using it cannot collide with the
+        # next insert (unlike a hand-written seed, which is the known pitfall with explicit ids).
+        self._remove_created_links(row)
+        self._relink_documents(row.absorbed_tag_id, row.document_ids or [])
+        self._restore_spellings(row)
+
+        row.undone_at = datetime.now(UTC)
+        row.undone_by = undone_by
+        self.db.flush()
+        return self._to_merge_log_dto(row)
+
+    def _relink_documents(self, tag_id: int, document_ids: Sequence[str]) -> int:
+        """Re-links the recorded documents that still exist, ignoring the ones that do not."""
+        if not document_ids:
+            return 0
+
+        existing = self.db.scalars(
+            select(ArchiveDocument.description_id).where(ArchiveDocument.description_id.in_(list(document_ids)))
+        ).all()
+        if existing:
+            self.link_documents_to_tag(set(existing), tag_id)
+        return len(existing)
+
+    def _remove_created_links(self, row: ArchiveTaxonomyMergeLog) -> int:
+        """
+        Drops the canonical links the merge created, so undo restores the pre-merge state.
+
+        Only the recorded subset: a document that already carried the canonical before the
+        merge keeps it, and a link somebody added afterwards is not touched because it is not
+        in the ledger.
+        """
+        created = row.created_link_ids or []
+        if not created or row.canonical_id is None:
+            return 0
+
+        stmt = delete(ArchiveDocumentTag).where(
+            ArchiveDocumentTag.tag_id == row.canonical_id,
+            ArchiveDocumentTag.description_id.in_(list(created)),
+        )
+        return cast(CursorResult, self.db.execute(stmt)).rowcount
+
+    def _restore_spellings(self, row: ArchiveTaxonomyMergeLog) -> None:
+        """
+        Puts the spelling state back the way it was before the merge.
+
+        Three cases, all captured at merge time: the spelling equal to the absorbed name was
+        created by the merge (drop it), it already existed (point it back), and spellings that
+        pointed at the absorbed tag were moved to the canonical (move them back). A mapping
+        someone changed later is left alone — the undo restores this merge, not the next one.
+        """
+        created_synonym = self.db.scalars(
+            select(DomainSynonyms).where(
+                DomainSynonyms.category == "TAG",
+                DomainSynonyms.synonym_name == row.absorbed_name,
+            )
+        ).one_or_none()
+
+        if created_synonym is not None:
+            if row.synonym_created and created_synonym.canonical_tag_id == row.canonical_id:
+                self.db.delete(created_synonym)
+            elif not row.synonym_created and created_synonym.canonical_tag_id == row.canonical_id:
+                created_synonym.canonical_tag_id = row.synonym_previous_tag_id
+            elif row.synonym_created and created_synonym.canonical_tag_id != row.canonical_id:
+                # Somebody re-pointed it after the merge: not this undo's business.
+                pass
+
+        if row.repointed_synonym_names:
+            self.db.execute(
+                update(DomainSynonyms)
+                .where(
+                    DomainSynonyms.category == "TAG",
+                    DomainSynonyms.canonical_tag_id == row.canonical_id,
+                    DomainSynonyms.synonym_name.in_(row.repointed_synonym_names),
+                )
+                .values(canonical_tag_id=row.absorbed_tag_id)
+            )
+
+    def apply_merge_batch(
+        self,
+        entries: Sequence[MergeBatchEntry],
+        changed_by: str | None = None,
+        note: str | None = None,
+    ) -> BatchMergeResponse:
+        """
+        Applies several clusters, isolating each one in a SAVEPOINT.
+
+        One bad cluster must not roll back the good ones (the archivist sees exactly what
+        failed and retries it), while the request still ends in a single commit owned by the
+        unit of work — so a process crash leaves nothing half-applied either.
+        """
+        applied: list[MergeBatchApplied] = []
+        failed: list[MergeBatchFailure] = []
+
+        for entry in entries:
+            try:
+                with self.db.begin_nested():
+                    response = self.apply_merge(
+                        entry.plan,
+                        cluster_fingerprint=entry.cluster_fingerprint,
+                        changed_by=changed_by,
+                        note=note,
+                    )
+            except Exception as exc:
+                failed.append(MergeBatchFailure(proposal_id=entry.proposal_id, error=str(exc)))
+            else:
+                applied.append(
+                    MergeBatchApplied(
+                        proposal_id=entry.proposal_id,
+                        merge_ids=response.merge_ids,
+                        documents_updated=response.documents_updated,
+                        tags_deleted=response.tags_deleted,
+                    )
+                )
+
+        return BatchMergeResponse(applied=applied, failed=failed)
+
+    def _tag_merge_log_filters(
+        self, canonical_id: int | None, changed_by: str | None, include_undone: bool
+    ) -> list[Any]:
+        filters: list[Any] = []
+        if canonical_id is not None:
+            filters.append(ArchiveTaxonomyMergeLog.canonical_id == canonical_id)
+        if changed_by is not None:
+            filters.append(ArchiveTaxonomyMergeLog.changed_by == changed_by)
+        if not include_undone:
+            filters.append(ArchiveTaxonomyMergeLog.undone_at.is_(None))
+        return filters
+
+    def count_merge_log(
+        self, canonical_id: int | None = None, changed_by: str | None = None, include_undone: bool = True
+    ) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(ArchiveTaxonomyMergeLog)
+            .where(*self._tag_merge_log_filters(canonical_id, changed_by, include_undone))
+        )
+        return self.db.scalar(stmt) or 0
+
+    def list_merge_log(
+        self,
+        canonical_id: int | None = None,
+        changed_by: str | None = None,
+        include_undone: bool = True,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[MergeLogEntryDTO]:
+        """The audit trail: most recent first, undone entries included unless filtered out."""
+        stmt = (
+            select(ArchiveTaxonomyMergeLog)
+            .where(*self._tag_merge_log_filters(canonical_id, changed_by, include_undone))
+            .order_by(ArchiveTaxonomyMergeLog.merge_id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return [self._to_merge_log_dto(row) for row in self.db.scalars(stmt).all()]
+
+    def get_merge_log_entry(self, merge_id: int) -> MergeLogEntryDTO | None:
+        row = self.db.get(ArchiveTaxonomyMergeLog, merge_id)
+        return self._to_merge_log_dto(row) if row else None
+
+    def _to_merge_log_dto(self, row: ArchiveTaxonomyMergeLog) -> MergeLogEntryDTO:
+        """Maps the row to the read contract, exposing the document *count* and not the ids."""
+        return MergeLogEntryDTO(
+            merge_id=row.merge_id,
+            cluster_fingerprint=row.cluster_fingerprint,
+            canonical_id=row.canonical_id,
+            canonical_name=row.canonical_name,
+            absorbed_tag_id=row.absorbed_tag_id,
+            absorbed_name=row.absorbed_name,
+            document_count=len(row.document_ids or []),
+            repointed_synonym_names=list(row.repointed_synonym_names or []),
+            synonym_created=row.synonym_created,
+            changed_by=row.changed_by,
+            changed_at=row.changed_at,
+            note=row.note,
+            undone_at=row.undone_at,
+            undone_by=row.undone_by,
+        )
 
     def get_by_id(self, tag_id: int) -> TagIdentity | None:
         obj = self.db.scalar(select(ArchiveTag).where(ArchiveTag.tag_id == tag_id))
         return TagIdentity.model_validate(obj) if obj else None
 
-    def get_by_ids(self, tag_ids: list[int]) -> Sequence[TagIdentity]:
-        objs = self.db.scalars(select(ArchiveTag).where(ArchiveTag.tag_id.in_(tag_ids))).all()
-        return [TagIdentity.model_validate(obj) for obj in objs]
+    def get_document_ids_grouped_by_tags(self, tag_ids: Sequence[int]) -> dict[int, list[str]]:
+        """Which documents carry each tag, in one query (the ledger needs the per-tag links)."""
+        if not tag_ids:
+            return {}
 
-    def get_document_ids_by_tags(self, tag_ids: list[int]) -> Sequence[str]:
-        return self.db.scalars(
-            select(ArchiveDocumentTag.description_id).where(ArchiveDocumentTag.tag_id.in_(tag_ids))
-        ).all()
+        stmt = select(ArchiveDocumentTag.tag_id, ArchiveDocumentTag.description_id).where(
+            ArchiveDocumentTag.tag_id.in_(list(tag_ids))
+        )
+        grouped: dict[int, list[str]] = defaultdict(list)
+        for tag_id, description_id in self.db.execute(stmt).all():
+            grouped[tag_id].append(description_id)
+        return {tag_id: sorted(ids) for tag_id, ids in grouped.items()}
 
     def link_documents_to_tag(self, doc_ids: set[str], target_tag_id: int) -> None:
         new_links = [{"description_id": doc_id, "tag_id": target_tag_id} for doc_id in doc_ids]

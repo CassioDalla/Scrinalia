@@ -15,6 +15,8 @@ from memoria_curitibana.domains.archive.exceptions import (
     InvalidMergeError,
     InvalidParam,
     MacroCategoryNotFoundError,
+    MergeAlreadyUndoneError,
+    MergeLogNotFoundError,
     TagMergeProposalNotFoundError,
     TagNotFoundError,
     TextTemplateNotFoundError,
@@ -34,6 +36,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
         (
             TagNotFoundError,
             TagMergeProposalNotFoundError,
+            MergeLogNotFoundError,
             DocumentNotFoundError,
             CleaningRuleNotFoundError,
             MacroCategoryNotFoundError,
@@ -41,6 +44,9 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
         ),
     ):
         status_code = HTTP_404_NOT_FOUND
+
+    elif isinstance(exc, MergeAlreadyUndoneError):
+        status_code = HTTP_409_CONFLICT
 
     elif isinstance(exc, (InvalidParam, InvalidMergeError)):
         status_code = HTTP_400_BAD_REQUEST

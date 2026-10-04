@@ -83,7 +83,12 @@ class EntityService:
             if unique_docs:
                 self.repo.link_documents_to_entity(unique_docs, canonical_id)
 
-        # Coordination 2: Save synonyms (both of the dead entities and the old name)
+        # Coordination 2: Save synonyms (both of the dead entities and the old name). The
+        # spellings already absorbed by the dead entities are moved to the canonical BEFORE
+        # the delete below: the FK is ON DELETE CASCADE, so deleting first would destroy the
+        # earlier curation and the next extraction would recreate the term.
+        self.repo.repoint_synonyms(real_ids, canonical_id)
+
         if synonym_names:
             synonyms_data = [
                 SynonymCommand(

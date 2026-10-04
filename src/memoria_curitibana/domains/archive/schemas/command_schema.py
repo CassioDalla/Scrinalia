@@ -26,6 +26,7 @@ class MergeTagsCommand(BaseModel):
 
     canonical_id: int
     ids_to_merge: list[int]
+    changed_by: str | None = Field(default=None, description="Who merged; free text until authentication exists.")
 
 
 class MergeEntityCommand(BaseModel):

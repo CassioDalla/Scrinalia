@@ -12,6 +12,7 @@ from memoria_curitibana.domains.archive.repository.document_repo import Document
 from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
 from memoria_curitibana.domains.archive.schemas import (
     ArchiveTagDTO,
+    MergeBatchCommand,
     MergePreviewCommand,
     MergeTagsCommand,
     TagMergeDecisionCommand,
@@ -407,6 +408,119 @@ def test_decide_an_unknown_proposal_raises_a_domain_404(use_test_db, db_session)
 
     with pytest.raises(TagMergeProposalNotFoundError):
         service.decide_merge_proposal(999_999, TagMergeDecisionCommand(status="REJECTED"))
+
+
+# ==========================================
+# BATCH APPLICATION AND UNDO (the ledger)
+# ==========================================
+
+
+def _clustered_proposals(service: TagService, db_session, pairs: list[tuple[str, str]]) -> list[int]:
+    """Creates one tag pair per entry, links a document to the variant and suggests the merges."""
+    for canonical_name, variant_name in pairs:
+        db_session.add_all([ArchiveTag(name=canonical_name), ArchiveTag(name=variant_name)])
+    db_session.commit()
+
+    service.suggest_merges(threshold=0.99)
+    return [proposal.proposal_id for proposal in service.list_merge_proposals(status="SUGGESTED").items]
+
+
+def test_merge_batch_applies_the_clusters_and_records_the_decision(use_test_db, db_session):
+    """A pending cluster included in the batch is approved, applied and logged — one savepoint each."""
+    tag_repo = TagRepository(db_session)
+    service = TagService(tag_repo, DocumentRepository(db_session))
+    proposal_ids = _clustered_proposals(service, db_session, [("casa", "casas"), ("rua", "ruas")])
+
+    result = service.merge_batch(
+        MergeBatchCommand(proposal_ids=proposal_ids, changed_by="arquivista", note="mesmo conceito")
+    )
+    db_session.commit()
+
+    assert [entry.tags_deleted for entry in result.applied] == [1, 1]
+    assert result.failed == []
+    assert all(entry.merge_ids for entry in result.applied)
+    assert tag_repo.count_merge_log() == 2
+
+    # The batch call was the decision: the clusters are no longer pending and carry the author.
+    decided = service.list_merge_proposals().items
+    assert {proposal.status for proposal in decided} == {"APPROVED"}
+    assert {proposal.decided_by for proposal in decided} == {"arquivista"}
+
+    # The merged-away spellings now redirect instead of existing as tags.
+    assert set(db_session.scalars(select(ArchiveTag.name)).all()) == {"casa", "rua"}
+
+
+def test_merge_batch_never_applies_a_rejected_proposal(use_test_db, db_session):
+    """Rejecting is a decision too; the batch reports it and leaves the taxonomy alone."""
+    tag_repo = TagRepository(db_session)
+    service = TagService(tag_repo, DocumentRepository(db_session))
+    proposal_ids = _clustered_proposals(service, db_session, [("lote", "lotes")])
+
+    service.decide_merge_proposal(proposal_ids[0], TagMergeDecisionCommand(status="REJECTED", decided_by="arquivista"))
+    result = service.merge_batch(MergeBatchCommand(proposal_ids=proposal_ids, changed_by="arquivista"))
+    db_session.commit()
+
+    assert result.applied == []
+    assert len(result.failed) == 1
+    assert "rejeitada" in result.failed[0].error
+    assert set(db_session.scalars(select(ArchiveTag.name)).all()) == {"lote", "lotes"}
+    assert tag_repo.count_merge_log() == 0
+
+
+def test_merge_batch_reports_an_unknown_or_already_applied_proposal(use_test_db, db_session):
+    """The batch is per-cluster: the failures are named and the rest still applies."""
+    tag_repo = TagRepository(db_session)
+    service = TagService(tag_repo, DocumentRepository(db_session))
+    proposal_ids = _clustered_proposals(service, db_session, [("obra", "obras")])
+
+    first = service.merge_batch(MergeBatchCommand(proposal_ids=[*proposal_ids, 999_999], changed_by="arquivista"))
+    db_session.commit()
+    assert len(first.applied) == 1
+    assert [failure.proposal_id for failure in first.failed] == [999_999]
+
+    # Applying the same cluster again must not silently write a second time.
+    second = service.merge_batch(MergeBatchCommand(proposal_ids=proposal_ids, changed_by="arquivista"))
+    db_session.commit()
+    assert second.applied == []
+    assert "já não existem" in second.failed[0].error
+    assert tag_repo.count_merge_log() == 1
+
+
+def test_merge_then_undo_restores_the_tag_through_the_service(use_test_db, db_session, generate_archive_doc):
+    """The service exposes the ledger: the merge is reversible and the trail says who undid it."""
+    tag_repo = TagRepository(db_session)
+    service = TagService(tag_repo, DocumentRepository(db_session))
+
+    canonical = ArchiveTag(name="edifício")
+    variant = ArchiveTag(name="edifícios")
+    db_session.add_all([canonical, variant])
+    db_session.flush()
+    restored_id = variant.tag_id
+
+    doc = generate_archive_doc(original_title="Doc")
+    db_session.add(ArchiveDocumentTag(description_id=doc.description_id, tag_id=variant.tag_id))
+    db_session.flush()
+
+    response = service.merge(
+        MergeTagsCommand(canonical_id=canonical.tag_id, ids_to_merge=[variant.tag_id], changed_by="arquivista")
+    )
+    db_session.flush()
+    assert response.merge_ids
+
+    page = service.list_merge_log(canonical_id=canonical.tag_id)
+    assert page.total == 1
+    assert page.items[0].absorbed_name == "edifícios"
+    assert page.items[0].changed_by == "arquivista"
+
+    entry = service.undo_merge(response.merge_ids[0], undone_by="outro arquivista")
+    db_session.commit()
+
+    assert entry.is_undone
+    assert entry.undone_by == "outro arquivista"
+    restored = db_session.get(ArchiveTag, restored_id)
+    assert restored is not None and restored.name == "edifícios"
+    links = db_session.scalars(select(ArchiveDocumentTag)).all()
+    assert [(link.description_id, link.tag_id) for link in links] == [(doc.description_id, restored_id)]
 
 
 # ==========================================

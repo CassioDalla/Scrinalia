@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from typing import Literal, cast
 
-from sqlalchemy import CursorResult, delete, desc, func, select, text
+from sqlalchemy import CursorResult, delete, desc, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
@@ -349,6 +349,17 @@ class EntityRepository:
         self.db.execute(stmt)
 
     def create_synonyms(self, synonyms_data: list[SynonymCommand]) -> None:
+        """
+        Registers the spellings the NER must redirect to a canonical entity.
+
+        Upsert, not ``on_conflict_do_nothing``: when a canonical entity is absorbed into
+        another one, a spelling that already had a mapping has to *move*. Keeping the old
+        target made a re-merge look successful while changing nothing, and left the extraction
+        pointing at an entity that no longer exists. Same defect and same fix as the tag path.
+        """
+        if not synonyms_data:
+            return
+
         rows = [
             {
                 "synonym_name": normalize_synonym(item.synonym_name),
@@ -358,8 +369,37 @@ class EntityRepository:
             }
             for item in synonyms_data
         ]
-        stmt = insert(DomainSynonyms).values(rows).on_conflict_do_nothing()
+        stmt = insert(DomainSynonyms).values(rows)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["synonym_name", "category"],
+            set_={
+                "canonical_tag_id": stmt.excluded.canonical_tag_id,
+                "canonical_entity_id": stmt.excluded.canonical_entity_id,
+            },
+        )
         self.db.execute(stmt)
+
+    def repoint_synonyms(self, from_entity_ids: list[int], to_entity_id: int) -> int:
+        """
+        Moves every synonym that pointed at an entity being merged onto the surviving one.
+
+        ``domain_synonyms.canonical_entity_id`` is ``ON DELETE CASCADE``: without this step,
+        deleting the absorbed entity destroys the spellings already absorbed into it and the
+        next extraction recreates them as brand-new entities — the curation undone by the very
+        merge meant to make it durable. Same defect and same fix as the tag path.
+        """
+        if not from_entity_ids or to_entity_id in from_entity_ids:
+            return 0
+
+        stmt = (
+            update(DomainSynonyms)
+            .where(
+                DomainSynonyms.category.in_(["ORG", "PER", "LOC"]),
+                DomainSynonyms.canonical_entity_id.in_(from_entity_ids),
+            )
+            .values(canonical_entity_id=to_entity_id)
+        )
+        return cast(CursorResult, self.db.execute(stmt)).rowcount
 
     def delete_entities(self, entity_ids: list[int]) -> int:
         # The associative deletion (ArchiveDocumentEntity) also lives here

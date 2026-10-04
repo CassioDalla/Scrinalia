@@ -14,6 +14,7 @@ from memoria_curitibana.api.schemas.taxonomy import (
     CrossDomainConflictListResponse,
     MacroCategoryCreateRequest,
     MacroCategoryUpdateRequest,
+    MergeBatchRequest,
     MergePreviewRequest,
     MergeProposalDecisionRequest,
     MergeRequest,
@@ -25,8 +26,11 @@ from memoria_curitibana.api.schemas.taxonomy import (
 )
 from memoria_curitibana.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
+    BatchMergeResponse,
     CreateMacroCategoryCommand,
+    MergeBatchCommand,
     MergeEntityCommand,
+    MergeLogListResponse,
     MergePreviewCommand,
     MergePreviewResponse,
     MergeSuggestionRunResponse,
@@ -93,7 +97,13 @@ class TaxonomyController(Controller):
 
     @post("/tags/merge", sync_to_thread=True)
     def merge_tags(self, tag_service: NamedDependency[TagService], data: MergeRequest) -> MergeResponse:
-        response = tag_service.merge(MergeTagsCommand(canonical_id=data.canonical_id, ids_to_merge=data.ids_to_merge))
+        response = tag_service.merge(
+            MergeTagsCommand(
+                canonical_id=data.canonical_id,
+                ids_to_merge=data.ids_to_merge,
+                changed_by=data.changed_by,
+            )
+        )
 
         return response
 
@@ -174,6 +184,58 @@ class TaxonomyController(Controller):
         return {
             "message": "Decisão registrada. A mesclagem só será aplicada quando o lote for executado.",
             "data": proposal.model_dump(),
+        }
+
+    @post("/tags/merge/batch", status_code=200, sync_to_thread=True)
+    def apply_tag_merge_batch(
+        self,
+        tag_service: NamedDependency[TagService],
+        data: MergeBatchRequest,
+    ) -> BatchMergeResponse:
+        """
+        Applies a batch of proposals, one savepoint per cluster, and reports each outcome.
+
+        The write is logged in the ledger, so every cluster applied here can be undone
+        individually through ``DELETE /tags/merge-log/{merge_id}``.
+        """
+        return tag_service.merge_batch(
+            MergeBatchCommand(proposal_ids=data.proposal_ids, changed_by=data.changed_by, note=data.note)
+        )
+
+    @get("/tags/merge-log", sync_to_thread=True)
+    def list_tag_merge_log(
+        self,
+        tag_service: NamedDependency[TagService],
+        canonical_id: FromQuery[int | None] = None,
+        changed_by: FromQuery[str | None] = None,
+        include_undone: FromQuery[bool] = True,
+        limit: FromQuery[int] = 50,
+        offset: FromQuery[int] = 0,
+    ) -> MergeLogListResponse:
+        """The audit trail of the merges: what was merged, by whom, and what was undone."""
+        return tag_service.list_merge_log(
+            canonical_id=canonical_id,
+            changed_by=changed_by,
+            include_undone=include_undone,
+            limit=limit,
+            offset=offset,
+        )
+
+    @delete("/tags/merge-log/{merge_id:int}", status_code=200, sync_to_thread=True)
+    def undo_tag_merge(
+        self,
+        tag_service: NamedDependency[TagService],
+        merge_id: FromPath[int],
+        undone_by: FromQuery[str | None] = None,
+    ) -> dict:
+        """
+        Undoes one merge from the ledger: the tag, its links, its classification and its
+        spellings come back exactly as they were.
+        """
+        entry = tag_service.undo_merge(merge_id, undone_by=undone_by)
+        return {
+            "message": f"Mesclagem desfeita: a tag '{entry.absorbed_name}' foi restaurada.",
+            "data": entry.model_dump(),
         }
 
     @post("/tags/stopwords/purge", sync_to_thread=True)

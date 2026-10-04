@@ -47,6 +47,20 @@ class TagMergeProposalNotFoundError(DomainException):
     pass
 
 
+class MergeLogNotFoundError(DomainException):
+    """Raised when a merge ledger entry does not exist."""
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
+class MergeAlreadyUndoneError(DomainException):
+    """Raised when the same merge is undone twice; the ledger keeps one reversal per merge."""
+
+    # Ideal translation in Litestar: HTTP 409 (Conflict)
+    pass
+
+
 class InvalidMergeError(DomainException):
     """Raised when trying to merge a tag into itself or breaking synonym rules."""
 

@@ -15,12 +15,15 @@ from memoria_curitibana.asgi import create_app
 from memoria_curitibana.domains.archive.exceptions import (
     InvalidMergeError,
     MacroCategoryNotFoundError,
+    MergeAlreadyUndoneError,
+    MergeLogNotFoundError,
     TagMergeProposalNotFoundError,
     TagNotFoundError,
 )
 from memoria_curitibana.domains.archive.schemas import ArchiveMacroCategoryEntityDTO
 from memoria_curitibana.domains.archive.schemas.entity_schema import NerExclusion
 from memoria_curitibana.domains.archive.schemas.tag_schema import (  # <-- Import the DTO
+    MergeLogEntryDTO,
     TagMergeProposalDTO,
     TagRelevanceIdf,
 )
@@ -390,3 +393,105 @@ def test_preview_tag_merge_route_rejects_two_sources(client: TestClient):
     )
 
     assert response.status_code == HTTP_400_BAD_REQUEST
+
+
+# ==========================================
+# BATCH APPLICATION, AUDIT TRAIL AND UNDO (the ledger)
+# ==========================================
+
+
+def _log_entry(**overrides) -> "MergeLogEntryDTO":
+    from memoria_curitibana.domains.archive.schemas.tag_schema import MergeLogEntryDTO
+
+    data = {
+        "merge_id": 5,
+        "cluster_fingerprint": "fp-1",
+        "canonical_id": 1,
+        "canonical_name": "rua",
+        "absorbed_tag_id": 2,
+        "absorbed_name": "ruas",
+        "document_count": 3,
+        "changed_by": "arquivista",
+    }
+    data.update(overrides)
+    return MergeLogEntryDTO(**data)
+
+
+def test_apply_tag_merge_batch_route_reports_each_cluster(client: TestClient, mocker):
+    from memoria_curitibana.domains.archive.schemas.tag_schema import (
+        BatchMergeResponse,
+        MergeBatchApplied,
+        MergeBatchFailure,
+    )
+
+    mocked = mocker.patch.object(TagService, "merge_batch")
+    mocked.return_value = BatchMergeResponse(
+        applied=[MergeBatchApplied(proposal_id=1, merge_ids=[5], documents_updated=2, tags_deleted=1)],
+        failed=[MergeBatchFailure(proposal_id=2, error="Proposta rejeitada pelo curador.")],
+    )
+
+    response = client.post(
+        "/api/v1/taxonomy/tags/merge/batch",
+        json={"proposal_ids": [1, 2], "changed_by": "arquivista", "note": "lote"},
+    )
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["applied"][0]["merge_ids"] == [5]
+    assert body["failed"][0]["proposal_id"] == 2
+
+    command = mocked.call_args[0][0]
+    assert command.proposal_ids == [1, 2]
+    assert command.changed_by == "arquivista"
+
+
+def test_list_tag_merge_log_route_paginates(client: TestClient, mocker):
+    from memoria_curitibana.domains.archive.schemas.tag_schema import MergeLogListResponse
+
+    mocked = mocker.patch.object(TagService, "list_merge_log")
+    mocked.return_value = MergeLogListResponse(total=12, limit=5, offset=0, items=[_log_entry()])
+
+    response = client.get("/api/v1/taxonomy/tags/merge-log?canonical_id=1&include_undone=false&limit=5")
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["total"] == 12
+    assert body["items"][0]["absorbed_name"] == "ruas"
+    assert mocked.call_args.kwargs == {
+        "canonical_id": 1,
+        "changed_by": None,
+        "include_undone": False,
+        "limit": 5,
+        "offset": 0,
+    }
+
+
+def test_undo_tag_merge_route_returns_the_restored_entry(client: TestClient, mocker):
+    mocked = mocker.patch.object(TagService, "undo_merge")
+    mocked.return_value = _log_entry(undone_by="arquivista")
+
+    response = client.delete("/api/v1/taxonomy/tags/merge-log/5?undone_by=arquivista")
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["data"]["undone_by"] == "arquivista"
+    assert "restaurada" in body["message"]
+    mocked.assert_called_once_with(5, undone_by="arquivista")
+
+
+def test_undo_tag_merge_route_maps_a_repeated_undo_to_409(client: TestClient, mocker):
+    mocker.patch.object(TagService, "undo_merge", side_effect=MergeAlreadyUndoneError("já desfeita"))
+
+    response = client.delete("/api/v1/taxonomy/tags/merge-log/5")
+
+    assert response.status_code == HTTP_409_CONFLICT
+    assert response.json()["error_code"] == "MergeAlreadyUndoneError"
+
+
+def test_undo_tag_merge_route_maps_an_unknown_merge_to_404(client: TestClient, mocker):
+    mocker.patch.object(TagService, "undo_merge", side_effect=MergeLogNotFoundError("não encontrado"))
+
+    response = client.delete("/api/v1/taxonomy/tags/merge-log/999")
+
+    assert response.status_code == HTTP_404_NOT_FOUND
+    assert response.json()["error_code"] == "MergeLogNotFoundError"
