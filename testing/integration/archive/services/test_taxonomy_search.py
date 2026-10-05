@@ -17,8 +17,10 @@ from memoria_curitibana.domains.archive.models import (
     ArchiveEntity,
     ArchiveMacroCategory,
     ArchiveTag,
+    ArchiveTaxonomyMergeLog,
 )
 from memoria_curitibana.domains.archive.models.associations import ArchiveDocumentEntity
+from memoria_curitibana.domains.archive.models.enums import StopwordsScope
 from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
 from memoria_curitibana.domains.archive.repository.entity_repo import EntityRepository
 from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
@@ -274,3 +276,112 @@ class TestEntitySearch:
 
         assert entity_service.search_entities("i", limit=5) == []
         assert entity_service.search_entities("%", limit=5) == []
+
+
+class TestStopwords:
+    """
+    The banned-term catalog and the one destructive write that has no undo.
+
+    The scope is the whole point of these tests: ``TAG`` feeds the subject purge while ``ENTITY``
+    keeps a term out of the NER extraction, and the repository reads only ``TAG``/``ALL`` on purpose.
+    Collapsing the two would make a veto on one axis delete the other.
+    """
+
+    def test_terms_are_listed_with_the_axis_they_were_banned_from(self, tag_service):
+        tag_service.save_new_stopwords(["pessoas", "vista aérea"], StopwordsScope.TAG)
+        tag_service.save_new_stopwords(["iptu"], StopwordsScope.ENTITY)
+
+        everything = tag_service.list_stopwords()
+        subject_only = tag_service.list_stopwords(StopwordsScope.TAG)
+
+        assert {(item.word, str(item.scope)) for item in everything} == {
+            ("pessoas", "TAG"),
+            ("vista aérea", "TAG"),
+            ("iptu", "ENTITY"),
+        }
+        assert [item.word for item in subject_only] == ["pessoas", "vista aérea"]
+
+    def test_re_banning_a_term_moves_its_axis(self, tag_service):
+        """
+        A word has **one** scope — ``domain_stopwords.word`` is unique — so re-banning moves it.
+
+        The alternative (ignoring the second ban) would leave the screen showing the axis the
+        archivist just changed away from, and the entity/subject distinction is exactly what makes
+        that dangerous: a term would look banned from the NER while it is banned from the subjects.
+        """
+        tag_service.save_new_stopwords(["iptu"], StopwordsScope.TAG)
+        tag_service.save_new_stopwords(["iptu"], StopwordsScope.ENTITY)
+
+        listed = tag_service.list_stopwords()
+
+        assert [(item.word, str(item.scope)) for item in listed] == [("iptu", "ENTITY")]
+
+    def test_un_banning_without_a_scope_removes_the_word_whatever_axis_it_was_on(self, tag_service):
+        """Un-banning is the only way back from a purge decision, so it cannot depend on knowing the axis."""
+        tag_service.save_new_stopwords(["pessoas"], StopwordsScope.ENTITY)
+
+        assert tag_service.remove_stopwords(["pessoas"]) == 1
+        assert tag_service.list_stopwords() == []
+
+    def test_un_banning_one_axis_leaves_terms_of_the_other_alone(self, tag_service):
+        tag_service.save_new_stopwords(["pessoas"], StopwordsScope.TAG)
+        tag_service.save_new_stopwords(["iptu"], StopwordsScope.ENTITY)
+
+        assert tag_service.remove_stopwords(["pessoas"], StopwordsScope.ENTITY) == 0
+        assert [item.word for item in tag_service.list_stopwords()] == ["iptu", "pessoas"]
+
+    def test_the_preview_shows_what_the_purge_would_delete(self, db_session, generate_archive_doc, tag_service):
+        """
+        The purge is the only destructive taxonomy write with no ledger, so the screen shows the
+        loss first: the name, how many descriptions carry it and which drawer dies with it.
+        """
+        category = ArchiveMacroCategory(name="Assistência e Questões Sociais", description=None, is_active=True)
+        db_session.add(category)
+        db_session.flush()
+        _tag(db_session, generate_archive_doc, "pessoas", 3, category_id=category.category_id)
+        _tag(db_session, generate_archive_doc, "vista aérea", 2)
+        tag_service.save_new_stopwords(["pessoas"], StopwordsScope.TAG)
+
+        preview = tag_service.preview_stopword_purge()
+
+        assert preview.stopwords == ["pessoas"]
+        assert [tag.name for tag in preview.tags] == ["pessoas"]
+        assert preview.tags[0].document_count == 3
+        assert preview.tags[0].macro_category_name == "Assistência e Questões Sociais"
+        assert preview.total_documents == 3
+        # Announced, never silently reversible: there is no ledger behind this write.
+        assert preview.reversible is False
+
+    def test_an_entity_scoped_ban_never_reaches_the_subject_purge(self, db_session, generate_archive_doc, tag_service):
+        """
+        The invariant ``AGENTS.md`` calls out: a NER veto must not delete a tag.
+
+        ``iptu`` banned on the entity axis keeps the model from extracting it as a name; it says
+        nothing about the subject axis, where the same spelling may be a legitimate tag. Reading the
+        entity ban in the purge would delete a tag the curator deliberately kept.
+        """
+        _tag(db_session, generate_archive_doc, "iptu", 4)
+        tag_service.save_new_stopwords(["iptu"], StopwordsScope.ENTITY)
+
+        preview = tag_service.preview_stopword_purge()
+        deleted = tag_service.purge_stopwords()
+
+        assert preview.stopwords == []
+        assert preview.tags == []
+        assert deleted == 0
+        assert db_session.scalars(select(ArchiveTag).where(ArchiveTag.name == "iptu")).one() is not None
+
+    def test_the_purge_deletes_the_tag_and_its_links_and_is_not_reversible(
+        self, db_session, generate_archive_doc, tag_service
+    ):
+        tag = _tag(db_session, generate_archive_doc, "pessoas", 3)
+        tag_service.save_new_stopwords(["pessoas"], StopwordsScope.TAG)
+
+        deleted = tag_service.purge_stopwords()
+
+        assert deleted == 1
+        assert db_session.get(ArchiveTag, tag.tag_id) is None
+        links = db_session.scalars(select(ArchiveDocumentTag).where(ArchiveDocumentTag.tag_id == tag.tag_id)).all()
+        assert links == []
+        # The contrast that the screen has to state: the merge keeps a ledger, this does not.
+        assert db_session.scalars(select(ArchiveTaxonomyMergeLog)).all() == []

@@ -22,11 +22,14 @@ from memoria_curitibana.api.schemas.taxonomy import (
     MergeSuggestionRequest,
     NerExclusionRequest,
     ReclassifyEntityRequest,
+    StopwordCreateRequest,
+    StopwordRemovalRequest,
     StopwordsRequest,
     SubjectExclusionRequest,
     SuggestMacroRequest,
     TagCurationRequest,
 )
+from memoria_curitibana.domains.archive.models.enums import StopwordsScope
 from memoria_curitibana.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     BatchMergeResponse,
@@ -39,6 +42,8 @@ from memoria_curitibana.domains.archive.schemas import (
     MergeSuggestionRunResponse,
     MergeTagsCommand,
     ResolveConflictCommand,
+    StopwordDTO,
+    StopwordPurgePreview,
     TagCurationCommand,
     TagCurationResult,
     TagMergeDecisionCommand,
@@ -277,9 +282,69 @@ class TaxonomyController(Controller):
             "data": entry.model_dump(),
         }
 
-    @post("/tags/stopwords/purge", sync_to_thread=True)
-    def purge_stopwords(self, tag_service: NamedDependency[TagService], data: StopwordsRequest) -> dict:
+    @get("/tags/stopwords", sync_to_thread=True)
+    def list_stopwords(
+        self,
+        tag_service: NamedDependency[TagService],
+        # The query key is ``axis``, not ``scope``: Litestar reserves the parameter name ``scope``
+        # for the ASGI scope, and a handler that used it received the raw request instead of the
+        # query value. A route test caught that, not the type checker.
+        axis: FromQuery[StopwordsScope | None] = None,
+    ) -> list[StopwordDTO]:
+        """
+        The banned terms, with the axis each was banned from.
 
+        The scope is part of the payload on purpose: ``TAG`` feeds the subject purge while ``ENTITY``
+        keeps a term out of the NER extraction, and a screen that showed them as one list would make
+        the two mechanisms look like the same decision.
+        """
+        return tag_service.list_stopwords(axis)
+
+    @post("/tags/stopwords", status_code=201, sync_to_thread=True)
+    def create_stopwords(
+        self,
+        tag_service: NamedDependency[TagService],
+        data: StopwordCreateRequest,
+    ) -> dict:
+        """Bans terms. Banning does not delete anything: the purge is a separate, explicit step."""
+        created = tag_service.save_new_stopwords(data.words, data.scope)
+        return {
+            "message": f"{created} stopword(s) registrada(s) no eixo {data.scope}.",
+            "created": created,
+        }
+
+    @delete("/tags/stopwords", status_code=200, sync_to_thread=True)
+    def remove_stopwords(
+        self,
+        tag_service: NamedDependency[TagService],
+        data: StopwordRemovalRequest,
+    ) -> dict:
+        """Un-bans terms — the only way back from a purge decision, since the purge has no undo."""
+        removed = tag_service.remove_stopwords(data.words, data.scope)
+        return {
+            "message": f"{removed} stopword(s) removida(s).",
+            "removed": removed,
+        }
+
+    @post("/tags/stopwords/purge/preview", status_code=200, sync_to_thread=True)
+    def preview_stopword_purge(self, tag_service: NamedDependency[TagService]) -> StopwordPurgePreview:
+        """
+        The dry run of the only destructive operation in the taxonomy without an undo.
+
+        It lists the tags the purge would delete, with how many descriptions carry each and which
+        drawer dies with it, so the screen can show the loss before it happens.
+        """
+        return tag_service.preview_stopword_purge()
+
+    @post("/tags/stopwords/purge", status_code=200, sync_to_thread=True)
+    def purge_stopwords(self, tag_service: NamedDependency[TagService], data: StopwordsRequest) -> dict:
+        """
+        Deletes every tag whose name is a banned term. **There is no undo for this one.**
+
+        ``words`` is optional and, when sent, is registered before the purge — which is what the old
+        dashboard expects. The screen calls it with an empty body to purge with the list it already
+        showed in the preview, so the numbers the archivist approved are the numbers that die.
+        """
         if data.words:
             tag_service.save_new_stopwords(data.words)
 

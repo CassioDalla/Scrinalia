@@ -109,9 +109,15 @@ export type BatchMergeResponse = components["schemas"]["BatchMergeResponse"];
 export type MergeLogList = components["schemas"]["MergeLogListResponse"];
 export type MergeLogEntry = components["schemas"]["MergeLogEntryDTO"];
 export type MergeResponse = components["schemas"]["MergeResponse"];
+export type Stopword = components["schemas"]["StopwordDTO"];
+export type StopwordPurgePreview = components["schemas"]["StopwordPurgePreview"];
+export type StopwordPurgeTag = components["schemas"]["StopwordPurgeTag"];
 
 /** Which verdict a proposal is waiting for, as the contract enumerates it. */
 export type ProposalStatus = TagMergeProposal["status"];
+
+/** The axis a term was banned from: the subject purge reads TAG/ALL, the NER extraction reads ENTITY. */
+export type StopwordsScope = NonNullable<Stopword["scope"]>;
 
 /**
  * How a cluster was formed, taken from the **request** the API accepts.
@@ -519,5 +525,53 @@ export async function fetchDiagnostics(
     await client.GET("/api/v1/hierarchy/diagnostics", {
       params: { query: { issue: issue as DiagnosticIssue, ...params } },
     }),
+  );
+}
+
+// --- The banned terms, and the one destructive write without an undo ---------------------------
+
+/**
+ * The banned terms, with the axis each was banned from.
+ *
+ * The query key is ``axis`` and not ``scope``: ``scope`` is reserved by the framework on the server
+ * side, and the route's parameter had to be renamed — a route test caught the handler receiving the
+ * raw request instead of the query value.
+ */
+export async function fetchStopwords(axis?: StopwordsScope): Promise<Stopword[]> {
+  return unwrap<Stopword[]>(
+    await client.GET("/api/v1/taxonomy/tags/stopwords", { params: { query: { axis } } }),
+  );
+}
+
+/** Bans terms. Banning deletes nothing: the purge is a separate, explicit step. */
+export async function banStopwords(body: {
+  words: string[];
+  scope?: StopwordsScope;
+}): Promise<{ created: number }> {
+  return unwrap<{ created: number }>(await client.POST("/api/v1/taxonomy/tags/stopwords", { body }));
+}
+
+/** Un-bans terms — the only way back from a purge decision, which has no ledger to restore from. */
+export async function unbanStopwords(body: {
+  words: string[];
+  scope?: StopwordsScope;
+}): Promise<{ removed: number }> {
+  return unwrap<{ removed: number }>(await client.DELETE("/api/v1/taxonomy/tags/stopwords", { body }));
+}
+
+/** What the purge would delete. The step is mandatory: this write cannot be undone. */
+export async function previewStopwordPurge(): Promise<StopwordPurgePreview> {
+  return unwrap<StopwordPurgePreview>(await client.POST("/api/v1/taxonomy/tags/stopwords/purge/preview"));
+}
+
+/**
+ * Deletes every tag whose name is a banned term.
+ *
+ * Sent with an empty body on purpose: registering words in the same call would make the numbers the
+ * archivist approved different from the numbers that die.
+ */
+export async function purgeStopwords(): Promise<{ tags_deleted: number }> {
+  return unwrap<{ tags_deleted: number }>(
+    await client.POST("/api/v1/taxonomy/tags/stopwords/purge", { body: {} }),
   );
 }

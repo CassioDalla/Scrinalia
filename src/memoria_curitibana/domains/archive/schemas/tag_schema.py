@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from memoria_curitibana.domains.archive.models.enums import StopwordsScope
 from memoria_curitibana.domains.archive.schemas.types import TagName
 
 
@@ -123,6 +124,68 @@ class TagCurationResult(BaseModel):
     #: True once a curator classified it: the AI's confidence is cleared at that point, because the
     #: number described a decision that no longer stands.
     human_classified: bool = False
+
+
+# ==========================================
+# STOPWORDS (the curated "this is not a term" list)
+# ==========================================
+
+
+class StopwordDTO(BaseModel):
+    """
+    One banned term and **which axis it was banned from**.
+
+    The scope is not decoration: ``TagRepository.get_stopwords()`` reads only ``TAG``/``ALL``, so an
+    ``ENTITY``-scoped ban cannot make the subject purge delete a tag the curator kept. The screen has
+    to show the scope, or the two mechanisms look like one list and the archivist stops trusting it.
+    """
+
+    word: str
+    scope: StopwordsScope
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class StopwordCreateCommand(BaseModel):
+    """Terms to ban. ``TAG`` by default, because that is the axis this catalog governs."""
+
+    words: list[str] = Field(min_length=1, description="Termos a banir (normalizados ao gravar).")
+    scope: StopwordsScope = Field(default=StopwordsScope.TAG, description="Eixo de onde o termo sai.")
+
+
+class StopwordRemovalCommand(BaseModel):
+    """Terms to un-ban. With no scope, the word leaves every axis it was banned from."""
+
+    words: list[str] = Field(min_length=1)
+    scope: StopwordsScope | None = Field(default=None, description="Restringe a remoção a um eixo.")
+
+
+class StopwordPurgeTag(BaseModel):
+    """One tag the purge would delete, with the weight that makes the loss concrete."""
+
+    tag_id: int
+    name: str
+    document_count: int = 0
+    macro_category_name: str | None = None
+
+
+class StopwordPurgePreview(BaseModel):
+    """
+    What the purge would destroy, before it destroys it.
+
+    It exists because this is the **only destructive operation in the taxonomy without an undo**:
+    the merge has a ledger and restores the tag, its links and its classification, while
+    ``purge_tags_by_stopwords`` deletes the row and the links cascade. A screen may not offer that
+    without showing the impact first, so the preview is the step, not a convenience.
+    """
+
+    stopwords: list[str] = Field(
+        default_factory=list, description="The TAG/ALL terms the purge would act on, in lowercase."
+    )
+    tags: list[StopwordPurgeTag] = Field(default_factory=list)
+    total_tags: int = 0
+    total_documents: int = Field(default=0, description="Documents that lose a subject tag.")
+    reversible: bool = Field(default=False, description="Always false: the purge has no ledger to restore from.")
 
 
 class TagMergeSuggestion(BaseModel):

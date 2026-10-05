@@ -66,6 +66,8 @@ from memoria_curitibana.domains.archive.schemas import (
     MergeLogEntryDTO,
     MergePlan,
     MergeResponse,
+    StopwordDTO,
+    StopwordPurgeTag,
     SynonymCommand,
     TagCount,
     TagIdentity,
@@ -147,23 +149,88 @@ class TagRepository:
 
         return list(self.db.scalars(stmt_select).all())
 
-    def save_stopwords(self, words_list: list[str]) -> int:
+    def save_stopwords(self, words_list: list[str], scope: StopwordsScope = StopwordsScope.TAG) -> int:
         """
-        Inserts a list of words into the stopwords table in batch.
-        Returns the exact number of new stopwords inserted.
+        Bans a list of words from one axis, in batch.
+
+        The scope defaults to ``TAG`` because that is the axis this catalog governs, and it is
+        explicit so a ban on the NER axis cannot be created here by accident.
+
+        **A word has exactly one scope** — ``domain_stopwords.word`` is unique — so re-banning an
+        existing term **moves** it instead of being silently ignored. Ignoring would leave the screen
+        showing the axis the archivist just changed away from, which is the kind of quiet
+        disagreement the scope exists to prevent.
+
+        Returns how many rows were written (inserted or moved).
         """
         if not words_list:
             return 0
 
-        clean_words = [{"word": normalize_stopword(w)} for w in words_list if w.strip()]
+        clean_words = [{"word": normalize_stopword(w), "word_scope": scope} for w in words_list if w.strip()]
 
         if not clean_words:
             return 0
 
-        stmt = insert(DomainStopwords).values(clean_words).on_conflict_do_nothing()
+        stmt = insert(DomainStopwords).values(clean_words)
+        stmt = stmt.on_conflict_do_update(index_elements=["word"], set_={"word_scope": stmt.excluded.word_scope})
 
         result = cast(CursorResult, self.db.execute(stmt))
         return result.rowcount
+
+    def list_stopwords(self, scope: StopwordsScope | None = None) -> list[StopwordDTO]:
+        """
+        The banned terms, optionally restricted to one axis, alphabetically.
+
+        Alphabetical and not by scope: the screen groups them itself, and a list that reorders as
+        words are added is harder to scan than one that grows in place.
+        """
+        stmt = select(DomainStopwords.word, DomainStopwords.word_scope.label("scope"))
+        if scope is not None:
+            stmt = stmt.where(DomainStopwords.word_scope == scope)
+        return [StopwordDTO.model_validate(row) for row in self.db.execute(stmt.order_by(DomainStopwords.word)).all()]
+
+    def remove_stopwords(self, words: list[str], scope: StopwordsScope | None = None) -> int:
+        """
+        Un-bans terms. With no scope the word leaves every axis it was banned from.
+
+        Returns how many rows were actually removed, so a screen can tell "I un-banned it" from
+        "that word was not banned".
+        """
+        clean = [normalize_stopword(word) for word in words if word.strip()]
+        if not clean:
+            return 0
+
+        stmt = delete(DomainStopwords).where(DomainStopwords.word.in_(clean))
+        if scope is not None:
+            stmt = stmt.where(DomainStopwords.word_scope == scope)
+        result = self.db.execute(stmt)
+        return cast(CursorResult, result).rowcount
+
+    def find_tags_by_stopwords(self, stopwords: set[str]) -> list[StopwordPurgeTag]:
+        """
+        The tags a purge would delete, with the weight that makes the loss concrete.
+
+        Read side of the only destructive operation here that has **no undo**: it exists so the
+        screen can show what dies — the name, how many descriptions carry it and which drawer is
+        lost with it — before anything is deleted.
+        """
+        if not stopwords:
+            return []
+
+        stmt = (
+            select(
+                ArchiveTag.tag_id,
+                ArchiveTag.name,
+                func.count(ArchiveDocumentTag.description_id).label("document_count"),
+                ArchiveMacroCategory.name.label("macro_category_name"),
+            )
+            .outerjoin(ArchiveDocumentTag, ArchiveDocumentTag.tag_id == ArchiveTag.tag_id)
+            .outerjoin(ArchiveMacroCategory, ArchiveMacroCategory.category_id == ArchiveTag.macro_category_id)
+            .where(func.lower(ArchiveTag.name).in_(stopwords))
+            .group_by(ArchiveTag.tag_id, ArchiveTag.name, ArchiveMacroCategory.name)
+            .order_by(func.count(ArchiveDocumentTag.description_id).desc(), ArchiveTag.name)
+        )
+        return [StopwordPurgeTag.model_validate(row) for row in self.db.execute(stmt).mappings().all()]
 
     def get_stopwords(self) -> set[str]:
         """

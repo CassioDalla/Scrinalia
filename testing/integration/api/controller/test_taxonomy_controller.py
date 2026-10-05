@@ -588,3 +588,108 @@ def test_entity_search_route_reaches_the_service_with_the_term(client: TestClien
     assert response.status_code == HTTP_200_OK
     assert response.json()[0]["entity_type"] == "LOC"
     mocked.assert_called_once_with("igreja", 5)
+
+
+# ==========================================
+# STOPWORDS: THE BANNED TERMS AND THE ONE PURGE WITHOUT UNDO
+# ==========================================
+
+
+def test_stopword_list_route_carries_the_axis(client: TestClient, mocker):
+    from memoria_curitibana.domains.archive.models.enums import StopwordsScope
+    from memoria_curitibana.domains.archive.schemas.tag_schema import StopwordDTO
+
+    mocked = mocker.patch.object(TagService, "list_stopwords")
+    mocked.return_value = [StopwordDTO(word="pessoas", scope=StopwordsScope.TAG)]
+
+    response = client.get("/api/v1/taxonomy/tags/stopwords")
+
+    assert response.status_code == HTTP_200_OK
+    assert response.json() == [{"word": "pessoas", "scope": "TAG"}]
+    mocked.assert_called_once_with(None)
+
+
+def test_stopword_list_route_filters_by_scope(client: TestClient, mocker):
+    from memoria_curitibana.domains.archive.models.enums import StopwordsScope
+
+    mocked = mocker.patch.object(TagService, "list_stopwords", return_value=[])
+
+    response = client.get("/api/v1/taxonomy/tags/stopwords?axis=ENTITY")
+
+    assert response.status_code == HTTP_200_OK
+    mocked.assert_called_once_with(StopwordsScope.ENTITY)
+
+
+def test_stopword_create_route_bans_without_deleting(client: TestClient, mocker):
+    """Banning is a statement; the purge is a separate, explicit step that deletes tags."""
+    mocked = mocker.patch.object(TagService, "save_new_stopwords", return_value=2)
+
+    response = client.post("/api/v1/taxonomy/tags/stopwords", json={"words": ["pessoas", "vista aérea"]})
+
+    assert response.status_code == HTTP_201_CREATED
+    assert response.json()["created"] == 2
+    words, scope = mocked.call_args.args
+    assert words == ["pessoas", "vista aérea"]
+    assert str(scope) == "TAG"
+
+
+def test_stopword_removal_route_un_bans(client: TestClient, mocker):
+    mocked = mocker.patch.object(TagService, "remove_stopwords", return_value=1)
+
+    response = client.request("DELETE", "/api/v1/taxonomy/tags/stopwords", json={"words": ["pessoas"], "scope": "TAG"})
+
+    assert response.status_code == HTTP_200_OK
+    assert response.json()["removed"] == 1
+    words, scope = mocked.call_args.args
+    assert words == ["pessoas"]
+    assert str(scope) == "TAG"
+
+
+def test_stopword_purge_preview_route_returns_the_impact(client: TestClient, mocker):
+    from memoria_curitibana.domains.archive.schemas.tag_schema import StopwordPurgePreview, StopwordPurgeTag
+
+    mocked = mocker.patch.object(TagService, "preview_stopword_purge")
+    mocked.return_value = StopwordPurgePreview(
+        stopwords=["pessoas"],
+        tags=[StopwordPurgeTag(tag_id=1, name="pessoas", document_count=3, macro_category_name="Assistência")],
+        total_tags=1,
+        total_documents=3,
+        reversible=False,
+    )
+
+    response = client.post("/api/v1/taxonomy/tags/stopwords/purge/preview")
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["total_documents"] == 3
+    assert body["reversible"] is False
+    assert body["tags"][0]["name"] == "pessoas"
+
+
+def test_stopword_purge_route_accepts_an_empty_body(client: TestClient, mocker):
+    """
+    The screen purges with the list it already showed in the preview.
+
+    ``words`` being optional is what makes that possible: sending them would register new terms in
+    the same call, and the numbers the archivist approved would not be the numbers that die.
+    """
+    saved = mocker.patch.object(TagService, "save_new_stopwords")
+    purged = mocker.patch.object(TagService, "purge_stopwords", return_value=1)
+
+    response = client.post("/api/v1/taxonomy/tags/stopwords/purge", json={})
+
+    assert response.status_code == HTTP_200_OK
+    assert response.json()["tags_deleted"] == 1
+    saved.assert_not_called()
+    purged.assert_called_once_with()
+
+
+def test_stopword_purge_route_still_registers_the_words_it_receives(client: TestClient, mocker):
+    """The old dashboard flow keeps working: send words, get them registered and purged."""
+    saved = mocker.patch.object(TagService, "save_new_stopwords", return_value=1)
+    mocker.patch.object(TagService, "purge_stopwords", return_value=1)
+
+    response = client.post("/api/v1/taxonomy/tags/stopwords/purge", json={"words": ["pessoas"]})
+
+    assert response.status_code == HTTP_200_OK
+    saved.assert_called_once_with(["pessoas"])

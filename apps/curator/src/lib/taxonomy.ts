@@ -60,3 +60,23 @@ export const PROPOSAL_STATUS_TONE: Record<string, BadgeTone> = {
 export function labelOf(labels: Record<string, string>, code: string): string {
   return labels[code] ?? code;
 }
+
+/**
+ * The axis a banned term was taken out of.
+ *
+ * The distinction is not cosmetic and the screen has to say it: ``TAG`` (and ``ALL``) feed the
+ * subject purge, which **deletes** the matching tags, while ``ENTITY`` only keeps the term out of
+ * the NER extraction and never touches a tag. Reading an entity ban in the purge would delete a tag
+ * the curator deliberately kept.
+ */
+export const STOPWORD_SCOPE_LABEL: Record<string, string> = {
+  TAG: "assunto (tags)",
+  ENTITY: "entidades (NER)",
+  ALL: "os dois eixos",
+};
+
+export const STOPWORD_SCOPE_HINT: Record<string, string> = {
+  TAG: "O termo sai do eixo de assunto. A purga apaga as tags com esse nome — e a purga não tem undo.",
+  ENTITY: "O termo sai da extração de nomes próprios. Não afeta tag nenhuma.",
+  ALL: "O termo sai dos dois eixos, e a purga o alcança.",
+};

@@ -6,9 +6,9 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > **Como ler.** `✅` = feito **e verificado em execução real** (Postgres + engines reais), não
 > apenas lido no código. `[ ]` = pendente. `[~]` = parcial, com o que falta descrito.
 >
-> **Estado do gate (2026-10-05, ondas 2 e 3 e etapa C):** **916 testes** passando · `ruff`
+> **Estado do gate (2026-10-05, ondas 2 e 3 e etapa C):** **930 testes** passando · `ruff`
 > limpo · `basedpyright` **0 erros** · **22 migrações** aplicando sem drift (`alembic check` limpo) ·
-> contrato OpenAPI **64 paths / 74 operações / 104 schemas**, regenerado e verificado por CI ·
+> contrato OpenAPI **66 paths / 78 operações / 110 schemas**, regenerado e verificado por CI ·
 > SPA do curador construindo (`tsc`, `eslint`, `vite build`) e servida pelo próprio Litestar.
 > **Acervo real medido: 4.826 descrições**, não 3.608 — ver "Pendências operacionais".
 
@@ -129,6 +129,8 @@ substituído. O caminho agora é o front do curador.
 | Busca da lista só disparava no Enter | debounce de 250 ms com o termo na URL (uma fonte de verdade) | ✅ |
 | Não havia como escolher a unidade superior na aba Arranjo | type-ahead de pai + nível + `POST /hierarchy/nodes/{id}/move` | ✅ |
 | A gaveta não mostrava o próprio peso | `document_count` no `ArchiveMacroCategoryEntityDTO`, contando **descrições distintas** | ✅ |
+| **Stopwords não tinham leitura nem preview** (a purga apagava tags às cegas) | `GET/POST/DELETE /taxonomy/tags/stopwords` (com eixo) + `POST /tags/stopwords/purge/preview` + `purge` aceitando corpo vazio | ✅ |
+| Aprovar um merge **parecia** unificar (o ledger parecia travado) | aprovar já seleciona para o lote; banner "aprovada ainda **não** unificada"; "selecionar todas as aprovadas"; teto de 200 no lote | ✅ |
 
 ### Achados que a implementação produziu
 
@@ -595,6 +597,10 @@ Diagnóstico estrutural do acervo real (pós-transfer):
 | Pesos das gavetas no acervo real | Mobilidade e Transporte **2.296** · Urbanismo e Arquitetura **11** · as outras **0** (a IA ainda não reprocessou) |
 | Telas | `/assuntos/tags` (relevância, similaridade, propostas com preview + lote + ledger/undo) e `/assuntos/categorias` (8 ativas, 3 aposentadas, peso, rótulo editável) |
 | Verificação visual | `.analysis/shots/wave3-*.png` — os clusters reais aparecem na tela: `igrejas ← igreja` (correto) ao lado de `residencial ← área residencial, casa residencial, região residencial` (perigoso) e `trem ← trens` com `WEAK_MEMBER` |
+| **Stopwords no acervo real** | **184 termos**: 96 no eixo `TAG` (o nome próprio venceu o assunto — `albano cunha`, `avenida joão gualberto`) e 88 em `ENTITY` (o assunto venceu o nome — `alvenaria`, `autor`). É a governança bidirecional visível na tela |
+| **Preview da purga no acervo real** | **0 tags** seriam apagadas: quando esses 184 termos foram registrados, a purga já rodou. O painel diz "não há o que apagar" em vez de fingir trabalho |
+| **Escrita de stopwords pela UI (browser, 6/6)** | banir pela tela chegou ao catálogo (184 → 185); o botão de purga fica **desabilitado** até conferir o impacto; o preview responde `reversible: false`; desbanir voltou a 184. Nada de resíduo — e a purga **não** foi disparada no acervo real |
+| **Fluxo de merge corrigido (browser)** | "selecionar todas as aprovadas" enche o lote com **92 clusters** e libera o apply (teto 200). O apply não foi clicado: é a decisão do dono do acervo |
 
 > **O que ficou de fora, e por quê.** A quarta subtela do sitemap (stopwords) **não** entrou: a
 > purga apaga tags, e não existe rota para ler as stopwords atuais nem preview do que seria apagado.
@@ -656,7 +662,19 @@ Diagnóstico estrutural do acervo real (pós-transfer):
     o front renderizava `NEAR_DUPLICATE_NODE` e `MID_CODE_IDENTIFIER` cru. Modo de falha a vigiar em
     qualquer rota que publique um vocabulário: **a lista tem de cobrir todo produtor**, e um teste
     que a prenda aos produtores vale mais que a leitura do código.
-11. ✅ **`ILIKE` sobre texto digitado não escapava curingas** — corrigido no ciclo da etapa C. Um `%`
+11. ✅ **"Aprovar" um merge parecia unificar** — corrigido no ciclo da subtela de stopwords. O
+    sintoma relatado foi "o ledger travou em 20 de 41", e o diagnóstico foi outro: o ledger tinha 41
+    linhas e as tags continuavam 8.349, com as aprovações de hoje e a última linha do ledger de
+    **ontem 20:31**. O dry-run das aprovadas mostrava trabalho real esperando (`trabalhadores`: 19
+    documentos, `mapas`: 16). Ou seja: a API está certa (aprovar registra intenção, aplicar escreve) e
+    a **tela** não deixava o passo seguinte óbvio. Agora aprovar já seleciona para o lote, um banner
+    diz quantas aprovadas ainda não foram unificadas, e há "selecionar todas as aprovadas" — sem
+    precisar percorrer cinco páginas marcando caixinhas.
+12. ✅ **O parâmetro `scope` de uma rota recebia o request cru** — corrigido no mesmo ciclo. Litestar
+    reserva o nome `scope` para o ASGI scope: o handler `GET /tags/stopwords` recebia o dicionário do
+    request em vez do valor da query, e o `basedpyright` não tinha como ver isso — **o teste de rota
+    pegou**. A chave da query passou a ser `axis`, com o motivo escrito ao lado do parâmetro.
+13. ✅ **`ILIKE` sobre texto digitado não escapava curingas** — corrigido no ciclo da etapa C. Um `%`
     na caixa de busca significava "todos os registros": o acervo respondia 8.349 tags a um typo e a
     consulta abandonava o índice de trigrama. `escape_like()`/`LIKE_ESCAPE` passaram a ser a única
     forma de montar o padrão, com teste que distingue `0%` de "começa com zero" e `a_b` de "a,

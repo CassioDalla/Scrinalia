@@ -3592,10 +3592,13 @@
         "title": "ReclassifyEntityRequest",
         "type": "object"
       },
-      "StopwordsRequest": {
+      "StopwordCreateRequest": {
         "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/StopwordsScope"
+          },
           "words": {
-            "description": "List of words to be banned.",
+            "description": "Termos a banir (normalizados ao gravar).",
             "items": {
               "type": "string"
             },
@@ -3606,8 +3609,140 @@
         "required": [
           "words"
         ],
+        "title": "StopwordCreateRequest",
+        "type": "object"
+      },
+      "StopwordDTO": {
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/StopwordsScope"
+          },
+          "word": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope",
+          "word"
+        ],
+        "title": "StopwordDTO",
+        "type": "object"
+      },
+      "StopwordPurgePreview": {
+        "properties": {
+          "reversible": {
+            "default": false,
+            "description": "Always false: the purge has no ledger to restore from.",
+            "type": "boolean"
+          },
+          "stopwords": {
+            "description": "The TAG/ALL terms the purge would act on, in lowercase.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/StopwordPurgeTag"
+            },
+            "type": "array"
+          },
+          "total_documents": {
+            "default": 0,
+            "description": "Documents that lose a subject tag.",
+            "type": "integer"
+          },
+          "total_tags": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "title": "StopwordPurgePreview",
+        "type": "object"
+      },
+      "StopwordPurgeTag": {
+        "properties": {
+          "document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "macro_category_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "tag_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "tag_id"
+        ],
+        "title": "StopwordPurgeTag",
+        "type": "object"
+      },
+      "StopwordRemovalRequest": {
+        "properties": {
+          "scope": {
+            "description": "Restringe a remoção a um eixo.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/StopwordsScope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "words": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "words"
+        ],
+        "title": "StopwordRemovalRequest",
+        "type": "object"
+      },
+      "StopwordsRequest": {
+        "properties": {
+          "words": {
+            "description": "Words to register before purging; omit to purge with the list already stored.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [],
         "title": "StopwordsRequest",
         "type": "object"
+      },
+      "StopwordsScope": {
+        "default": "TAG",
+        "description": "\n    Controls the scope of a domain stopword\n    ",
+        "enum": [
+          "TAG",
+          "ENTITY",
+          "ALL"
+        ],
+        "title": "StopwordsScope",
+        "type": "string"
       },
       "SubjectExclusionRequest": {
         "properties": {
@@ -10098,15 +10233,166 @@
         ]
       }
     },
-    "/api/v1/taxonomy/tags/stopwords/purge": {
-      "post": {
+    "/api/v1/taxonomy/tags/stopwords": {
+      "delete": {
         "deprecated": false,
-        "operationId": "ApiV1TaxonomyTagsStopwordsPurgePurgeStopwords",
+        "operationId": "ApiV1TaxonomyTagsStopwordsRemoveStopwords",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/StopwordsRequest"
+                "$ref": "#/components/schemas/StopwordRemovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "RemoveStopwords",
+        "tags": [
+          "Taxonomy"
+        ]
+      },
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsStopwordsListStopwords",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "axis",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/StopwordsScope"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StopwordDTO"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListStopwords",
+        "tags": [
+          "Taxonomy"
+        ]
+      },
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsStopwordsCreateStopwords",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopwordCreateRequest"
               }
             }
           },
@@ -10163,7 +10449,101 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "summary": "CreateStopwords",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/tags/stopwords/purge": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsStopwordsPurgePurgeStopwords",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopwordsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
         "summary": "PurgeStopwords",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/tags/stopwords/purge/preview": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsStopwordsPurgePreviewPreviewStopwordPurge",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopwordPurgePreview"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "PreviewStopwordPurge",
         "tags": [
           "Taxonomy"
         ]

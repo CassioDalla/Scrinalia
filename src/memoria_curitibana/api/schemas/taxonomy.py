@@ -2,6 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from memoria_curitibana.domains.archive.models.enums import StopwordsScope
 from memoria_curitibana.domains.archive.schemas.entity_schema import ConflictResolutionData, CrossDomainConflict
 
 
@@ -51,8 +52,25 @@ class MergePreviewRequest(BaseModel):
         return self
 
 
+class StopwordCreateRequest(BaseModel):
+    """Terms to ban from one axis. ``TAG`` by default: the axis this catalog governs."""
+
+    words: list[str] = Field(min_length=1, description="Termos a banir (normalizados ao gravar).")
+    scope: StopwordsScope = Field(default=StopwordsScope.TAG, description="Eixo de onde o termo sai.")
+
+
+class StopwordRemovalRequest(BaseModel):
+    """Terms to un-ban. With no scope, the word leaves every axis it was banned from."""
+
+    words: list[str] = Field(min_length=1)
+    scope: StopwordsScope | None = Field(default=None, description="Restringe a remoção a um eixo.")
+
+
 class StopwordsRequest(BaseModel):
-    words: list[str] = Field(min_length=1, description="List of words to be banned.")
+    words: list[str] = Field(
+        default_factory=list,
+        description="Words to register before purging; omit to purge with the list already stored.",
+    )
 
 
 class SuggestMacroRequest(BaseModel):

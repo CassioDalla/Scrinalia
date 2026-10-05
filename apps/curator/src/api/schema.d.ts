@@ -1032,6 +1032,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/taxonomy/tags/stopwords": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListStopwords */
+        get: operations["ApiV1TaxonomyTagsStopwordsListStopwords"];
+        put?: never;
+        /** CreateStopwords */
+        post: operations["ApiV1TaxonomyTagsStopwordsCreateStopwords"];
+        /** RemoveStopwords */
+        delete: operations["ApiV1TaxonomyTagsStopwordsRemoveStopwords"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/taxonomy/tags/stopwords/purge": {
         parameters: {
             query?: never;
@@ -1043,6 +1062,23 @@ export interface paths {
         put?: never;
         /** PurgeStopwords */
         post: operations["ApiV1TaxonomyTagsStopwordsPurgePurgeStopwords"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxonomy/tags/stopwords/purge/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** PreviewStopwordPurge */
+        post: operations["ApiV1TaxonomyTagsStopwordsPurgePreviewPreviewStopwordPurge"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1959,11 +1995,61 @@ export interface components {
             /** @enum {string} */
             new_type: "ORG" | "PER" | "LOC";
         };
-        /** StopwordsRequest */
-        StopwordsRequest: {
-            /** @description List of words to be banned. */
+        /** StopwordCreateRequest */
+        StopwordCreateRequest: {
+            scope?: components["schemas"]["StopwordsScope"];
+            /** @description Termos a banir (normalizados ao gravar). */
             words: string[];
         };
+        /** StopwordDTO */
+        StopwordDTO: {
+            scope: components["schemas"]["StopwordsScope"];
+            word: string;
+        };
+        /** StopwordPurgePreview */
+        StopwordPurgePreview: {
+            /**
+             * @description Always false: the purge has no ledger to restore from.
+             * @default false
+             */
+            reversible: boolean;
+            /** @description The TAG/ALL terms the purge would act on, in lowercase. */
+            stopwords?: string[];
+            tags?: components["schemas"]["StopwordPurgeTag"][];
+            /**
+             * @description Documents that lose a subject tag.
+             * @default 0
+             */
+            total_documents: number;
+            /** @default 0 */
+            total_tags: number;
+        };
+        /** StopwordPurgeTag */
+        StopwordPurgeTag: {
+            /** @default 0 */
+            document_count: number;
+            macro_category_name?: string | null;
+            name: string;
+            tag_id: number;
+        };
+        /** StopwordRemovalRequest */
+        StopwordRemovalRequest: {
+            /** @description Restringe a remoção a um eixo. */
+            scope?: components["schemas"]["StopwordsScope"] | null;
+            words: string[];
+        };
+        /** StopwordsRequest */
+        StopwordsRequest: {
+            /** @description Words to register before purging; omit to purge with the list already stored. */
+            words?: string[];
+        };
+        /**
+         * StopwordsScope
+         * @description Controls the scope of a domain stopword
+         * @default TAG
+         * @enum {string}
+         */
+        StopwordsScope: "TAG" | "ENTITY" | "ALL";
         /** SubjectExclusionRequest */
         SubjectExclusionRequest: {
             /** @description Why the decision was made; kept for auditing. */
@@ -4721,7 +4807,44 @@ export interface operations {
             };
         };
     };
-    ApiV1TaxonomyTagsStopwordsPurgePurgeStopwords: {
+    ApiV1TaxonomyTagsStopwordsListStopwords: {
+        parameters: {
+            query?: {
+                axis?: components["schemas"]["StopwordsScope"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopwordDTO"][];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyTagsStopwordsCreateStopwords: {
         parameters: {
             query?: never;
             header?: never;
@@ -4730,7 +4853,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["StopwordsRequest"];
+                "application/json": components["schemas"]["StopwordCreateRequest"];
             };
         };
         responses: {
@@ -4756,6 +4879,104 @@ export interface operations {
                         } | unknown[];
                         status_code: number;
                     };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyTagsStopwordsRemoveStopwords: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StopwordRemovalRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyTagsStopwordsPurgePurgeStopwords: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StopwordsRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyTagsStopwordsPurgePreviewPreviewStopwordPurge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopwordPurgePreview"];
                 };
             };
         };

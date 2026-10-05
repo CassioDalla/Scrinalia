@@ -13,6 +13,7 @@ from memoria_curitibana.domains.archive.exceptions import (
     TagMergeProposalNotFoundError,
     TagNotFoundError,
 )
+from memoria_curitibana.domains.archive.models.enums import StopwordsScope
 from memoria_curitibana.domains.archive.ports.document import DocumentRepositoryPort
 from memoria_curitibana.domains.archive.ports.taxonomy import TagRepositoryPort
 from memoria_curitibana.domains.archive.schemas import (
@@ -30,6 +31,8 @@ from memoria_curitibana.domains.archive.schemas import (
     MergeResponse,
     MergeSuggestionRunResponse,
     MergeTagsCommand,
+    StopwordDTO,
+    StopwordPurgePreview,
     TagCurationCommand,
     TagCurationResult,
     TagMergeDecisionCommand,
@@ -156,13 +159,53 @@ class TagService:
         # does not receive the same tag ID twice (e.g. if "park" and "parks" come in the same document)
         return list(set(final_ids_for_document))
 
-    def save_new_stopwords(self, word_list: list[str]) -> int:
-        return self.repo.save_stopwords(word_list)
+    def save_new_stopwords(self, word_list: list[str], scope: StopwordsScope = StopwordsScope.TAG) -> int:
+        """Bans terms from one axis. ``TAG`` by default: it is the axis this catalog governs."""
+        return self.repo.save_stopwords(word_list, scope)
+
+    def list_stopwords(self, scope: StopwordsScope | None = None) -> list[StopwordDTO]:
+        """
+        The banned terms, with the axis each one was banned from.
+
+        The scope travels with the word because the two axes are different mechanisms: a ``TAG`` ban
+        feeds the subject purge, an ``ENTITY`` ban keeps a term out of the NER extraction, and
+        ``get_stopwords()`` deliberately reads only ``TAG``/``ALL`` so the first can never delete a
+        tag because of the second.
+        """
+        return self.repo.list_stopwords(scope)
+
+    def remove_stopwords(self, word_list: list[str], scope: StopwordsScope | None = None) -> int:
+        """
+        Un-bans terms. This is the only way back from a purge decision, because the purge deletes the
+        tags themselves and has no ledger to restore them from.
+        """
+        return self.repo.remove_stopwords(word_list, scope)
+
+    def preview_stopword_purge(self) -> StopwordPurgePreview:
+        """
+        What the purge would delete, computed with the same list the purge itself reads.
+
+        The list is ``get_stopwords()`` — ``TAG``/``ALL`` only — so the preview and the write cannot
+        disagree about which words are in play. Same rule as the merge dry run.
+        """
+        stopwords = self.repo.get_stopwords()
+        tags = self.repo.find_tags_by_stopwords(stopwords)
+        return StopwordPurgePreview(
+            stopwords=sorted(stopwords),
+            tags=tags,
+            total_tags=len(tags),
+            total_documents=sum(tag.document_count for tag in tags),
+            reversible=False,
+        )
 
     def purge_stopwords(self) -> int:
         """
-        Scans the tag table and gracefully deletes any tag that exactly
-        matches the official stopwords list.
+        Deletes every tag whose name is a banned term, and **this one has no undo**.
+
+        The merge keeps a ledger and restores the tag, its links and its classification; here the row
+        goes and the links cascade. The route offers a preview first and the screen says so out loud,
+        because a destructive write with no reversal is exactly the case the project's rule — every
+        write is reversible or announced — is about.
         """
 
         clean_stopwords = self.repo.get_stopwords()

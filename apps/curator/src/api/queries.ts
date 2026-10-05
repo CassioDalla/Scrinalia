@@ -15,11 +15,13 @@ import {
   fetchMergeProposals,
   fetchRevisions,
   fetchSimilarTags,
+  fetchStopwords,
   fetchTagRelevance,
   type DocumentSearch,
   type PlanStatus,
   type MergeReason,
   type ProposalStatus,
+  type StopwordsScope,
 } from "./client";
 
 /** Page sizes: the plan catalogue is ~52 rungs, the diagnostic pages are read one at a time. */
@@ -169,11 +171,18 @@ export const queries = {
       placeholderData: (previous) => previous,
     }),
 
-  mergeLog: () =>
+  mergeLog: (limit: number) =>
     queryOptions({
-      queryKey: ["taxonomy", "merge-log"],
-      queryFn: () => fetchMergeLog({ include_undone: true, limit: MERGE_LOG_PAGE_SIZE, offset: 0 }),
+      queryKey: ["taxonomy", "merge-log", limit],
+      queryFn: () => fetchMergeLog({ include_undone: true, limit, offset: 0 }),
       staleTime: 5_000,
+    }),
+
+  stopwords: (axis?: StopwordsScope) =>
+    queryOptions({
+      queryKey: ["taxonomy", "stopwords", axis ?? "ALL"],
+      queryFn: () => fetchStopwords(axis),
+      staleTime: 30_000,
     }),
 };
 

@@ -4,13 +4,20 @@ import { useState } from "react";
 
 import {
   applyMergeBatch,
+  banStopwords,
+  fetchMergeProposals,
   decideMergeProposal,
   previewMerge,
+  previewStopwordPurge,
+  purgeStopwords,
   suggestMergeProposals,
+  unbanStopwords,
   undoMerge,
   type BatchMergeResponse,
   type MergePreview,
   type ProposalStatus,
+  type StopwordPurgePreview,
+  type StopwordsScope,
   type TagMergeProposal,
   type TagPairSimilarity,
 } from "@/api/client";
@@ -30,6 +37,8 @@ import {
   PROPOSAL_STATUS_TONE,
   REVIEW_FLAG_HINT,
   REVIEW_FLAG_LABEL,
+  STOPWORD_SCOPE_HINT,
+  STOPWORD_SCOPE_LABEL,
   labelOf,
 } from "@/lib/taxonomy";
 
@@ -39,9 +48,14 @@ const TABS = [
   { id: "relevancia", label: "Relevância" },
   { id: "similaridade", label: "Similaridade" },
   { id: "propostas", label: "Propostas de merge" },
+  { id: "stopwords", label: "Stopwords" },
 ];
 
 const REASONS = ["TRIGRAM", "PLURAL", "MIXED"];
+const SCOPE_VALUES: StopwordsScope[] = ["TAG", "ENTITY", "ALL"];
+
+/** Mirrors ``MAX_MERGE_BATCH_CLUSTERS``: the API refuses a bigger batch, so the screen does not send one. */
+const MAX_BATCH = 200;
 const STATUSES: ProposalStatus[] = ["SUGGESTED", "APPROVED", "REJECTED"];
 
 export type TagsSearch = {
@@ -55,6 +69,7 @@ export type TagsSearch = {
   min?: number;
   flag?: boolean;
   offset?: number;
+  escopo?: StopwordsScope;
 };
 
 function asNumber(value: unknown): number | undefined {
@@ -78,6 +93,9 @@ export function validateTagsSearch(search: Record<string, unknown>): TagsSearch 
     min: asNumber(search.min),
     flag: search.flag === true || search.flag === "true" ? true : undefined,
     offset: asNumber(search.offset),
+    escopo: SCOPE_VALUES.includes(search.escopo as StopwordsScope)
+      ? (search.escopo as StopwordsScope)
+      : undefined,
   };
 }
 
@@ -88,9 +106,9 @@ export function validateTagsSearch(search: Record<string, unknown>): TagsSearch 
  * ``alvenarias`` weighs little, finds its near-duplicate, and decides whether to absorb it. The
  * active question is in the URL, so a colleague can be sent the exact list.
  *
- * The fourth subtab of the sitemap (stopwords) is **not** here, and the screen says why instead of
- * offering a button that would delete tags: the purge has no read route for the current stopwords
- * and no preview of what it would remove.
+ * The stopwords subtab manages the banned terms **and** the one destructive write in the taxonomy
+ * that has no undo. Banning and purging are separate steps on purpose: banning a word deletes
+ * nothing, and the purge shows what it would destroy before destroying it.
  */
 export function TagsRoute() {
   const search = routeApi.useSearch();
@@ -119,6 +137,8 @@ export function TagsRoute() {
           <SimilarityTab search={search} patch={patch} />
         ) : search.aba === "propostas" ? (
           <ProposalsTab search={search} patch={patch} />
+        ) : search.aba === "stopwords" ? (
+          <StopwordsTab search={search} patch={patch} />
         ) : (
           <RelevanceTab search={search} patch={patch} />
         )}
@@ -326,9 +346,10 @@ function ProposalsTab({
   const [threshold, setThreshold] = useState(0.65);
   const [selected, setSelected] = useState<number[]>([]);
   const [batch, setBatch] = useState<BatchMergeResponse | null>(null);
+  const [logLimit, setLogLimit] = useState(MERGE_LOG_PAGE_SIZE);
 
   const proposals = useQuery(queries.mergeProposals(search));
-  const log = useQuery(queries.mergeLog());
+  const log = useQuery(queries.mergeLog(logLimit));
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["taxonomy", "merge-proposals"] });
@@ -352,6 +373,21 @@ function ProposalsTab({
     },
   });
 
+  /**
+   * Brings every approved cluster into the selection, across pages.
+   *
+   * Without it the archivist with 92 approved clusters would have to page through five screens and
+   * tick a box in each. The selection is what the batch sends, so this only fills it — the write is
+   * still the explicit "Aplicar em lote" below.
+   */
+  const selectAllApproved = useMutation({
+    mutationFn: () => fetchMergeProposals({ status: "APPROVED", limit: MAX_BATCH }),
+    onSuccess: (data) =>
+      setSelected((current) => [
+        ...new Set([...current, ...(data.items ?? []).map((proposal) => proposal.proposal_id)]),
+      ]),
+  });
+
   const undo = useMutation({
     mutationFn: (mergeId: number) => undoMerge(mergeId),
     onSuccess: invalidate,
@@ -360,6 +396,10 @@ function ProposalsTab({
   const items = proposals.data?.items ?? [];
   const total = proposals.data?.total ?? 0;
   const offset = search.offset ?? 0;
+  // Approved and waiting for the write. "Aprovar" records the intent; only the apply absorbs, and
+  // the ledger below stays put until it runs — which is exactly what looked like a stuck screen.
+  const approvedHere = items.filter((proposal) => proposal.status === "APPROVED");
+  const approvedNotSelected = approvedHere.filter((proposal) => !selected.includes(proposal.proposal_id));
 
   return (
     <div className="grid gap-3">
@@ -428,14 +468,45 @@ function ProposalsTab({
       ) : null}
       {suggest.error ? <ErrorState error={suggest.error} /> : null}
 
+      {approvedNotSelected.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-md bg-(--color-warn)/5 px-3 py-2 ring-1 ring-(--color-warn)/25">
+          <span className="text-xs text-(--color-warn)">
+            <strong>{formatCount(approvedNotSelected.length)}</strong> cluster(s) aprovado(s) nesta página{" "}
+            <strong>ainda não foram unificados</strong>: aprovar registra a intenção, e só o apply absorve as tags.
+            Enquanto ele não roda, o ledger abaixo não muda.
+          </span>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setSelected((current) => [...new Set([...current, ...approvedNotSelected.map((p) => p.proposal_id)])])}
+          >
+            incluir as aprovadas desta página
+          </Button>
+          <Button size="sm" disabled={selectAllApproved.isPending} onClick={() => selectAllApproved.mutate()}>
+            {selectAllApproved.isPending ? "Buscando…" : "selecionar todas as aprovadas"}
+          </Button>
+        </div>
+      ) : null}
+
       {selected.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2 rounded-md bg-(--color-accent)/5 px-3 py-2 ring-1 ring-(--color-accent)/25">
           <span className="text-xs">
-            {formatCount(selected.length)} cluster(s) aprovado(s) selecionado(s)
+            {formatCount(selected.length)} cluster(s) selecionado(s) para aplicar
           </span>
-          <Button size="sm" variant="primary" disabled={apply.isPending} onClick={() => apply.mutate()}>
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={apply.isPending || selected.length > MAX_BATCH}
+            title={selected.length > MAX_BATCH ? `O lote aceita no máximo ${MAX_BATCH} clusters.` : undefined}
+            onClick={() => apply.mutate()}
+          >
             {apply.isPending ? "Aplicando…" : "Aplicar em lote"}
           </Button>
+          {selected.length > MAX_BATCH ? (
+            <span className="text-xs text-(--color-danger)">
+              {formatCount(selected.length)} selecionados: o lote aceita no máximo {MAX_BATCH}. Aplique em partes.
+            </span>
+          ) : null}
           <Button size="sm" variant="ghost" onClick={() => setSelected([])}>
             limpar seleção
           </Button>
@@ -494,6 +565,13 @@ function ProposalsTab({
                   checked ? [...current, proposal.proposal_id] : current.filter((id) => id !== proposal.proposal_id),
                 )
               }
+              // Approving selects it for the batch, so the step that actually writes is one click
+              // away instead of hidden behind a checkbox the archivist has to find.
+              onApproved={() =>
+                setSelected((current) =>
+                  current.includes(proposal.proposal_id) ? current : [...current, proposal.proposal_id],
+                )
+              }
             />
           </li>
         ))}
@@ -525,8 +603,8 @@ function ProposalsTab({
         <CardHeader className="text-sm font-semibold">Ledger dos merges</CardHeader>
         <CardBody className="grid gap-2">
           <p className="text-xs text-(--color-muted)">
-            O merge é a operação mais destrutiva do sistema: ele apaga a tag absorvida e reescreve os vínculos. Cada
-            linha aqui guarda o estado anterior — tag, vínculos, classificação e grafias — e o desfazer restaura tudo.
+            Aqui só entram merges <strong>aplicados</strong>: aprovar não escreve nesta lista. Cada linha guarda o
+            estado anterior — tag, vínculos, classificação e grafias — e o desfazer restaura tudo.
           </p>
           {log.isPending ? <Spinner label="Lendo o ledger…" /> : null}
           {log.error ? <ErrorState error={log.error} /> : null}
@@ -562,19 +640,19 @@ function ProposalsTab({
             ))}
           </ul>
           {undo.error ? <ErrorState error={undo.error} /> : null}
-          {log.data && log.data.total > MERGE_LOG_PAGE_SIZE ? (
-            <p className="text-xs text-(--color-muted)">
-              Mostrando os {MERGE_LOG_PAGE_SIZE} mais recentes de {formatCount(log.data.total)}.
-            </p>
+          {log.data && log.data.total > logLimit ? (
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setLogLimit((current) => current + MERGE_LOG_PAGE_SIZE)}>
+                ver mais
+              </Button>
+              <span className="text-xs text-(--color-muted)">
+                mostrando os {formatCount(logLimit)} mais recentes de {formatCount(log.data.total)} merge(s) aplicado(s)
+              </span>
+            </div>
           ) : null}
         </CardBody>
       </Card>
 
-      <p className="text-xs text-(--color-muted)">
-        A quarta subtela do sitemap — stopwords — <strong>não está aqui</strong>: a purga apaga tags e ainda não existe
-        rota para ler as stopwords atuais nem preview do que seria apagado. Enquanto isso, uma tela que apaga sem
-        mostrar o impacto não entra.
-      </p>
     </div>
   );
 }
@@ -590,10 +668,12 @@ function ProposalCard({
   proposal,
   selected,
   onToggle,
+  onApproved,
 }: {
   proposal: TagMergeProposal;
   selected: boolean;
   onToggle: (checked: boolean) => void;
+  onApproved: () => void;
 }) {
   const queryClient = useQueryClient();
   const [preview, setPreview] = useState<MergePreview | null>(null);
@@ -606,7 +686,10 @@ function ProposalCard({
   const decide = useMutation({
     mutationFn: (status: "APPROVED" | "REJECTED") =>
       decideMergeProposal(proposal.proposal_id, { status, decided_by: null, note: null }),
-    onSuccess: invalidate,
+    onSuccess: (_data, status) => {
+      invalidate();
+      if (status === "APPROVED") onApproved();
+    },
   });
 
   const dryRun = useMutation({
@@ -633,7 +716,7 @@ function ProposalCard({
           {proposal.status === "APPROVED" ? (
             <label className="flex items-center gap-2 text-xs">
               <input type="checkbox" checked={selected} onChange={(event) => onToggle(event.target.checked)} />
-              incluir no lote
+              incluir no lote de apply
             </label>
           ) : null}
         </div>
@@ -726,5 +809,250 @@ function ProposalCard({
         ) : null}
       </CardBody>
     </Card>
+  );
+}
+
+// =============================================================================================
+// Stopwords — os termos banidos, e a única escrita destrutiva sem undo
+// =============================================================================================
+
+/** "pessoas, vista aérea" → ["pessoas", "vista aérea"]. */
+function splitWords(text: string): string[] {
+  return text
+    .split(/[,\n;]/)
+    .map((word) => word.trim())
+    .filter((word) => word.length > 0);
+}
+
+/**
+ * The banned terms, and the purge.
+ *
+ * The screen keeps three things apart that are easy to confuse, and each one is stated where it
+ * matters: banning a word **deletes nothing**; the purge deletes the tags with that name and **has
+ * no undo** (unlike the merge, which keeps a ledger); and the scope decides which of those is even
+ * possible — a term banned from the NER axis never reaches the subject purge.
+ */
+function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: Partial<TagsSearch>) => void }) {
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState("");
+  const [draftScope, setDraftScope] = useState<StopwordsScope>("TAG");
+  const [preview, setPreview] = useState<StopwordPurgePreview | null>(null);
+  const [purged, setPurged] = useState<number | null>(null);
+
+  const stopwords = useQuery(queries.stopwords(search.escopo));
+
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ["taxonomy", "stopwords"] });
+    void queryClient.invalidateQueries({ queryKey: ["taxonomy", "tags"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents"] });
+    void queryClient.invalidateQueries({ queryKey: ["curation", "inbox"] });
+  };
+
+  const ban = useMutation({
+    mutationFn: () => banStopwords({ words: splitWords(draft), scope: draftScope }),
+    onSuccess: () => {
+      setDraft("");
+      invalidate();
+    },
+  });
+
+  const unban = useMutation({
+    mutationFn: (word: string) => unbanStopwords({ words: [word] }),
+    onSuccess: invalidate,
+  });
+
+  const dryRun = useMutation({
+    mutationFn: previewStopwordPurge,
+    onSuccess: (data) => {
+      setPreview(data);
+      setPurged(null);
+    },
+  });
+
+  const purge = useMutation({
+    mutationFn: purgeStopwords,
+    onSuccess: (data) => {
+      setPurged(data.tags_deleted);
+      setPreview(null);
+      invalidate();
+    },
+  });
+
+  const words = stopwords.data ?? [];
+  const byScope = (scope: StopwordsScope) => words.filter((item) => item.scope === scope);
+
+  return (
+    <div className="grid gap-4">
+      <p className="max-w-3xl rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
+        <strong>Banir não apaga nada.</strong> Banir registra que o termo não vale; a <strong>purga</strong> é o passo
+        que apaga as tags com esse nome — e ela <strong>não tem undo</strong>: o merge guarda o estado anterior e
+        restaura, a purga não. Por isso ela vem sempre depois de conferir o impacto.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" variant={search.escopo ? "secondary" : "primary"} onClick={() => patch({ escopo: undefined })}>
+          Todos os eixos ({formatCount(words.length)})
+        </Button>
+        {SCOPE_VALUES.map((scope) => (
+          <Button
+            key={scope}
+            size="sm"
+            variant={search.escopo === scope ? "primary" : "secondary"}
+            title={STOPWORD_SCOPE_HINT[scope]}
+            onClick={() => patch({ escopo: scope })}
+          >
+            {labelOf(STOPWORD_SCOPE_LABEL, scope)} ({formatCount(byScope(scope).length)})
+          </Button>
+        ))}
+      </div>
+
+      {stopwords.error ? <ErrorState error={stopwords.error} /> : null}
+      {stopwords.isPending ? <Spinner label="Lendo os termos banidos…" /> : null}
+
+      {stopwords.data && words.length === 0 ? (
+        <EmptyState
+          title="Nenhum termo banido"
+          hint="Banir um termo o tira do eixo escolhido. Nada é apagado por banir: a purga é um passo separado, abaixo."
+        />
+      ) : null}
+
+      {words.length > 0 ? (
+        <Card>
+          <CardHeader className="text-sm font-semibold">Termos banidos</CardHeader>
+          <CardBody className="p-0">
+            <ul className="divide-y divide-(--color-line) text-sm">
+              {words.map((item) => (
+                <li key={item.word} className="flex items-center justify-between gap-3 px-3 py-1.5">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate">{item.word}</span>
+                    <Badge tone={item.scope === "ENTITY" ? "neutral" : "accent"} title={STOPWORD_SCOPE_HINT[item.scope]}>
+                      {labelOf(STOPWORD_SCOPE_LABEL, item.scope)}
+                    </Badge>
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={unban.isPending}
+                    onClick={() => unban.mutate(item.word)}
+                  >
+                    desbanir
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </CardBody>
+        </Card>
+      ) : null}
+
+      <Card>
+        <CardHeader className="text-sm font-semibold">Banir termos</CardHeader>
+        <CardBody className="grid gap-2">
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="flex-1">
+              <span className="mb-1 block text-xs font-medium text-(--color-muted)">
+                Termos, separados por vírgula ou linha
+              </span>
+              <Input
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder="ex.: pessoas, vista aérea"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && splitWords(draft).length > 0) ban.mutate();
+                }}
+              />
+            </label>
+            <label className="w-56">
+              <span className="mb-1 block text-xs font-medium text-(--color-muted)">Eixo</span>
+              <Select value={draftScope} onChange={(event) => setDraftScope(event.target.value as StopwordsScope)}>
+                {SCOPE_VALUES.map((scope) => (
+                  <option key={scope} value={scope}>
+                    {labelOf(STOPWORD_SCOPE_LABEL, scope)}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <Button
+              variant="primary"
+              disabled={splitWords(draft).length === 0 || ban.isPending}
+              onClick={() => ban.mutate()}
+            >
+              {ban.isPending ? "Banindo…" : "Banir"}
+            </Button>
+          </div>
+          <p className="text-xs text-(--color-muted)">{STOPWORD_SCOPE_HINT[draftScope]}</p>
+          {ban.error ? <ErrorState error={ban.error} /> : null}
+          {unban.error ? <ErrorState error={unban.error} /> : null}
+        </CardBody>
+      </Card>
+
+      <Card className="ring-(--color-danger)/30">
+        <CardHeader className="text-sm font-semibold text-(--color-danger)">Purgar as tags banidas</CardHeader>
+        <CardBody className="grid gap-3">
+          <p className="text-xs text-(--color-muted)">
+            A purga apaga toda tag cujo nome seja um termo banido nos eixos <code>TAG</code> ou <code>ALL</code>. Os
+            vínculos caem junto e a classificação da tag vai embora. <strong>Não há desfazer.</strong>
+          </p>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button disabled={dryRun.isPending || purge.isPending} onClick={() => dryRun.mutate()}>
+              {dryRun.isPending ? "Conferindo…" : "Conferir o que seria apagado"}
+            </Button>
+            <Button
+              variant="danger"
+              disabled={!preview || preview.total_tags === 0 || purge.isPending}
+              title={preview ? undefined : "O impacto é obrigatório: confira o que seria apagado primeiro."}
+              onClick={() => purge.mutate()}
+            >
+              {purge.isPending
+                ? "Apagando…"
+                : preview
+                  ? `Apagar ${formatCount(preview.total_tags)} tag(s)`
+                  : "Apagar (confira antes)"}
+            </Button>
+          </div>
+
+          {dryRun.error ? <ErrorState error={dryRun.error} /> : null}
+          {purge.error ? <ErrorState error={purge.error} /> : null}
+
+          {preview ? (
+            <div className="grid gap-2 rounded-md bg-(--color-danger)/5 p-3 text-xs ring-1 ring-(--color-danger)/20">
+              <p>
+                Nada foi apagado ainda. Seriam <strong>{formatCount(preview.total_tags)} tag(s)</strong> em{" "}
+                <strong>{formatCount(preview.total_documents)} descrição(ões)</strong>.
+              </p>
+              {(preview.stopwords ?? []).length > 0 ? (
+                <p className="text-(--color-muted)">
+                  termos que a purga alcança: <code>{(preview.stopwords ?? []).join(", ")}</code>
+                </p>
+              ) : null}
+              {preview.total_tags === 0 ? (
+                <p className="text-(--color-muted)">
+                  Nenhuma tag do acervo tem um desses nomes — não há o que apagar.
+                </p>
+              ) : (
+                <ul className="max-h-64 overflow-y-auto">
+                  {(preview.tags ?? []).map((tag) => (
+                    <li key={tag.tag_id} className="flex items-center justify-between gap-3 py-0.5">
+                      <span className="truncate">{tag.name}</span>
+                      <span className="shrink-0 tabular-nums text-(--color-muted)">
+                        {formatCount(tag.document_count)} doc
+                        {tag.macro_category_name ? ` · ${tag.macro_category_name}` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
+
+          {purged !== null ? (
+            <p className="rounded-md bg-(--color-ok)/5 px-3 py-2 text-xs text-(--color-ok) ring-1 ring-(--color-ok)/25">
+              {formatCount(purged)} tag(s) apagada(s). Isto <strong>não</strong> aparece no ledger de merges: não há
+              estado anterior guardado para restaurar.
+            </p>
+          ) : null}
+        </CardBody>
+      </Card>
+    </div>
   );
 }
