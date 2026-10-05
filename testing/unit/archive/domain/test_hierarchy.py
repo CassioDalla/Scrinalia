@@ -9,16 +9,22 @@ second exists because ``FOTOGRAFIA`` and ``FOTOGRAFIAS`` are one letter apart an
 score would join them.
 """
 
+from typing import ClassVar
+
 import pytest
 
 from memoria_curitibana.domains.archive.domain.hierarchy import (
     HierarchyViolation,
     LevelRules,
     NodeShape,
+    ancestor_rungs,
     build_path,
+    collapse_chain,
     dominant_ordinal_by_depth,
     is_within,
     near_duplicate_codes,
+    parent_rung_code,
+    resolve_rung,
     validate_assignment,
     verify_path_invariant,
     would_create_cycle,
@@ -184,3 +190,49 @@ class TestNearDuplicates:
     def test_each_pair_is_reported_once(self) -> None:
         pairs = near_duplicate_codes(["A B CASA", "A B CASAS"])
         assert len(pairs) == 1
+
+
+class TestTheCollapseTheCodeCannotDo:
+    """
+    The archivist's correction, and the reason the plan catalogue exists.
+
+    ``BR PRADAP SMU ED AL`` and ``BR PRADAP SMU ED AL CONSTR`` are, in the real arrangement, **one**
+    level ("Alvenaria - Construções"). Nothing in the string says so: the code splits it into two
+    alphabetic segments and the slicer has no way to know they are one rung. A person says it, and
+    this is the machinery that follows what they said.
+    """
+
+    COLLAPSE: ClassVar[dict[str, str]] = {"BR PRADAP SMU ED AL CONSTR": "BR PRADAP SMU ED AL"}
+
+    def test_the_link_is_followed_to_its_end(self) -> None:
+        assert collapse_chain("BR PRADAP SMU ED AL CONSTR", self.COLLAPSE) == "BR PRADAP SMU ED AL"
+        assert collapse_chain("BR PRADAP SMU ED AL", self.COLLAPSE) == "BR PRADAP SMU ED AL"
+        assert collapse_chain("BR PRADAP IPPUC", self.COLLAPSE) == "BR PRADAP IPPUC"
+
+    def test_a_chain_of_links_is_followed_all_the_way(self) -> None:
+        chain = {"BR A B C": "BR A B", "BR A B": "BR A"}
+        assert collapse_chain("BR A B C", chain) == "BR A"
+
+    def test_a_contradictory_pair_does_not_loop_forever(self) -> None:
+        ring = {"BR A B": "BR A B C", "BR A B C": "BR A B"}
+        assert collapse_chain("BR A B", ring) in {"BR A B", "BR A B C"}
+
+    def test_a_code_resolves_up_to_the_nearest_approved_rung(self) -> None:
+        """A rung the archivist rejected means "this code lies, hang it higher"."""
+        approved = {"BR PRADAP", "BR PRADAP SMU"}
+        assert resolve_rung("BR PRADAP SMU ED AL CONSTR", {}, approved) == "BR PRADAP SMU"
+
+    def test_the_collapse_can_carry_a_code_onto_an_approved_sibling(self) -> None:
+        approved = {"BR PRADAP", "BR PRADAP IPPUC FOTOGRAFIAS"}
+        collapse = {"BR PRADAP IPPUC FOTOGRAFIA": "BR PRADAP IPPUC FOTOGRAFIAS"}
+        assert resolve_rung("BR PRADAP IPPUC FOTOGRAFIA", collapse, approved) == "BR PRADAP IPPUC FOTOGRAFIAS"
+
+    def test_nothing_approved_on_the_path_means_no_target(self) -> None:
+        assert resolve_rung("BR PRADAP SMU ED AL", {}, set()) is None
+
+    def test_the_parent_of_a_rung_is_structural(self) -> None:
+        assert parent_rung_code("BR PRADAP SMU ED") == "BR PRADAP SMU"
+        assert parent_rung_code("BR PRADAP") is None
+
+    def test_the_ancestors_are_every_strict_prefix_longest_first(self) -> None:
+        assert ancestor_rungs("BR PRADAP SMU ED") == ("BR PRADAP SMU", "BR PRADAP")

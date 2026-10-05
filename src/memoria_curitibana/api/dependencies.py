@@ -18,6 +18,9 @@ from memoria_curitibana.domains.archive.repository.text_quality_repo import Text
 from memoria_curitibana.domains.archive.services.cleaning_service import CleaningService
 from memoria_curitibana.domains.archive.services.document_service import DocumentService
 from memoria_curitibana.domains.archive.services.entity_service import EntityService
+from memoria_curitibana.domains.archive.services.hierarchy_materialisation_service import (
+    HierarchyMaterialisationService,
+)
 from memoria_curitibana.domains.archive.services.hierarchy_proposal_service import HierarchyProposalService
 from memoria_curitibana.domains.archive.services.hierarchy_service import HierarchyService
 from memoria_curitibana.domains.archive.services.level_catalog_service import LevelCatalogService
@@ -108,3 +111,13 @@ def provide_hierarchy_proposal_service(unit_of_work: NamedDependency[UnitOfWork]
     """Builds the read-only proposal service; it shares the transaction and never writes."""
     db = unit_of_work.db
     return HierarchyProposalService(HierarchyRepository(db), LevelCatalogRepository(db))
+
+
+def provide_hierarchy_materialisation_service(
+    unit_of_work: NamedDependency[UnitOfWork],
+) -> HierarchyMaterialisationService:
+    """Builds the materialisation service over the request transaction, proposal included."""
+    db = unit_of_work.db
+    repo = HierarchyRepository(db)
+    catalog = LevelCatalogRepository(db)
+    return HierarchyMaterialisationService(repo, catalog, HierarchyProposalService(repo, catalog))

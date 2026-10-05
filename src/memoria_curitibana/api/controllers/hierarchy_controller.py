@@ -2,11 +2,12 @@
 
 from typing import Literal
 
-from litestar import Controller, get, patch, post
+from litestar import Controller, delete, get, patch, post
 from litestar.di import NamedDependency, Provide
 from litestar.params import FromPath, FromQuery
 
 from memoria_curitibana.api.dependencies import (
+    provide_hierarchy_materialisation_service,
     provide_hierarchy_proposal_service,
     provide_hierarchy_service,
     provide_level_catalog_service,
@@ -14,8 +15,10 @@ from memoria_curitibana.api.dependencies import (
 from memoria_curitibana.api.schemas.hierarchy_requests import (
     DescriptionLevelCreateRequest,
     DescriptionLevelUpdateRequest,
+    HierarchyMaterialisationRequest,
     HierarchyNodeCreateRequest,
     HierarchyNodeMoveRequest,
+    HierarchyPlanDecisionRequest,
     HierarchyProposalRequest,
 )
 from memoria_curitibana.domains.archive.domain.hierarchy import HierarchyIssue
@@ -24,12 +27,26 @@ from memoria_curitibana.domains.archive.schemas.hierarchy_schema import (
     CreateHierarchyNodeCommand,
     DescriptionLevelDTO,
     HierarchyDiagnosticListResponse,
+    HierarchyMaterialisationLogListResponse,
+    HierarchyMaterialisationPreview,
+    HierarchyMaterialisationResult,
+    HierarchyNodeDetail,
+    HierarchyNodePlanDTO,
     HierarchyNodeSummary,
+    HierarchyPlanDecisionCommand,
+    HierarchyPlanListResponse,
+    HierarchyPlanSuggestionResponse,
     HierarchyProposalCommand,
     HierarchyProposalResponse,
     HierarchyTreeResponse,
     MoveNodeCommand,
     UpdateDescriptionLevelCommand,
+)
+from memoria_curitibana.domains.archive.schemas.hierarchy_schema import (
+    HierarchyMaterialisationRequest as MaterialisationCommand,
+)
+from memoria_curitibana.domains.archive.services.hierarchy_materialisation_service import (
+    HierarchyMaterialisationService,
 )
 from memoria_curitibana.domains.archive.services.hierarchy_proposal_service import HierarchyProposalService
 from memoria_curitibana.domains.archive.services.hierarchy_service import HierarchyService
@@ -53,6 +70,7 @@ class HierarchyController(Controller):
         "level_service": Provide(provide_level_catalog_service, sync_to_thread=False),
         "hierarchy_service": Provide(provide_hierarchy_service, sync_to_thread=False),
         "proposal_service": Provide(provide_hierarchy_proposal_service, sync_to_thread=False),
+        "materialisation_service": Provide(provide_hierarchy_materialisation_service, sync_to_thread=False),
     }
 
     # =========================================================================
@@ -107,6 +125,20 @@ class HierarchyController(Controller):
         constantly, and the whole reason the path is materialised instead of walked per level.
         """
         return hierarchy_service.tree(root_id=root_id, max_depth=max_depth, limit=limit, offset=offset)
+
+    @get("/nodes/{description_id:str}", sync_to_thread=True)
+    def get_node(
+        self,
+        hierarchy_service: NamedDependency[HierarchyService],
+        description_id: FromPath[str],
+    ) -> HierarchyNodeDetail:
+        """
+        One description as a place in the arrangement: the node, its branch and its children.
+
+        This is what the individual edit (H5) reads before moving a node or correcting its rung —
+        the branch it sits on and what would travel with it, in one round trip.
+        """
+        return hierarchy_service.node(description_id)
 
     @get("/nodes/{description_id:str}/children", sync_to_thread=True)
     def list_children(
@@ -216,4 +248,106 @@ class HierarchyController(Controller):
                 "PATH_DIVERGENCE",
                 "LEVEL_DEPTH_MISMATCH",
             ],
+        }
+
+    # =========================================================================
+    # H4 — Materialising the tree, driven by a recorded decision
+    # =========================================================================
+    @post("/plans/suggest", status_code=200, sync_to_thread=True)
+    def suggest_plans(
+        self,
+        materialisation_service: NamedDependency[HierarchyMaterialisationService],
+    ) -> HierarchyPlanSuggestionResponse:
+        """
+        Writes the proposed rungs into the catalogue. Nothing is created in the collection.
+
+        Idempotent by code, and it **never overwrites a decision**: a rung the archivist approved
+        or rejected comes back exactly as they left it, so the same ~52 questions are not asked
+        again on every run.
+        """
+        return materialisation_service.suggest()
+
+    @get("/plans", sync_to_thread=True)
+    def list_plans(
+        self,
+        materialisation_service: NamedDependency[HierarchyMaterialisationService],
+        status: FromQuery[Literal["SUGGESTED", "APPROVED", "REJECTED"] | None] = None,
+        limit: FromQuery[int] = 50,
+        offset: FromQuery[int] = 0,
+    ) -> HierarchyPlanListResponse:
+        """One page of the rungs, with the evidence and the decision about each."""
+        return materialisation_service.list_plans(status=status, limit=limit, offset=offset)
+
+    @patch("/plans/{plan_id:int}", sync_to_thread=True)
+    def decide_plan(
+        self,
+        materialisation_service: NamedDependency[HierarchyMaterialisationService],
+        plan_id: FromPath[int],
+        data: HierarchyPlanDecisionRequest,
+    ) -> HierarchyNodePlanDTO:
+        """
+        Records the verdict on one rung: its level, its title, or that it **is** another rung.
+
+        ``collapse_into_code`` is where the archivist corrects what the code cannot know. The
+        measured example: ``BR PRADAP SMU ED AL`` and ``BR PRADAP SMU ED AL CONSTR`` are one level
+        of the arrangement ("Alvenaria - Construções") — nothing in the string says so.
+        """
+        return materialisation_service.decide(plan_id, HierarchyPlanDecisionCommand(**data.model_dump()))
+
+    @post("/materialisation/preview", status_code=200, sync_to_thread=True)
+    def preview_materialisation(
+        self,
+        materialisation_service: NamedDependency[HierarchyMaterialisationService],
+        data: HierarchyMaterialisationRequest,
+    ) -> HierarchyMaterialisationPreview:
+        """
+        The dry run: what the approved decisions would create and move. **Nothing is written.**
+
+        Computed by the same planner the apply executes, so the number the archivist approves is
+        the number the write produces.
+        """
+        return materialisation_service.preview(MaterialisationCommand(**data.model_dump()))
+
+    @post("/materialisation/apply", status_code=200, sync_to_thread=True)
+    def apply_materialisation(
+        self,
+        materialisation_service: NamedDependency[HierarchyMaterialisationService],
+        data: HierarchyMaterialisationRequest,
+    ) -> HierarchyMaterialisationResult:
+        """
+        Creates the missing rungs, adopts the existing ones and hangs the descriptions under them.
+
+        Every run is logged with the exact previous state, so ``DELETE /materialisation/log/{id}``
+        can reverse it: a decision a human took, a human can undo.
+        """
+        return materialisation_service.apply(MaterialisationCommand(**data.model_dump()))
+
+    @get("/materialisation/log", sync_to_thread=True)
+    def list_materialisation_log(
+        self,
+        materialisation_service: NamedDependency[HierarchyMaterialisationService],
+        include_undone: FromQuery[bool] = True,
+        limit: FromQuery[int] = 50,
+        offset: FromQuery[int] = 0,
+    ) -> HierarchyMaterialisationLogListResponse:
+        """The audit trail of the materialisations: what was created, how much moved, by whom."""
+        return materialisation_service.list_log(include_undone=include_undone, limit=limit, offset=offset)
+
+    @delete("/materialisation/log/{materialisation_id:int}", status_code=200, sync_to_thread=True)
+    def undo_materialisation(
+        self,
+        materialisation_service: NamedDependency[HierarchyMaterialisationService],
+        materialisation_id: FromPath[int],
+        undone_by: FromQuery[str | None] = None,
+    ) -> dict:
+        """
+        Reverses one run: the descriptions go back where they were, then the created rungs go.
+
+        The second attempt is **409** and an unknown id is **404**; the ledger entry is never
+        deleted, so "this was materialised, then reversed" survives the reversal.
+        """
+        entry = materialisation_service.undo(materialisation_id, undone_by=undone_by)
+        return {
+            "message": f"Materialização {materialisation_id} desfeita: {entry.changed_rows} descrições voltaram ao lugar.",
+            "data": entry.model_dump(),
         }

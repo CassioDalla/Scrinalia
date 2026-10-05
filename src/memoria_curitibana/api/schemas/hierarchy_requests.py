@@ -1,5 +1,7 @@
 """HTTP payloads of the description hierarchy (Fase 2.5)."""
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -65,5 +67,35 @@ class HierarchyProposalRequest(BaseModel):
 
     include_existing: bool = Field(default=True, description="Incluir códigos que já têm registro.")
     limit: int = Field(default=500, ge=1, le=5000, description="Teto de nós devolvidos.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class HierarchyPlanDecisionRequest(BaseModel):
+    """
+    The archivist's verdict on one rung of the proposal.
+
+    ``collapse_into_code`` is the operation the code cannot do for itself — ``AL`` and ``CONSTR``
+    are one level of the arrangement, and no reading of the string says so. An empty string undoes
+    a previous collapse; omitting the field leaves it as it is.
+    """
+
+    status: Literal["SUGGESTED", "APPROVED", "REJECTED"]
+    level_id: int | None = None
+    title: str | None = Field(default=None, max_length=300)
+    reference_code: str | None = Field(default=None, max_length=500)
+    collapse_into_code: str | None = Field(default=None, max_length=500)
+    decided_by: str | None = None
+    note: str | None = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class HierarchyMaterialisationRequest(BaseModel):
+    """Who authorised the run, and why. The decisions themselves live in the plan rows."""
+
+    changed_by: str | None = None
+    note: str | None = None
+    limit: int = Field(default=500, ge=1, le=5000, description="Teto de itens no preview.")
 
     model_config = ConfigDict(extra="forbid")

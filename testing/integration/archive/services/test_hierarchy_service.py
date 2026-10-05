@@ -391,3 +391,43 @@ class TestMissingNodes:
     def test_a_tree_rooted_at_a_missing_node_is_a_not_found(self, hierarchy):
         with pytest.raises(HierarchyNodeNotFoundError):
             hierarchy.tree(root_id="nao-existe", max_depth=None, limit=10, offset=0)
+
+
+class TestTheNodeDetail:
+    """H5: the one read the individual edit needs, before moving a node or correcting its rung."""
+
+    def test_the_node_carries_its_branch_and_its_children(self, db_session, hierarchy, nobrade):
+        root = hierarchy.create_node(
+            CreateHierarchyNodeCommand(reference_code="BR PRADAP", title="Acervo", level_id=nobrade["acervo"].level_id)
+        )
+        fund = hierarchy.create_node(
+            CreateHierarchyNodeCommand(
+                reference_code="BR PRADAP SMU",
+                title="SMU",
+                level_id=nobrade["fundo"].level_id,
+                parent_id=root.description_id,
+            )
+        )
+        series = hierarchy.create_node(
+            CreateHierarchyNodeCommand(
+                reference_code="BR PRADAP SMU ED",
+                title="Edificações",
+                level_id=nobrade["secao"].level_id,
+                parent_id=fund.description_id,
+            )
+        )
+
+        detail = hierarchy.node(series.description_id)
+
+        assert detail.node.description_id == series.description_id
+        assert detail.node.level == "Seção"
+        assert [ancestor.description_id for ancestor in detail.ancestors] == [
+            root.description_id,
+            fund.description_id,
+        ]
+        assert detail.children == []
+        assert detail.node.parent_id == fund.description_id
+
+    def test_a_node_that_does_not_exist_is_a_not_found(self, hierarchy):
+        with pytest.raises(HierarchyNodeNotFoundError):
+            hierarchy.node("nao-existe")

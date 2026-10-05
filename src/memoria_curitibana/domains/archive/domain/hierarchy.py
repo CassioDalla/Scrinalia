@@ -17,12 +17,18 @@ category.
 """
 
 import enum
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass
+
+from memoria_curitibana.domains.archive.domain.hierarchy_code import parent_rung_code
 
 #: Separator of the materialised path. Kept a constant so the SQL that rewrites a subtree and
 #: the Python that builds one cannot drift apart on a literal.
 PATH_SEPARATOR = "."
+
+#: Hard stop for the walk up the rungs. A code deeper than this is not a code any more; the
+#: bound exists so a malformed one cannot make the resolution loop instead of failing.
+MAX_RUNG_WALK = 64
 
 
 class HierarchyViolation(enum.StrEnum):
@@ -258,3 +264,48 @@ def near_duplicate_codes(codes: Iterable[str]) -> list[tuple[str, str]]:
 
     # Each pair is seen from both ends; keep one.
     return sorted({tuple(sorted(pair)) for pair in pairs})  # type: ignore[return-value]
+
+
+def collapse_chain(code: str, collapse_map: Mapping[str, str]) -> str:
+    """
+    Follows the "this rung IS that rung" links to their end.
+
+    The operation the code cannot do for itself. ``BR PRADAP SMU ED AL`` and ``BR PRADAP SMU ED AL
+    CONSTR`` are, in the real arrangement, **one** level ("Alvenaria - Construções") — and nothing
+    in the string says so, because the evidence is not in the string. The link is written by a
+    person; this only follows it, with a cycle guard so a pair of contradictory links cannot make
+    the walk run forever.
+    """
+    seen = {code}
+    current = code
+    while True:
+        following = collapse_map.get(current)
+        if not following or following in seen:
+            return current
+        seen.add(following)
+        current = following
+
+
+def resolve_rung(code: str, collapse_map: Mapping[str, str], approved_codes: Collection[str]) -> str | None:
+    """
+    The approved rung a code hangs from, or ``None`` when nothing on its path is approved.
+
+    Walk up the structural prefixes, collapsing at every step: a description whose own rung was
+    rejected lands on the nearest ancestor the archivist did approve, which is exactly what
+    "this code lies, attach it higher" means in practice.
+    """
+    current: str | None = code
+    for _ in range(MAX_RUNG_WALK):
+        if not current:
+            return None
+        effective = collapse_chain(current, collapse_map)
+        if effective in approved_codes:
+            return effective
+        current = parent_rung_code(current)
+    return None
+
+
+def ancestor_rungs(code: str) -> tuple[str, ...]:
+    """Every strict structural prefix of a rung, longest first."""
+    tokens = code.split(" ")
+    return tuple(" ".join(tokens[:size]) for size in range(len(tokens) - 1, 1, -1))

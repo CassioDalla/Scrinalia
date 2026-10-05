@@ -118,3 +118,31 @@ class InvalidHierarchyMoveError(DomainException):
 
     # Ideal translation in Litestar: HTTP 422 (Unprocessable Entity)
     pass
+
+
+class HierarchyPlanNotFoundError(DomainException):
+    """Raised when an arrangement plan of the hierarchy catalogue does not exist."""
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
+class InvalidHierarchyPlanError(DomainException):
+    """Raised when a decision about a rung cannot be materialised as written."""
+
+    # Ideal translation in Litestar: HTTP 422 (Unprocessable Entity)
+    pass
+
+
+class MaterialisationNotFoundError(DomainException):
+    """Raised when a materialisation run does not exist in the ledger."""
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
+class MaterialisationAlreadyUndoneError(DomainException):
+    """Raised when the same materialisation is undone twice; the ledger keeps one reversal per run."""
+
+    # Ideal translation in Litestar: HTTP 409 (Conflict)
+    pass

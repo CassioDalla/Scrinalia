@@ -15,11 +15,15 @@ from memoria_curitibana.domains.archive.exceptions import (
     DuplicateDescriptionLevelError,
     EngineExecutionError,
     HierarchyNodeNotFoundError,
+    HierarchyPlanNotFoundError,
     InvalidDescriptionLevelError,
     InvalidHierarchyMoveError,
+    InvalidHierarchyPlanError,
     InvalidMergeError,
     InvalidParam,
     MacroCategoryNotFoundError,
+    MaterialisationAlreadyUndoneError,
+    MaterialisationNotFoundError,
     MergeAlreadyUndoneError,
     MergeLogNotFoundError,
     TagMergeProposalNotFoundError,
@@ -48,17 +52,27 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             TextTemplateNotFoundError,
             DescriptionLevelNotFoundError,
             HierarchyNodeNotFoundError,
+            HierarchyPlanNotFoundError,
+            MaterialisationNotFoundError,
         ),
     ):
         status_code = HTTP_404_NOT_FOUND
 
-    elif isinstance(exc, (MergeAlreadyUndoneError, DuplicateDescriptionLevelError)):
+    elif isinstance(exc, (MergeAlreadyUndoneError, DuplicateDescriptionLevelError, MaterialisationAlreadyUndoneError)):
         status_code = HTTP_409_CONFLICT
 
     elif isinstance(exc, (InvalidParam, InvalidMergeError)):
         status_code = HTTP_400_BAD_REQUEST
 
-    elif isinstance(exc, (EngineExecutionError, InvalidDescriptionLevelError, InvalidHierarchyMoveError)):
+    elif isinstance(
+        exc,
+        (
+            EngineExecutionError,
+            InvalidDescriptionLevelError,
+            InvalidHierarchyMoveError,
+            InvalidHierarchyPlanError,
+        ),
+    ):
         status_code = HTTP_422_UNPROCESSABLE_ENTITY
 
     # Standardized response structure for the Front-end

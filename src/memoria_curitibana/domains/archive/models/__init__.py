@@ -11,7 +11,7 @@ from .governance import (
     DomainSynonyms,
     DomainTextTemplate,
 )
-from .hierarchy import ArchiveDescriptionLevel
+from .hierarchy import ArchiveDescriptionLevel, ArchiveHierarchyMaterialisationLog, ArchiveHierarchyNodePlan
 from .taxonomy import (
     ArchiveMacroCategory,
     ArchiveTag,
@@ -32,6 +32,8 @@ __all__ = [
     "ArchiveDocumentRevision",
     "ArchiveDocumentTag",
     "ArchiveEntity",
+    "ArchiveHierarchyMaterialisationLog",
+    "ArchiveHierarchyNodePlan",
     "ArchiveMacroCategory",
     "ArchiveReviewStatus",
     "ArchiveTag",

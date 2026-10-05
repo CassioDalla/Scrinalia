@@ -8,16 +8,19 @@ content and the search.
 
 import uuid
 from dataclasses import dataclass
+from typing import Any
 
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.orm import Session, aliased, selectinload
 from sqlalchemy.sql.elements import ColumnElement
 
-from memoria_curitibana.domains.archive.domain.hierarchy import HierarchyIssue, build_path
+from memoria_curitibana.domains.archive.domain.hierarchy import PATH_SEPARATOR, HierarchyIssue, build_path
 from memoria_curitibana.domains.archive.models import (
     ArchiveDescriptionLevel,
     ArchiveDocument,
     ArchiveDocumentRevision,
+    ArchiveHierarchyMaterialisationLog,
+    ArchiveHierarchyNodePlan,
     ArchiveReviewStatus,
 )
 from memoria_curitibana.domains.archive.schemas.hierarchy_schema import (
@@ -42,7 +45,13 @@ CODE_DIAGNOSTIC_SCAN_LIMIT = 200_000
 
 @dataclass(frozen=True)
 class CodeObservation:
-    """Everything the code-derived diagnostics need about one description."""
+    """
+    Everything the code-derived diagnostics and the materialisation need about one description.
+
+    ``parent_id`` travels with the row so the dry run can tell "this description has to move" from
+    "this description is already there": without it the preview would report the whole collection
+    as changed on every run, which is the kind of number a curator stops reading.
+    """
 
     description_id: str
     reference_code: str
@@ -51,6 +60,7 @@ class CodeObservation:
     level_name: str | None
     title: str | None
     path: str
+    parent_id: str | None = None
 
 
 class HierarchyRepository:
@@ -372,6 +382,7 @@ class HierarchyRepository:
                 ArchiveDocument.path,
                 ArchiveDocument.original_title,
                 ArchiveDocument.final_title,
+                ArchiveDocument.parent_id,
             )
             .where(ArchiveDocument.reference_code.is_not(None))
             .order_by(ArchiveDocument.description_id)
@@ -379,7 +390,8 @@ class HierarchyRepository:
         )
 
         observations: list[CodeObservation] = []
-        for description_id, reference_code, level_id, path, original_title, final_title in self.db.execute(stmt):
+        for row in self.db.execute(stmt):
+            description_id, reference_code, level_id, path, original_title, final_title, parent_id = row
             ordinal, name = catalogue.get(level_id, (None, None))
             observations.append(
                 CodeObservation(
@@ -390,6 +402,7 @@ class HierarchyRepository:
                     level_name=name,
                     title=final_title or original_title,
                     path=path,
+                    parent_id=parent_id,
                 )
             )
         return observations
@@ -401,3 +414,172 @@ class HierarchyRepository:
         total = int(self.db.scalar(select(func.count()).select_from(base.subquery())) or 0)
         rows = self.db.scalars(base.order_by(ArchiveDocument.description_id).limit(limit).offset(offset)).all()
         return [self.to_diagnostic(node, issue) for node in rows], total
+
+    # =========================================================================
+    # H4 — The plan catalogue and the materialisation ledger
+    # =========================================================================
+    def list_plans(self, status: str | None, limit: int, offset: int) -> tuple[list[ArchiveHierarchyNodePlan], int]:
+        base = select(ArchiveHierarchyNodePlan)
+        if status is not None:
+            base = base.where(ArchiveHierarchyNodePlan.status == status)
+        total = int(self.db.scalar(select(func.count()).select_from(base.subquery())) or 0)
+        rows = self.db.scalars(base.order_by(ArchiveHierarchyNodePlan.code).limit(limit).offset(offset)).all()
+        return list(rows), total
+
+    def all_plans(self) -> dict[str, ArchiveHierarchyNodePlan]:
+        return {plan.code: plan for plan in self.db.scalars(select(ArchiveHierarchyNodePlan)).all()}
+
+    def get_plan(self, plan_id: int) -> ArchiveHierarchyNodePlan | None:
+        return self.db.get(ArchiveHierarchyNodePlan, plan_id)
+
+    def get_plan_by_code(self, code: str) -> ArchiveHierarchyNodePlan | None:
+        return self.db.scalars(select(ArchiveHierarchyNodePlan).where(ArchiveHierarchyNodePlan.code == code)).first()
+
+    def upsert_plan(self, code: str, evidence: dict[str, Any]) -> tuple[ArchiveHierarchyNodePlan, bool, bool]:
+        """
+        Writes one suggested rung and reports ``(plan, created, refreshed)``.
+
+        Refreshing the evidence of a row a human already decided would let a re-run quietly rewrite
+        the numbers the decision was taken on, so the refresh is confined to ``SUGGESTED`` rows —
+        the same rule the tag-merge catalogue follows.
+        """
+        plan = self.get_plan_by_code(code)
+        if plan is None:
+            plan = ArchiveHierarchyNodePlan(code=code, **evidence)
+            self.db.add(plan)
+            self.db.flush()
+            return plan, True, False
+
+        if plan.status != "SUGGESTED":
+            return plan, False, False
+
+        for field, value in evidence.items():
+            setattr(plan, field, value)
+        self.db.flush()
+        return plan, False, True
+
+    def count_plans(self) -> int:
+        return int(self.db.scalar(select(func.count()).select_from(ArchiveHierarchyNodePlan)) or 0)
+
+    def capture_state(self, description_ids: list[str]) -> dict[str, Any]:
+        """The exact ``(parent_id, path)`` every one of these rows has right now."""
+        if not description_ids:
+            return {}
+        rows = self.db.execute(
+            select(
+                ArchiveDocument.description_id,
+                ArchiveDocument.parent_id,
+                ArchiveDocument.path,
+            ).where(ArchiveDocument.description_id.in_(description_ids))
+        ).all()
+        return {str(row[0]): {"parent_id": row[1], "path": row[2]} for row in rows}
+
+    def attach_group(self, description_ids: list[str], parent_id: str | None, parent_path: str | None) -> int:
+        """
+        Hangs a whole group under one parent in a single statement.
+
+        The path is recomputed from the parent's rather than walked, and the group shares the same
+        parent, so one rung costs one round trip — which is what makes attaching 3,602 descriptions
+        a matter of seconds instead of a per-row loop.
+        """
+        if not description_ids:
+            return 0
+        path_expression = (
+            ArchiveDocument.description_id
+            if parent_path is None
+            else func.concat(parent_path, PATH_SEPARATOR, ArchiveDocument.description_id)
+        )
+        result = self.db.execute(
+            update(ArchiveDocument)
+            .where(ArchiveDocument.description_id.in_(description_ids))
+            .values(parent_id=parent_id, path=path_expression)
+            .execution_options(synchronize_session=False)
+        )
+        self.db.expire_all()
+        return int(result.rowcount or 0)  # type: ignore[attr-defined]
+
+    def restore_state(self, previous_state: dict[str, Any]) -> int:
+        """
+        Puts every recorded row back exactly as it was, in one bulk statement.
+
+        ``update(Model), [dicts]`` is SQLAlchemy's update-by-primary-key form: one executemany for
+        the whole ledger instead of one statement per description.
+        """
+        if not previous_state:
+            return 0
+        payload = [
+            {
+                "description_id": description_id,
+                "parent_id": state.get("parent_id"),
+                "path": state.get("path"),
+            }
+            for description_id, state in previous_state.items()
+        ]
+        self.db.execute(update(ArchiveDocument), payload)
+        self.db.expire_all()
+        return len(payload)
+
+    def delete_created_nodes(self, description_ids: list[str]) -> int:
+        """
+        Removes the descriptions a materialisation created.
+
+        The self-reference is ``RESTRICT``, so the caller has to have restored the children first —
+        the undo does exactly that, and this method is the last step, not the first.
+        """
+        if not description_ids:
+            return 0
+        result = self.db.execute(
+            delete(ArchiveDocument)
+            .where(ArchiveDocument.description_id.in_(description_ids))
+            .execution_options(synchronize_session=False)
+        )
+        self.db.expire_all()
+        return int(result.rowcount or 0)  # type: ignore[attr-defined]
+
+    def children_of_nodes(self, description_ids: list[str]) -> dict[str, list[str]]:
+        """Children of the given nodes, used by the undo to refuse a reversal it cannot do safely."""
+        if not description_ids:
+            return {}
+        rows = self.db.execute(
+            select(ArchiveDocument.parent_id, ArchiveDocument.description_id).where(
+                ArchiveDocument.parent_id.in_(description_ids)
+            )
+        ).all()
+        grouped: dict[str, list[str]] = {}
+        for parent_id, child_id in rows:
+            grouped.setdefault(str(parent_id), []).append(str(child_id))
+        return grouped
+
+    def create_materialisation_log(
+        self,
+        created_nodes: list[dict[str, Any]],
+        rung_map: dict[str, Any],
+        previous_state: dict[str, Any],
+        changed_by: str | None,
+        note: str | None,
+    ) -> ArchiveHierarchyMaterialisationLog:
+        entry = ArchiveHierarchyMaterialisationLog(
+            created_nodes=created_nodes,
+            rung_map=rung_map,
+            previous_state=previous_state,
+            changed_by=changed_by,
+            note=note,
+        )
+        self.db.add(entry)
+        self.db.flush()
+        return entry
+
+    def get_materialisation_log(self, materialisation_id: int) -> ArchiveHierarchyMaterialisationLog | None:
+        return self.db.get(ArchiveHierarchyMaterialisationLog, materialisation_id)
+
+    def list_materialisation_logs(
+        self, include_undone: bool, limit: int, offset: int
+    ) -> tuple[list[ArchiveHierarchyMaterialisationLog], int]:
+        base = select(ArchiveHierarchyMaterialisationLog)
+        if not include_undone:
+            base = base.where(ArchiveHierarchyMaterialisationLog.undone_at.is_(None))
+        total = int(self.db.scalar(select(func.count()).select_from(base.subquery())) or 0)
+        rows = self.db.scalars(
+            base.order_by(ArchiveHierarchyMaterialisationLog.changed_at.desc()).limit(limit).offset(offset)
+        ).all()
+        return list(rows), total

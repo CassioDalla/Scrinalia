@@ -23,6 +23,7 @@ from memoria_curitibana.domains.archive.repository.level_catalog_repo import Lev
 from memoria_curitibana.domains.archive.schemas.hierarchy_schema import (
     CreateHierarchyNodeCommand,
     HierarchyDiagnosticListResponse,
+    HierarchyNodeDetail,
     HierarchyNodeSummary,
     HierarchyTreeResponse,
     MoveNodeCommand,
@@ -85,6 +86,23 @@ class HierarchyService:
         nodes = self.repo.list_children(description_id)
         counts = self.repo.children_counts([node.description_id for node in nodes])
         return [self.repo.to_summary(node, counts.get(node.description_id, 0)) for node in nodes]
+
+    def node(self, description_id: str) -> HierarchyNodeDetail:
+        """
+        The node, its branch and its children, in one read.
+
+        The three lookups are the ones the individual edit already makes separately; putting them
+        behind one route keeps the screen from issuing three round trips to render one card.
+        """
+        node = self._require_node(description_id)
+        ancestors = self.repo.list_ancestors(node.path)
+        children = self.repo.list_children(description_id)
+        counts = self.repo.children_counts([node.description_id, *[child.description_id for child in children]])
+        return HierarchyNodeDetail(
+            node=self.repo.to_summary(node, counts.get(node.description_id, 0)),
+            ancestors=[self.repo.to_summary(ancestor) for ancestor in ancestors],
+            children=[self.repo.to_summary(child, counts.get(child.description_id, 0)) for child in children],
+        )
 
     def ancestors(self, description_id: str) -> list[HierarchyNodeSummary]:
         """Ancestors, root first. The node itself is not included."""

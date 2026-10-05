@@ -26,14 +26,27 @@ from memoria_curitibana.domains.archive.exceptions import (
     DescriptionLevelNotFoundError,
     DuplicateDescriptionLevelError,
     HierarchyNodeNotFoundError,
+    HierarchyPlanNotFoundError,
     InvalidHierarchyMoveError,
+    InvalidHierarchyPlanError,
+    MaterialisationAlreadyUndoneError,
+    MaterialisationNotFoundError,
 )
 from memoria_curitibana.domains.archive.models import ArchiveDocument
 from memoria_curitibana.domains.archive.schemas.hierarchy_schema import (
     DescriptionLevelDTO,
+    HierarchyMaterialisationLogListResponse,
+    HierarchyMaterialisationPreview,
+    HierarchyMaterialisationResult,
+    HierarchyNodePlanDTO,
     HierarchyNodeSummary,
+    HierarchyPlanListResponse,
+    HierarchyPlanSuggestionResponse,
     HierarchyProposalResponse,
     HierarchyTreeResponse,
+)
+from memoria_curitibana.domains.archive.services.hierarchy_materialisation_service import (
+    HierarchyMaterialisationService,
 )
 from memoria_curitibana.domains.archive.services.hierarchy_proposal_service import HierarchyProposalService
 from memoria_curitibana.domains.archive.services.hierarchy_service import HierarchyService
@@ -306,3 +319,121 @@ class TestEndToEndWithTheDatabase:
             json={"reference_code": "BR PRADAP D9", "title": "Dossiê", "level_id": nobrade["dossie"].level_id},
         )
         assert refused.status_code == HTTP_422_UNPROCESSABLE_ENTITY
+
+
+class TestThePlanCatalogueOverHttp:
+    def test_suggesting_registers_the_rungs(self, client: TestClient, mocker):
+        mocker.patch.object(
+            HierarchyMaterialisationService,
+            "suggest",
+            return_value=HierarchyPlanSuggestionResponse(created=52, refreshed=0, preserved=0, total=52),
+        )
+        response = client.post("/api/v1/hierarchy/plans/suggest")
+        assert response.status_code == HTTP_200_OK
+        assert response.json()["created"] == 52
+
+    def test_the_status_filter_reaches_the_service(self, client: TestClient, mocker):
+        mocked = mocker.patch.object(
+            HierarchyMaterialisationService,
+            "list_plans",
+            return_value=HierarchyPlanListResponse(total=0, limit=10, offset=0, items=[]),
+        )
+        client.get("/api/v1/hierarchy/plans?status=APPROVED&limit=10")
+        mocked.assert_called_once_with(status="APPROVED", limit=10, offset=0)
+
+    def test_a_decision_is_forwarded_with_the_collapse(self, client: TestClient, mocker):
+        """``collapse_into_code`` is how the archivist says AL and CONSTR are one level."""
+        mocked = mocker.patch.object(HierarchyMaterialisationService, "decide", return_value=_plan_dto())
+        response = client.patch(
+            "/api/v1/hierarchy/plans/7",
+            json={"status": "APPROVED", "level_id": 4, "collapse_into_code": "BR PRADAP SMU ED AL"},
+        )
+
+        assert response.status_code == HTTP_200_OK
+        command = mocked.call_args.args[1]
+        assert command.status == "APPROVED"
+        assert command.collapse_into_code == "BR PRADAP SMU ED AL"
+
+    def test_an_unknown_plan_is_404(self, client: TestClient, mocker):
+        mocker.patch.object(
+            HierarchyMaterialisationService, "decide", side_effect=HierarchyPlanNotFoundError("não existe")
+        )
+        response = client.patch("/api/v1/hierarchy/plans/999", json={"status": "APPROVED"})
+        assert response.status_code == HTTP_404_NOT_FOUND
+
+    def test_an_impossible_decision_is_422(self, client: TestClient, mocker):
+        mocker.patch.object(
+            HierarchyMaterialisationService,
+            "decide",
+            side_effect=InvalidHierarchyPlanError("Aprovar um nó exige escolher o nível"),
+        )
+        response = client.patch("/api/v1/hierarchy/plans/7", json={"status": "APPROVED"})
+        assert response.status_code == HTTP_422_UNPROCESSABLE_ENTITY
+
+
+class TestMaterialisationOverHttp:
+    def test_the_preview_answers_200_and_writes_nothing(self, client: TestClient, mocker):
+        mocker.patch.object(
+            HierarchyMaterialisationService,
+            "preview",
+            return_value=HierarchyMaterialisationPreview(
+                nodes_to_create=5,
+                nodes_to_adopt=1,
+                nodes_already_materialised=0,
+                documents_to_attach=5,
+                documents_already_placed=0,
+                remaining_orphans=0,
+            ),
+        )
+        response = client.post("/api/v1/hierarchy/materialisation/preview", json={"limit": 10})
+        assert response.status_code == HTTP_200_OK
+        assert response.json()["nodes_to_create"] == 5
+
+    def test_the_apply_answers_200_and_reports_the_ledger_id(self, client: TestClient, mocker):
+        mocker.patch.object(
+            HierarchyMaterialisationService,
+            "apply",
+            return_value=HierarchyMaterialisationResult(
+                materialisation_id=3,
+                created_nodes=5,
+                adopted_nodes=1,
+                documents_attached=5,
+                rung_map_size=8,
+            ),
+        )
+        response = client.post("/api/v1/hierarchy/materialisation/apply", json={"changed_by": "ana"})
+        assert response.status_code == HTTP_200_OK
+        assert response.json()["materialisation_id"] == 3
+
+    def test_undone_entries_can_be_hidden(self, client: TestClient, mocker):
+        mocked = mocker.patch.object(
+            HierarchyMaterialisationService,
+            "list_log",
+            return_value=HierarchyMaterialisationLogListResponse(total=0, limit=50, offset=0, items=[]),
+        )
+        client.get("/api/v1/hierarchy/materialisation/log?include_undone=false")
+        mocked.assert_called_once_with(include_undone=False, limit=50, offset=0)
+
+    def test_undoing_twice_is_409(self, client: TestClient, mocker):
+        mocker.patch.object(
+            HierarchyMaterialisationService,
+            "undo",
+            side_effect=MaterialisationAlreadyUndoneError("já foi desfeita"),
+        )
+        assert client.delete("/api/v1/hierarchy/materialisation/log/3").status_code == HTTP_409_CONFLICT
+
+    def test_an_unknown_run_is_404(self, client: TestClient, mocker):
+        mocker.patch.object(
+            HierarchyMaterialisationService, "undo", side_effect=MaterialisationNotFoundError("não existe")
+        )
+        assert client.delete("/api/v1/hierarchy/materialisation/log/999").status_code == HTTP_404_NOT_FOUND
+
+
+def _plan_dto() -> HierarchyNodePlanDTO:
+    return HierarchyNodePlanDTO(
+        plan_id=7,
+        code="BR PRADAP SMU ED AL CONSTR",
+        depth=6,
+        status="APPROVED",
+        level_id=4,
+    )

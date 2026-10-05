@@ -154,3 +154,14 @@ def slice_reference_code(reference_code: str) -> SlicedReferenceCode:
         dropped_tail=dropped_tail,
         flags=tuple(flags),
     )
+
+
+def parent_rung_code(code: str) -> str | None:
+    """
+    The rung one level above a code, or ``None`` when it is already the root.
+
+    Structural, not semantic: it only removes the last token. Which parent is *approved* is a
+    question for the plan catalogue, and this function deliberately knows nothing about it.
+    """
+    tokens = code.split(" ")
+    return " ".join(tokens[:-1]) if len(tokens) > ROOT_MIN_TOKENS else None
