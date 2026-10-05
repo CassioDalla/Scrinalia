@@ -26,8 +26,8 @@ const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: "Arranjo",
     items: [
-      { to: "/arranjo/plano", label: "Plano de arranjo", hint: "Decidir os níveis", enabled: false },
-      { to: "/arranjo/diagnostico", label: "Diagnóstico", hint: "Onde está incoerente", enabled: false },
+      { to: "/arranjo/plano", label: "Plano de arranjo", hint: "Decidir os níveis", enabled: true },
+      { to: "/arranjo/diagnostico", label: "Diagnóstico", hint: "Onde está incoerente", enabled: true },
     ],
   },
   {

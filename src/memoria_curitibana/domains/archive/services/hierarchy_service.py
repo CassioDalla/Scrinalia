@@ -23,6 +23,7 @@ from memoria_curitibana.domains.archive.repository.level_catalog_repo import Lev
 from memoria_curitibana.domains.archive.schemas.hierarchy_schema import (
     CreateHierarchyNodeCommand,
     HierarchyDiagnosticListResponse,
+    HierarchyDiagnosticSummary,
     HierarchyNodeDetail,
     HierarchyNodeSummary,
     HierarchyTreeResponse,
@@ -208,6 +209,17 @@ class HierarchyService:
             items, total = self._level_depth_mismatches(limit, offset)
 
         return HierarchyDiagnosticListResponse(issue=issue, total=total, limit=limit, offset=offset, items=items)
+
+    def diagnostic_summary(self) -> HierarchyDiagnosticSummary:
+        """
+        The count of every issue, for the section headers of the diagnosis screen.
+
+        Computed by the same code path that serves each page, with ``limit=0``: the screen then
+        cannot show a header that disagrees with the list it opens, which is the failure mode of
+        counting the sections with a second query written by hand.
+        """
+        counts = {issue: self.diagnostics(issue, limit=0, offset=0).total for issue in DIAGNOSTIC_ISSUES}
+        return HierarchyDiagnosticSummary(counts=counts)
 
     def _level_depth_mismatches(self, limit: int, offset: int):
         """

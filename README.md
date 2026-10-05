@@ -104,6 +104,19 @@ bun run contract          # dumps packages/api-contract/openapi.json and regener
 CI fails when either artifact is stale, so a route or a schema change that is not accompanied by a
 regenerated contract is caught at review time rather than in the browser.
 
+The screens that exist today, in the order the work happens:
+
+| Route | What it is for |
+| --- | --- |
+| `/` | the work list: what needs the archivist today, one card per queue |
+| `/acervo/lista` | search and facets over the collection (lexical or semantic) |
+| `/acervo/:id` | the dossier: description, subjects, arrangement and history |
+| `/arranjo/plano` | the arrangement plan: decide the proposed levels, preview and materialise |
+| `/arranjo/diagnostico` | the structural diagnosis, one section per problem, with the evidence |
+
+The arrangement screens offer no silent correction: every write is a decision taken on a screen
+that showed its impact first, and the applied materialisations are reversible from the ledger.
+
 ### Dashboard (temporary)
 
 The old Streamlit front end talks to the API over HTTP, so the API must be running:

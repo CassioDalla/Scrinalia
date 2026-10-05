@@ -161,6 +161,9 @@ class HierarchyMaterialisationService:
             limit=limit,
             offset=offset,
             items=[self._to_dto(plan, levels) for plan in plans],
+            # The count of the whole catalogue travels with every page, so the progress the screen
+            # shows is about the 52 rungs and not about the 20 it happens to be displaying.
+            status_counts=self.repo.count_plans_by_status(),
         )
 
     def decide(self, plan_id: int, command: HierarchyPlanDecisionCommand) -> HierarchyNodePlanDTO:
@@ -198,7 +201,7 @@ class HierarchyMaterialisationService:
                 "Aprovar um nó exige escolher o nível de descrição: é a decisão que o código não sabe tomar."
             )
 
-        plan.status = command.status
+        plan.status = str(command.status)
         plan.decided_by = command.decided_by
         plan.decision_note = command.note
         if command.status != "SUGGESTED":

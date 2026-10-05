@@ -10,6 +10,8 @@ Two layers are pinned here on purpose:
   router that could have written.
 """
 
+from typing import get_args
+
 import pytest
 from litestar.status_codes import (
     HTTP_200_OK,
@@ -21,7 +23,14 @@ from litestar.status_codes import (
 )
 from litestar.testing import TestClient
 
+from memoria_curitibana.api.controllers.hierarchy_controller import DiagnosticIssue, PlanStatusFilter
 from memoria_curitibana.asgi import create_app
+from memoria_curitibana.domains.archive.domain.hierarchy import (
+    HierarchyIssue,
+    HierarchyViolation,
+    PlanStatus,
+    ProposalFlag,
+)
 from memoria_curitibana.domains.archive.exceptions import (
     DescriptionLevelNotFoundError,
     DuplicateDescriptionLevelError,
@@ -49,7 +58,7 @@ from memoria_curitibana.domains.archive.services.hierarchy_materialisation_servi
     HierarchyMaterialisationService,
 )
 from memoria_curitibana.domains.archive.services.hierarchy_proposal_service import HierarchyProposalService
-from memoria_curitibana.domains.archive.services.hierarchy_service import HierarchyService
+from memoria_curitibana.domains.archive.services.hierarchy_service import DIAGNOSTIC_ISSUES, HierarchyService
 from memoria_curitibana.domains.archive.services.level_catalog_service import LevelCatalogService
 
 
@@ -198,6 +207,31 @@ class TestDiagnostics:
             HTTP_422_UNPROCESSABLE_ENTITY,
         )
 
+    def test_the_summary_is_served_without_a_page(self, client: TestClient, mocker):
+        """The section counts come from the service in one request, not from five pages."""
+        from memoria_curitibana.domains.archive.schemas.hierarchy_schema import HierarchyDiagnosticSummary
+
+        mocked = mocker.patch.object(
+            HierarchyService,
+            "diagnostic_summary",
+            return_value=HierarchyDiagnosticSummary(counts={"ORPHAN": 3602, "PATH_DIVERGENCE": 0}),
+        )
+        response = client.get("/api/v1/hierarchy/diagnostics/summary")
+        assert response.status_code == HTTP_200_OK
+        assert response.json()["counts"]["ORPHAN"] == 3602
+        mocked.assert_called_once_with()
+
+    def test_the_route_vocabulary_matches_the_service(self):
+        """
+        The contract lists what the endpoint accepts; the service decides what it answers.
+
+        Two definitions because a route signature needs a ``Literal`` and the service needs a tuple;
+        a value added to one and forgotten in the other would let a client ask for an issue that
+        answers 422, which is exactly the defect ``/flags`` used to carry.
+        """
+        assert set(get_args(DiagnosticIssue)) == set(DIAGNOSTIC_ISSUES)
+        assert set(get_args(PlanStatusFilter)) == {str(status) for status in PlanStatus}
+
 
 class TestProposalRoute:
     def test_the_proposal_answers_200_and_not_201(self, client: TestClient, mocker):
@@ -239,9 +273,36 @@ class TestProposalRoute:
         assert command.limit == 10
 
     def test_the_flag_vocabulary_is_available_to_a_front(self, client: TestClient):
+        """Every vocabulary the arrangement screens group by, so the front embeds none of them."""
         response = client.get("/api/v1/hierarchy/flags")
         assert response.status_code == HTTP_200_OK
-        assert "ORPHAN" in response.json()["issues"]
+        body = response.json()
+        assert body["issues"] == list(DIAGNOSTIC_ISSUES)
+        # NEAR_DUPLICATE_NODE is a statement about codes the tree does not contain yet: the
+        # diagnostics endpoint refuses it, so advertising it here would send the front to a 422.
+        assert "NEAR_DUPLICATE_NODE" not in body["issues"]
+        assert set(body["plan_statuses"]) == {str(status) for status in PlanStatus}
+        assert "ORDINAL_INFERRED" in body["plan_flags"]
+        assert "CYCLE" in body["violations"]
+
+    def test_the_plan_flag_vocabulary_covers_every_writer(self, client: TestClient):
+        """
+        A plan row's ``flags`` is assembled from four vocabularies, and all four must be published.
+
+        This is the defect the screen found: the route advertised only ``ProposalFlag``, so
+        ``NEAR_DUPLICATE_NODE`` — which the real collection carries — was rendered as a raw code.
+        Pinning the union here means a vocabulary added to the proposal and forgotten in the route
+        fails the suite instead of reaching the archivist as an untranslated string.
+        """
+        from memoria_curitibana.domains.archive.domain.hierarchy_code import CodeFlag
+
+        body = client.get("/api/v1/hierarchy/flags").json()
+        assert set(body["plan_flags"]) == (
+            {str(flag) for flag in ProposalFlag}
+            | {str(HierarchyIssue.NEAR_DUPLICATE_NODE)}
+            | {str(HierarchyViolation.LEVEL_NOT_ALLOWED_AS_CHILD)}
+            | {str(flag) for flag in CodeFlag}
+        )
 
 
 # =============================================================================

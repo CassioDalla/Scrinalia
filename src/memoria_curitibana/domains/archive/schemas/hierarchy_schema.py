@@ -1,9 +1,11 @@
 """Read views and commands of the description hierarchy (Fase 2.5, H1—H3)."""
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from memoria_curitibana.domains.archive.domain.hierarchy import PlanStatus
 
 
 # =============================================================================
@@ -116,6 +118,50 @@ class HierarchyDiagnosticListResponse(BaseModel):
     limit: int
     offset: int
     items: list[HierarchyDiagnostic]
+
+
+class HierarchyDiagnosticSummary(BaseModel):
+    """
+    How many descriptions each structural problem flags, for the sections of the screen.
+
+    Counts and no grand total on purpose: the issues **overlap** — a Dossiê at the root is both an
+    ``ORPHAN`` and a ``DOSSIER_WITHOUT_PARENT``, and a description with no level is both an
+    ``ORPHAN`` and an ``UNKNOWN_LEVEL`` — so adding them up would inflate the collection and
+    produce a number no screen can use. Each count comes from the same predicate as its own page,
+    which is what keeps the section header and its list from disagreeing.
+    """
+
+    counts: dict[str, int] = Field(
+        default_factory=dict,
+        description="One entry per issue the diagnostics endpoint accepts, zeroes included.",
+    )
+
+
+class HierarchyVocabulary(BaseModel):
+    """
+    The vocabularies the arrangement screens group by, so a front never embeds the enums.
+
+    The codes travel from here to the UI as data: a status the screen does not know how to render
+    can then be shown as an unknown code instead of being silently dropped by a hardcoded list.
+    """
+
+    issues: list[str] = Field(
+        default_factory=list,
+        description="Issues ``GET /hierarchy/diagnostics`` accepts, in the order the screen shows them.",
+    )
+    plan_statuses: list[str] = Field(default_factory=list, description="Lifecycle of a proposed rung.")
+    plan_flags: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Every flag a plan row's ``flags`` may carry, from the four vocabularies that write it: "
+            "the proposal's, the near-duplicate issue, the ladder violation and the slicer's. "
+            "All of it advisory, none of it a decision."
+        ),
+    )
+    violations: list[str] = Field(
+        default_factory=list,
+        description="Why a move or a creation is refused, so the screen can explain the refusal.",
+    )
 
 
 class CreateHierarchyNodeCommand(BaseModel):
@@ -260,6 +306,9 @@ class HierarchyPlanListResponse(BaseModel):
     limit: int
     offset: int
     items: list[HierarchyNodePlanDTO]
+    #: The whole catalogue counted by verdict, not just the filtered page: the screen's progress
+    #: ("34 de 52 decididos") is a statement about every rung, so it cannot be derived from a page.
+    status_counts: dict[str, int] = Field(default_factory=dict)
 
 
 class HierarchyPlanDecisionCommand(BaseModel):
@@ -271,7 +320,7 @@ class HierarchyPlanDecisionCommand(BaseModel):
     documents really belong under an existing record spelled one letter differently.
     """
 
-    status: Literal["SUGGESTED", "APPROVED", "REJECTED"]
+    status: PlanStatus
     level_id: int | None = None
     title: str | None = Field(default=None, max_length=300)
     reference_code: str | None = Field(default=None, max_length=500)

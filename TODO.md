@@ -6,9 +6,11 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > **Como ler.** `✅` = feito **e verificado em execução real** (Postgres + engines reais), não
 > apenas lido no código. `[ ]` = pendente. `[~]` = parcial, com o que falta descrito.
 >
-> **Estado do gate (2026-10-05):** **883 testes** passando · `ruff` limpo · `basedpyright`
-> **0 erros** · **22 migrações** aplicando sem drift · contrato OpenAPI gerado e **verificado por
-> CI** · SPA do curador construindo (`tsc`, `eslint`, `vite build`).
+> **Estado do gate (2026-10-05, ciclo da onda 2):** **895 testes** passando · `ruff` limpo ·
+> `basedpyright` **0 erros** · **22 migrações** aplicando sem drift (`alembic check` limpo) ·
+> contrato OpenAPI **61 paths / 71 operações / 101 schemas**, regenerado e verificado por CI ·
+> SPA do curador construindo (`tsc`, `eslint`, `vite build`) e servida pelo próprio Litestar.
+> **Acervo real medido: 4.826 descrições**, não 3.608 — ver "Pendências operacionais".
 
 ---
 
@@ -34,8 +36,16 @@ substituído. O caminho agora é o front do curador.
 > **Primeiro ciclo entregue (2026-10-05).** O **contrato** está fechado: as lacunas que a UI
 > expunha foram resolvidas, o OpenAPI é um artefato gerado e commitado com CI bloqueante, e a
 > **allowlist pública** existe com teste de partição exata. A **onda 1** do front também está de
-> pé: início com a fila de trabalho, lista com facetas e dossiê com quatro abas. O que segue
-> aberto é a **onda 2** — `/arranjo/plano`, que é a razão de existir deste front.
+> pé: início com a fila de trabalho, lista com facetas e dossiê com quatro abas.
+>
+> **Segundo ciclo entregue (2026-10-05, o mesmo dia).** A **onda 2** entrou — `/arranjo/plano` e
+> `/arranjo/diagnostico` —, que é a razão de existir deste front. Três lacunas de contrato que só
+> a tela revelou: `status_counts` na lista de rungs (a barra "N de M decididos" não se deriva de
+> uma página), `GET /hierarchy/diagnostics/summary` (uma contagem por issue, pelo **mesmo** código
+> que serve cada página) e a publicação da **união de quatro vocabulários** em `/hierarchy/flags`.
+> A última foi um defeito de verdade, achado **olhando a tela**: as linhas carregavam
+> `NEAR_DUPLICATE_NODE`, `MID_CODE_IDENTIFIER` e `LEVEL_NOT_ALLOWED_AS_CHILD`, e a rota anunciava
+> só `ProposalFlag` — o front renderizava código cru para o arquivista.
 >
 > **Sequenciamento (2026-10-04).** Auth entra **por último**, depois do front novo e
 > imediatamente antes de tornar público. Duas UIs (curador + difusão pública) com BFFs
@@ -80,9 +90,12 @@ substituído. O caminho agora é o front do curador.
   Tailwind v4. Bun como gerenciador de pacotes e executor; Vite como bundler. Cliente gerado do
   OpenAPI (`packages/api-contract/openapi.json` → `src/api/schema.d.ts`), com **dois** checks de CI
   bloqueantes (o JSON no job Python, o `.d.ts` no job do front) e `fetch` proibido por lint.
-- [~] **B5 — Telas das ondas 1–3.** Onda 1 entregue (`/`, `/acervo/lista`, `/acervo/:id` com as 4
-  abas). Ondas 2 e 3 (arranjo, assuntos) pendentes.
-- [ ] **B6 — Telas da hierarquia** (ondas 2 e 4 do sitemap).
+- [~] **B5 — Telas das ondas 1–3.** Ondas 1 e 2 entregues. Onda 3 (assuntos) pendente.
+- [~] **B6 — Telas da hierarquia** (ondas 2 e 4 do sitemap). **Onda 2 entregue:**
+  `/arranjo/plano` (decidir rung a rung, com nível, título e `collapse_into_code`; filtros por
+  status, aviso e código) e `/arranjo/diagnostico` (uma seção por issue, com a evidência e
+  **nenhuma correção automática**). Onda 4 (`/acervo/arvore`, `/arranjo/niveis`) pendente: a
+  árvore só faz sentido depois de a onda 2 ser **aplicada** ao acervo.
 - [ ] **B7 — Scaffold `apps/public/`** + regras de badge. O BFF público (rotas + projeção) já existe;
   falta o app.
 - [ ] **B8 — Desligar o Streamlit** (`src/memoria_curitibana/dashboard/` e o `web` do Procfile).
@@ -101,6 +114,11 @@ substituído. O caminho agora é o front do curador.
 | `DocumentSummary.tags[]` não trazia a decisão de assunto | `DocumentTagSummary` com `macro_category_id`/`macro_category_name`/`ai_confidence_score` | ✅ |
 | Sem filtro por status/anomalia (o inbox prometia `/acervo/lista?status=…`) | `status` e `is_anomaly` no `DocumentSearchQuery` | ✅ |
 | `access_conditions` (ISAD(G) 4.1) era **perdido no transfer** | coluna + DTO + `PATCH` | ✅ |
+| A barra "N de M decididos" não se deriva de uma página | `status_counts` no `HierarchyPlanListResponse`, contando **todo** o catálogo | ✅ |
+| Cinco requisições para contar as seções do diagnóstico | `GET /hierarchy/diagnostics/summary`, contando pelo **mesmo** código que serve cada página, **sem total geral** (as issues se sobrepõem) | ✅ |
+| `/hierarchy/flags` anunciava só `ProposalFlag` | `plan_flag_vocabulary()`: a **união dos quatro** vocabulários que escrevem `flags` numa rung | ✅ |
+| `PATH_DIVERGENCE` chegava sem evidência | `detail` com `path` e `expected_path` — é o único diagnóstico cuja evidência é uma comparação | ✅ |
+| Sem filtro de status no catálogo de rungs | `status` no `GET /hierarchy/plans` (era `Literal` duplicado; agora lido de `PlanStatus`) | ✅ |
 
 ### Achados que a implementação produziu
 
@@ -108,6 +126,17 @@ substituído. O caminho agora é o front do curador.
   corrigidas — ver "Bugs conhecidos" 7 e 8. A análise anterior neste documento estava **errada** ao
   afirmar que o GIN não serve para comparação coluna-a-coluna: ele serve, desde que `%` seja o
   **único** predicado do join.
+- ✅ **O vocabulário de `/hierarchy/flags` estava incompleto** e isso só apareceu **olhando a
+  tela**: as rungs do acervo real carregam `NEAR_DUPLICATE_NODE`, `MID_CODE_IDENTIFIER`,
+  `UNPARSED_TAIL` e `LEVEL_NOT_ALLOWED_AS_CHILD`, e a rota publicava apenas os três
+  `ProposalFlag`. O front renderizava o código cru. A união passou a ter uma definição só
+  (`plan_flag_vocabulary()`) e um teste que a prende aos **quatro** vocabulários de origem, mais
+  um teste de comportamento que compara o vocabulário publicado com os `flags` que as linhas do
+  fixture realmente carregam.
+- ✅ **`GET /hierarchy/diagnostics/summary` conta com `limit=0`**, pelo mesmo caminho que serve
+  cada página: assim o cabeçalho da seção não pode discordar da lista que ele abre. **Sem total
+  geral**, de propósito — `ORPHAN` e `DOSSIER_WITHOUT_PARENT` se sobrepõem (um Dossiê na raiz é os
+  dois), e somar inflaria o acervo.
 - **`GET /acervo/lista?term=…` não existe na UI como busca global**; a lista funciona, mas um campo
   de busca dedicado por eixo virá com as telas da onda 3.
 
@@ -242,13 +271,17 @@ string. Por isso a materialização não é script: é **decisão humana registr
 
 ### O que segue aberto
 
-- [ ] **A tela** — é o B6 da Fase 4. O catálogo de planos do acervo real está **vazio de
-  propósito**: aprovar os ~52 rungs é do arquivista.
+- [~] **A tela** — entregue na onda 2 (`/arranjo/plano` e `/arranjo/diagnostico`). O catálogo do
+  acervo real tem **81 rungs propostas e 0 decididas**: aprovar é do arquivista, e a materialização
+  só acontece depois do **preview** (a UI não oferece o apply sem ele).
+- [ ] **Materializar a árvore no acervo real** — `POST /hierarchy/materialisation/apply` não foi
+  executado neste ciclo: mover 4.813 descrições é decisão do dono do acervo, e a rota tem undo.
 - [ ] **7 nós com `LEVEL_NOT_ALLOWED_AS_CHILD`** — a família SMU pede 4 rungs sob o Fundo e a
-  escada tem 6. Achado real, a resolver na tela (fundir ou criar nível intermediário).
+  escada tem 6. Achado real, agora visível como flag filtrável na tela (fundir ou criar nível
+  intermediário).
 - [ ] **31 códigos ilegíveis** (`... 10047 (1) 1915`, `... 369B`) — listados, **nunca
-  adivinhados**.
-- [ ] **18 `LEVEL_DEPTH_MISMATCH`** — 13 Itens em profundidade 6 entre 1.095 Dossiês.
+  adivinhados**; aparecem como flags `UNPARSED_TAIL`/`MID_CODE_IDENTIFIER` no plano.
+- [ ] **25 `LEVEL_DEPTH_MISMATCH`** — eram 18 com 3.608 documentos; o acervo cresceu para 4.826.
 
 ### Riscos de pé
 
@@ -420,20 +453,36 @@ Bancada de 44 tags rotuladas à mão (aprovadas pelo dono), 3 formatos × 3 arra
 
 ## 🔧 Pendências operacionais no acervo (não são código)
 
-O código está pronto; **o acervo está intocado**. Descoberto na auditoria de 2026-10-04.
+O código está pronto. **Primeira metade da Etapa A executada em 2026-10-05** (higiene, re-parse e
+transfer) — e ela **corrigiu o número do acervo**: são **4.826 descrições**, não 3.608. O
+`raw`/staging tinha 4.785 registros e 1.218 deles nunca haviam chegado ao archive.
+
+Estado medido **depois** da execução:
 
 | # | Pendência | Detalhe |
 | --- | --- | --- |
-| 1 | **Carimbos v1→v2 nunca reprocessados** | O acervo tem `worker_ner_v1`/`worker_typology_classifier_v1` em 3.608 docs; o código filtra `_v2`. O bump é deliberado ("re-read with the clean text"), a releitura **não rodou** — o ganho medido (Hit@10 0.562 → 0.625) **não está nos dados** |
-| 2 | **Regra de limpeza de teste ativa** | `ArchiveCleaningRule` `rule_id=1` "aaaaa" (`REWRITE`, regex `\bpalavra\b` sobre `original_title`). **Verificado em 2026-10-05: não casou com nada** — 0 ocorrências em staging e em archive, só o carimbo `cleaning_rule_1`. Desativar é higiene, não há texto a desfazer |
-| 3 | **5.446 tags órfãs de assunto** | de 6.142 — a maioria porque o worker rodou com o vocabulário antigo |
-| 4 | **0 de 52 rungs decididos** | a árvore existe no código e não no acervo |
-| 5 | **371 propostas de merge pendentes** | 40 já aprovadas (aplicadas em lote) e 0 rejeitadas |
-| 6 | **0 revisões humanas** | relevante para a decisão B2 (predicado de publicação) |
-| 7 | **`domain_text_templates` e `domain_ner_exclusions` vazios** | as duas feats estão implementadas e sem uso no acervo |
+| 1 | ✅ **Regra de limpeza de teste desativada** | `rule_id=1` ("aaaaa") agora `is_active=false`; **0 regras ativas**. Ela nunca casou com nada — só carimbava |
+| 2 | ✅ **Re-parse forçado + transfer executados** | `run_staging_pipeline(force=True)`: 4.785 registros, 0 falhas. `transfer`: 4.785 sucessos, 0 falhas, **0 pais declarados** (a origem não os manda — é por isso que a árvore é **materializada**, não ligada) |
+| 3 | ⚠️ **Todo o enriquecimento de IA está pendente** | O re-parse mudou o `parsed_content_hash` de todas as linhas **por desenho**, então o transfer reescreveu o conteúdo e zerou os carimbos: **0** `worker_ner_v2`, **0** `worker_typology_classifier_v2`, **0** `worker_macro_category_v1`, **0** `worker_quality_validator_v1`, **41** `worker_embedding_v1`. Os **3.608** vetores antigos continuam na coluna (a busca semântica segue funcionando); as 1.218 descrições novas não têm vetor |
+| 4 | ⚠️ **7.653 tags sem gaveta de assunto** | de **8.349** (o acervo cresceu: eram 6.142). 59.388 vínculos documento↔tag |
+| 5 | **0 de 81 rungs decididos** | `POST /plans/suggest` rodou e propôs **81** rungs (o plano estimava ~52 com 3.608 documentos; com 4.826 são mais códigos). Decidir é do arquivista — a tela `/arranjo/plano` está pronta |
+| 6 | **371 propostas de merge pendentes** | 40 já aprovadas (aplicadas em lote) e 0 rejeitadas |
+| 7 | **0 revisões humanas** | relevante para a decisão B2 (predicado de publicação) |
+| 8 | **`domain_text_templates` e `domain_ner_exclusions` vazios** | as duas feats estão implementadas e sem uso no acervo |
 
-> **Decisão de produto pendente:** rodar os workers (itens 1 e 3) **antes ou depois** do front?
-> Enquanto não rodarem, a UI mostra menos do que o sistema sabe fazer.
+Diagnóstico estrutural do acervo real (pós-transfer):
+
+| Issue | Total | Leitura |
+| --- | ---: | --- |
+| `ORPHAN` | **4.820** | quase todo o acervo: a árvore ainda não foi materializada |
+| `DOSSIER_WITHOUT_PARENT` | **1.612** | Dossiês na raiz, esperando a rung acima ser aprovada |
+| `UNKNOWN_LEVEL` | **13** | a carga tolera, o arquivista não |
+| `PATH_DIVERGENCE` | **0** | a invariante do caminho está intacta |
+| `LEVEL_DEPTH_MISMATCH` | **25** | era 18 com 3.608 documentos |
+
+> **Decisão de produto pendente:** rodar os workers de IA (item 3) **antes ou depois** de decidir os
+> 81 rungs? Enquanto não rodarem, a UI mostra menos do que o sistema sabe fazer — e a janela para
+> reprocessar fecha na primeira ficha aprovada por humano.
 
 ---
 
@@ -470,6 +519,28 @@ O código está pronto; **o acervo está intocado**. Descoberto na auditoria de 
 > PostgreSQL errado (345 erros que pareciam regressão). `docker-compose.test.yml` agora publica
 > `${TEST_DB_PORT:-5433}`.
 
+### Ciclo da onda 2 (2026-10-05, verificado em execução)
+
+| Verificação | Resultado |
+| --- | --- |
+| `pytest` (unit + integração) | **895 passed** |
+| Gate | `ruff` limpo (279 arquivos) · `basedpyright` **0 errors** · `alembic check` **sem drift** |
+| Contrato OpenAPI | **61 paths / 71 operações / 101 schemas**, regenerado (as 3 rotas/2 schemas novos) |
+| Front | `tsc --noEmit` limpo · `eslint` limpo · `vite build` em 189 ms (424 kB, 131 kB gzip) |
+| SPA servido pelo Litestar | `/arranjo/plano` e `/arranjo/diagnostico` → **200** com `index.html` (deep link e F5) |
+| **Etapa A, primeira metade (acervo real)** | regra de teste **desativada**; `run_staging_pipeline(force=True)` 4.785/4.785; `transfer` 4.785 sucessos, 0 falhas, **0 pais declarados** (a origem não manda) |
+| **Acervo medido depois** | **4.826 descrições** (eram 3.608) · 0 com pai · 13 sem nível · 8.349 tags · 59.388 vínculos |
+| `POST /hierarchy/plans/suggest` no acervo real | **81 rungs** criadas, 0 preservadas (catálogo estava vazio) |
+| Diagnóstico no acervo real | ORPHAN 4.820 · DOSSIER_WITHOUT_PARENT 1.612 · UNKNOWN_LEVEL 13 · **PATH_DIVERGENCE 0** · LEVEL_DEPTH_MISMATCH 25 |
+| `/hierarchy/flags` no acervo real | 5 issues · 3 status · **8 flags de rung** · 5 violações |
+| Verificação visual | 3 telas renderizadas com `chrome-headless-shell` (plano, plano filtrado, diagnóstico + mismatch); as evidências em `.analysis/shots/wave2-*.png` **é que revelaram** o vocabulário incompleto |
+
+> **A tela é o teste que faltava.** O vocabulário incompleto de `/hierarchy/flags` passou por
+> `pytest`, `basedpyright`, `tsc`, `eslint` e `vite build` — todos verdes. Ele apareceu no
+> **primeiro** screenshot, como `NEAR_DUPLICATE_NODE` escrita crua no card. É o terceiro defeito
+> desta natureza no projeto (já tinham sido o `bg-[--color-surface]` em 105 lugares e o
+> `html_mode` do SPA).
+
 ### Execuções anteriores (preservadas)
 
 | Verificação | Resultado |
@@ -493,12 +564,15 @@ O código está pronto; **o acervo está intocado**. Descoberto na auditoria de 
 2. **Busca semântica com qualidade fraca** — parcialmente endereçada; a híbrida (RRF) continua
    pendente e o MRR caiu 0.019.
 3. **Sem autenticação** — bloqueio para exposição pública; entra no B9, por último.
-4. **O acervo está desatualizado em relação ao código** — carimbos v1→v2 e regra de teste
-   ativa. São operações, não código (ver "Pendências operacionais").
+4. **O acervo está desatualizado em relação ao código** — a regra de teste foi desativada e o
+   re-parse/transfer rodaram, mas **todo o enriquecimento de IA está pendente** (0 carimbos `_v2`).
+   São operações, não código (ver "Pendências operacionais"), e a janela fecha na primeira ficha
+   aprovada por humano.
 5. **`path` desnormalizado** pode divergir — teste de invariante no CI (`PATH_DIVERGENCE` = 0
    hoje, mas a garantia precisa ser automática).
 6. **7 nós com `LEVEL_NOT_ALLOWED_AS_CHILD`** — a família SMU não cabe na escada de 6 níveis
-   sem repetir um ordinal. Achado real, a resolver na tela.
+   sem repetir um ordinal. Achado real, a resolver na tela: agora é uma das flags que
+   `/hierarchy/flags` publica, e o filtro do plano sabe mostrá-la.
 7. ✅ **`GET /conflicts/cross-domain` levava 53 s** — corrigido. A causa **não** era o GIN: a
    comparação coluna-a-coluna **usa** o índice (o Postgres empurra a linha externa como chave de
    bitmap). A causa era o `OR lower(t.name) = lower(e.name)` no join, que o transforma em
@@ -513,9 +587,15 @@ O código está pronto; **o acervo está intocado**. Descoberto na auditoria de 
    Descartava **419 de 647** pares de entidades (65%) e **467 de 906** de tags (52%), e os pares
    escondidos eram justamente os valiosos (abreviações: `rua des. desembargador ermelino de leão`).
    Removido: o índice já é o filtro (tags 906 pares em 2,1 s; entidades 647 em 203 ms).
-9. **`access_conditions` existia no staging e não no archive** — corrigido neste ciclo; fica
+9. **`access_conditions` existia no staging e não no archive** — corrigido no ciclo E0+E1; fica
    registrado porque o modo de falha (campo parseado, coluna ausente, nenhum erro) pode se repetir
    em qualquer campo novo do ISAD(G).
+10. ✅ **`/hierarchy/flags` publicava um vocabulário incompleto** — corrigido no ciclo da onda 2.
+    As rungs carregam flags de **quatro** origens (`ProposalFlag`, `HierarchyIssue.NEAR_DUPLICATE_NODE`,
+    `HierarchyViolation.LEVEL_NOT_ALLOWED_AS_CHILD` e `CodeFlag`), e a rota anunciava só a primeira:
+    o front renderizava `NEAR_DUPLICATE_NODE` e `MID_CODE_IDENTIFIER` cru. Modo de falha a vigiar em
+    qualquer rota que publique um vocabulário: **a lista tem de cobrir todo produtor**, e um teste
+    que a prenda aos produtores vale mais que a leitura do código.
 
 ---
 

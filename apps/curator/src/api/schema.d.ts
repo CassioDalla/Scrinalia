@@ -158,6 +158,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hierarchy/diagnostics/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** SummariseDiagnostics */
+        get: operations["ApiV1HierarchyDiagnosticsSummarySummariseDiagnostics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/hierarchy/flags": {
         parameters: {
             query?: never;
@@ -1431,6 +1448,13 @@ export interface components {
             offset: number;
             total: number;
         };
+        /** HierarchyDiagnosticSummary */
+        HierarchyDiagnosticSummary: {
+            /** @description One entry per issue the diagnostics endpoint accepts, zeroes included. */
+            counts?: {
+                [key: string]: number;
+            };
+        };
         /** HierarchyMaterialisationItem */
         HierarchyMaterialisationItem: {
             /** @description CREATE | ADOPT | ALREADY */
@@ -1585,6 +1609,9 @@ export interface components {
             items: components["schemas"]["HierarchyNodePlanDTO"][];
             limit: number;
             offset: number;
+            status_counts?: {
+                [key: string]: number;
+            };
             total: number;
         };
         /** HierarchyPlanSuggestionResponse */
@@ -1651,6 +1678,17 @@ export interface components {
             root_id?: string | null;
             /** @default 0 */
             total: number;
+        };
+        /** HierarchyVocabulary */
+        HierarchyVocabulary: {
+            /** @description Issues ``GET /hierarchy/diagnostics`` accepts, in the order the screen shows them. */
+            issues?: string[];
+            /** @description Every flag a plan row's ``flags`` may carry, from the four vocabularies that write it: the proposal's, the near-duplicate issue, the ladder violation and the slicer's. All of it advisory, none of it a decision. */
+            plan_flags?: string[];
+            /** @description Lifecycle of a proposed rung. */
+            plan_statuses?: string[];
+            /** @description Why a move or a creation is refused, so the screen can explain the refusal. */
+            violations?: string[];
         };
         /** MacroCategoriesSuggestionResponse */
         MacroCategoriesSuggestionResponse: {
@@ -2452,6 +2490,26 @@ export interface operations {
             };
         };
     };
+    ApiV1HierarchyDiagnosticsSummarySummariseDiagnostics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HierarchyDiagnosticSummary"];
+                };
+            };
+        };
+    };
     ApiV1HierarchyFlagsListFlags: {
         parameters: {
             query?: never;
@@ -2467,9 +2525,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: string[];
-                    };
+                    "application/json": components["schemas"]["HierarchyVocabulary"];
                 };
             };
         };

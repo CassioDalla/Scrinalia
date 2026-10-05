@@ -10,11 +10,16 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy import and_, case, delete, func, or_, select, update
 from sqlalchemy.orm import Session, aliased, selectinload
 from sqlalchemy.sql.elements import ColumnElement
 
-from memoria_curitibana.domains.archive.domain.hierarchy import PATH_SEPARATOR, HierarchyIssue, build_path
+from memoria_curitibana.domains.archive.domain.hierarchy import (
+    PATH_SEPARATOR,
+    HierarchyIssue,
+    PlanStatus,
+    build_path,
+)
 from memoria_curitibana.domains.archive.models import (
     ArchiveDescriptionLevel,
     ArchiveDocument,
@@ -332,25 +337,44 @@ class HierarchyRepository:
         Should always be empty: the service is the only writer and it rewrites the subtree in the
         same transaction. It is queried anyway, because "should be empty" is exactly the kind of
         claim a health check exists to falsify.
+
+        The **expected** path travels in ``detail`` with the stored one. A divergence is the one
+        diagnostic whose evidence is a comparison, and a screen that shows only "this row is wrong"
+        would be asking the archivist to take the claim on faith.
         """
         parent = aliased(ArchiveDocument)
+        condition = or_(
+            and_(
+                ArchiveDocument.parent_id.is_not(None),
+                ArchiveDocument.path != func.concat(parent.path, ".", ArchiveDocument.description_id),
+            ),
+            and_(
+                ArchiveDocument.parent_id.is_(None),
+                ArchiveDocument.path != ArchiveDocument.description_id,
+            ),
+        )
         broken = (
             select(ArchiveDocument.description_id)
             .outerjoin(parent, parent.description_id == ArchiveDocument.parent_id)
-            .where(
-                or_(
-                    and_(
-                        ArchiveDocument.parent_id.is_not(None),
-                        ArchiveDocument.path != func.concat(parent.path, ".", ArchiveDocument.description_id),
-                    ),
-                    and_(
-                        ArchiveDocument.parent_id.is_(None),
-                        ArchiveDocument.path != ArchiveDocument.description_id,
-                    ),
-                )
-            )
+            .where(condition)
         )
         total = int(self.db.scalar(select(func.count()).select_from(broken.subquery())) or 0)
+        if total == 0:
+            # The normal state of the collection: the invariant holds and there is nothing to read.
+            return [], 0
+
+        expected_path = case(
+            (ArchiveDocument.parent_id.is_(None), ArchiveDocument.description_id),
+            else_=func.concat(parent.path, ".", ArchiveDocument.description_id),
+        )
+        expected_by_id = {
+            str(description_id): str(esperado)
+            for description_id, esperado in self.db.execute(
+                select(ArchiveDocument.description_id, expected_path)
+                .outerjoin(parent, parent.description_id == ArchiveDocument.parent_id)
+                .where(condition)
+            ).all()
+        }
         rows = self.db.scalars(
             select(ArchiveDocument)
             .where(ArchiveDocument.description_id.in_(broken))
@@ -359,7 +383,14 @@ class HierarchyRepository:
             .limit(limit)
             .offset(offset)
         ).all()
-        return [self.to_diagnostic(node, str(HierarchyIssue.PATH_DIVERGENCE)) for node in rows], total
+        return [
+            self.to_diagnostic(
+                node,
+                str(HierarchyIssue.PATH_DIVERGENCE),
+                detail={"path": node.path, "expected_path": expected_by_id.get(node.description_id)},
+            )
+            for node in rows
+        ], total
 
     def stream_code_observations(self) -> list[CodeObservation]:
         """
@@ -460,6 +491,23 @@ class HierarchyRepository:
 
     def count_plans(self) -> int:
         return int(self.db.scalar(select(func.count()).select_from(ArchiveHierarchyNodePlan)) or 0)
+
+    def count_plans_by_status(self) -> dict[str, int]:
+        """
+        How many rungs sit on each verdict, with the zeroes present.
+
+        One grouped query instead of one per status, and the statuses come from ``PlanStatus`` so a
+        status the vocabulary knows but no row carries is reported as ``0`` rather than missing —
+        the screen draws a progress bar over the whole catalogue, and a key that disappears at zero
+        would move the denominator.
+        """
+        counts = {str(status): 0 for status in PlanStatus}
+        rows = self.db.execute(
+            select(ArchiveHierarchyNodePlan.status, func.count()).group_by(ArchiveHierarchyNodePlan.status)
+        ).all()
+        for status, total in rows:
+            counts[str(status)] = int(total)
+        return counts
 
     def capture_state(self, description_ids: list[str]) -> dict[str, Any]:
         """The exact ``(parent_id, path)`` every one of these rows has right now."""

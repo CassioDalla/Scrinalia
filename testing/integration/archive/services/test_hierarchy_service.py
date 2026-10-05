@@ -22,7 +22,7 @@ from memoria_curitibana.domains.archive.schemas.hierarchy_schema import (
     CreateHierarchyNodeCommand,
     MoveNodeCommand,
 )
-from memoria_curitibana.domains.archive.services.hierarchy_service import HierarchyService
+from memoria_curitibana.domains.archive.services.hierarchy_service import DIAGNOSTIC_ISSUES, HierarchyService
 
 
 @pytest.fixture
@@ -341,6 +341,9 @@ class TestDiagnostics:
 
         page = hierarchy.diagnostics(str(HierarchyIssue.PATH_DIVERGENCE), limit=10, offset=0)
         assert [item.description_id for item in page.items] == [child.description_id]
+        # The evidence travels with the row: a divergence is a comparison, and "this one is wrong"
+        # without the path it should have is a claim the archivist cannot check.
+        assert page.items[0].detail == {"path": "inventado", "expected_path": child.path}
 
     def test_an_unclassified_description_is_reported(self, db_session, hierarchy):
         db_session.add(
@@ -381,6 +384,33 @@ class TestDiagnostics:
     def test_an_unknown_issue_is_refused(self, hierarchy):
         with pytest.raises(InvalidHierarchyMoveError):
             hierarchy.diagnostics("NAO_EXISTE", limit=1, offset=0)
+
+    def test_the_summary_counts_one_entry_per_issue(self, db_session, hierarchy, nobrade):
+        """The section header cannot contradict the list it opens, because it is the same query."""
+        db_session.add(
+            ArchiveDocument(
+                description_id="orphan-1",
+                original_title="Dossiê órfão",
+                staging_content_hash="h",
+                level_id=nobrade["dossie"].level_id,
+            )
+        )
+        db_session.add(
+            ArchiveDocument(description_id="nolevel-1", original_title="Sem nível", staging_content_hash="h")
+        )
+        db_session.flush()
+
+        summary = hierarchy.diagnostic_summary()
+
+        for issue in DIAGNOSTIC_ISSUES:
+            assert summary.counts[issue] == hierarchy.diagnostics(issue, limit=1, offset=0).total
+
+        # The issues overlap on purpose, so the summary reports each one and no grand total: this
+        # Dossiê without a parent is both an ORPHAN and a DOSSIER_WITHOUT_PARENT, and the document
+        # with no level is both an ORPHAN and an UNKNOWN_LEVEL.
+        assert summary.counts[str(HierarchyIssue.ORPHAN)] == 2
+        assert summary.counts[str(HierarchyIssue.DOSSIER_WITHOUT_PARENT)] == 1
+        assert summary.counts[str(HierarchyIssue.UNKNOWN_LEVEL)] == 1
 
 
 class TestMissingNodes:

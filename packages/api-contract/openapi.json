@@ -1611,6 +1611,20 @@
         "title": "HierarchyDiagnosticListResponse",
         "type": "object"
       },
+      "HierarchyDiagnosticSummary": {
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "One entry per issue the diagnostics endpoint accepts, zeroes included.",
+            "type": "object"
+          }
+        },
+        "required": [],
+        "title": "HierarchyDiagnosticSummary",
+        "type": "object"
+      },
       "HierarchyMaterialisationItem": {
         "properties": {
           "action": {
@@ -2358,6 +2372,12 @@
           "offset": {
             "type": "integer"
           },
+          "status_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object"
+          },
           "total": {
             "type": "integer"
           }
@@ -2594,6 +2614,41 @@
         },
         "required": [],
         "title": "HierarchyTreeResponse",
+        "type": "object"
+      },
+      "HierarchyVocabulary": {
+        "properties": {
+          "issues": {
+            "description": "Issues ``GET /hierarchy/diagnostics`` accepts, in the order the screen shows them.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "plan_flags": {
+            "description": "Every flag a plan row's ``flags`` may carry, from the four vocabularies that write it: the proposal's, the near-duplicate issue, the ladder violation and the slicer's. All of it advisory, none of it a decision.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "plan_statuses": {
+            "description": "Lifecycle of a proposed rung.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "violations": {
+            "description": "Why a move or a creation is refused, so the screen can explain the refusal.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [],
+        "title": "HierarchyVocabulary",
         "type": "object"
       },
       "MacroCategoriesSuggestionResponse": {
@@ -5332,6 +5387,29 @@
         ]
       }
     },
+    "/api/v1/hierarchy/diagnostics/summary": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1HierarchyDiagnosticsSummarySummariseDiagnostics",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HierarchyDiagnosticSummary"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "SummariseDiagnostics",
+        "tags": [
+          "Hierarchy"
+        ]
+      }
+    },
     "/api/v1/hierarchy/flags": {
       "get": {
         "deprecated": false,
@@ -5341,13 +5419,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/HierarchyVocabulary"
                 }
               }
             },

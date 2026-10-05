@@ -21,12 +21,17 @@ from memoria_curitibana.api.schemas.hierarchy_requests import (
     HierarchyPlanDecisionRequest,
     HierarchyProposalRequest,
 )
-from memoria_curitibana.domains.archive.domain.hierarchy import HierarchyIssue
+from memoria_curitibana.domains.archive.domain.hierarchy import (
+    HierarchyViolation,
+    PlanStatus,
+    plan_flag_vocabulary,
+)
 from memoria_curitibana.domains.archive.schemas.hierarchy_schema import (
     CreateDescriptionLevelCommand,
     CreateHierarchyNodeCommand,
     DescriptionLevelDTO,
     HierarchyDiagnosticListResponse,
+    HierarchyDiagnosticSummary,
     HierarchyMaterialisationLogListResponse,
     HierarchyMaterialisationPreview,
     HierarchyMaterialisationResult,
@@ -39,6 +44,7 @@ from memoria_curitibana.domains.archive.schemas.hierarchy_schema import (
     HierarchyProposalCommand,
     HierarchyProposalResponse,
     HierarchyTreeResponse,
+    HierarchyVocabulary,
     MoveNodeCommand,
     UpdateDescriptionLevelCommand,
 )
@@ -49,8 +55,20 @@ from memoria_curitibana.domains.archive.services.hierarchy_materialisation_servi
     HierarchyMaterialisationService,
 )
 from memoria_curitibana.domains.archive.services.hierarchy_proposal_service import HierarchyProposalService
-from memoria_curitibana.domains.archive.services.hierarchy_service import HierarchyService
+from memoria_curitibana.domains.archive.services.hierarchy_service import DIAGNOSTIC_ISSUES, HierarchyService
 from memoria_curitibana.domains.archive.services.level_catalog_service import LevelCatalogService
+
+#: The issues the diagnostics route accepts, as a type so the contract carries the enum.
+#:
+#: Mirrors ``DIAGNOSTIC_ISSUES``, which is what the service actually answers. Both exist because a
+#: route signature needs a ``Literal`` and the service needs a tuple; a test pins them together, so
+#: a value added to one and forgotten in the other fails the suite instead of answering 422.
+DiagnosticIssue = Literal[
+    "ORPHAN", "DOSSIER_WITHOUT_PARENT", "UNKNOWN_LEVEL", "PATH_DIVERGENCE", "LEVEL_DEPTH_MISMATCH"
+]
+
+#: The statuses the plan list can be filtered by, mirroring ``PlanStatus`` for the same reason.
+PlanStatusFilter = Literal["SUGGESTED", "APPROVED", "REJECTED"]
 
 
 class HierarchyController(Controller):
@@ -202,9 +220,7 @@ class HierarchyController(Controller):
     def list_diagnostics(
         self,
         hierarchy_service: NamedDependency[HierarchyService],
-        issue: FromQuery[
-            Literal["ORPHAN", "DOSSIER_WITHOUT_PARENT", "UNKNOWN_LEVEL", "PATH_DIVERGENCE", "LEVEL_DEPTH_MISMATCH"]
-        ] = "ORPHAN",
+        issue: FromQuery[DiagnosticIssue] = "ORPHAN",
         limit: FromQuery[int] = 50,
         offset: FromQuery[int] = 0,
     ) -> HierarchyDiagnosticListResponse:
@@ -216,6 +232,19 @@ class HierarchyController(Controller):
         tokens hold 2,466 Items, one Série and one Seção at the same time.
         """
         return hierarchy_service.diagnostics(issue=issue, limit=limit, offset=offset)
+
+    @get("/diagnostics/summary", sync_to_thread=True)
+    def summarise_diagnostics(
+        self,
+        hierarchy_service: NamedDependency[HierarchyService],
+    ) -> HierarchyDiagnosticSummary:
+        """
+        One count per issue, so the screen can draw its sections before opening any of them.
+
+        Five requests would answer the same question and let a section header disagree with the
+        list it opens; this asks the same code that serves each page.
+        """
+        return hierarchy_service.diagnostic_summary()
 
     # =========================================================================
     # H3 — Proposal (read-only)
@@ -237,18 +266,27 @@ class HierarchyController(Controller):
         return proposal_service.propose(HierarchyProposalCommand(**data.model_dump()))
 
     @get("/flags", sync_to_thread=True)
-    def list_flags(self) -> dict[str, list[str]]:
-        """The vocabularies the diagnostics and the proposal speak, so a front can group by them."""
-        return {
-            "issues": [str(issue) for issue in HierarchyIssue],
-            "diagnostics": [
-                "ORPHAN",
-                "DOSSIER_WITHOUT_PARENT",
-                "UNKNOWN_LEVEL",
-                "PATH_DIVERGENCE",
-                "LEVEL_DEPTH_MISMATCH",
-            ],
-        }
+    def list_flags(self) -> HierarchyVocabulary:
+        """
+        The vocabularies the arrangement screens group by, so a front never embeds the enums.
+
+        ``issues`` is deliberately the list the diagnostics endpoint **accepts**, not the whole
+        ``HierarchyIssue`` enum: ``NEAR_DUPLICATE_NODE`` is a statement about codes the tree does not
+        contain yet and is produced by the proposal, so a front that read the enum here would loop
+        over an issue that answers 422.
+
+        ``plan_flags`` is a **union of four vocabularies**, because that is what a plan row's
+        ``flags`` really carries: the proposal's own flags, the near-duplicate issue, the ladder
+        violation that cannot be materialised, and what the slicer noticed about the code. Listing
+        only the first one — which is what this route did at first — leaves the screen rendering raw
+        codes for the other three, which is how the drift was found.
+        """
+        return HierarchyVocabulary(
+            issues=list(DIAGNOSTIC_ISSUES),
+            plan_statuses=[str(status) for status in PlanStatus],
+            plan_flags=plan_flag_vocabulary(),
+            violations=[str(violation) for violation in HierarchyViolation],
+        )
 
     # =========================================================================
     # H4 — Materialising the tree, driven by a recorded decision
@@ -271,7 +309,7 @@ class HierarchyController(Controller):
     def list_plans(
         self,
         materialisation_service: NamedDependency[HierarchyMaterialisationService],
-        status: FromQuery[Literal["SUGGESTED", "APPROVED", "REJECTED"] | None] = None,
+        status: FromQuery[PlanStatusFilter | None] = None,
         limit: FromQuery[int] = 50,
         offset: FromQuery[int] = 0,
     ) -> HierarchyPlanListResponse:

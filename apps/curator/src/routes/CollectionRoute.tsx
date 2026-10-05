@@ -145,10 +145,12 @@ export function CollectionRoute() {
   const request = toRequest(search);
   const { data, isPending, isFetching, error } = useQuery(queries.documents(request));
 
+  // Built from the search this render already has instead of a reducer over the router's whole
+  // search schema: the collection's filters are the only ones that belong in this URL.
   const patch = (changes: Partial<CollectionSearch>) =>
     navigate({
       to: "/acervo/lista",
-      search: (previous: CollectionSearch) => ({ ...previous, ...changes, offset: 0 }),
+      search: { ...search, ...changes, offset: 0 },
     });
 
   const facets = data?.facets;

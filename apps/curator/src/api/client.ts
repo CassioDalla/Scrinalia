@@ -63,6 +63,41 @@ export type DescriptionLevel = components["schemas"]["DescriptionLevelDTO"];
 export type ArchiveReviewStatus = components["schemas"]["ArchiveReviewStatus"];
 export type DocumentUpdateRequest = components["schemas"]["DocumentUpdateRequest"];
 
+// --- The arrangement (Fase 2.5): the plan catalogue, the ledger and the diagnosis --------------
+export type HierarchyNodePlan = components["schemas"]["HierarchyNodePlanDTO"];
+export type HierarchyPlanList = components["schemas"]["HierarchyPlanListResponse"];
+export type HierarchyPlanSuggestion = components["schemas"]["HierarchyPlanSuggestionResponse"];
+export type HierarchyVocabulary = components["schemas"]["HierarchyVocabulary"];
+export type PlanDecision = components["schemas"]["HierarchyPlanDecisionRequest"];
+export type MaterialisationRequest = components["schemas"]["HierarchyMaterialisationRequest"];
+export type MaterialisationPreview = components["schemas"]["HierarchyMaterialisationPreview"];
+export type MaterialisationResult = components["schemas"]["HierarchyMaterialisationResult"];
+export type MaterialisationItem = components["schemas"]["HierarchyMaterialisationItem"];
+export type MaterialisationLog = components["schemas"]["HierarchyMaterialisationLogListResponse"];
+export type MaterialisationLogEntry = components["schemas"]["HierarchyMaterialisationLogDTO"];
+export type Diagnostic = components["schemas"]["HierarchyDiagnostic"];
+export type DiagnosticList = components["schemas"]["HierarchyDiagnosticListResponse"];
+export type DiagnosticSummary = components["schemas"]["HierarchyDiagnosticSummary"];
+
+/**
+ * The status of a rung, taken from the request the API accepts rather than written here.
+ *
+ * A literal union would be a second copy of the vocabulary: the contract already enumerates the
+ * three values, and a fourth added on the back-end has to reach this screen.
+ */
+export type PlanStatus = PlanDecision["status"];
+
+/**
+ * The issue codes the diagnostics route accepts, exactly as the contract declares them.
+ *
+ * The route's query parameter is an enum, and the codes the screen iterates over arrive from
+ * ``GET /hierarchy/flags`` — which is the same vocabulary, delivered as data. One cast at this
+ * boundary is the price of reading a list the API owns instead of embedding a second copy here.
+ */
+export type DiagnosticIssue = NonNullable<
+  paths["/api/v1/hierarchy/diagnostics"]["get"]["parameters"]["query"]
+>["issue"];
+
 export type SearchMode = "lexical" | "semantic";
 
 /** Every filter the collection search accepts; they all live in the URL. */
@@ -166,6 +201,100 @@ export async function unlinkEntity(
         path: { description_id: descriptionId, entity_id: entityId },
         query: { changed_by: changedBy ?? null, review_note: null },
       },
+    }),
+  );
+}
+
+// --- Arrangement: decisions about the tree -----------------------------------------------------
+
+/**
+ * The vocabularies the arrangement screens group by.
+ *
+ * Read from the API instead of being embedded here: ``NEAR_DUPLICATE_NODE`` is a statement about
+ * codes the tree does not contain yet, and a hardcoded list would happily offer it as a
+ * diagnostic the endpoint refuses.
+ */
+export async function fetchHierarchyVocabulary(): Promise<HierarchyVocabulary> {
+  return unwrap<HierarchyVocabulary>(await client.GET("/api/v1/hierarchy/flags"));
+}
+
+export async function fetchHierarchyPlans(params: {
+  status?: PlanStatus;
+  limit?: number;
+  offset?: number;
+}): Promise<HierarchyPlanList> {
+  return unwrap<HierarchyPlanList>(
+    await client.GET("/api/v1/hierarchy/plans", { params: { query: params } }),
+  );
+}
+
+/** Idempotent, and it never overwrites a decision: the same rungs are not asked again. */
+export async function suggestHierarchyPlans(): Promise<HierarchyPlanSuggestion> {
+  return unwrap<HierarchyPlanSuggestion>(await client.POST("/api/v1/hierarchy/plans/suggest"));
+}
+
+export async function decideHierarchyPlan(planId: number, body: PlanDecision): Promise<HierarchyNodePlan> {
+  return unwrap<HierarchyNodePlan>(
+    await client.PATCH("/api/v1/hierarchy/plans/{plan_id}", {
+      params: { path: { plan_id: planId } },
+      body,
+    }),
+  );
+}
+
+/**
+ * The dry run, and the only road to the apply.
+ *
+ * It is computed by the same planner the write executes, so the numbers the archivist reads here
+ * are the ones the write produces — which is why the screen never offers the apply before a preview.
+ */
+export async function previewMaterialisation(body: MaterialisationRequest): Promise<MaterialisationPreview> {
+  return unwrap<MaterialisationPreview>(
+    await client.POST("/api/v1/hierarchy/materialisation/preview", { body }),
+  );
+}
+
+export async function applyMaterialisation(body: MaterialisationRequest): Promise<MaterialisationResult> {
+  return unwrap<MaterialisationResult>(
+    await client.POST("/api/v1/hierarchy/materialisation/apply", { body }),
+  );
+}
+
+export async function fetchMaterialisationLog(params: {
+  include_undone?: boolean;
+  limit?: number;
+  offset?: number;
+}): Promise<MaterialisationLog> {
+  return unwrap<MaterialisationLog>(
+    await client.GET("/api/v1/hierarchy/materialisation/log", { params: { query: params } }),
+  );
+}
+
+/** Reverses one run from the ledger. The ledger entry survives, with ``undone_at`` set. */
+export async function undoMaterialisation(materialisationId: number, undoneBy?: string): Promise<void> {
+  await unwrap<unknown>(
+    await client.DELETE("/api/v1/hierarchy/materialisation/log/{materialisation_id}", {
+      params: {
+        path: { materialisation_id: materialisationId },
+        query: { undone_by: undoneBy ?? null },
+      },
+    }),
+  );
+}
+
+// --- Arrangement: the structural diagnosis -----------------------------------------------------
+
+export async function fetchDiagnosticSummary(): Promise<DiagnosticSummary> {
+  return unwrap<DiagnosticSummary>(await client.GET("/api/v1/hierarchy/diagnostics/summary"));
+}
+
+export async function fetchDiagnostics(
+  issue: string,
+  params: { limit?: number; offset?: number },
+): Promise<DiagnosticList> {
+  return unwrap<DiagnosticList>(
+    await client.GET("/api/v1/hierarchy/diagnostics", {
+      params: { query: { issue: issue as DiagnosticIssue, ...params } },
     }),
   );
 }

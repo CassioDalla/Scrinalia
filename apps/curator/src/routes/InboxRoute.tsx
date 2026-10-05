@@ -17,7 +17,7 @@ import { formatCount } from "@/lib/format";
  * archivist to a blank page would be worse than saying "not yet" — so the front decides what it
  * can actually open, and the card says the rest is pending.
  */
-const IMPLEMENTED = new Set(["/", "/acervo/lista"]);
+const IMPLEMENTED = new Set(["/", "/acervo/lista", "/arranjo/plano", "/arranjo/diagnostico"]);
 
 function pathOf(route: string): string {
   return route.split("?")[0] ?? route;

@@ -15,6 +15,7 @@ they are the whole reason the plan catalogue exists.
 import pytest
 from sqlalchemy import func, select, text
 
+from memoria_curitibana.domains.archive.domain.hierarchy import PlanStatus, plan_flag_vocabulary
 from memoria_curitibana.domains.archive.exceptions import (
     DescriptionLevelNotFoundError,
     HierarchyPlanNotFoundError,
@@ -124,6 +125,47 @@ class TestTheCatalogueOfDecisions:
         result = service.suggest()
         assert result.created == result.total
         assert result.total > 0
+
+    def test_every_flag_a_row_carries_is_in_the_published_vocabulary(self, service, collection):
+        """
+        The rows are the source of truth for what the vocabulary must contain.
+
+        A plan row is assembled from four vocabularies (the proposal's, the near-duplicate issue,
+        the ladder violation and the slicer's), and a front that groups by ``flags`` can only
+        translate the codes the API publishes. This asserts the published union against the flags
+        the fixture's rows really carry — the defect that started it was a row carrying
+        ``NEAR_DUPLICATE_NODE`` while the endpoint advertised three other codes.
+        """
+        service.suggest()
+        published = set(plan_flag_vocabulary())
+        carried = {flag for plan in service.list_plans(None, 200, 0).items for flag in (plan.flags or [])}
+
+        assert carried, "the fixture collection must produce at least one flag"
+        assert carried <= published
+
+    def test_the_list_reports_the_verdict_of_the_whole_catalogue(self, service, collection, nobrade):
+        """
+        The progress bar counts every rung, not the page.
+
+        A filtered page carries the counts of the catalogue anyway, because "34 de 52 decididos" is
+        a statement about all 52 — deriving it from a page of 20 would make the number depend on the
+        filter the archivist happens to have applied.
+        """
+        service.suggest()
+        total = service.list_plans(None, 200, 0).status_counts
+
+        # Every status is present even at zero, so the denominator cannot move as decisions arrive.
+        assert set(total) == {str(status) for status in PlanStatus}
+        assert total[str(PlanStatus.SUGGESTED)] > 0
+        assert total[str(PlanStatus.APPROVED)] == 0
+
+        plan = next(p for p in service.list_plans(None, 200, 0).items if p.code == "BR PRADAP SMU")
+        service.decide(plan.plan_id, HierarchyPlanDecisionCommand(status="APPROVED", decided_by="ana"))
+
+        after = service.list_plans(status="APPROVED", limit=1, offset=0).status_counts
+        assert after[str(PlanStatus.APPROVED)] == 1
+        assert after[str(PlanStatus.SUGGESTED)] == total[str(PlanStatus.SUGGESTED)] - 1
+        assert sum(after.values()) == sum(total.values())
 
     def test_a_decision_survives_a_new_suggestion_run(self, service, collection, nobrade):
         """

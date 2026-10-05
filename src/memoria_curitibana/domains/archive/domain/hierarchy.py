@@ -20,7 +20,7 @@ import enum
 from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass
 
-from memoria_curitibana.domains.archive.domain.hierarchy_code import parent_rung_code
+from memoria_curitibana.domains.archive.domain.hierarchy_code import CodeFlag, parent_rung_code
 
 #: Separator of the materialised path. Kept a constant so the SQL that rewrites a subtree and
 #: the Python that builds one cannot drift apart on a literal.
@@ -71,6 +71,24 @@ class HierarchyIssue(enum.StrEnum):
     NEAR_DUPLICATE_NODE = "NEAR_DUPLICATE_NODE"
     #: No level could be resolved from the declared text; the node has a level but no rung.
     UNKNOWN_LEVEL = "UNKNOWN_LEVEL"
+
+
+class PlanStatus(enum.StrEnum):
+    """
+    Where a proposed rung sits in its lifecycle.
+
+    ``SUGGESTED`` is the machine talking; ``APPROVED`` and ``REJECTED`` are the archivist. Only the
+    first is refreshed by a new suggestion run — that is what makes a decision outlive the run that
+    produced it — and only ``APPROVED`` rungs are materialised.
+
+    Owned by the ``chk_hierarchy_plan_status`` constraint of the table. It lives here as well so the
+    repository, the command schema and the vocabulary endpoint read one definition instead of three
+    copies of the same three strings, which is how a vocabulary silently grows a fourth value.
+    """
+
+    SUGGESTED = "SUGGESTED"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
 
 
 class ProposalFlag(enum.StrEnum):
@@ -309,3 +327,29 @@ def ancestor_rungs(code: str) -> tuple[str, ...]:
     """Every strict structural prefix of a rung, longest first."""
     tokens = code.split(" ")
     return tuple(" ".join(tokens[:size]) for size in range(len(tokens) - 1, 1, -1))
+
+
+def plan_flag_vocabulary() -> list[str]:
+    """
+    Every flag a plan row's ``flags`` can carry — the union of the four vocabularies that write it.
+
+    A plan row is assembled from statements of different kinds, and each kind has its own enum:
+
+    * ``ProposalFlag`` — what the proposal concluded about the rung itself;
+    * ``HierarchyIssue.NEAR_DUPLICATE_NODE`` — a sibling one letter apart (``FOTOGRAFIA`` versus
+      ``FOTOGRAFIAS``), which is a statement about the collection and not about the rung;
+    * ``HierarchyViolation.LEVEL_NOT_ALLOWED_AS_CHILD`` — the rung cannot be materialised where the
+      code puts it, which the SMU branch really does. The other violations are never flags: they are
+      the answers to "may this move happen?", and they live in ``violations``;
+    * ``CodeFlag`` — what the slicer noticed while reading the code itself.
+
+    Published as a whole because the front groups by these codes and must not embed them. Reading
+    only ``ProposalFlag`` (the first version of ``GET /hierarchy/flags``) left the screen rendering
+    raw codes for the other three, which is exactly the drift the endpoint exists to prevent.
+    """
+    return sorted(
+        {str(flag) for flag in ProposalFlag}
+        | {str(HierarchyIssue.NEAR_DUPLICATE_NODE)}
+        | {str(HierarchyViolation.LEVEL_NOT_ALLOWED_AS_CHILD)}
+        | {str(flag) for flag in CodeFlag}
+    )
