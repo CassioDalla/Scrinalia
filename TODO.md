@@ -19,16 +19,17 @@ arquivístico (DDD + micro-workers + HITL).
 | Fase | Escopo | Estado |
 | --- | --- | --- |
 | 1 | Fundação, pipeline de IA e governança de base | **Praticamente fechada** |
-| 1.5 | Macro Categorias (eixo de Assuntos) | **Núcleo fechado** — resta o front e o defeito de rótulo |
+| 1.5 | Macro Categorias (eixo de Assuntos) | **Fechada na medição** — vocabulário refeito, defeito 2/2 fechado; acurácia ~0.575, dívida explícita |
 | 2 | API + Curadoria humana (HITL) | **Fechada no essencial**, faltam ações locais |
-| 3 | Descoberta, escala e observabilidade | **Parcial** — busca lexical fechada; semântica funciona mas com qualidade fraca; faltam lematização de tags e operação |
-| **3.5** | **Qualidade do dado de entrada** | **A–D fechadas** (sem UI, por decisão); resta medir o efeito no ranking do que for aprovado |
-| 4 | Interoperabilidade, agentes e publicação | Não iniciada |
+| **2.5** | **Hierarquia das descrições** | **Não iniciada — FEAT GRANDE**, plano pronto |
+| 3 | Descoberta, escala e observabilidade | **Parcial** — busca lexical fechada; semântica funciona mas com qualidade fraca |
+| 3.5 | Qualidade do dado de entrada | **A–D fechadas** (sem UI, por decisão); resta medir o efeito no ranking |
+| 4 | Interoperabilidade, **UI nova** e publicação | Não iniciada — plano do BFF pronto |
 
 O sistema **funciona ponta a ponta** até a camada Archive: ingestão → staging → archive →
 enriquecimento por IA → curadoria humana → bloqueio de reprocessamento. O que falta não é
 "fazer funcionar", é **arrumar o dado de entrada** — que é a razão de o sistema existir —,
-**fechar os eixos semânticos** (macro categorias, ancoragem tag↔entidade) e **tornar o acervo
+**fechar os eixos semânticos** (macro categorias, hierarquia) e **tornar o acervo
 pesquisável de verdade**.
 
 > **Correção de rota (2026-10-03, decisão do dono do produto).** A busca semântica fechou
@@ -37,6 +38,21 @@ pesquisável de verdade**.
 > tem data). A prioridade passou a ser a **Fase 3.5**, e o princípio é explícito: **a máquina
 > identifica e propõe; o arquivista decide.** Nada é apagado ou reescrito sem decisão humana
 > registrada.
+
+> **Correção de rota (2026-10-04, auditoria + decisão do dono do produto).** Duas feats
+> entram **antes** da UI nova, e a UI nova passa a ser planejada explicitamente:
+> 1. **Rótulos NLI** (Fase 1.5, defeito 2/2) — a classificação de assunto está errada de forma
+>    sistemática e **não se denuncia pela confiança**. Curto, alto impacto.
+> 2. **Hierarquia** (Fase 2.5) — o acervo é hierárquico, o sistema o trata como plano. Grande,
+>    mexe no modelo.
+> 3. **UI do curador + BFF público** (Fase 4) — monorepo, duas UIs, dois BFFs.
+>
+> **Motivo da ordem:** uma UI boa **amplifica** o erro. Se ela nascer antes, vai exibir badge
+> `[🚌 Mobilidade e Transporte]` em 826 documentos sobre alvenaria. A hierarquia, por sua vez,
+> muda o contrato inteiro — a UI deve nascer sabendo desenhar árvore.
+>
+> **Planos completos em `.analysis/`:** `plano-nli-e-rotulos.md`,
+> `roadmap-hierarquia.md`, `roadmap-bff-curador.md`.
 
 ---
 
@@ -105,8 +121,10 @@ pesquisável de verdade**.
     Nenhum teste com `mock_registry` pegaria isso: o mock devolve o nome exato que recebeu.
   - ✅ **O sinônimo positivo também não fura o veto:** `get_ner_synonyms_rules` exclui
     spellings vetados, senão o EntityRuler reintroduziria o termo via `ent_id_`.
-- [ ] **`is_anomaly` / `anomaly_reasons` do documento nunca são preenchidos.** Modelados,
-  indexados, e sem nenhum produtor.
+- [x] **`is_anomaly` / `anomaly_reasons`.** ~~Modelados, indexados, e sem nenhum produtor.~~
+  **Resolvido:** o `worker_quality_validator` (Fase 3.5-C) é o produtor. Verificado no acervo
+  real: o carimbo `worker_quality_validator_v1` está presente; `is_anomaly=0` porque nenhuma
+  regra `VALIDATE`/`LLM_CHECK` está ativa hoje (a única regra ativa é `REWRITE`).
 - [x] **`ai_confidence_score` da Tag nunca é escrito.** ~~A coluna existe na model e é exposta
   no schema, mas nenhum worker a preenche (o `transfer` sempre grava `None`).~~ **Resolvido:**
   o `worker_macro_category` passou a preenchê-la (ver Fase 1.5).
@@ -181,7 +199,12 @@ O eixo semântico de assuntos está modelado e pela metade implementado. Hoje a 
   single-label (usa a FK existente, zero migração). Multi-label exige tabela de junção.
   **Não fazer antes de resolver o defeito de rótulo abaixo.**
 
-### ✅ Defeito de rótulo — **corrigido**
+### ✅ Defeito de rótulo (1/2) — **corrigido**
+
+> **São dois eixos independentes do mesmo prompt.** O eixo 1 (descrição concatenada) está
+> corrigido abaixo. O eixo 2 (o nome nu **também** não é um alvo NLI válido) foi **descoberto
+> na auditoria de 2026-10-04** e é o assunto de `plano-nli-e-rotulos.md`.
+> Não reverter o eixo 1 para consertar o eixo 2.
 
 - [x] **Rótulo `"Nome: descrição"` fazia o mDeBERTa colapsar tudo na primeira categoria.**
   Achado durante a verificação ponta a ponta com engine real e **corrigido**:
@@ -208,6 +231,75 @@ O eixo semântico de assuntos está modelado e pela metade implementado. Hoje a 
     tipologia 2/2, votos corretos no `DocumentSummary`.
   - **Guardas de regressão:** 6 testes falham se a concatenação voltar (repositório, payload
     do worker e unitário) — verificado reintroduzindo o bug de propósito.
+
+### ✅ Defeito de rótulo (2/2) — **FECHADO (2026-10-04), e o diagnóstico era outro**
+
+> **O plano dizia que a frase NLI conserta. A medição disse que ela é o colapso.** Este é o
+> achado que reordenou a fase inteira, e vale registrar com o número: bancada de 44 tags
+> rotuladas à mão (aprovadas pelo dono), 3 formatos × 3 arranjos × 2 modelos.
+
+- [x] **A frase NLI, aplicada de forma consistente, dá acurácia 0.000.** Zero acertos em 40
+  tags, nos dois modelos, com duas redações (`"um assunto sobre X"` e `"trata de X"`), com
+  **65% das tags colapsando numa única gaveta** e **0/4 controles positivos**. O plano citava
+  `alvenaria → Urbanismo (0.536)`; não se reproduz em nenhuma combinação medida.
+- [x] **O ganho do plano era artefato do arranjo experimental.** A frase sai de 0.000 para
+  0.450 apenas quando comparada **contra nomes nus** — conjunto misto, onde ela ganha por
+  proximidade lexical — e ainda assim **perde** do baseline (0.500). Medido:
+
+  | Arranjo | `sentence` (mDeBERTa) | Leitura |
+  | --- | ---: | --- |
+  | `same_format` (frase × frase) | **0.000** | é o colapso, não a correção |
+  | `mixed_vs_bare` (frase × nomes nus) | 0.450 | o que o plano provavelmente mediu |
+  | `bare_vs_bare` (baseline) | **0.500** | melhor que a frase nos dois arranjos |
+
+- [x] **A confiança ESTÁ calibrada — o TODO estava errado neste ponto.** Certas 0.705 contra
+  erradas 0.455 (mDeBERTa, nome nu). O caso `1924 → Mobilidade (0.73)` não era "a confiança não
+  denuncia o erro": era **uma data que nunca deveria ter chegado ao modelo**. O guard resolve,
+  não o limiar.
+- [x] **A causa real tinha duas metades, e nenhuma era o formato do rótulo:**
+  1. **O vocabulário não cobria o acervo.** `igrejas` alcança **2.467 documentos** — a maior tag
+     — e não existia "Religião". Nenhum rótulo conserta uma gaveta inexistente.
+  2. **`Instituição` e `Localidade` nunca foram assuntos.** São proveniência e geografia
+     (`ippuc` 2.376, `curitiba` 1.865), e disputavam a mesma gaveta que `alvenaria`.
+- [x] **Corrigido: o vocabulário passou de 5 para 8 gavetas de assunto**, derivadas das tags
+  reais. `Saúde` e `Administração` foram **cortadas por falta de evidência** (zero tags no top
+  250) — não entraram por intuição. `Instituição`, `Localidade` e `Pessoa` foram **desativadas**
+  (nunca deletadas: a FK é `SET NULL`).
+- [x] **Corrigido: `archive_tag_facets`** dá às tags um eixo que não é assunto. `ippuc` é
+  produtor, `curitiba` é lugar, e uma tag pode ser os dois ao mesmo tempo — por isso a chave é
+  composta.
+- [x] **Corrigido: a classe `NENHUMA` tem dois mecanismos.** O determinístico cobre o que tem
+  forma (data, placeholder, logradouro, número) e pegou **1 de 4** dos não-assuntos do gabarito;
+  o resto são julgamentos (`pessoas` 166 docs, `vista aérea`, `capanema`) e ganharam o catálogo
+  curado `domain_subject_exclusions`, no padrão de `domain_ner_exclusions`.
+- [x] **Corrigido: o limiar de 0.40 subiu para 0.55, com fila atrás.** Medido, uma resposta
+  errada tem 0.455 de média — 0.40 deixava passar quase todo erro. Abaixo do piso a tag fica
+  órfã **e** entra em `archive_ai_review_queue` como `SUBJECT_LOW_CONFIDENCE`.
+- [x] **Corrigido: o carimbo virou hash do conjunto de rótulos** (`worker_macro_category_v1`
+  com o valor sendo o SHA-256 dos rótulos, como o `worker_embedding` faz com o texto). A V3
+  expôs a falha na prática: aposentou `Instituição` enquanto suas tags mantinham `DONE`, e a
+  correção nunca chegaria a elas.
+- [x] **`classifier_label` existe como saída de curadoria, não como padrão.** A coluna é
+  editável sem deploy e o carimbo por hash a propaga, mas o docstring registra os 0.000 medidos
+  para ninguém semeá-la com frases esperando melhoria.
+
+**O que segue aberto, e é honesto registrar:**
+
+- [ ] **Acurácia de 0.500 (mDeBERTa) / 0.575 (xlm-roberta) em nome nu.** ~42% do topo por
+  `document_count` continua errando: `alvenaria`, `casa`, `rio`, `parque iguaçu` erram nos
+  **dois** modelos, com a mesma ordem — é limite do zero-shot NLI com sintagma nominal, não do
+  rótulo nem de um modelo específico. Decisão do dono: **aceitar e resolver por curadoria**.
+- [ ] **Trocar para `xlm-roberta-large-xnli`** (+0.075, ~3 tags em 40): medido e **descartado
+  por ora** — não compensa um engine novo em produção. O gabarito e a bancada ficam prontos
+  para reavaliar.
+- [ ] **O acervo não foi reprocessado.** O dry-run foi encerrado por decisão do dono (ambiente
+  de dev): a qualidade real fica para depois. O worker está pronto e a fila de revisão está
+  configurada.
+
+**Evidência:** `testing/evaluation/macro_category_quality.py` (bancada),
+`macro_category_dry_run.py` (projeção), `macro_category_vocabulary.py` (vocabulário),
+`macro_category_pairs.json` (gabarito aprovado). Análise em
+`.analysis/b3-medicao-classificador.md`.
 
 ### API e payload
 
@@ -279,6 +371,83 @@ O eixo semântico de assuntos está modelado e pela metade implementado. Hoje a 
 - [ ] **Confirmar que a Vitrine reflete os enriquecimentos.** O `DocumentSummary` expõe
   macro categorias desde a sessão de 2026-10-03, mas **ainda não expõe a tipologia** — a
   vitrine segue sem mostrar todo o resultado da IA.
+
+---
+
+## 🏛️ Fase 2.5 — Hierarquia das descrições arquivísticas — **FEAT GRANDE**
+
+> Plano completo: `.analysis/roadmap-hierarquia.md`. Descobertas abaixo vêm da análise dos
+> **3.608 documentos reais** do acervo, não de suposição.
+
+O sistema trata cada descrição como uma linha plana. O acervo **é** hierárquico, e a evidência
+está no `reference_code` — preenchido em **100%** dos documentos.
+
+### O que os dados mostram
+
+```
+BR  PRADAP  IPPUC  FOTOGRAFIA  00680           → Item Documental
+BR  PRADAP  SMU    ED  AL  CONSTR  2154  1903  → Dossiê/Processo
+BR  PRADAP  SGM    OUVIDORIA                   → Seção  (registro próprio, desc_id=2731)
+BR  PRADAP  IPPUC  FOTOGRAFIAS                 → Série  (registro próprio, desc_id=2368)
+```
+
+- **O vocabulário é fechado e minúsculo:** o 3º token tem 8 valores (`IPPUC` 2.392, `SMU`
+  1.124, `SMMA` 75, `SEPLAD` 8, `CMC` 4, `FAS` 2, `SGM` 2, `SMCS` 1); o 4º tem ~10
+  (`FOTOGRAFIA` 2.466, `ED` 1.124…). **Isto não é problema de NLP — é cadastro.**
+- **O código é o caminho, não o nome do nó.** Os registros de 4 tokens são as Seções/Séries
+  reais. O `reference_code` de um item já contém o caminho até a raiz.
+- **A fatição por espaço é ~90% correta, com 1 armadilha:** `FOTOGRAFIA` (singular, 2.391
+  itens) × `FOTOGRAFIAS` (plural, a Série) — dois nós distintos que um merge por trigrama
+  uniria. Vale teste explícito; **não** rodar `suggest` de merge sobre nós hierárquicos.
+- **3.604 dos 3.608 estão órfãos** de pai em alguma profundidade: a árvore precisa ser
+  **materializada**, não apenas ligada.
+
+### Modelo de dados
+
+- [ ] **H1 — Catálogo de níveis.** `ArchiveDescriptionLevel` com `ordinal` (0–5), `name`,
+  `code`, `is_required`, `allows_children`, `is_active`. Seed NOBRADE: Acervo(0) → Fundo(1) →
+  Seção(2) → Série(3) → Dossiê(4, obrigatório) → Item(5). Migrar o `level` texto para FK
+  **em duas etapas** (nullable → popular → conferir → obrigatório), nunca num passo só.
+- [ ] **H2 — Árvore.** `parent_id` (auto-referência: **um fundo é uma descrição como
+  qualquer outra**), `path` materializado (`"2368.2732.51931"` para "descendentes de X" com um
+  `LIKE`), `level_id`. Regras: `allows_children`, `is_required`, guarda de ciclo,
+  profundidade crescente. `ltree` foi considerado e descartado (extensão extra sem ganho).
+- [ ] **H3 — Proposta automática (ponto de decisão).** Script que fatia códigos, monta a
+  árvore proposta, marca nós `A CRIAR` e detecta órfãos/conflitos. **Só lê e propõe.** O
+  relatório decide o desenho da UI — fazer **antes** de qualquer tela.
+- [ ] **H4 — Tela A: proposta de árvore.** É o que resolve a bagunça: ~20 entradas de
+  vocabulário + confirmação da árvore, **não 3.608 decisões**.
+- [ ] **H5 — Telas B e C.** Edição individual (unidade superior com type-ahead, nível por
+  select) e diagnóstico com ações (órfão, nível incoerente, dossiê sem pai, ciclo).
+- [ ] **H6 — Contrato de ingestão.** `parent_reference_code` + `hierarchy_path` no
+  `StagingDocumentDTO`, e as variantes PT no `keys_map`. Pai ausente → nó órfão **marcado**,
+  a carga **não falha** (a origem pode entregar o filho antes do pai).
+- [ ] **H7 — Busca e facetas hierárquicas** ("buscar dentro deste fundo/série").
+- [ ] **H8 — `DocumentSummary`** com `parent_id`, `level`, `ancestors[]`, `children_count`.
+
+### ⚠️ Conflito conceitual a resolver antes da UI
+
+**Hierarquia ≠ macro categoria**, mas as duas viram "um jeito de agrupar" na tela:
+
+| | Hierarquia | Macro categoria |
+| --- | --- | --- |
+| Natureza | proveniência/arranjo | assunto |
+| Origem | código (objetiva) | IA (interpretativa) |
+| Cardinalidade | **um** lugar na árvore | **vários** assuntos |
+
+Um documento vive em um lugar e tem vários assuntos. A UI precisa deixar isso óbvio — árvore
+como navegação primária, macro categoria como badge/filtro — senão o arquivista vai tentar
+usar hierarquia para "arrumar" assunto.
+
+### Riscos
+
+- A migração `level` texto→FK é **destrutiva se o de-para estiver errado** (3.608 registros
+  têm valor declarado que **não bate** com a profundidade do código em alguns casos: há
+  `Item Documental` em código de 8 tokens). Amostra manual antes.
+- `path` desnormalizado pode divergir: teste de invariante
+  (`path == parent.path + "." + id`) obrigatório no CI.
+- A árvore muda a busca inteira → re-medir `retrieval_quality.py` (a baseline Hit@10 0.625
+  deixa de ser comparável se o corpus mudar de forma).
 
 ---
 
@@ -665,6 +834,44 @@ Leituras que ficam registradas:
   rate limit. Qualquer cliente alcança rotas que aprovam documentos e fundem taxonomia.
 - [ ] **Trilha de auditoria por usuário.** `ArchiveCleaningRule.created_by` e o
   `PATCH /documents` não registram quem fez o quê.
+
+### UI nova, BFF e o repo — plano em `.analysis/roadmap-bff-curador.md`
+
+> **Decisão de arquitetura: monorepo, duas UIs, dois BFFs.**
+> Justificativa: as mudanças de backend e front são acopladas (o rótulo NLI muda o que a UI
+> mostra; a hierarquia muda o contrato inteiro); o contrato OpenAPI merece cliente gerado +
+> CI bloqueante; o `Procfile` e o CI já são um só.
+
+- [ ] **B1 — Separar a superfície pública.** `PublicDocumentSummary` com **allowlist
+  explícita** + controller público + teste que falha se alguém adicionar campo interno.
+  *Não depende da UI; pode começar já.*
+- [ ] **B2 — Definir o predicado de publicação** (produto, não código): `is_published` ou
+  `review_status = HUMAN_APPROVED`? Muda índice e query — e se for `HUMAN_APPROVED`, o site
+  público nasce **vazio** (o acervo tem 0 revisões humanas hoje).
+- [ ] **B3 — Rota de fila de curadoria** `GET /api/v1/curation/inbox`: contagem + amostra por
+  tipo (propostas de merge, conflitos, anomalias, tags órfãs, órfãos de hierarquia, docs não
+  revisados). É **view de leitura** — cada número já é uma query existente. Transforma "44
+  endpoints" em "um sistema que diz o que fazer".
+- [ ] **B4 — Scaffold `apps/curator/`**: React + Vite + TS, TanStack Query, cliente gerado do
+  OpenAPI, CI que quebra se o contrato mudar.
+- [ ] **B5 — Telas essenciais:** busca/facetas, detalhe+edição, taxonomia (merge com preview),
+  conflitos, qualidade.
+- [ ] **B6 — Telas da hierarquia** (Fase 2.5, H4/H5).
+- [ ] **B7 — Scaffold `apps/public/`** + regras de badge (Fase 1.5).
+- [ ] **B8 — Desligar o Streamlit** (`src/memoria_curitibana/dashboard/` e o `web` do Procfile).
+- [ ] **B9 — Auth + auditoria + CORS + rate limit** no BFF do curador. **Última etapa.**
+
+**Por que duas UIs e não uma com auth:** o `DocumentSummary` vaza metadado interno
+(`review_status`, `is_anomaly`, `anomaly_reasons`, `archivist_notes`, `provenance`). Num site
+público isso expõe o processo interno de curadoria. **Segurança por omissão de campo é
+frágil; por omissão de rota é auditável.** O BFF público reusa os mesmos serviços de domínio
+(zero duplicação de regra) e difere só na projeção de saída.
+
+> **Ponto importante:** o núcleo Python **não se move** — `apps/api` é a casca HTTP que já
+> existe. Isso mantém `pytest`, `alembic` e os workers intactos. **Não** mover
+> `src/memoria_curitibana/api/` junto com a chegada da UI: misturar reorganização cosmética
+> com feature nova multiplica o diff.
+
 - [ ] **CORS / headers de segurança / rate limit.**
 - [ ] **Migrar do Streamlit para back-end + React.** O Streamlit é declaradamente temporário;
   a API é o contrato estável. Manter as regras de badge (Fase 1.5) no novo front.
@@ -686,14 +893,35 @@ Leituras que ficam registradas:
 
 ---
 
+## 🔧 Pendências operacionais no acervo (não são código)
+
+Descobertas na auditoria de 2026-10-04 rodando a API contra o banco de dev real.
+
+- [ ] **Os carimbos v1→v2 nunca foram reprocessados no acervo.** O banco tem
+  `worker_ner_v1` e `worker_typology_classifier_v1` em **3.608** documentos, enquanto o código
+  filtra por `_v2`. O bump é **deliberado** (commit `a8ecebb`: *"so the collection is re-read
+  with the clean text"*), mas a releitura **não foi executada** — ou seja, NER e tipologia do
+  acervo ainda vêm do **texto sujo**, e o ganho medido (Hit@10 0.562 → 0.625) não está nos
+  dados. **Ação:** rodar `ner` e `typology` no acervo.
+- [ ] **Regra de limpeza de teste ativa em produção.** Existe uma `ArchiveCleaningRule`
+  chamada `aaaaa` (regex `\bpalavra\b`) carimbando os 3.608 documentos. Desativar.
+- [ ] **5.162 tags órfãs** de macro categoria (de 6.142) — a maioria porque o worker rodou
+  antes do conserto dos rótulos. Rerodar depois de resolver o defeito 2/2 (Fase 1.5).
+- [ ] **0 revisões humanas** e **0 propostas de merge decididas** (411 pendentes). O acervo
+  nunca passou por curadoria humana real — relevante para a decisão B2.
+- [ ] **`domain_text_templates` vazio** e **`domain_ner_exclusions` vazio**: as duas feats da
+  Fase 3.5 estão implementadas e sem uso no acervo real ainda.
+
+---
+
 ## ✅ Verificação executada (evidências)
 
 Tudo abaixo foi executado contra Postgres real + engines reais, não apenas inspecionado:
 
 | Verificação | Resultado |
 | --- | --- |
-| `pytest` (unit + integração) | **508 passed** |
-| `ruff check` / `ruff format --check` | limpos (192 arquivos) |
+| `pytest` (unit + integração) | **574 passed** |
+| `ruff check` / `ruff format --check` | limpos (224 arquivos) |
 | `basedpyright` | **0 errors, 0 warnings** |
 | `alembic upgrade head` + `alembic check` | aplica (inclui downgrade/upgrade); **sem drift** |
 | `raw_data` → `run_staging_pipeline` | 2/2 docs; datas e ISAD(G) corretos |
@@ -745,6 +973,26 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 | **Medição antes/depois (16 consultas, 3608 docs, MiniLM real)** | separação média entre pares 0.769 → 0.504; com o escopo de produção Hit@10 0.562 → **0.625**, Recall@10 0.292 → **0.333**, precisão@10 por termo 0.294 → **0.381**, MRR 0.358 → 0.339 |
 | ⚠️ **Aprovar tudo o que a máquina sugeriu PIORA o ranking** | conjunto completo (com os prefixos de título): Hit@10 **0.500** (pior que 0.562 sem trecho nenhum). O prefixo de título derruba o ranking (0.562 → 0.500) e é exatamente o que o `suggested_final_title` precisa → nasceu o `scope` do template |
 
+| **Bancada de rótulos (44 tags, gabarito aprovado)** | `same_format` com frase NLI: **0.000** nos 2 modelos, 2 redações, 65% numa gaveta, **0/4 controles positivos** |
+| **Hipótese do arranjo misto (confirmada)** | `sentence` só sai de 0.000 para 0.450 comparada **contra nomes nus** — e ainda perde do baseline (0.500) |
+| **Baseline medido (nome nu)** | mDeBERTa **0.500** · xlm-roberta-large-xnli **0.575**, com **4/4** controles positivos |
+| **Calibração da confiança (corrige o TODO)** | certas **0.705** · erradas **0.455** — a confiança separa; `1924` era uma data, não um erro de confiança |
+| **Vocabulário derivado do acervo** | 8 gavetas de assunto · `Saúde` e `Administração` **cortadas por zero evidência** · `igrejas` (2.467 docs) finalmente tem "Religião" |
+| **Guard determinístico** | pegou **1 de 4** não-assuntos do gabarito → o resto virou catálogo curado, não regra |
+| **`archive_tag_facets` + migrações novas (3)** | `upgrade head` → `check` → `downgrade -1` → `upgrade head` → `check`, **sem drift** em banco limpo |
+| **Migração que aposenta gavetas (V3)** | verificada em banco com o vocabulário antigo semeado: tags desanexadas, gavetas desativadas (não deletadas), downgrade restaura |
+| **Dry-run no acervo real (encerrado a pedido)** | 6.142 tags · 980 carimbos · fila de revisão **vazia** · banco **byte-idêntico** depois — confirmado que nada foi escrito |
+| | **Auditoria de 2026-10-04 (acervo real, 3.608 docs)** | |
+| `pytest` completo | **574 passed** |
+| Gate | `ruff` limpo (224 arquivos) · `basedpyright` **0 errors** · 9 migrações sem drift |
+| **API exercitada por HTTP (44 rotas)** | busca lexical 2.468 docs p/ "parque" com `rank`; semântica responde; facetas (`entity_type=ORG` → 1.873); 411 propostas de merge; preview de merge correto |
+| **`suggest-macro` corrigido (verificado)** | **56 clusters** em 6.142 tags — antes quebrava com 422 no preset padrão |
+| **`worker_macro_category` rodando** | 980 tags processadas, `ai_confidence_score` + carimbo gravados |
+| ⚠️ **Qualidade do `macro-category` (NÃO aprovada)** | 687 de 980 tags em "Mobilidade e Transporte"; `alvenaria` (826 docs), `casa` (387), `1924` (260), `residencial` (941) no balde errado — **causa isolada: o rótulo não é proposição NLI**, não o modelo |
+| ⚠️ **Carimbos v1→v2 não reprocessados** | acervo tem `worker_ner_v1`/`worker_typology_classifier_v1` em 3.608 docs; o código filtra `_v2`. O bump é deliberado, a releitura **não foi executada** |
+| ⚠️ **Regra de teste ativa no acervo** | `ArchiveCleaningRule` "aaaaa" (regex `\bpalavra\b`) carimbando 3.608 documentos |
+| **Forma do `reference_code` (hierarquia)** | 100% preenchido; vocabulário fechado (8 valores no 3º token); código **é** o caminho; 3.604 órfãos de pai; armadilha `FOTOGRAFIA`×`FOTOGRAFIAS` identificada |
+
 ### Bugs conhecidos e abertos
 
 1. ~~**Ancoragem "isto é TAG" não existe**~~ — **corrigido**: catálogo
@@ -767,6 +1015,17 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
    0.381 (16 consultas, proxy derivada do título). **Isso não é "pronto":** a busca híbrida
    (RRF) continua pendente e o MRR caiu 0.019. A medição é o que autoriza (ou não) afirmar
    melhoria — ver a tabela de evidências.
+7. ~~**A classificação de macro categoria está errada de forma sistemática**~~ — **fechado
+   em 2026-10-04, com diagnóstico corrigido.** O defeito existia, mas a causa não era o formato
+   do rótulo: era o **vocabulário** (faltava "Religião" para a maior tag do acervo, e
+   `Instituição`/`Localidade` disputavam o eixo de assunto). Medido numa bancada de 44 tags, a
+   frase NLI que o plano propunha dá **0.000**. O que ficou aberto é a acurácia de **0.575**
+   (nome nu), limite do zero-shot com sintagma nominal — dívida explícita, não bug.
+8. **Não existe hierarquia entre descrições** — o acervo é hierárquico e o sistema o trata
+   como plano. Plano: `.analysis/roadmap-hierarquia.md` (Fase 2.5).
+9. **O acervo está desatualizado em relação ao código** em dois pontos: os carimbos
+   `ner`/`typology` não foram reprocessados para `_v2`, e há uma regra de limpeza de teste
+   ativa. São operações, não código — ver "Pendências operacionais no acervo".
 
 > **Corrigido em 2026-10-03:** o rótulo `"Nome: descrição"` colapsava o mDeBERTa na
 > primeira categoria, em `worker_macro_category` **e** `worker_typology`. Classificação

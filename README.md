@@ -38,9 +38,19 @@ transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-
 Each worker stamps a versioned key in the document's `execution_log`, so re-running a
 worker only touches documents it has not already processed. The macro-category worker stamps
 the **tag** (`archive_tags.execution_log`) instead, because it classifies the subject axis
-rather than a document. The quality validator grades the record (missing date, suspicious
-title, scope that was only boilerplate) and sends it to human review, and the embedding runs
-last because every text mutation has to happen before it.
+rather than a document — and its stamp value is the **hash of the label set** it classified
+against, so rewriting a curator label re-queues the affected tags by itself. The quality
+validator grades the record (missing date, suspicious title, scope that was only boilerplate)
+and sends it to human review, and the embedding runs last because every text mutation has to
+happen before it.
+
+The subject axis reads a **vocabulary** (`domains/archive/domain/vocabulary.py`), not the raw
+tag list: eight drawers derived from the collection, plus two kinds of "this is not a subject"
+— a deterministic guard for what has a recognisable form (a bare year, a placeholder, a street)
+and the curated `domain_subject_exclusions` catalogue for the judgements no rule reaches.
+Below 0.55 confidence a tag is left without a drawer **and** queued for review rather than
+guessed at. A tag whose axis is provenance or geography (`ippuc`, `curitiba`) carries an
+`archive_tag_facets` row instead of competing for a subject drawer.
 
 ## Requirements
 
