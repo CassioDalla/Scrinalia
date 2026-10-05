@@ -376,5 +376,7 @@
       "needs_decision": true,
       "note": "FACETA PLACE, não assunto: logradouro. Confirma a decisão do dono de que nome de rua vai para lugar, não para NENHUMA."
     }
-  ]
+  ],
+  "status": "APPROVED BY THE PRODUCT OWNER (2026-10-04)",
+  "approved_note": "Os 13 palpites com needs_decision=true foram aprovados pelo dono do produto. O conjunto passa a ser gabarito humano aprovado, não proposta: é ele que autoriza afirmar acurácia, e o número medido (0.500 mDeBERTa / 0.575 xlm-roberta em nome nu) vale para estas 44 tags."
 }
