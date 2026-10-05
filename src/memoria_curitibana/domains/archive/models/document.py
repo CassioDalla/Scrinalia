@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     ARRAY,
@@ -25,6 +25,7 @@ from .enums import ArchiveReviewStatus
 
 if TYPE_CHECKING:
     from .entity import ArchiveEntity
+    from .hierarchy import ArchiveDescriptionLevel
     from .taxonomy import ArchiveTag, ArchiveTypology
 
 
@@ -51,6 +52,20 @@ DOCUMENT_SEARCH_VECTOR_SQL = (
 )
 
 
+def _default_document_path(context: Any) -> str:
+    """
+    Materialised path of a node that arrives without one.
+
+    A root's path is its own id, so an insert that declares no parent is a root by definition.
+    The value is a *default*, not a rule: the transfer and the ``move`` use case pass the path
+    explicitly as soon as there is a parent to hang from. Having it here is what keeps every
+    existing ``ArchiveDocument(...)`` construction truthful instead of forcing each caller to
+    know the base case of the invariant.
+    """
+    parameters = context.get_current_parameters()
+    return parameters.get("path") or parameters["description_id"]
+
+
 class ArchiveDocument(Base):
     """
     The final, cleaned and enriched document.
@@ -73,7 +88,9 @@ class ArchiveDocument(Base):
 
     # --- Archival Metadata (ISAD-G) ---
     reference_code: Mapped[str | None] = mapped_column(Text, nullable=True)
-    level: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # ``level`` is no longer a text column: it is the name of the catalogue rung, read through
+    # ``level_ref`` (see the property below). The free text of 3,608 descriptions was migrated
+    # into ``level_id`` by ``b2c3d4e5f6a7`` and the column dropped by ``c3d4e5f6a7b8``.
     producers: Mapped[str | None] = mapped_column(Text, nullable=True)
     admin_bio_history: Mapped[str | None] = mapped_column(Text, nullable=True)
     admin_archival_history: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -81,6 +98,32 @@ class ArchiveDocument(Base):
     scope_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     language_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     archivist_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # --- Hierarchy of the arrangement (Fase 2.5) ---
+    # Self-reference because a fund is an archival description like any other: it has a title,
+    # dates and scope, and giving it its own table would duplicate the whole ISAD(G) schema.
+    #
+    # ``RESTRICT`` and not ``SET NULL``: every descendant's materialised ``path`` carries its
+    # ancestors' ids, so a silent ``SET NULL`` would leave a whole subtree pointing at a prefix
+    # that no longer exists. A node with children is not deletable in passing.
+    parent_id: Mapped[str | None] = mapped_column(
+        String(50),
+        ForeignKey("archive_documents.description_id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
+    level_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("archive_description_levels.level_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # Materialised path of ids ("2368.2732.51931"), maintained by the service, never by the AI.
+    # It answers "every descendant of X" with one indexed ``LIKE 'x.%'``, which is the query
+    # the tree navigation makes constantly; a ``WITH RECURSIVE`` per node would not hold a
+    # 100k-description collection. The index is declared ``text_pattern_ops`` in the table args
+    # below because the database collation is not C and a plain btree does not serve ``LIKE``.
+    path: Mapped[str] = mapped_column(Text, nullable=False, default=_default_document_path)
 
     # --- NLP/AI Enrichment ---
     final_title: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -128,10 +171,28 @@ class ArchiveDocument(Base):
     tags: Mapped[list["ArchiveTag"]] = relationship(secondary="archive_document_tags", back_populates="descriptions")
     typology: Mapped["ArchiveTypology"] = relationship(back_populates="documents")
 
+    # ``remote_side`` marks the "one" end of the self-referential join; without it SQLAlchemy
+    # cannot tell which column points at which on the same table.
+    parent: Mapped["ArchiveDocument | None"] = relationship(remote_side=[description_id], back_populates="children")
+    children: Mapped[list["ArchiveDocument"]] = relationship(back_populates="parent")
+    level_ref: Mapped["ArchiveDescriptionLevel | None"] = relationship(back_populates="descriptions")
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+    @property
+    def level(self) -> str | None:
+        """
+        Name of the description level, kept as the read contract after the text column left.
+
+        The archive used to store ``level`` as free text and the API has always exposed it that
+        way. Reading it through the catalogue keeps every existing consumer working while the
+        single source of truth becomes the foreign key — and it is derived, so it can never
+        drift from the rung the curator actually chose.
+        """
+        return self.level_ref.name if self.level_ref else None
 
     __table_args__ = (
         # The GIN index is vital for the AI Workers' polling performance
@@ -146,6 +207,9 @@ class ArchiveDocument(Base):
             postgresql_using="hnsw",
             postgresql_ops={"embedding": "vector_cosine_ops"},
         ),
+        # Subtree navigation (``path LIKE 'x.%'``). ``text_pattern_ops`` is required for the
+        # index to be usable by ``LIKE`` under a non-C collation, which is the database's case.
+        Index("ix_archive_documents_path", "path", postgresql_ops={"path": "text_pattern_ops"}),
     )
 
 

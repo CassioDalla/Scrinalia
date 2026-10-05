@@ -191,7 +191,7 @@ def test_patch_accepts_any_isad_g_field_and_the_author(client: TestClient, mocke
         json={
             "document_date": "1954-03-15",
             "reference_code": "BR PR IPPUC",
-            "level": "Item",
+            "level_id": 5,
             "provenance": "IPPUC",
             "changed_by": "ana",
             "review_note": "Data conferida no original",
@@ -202,6 +202,7 @@ def test_patch_accepts_any_isad_g_field_and_the_author(client: TestClient, mocke
     command = mock_update.call_args.args[0]
     assert command.document_date == date(1954, 3, 15)
     assert command.reference_code == "BR PR IPPUC"
+    assert command.level_id == 5
     assert command.changed_by == "ana"
     assert command.review_note == "Data conferida no original"
     # Fields the client did not send stay unset, so the audit trail ignores them.

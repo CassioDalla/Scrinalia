@@ -10,6 +10,7 @@ from memoria_curitibana.domains.archive.schemas.document_schema import (
     DocumentSummary,
 )
 from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
+from memoria_curitibana.domains.archive.services.level_catalog_service import LevelCatalogService
 
 
 class DocumentService:
@@ -28,10 +29,12 @@ class DocumentService:
         self,
         repo: DocumentRepositoryPort,
         embedder: Callable[[], EmbeddingEngine] | None = None,
+        levels: LevelCatalogService | None = None,
     ) -> None:
         self.repo = repo
         self._embedder = embedder
         self._engine: EmbeddingEngine | None = None
+        self._levels = levels
 
     def _get_engine(self) -> EmbeddingEngine:
         """Builds (once per service) the embedding engine, on first semantic search."""
@@ -61,6 +64,17 @@ class DocumentService:
         return self.repo.list_revisions(description_id)
 
     def update_review(self, command: DocumentReviewCommand) -> DocumentSummary:
+        """
+        Applies the archivist's edit, refusing a level the catalogue does not know.
+
+        The asymmetry with the staging load is deliberate: a payload with an unknown level is
+        recorded as unclassified and the transfer carries on, but an archivist choosing a rung is
+        making a claim the catalogue has to be able to answer. Silently storing ``NULL`` would turn
+        a wrong id into missing data.
+        """
+        if command.level_id is not None and self._levels is not None:
+            self._levels.get_level(command.level_id)
+
         doc = self.repo.update_review(command)
         if doc is None:
             raise DocumentNotFoundError(f"Documento '{command.description_id}' não encontrado no acervo.")

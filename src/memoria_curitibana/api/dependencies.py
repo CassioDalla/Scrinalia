@@ -11,11 +11,16 @@ from memoria_curitibana.domains.archive.engines.base import EmbeddingEngine
 from memoria_curitibana.domains.archive.repository.cleaning_repo import CleaningRepository
 from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
 from memoria_curitibana.domains.archive.repository.entity_repo import EntityRepository
+from memoria_curitibana.domains.archive.repository.hierarchy_repo import HierarchyRepository
+from memoria_curitibana.domains.archive.repository.level_catalog_repo import LevelCatalogRepository
 from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
 from memoria_curitibana.domains.archive.repository.text_quality_repo import TextQualityRepository
 from memoria_curitibana.domains.archive.services.cleaning_service import CleaningService
 from memoria_curitibana.domains.archive.services.document_service import DocumentService
 from memoria_curitibana.domains.archive.services.entity_service import EntityService
+from memoria_curitibana.domains.archive.services.hierarchy_proposal_service import HierarchyProposalService
+from memoria_curitibana.domains.archive.services.hierarchy_service import HierarchyService
+from memoria_curitibana.domains.archive.services.level_catalog_service import LevelCatalogService
 from memoria_curitibana.domains.archive.services.tag_service import TagService
 from memoria_curitibana.domains.archive.services.text_quality_service import TextQualityService
 
@@ -78,4 +83,28 @@ def provide_text_quality_service(unit_of_work: NamedDependency[UnitOfWork]) -> T
 
 def provide_document_service(unit_of_work: NamedDependency[UnitOfWork]) -> DocumentService:
     """Builds the collection reading/curation service with the request transaction."""
-    return DocumentService(DocumentRepository(unit_of_work.db), embedder=provide_embedding_engine)
+    db = unit_of_work.db
+    return DocumentService(
+        DocumentRepository(db),
+        embedder=provide_embedding_engine,
+        # The human review resolves ``level_id`` through the catalogue, so a wrong rung is a named
+        # business error instead of an integrity error surfacing as a conflict.
+        levels=LevelCatalogService(LevelCatalogRepository(db)),
+    )
+
+
+def provide_level_catalog_service(unit_of_work: NamedDependency[UnitOfWork]) -> LevelCatalogService:
+    """Builds the level catalogue service over the request transaction."""
+    return LevelCatalogService(LevelCatalogRepository(unit_of_work.db))
+
+
+def provide_hierarchy_service(unit_of_work: NamedDependency[UnitOfWork]) -> HierarchyService:
+    """Builds the tree service with both repositories bound to the request transaction."""
+    db = unit_of_work.db
+    return HierarchyService(HierarchyRepository(db), LevelCatalogRepository(db))
+
+
+def provide_hierarchy_proposal_service(unit_of_work: NamedDependency[UnitOfWork]) -> HierarchyProposalService:
+    """Builds the read-only proposal service; it shares the transaction and never writes."""
+    db = unit_of_work.db
+    return HierarchyProposalService(HierarchyRepository(db), LevelCatalogRepository(db))

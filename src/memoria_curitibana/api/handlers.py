@@ -9,9 +9,14 @@ from sqlalchemy.exc import IntegrityError
 
 from memoria_curitibana.domains.archive.exceptions import (
     CleaningRuleNotFoundError,
+    DescriptionLevelNotFoundError,
     DocumentNotFoundError,
     DomainException,
+    DuplicateDescriptionLevelError,
     EngineExecutionError,
+    HierarchyNodeNotFoundError,
+    InvalidDescriptionLevelError,
+    InvalidHierarchyMoveError,
     InvalidMergeError,
     InvalidParam,
     MacroCategoryNotFoundError,
@@ -41,17 +46,19 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             CleaningRuleNotFoundError,
             MacroCategoryNotFoundError,
             TextTemplateNotFoundError,
+            DescriptionLevelNotFoundError,
+            HierarchyNodeNotFoundError,
         ),
     ):
         status_code = HTTP_404_NOT_FOUND
 
-    elif isinstance(exc, MergeAlreadyUndoneError):
+    elif isinstance(exc, (MergeAlreadyUndoneError, DuplicateDescriptionLevelError)):
         status_code = HTTP_409_CONFLICT
 
     elif isinstance(exc, (InvalidParam, InvalidMergeError)):
         status_code = HTTP_400_BAD_REQUEST
 
-    elif isinstance(exc, EngineExecutionError):
+    elif isinstance(exc, (EngineExecutionError, InvalidDescriptionLevelError, InvalidHierarchyMoveError)):
         status_code = HTTP_422_UNPROCESSABLE_ENTITY
 
     # Standardized response structure for the Front-end

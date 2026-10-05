@@ -20,6 +20,20 @@ from .document_schema import (
     DocumentTagSummary,
 )
 from .entity_schema import ArchiveEntityDTO, EntityIdentity, NerExclusion, NerExclusionSource, NerSynonymRule
+from .hierarchy_schema import (
+    CreateDescriptionLevelCommand,
+    CreateHierarchyNodeCommand,
+    DescriptionLevelDTO,
+    HierarchyDiagnostic,
+    HierarchyDiagnosticListResponse,
+    HierarchyNodeSummary,
+    HierarchyProposalCommand,
+    HierarchyProposalNode,
+    HierarchyProposalResponse,
+    HierarchyTreeResponse,
+    MoveNodeCommand,
+    UpdateDescriptionLevelCommand,
+)
 from .query_schema import DocumentSearchQuery
 from .tag_schema import (
     ArchiveMacroCategoryEntityDTO,
@@ -70,7 +84,10 @@ __all__ = [
     "ArchiveMacroCategoryEntityDTO",
     "ArchiveTagDTO",
     "BatchMergeResponse",
+    "CreateDescriptionLevelCommand",
+    "CreateHierarchyNodeCommand",
     "CreateMacroCategoryCommand",
+    "DescriptionLevelDTO",
     "DocumentEntitySummary",
     "DocumentListResponse",
     "DocumentMacroCategorySummary",
@@ -82,6 +99,13 @@ __all__ = [
     "EntityIdentity",
     "EntityLinkCommand",
     "EntityTagDecisionSchema",
+    "HierarchyDiagnostic",
+    "HierarchyDiagnosticListResponse",
+    "HierarchyNodeSummary",
+    "HierarchyProposalCommand",
+    "HierarchyProposalNode",
+    "HierarchyProposalResponse",
+    "HierarchyTreeResponse",
     "MacroCategoriesSuggestionResponse",
     "MacroCategorySuggested",
     "MergeBatchApplied",
@@ -97,6 +121,7 @@ __all__ = [
     "MergeResponse",
     "MergeSuggestionRunResponse",
     "MergeTagsCommand",
+    "MoveNodeCommand",
     "NerExclusion",
     "NerExclusionSource",
     "NerSynonymRule",
@@ -126,5 +151,6 @@ __all__ = [
     "TextTemplateApplicationConfig",
     "TextTemplateDTO",
     "TitleQualityDecision",
+    "UpdateDescriptionLevelCommand",
     "UpdateMacroCategoryCommand",
 ]

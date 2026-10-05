@@ -11,6 +11,7 @@ from .governance import (
     DomainSynonyms,
     DomainTextTemplate,
 )
+from .hierarchy import ArchiveDescriptionLevel
 from .taxonomy import (
     ArchiveMacroCategory,
     ArchiveTag,
@@ -25,6 +26,7 @@ __all__ = [
     "AnomalyType",
     "ArchiveAIReviewQueue",
     "ArchiveCleaningRule",
+    "ArchiveDescriptionLevel",
     "ArchiveDocument",
     "ArchiveDocumentEntity",
     "ArchiveDocumentRevision",

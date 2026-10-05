@@ -64,7 +64,9 @@ class DocumentReviewCommand(BaseModel):
 
     # ISAD(G)
     reference_code: str | None = None
-    level: str | None = None
+    #: The level is a foreign key now: the text of 3,608 descriptions was migrated into the
+    #: catalogue and the free-text column was dropped. The client sends the rung it chose.
+    level_id: int | None = None
     producers: str | None = None
     admin_bio_history: str | None = None
     admin_archival_history: str | None = None

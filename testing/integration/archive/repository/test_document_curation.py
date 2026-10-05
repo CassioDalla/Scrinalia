@@ -25,15 +25,16 @@ def _title_template(db_session, text: str = "Registros Fotográficos -") -> None
 # ==========================================
 
 
-def test_update_review_can_fix_any_isad_g_field(db_session, generate_archive_doc) -> None:
+def test_update_review_can_fix_any_isad_g_field(db_session, generate_archive_doc, generate_description_level) -> None:
     generate_archive_doc(description_id="edit-1", original_title="Título antigo")
+    level = generate_description_level(ordinal=5, code="item", name="Item Documental")
 
     summary = DocumentRepository(db_session).update_review(
         DocumentReviewCommand(
             description_id="edit-1",
             document_date=date(1954, 3, 15),
             reference_code="BR PR IPPUC",
-            level="Item",
+            level_id=level.level_id,
             producers="IPPUC",
             provenance="IPPUC",
             language_name="pt-BR",

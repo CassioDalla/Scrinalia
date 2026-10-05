@@ -11,8 +11,25 @@ from memoria_curitibana.domains.archive.workers import worker_archive_transfer
 # ==========================================
 
 
+def _patch_level_catalog(mocker: MockerFixture, index: dict[str, int] | None = None):
+    """
+    Shields the level catalogue, exactly as ``mock_registry`` shields the AI engines.
+
+    The transfer resolves the declared level through the catalogue, and these tests mock the
+    session, so the catalogue has to be patched too: without it the repository would read from a
+    ``Mock``. An empty index is a catalogue that knows nothing, which is the honest default here —
+    the spelling itself is covered by the unit tests of ``domain.level_catalog``.
+    """
+    repo_class = mocker.patch(
+        "memoria_curitibana.domains.archive.workers.worker_archive_transfer.LevelCatalogRepository"
+    )
+    repo_class.return_value.level_index.return_value = index or {}
+    return repo_class
+
+
 def test_run_archive_transfer_full_flow(mocker: MockerFixture, mock_staging_doc) -> None:
     """Tests the happy path: New doc, tag extraction and bulk linking."""
+    _patch_level_catalog(mocker, {"dossie": 5})
     mock_db = mocker.Mock(spec=Session)
 
     # Intercepts the global database connections (get_db)
@@ -59,6 +76,9 @@ def test_run_archive_transfer_full_flow(mocker: MockerFixture, mock_staging_doc)
     # The CDC key is the hash of the parsed record, not of the raw payload.
     assert sent_dto.staging_content_hash == StagingRecord.model_validate(staging_doc).parsed_content_hash()
     assert sent_dto.execution_log == {}
+    # The declared text was resolved against the catalogue on the way in, not stored as text.
+    assert sent_dto.level_id == 5
+    assert sent_dto.path == "doc-100"
 
     # 5. VALIDATIONS: Business Rule Calls (TagService)
     mock_tag_service.extract_and_clean_tags.assert_called_once()
@@ -78,6 +98,7 @@ def test_run_archive_transfer_consumes_ports_without_staging_orm(mocker: MockerF
     """The transfer use case must read staging through the port, not the staging ORM."""
     from memoria_curitibana.domains.archive.ports.staging_source import StagingRecord
 
+    _patch_level_catalog(mocker, {"dossie": 5})
     mock_db = mocker.Mock(spec=Session)
     mock_db.begin_nested.return_value = mocker.MagicMock()
 
@@ -116,6 +137,7 @@ def test_run_archive_transfer_consumes_ports_without_staging_orm(mocker: MockerF
 
 def test_run_archive_transfer_idempotency(mocker: MockerFixture, mock_staging_doc) -> None:
     """Tests Incremental Loading: If the Hash is equal, the Upsert returns False and the pipeline skips processing."""
+    _patch_level_catalog(mocker, {"dossie": 5})
     mock_db = mocker.Mock(spec=Session)
 
     mock_get_db = mocker.patch.object(worker_archive_transfer, "get_db")
@@ -162,6 +184,7 @@ def test_run_archive_transfer_idempotency(mocker: MockerFixture, mock_staging_do
 
 def test_run_archive_transfer_batch_resilience(mocker: MockerFixture, mock_staging_doc) -> None:
     """Guarantees that if a document explodes (Exception), the Worker records the failure and keeps processing the others."""
+    _patch_level_catalog(mocker, {"dossie": 5})
     mock_db = mocker.Mock(spec=Session)
 
     mock_get_db = mocker.patch.object(worker_archive_transfer, "get_db")

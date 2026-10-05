@@ -12,7 +12,8 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from memoria_curitibana.core.base import Base
-from memoria_curitibana.domains.archive.models import ArchiveDocument, ArchiveTypology
+from memoria_curitibana.domains.archive.domain.level_catalog import NOBRADE_LEVELS
+from memoria_curitibana.domains.archive.models import ArchiveDescriptionLevel, ArchiveDocument, ArchiveTypology
 from memoria_curitibana.domains.archive.schemas import ArchiveEntityDTO
 from memoria_curitibana.domains.archive.schemas.document_schema import ArchiveDocumentDTO
 from memoria_curitibana.domains.ingestion import models as ingest_model
@@ -153,6 +154,25 @@ def use_test_db(db_session):
         yield
 
 
+@pytest.fixture()
+def api_uses_test_db(db_session):
+    """
+    Points the HTTP layer at the test session, so a route can be exercised end to end.
+
+    ``provide_unit_of_work`` builds its own session through ``core.database.create_session``, so
+    without this patch a request would run on a different connection: it could neither see the rows
+    a test just flushed nor be asserted on afterwards. ``use_test_db`` is not enough here because it
+    patches ``get_db``, which the API composition root does not use.
+    """
+
+    @contextmanager
+    def _session():
+        yield db_session
+
+    with patch("memoria_curitibana.api.dependencies.create_session", _session):
+        yield
+
+
 @pytest.fixture
 def generate_archive_doc(db_session):
     """
@@ -195,6 +215,9 @@ def generate_archive_dto():
         }
 
         default_data.update(kwargs)
+        # ``path`` is required by the DTO because the column is NOT NULL. A DTO built without a
+        # parent describes a root, whose path is its own id — the base case of the tree invariant.
+        default_data.setdefault("path", default_data["description_id"])
         return ArchiveDocumentDTO(**default_data)
 
     return _create
@@ -245,6 +268,61 @@ def generate_typology(db_session):
         return typology
 
     return _create
+
+
+@pytest.fixture
+def generate_description_level(db_session):
+    """
+    Factory for the description level catalogue.
+
+    The NOBRADE seed lives in a migration, and the test database is built from the models, so
+    the ladder starts **empty** here. Tests that need a rung create it explicitly, which also
+    keeps them honest about which level they are asserting on.
+    """
+
+    def _create(ordinal: int = 5, code: str = "item", name: str = "Item Documental", **kwargs):
+        defaults: dict[str, Any] = {
+            "requires_parent": True,
+            "allows_children": False,
+            "is_active": True,
+            "aliases": [],
+        }
+        defaults.update(kwargs)
+        level = ArchiveDescriptionLevel(ordinal=ordinal, code=code, name=name, **defaults)
+        db_session.add(level)
+        db_session.flush()
+        return level
+
+    return _create
+
+
+@pytest.fixture
+def seed_nobrade_levels(db_session):
+    """
+    Sows the six rungs the migration seeds, from the application constant.
+
+    Used by the tests that exercise the *matching* of the declared text (the transfer, the human
+    review): they need the same vocabulary production has, without duplicating it in the test.
+    """
+
+    def _seed():
+        levels = []
+        for ordinal, code, name, description, aliases, requires_parent, allows_children in NOBRADE_LEVELS:
+            level = ArchiveDescriptionLevel(
+                ordinal=ordinal,
+                code=code,
+                name=name,
+                description=description,
+                aliases=list(aliases),
+                requires_parent=requires_parent,
+                allows_children=allows_children,
+            )
+            db_session.add(level)
+            levels.append(level)
+        db_session.flush()
+        return levels
+
+    return _seed
 
 
 @pytest.fixture

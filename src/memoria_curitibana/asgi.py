@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 
 from memoria_curitibana.api.controllers.cleaning_controller import CleaningController
 from memoria_curitibana.api.controllers.document_controller import DocumentController
+from memoria_curitibana.api.controllers.hierarchy_controller import HierarchyController
 from memoria_curitibana.api.controllers.taxonomy_controller import TaxonomyController
 from memoria_curitibana.api.controllers.text_quality_controller import TextQualityController
 from memoria_curitibana.api.dependencies import provide_unit_of_work
@@ -36,7 +37,13 @@ def _logging_config() -> LoggingConfig:
 def create_app() -> Litestar:
     """Builds the ASGI application. Tests and tooling should use this factory."""
     return Litestar(
-        route_handlers=[TaxonomyController, CleaningController, DocumentController, TextQualityController],
+        route_handlers=[
+            TaxonomyController,
+            CleaningController,
+            DocumentController,
+            HierarchyController,
+            TextQualityController,
+        ],
         dependencies={"unit_of_work": Provide(provide_unit_of_work)},
         exception_handlers={
             DomainException: domain_exception_handler,

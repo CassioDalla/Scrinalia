@@ -79,3 +79,42 @@ class EngineExecutionError(DomainException):
     """Raised when an error occurs in the AI engines."""
 
     pass
+
+
+class DescriptionLevelNotFoundError(DomainException):
+    """Raised when a level of the description catalogue does not exist."""
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
+class DuplicateDescriptionLevelError(DomainException):
+    """Raised when the ordinal, the code or the name of a level is already taken."""
+
+    # Ideal translation in Litestar: HTTP 409 (Conflict)
+    pass
+
+
+class InvalidDescriptionLevelError(DomainException):
+    """Raised when a declared level spelling is not in the catalogue.
+
+    Only the *human* path raises: the staging load deliberately records the unknown value as
+    unclassified and carries on, because a source typo must not stop a transfer.
+    """
+
+    # Ideal translation in Litestar: HTTP 422 (Unprocessable Entity)
+    pass
+
+
+class HierarchyNodeNotFoundError(DomainException):
+    """Raised when a description referenced by the tree does not exist."""
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
+class InvalidHierarchyMoveError(DomainException):
+    """Raised when a parent/level assignment breaks a rule of the arrangement."""
+
+    # Ideal translation in Litestar: HTTP 422 (Unprocessable Entity)
+    pass
