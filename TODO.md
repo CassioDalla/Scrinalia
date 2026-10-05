@@ -8,9 +8,9 @@ arquivístico (DDD + micro-workers + HITL).
 > pendente. Quando um item está parcialmente pronto, ele aparece como `[~]` com a descrição
 > explícita do que existe e do que falta.
 >
-> **Estado do gate de qualidade:** suíte **572 testes** passando (unit + integração),
+> **Estado do gate de qualidade:** suíte **771 testes** passando (unit + integração),
 > `ruff check`/`ruff format --check` limpos, `basedpyright` 0 erros,
-> `alembic upgrade head` + `alembic check` sem drift.
+> `alembic upgrade head` + `alembic check` sem drift (18 migrações).
 
 ---
 
@@ -21,7 +21,7 @@ arquivístico (DDD + micro-workers + HITL).
 | 1 | Fundação, pipeline de IA e governança de base | **Praticamente fechada** |
 | 1.5 | Macro Categorias (eixo de Assuntos) | **Fechada na medição** — vocabulário refeito, defeito 2/2 fechado; acurácia ~0.575, dívida explícita |
 | 2 | API + Curadoria humana (HITL) | **Fechada no essencial**, faltam ações locais |
-| **2.5** | **Hierarquia das descrições** | **Não iniciada — FEAT GRANDE**, plano pronto |
+| **2.5** | **Hierarquia das descrições** | **H1–H3 fechadas e medidas** no acervo real; H4–H8 abertas |
 | 3 | Descoberta, escala e observabilidade | **Parcial** — busca lexical fechada; semântica funciona mas com qualidade fraca |
 | 3.5 | Qualidade do dado de entrada | **A–D fechadas** (sem UI, por decisão); resta medir o efeito no ranking |
 | 4 | Interoperabilidade, **UI nova** e publicação | Não iniciada — plano do BFF pronto |
@@ -374,80 +374,116 @@ O eixo semântico de assuntos está modelado e pela metade implementado. Hoje a 
 
 ---
 
-## 🏛️ Fase 2.5 — Hierarquia das descrições arquivísticas — **FEAT GRANDE**
+## 🏛️ Fase 2.5 — Hierarquia das descrições arquivísticas
 
-> Plano completo: `.analysis/roadmap-hierarquia.md`. Descobertas abaixo vêm da análise dos
-> **3.608 documentos reais** do acervo, não de suposição.
+> **H1, H2 e H3 ENTREGUES e verificados no acervo real (2026-10-04).** Plano de referência em
+> `.analysis/roadmap-hierarquia.md`. A UI (H4/H5) e o restante (H6–H8) seguem **não iniciados por
+> decisão de sequenciamento**: a tela nasce no front novo (Fase 4 / B6), e a H3 provou que ela é
+> curadoria de **~52 nós**, não de 3.608 decisões.
 
-O sistema trata cada descrição como uma linha plana. O acervo **é** hierárquico, e a evidência
-está no `reference_code` — preenchido em **100%** dos documentos.
+O sistema tratava cada descrição como uma linha plana. O acervo **é** hierárquico, e a evidência
+está no `reference_code` — preenchido em **100%** dos 3.608 documentos.
 
-### O que os dados mostram
+### ⚠️ O que a medição corrigiu no plano
 
-```
-BR  PRADAP  IPPUC  FOTOGRAFIA  00680           → Item Documental
-BR  PRADAP  SMU    ED  AL  CONSTR  2154  1903  → Dossiê/Processo
-BR  PRADAP  SGM    OUVIDORIA                   → Seção  (registro próprio, desc_id=2731)
-BR  PRADAP  IPPUC  FOTOGRAFIAS                 → Série  (registro próprio, desc_id=2368)
-```
-
-- **O vocabulário é fechado e minúsculo:** o 3º token tem 8 valores (`IPPUC` 2.392, `SMU`
-  1.124, `SMMA` 75, `SEPLAD` 8, `CMC` 4, `FAS` 2, `SGM` 2, `SMCS` 1); o 4º tem ~10
-  (`FOTOGRAFIA` 2.466, `ED` 1.124…). **Isto não é problema de NLP — é cadastro.**
-- **O código é o caminho, não o nome do nó.** Os registros de 4 tokens são as Seções/Séries
-  reais. O `reference_code` de um item já contém o caminho até a raiz.
-- **A fatição por espaço é ~90% correta, com 1 armadilha:** `FOTOGRAFIA` (singular, 2.391
-  itens) × `FOTOGRAFIAS` (plural, a Série) — dois nós distintos que um merge por trigrama
-  uniria. Vale teste explícito; **não** rodar `suggest` de merge sobre nós hierárquicos.
-- **3.604 dos 3.608 estão órfãos** de pai em alguma profundidade: a árvore precisa ser
-  **materializada**, não apenas ligada.
-
-### Modelo de dados
-
-- [ ] **H1 — Catálogo de níveis.** `ArchiveDescriptionLevel` com `ordinal` (0–5), `name`,
-  `code`, `is_required`, `allows_children`, `is_active`. Seed NOBRADE: Acervo(0) → Fundo(1) →
-  Seção(2) → Série(3) → Dossiê(4, obrigatório) → Item(5). Migrar o `level` texto para FK
-  **em duas etapas** (nullable → popular → conferir → obrigatório), nunca num passo só.
-- [ ] **H2 — Árvore.** `parent_id` (auto-referência: **um fundo é uma descrição como
-  qualquer outra**), `path` materializado (`"2368.2732.51931"` para "descendentes de X" com um
-  `LIKE`), `level_id`. Regras: `allows_children`, `is_required`, guarda de ciclo,
-  profundidade crescente. `ltree` foi considerado e descartado (extensão extra sem ganho).
-- [ ] **H3 — Proposta automática (ponto de decisão).** Script que fatia códigos, monta a
-  árvore proposta, marca nós `A CRIAR` e detecta órfãos/conflitos. **Só lê e propõe.** O
-  relatório decide o desenho da UI — fazer **antes** de qualquer tela.
-- [ ] **H4 — Tela A: proposta de árvore.** É o que resolve a bagunça: ~20 entradas de
-  vocabulário + confirmação da árvore, **não 3.608 decisões**.
-- [ ] **H5 — Telas B e C.** Edição individual (unidade superior com type-ahead, nível por
-  select) e diagnóstico com ações (órfão, nível incoerente, dossiê sem pai, ciclo).
-- [ ] **H6 — Contrato de ingestão.** `parent_reference_code` + `hierarchy_path` no
-  `StagingDocumentDTO`, e as variantes PT no `keys_map`. Pai ausente → nó órfão **marcado**,
-  a carga **não falha** (a origem pode entregar o filho antes do pai).
-- [ ] **H7 — Busca e facetas hierárquicas** ("buscar dentro deste fundo/série").
-- [ ] **H8 — `DocumentSummary`** com `parent_id`, `level`, `ancestors[]`, `children_count`.
-
-### ⚠️ Conflito conceitual a resolver antes da UI
-
-**Hierarquia ≠ macro categoria**, mas as duas viram "um jeito de agrupar" na tela:
-
-| | Hierarquia | Macro categoria |
+| O plano dizia | Medido (2026-10-04, 3.608 documentos) | Consequência |
 | --- | --- | --- |
-| Natureza | proveniência/arranjo | assunto |
-| Origem | código (objetiva) | IA (interpretativa) |
-| Cardinalidade | **um** lugar na árvore | **vários** assuntos |
+| "3.604 órfãos; 4 têm registro-pai" | **0 documentos têm ancestral existente por prefixo exato**; os 6 registros estruturais têm **0 filhos** por prefixo. São **3.608 órfãos**. | Não muda o desenho; corrige a expectativa. O plano confundiu "existem 4 registros de 4 tokens" com "4 têm pai". |
+| "a fatição por espaço é ~90% correta" | **Falsa para a família SMU (1.124 docs, 31% do acervo).** Fatiar todo prefixo cria **1.123 pais de 1 documento**: o código intercala vocabulário de arranjo e identificadores da folha. | É a descoberta que decidiu o desenho — o fatiador passou a ser **ciente de vocabulário**. |
+| (implícito) árvore de milhares de nós | Descartados os identificadores: **20 rungs estruturais → 52 nós propostos**, 8 já existentes. | A Tela A é curadoria de **~52 nós**, não de 3.608. |
+| "profundidade do código ≠ ordinal" como regra fixa | A profundidade **não** determina o nível: 5 tokens têm 2.466 Itens, **1 Série e 1 Seção**. | A norma passou a ser **aprendida da coleção** (maioria estrita por profundidade), não fixada no código. |
 
-Um documento vive em um lugar e tem vários assuntos. A UI precisa deixar isso óbvio — árvore
-como navegação primária, macro categoria como badge/filtro — senão o arquivista vai tentar
-usar hierarquia para "arrumar" assunto.
+### H1 — Catálogo de níveis — ✅ FECHADA
 
-### Riscos
+- [x] **`ArchiveDescriptionLevel`** (`archive_description_levels`, migração `a1f2c3d4e5b6`):
+  `ordinal`, `code`, `name`, `description`, `aliases`, `requires_parent`, `allows_children`,
+  `is_active`. Sem `DELETE`: desativar basta, porque a FK é `SET NULL`.
+- [x] **`name` é a grafia que a ORIGEM declara** (`"Item Documental"`, `"Dossiê/Processo"`), não a
+  redação da norma: semear `"Item documental"` teria derrubado os 2.478 itens por caixa. A norma
+  vive em `description`; `aliases` guarda as variantes aceitas no casamento.
+- [x] **`requires_parent`** é o `is_required` do plano com a ambiguidade removida ("não pode ser
+  raiz"), e o teto de ordinal **não** virou CHECK: o catálogo é do arquivista, não do código.
+- [x] **Migração em duas etapas** — `b2c3d4e5f6a7` adiciona a FK e popula, `c3d4e5f6a7b8` dropa o
+  texto — com guarda: a segunda revisão **recusa rodar** se sobrar uma única declaração não mapeada.
+- [x] **Backfill medido no acervo real: 3.608/3.608 mapeados, 0 não classificados** — `Item
+  Documental` 2.478 · `Dossiê/Processo` 1.124 · `Série` 3 · `Seção` 3, exatamente o declarado. O
+  `downgrade` repovoa o texto a partir da FK (ida-e-volta sem perda, verificada).
+- [x] **Assimetria documentada:** a carga resolve nível desconhecido → `NULL` + `UNKNOWN_LEVEL` e
+  **não falha** a transferência; o `PATCH` humano recusa com **422**. Typo da origem não derruba
+  carga; escolha do arquivista o catálogo tem de responder.
+- [x] **Rotas:** `GET/POST /api/v1/hierarchy/levels`, `PATCH /levels/{id}`. Duplicata de ordinal,
+  código ou nome → **409**; inexistente → **404**.
 
-- A migração `level` texto→FK é **destrutiva se o de-para estiver errado** (3.608 registros
-  têm valor declarado que **não bate** com a profundidade do código em alguns casos: há
-  `Item Documental` em código de 8 tokens). Amostra manual antes.
-- `path` desnormalizado pode divergir: teste de invariante
-  (`path == parent.path + "." + id`) obrigatório no CI.
-- A árvore muda a busca inteira → re-medir `retrieval_quality.py` (a baseline Hit@10 0.625
-  deixa de ser comparável se o corpus mudar de forma).
+### H2 — Árvore — ✅ FECHADA
+
+- [x] **`parent_id` + `path` + `level_id`** (migração `d4e5f6a7b8c9`). `path` é o caminho de **ids**
+  (`"2731.2368.51931"`), materializado, com índice **`text_pattern_ops`** — sem ele o `LIKE 'x.%'`
+  não usa o índice sob a collation do banco e "descendentes de X" vira varredura sequencial.
+- [x] **`ON DELETE RESTRICT`** no pai, e não `SET NULL`: o `path` dos descendentes carrega o
+  prefixo, então um `SET NULL` silencioso deixaria a subárvore inteira apontando para um prefixo
+  que não existe mais.
+- [x] **Regras puras** (`domain/hierarchy.py`): ciclo, pai obrigatório, `allows_children`, ordem na
+  escada, auto-pai. A guarda de ciclo é uma linha: o alvo já vive sob o nó.
+- [x] **Recálculo da subárvore em uma instrução** (`substr(path, length(old)+1)`): qualquer
+  profundidade, um round trip. Invariante verificada por teste e por diagnóstico
+  (`PATH_DIVERGENCE` = **0** no acervo real).
+- [x] **Diagnóstico:** `ORPHAN` (**3.602** no acervo — só quem exige pai), `DOSSIER_WITHOUT_PARENT`,
+  `UNKNOWN_LEVEL`, `PATH_DIVERGENCE` e `LEVEL_DEPTH_MISMATCH`.
+- [x] **`LEVEL_DEPTH_MISMATCH` com norma aprendida, não fixada:** maioria estrita por profundidade.
+  Empate não gera norma, então as duas Seções e duas Séries de 4 tokens **não** são sinalizadas.
+  Medido: **18 casos** — 13 `Item Documental` em profundidade 6 entre 1.095 Dossiês, e 5 registros
+  de arranjo que legitimamente diferem do nível modal daquela profundidade.
+- [x] **Move com trilha, sem blindagem:** o antes/depois entra em `archive_document_revisions`;
+  **não** força `HUMAN_APPROVED` (hierarquia é arranjo, não conteúdo, e nenhum worker de IA escreve
+  essas colunas) — decisão registrada e contestável.
+- [x] **A transferência não reescreve o arranjo:** `parent_id`/`path` entraram em
+  `protected_columns` do `upsert_archive_document`. Sem isso, a próxima carga desligaria todo nó
+  curado.
+- [x] **Rotas:** `GET /tree` (flat, ordenado por `path`), `/nodes/{id}/children`,
+  `/nodes/{id}/ancestors`, `POST /nodes`, `POST /nodes/{id}/move` (**200**) e `GET /diagnostics`.
+
+### H3 — Proposta automática — ✅ FECHADA (o ponto de decisão foi exercido)
+
+- [x] **Fatiador ciente de vocabulário** (`domain/hierarchy_code.py`): token alfabético é arranjo,
+  o resto é identificador da folha. Medido nos 3.608 códigos: `BR PRADAP SMU ED AL CONSTR 2154
+  1903` vira **um** rung, não 1.123 pais.
+- [x] **Nunca adivinha em silêncio:** cauda que não é número puro → `UNPARSED_TAIL` (**31 códigos**
+  no acervo); identificador antes do último token de vocabulário → `MID_CODE_IDENTIFIER` (**3**).
+- [x] **Relatório medido no acervo real, só leitura:** 3.608 códigos → **20 rungs estruturais** →
+  **52 nós propostos** · **8 existem** como registro · **43 a criar** · **1 ambíguo**; **44** com
+  ordinal inferido, **8** registros sem documento algum, **7** com ordem de nível impossível (a
+  família SMU tem mais níveis do que a escada de 6 comporta — achado real, não defeito do código).
+- [x] **`FOTOGRAFIA` × `FOTOGRAFIAS` (2.391 itens) marcado, não decidido:** `NEAR_DUPLICATE_NODE`
+  nos dois lados, o nó ausente marcado `AMBIGUOUS`, e um teste que proíbe o merge por trigramas
+  sobre nós hierárquicos. A decisão é do arquivista.
+- [x] **Read-only provado, não prometido:** `md5` de `archive_documents` idêntico antes e depois da
+  bancada sobre o acervo real, e teste de integração equivalente.
+- [x] **Bancada:** `testing/evaluation/hierarchy_proposal.py` → `.analysis/hierarchy_proposal.json`.
+- [x] **Rota:** `POST /api/v1/hierarchy/proposal` (**200**, sem persistência) — a UI nova (H4)
+  consome daqui. **Nada de catálogo de propostas persistido** até a H4 mostrar que precisa.
+
+### O que segue aberto
+
+- [ ] **H4 — Tela A (proposta).** Decidir os ~52 nós: aceitar, renomear, fundir.
+- [ ] **H5 — Telas B e C** (edição individual e diagnóstico com ações).
+- [ ] **H6 — Contrato de ingestão:** `parent_reference_code`/`hierarchy_path` no
+  `StagingDocumentDTO` e resolução do pai na transferência. Hoje **todo documento entra como raiz**.
+- [ ] **H7 — Busca e facetas hierárquicas** ("buscar dentro deste fundo/série").
+- [ ] **H8 — `DocumentSummary`** com `ancestors[]` e `children_count`.
+- [ ] **A árvore NÃO foi materializada.** O acervo real tem **3.602 órfãos** e 8 rungs isolados: é
+  exatamente o estado que a H4 resolve. `embedding` e `search_vector` não foram tocados, então a
+  baseline de `retrieval_quality.py` (Hit@10 0.625) **continua comparável** até a H7.
+- [ ] **Nível 0 e Fundos ainda não existem como registro.** A proposta os sugere (`BR PRADAP` →
+  Acervo, os 8 nós do 3º token → Fundos) e é a H4 que grava.
+
+### Riscos que continuam de pé
+
+- **A H4 escreve no acervo:** é a primeira operação que **cria** registros de arranjo. Precisa do
+  mesmo cuidado da Fase E (decisão humana registrada, dry-run e undo).
+- **`path` desnormalizado** pode divergir se alguém escrever por fora do serviço — o diagnóstico
+  `PATH_DIVERGENCE` e o teste de invariante existem para isso, e o índice precisa continuar
+  `text_pattern_ops`.
+- **A árvore muda a busca inteira** quando a H7 chegar → re-medir `retrieval_quality.py`.
 
 ---
 
@@ -911,6 +947,14 @@ Descobertas na auditoria de 2026-10-04 rodando a API contra o banco de dev real.
   nunca passou por curadoria humana real — relevante para a decisão B2.
 - [ ] **`domain_text_templates` vazio** e **`domain_ner_exclusions` vazio**: as duas feats da
   Fase 3.5 estão implementadas e sem uso no acervo real ainda.
+- [x] **O acervo real foi migrado para a Fase 2.5** (2026-10-04): `alembic upgrade head`
+  aplicado no volume de dev com `pg_dump` prévio; `archive_documents.level` foi substituído por
+  `level_id` (3.608/3.608), `parent_id`/`path` existem e a busca lexical segue idêntica
+  (`historica` 2489, `enchentes` 17). O `pg_dump` foi escrito em `/tmp` e **não sobreviveu à
+  sessão** — a via de rollback é `alembic downgrade -1` ×4, que recria o texto a partir do
+  catálogo (ida-e-volta verificada sem perda).
+- [ ] **A árvore não foi materializada:** 3.602 descrições órfãs e 8 rungs isolados aguardam a
+  H4. A rota `POST /api/v1/hierarchy/proposal` mostra exatamente o que a decisão vai criar.
 
 ---
 
@@ -991,7 +1035,14 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 | ⚠️ **Qualidade do `macro-category` (NÃO aprovada)** | 687 de 980 tags em "Mobilidade e Transporte"; `alvenaria` (826 docs), `casa` (387), `1924` (260), `residencial` (941) no balde errado — **causa isolada: o rótulo não é proposição NLI**, não o modelo |
 | ⚠️ **Carimbos v1→v2 não reprocessados** | acervo tem `worker_ner_v1`/`worker_typology_classifier_v1` em 3.608 docs; o código filtra `_v2`. O bump é deliberado, a releitura **não foi executada** |
 | ⚠️ **Regra de teste ativa no acervo** | `ArchiveCleaningRule` "aaaaa" (regex `\bpalavra\b`) carimbando 3.608 documentos |
-| **Forma do `reference_code` (hierarquia)** | 100% preenchido; vocabulário fechado (8 valores no 3º token); código **é** o caminho; 3.604 órfãos de pai; armadilha `FOTOGRAFIA`×`FOTOGRAFIAS` identificada |
+| **Forma do `reference_code` (hierarquia)** | 100% preenchido; vocabulário fechado (8 valores no 3º token); código **é** o caminho; **0 documentos com ancestral existente** (são 3.608 órfãos, não 3.604) e 6 registros estruturais com 0 filhos; armadilha `FOTOGRAFIA`×`FOTOGRAFIAS` identificada |
+| **Backfill `level` texto→FK (acervo real)** | 3.608/3.608 mapeados, 0 não classificados; Item 2.478 · Dossiê 1.124 · Série 3 · Seção 3; coluna de texto removida; `downgrade` repovoa sem perda e `upgrade`+`check` voltam sem drift |
+| **Invariante do `path` (acervo real)** | 0 divergências depois do backfill; índice `ix_archive_documents_path` com `text_pattern_ops` presente |
+| **Bancada H3 no acervo real (só leitura)** | 3.608 códigos → 20 rungs estruturais → **52 nós propostos**: 8 existentes, 43 a criar, 1 ambíguo; 44 com ordinal inferido; 8 registros sem documento; 7 com ordem de nível impossível; 31 códigos ilegíveis e 3 com identificador no meio |
+| **Proposta é read-only (provado)** | `md5(string_agg(...))` de `archive_documents` idêntico antes e depois da bancada sobre o acervo real (3608 docs) |
+| **Superfície HTTP da hierarquia (acervo real)** | `GET /levels` devolve a escada com as contagens (item 2478 · dossiê 1124 · série 3 · seção 3); `POST /proposal` 200 com os 52 nós; `GET /diagnostics` ORPHAN **3602**, PATH_DIVERGENCE **0**, LEVEL_DEPTH_MISMATCH **18**; criar raiz/fundo 201, mover 200 e voltar 200, dossiê na raiz **422** |
+| **Busca lexical intacta depois das migrações** | `historica` 2489 e `enchentes` 17, idênticos ao pré-migração; 6142 tags e 3608 documentos inalterados |
+| **Migrações da hierarquia em banco limpo** | `upgrade head` → `check` → `downgrade -1` ×4 → `upgrade head` → `check`, sem drift |
 
 ### Bugs conhecidos e abertos
 
@@ -1021,8 +1072,12 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
    `Instituição`/`Localidade` disputavam o eixo de assunto). Medido numa bancada de 44 tags, a
    frase NLI que o plano propunha dá **0.000**. O que ficou aberto é a acurácia de **0.575**
    (nome nu), limite do zero-shot com sintagma nominal — dívida explícita, não bug.
-8. **Não existe hierarquia entre descrições** — o acervo é hierárquico e o sistema o trata
-   como plano. Plano: `.analysis/roadmap-hierarquia.md` (Fase 2.5).
+8. ~~**Não existe hierarquia entre descrições**~~ — **H1–H3 fechadas (Fase 2.5):** o catálogo
+   de níveis existe e o `level` texto virou FK (3.608/3.608 mapeados), a árvore tem
+   `parent_id`/`path` com invariante verificada, e a proposta lê os códigos e sugere 52 nós
+   sem escrever nada. **O que segue aberto é a materialização** (H4–H5, com a UI nova) e o
+   contrato de ingestão do pai (H6): hoje o acervo real tem 3.602 órfãos e a árvore não foi
+   gravada. Plano: `.analysis/roadmap-hierarquia.md`.
 9. **O acervo está desatualizado em relação ao código** em dois pontos: os carimbos
    `ner`/`typology` não foram reprocessados para `_v2`, e há uma regra de limpeza de teste
    ativa. São operações, não código — ver "Pendências operacionais no acervo".
