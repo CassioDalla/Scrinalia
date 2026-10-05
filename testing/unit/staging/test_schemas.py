@@ -87,3 +87,45 @@ def test_map_raw_to_staging_saves_junk_in_raw_metadata() -> None:
     assert dto.reference_code == "BR PRPMC"
     assert "Chave Bizarra Inesperada" in dto.raw_metadata
     assert dto.raw_metadata["Chave Bizarra Inesperada"] == "Valor Perdido"
+
+
+def test_the_declared_superior_unit_is_mapped_from_every_spelling() -> None:
+    """
+    H6's half of the contract: the origin names the superior unit in Portuguese, and any of the
+    spellings an origin may use has to land on the same field.
+    """
+    for spelling in (
+        "Unidade de Descrição Superior",
+        "Unidade de Descrição Pai",
+        "Nível Superior",
+        "Código da Unidade Superior",
+    ):
+        dto = StagingDocumentDTO(
+            description_id="doc-1",
+            content_hash="hash_1",
+            payload={"title": "Série", "Código de Referência": "BR PRADAP SMU AL", spelling: "BR PRADAP SMU"},
+        )
+        assert dto.parent_reference_code == "BR PRADAP SMU"
+        assert dto.reference_code == "BR PRADAP SMU AL"
+
+
+def test_the_hierarchy_path_is_mapped_and_kept_out_of_the_unknown_bucket() -> None:
+    dto = StagingDocumentDTO(
+        description_id="doc-2",
+        content_hash="hash_2",
+        payload={
+            "title": "Item",
+            "Caminho Hierárquico": "BR PRADAP / BR PRADAP SMU / BR ITEM 1",
+        },
+    )
+    assert dto.hierarchy_path == "BR PRADAP / BR PRADAP SMU / BR ITEM 1"
+    assert "Caminho Hierárquico" not in dto.raw_metadata
+
+
+def test_an_origin_that_declares_no_arrangement_is_still_valid() -> None:
+    """The columns are optional by design: staying silent must not break a load."""
+    dto = StagingDocumentDTO(
+        description_id="doc-3", content_hash="hash_3", payload={"title": "Item", "Código de Referência": "BR X"}
+    )
+    assert dto.parent_reference_code is None
+    assert dto.hierarchy_path is None

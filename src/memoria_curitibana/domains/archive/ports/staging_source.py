@@ -18,6 +18,10 @@ class StagingRecord(BaseModel):
     indexing_points: str | None = None
 
     reference_code: str | None = None
+    #: The parent the source declares, by reference code, and the full path when it sends one. Both
+    #: are optional because the origin is allowed to say nothing — and to deliver a child first.
+    parent_reference_code: str | None = None
+    hierarchy_path: str | None = None
     level: str | None = None
     producers: str | None = None
     admin_bio_history: str | None = None

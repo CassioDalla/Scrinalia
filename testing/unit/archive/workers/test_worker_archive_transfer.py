@@ -78,7 +78,10 @@ def test_run_archive_transfer_full_flow(mocker: MockerFixture, mock_staging_doc)
     assert sent_dto.execution_log == {}
     # The declared text was resolved against the catalogue on the way in, not stored as text.
     assert sent_dto.level_id == 5
-    assert sent_dto.path == "doc-100"
+    # The double declares no parent, so the payload says nothing about the arrangement: omitting it
+    # is what lets the upsert leave a curated tree exactly where it is.
+    assert sent_dto.parent_id is None
+    assert sent_dto.path is None
 
     # 5. VALIDATIONS: Business Rule Calls (TagService)
     mock_tag_service.extract_and_clean_tags.assert_called_once()
@@ -90,8 +93,8 @@ def test_run_archive_transfer_full_flow(mocker: MockerFixture, mock_staging_doc)
         [TagLinkCommand(description_id="doc-100", tag_id=99), TagLinkCommand(description_id="doc-100", tag_id=100)]
     )
 
-    # The loop finished, so it must commit the final transaction
-    mock_db.commit.assert_called_once()
+    # The loop finished: one commit for the batch and one for the late-parent retry pass.
+    assert mock_db.commit.call_count == 2
 
 
 def test_run_archive_transfer_consumes_ports_without_staging_orm(mocker: MockerFixture) -> None:
@@ -179,7 +182,7 @@ def test_run_archive_transfer_idempotency(mocker: MockerFixture, mock_staging_do
     mock_tag_service.process_worker_tags.assert_not_called()
     mock_tag_repo.bulk_link_tags.assert_not_called()
 
-    mock_db.commit.assert_called_once()
+    assert mock_db.commit.call_count == 2
 
 
 def test_run_archive_transfer_batch_resilience(mocker: MockerFixture, mock_staging_doc) -> None:

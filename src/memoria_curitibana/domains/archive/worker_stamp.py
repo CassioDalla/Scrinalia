@@ -54,6 +54,14 @@ THUMBNAIL_FAILED = WorkerStamp("thumbnail_failed", status="True")
 # catalog, not only on the document text, so a catalog change re-queues explicitly.
 QUALITY_VALIDATOR = WorkerStamp("worker_quality_validator_v1")
 
+#: The parent the source declared, when that parent had not arrived yet. The value is not a
+#: status: it is ``"PENDING:<code>"`` while the child waits and ``"DONE:<description_id>"``
+#: once the link exists. Values instead of statuses because the retry has to remember *which*
+#: parent was missing — a bare ``PENDING`` would lose the code the origin sent.
+HIERARCHY_PARENT = WorkerStamp("hierarchy_parent_v1")
+HIERARCHY_PARENT_PENDING = "PENDING:"
+HIERARCHY_PARENT_RESOLVED = "DONE:"
+
 
 def cleaning_rule_stamp(rule_id: int) -> WorkerStamp:
     """Builds the per-rule stamp used by the dynamic cleaning rules."""

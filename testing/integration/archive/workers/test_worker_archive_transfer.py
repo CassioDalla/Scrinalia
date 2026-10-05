@@ -96,3 +96,178 @@ def test_integration_worker_etl_ignores_repeated_documents(use_test_db, db_sessi
     assert doc_count_1 == 1 and doc_count_2 == 1
     assert tag_count_1 == 1 and tag_count_2 == 1
     assert link_count_1 == 1 and link_count_2 == 1
+
+
+# ==========================================
+# H6 — THE PARENT THE ORIGIN DECLARES
+# ==========================================
+def test_the_declared_parent_is_linked_and_the_path_follows(db_session, use_test_db):
+    """
+    A child that declares its parent is loaded under it, with the path the arrangement implies.
+
+    This is the whole point of the ingestion contract: the tree stops being derived and starts being
+    declared — when the origin declares it.
+    """
+    from memoria_curitibana.domains.archive.worker_stamp import HIERARCHY_PARENT, HIERARCHY_PARENT_RESOLVED
+
+    db_session.add_all(
+        [
+            StagingDocument(
+                description_id="pai",
+                title="Fundo SMU",
+                raw_content_hash="h1",
+                reference_code="BR PRADAP SMU",
+            ),
+            StagingDocument(
+                description_id="filho",
+                title="Série Alvenaria",
+                raw_content_hash="h2",
+                reference_code="BR PRADAP SMU AL",
+                parent_reference_code="BR PRADAP SMU",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    worker_archive_transfer.execute(db_session)
+
+    child = db_session.get(ArchiveDocument, "filho")
+    assert child is not None
+    assert child.parent_id == "pai"
+    assert child.path == "pai.filho"
+    assert child.execution_log[HIERARCHY_PARENT.key] == f"{HIERARCHY_PARENT_RESOLVED}pai"
+
+
+def test_a_parent_that_has_not_arrived_does_not_fail_the_load(db_session, use_test_db):
+    """
+    The origin may deliver the child before the parent, and the batch must survive it.
+
+    The child enters as a root and **marked**, so the retry can find it instead of it silently
+    becoming a permanent orphan.
+    """
+    from memoria_curitibana.domains.archive.worker_stamp import HIERARCHY_PARENT, HIERARCHY_PARENT_PENDING
+
+    db_session.add(
+        StagingDocument(
+            description_id="orfao",
+            title="Série sem pai",
+            raw_content_hash="h1",
+            reference_code="BR PRADAP SMU AL",
+            parent_reference_code="BR PRADAP SMU",
+        )
+    )
+    db_session.commit()
+
+    worker_archive_transfer.execute(db_session)
+
+    orphan = db_session.get(ArchiveDocument, "orfao")
+    assert orphan is not None
+    assert orphan.parent_id is None
+    assert orphan.path == "orfao"
+    assert orphan.execution_log[HIERARCHY_PARENT.key] == f"{HIERARCHY_PARENT_PENDING}BR PRADAP SMU"
+
+
+def test_the_late_parent_links_the_child_that_was_waiting(db_session, use_test_db):
+    """
+    "Orphan and marked" is only honest if something comes back for it.
+
+    The parent arrives in a **later** run — which the CDC guard would otherwise never re-process —
+    and the retry pass at the end of that run links the child that was already waiting.
+    """
+    from memoria_curitibana.domains.archive.worker_stamp import HIERARCHY_PARENT, HIERARCHY_PARENT_RESOLVED
+
+    db_session.add(
+        StagingDocument(
+            description_id="filho-tardio",
+            title="Série",
+            raw_content_hash="h1",
+            reference_code="BR PRADAP SMMA AL",
+            parent_reference_code="BR PRADAP SMMA",
+        )
+    )
+    db_session.commit()
+    worker_archive_transfer.execute(db_session)
+    assert db_session.get(ArchiveDocument, "filho-tardio").parent_id is None
+
+    # The parent only now.
+    db_session.add(
+        StagingDocument(
+            description_id="pai-tardio",
+            title="Fundo SMMA",
+            raw_content_hash="h2",
+            reference_code="BR PRADAP SMMA",
+        )
+    )
+    db_session.commit()
+    worker_archive_transfer.execute(db_session)
+
+    child = db_session.get(ArchiveDocument, "filho-tardio")
+    assert child is not None
+    assert child.parent_id == "pai-tardio"
+    assert child.path == "pai-tardio.filho-tardio"
+    assert child.execution_log[HIERARCHY_PARENT.key] == f"{HIERARCHY_PARENT_RESOLVED}pai-tardio"
+
+
+def test_the_full_path_is_the_fallback_when_only_the_chain_was_sent(db_session, use_test_db):
+    """An origin that knows the whole chain but not the link still says who the parent is."""
+    db_session.add_all(
+        [
+            StagingDocument(description_id="avô", title="Acervo", raw_content_hash="h1", reference_code="BR PRADAP"),
+            StagingDocument(
+                description_id="neto",
+                title="Item",
+                raw_content_hash="h2",
+                reference_code="BR ITEM 1",
+                hierarchy_path="BR PRADAP / BR PRADAP SMMA / BR ITEM 1",
+            ),
+            StagingDocument(
+                description_id="meio", title="Fundo", raw_content_hash="h3", reference_code="BR PRADAP SMMA"
+            ),
+        ]
+    )
+    db_session.commit()
+
+    worker_archive_transfer.execute(db_session)
+
+    grandchild = db_session.get(ArchiveDocument, "neto")
+    assert grandchild is not None
+    assert grandchild.parent_id == "meio"
+    assert grandchild.path == "meio.neto"
+
+
+def test_a_payload_that_says_nothing_leaves_the_curated_arrangement_alone(db_session, use_test_db):
+    """
+    The governance rule of the transfer, asserted where it can actually break.
+
+    A description the archivist placed must not be detached by the next transfer just because the
+    origin stayed silent about the arrangement.
+    """
+    db_session.add_all(
+        [
+            StagingDocument(description_id="raiz", title="Acervo", raw_content_hash="h1", reference_code="BR PRADAP"),
+            StagingDocument(description_id="colocado", title="Item", raw_content_hash="h2", reference_code="BR ITEM 9"),
+        ]
+    )
+    db_session.commit()
+    worker_archive_transfer.execute(db_session)
+
+    placed = db_session.get(ArchiveDocument, "colocado")
+    assert placed is not None
+    placed.parent_id = "raiz"
+    placed.path = "raiz.colocado"
+    db_session.commit()
+
+    # A genuine source change: the title is different and the origin declares no parent.
+    staging = db_session.get(StagingDocument, "colocado")
+    staging.title = "Item corrigido"
+    staging.raw_content_hash = "h2-novo"
+    db_session.commit()
+
+    worker_archive_transfer.execute(db_session)
+
+    db_session.expire_all()
+    again = db_session.get(ArchiveDocument, "colocado")
+    assert again is not None
+    assert again.original_title == "Item corrigido"  # the source change did arrive
+    assert again.parent_id == "raiz"  # the curated placement did not move
+    assert again.path == "raiz.colocado"

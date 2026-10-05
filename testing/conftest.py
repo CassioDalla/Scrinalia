@@ -243,6 +243,10 @@ def mock_staging_doc():
         # so the double answers with a deterministic value derived from the raw hash.
         doc.parsed_content_hash = lambda: f"parsed-{raw_content_hash}"
         doc.reference_code = "BR PR"
+        # The arrangement the origin may or may not declare. ``None`` is the common case and the
+        # one the transfer must handle without touching the curated tree.
+        doc.parent_reference_code = None
+        doc.hierarchy_path = None
         doc.level = "Dossiê"
         doc.producers = "Prefeitura"
         doc.admin_bio_history = None

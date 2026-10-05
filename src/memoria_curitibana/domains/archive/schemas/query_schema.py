@@ -25,6 +25,14 @@ class DocumentSearchQuery(BaseModel):
     entity_type: str | None = Field(
         default=None, description="Only documents having at least one named entity of this type (LOC/PER/ORG)."
     )
+    level_id: int | None = Field(
+        default=None, description="Only descriptions at this level of the catalogue (Dossiê, Item...)."
+    )
+    ancestor_id: str | None = Field(
+        default=None,
+        description="Only descriptions inside this branch of the arrangement: 'search within this fonds'. "
+        "It is the materialised path that answers it, in one indexed prefix match.",
+    )
     date_from: date | None = Field(default=None, description="Inclusive lower bound on the document date.")
     date_to: date | None = Field(default=None, description="Inclusive upper bound on the document date.")
     limit: int = Field(default=50, ge=1, le=200, description="Page size.")

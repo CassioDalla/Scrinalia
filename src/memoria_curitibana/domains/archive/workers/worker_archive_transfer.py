@@ -1,8 +1,12 @@
+from typing import Any
+
 from sqlalchemy.orm import Session
 
 from memoria_curitibana.core.database import get_db
 from memoria_curitibana.core.logger import logger
 from memoria_curitibana.core.unit_of_work import UnitOfWork
+from memoria_curitibana.domains.archive.domain.hierarchy import build_path
+from memoria_curitibana.domains.archive.domain.hierarchy_code import normalize_reference_code
 from memoria_curitibana.domains.archive.domain.level_catalog import resolve_level_id
 from memoria_curitibana.domains.archive.models import ArchiveReviewStatus
 from memoria_curitibana.domains.archive.ports.staging_source import StagingRecordSource
@@ -12,9 +16,57 @@ from memoria_curitibana.domains.archive.repository.staging_source import SqlStag
 from memoria_curitibana.domains.archive.schemas.command_schema import TagLinkCommand
 from memoria_curitibana.domains.archive.schemas.document_schema import ArchiveDocumentDTO
 from memoria_curitibana.domains.archive.services.tag_service import TagService
+from memoria_curitibana.domains.archive.worker_stamp import (
+    HIERARCHY_PARENT,
+    HIERARCHY_PARENT_PENDING,
+    HIERARCHY_PARENT_RESOLVED,
+)
 
 # Batch size for the Batch Commit
 BATCH_SIZE = 500
+
+#: Separators an origin may use to spell the full path of codes (``"BR PRADAP / SMU / ED"``). Used
+#: only as a fallback: the parent *code* is what resolution reads when it is present, because a
+#: path is a snapshot of the arrangement and a code is the thing itself.
+_PATH_SEPARATORS = ("/", ">", "|", "\\")
+
+
+def _declared_parent_code(record) -> str | None:
+    """
+    The parent the origin declared, from the parent code or, failing that, from the full path.
+
+    ``hierarchy_path`` is the fallback for an origin that knows the whole chain but not the link:
+    the penultimate segment is the parent by construction.
+    """
+    if record.parent_reference_code:
+        return normalize_reference_code(record.parent_reference_code)
+    raw_path = record.hierarchy_path
+    if not raw_path:
+        return None
+    for separator in _PATH_SEPARATORS:
+        raw_path = raw_path.replace(separator, "\x00")
+    segments = [segment.strip() for segment in raw_path.split("\x00") if segment.strip()]
+    return normalize_reference_code(segments[-2]) if len(segments) >= 2 else None
+
+
+def _resolve_pending_parents(db_session: Session, doc_repo: DocumentRepository) -> int:
+    """
+    Retries the declared parents that had not arrived when their child was loaded.
+
+    The origin is allowed to deliver a child before its parent, and the transfer must not fail for
+    it — but "orphan and marked" is only honest if something ever comes back for it. This is that
+    something, and it runs at the end of every transfer, so a parent that arrives in a later batch
+    links the children that were already waiting.
+    """
+    pending = doc_repo.list_pending_hierarchy_parents()
+    linked = 0
+    for description_id, parent_code in pending:
+        parent = doc_repo.find_by_reference_code(parent_code)
+        if parent is None:
+            continue
+        doc_repo.resolve_hierarchy_parent(description_id, parent.description_id, parent.path)
+        linked += 1
+    return linked
 
 
 def execute(
@@ -51,6 +103,13 @@ def execute(
     success_count = 0
     failures = 0
     unknown_levels = 0
+    declared_parents = 0
+    orphans_pending = 0
+
+    #: ``normalized parent code -> (description_id, path)`` of the parent, or ``(None, None)`` when
+    #: the collection has no such record yet. Cached per run because the vocabulary of an origin is
+    #: tiny (the third token of the real codes has eight values) and the lookup is a folded scan.
+    parent_cache: dict[str, tuple[str | None, str | None]] = {}
 
     # OPTIMIZATION BUFFER: Accumulates the N:N links to insert them all at once
     batch_links = []
@@ -62,6 +121,31 @@ def execute(
             if doc_staging.level and level_id is None:
                 unknown_levels += 1
                 logger.warning(f"⚠️ Unknown description level '{doc_staging.level}' on {doc_staging.description_id}")
+
+            # The arrangement is only spoken about when the origin speaks about it. Omitting the
+            # fields lets the upsert leave whatever curation placed exactly where it is.
+            # Typed ``Any`` on purpose: the keys are the DTO's, and the whole point is to omit
+            # them entirely when the origin declared nothing.
+            hierarchy_fields: dict[str, Any] = {}
+            execution_log: dict[str, str] = {}
+            parent_code = _declared_parent_code(doc_staging)
+            if parent_code:
+                declared_parents += 1
+                if parent_code not in parent_cache:
+                    parent = doc_repo.find_by_reference_code(parent_code)
+                    parent_cache[parent_code] = (parent.description_id, parent.path) if parent else (None, None)
+                parent_id, parent_path = parent_cache[parent_code]
+                hierarchy_fields = {
+                    "parent_id": parent_id,
+                    "path": build_path(parent_path, doc_staging.description_id),
+                }
+                if parent_id is None:
+                    # The parent has not arrived. The child is loaded as a root and *marked*, so the
+                    # retry at the end of the run (or of a later one) can link it.
+                    orphans_pending += 1
+                    execution_log = HIERARCHY_PARENT.mark_value({}, f"{HIERARCHY_PARENT_PENDING}{parent_code}")
+                else:
+                    execution_log = HIERARCHY_PARENT.mark_value({}, f"{HIERARCHY_PARENT_RESOLVED}{parent_id}")
 
             doc_dto = ArchiveDocumentDTO(
                 description_id=doc_staging.description_id,
@@ -82,11 +166,10 @@ def execute(
                 language_name=doc_staging.language_name,
                 archivist_notes=doc_staging.archivist_notes,
                 final_title=None,
-                parent_id=None,
-                path=doc_staging.description_id,
                 anomaly_reasons=None,
                 review_status=ArchiveReviewStatus.PENDING_AI,
-                execution_log={},
+                execution_log=execution_log,
+                **hierarchy_fields,
             )
 
             # 2. Persists into the Fact table (ArchiveDocuments)
@@ -122,9 +205,15 @@ def execute(
         if batch_links:
             tag_repo.bulk_link_tags(batch_links)
         uow.commit()
+
+        # Second chance for the children whose parent had not arrived when they were loaded.
+        linked = _resolve_pending_parents(db_session, doc_repo)
+        uow.commit()
+
         logger.success(
             f"✅ Transfer completed! Successes: {success_count} | Failures: {failures} | "
-            f"Unclassified levels: {unknown_levels}"
+            f"Unclassified levels: {unknown_levels} | Declared parents: {declared_parents} | "
+            f"Orphans waiting for a parent: {orphans_pending} | Parent links resolved late: {linked}"
         )
     except Exception as e:
         uow.rollback()

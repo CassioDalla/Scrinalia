@@ -33,19 +33,28 @@ class DocumentController(Controller):
         mode: FromQuery[Literal["lexical", "semantic"]] = "lexical",
         typology_id: FromQuery[int | None] = None,
         macro_category_id: FromQuery[int | None] = None,
+        level_id: FromQuery[int | None] = None,
+        ancestor_id: FromQuery[str | None] = None,
         entity_type: FromQuery[str | None] = None,
         date_from: FromQuery[date | None] = None,
         date_to: FromQuery[date | None] = None,
         limit: FromQuery[int] = 50,
         offset: FromQuery[int] = 0,
     ) -> DocumentListResponse:
-        """Lists/paginates the collection with full-text or semantic ranking and facet filters."""
+        """
+        Lists/paginates the collection with full-text or semantic ranking and facet filters.
+
+        ``ancestor_id`` is "search inside this fonds/série": the branch is resolved to its
+        materialised path and matched with one indexed prefix, so it costs the same at any depth.
+        """
         return document_service.search(
             DocumentSearchQuery(
                 term=term,
                 mode=mode,
                 typology_id=typology_id,
                 macro_category_id=macro_category_id,
+                level_id=level_id,
+                ancestor_id=ancestor_id,
                 entity_type=entity_type,
                 date_from=date_from,
                 date_to=date_to,

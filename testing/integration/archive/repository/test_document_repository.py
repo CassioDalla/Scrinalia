@@ -633,3 +633,160 @@ def test_lexical_mode_ignores_the_query_embedding(use_test_db, db_session, gener
 
     assert total == 1
     assert docs[0].rank is not None and docs[0].rank > 0
+
+
+# ==========================================
+# H7 — HIERARCHICAL FACETS
+# ==========================================
+def test_search_inside_a_branch_returns_the_whole_subtree(db_session, generate_archive_doc, generate_description_level):
+    """
+    "Search inside this fonds/série" is the query the tree navigation makes constantly.
+
+    It is one indexed prefix match on the materialised path, so it costs the same for a branch with
+    two descendants and for one with three thousand — which is the reason the path exists.
+    """
+    from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
+
+    level = generate_description_level(ordinal=3, code="serie", name="Série")
+    generate_archive_doc(description_id="fundo", original_title="Fundo", path="fundo")
+    generate_archive_doc(description_id="serie", original_title="Série", parent_id="fundo", path="fundo.serie")
+    generate_archive_doc(description_id="item-1", original_title="Item 1", parent_id="serie", path="fundo.serie.item-1")
+    generate_archive_doc(description_id="item-2", original_title="Item 2", parent_id="serie", path="fundo.serie.item-2")
+    generate_archive_doc(description_id="fora", original_title="Fora do fundo", path="fora")
+    db_session.flush()
+
+    repo = DocumentRepository(db_session)
+
+    whole_fund, total_fund = repo.search(DocumentSearchQuery(ancestor_id="fundo", limit=50))
+    branch, total_branch = repo.search(DocumentSearchQuery(ancestor_id="serie", limit=50))
+
+    assert total_fund == 4  # the fund, the série and both items
+    assert {doc.description_id for doc in whole_fund} == {"fundo", "serie", "item-1", "item-2"}
+    assert total_branch == 3
+    assert {doc.description_id for doc in branch} == {"serie", "item-1", "item-2"}
+    assert level.level_id  # the fixture created the rung the level facet filters on
+
+
+def test_search_by_level_is_a_real_facet(db_session, generate_archive_doc, generate_description_level):
+    from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
+
+    item = generate_description_level(ordinal=5, code="item", name="Item Documental")
+    serie = generate_description_level(ordinal=3, code="serie", name="Série")
+    generate_archive_doc(description_id="i1", level_id=item.level_id)
+    generate_archive_doc(description_id="i2", level_id=item.level_id)
+    generate_archive_doc(description_id="s1", level_id=serie.level_id)
+    db_session.flush()
+
+    repo = DocumentRepository(db_session)
+    items, total = repo.search(DocumentSearchQuery(level_id=item.level_id, limit=50))
+
+    assert total == 2
+    assert {doc.description_id for doc in items} == {"i1", "i2"}
+
+
+def test_a_branch_that_does_not_exist_is_a_not_found_not_an_empty_page(db_session):
+    """
+    Answering "nothing here" for a typo would be a wrong statement about the collection: an empty
+    fonds and a misspelled id are different things.
+    """
+    from memoria_curitibana.domains.archive.exceptions import HierarchyNodeNotFoundError
+    from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
+
+    with pytest.raises(HierarchyNodeNotFoundError):
+        DocumentRepository(db_session).search(DocumentSearchQuery(ancestor_id="nao-existe", limit=10))
+
+
+def test_the_hierarchical_facets_combine_with_the_others(db_session, generate_archive_doc, generate_description_level):
+    from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
+
+    item = generate_description_level(ordinal=5, code="item", name="Item Documental")
+    generate_archive_doc(description_id="fundo", original_title="Fundo", path="fundo")
+    generate_archive_doc(
+        description_id="a",
+        original_title="Matadouro",
+        parent_id="fundo",
+        path="fundo.a",
+        level_id=item.level_id,
+    )
+    generate_archive_doc(
+        description_id="b",
+        original_title="Matadouro do Batel",
+        parent_id="fundo",
+        path="fundo.b",
+        level_id=item.level_id,
+    )
+    generate_archive_doc(description_id="d", original_title="Matadouro fora", path="fora.d")
+    db_session.flush()
+
+    repo = DocumentRepository(db_session)
+    found, total = repo.search(
+        DocumentSearchQuery(term="matadouro", ancestor_id="fundo", level_id=item.level_id, limit=50)
+    )
+
+    assert total == 2
+    assert {doc.description_id for doc in found} == {"a", "b"}
+
+
+# ==========================================
+# H8 — THE BRANCH IN THE READ VIEW
+# ==========================================
+def test_a_page_carries_the_branch_and_the_children_count(db_session, generate_archive_doc, generate_description_level):
+    """
+    One query for the ancestors of the whole page and one for the counts — not one of each per row.
+
+    Both come from data the tree already maintains: the ancestors out of the materialised path, the
+    count out of a grouped count on the self-reference.
+    """
+    from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
+
+    serie = generate_description_level(ordinal=3, code="serie", name="Série")
+    generate_archive_doc(description_id="acervo", original_title="Acervo", path="acervo")
+    generate_archive_doc(description_id="fundo", original_title="Fundo IPPUC", parent_id="acervo", path="acervo.fundo")
+    generate_archive_doc(
+        description_id="serie",
+        original_title="Registros Fotográficos",
+        parent_id="fundo",
+        path="acervo.fundo.serie",
+        level_id=serie.level_id,
+    )
+    generate_archive_doc(
+        description_id="item", original_title="Item", parent_id="serie", path="acervo.fundo.serie.item"
+    )
+    db_session.flush()
+
+    page = DocumentRepository(db_session).search(DocumentSearchQuery(term="item", limit=50))
+
+    item = next(doc for doc in page[0] if doc.description_id == "item")
+    assert [ancestor.description_id for ancestor in item.ancestors] == ["acervo", "fundo", "serie"]
+    assert [ancestor.level for ancestor in item.ancestors] == [None, None, "Série"]
+    assert item.children_count == 0
+    assert item.ancestors[2].title == "Registros Fotográficos"
+
+
+def test_a_branch_with_children_reports_how_many(db_session, generate_archive_doc):
+    generate_archive_doc(description_id="pai", original_title="Pai", path="pai")
+    for index in range(3):
+        generate_archive_doc(
+            description_id=f"filho-{index}",
+            original_title=f"Filho {index}",
+            parent_id="pai",
+            path=f"pai.filho-{index}",
+        )
+    db_session.flush()
+
+    summary = DocumentRepository(db_session).get_by_id("pai")
+
+    assert summary is not None
+    assert summary.children_count == 3
+    assert summary.ancestors == []
+
+
+def test_a_root_has_no_ancestors(db_session, generate_archive_doc):
+    generate_archive_doc(description_id="raiz", original_title="Raiz", path="raiz")
+    db_session.flush()
+
+    summary = DocumentRepository(db_session).get_by_id("raiz")
+
+    assert summary is not None
+    assert summary.ancestors == []
+    assert summary.children_count == 0

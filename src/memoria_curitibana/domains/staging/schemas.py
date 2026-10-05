@@ -50,6 +50,8 @@ class StagingDocumentDTO(BaseModel):
 
     # --- ISAD(G) Standard Metadata (Treated as Flexible Strings) ---
     reference_code: str | None = None  # Reference Code
+    parent_reference_code: str | None = None  # Reference code of the superior unit
+    hierarchy_path: str | None = None  # Full path of codes, root first
     level: str | None = None  # Level
     dimension_support: str | None = None  # Extent and Medium
     producers: str | None = None  # Name of the Producer(s)
@@ -99,6 +101,8 @@ class StagingDocumentDTO(BaseModel):
     @field_validator(
         "title",
         "reference_code",
+        "parent_reference_code",
+        "hierarchy_path",
         "level",
         "dimension_support",
         "producers",
@@ -174,6 +178,11 @@ class StagingDocumentDTO(BaseModel):
         keys_map = {
             "Código de Referência": "reference_code",
             "Nível de Descrição": "level",
+            "Unidade de Descrição Superior": "parent_reference_code",
+            "Unidade de Descrição Pai": "parent_reference_code",
+            "Nível Superior": "parent_reference_code",
+            "Código da Unidade Superior": "parent_reference_code",
+            "Caminho Hierárquico": "hierarchy_path",
             "Dimensão e Suporte": "dimension_support",
             "Produtor": "producers",
             "História Administrativa": "admin_bio_history",

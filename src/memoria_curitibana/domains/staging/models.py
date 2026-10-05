@@ -42,6 +42,11 @@ class StagingDocument(Base):
 
     # Metadata ISAD(G)
     reference_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: Arrangement declared by the source. Optional by design: an origin that does not send it does
+    #: not break the load, and a parent that has not arrived yet leaves the description orphan and
+    #: *marked* instead of failing the batch (the origin may deliver the child before the parent).
+    parent_reference_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    hierarchy_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     level: Mapped[str | None] = mapped_column(Text, nullable=True)
     dimension_support: Mapped[str | None] = mapped_column(Text, nullable=True)
     producers: Mapped[str | None] = mapped_column(Text, nullable=True)
