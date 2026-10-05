@@ -6,6 +6,9 @@
     "packages/*"
   ],
   "scripts": {
+    "db:up": "docker compose up -d",
+    "api:dev": "uv run uvicorn main:app --reload",
+    "dev": "bun run db:up && bun run api:dev & bun run curator:dev",
     "curator:dev": "bun run --cwd apps/curator dev",
     "curator:build": "bun run --cwd apps/curator build",
     "curator:codegen": "bun run --cwd apps/curator codegen",

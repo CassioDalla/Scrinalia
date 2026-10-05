@@ -25,6 +25,7 @@ Three-layer pipeline, each layer a domain under `src/memoria_curitibana/domains/
 Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).
 
 - Install deps: `uv sync` (heavy: `torch`, `transformers`, `spacy`, `bertopic`).
+- Whole dev stack in one command: `bun run dev` — `docker compose up -d`, then the API on `:8000` and the SPA on `:5173`. The pieces are also runnable alone: `bun run db:up`, `bun run api:dev`, `bun run curator:dev`. **A 502 on `/api` from the Vite dev server means the API is not up** (the proxy targets `localhost:8000`); the SPA itself still answers 200, which is what makes the symptom look like a front-end bug.
 - API: `uv run uvicorn main:app --reload` (the root `main.py` re-exports the app).
 - Dashboard: `uv run streamlit run src/memoria_curitibana/dashboard/app.py` — requires the API running at `API_BASE_URL` (default `http://localhost:8000/`). Temporary; do not extend it.
 - Curator UI (`apps/curator/`): `bun install` once at the repo root, then `bun run curator:dev` (`http://localhost:5173`, Vite proxies `/api` to `:8000`) or `bun run curator:build`. **Bun manages packages and scripts; Vite is the bundler** — do not replace it with `bun build` (ADR 0003). `bun run --cwd apps/curator typecheck|lint`.

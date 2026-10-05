@@ -91,9 +91,23 @@ browser is always on the same origin and the project needs no CORS configuration
 
 ```bash
 bun install                                   # once per clone, from the repository root
-bun run curator:dev                           # http://localhost:5173, proxies /api to :8000
+bun run dev                                   # infra + API (:8000) + SPA (:5173) in one command
 bun run curator:build                         # writes apps/curator/dist, served by the API at /
 ```
+
+`bun run dev` is the whole development stack: it brings the containers up (`docker compose up -d`),
+starts the API and starts the SPA. Run the pieces separately when you only want one of them:
+
+```bash
+bun run db:up      # docker compose up -d — PostgreSQL and MinIO
+bun run api:dev    # uv run uvicorn main:app --reload — the API alone, on :8000
+bun run curator:dev  # the SPA alone, on :5173
+```
+
+> **A 502 on `/api` means the API is not running**, not that the front is broken: Vite proxies `/api`
+> to `localhost:8000`, so the SPA still loads (200) while every request fails. `bun run curator:dev`
+> starts only the front — use `bun run dev`, or start `bun run api:dev` in another terminal. If Vite
+> prints a different port, `:5173` was already taken and the URL is the one it prints.
 
 The TypeScript client is **generated from the API contract**, never written by hand:
 
@@ -113,6 +127,8 @@ The screens that exist today, in the order the work happens:
 | `/acervo/:id` | the dossier: description, subjects, arrangement and history |
 | `/arranjo/plano` | the arrangement plan: decide the proposed levels, preview and materialise |
 | `/arranjo/diagnostico` | the structural diagnosis, one section per problem, with the evidence |
+| `/assuntos/tags` | the tag catalog: weight, near-duplicates and the merge queue with undo |
+| `/assuntos/categorias` | the subject drawers the classifier reads, with their weight |
 
 The arrangement screens offer no silent correction: every write is a decision taken on a screen
 that showed its impact first, and the applied materialisations are reversible from the ledger.
