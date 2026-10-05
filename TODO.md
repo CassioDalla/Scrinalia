@@ -8,9 +8,9 @@ arquivístico (DDD + micro-workers + HITL).
 > pendente. Quando um item está parcialmente pronto, ele aparece como `[~]` com a descrição
 > explícita do que existe e do que falta.
 >
-> **Estado do gate de qualidade:** suíte **771 testes** passando (unit + integração),
+> **Estado do gate de qualidade:** suíte **833 testes** passando (unit + integração),
 > `ruff check`/`ruff format --check` limpos, `basedpyright` 0 erros,
-> `alembic upgrade head` + `alembic check` sem drift (18 migrações).
+> `alembic upgrade head` + `alembic check` sem drift (21 migrações).
 
 ---
 
@@ -21,7 +21,7 @@ arquivístico (DDD + micro-workers + HITL).
 | 1 | Fundação, pipeline de IA e governança de base | **Praticamente fechada** |
 | 1.5 | Macro Categorias (eixo de Assuntos) | **Fechada na medição** — vocabulário refeito, defeito 2/2 fechado; acurácia ~0.575, dívida explícita |
 | 2 | API + Curadoria humana (HITL) | **Fechada no essencial**, faltam ações locais |
-| **2.5** | **Hierarquia das descrições** | **H1–H3 fechadas e medidas** no acervo real; H4–H8 abertas |
+| **2.5** | **Hierarquia das descrições** | **H1–H8 fechadas e medidas** no acervo real; falta só a tela (Fase 4/B6) |
 | 3 | Descoberta, escala e observabilidade | **Parcial** — busca lexical fechada; semântica funciona mas com qualidade fraca |
 | 3.5 | Qualidade do dado de entrada | **A–D fechadas** (sem UI, por decisão); resta medir o efeito no ranking |
 | 4 | Interoperabilidade, **UI nova** e publicação | Não iniciada — plano do BFF pronto |
@@ -376,10 +376,10 @@ O eixo semântico de assuntos está modelado e pela metade implementado. Hoje a 
 
 ## 🏛️ Fase 2.5 — Hierarquia das descrições arquivísticas
 
-> **H1, H2 e H3 ENTREGUES e verificados no acervo real (2026-10-04).** Plano de referência em
-> `.analysis/roadmap-hierarquia.md`. A UI (H4/H5) e o restante (H6–H8) seguem **não iniciados por
-> decisão de sequenciamento**: a tela nasce no front novo (Fase 4 / B6), e a H3 provou que ela é
-> curadoria de **~52 nós**, não de 3.608 decisões.
+> **H1 a H8 ENTREGUES e verificados no acervo real (2026-10-04), sem UI.** Plano de referência em
+> `.analysis/roadmap-hierarquia.md`. O que falta é **só a tela**, e ela nasce no front novo
+> (Fase 4 / B6): a H3 provou que é curadoria de **~52 nós**, não de 3.608 decisões, e a H4 entregou
+> a operação que a tela vai chamar — com decisão registrada, dry-run e undo.
 
 O sistema tratava cada descrição como uma linha plana. O acervo **é** hierárquico, e a evidência
 está no `reference_code` — preenchido em **100%** dos 3.608 documentos.
@@ -462,19 +462,91 @@ está no `reference_code` — preenchido em **100%** dos 3.608 documentos.
 - [x] **Rota:** `POST /api/v1/hierarchy/proposal` (**200**, sem persistência) — a UI nova (H4)
   consome daqui. **Nada de catálogo de propostas persistido** até a H4 mostrar que precisa.
 
+### H4 — Materialização dirigida por decisão — ✅ FECHADA (sem UI)
+
+> A operação que a Tela A vai chamar. Existe porque **o código não é confiável sozinho**: o dono do
+> produto apontou o caso canônico — `BR PRADAP SMU ED AL` e `BR PRADAP SMU ED AL CONSTR` são **um**
+> nível do arranjo ("Alvenaria - Construções"), e nenhum fatiador pode saber disso, porque a
+> evidência não está na string.
+
+- [x] **Catálogo de decisões** (`archive_hierarchy_node_plans`, migração `e5f6a7b8c9d0`): uma linha
+  por rung proposta, com a evidência e o veredito. Sugestão **idempotente por código** que **nunca
+  sobrescreve decisão humana** — `level_id`/`title` deixam de ser proposta no instante em que
+  `status` sai de `SUGGESTED`. Mesma regra do catálogo de merges de tag.
+- [x] **`collapse_into_code` — a operação que o código não sabe fazer.** Dois segmentos alfabéticos
+  que são **um** nível (`AL` + `CONSTR`), ou um rung cujos documentos pertencem a um registro
+  existente escrito com uma letra de diferença (`FOTOGRAFIA` → a Série `FOTOGRAFIAS`). Com guarda de
+  ciclo e alvo obrigatório no catálogo. **Nada é fundido por similaridade.**
+- [x] **Decisão com regra:** aprovar exige nível (é a decisão que o código não toma), sem nível
+  enviado vale o proposto; fundir em código inexistente ou em si mesmo → **422**.
+- [x] **Dry-run com o mesmo planejador do apply** (`POST /materialisation/preview`): nós a criar,
+  nós a adotar, descrições a ligar, órfãos restantes e quais rungs ficam na raiz cedo demais.
+  Um teste de integração fixa que **preview == apply** — dry-run que mente é pior que nenhum.
+- [x] **Apply transacional** (`POST /materialisation/apply`): cria os ausentes, **adota** os
+  existentes (o registro vira o nó, não um espelho), resolve pais antes de filhos e liga as
+  descrições **em um statement por rung**.
+- [x] **Ledger reversível** (`archive_hierarchy_materialisation_log`, migração `f6a7b8c9d0e1`): o
+  estado anterior exato (`parent_id`, `path`) de **cada** linha tocada, mais os nós criados.
+  `DELETE /materialisation/log/{id}` restaura tudo e depois remove os nós — a ordem importa, porque
+  a auto-referência é `RESTRICT`. Segunda tentativa → **409**; id inexistente → **404**; e o undo
+  **recusa** quando o nó recebeu descrições depois do run (desfazer desligaria trabalho que não era
+  daquela decisão).
+- [x] **A transferência não desfaz curadoria:** o arranjo só é tocado quando a origem o declara
+  (ver H6). Sem isso, a próxima carga desligaria todo nó curado.
+
+### H5 — Edição individual e diagnóstico — ✅ FECHADA (a API; a tela é a Fase 4/B6)
+
+- [x] **`GET /hierarchy/nodes/{id}`**: o nó, sua ramificação (raiz primeiro) e seus filhos em uma
+  leitura — o que a tela precisa antes de mover um nó ou corrigir seu nível.
+- [x] O resto já estava na H2: `POST /nodes` (criar), `POST /nodes/{id}/move` (mover/re-nivelar, com
+  ciclo e escada validados e trilha em `archive_document_revisions`) e `GET /diagnostics`.
+
+### H6 — Contrato de ingestão — ✅ FECHADA
+
+- [x] **`parent_reference_code` e `hierarchy_path`** no staging (migração `a7b8c9d0e1f2`), no DTO e
+  no port, com as variantes PT no `keys_map` (`"Unidade de Descrição Superior"`, `"Nível Superior"`,
+  `"Caminho Hierárquico"`, ...). Ambos **opcionais**: origem que não manda não quebra a carga.
+- [x] **Resolução do pai por `reference_code`** (dobrado para caixa/espaço), com cache por run —
+  o vocabulário de uma origem é minúsculo e a busca é um scan dobrado.
+- [x] **Pai ausente → órfão marcado, carga não falha.** O filho entra como raiz e o código declarado
+  fica em `execution_log["hierarchy_parent_v1"] = "PENDING:<código>"`. Um **retry no fim de cada
+  transfer** liga quem esperava, inclusive quando o pai chega num lote **posterior** — que o CDC
+  jamais reprocessaria.
+- [x] **O arranjo só é falado quando a origem fala dele:** o payload que omite os campos não entra no
+  `ON CONFLICT`, então a próxima carga não desliga o que a curadoria colocou (teste de integração
+  com mudança real de hash).
+- [x] **`hierarchy_path` como fallback**: origem que conhece a cadeia mas não o link tem o
+  penúltimo segmento lido como pai.
+
+### H7 — Busca e facetas hierárquicas — ✅ FECHADA
+
+- [x] **`ancestor_id`** em `GET /documents`: "buscar dentro deste fundo/série" é **um** prefixo
+  indexado no `path` materializado — custa o mesmo para uma série com dois descendentes e para um
+  fundo com 2.392.
+- [x] **`level_id`** como faceta: filtrar por Dossiê/Item sem passar por tag ou tipologia.
+- [x] **Ramo inexistente é 404, não página vazia:** responder "não há nada aqui" para um id
+  digitado errado seria uma afirmação falsa sobre o acervo.
+
+### H8 — A ramificação no read view — ✅ FECHADA
+
+- [x] **`DocumentSummary.ancestors[]`** (raiz primeiro, com título e nível) e **`children_count`**.
+- [x] **Uma consulta por página, não uma por documento:** os ancestrais saem dos `path` da própria
+  página (o conjunto de ids é conhecido antes de ler) e a contagem é um `GROUP BY` no
+  auto-relacionamento. Seria fácil introduzir aqui o N+1 que a árvore existe para evitar.
+
 ### O que segue aberto
 
-- [ ] **H4 — Tela A (proposta).** Decidir os ~52 nós: aceitar, renomear, fundir.
-- [ ] **H5 — Telas B e C** (edição individual e diagnóstico com ações).
-- [ ] **H6 — Contrato de ingestão:** `parent_reference_code`/`hierarchy_path` no
-  `StagingDocumentDTO` e resolução do pai na transferência. Hoje **todo documento entra como raiz**.
-- [ ] **H7 — Busca e facetas hierárquicas** ("buscar dentro deste fundo/série").
-- [ ] **H8 — `DocumentSummary`** com `ancestors[]` e `children_count`.
-- [ ] **A árvore NÃO foi materializada.** O acervo real tem **3.602 órfãos** e 8 rungs isolados: é
-  exatamente o estado que a H4 resolve. `embedding` e `search_vector` não foram tocados, então a
-  baseline de `retrieval_quality.py` (Hit@10 0.625) **continua comparável** até a H7.
-- [ ] **Nível 0 e Fundos ainda não existem como registro.** A proposta os sugere (`BR PRADAP` →
-  Acervo, os 8 nós do 3º token → Fundos) e é a H4 que grava.
+- [ ] **A UI (Tela A/B/C)** — Fase 4 / B6. A H4 entregou exatamente a operação que ela vai chamar,
+  atrás de `POST /hierarchy/plans/suggest` → `PATCH /plans/{id}` → `POST /materialisation/preview`
+  → `POST /materialisation/apply` → `DELETE /materialisation/log/{id}`.
+- [ ] **A árvore do acervo real NÃO foi materializada.** O ciclo completo foi exercitado numa
+  **cópia descartável** dos 3.608 documentos — 12 nós criados, 1 registro adotado e **3.607
+  descrições ligadas em 1,7 s**, com a invariante intacta, e o undo devolvendo as 3.608 raízes e
+  zero nós criados. **A decisão de aprovar os ~52 rungs é do arquivista**, não do código: o catálogo
+  de planos está vazio no acervo de propósito.
+- [ ] **Baseline de `retrieval_quality.py`:** `embedding` e `search_vector` não foram tocados por
+  nada disto, então Hit@10 0.625 **continua comparável** — até a H7 ser usada numa medição, quando a
+  árvore passar a mudar a forma do corpus.
 
 ### Riscos que continuam de pé
 
@@ -953,8 +1025,13 @@ Descobertas na auditoria de 2026-10-04 rodando a API contra o banco de dev real.
   (`historica` 2489, `enchentes` 17). O `pg_dump` foi escrito em `/tmp` e **não sobreviveu à
   sessão** — a via de rollback é `alembic downgrade -1` ×4, que recria o texto a partir do
   catálogo (ida-e-volta verificada sem perda).
-- [ ] **A árvore não foi materializada:** 3.602 descrições órfãs e 8 rungs isolados aguardam a
-  H4. A rota `POST /api/v1/hierarchy/proposal` mostra exatamente o que a decisão vai criar.
+- [x] **O acervo real está migrado até a H8** (2026-10-04): catálogo de níveis, `parent_id`/`path`,
+  catálogo de planos e ledger existem e o `alembic check` está sem drift. O `pg_dump` desta rodada
+  também foi para `/tmp` e não sobreviveu; a via de rollback é `alembic downgrade -1` (verificado).
+- [ ] **A árvore do acervo real não foi materializada — de propósito.** O ciclo H4 roda ponta a
+  ponta (foi exercitado numa cópia), mas **aprovar os ~52 rungs é decisão do arquivista**: o
+  catálogo `archive_hierarchy_node_plans` está **vazio** no acervo. `POST /hierarchy/plans/suggest`
+  é o primeiro passo de quem for decidir.
 
 ---
 
@@ -1043,6 +1120,13 @@ Tudo abaixo foi executado contra Postgres real + engines reais, não apenas insp
 | **Superfície HTTP da hierarquia (acervo real)** | `GET /levels` devolve a escada com as contagens (item 2478 · dossiê 1124 · série 3 · seção 3); `POST /proposal` 200 com os 52 nós; `GET /diagnostics` ORPHAN **3602**, PATH_DIVERGENCE **0**, LEVEL_DEPTH_MISMATCH **18**; criar raiz/fundo 201, mover 200 e voltar 200, dossiê na raiz **422** |
 | **Busca lexical intacta depois das migrações** | `historica` 2489 e `enchentes` 17, idênticos ao pré-migração; 6142 tags e 3608 documentos inalterados |
 | **Migrações da hierarquia em banco limpo** | `upgrade head` → `check` → `downgrade -1` ×4 → `upgrade head` → `check`, sem drift |
+| **Ciclo H4 completo numa cópia do acervo real** | suggest → 52 rungs no catálogo → decisões (incluindo a fusão `AL`+`CONSTR` e `FOTOGRAFIA`→`FOTOGRAFIAS`) → preview (12 criar, 1 adotar, **3.607 descrições a ligar**) → apply **em 1,7 s** → undo |
+| **Invariante depois do apply (acervo real)** | `path == parent.path + '.' + id` em **3.608** descrições: 0 divergências; 1 raiz (`BR PRADAP`); profundidade máxima 5 |
+| **Undo do H4 (acervo real)** | 3.619 linhas restauradas, 3.608 raízes de volta, **0** nós criados restantes, invariante intacta; segunda tentativa → 409 |
+| **A fusão que o código não sabe fazer (teste + acervo real)** | `BR PRADAP SMU ED AL CONSTR` **não** vira nó: as 1.123 descrições pendem do único `BR PRADAP SMU ED AL` |
+| **Contrato de ingestão (H6, integração)** | pai declarado → ligado com `path` correto; pai ausente → órfão **marcado** (`PENDING:<código>`) e carga sem falha; pai que chega depois → ligado pelo retry; payload mudo → arranjo curado intacto sob mudança real de hash |
+| **Busca hierárquica (H7)** | `ancestor_id` devolve a subárvore inteira em um prefixo indexado; `level_id` como faceta; ramo inexistente → 404 |
+| **Read view (H8)** | `ancestors[]` raiz-primeiro e `children_count` resolvidos em **duas** consultas por página |
 
 ### Bugs conhecidos e abertos
 
