@@ -74,6 +74,14 @@ class DocumentReviewCommand(BaseModel):
     scope_content: str | None = None
     language_name: str | None = None
     archivist_notes: str | None = None
+    #: ISAD(G) 4.1. Carried here since the transfer stopped dropping it; the archivist is the one
+    #: who can state a restriction the origin never declared.
+    access_conditions: str | None = None
+
+    # Diffusion (Fase 4). Not part of ISAD(G): the institution's decision about what to expose.
+    # It travels in the same command because it is edited from the same screen, but it is the
+    # only field here that does not describe the record itself.
+    is_published: bool | None = None
 
     # Authorship and note of the review itself
     changed_by: str | None = Field(default=None, description="Who reviewed; free text until authentication exists.")

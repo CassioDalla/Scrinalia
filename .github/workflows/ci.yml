@@ -51,6 +51,16 @@ jobs:
           enable-cache: true
       - name: Install dependencies
         run: uv sync
+      - name: Check the OpenAPI contract is up to date
+        # The front-end client is generated from packages/api-contract/openapi.json, so a route or a
+        # schema change that does not regenerate the contract would only fail in the browser. This
+        # turns it into a build failure, which is the entire reason the contract is committed.
+        run: |
+          uv run python -m memoria_curitibana.api.dump_openapi > /tmp/openapi.json
+          if ! diff -u packages/api-contract/openapi.json /tmp/openapi.json; then
+            echo "::error::packages/api-contract/openapi.json está desatualizado. Rode: uv run python -m memoria_curitibana.api.dump_openapi > packages/api-contract/openapi.json && bun run --cwd apps/curator codegen"
+            exit 1
+          fi
       - name: Type check
         run: uv run basedpyright
       - name: Apply migrations on a fresh database
@@ -59,3 +69,31 @@ jobs:
         run: uv run alembic check
       - name: Run tests
         run: uv run pytest
+
+  frontend:
+    name: Curator UI (types, lint, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Check the generated API client is up to date
+        # ``schema.d.ts`` is committed so the build never depends on the Python app, but it must be
+        # regenerated whenever ``openapi.json`` moves. Regenerating here and comparing is what keeps
+        # a hand-written ``fetch`` from creeping in unnoticed.
+        run: |
+          bun run --cwd apps/curator codegen
+          if ! git diff --exit-code -- apps/curator/src/api/schema.d.ts; then
+            echo "::error::apps/curator/src/api/schema.d.ts está desatualizado. Rode 'bun run --cwd apps/curator codegen' e faça o commit."
+            exit 1
+          fi
+      - name: Type check
+        run: bun run --cwd apps/curator typecheck
+      - name: Lint
+        run: bun run --cwd apps/curator lint
+      - name: Build
+        run: bun run --cwd apps/curator build

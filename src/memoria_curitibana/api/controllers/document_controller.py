@@ -1,13 +1,22 @@
 from datetime import date
 from typing import Literal
 
-from litestar import Controller, get, patch
+from litestar import Controller, delete, get, patch, post
 from litestar.di import NamedDependency, Provide
 from litestar.params import FromPath, FromQuery
 
 from memoria_curitibana.api.dependencies import provide_document_service
-from memoria_curitibana.api.schemas.documents import DocumentUpdateRequest
-from memoria_curitibana.domains.archive.schemas.command_schema import DocumentReviewCommand
+from memoria_curitibana.api.schemas.documents import (
+    DocumentUpdateRequest,
+    EntityLinkRequest,
+    TagLinkRequest,
+)
+from memoria_curitibana.domains.archive.models import ArchiveReviewStatus
+from memoria_curitibana.domains.archive.schemas.command_schema import (
+    DocumentReviewCommand,
+    EntityLinkCommand,
+    TagLinkCommand,
+)
 from memoria_curitibana.domains.archive.schemas.document_schema import (
     DocumentListResponse,
     DocumentRevisionDTO,
@@ -38,6 +47,8 @@ class DocumentController(Controller):
         entity_type: FromQuery[str | None] = None,
         date_from: FromQuery[date | None] = None,
         date_to: FromQuery[date | None] = None,
+        status: FromQuery[ArchiveReviewStatus | None] = None,
+        is_anomaly: FromQuery[bool | None] = None,
         limit: FromQuery[int] = 50,
         offset: FromQuery[int] = 0,
     ) -> DocumentListResponse:
@@ -58,6 +69,8 @@ class DocumentController(Controller):
                 entity_type=entity_type,
                 date_from=date_from,
                 date_to=date_to,
+                status=status,
+                is_anomaly=is_anomaly,
                 limit=limit,
                 offset=offset,
             )
@@ -87,4 +100,64 @@ class DocumentController(Controller):
         """Applies the human review, records the changes and marks the document HUMAN_APPROVED."""
         return document_service.update_review(
             DocumentReviewCommand(description_id=description_id, **data.model_dump(exclude_unset=True))
+        )
+
+    # --- Local subject curation ---------------------------------------------------------------
+    #
+    # Until now "this document is about this too" could only be decided by merging terms globally or
+    # by re-running a worker. These four routes close that gap, and they follow the same rule as the
+    # field edit: a human decision is recorded in the revision ledger and takes the record out of
+    # the AI's reach.
+    @post("/{description_id:str}/tags", status_code=201, sync_to_thread=True)
+    def link_tag(
+        self,
+        document_service: NamedDependency[DocumentService],
+        description_id: FromPath[str],
+        data: TagLinkRequest,
+    ) -> DocumentSummary:
+        """Attaches one tag to this description, records the revision and marks it HUMAN_APPROVED."""
+        return document_service.link_tag(
+            TagLinkCommand(description_id=description_id, tag_id=data.tag_id), data.changed_by, data.review_note
+        )
+
+    @delete("/{description_id:str}/tags/{tag_id:int}", status_code=200, sync_to_thread=True)
+    def unlink_tag(
+        self,
+        document_service: NamedDependency[DocumentService],
+        description_id: FromPath[str],
+        tag_id: FromPath[int],
+        changed_by: FromQuery[str | None] = None,
+        review_note: FromQuery[str | None] = None,
+    ) -> DocumentSummary:
+        """Detaches one tag from this description, records the revision and marks it HUMAN_APPROVED."""
+        return document_service.unlink_tag(
+            TagLinkCommand(description_id=description_id, tag_id=tag_id), changed_by, review_note
+        )
+
+    @post("/{description_id:str}/entities", status_code=201, sync_to_thread=True)
+    def link_entity(
+        self,
+        document_service: NamedDependency[DocumentService],
+        description_id: FromPath[str],
+        data: EntityLinkRequest,
+    ) -> DocumentSummary:
+        """Attaches one named entity to this description, records the revision and marks it HUMAN_APPROVED."""
+        return document_service.link_entity(
+            EntityLinkCommand(description_id=description_id, entity_id=data.entity_id),
+            data.changed_by,
+            data.review_note,
+        )
+
+    @delete("/{description_id:str}/entities/{entity_id:int}", status_code=200, sync_to_thread=True)
+    def unlink_entity(
+        self,
+        document_service: NamedDependency[DocumentService],
+        description_id: FromPath[str],
+        entity_id: FromPath[int],
+        changed_by: FromQuery[str | None] = None,
+        review_note: FromQuery[str | None] = None,
+    ) -> DocumentSummary:
+        """Detaches one named entity from this description, records the revision and marks it HUMAN_APPROVED."""
+        return document_service.unlink_entity(
+            EntityLinkCommand(description_id=description_id, entity_id=entity_id), changed_by, review_note
         )

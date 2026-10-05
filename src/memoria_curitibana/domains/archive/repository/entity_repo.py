@@ -84,8 +84,19 @@ class EntityRepository:
         """
         Scans the collection and cross-references all entities with each other to find
         pairs that are very similar (potential duplications or NER errors).
+
+        The ``%`` predicate is the only condition besides the self-join, and that **is** the
+        performance strategy: it is what makes PostgreSQL walk ``idx_archive_entities_name_trgm``
+        once per row instead of comparing every pair (measured: 196 ms for the whole collection at
+        threshold 0.65, against 7.2 M pairs).
+
+        There used to be an extra ``abs(length(a) - length(b)) <= 3`` here, labelled a performance
+        hack. It was a **correctness** bug: length difference is not bounded by trigram similarity —
+        ``Avenida Nossa Senhora Da Luz`` vs ``Av. Avenida Nossa Senhora Da Luz`` has similarity
+        0.966 and a difference of 4 — and it silently discarded **419 of 647** real duplicate pairs
+        (65%). Do not reintroduce a prefilter in front of ``%``: the index is already the filter.
         """
-        # 1. Configures PostgreSQL's native threshold only for this transaction.
+        # Configures PostgreSQL's native threshold only for this transaction.
         self.db.execute(text("SET LOCAL pg_trgm.similarity_threshold = :threshold"), {"threshold": threshold})
 
         # Creates the aliases for the Self Join
@@ -107,9 +118,7 @@ class EntityRepository:
             )
             # The Join ensuring that only unique combinations are tested (A with B) and mirrored ones (B with A) are ignored
             .join(Entity2, Entity1.entity_id < Entity2.entity_id)
-            # 2. PERFORMANCE HACK: Only compares entities that have up to 3 letters of difference in length
-            .where(func.abs(func.length(Entity1.name) - func.length(Entity2.name)) <= 3)
-            # 3. THE SECRET: The % operator is the only thing that activates the GIN Index!
+            # The GIN trigram index answers this one predicate; nothing else may narrow it.
             .where(Entity1.name.op("%")(Entity2.name))
             .order_by(desc("similarity"), Entity1.name)
         )
@@ -117,7 +126,24 @@ class EntityRepository:
         return [EntityPairSimilarity.model_validate(row) for row in self.db.execute(stmt).all()]
 
     def get_cross_domain_conflicts(self, threshold: float) -> Sequence[CrossDomainConflict]:
-        """Searches for conflicts where the Tag name is identical or very similar to the Entity's."""
+        """
+        Conflicts where a Tag name is identical or nearly identical to an Entity name.
+
+        The join condition is the trigram operator and **nothing else**. That is not a stylistic
+        preference: it is the difference between an index scan and a full cross product. Measured on
+        the real collection (6 142 tags x 3 808 entities, threshold 0.85):
+
+        * ``name % name`` alone → ``Bitmap Index Scan on idx_archive_tags_name_trgm``, **1.4 s**;
+        * the same condition ``OR lower(t.name) = lower(e.name)`` → the OR turns the join into a
+          ``Join Filter``, the planner materialises the inner side and the query scans all 23.4 M
+          pairs: **52.9 s**, with **identical results**.
+
+        The ``lower() = lower()`` disjunct was redundant, not a safety net: ``pg_trgm`` normalises
+        case for trigram extraction, so ``similarity('Batel', 'batel') = 1`` and at **any** threshold
+        in ``[0, 1]`` every pair it matched was already matched by ``%``. Do not add an OR here —
+        it silently costs a factor of 37. ``testing/integration/archive/services/test_entity_service.py``
+        pins the case-insensitivity this reasoning depends on.
+        """
         self.db.execute(text("SET LOCAL pg_trgm.similarity_threshold = :threshold"), {"threshold": threshold})
 
         sim_score = func.similarity(ArchiveTag.name, ArchiveEntity.name)
@@ -131,11 +157,7 @@ class EntityRepository:
                 ArchiveEntity.entity_type,
                 sim_score.label("similarity"),
             )
-            .join(
-                ArchiveEntity,
-                ArchiveTag.name.op("%")(ArchiveEntity.name)
-                | (func.lower(ArchiveTag.name) == func.lower(ArchiveEntity.name)),
-            )
+            .join(ArchiveEntity, ArchiveTag.name.op("%")(ArchiveEntity.name))
             .order_by(desc("similarity"))
         )
         return [CrossDomainConflict.model_validate(dict(row._mapping)) for row in self.db.execute(stmt).all()]

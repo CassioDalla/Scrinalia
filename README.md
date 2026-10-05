@@ -8,9 +8,10 @@ three-layer pipeline, and enriches them with named entities, typologies and subj
 categories. Every AI decision is advisory: an archivist reviews and approves, and approved
 documents are locked against further automatic rewrites.
 
-> **Status:** research project under active development. The Streamlit dashboard is a
-> temporary interface and is scheduled to be replaced by a backend + React frontend; the
-> HTTP API is the stable contract.
+> **Status:** research project under active development. The curator UI is a React SPA
+> (`apps/curator/`) served by the API; the old Streamlit dashboard is still in the tree and is
+> scheduled to be switched off. The HTTP API is the stable contract, and the TypeScript client
+> is generated from it.
 
 ## How it works
 
@@ -55,6 +56,7 @@ guessed at. A tag whose axis is provenance or geography (`ippuc`, `curitiba`) ca
 ## Requirements
 
 - Python 3.12, managed with [`uv`](https://docs.astral.sh/uv/)
+- [Bun](https://bun.sh/) 1.3+ (only for the curator UI)
 - Docker (PostgreSQL/PostGIS and MinIO)
 - For AI workers: a local [Ollama](https://ollama.com/) instance, and enough disk for the
   PyTorch and transformer model stack
@@ -81,9 +83,30 @@ uv run uvicorn main:app --reload
 The API is then available at `http://localhost:8000/`, with the OpenAPI schema at
 `/schema/swagger`.
 
-### Dashboard
+### Curator UI
 
-The temporary Streamlit front end talks to the API over HTTP, so the API must be running:
+The archivist's interface is a React SPA in `apps/curator/`. It has no server of its own: Vite
+proxies `/api` to the API in development, and in production the API serves the built files, so the
+browser is always on the same origin and the project needs no CORS configuration.
+
+```bash
+bun install                                   # once per clone, from the repository root
+bun run curator:dev                           # http://localhost:5173, proxies /api to :8000
+bun run curator:build                         # writes apps/curator/dist, served by the API at /
+```
+
+The TypeScript client is **generated from the API contract**, never written by hand:
+
+```bash
+bun run contract          # dumps packages/api-contract/openapi.json and regenerates the client
+```
+
+CI fails when either artifact is stale, so a route or a schema change that is not accompanied by a
+regenerated contract is caught at review time rather than in the browser.
+
+### Dashboard (temporary)
+
+The old Streamlit front end talks to the API over HTTP, so the API must be running:
 
 ```bash
 uv run streamlit run src/memoria_curitibana/dashboard/app.py
@@ -120,6 +143,10 @@ Integration tests need a PostgreSQL database on port 5433:
 docker compose -f docker-compose.test.yml up -d
 ```
 
+> If something else already holds 5433 the container starts without publishing a port and the
+> suite silently talks to the wrong database. Run with `TEST_DB_PORT=5434` and
+> `TEST_DATABASE_URL=postgresql://test_user:test_password@localhost:5434/test_db`.
+
 > The suite drops the schema on teardown. Do not serve the API against the test database
 > while pytest is running; re-apply `alembic upgrade head` before starting a server again.
 
@@ -130,7 +157,9 @@ src/memoria_curitibana/   the application (installed package)
   api/                    Litestar controllers, request schemas, composition root
   core/                   settings, logging, database, unit of work
   domains/                ingestion, staging, archive (models/repository/services/workers)
-  dashboard/              temporary Streamlit front end
+  dashboard/              temporary Streamlit front end (to be removed)
+apps/curator/             React SPA: the archivist's interface
+packages/api-contract/    openapi.json, generated from the app and committed
 testing/                  test suite (outside the package, on purpose)
 migrations/               Alembic revisions; owns the database schema
 docs/adr/                 accepted architecture decisions

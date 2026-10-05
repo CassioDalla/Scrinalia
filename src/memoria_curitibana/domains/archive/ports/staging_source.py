@@ -30,6 +30,11 @@ class StagingRecord(BaseModel):
     scope_content: str | None = None
     language_name: str | None = None
     archivist_notes: str | None = None
+    #: ISAD(G) 4.1. It was parsed into staging from the beginning and had no counterpart here, so
+    #: the transfer never carried it and the archive lost it. Declaring it changes
+    #: ``parsed_content_hash`` for every row, which is the *intended* effect of the CDC contract:
+    #: the next transfer re-reads the collection and the restriction reaches the archive.
+    access_conditions: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

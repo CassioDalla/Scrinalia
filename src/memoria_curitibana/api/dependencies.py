@@ -9,6 +9,7 @@ from memoria_curitibana.core.database import create_session
 from memoria_curitibana.core.unit_of_work import UnitOfWork
 from memoria_curitibana.domains.archive.engines.base import EmbeddingEngine
 from memoria_curitibana.domains.archive.repository.cleaning_repo import CleaningRepository
+from memoria_curitibana.domains.archive.repository.curation_repo import CurationRepository
 from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
 from memoria_curitibana.domains.archive.repository.entity_repo import EntityRepository
 from memoria_curitibana.domains.archive.repository.hierarchy_repo import HierarchyRepository
@@ -16,6 +17,7 @@ from memoria_curitibana.domains.archive.repository.level_catalog_repo import Lev
 from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
 from memoria_curitibana.domains.archive.repository.text_quality_repo import TextQualityRepository
 from memoria_curitibana.domains.archive.services.cleaning_service import CleaningService
+from memoria_curitibana.domains.archive.services.curation_service import CurationService
 from memoria_curitibana.domains.archive.services.document_service import DocumentService
 from memoria_curitibana.domains.archive.services.entity_service import EntityService
 from memoria_curitibana.domains.archive.services.hierarchy_materialisation_service import (
@@ -82,6 +84,11 @@ def provide_cleaning_service(unit_of_work: NamedDependency[UnitOfWork]) -> Clean
 def provide_text_quality_service(unit_of_work: NamedDependency[UnitOfWork]) -> TextQualityService:
     """Builds the repeated-excerpt curation service over the request transaction."""
     return TextQualityService(TextQualityRepository(unit_of_work.db))
+
+
+def provide_curation_service(unit_of_work: NamedDependency[UnitOfWork]) -> CurationService:
+    """Builds the curator's work list over the request transaction; it only reads."""
+    return CurationService(CurationRepository(unit_of_work.db))
 
 
 def provide_document_service(unit_of_work: NamedDependency[UnitOfWork]) -> DocumentService:

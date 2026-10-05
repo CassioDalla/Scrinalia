@@ -11,7 +11,12 @@ services:
       POSTGRES_PASSWORD: test_password
       POSTGRES_DB: test_db
     ports:
-      - "5433:5432"
+      # Overridable because 5433 is a popular host port: when another project already holds it,
+      # the container starts *without* publishing anything and the suite silently talks to the
+      # wrong PostgreSQL — which looks like a test failure, not a port conflict. Run with
+      # ``TEST_DB_PORT=5434`` and ``TEST_DATABASE_URL=...:5434/test_db``. CI does not use this
+      # file (it declares the service container itself), so the default stays 5433.
+      - "${TEST_DB_PORT:-5433}:5432"
     # O tmpfs faz o banco rodar inteiramente na memória RAM!
     # Os testes vão voar porque não há gravação real no disco rígido.
     tmpfs:

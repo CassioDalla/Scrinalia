@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from memoria_curitibana.domains.archive.models import ArchiveReviewStatus
+
 
 class DocumentSearchQuery(BaseModel):
     """
@@ -35,5 +37,15 @@ class DocumentSearchQuery(BaseModel):
     )
     date_from: date | None = Field(default=None, description="Inclusive lower bound on the document date.")
     date_to: date | None = Field(default=None, description="Inclusive upper bound on the document date.")
+    #: Governance filters. They exist because the work list links straight into a filtered list
+    #: ("the descriptions nobody reviewed", "the ones the validator flagged"), and a card promising
+    #: a screen the search cannot produce would be a dead end.
+    status: ArchiveReviewStatus | None = Field(default=None, description="Only descriptions in this review state.")
+    is_anomaly: bool | None = Field(default=None, description="Only flagged, or only clean, descriptions.")
+    #: Diffusion gate, applied by the public surface and never exposed to it as a parameter: the
+    #: public controller sets it to ``True`` server-side, so a client cannot ask to see unpublished
+    #: records by flipping a query string. It is a *filter*, not a facet, so it constrains every
+    #: facet count as well.
+    published_only: bool = Field(default=False, description="Only descriptions cleared for diffusion.")
     limit: int = Field(default=50, ge=1, le=200, description="Page size.")
     offset: int = Field(default=0, ge=0, description="Number of records to skip.")

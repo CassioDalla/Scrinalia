@@ -38,7 +38,15 @@ def _summary(description_id: str = "doc-1") -> DocumentSummary:
         document_date=date(1954, 3, 12),
         review_status=ArchiveReviewStatus.PENDING_AI,
         is_anomaly=False,
-        tags=[DocumentTagSummary(tag_id=1, name="urbanismo")],
+        tags=[
+            DocumentTagSummary(
+                tag_id=1,
+                name="urbanismo",
+                macro_category_id=4,
+                macro_category_name="Urbanismo",
+                ai_confidence_score=0.91,
+            )
+        ],
         entities=[DocumentEntitySummary(entity_id=2, name="Curitiba", entity_type="LOC")],
     )
 
@@ -121,7 +129,13 @@ def test_list_documents_forwards_every_facet(client: TestClient, mocker):
 
 
 def test_get_document_returns_tags_and_entities(client: TestClient, mocker):
-    """The read view carries the taxonomy attached to the document."""
+    """
+    The read view carries the taxonomy attached to the document.
+
+    The tag carries its subject decision (macro category and the classifier's confidence) and not
+    just the name: the subject tab has to explain *why* a document is filed where it is, and
+    resolving that per tag would be an N+1 on the front-end.
+    """
     mock_get = mocker.patch.object(DocumentService, "get")
     mock_get.return_value = _summary("doc-7")
 
@@ -131,7 +145,15 @@ def test_get_document_returns_tags_and_entities(client: TestClient, mocker):
     body = response.json()
     assert body["description_id"] == "doc-7"
     assert body["document_date"] == "1954-03-12"
-    assert body["tags"] == [{"tag_id": 1, "name": "urbanismo"}]
+    assert body["tags"] == [
+        {
+            "tag_id": 1,
+            "name": "urbanismo",
+            "macro_category_id": 4,
+            "macro_category_name": "Urbanismo",
+            "ai_confidence_score": 0.91,
+        }
+    ]
     assert body["entities"] == [{"entity_id": 2, "name": "Curitiba", "entity_type": "LOC"}]
     mock_get.assert_called_once_with("doc-7")
 

@@ -12,6 +12,13 @@ class TagNotFoundError(DomainException):
     pass
 
 
+class EntityNotFoundError(DomainException):
+    """Raised when linking or unlinking a named entity the collection does not have."""
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
 class DocumentNotFoundError(DomainException):
     """Raised when a document does not exist in the Archive layer."""
 

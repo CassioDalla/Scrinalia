@@ -149,11 +149,11 @@ def test_search_filters_by_term_and_paginates(use_test_db, db_session, generate_
     )
     db_session.commit()
 
-    docs, total = repo.search(DocumentSearchQuery(term="Matadouro"))
+    docs, total, _ = repo.search(DocumentSearchQuery(term="Matadouro"))
     assert total == 1
     assert docs[0].description_id == "s1"
 
-    page, total_overall = repo.search(DocumentSearchQuery(limit=1, offset=0))
+    page, total_overall, _ = repo.search(DocumentSearchQuery(limit=1, offset=0))
     assert total_overall == 2
     assert len(page) == 1
 
@@ -213,7 +213,7 @@ def test_search_votes_macro_categories_by_tag_count(use_test_db, db_session, gen
         _link_tag(db_session, doc.description_id, tag.tag_id)
     db_session.commit()
 
-    docs, total = repo.search(DocumentSearchQuery(term="Plano Urbano"))
+    docs, total, _ = repo.search(DocumentSearchQuery(term="Plano Urbano"))
 
     assert total == 1
     assert [(vote.name, vote.tag_count) for vote in docs[0].macro_categories] == [("Urbanismo", 2), ("Saúde", 1)]
@@ -259,7 +259,7 @@ def test_tag_edit_reflects_on_documents_without_touching_the_documents_table(
     assert after is not None
     assert after.updated_at == updated_at_before
 
-    docs, _ = repo.search(DocumentSearchQuery(term="Documento Refletido"))
+    docs, _, _ = repo.search(DocumentSearchQuery(term="Documento Refletido"))
     assert [vote.name for vote in docs[0].macro_categories] == ["Saúde"]
 
 
@@ -290,15 +290,15 @@ def test_search_stems_portuguese_and_ignores_accents(use_test_db, db_session, ge
     db_session.commit()
 
     # A singular query finds the stored plural.
-    docs, total = repo.search(DocumentSearchQuery(term="enchente"))
+    docs, total, _ = repo.search(DocumentSearchQuery(term="enchente"))
     assert (total, [doc.description_id for doc in docs]) == (1, ["fts1"])
 
     # A query without the accent finds the accented word.
-    docs, _ = repo.search(DocumentSearchQuery(term="gaucho"))
+    docs, _, _ = repo.search(DocumentSearchQuery(term="gaucho"))
     assert [doc.description_id for doc in docs] == ["fts1"]
 
     # A prefix of a word still being typed.
-    docs, _ = repo.search(DocumentSearchQuery(term="relat"))
+    docs, _, _ = repo.search(DocumentSearchQuery(term="relat"))
     assert [doc.description_id for doc in docs] == ["fts2"]
 
 
@@ -323,7 +323,7 @@ def test_search_ranks_title_hits_above_body_hits(use_test_db, db_session, genera
     )
     db_session.commit()
 
-    docs, total = repo.search(DocumentSearchQuery(term="matadouro"))
+    docs, total, _ = repo.search(DocumentSearchQuery(term="matadouro"))
 
     assert total == 2
     assert [doc.description_id for doc in docs] == ["rank_title", "rank_body"]
@@ -336,7 +336,7 @@ def test_search_without_a_term_does_not_expose_a_rank(use_test_db, db_session, g
     repo = DocumentRepository(db_session)
     generate_archive_doc(description_id="browse1", original_title="Qualquer um")
 
-    docs, total = repo.search(DocumentSearchQuery())
+    docs, total, _ = repo.search(DocumentSearchQuery())
 
     assert total == 1
     assert docs[0].rank is None
@@ -346,7 +346,7 @@ def test_search_returns_empty_for_a_term_that_matches_nothing(use_test_db, db_se
     repo = DocumentRepository(db_session)
     generate_archive_doc(description_id="none1", original_title="Documento qualquer")
 
-    docs, total = repo.search(DocumentSearchQuery(term="zznada"))
+    docs, total, _ = repo.search(DocumentSearchQuery(term="zznada"))
 
     assert (total, docs) == (0, [])
 
@@ -359,7 +359,7 @@ def test_search_falls_back_to_substring_for_a_mid_word_term(use_test_db, db_sess
     )
     db_session.commit()
 
-    docs, total = repo.search(DocumentSearchQuery(term="rbanis"))
+    docs, total, _ = repo.search(DocumentSearchQuery(term="rbanis"))
 
     assert (total, [doc.description_id for doc in docs]) == (1, ["fb1"])
 
@@ -387,11 +387,11 @@ def test_search_finds_a_document_through_its_tag_and_entity(use_test_db, db_sess
     )
     db_session.commit()
 
-    by_tag, total_tag = repo.search(DocumentSearchQuery(term="pavimentação"))
+    by_tag, total_tag, _ = repo.search(DocumentSearchQuery(term="pavimentação"))
     assert (total_tag, [item.description_id for item in by_tag]) == (1, ["tax1"])
     assert by_tag[0].rank is not None and by_tag[0].rank > 0
 
-    by_entity, total_entity = repo.search(DocumentSearchQuery(term="batel"))
+    by_entity, total_entity, _ = repo.search(DocumentSearchQuery(term="batel"))
     assert (total_entity, [item.description_id for item in by_entity]) == (1, ["tax1"])
 
 
@@ -406,7 +406,7 @@ def test_search_does_not_duplicate_a_document_with_several_matching_tags(use_tes
         _link_tag(db_session, doc.description_id, tag.tag_id)
     db_session.commit()
 
-    docs, total = repo.search(DocumentSearchQuery(term="saneamento"))
+    docs, total, _ = repo.search(DocumentSearchQuery(term="saneamento"))
 
     assert total == 1
     assert [item.description_id for item in docs] == ["dup1"]
@@ -435,11 +435,11 @@ def test_search_still_finds_a_document_through_a_spelling_that_was_merged(
     db_session.add(DomainSynonyms(synonym_name="lojas", category="TAG", canonical_tag_id=canonical.tag_id))
     db_session.commit()
 
-    merged_spelling, total = repo.search(DocumentSearchQuery(term="lojas"))
+    merged_spelling, total, _ = repo.search(DocumentSearchQuery(term="lojas"))
     assert (total, [item.description_id for item in merged_spelling]) == (1, ["merged1"])
 
     # The canonical spelling obviously keeps working, and so does the entity axis.
-    canonical_spelling, total_canonical = repo.search(DocumentSearchQuery(term="loja"))
+    canonical_spelling, total_canonical, _ = repo.search(DocumentSearchQuery(term="loja"))
     assert (total_canonical, [item.description_id for item in canonical_spelling]) == (1, ["merged1"])
 
 
@@ -454,7 +454,7 @@ def test_search_still_finds_a_document_through_a_merged_entity_spelling(use_test
     db_session.add(DomainSynonyms(synonym_name="prefeiruta", category="ORG", canonical_entity_id=canonical.entity_id))
     db_session.commit()
 
-    docs, total = repo.search(DocumentSearchQuery(term="prefeiruta"))
+    docs, total, _ = repo.search(DocumentSearchQuery(term="prefeiruta"))
 
     assert (total, [item.description_id for item in docs]) == (1, ["merged_entity"])
 
@@ -473,7 +473,7 @@ def test_search_filters_by_typology(use_test_db, db_session, generate_archive_do
     generate_archive_doc(description_id="t1", original_title="Doc dossiê", typology_id=dossier.typology_id)
     generate_archive_doc(description_id="t2", original_title="Doc foto", typology_id=photo.typology_id)
 
-    docs, total = repo.search(DocumentSearchQuery(typology_id=photo.typology_id))
+    docs, total, _ = repo.search(DocumentSearchQuery(typology_id=photo.typology_id))
 
     assert (total, [item.description_id for item in docs]) == (1, ["t2"])
 
@@ -492,7 +492,7 @@ def test_search_filters_by_macro_category(use_test_db, db_session, generate_arch
     _link_tag(db_session, with_category.description_id, tag.tag_id)
     db_session.commit()
 
-    docs, total = repo.search(DocumentSearchQuery(macro_category_id=urban.category_id))
+    docs, total, _ = repo.search(DocumentSearchQuery(macro_category_id=urban.category_id))
 
     assert (total, [item.description_id for item in docs]) == (1, ["mc1"])
 
@@ -514,7 +514,7 @@ def test_search_filters_by_entity_type(use_test_db, db_session, generate_archive
     )
     db_session.commit()
 
-    docs, total = repo.search(DocumentSearchQuery(entity_type="ORG"))
+    docs, total, _ = repo.search(DocumentSearchQuery(entity_type="ORG"))
 
     assert (total, [item.description_id for item in docs]) == (1, ["e2"])
 
@@ -525,10 +525,10 @@ def test_search_filters_by_date_range(use_test_db, db_session, generate_archive_
     generate_archive_doc(description_id="d1980", original_title="Recente", document_date=date(1980, 5, 10))
     generate_archive_doc(description_id="dNone", original_title="Sem data")
 
-    docs, total = repo.search(DocumentSearchQuery(date_from=date(1950, 1, 1), date_to=date(1960, 12, 31)))
+    docs, total, _ = repo.search(DocumentSearchQuery(date_from=date(1950, 1, 1), date_to=date(1960, 12, 31)))
     assert (total, [item.description_id for item in docs]) == (1, ["d1954"])
 
-    docs, total = repo.search(DocumentSearchQuery(date_from=date(1960, 1, 1)))
+    docs, total, _ = repo.search(DocumentSearchQuery(date_from=date(1960, 1, 1)))
     assert (total, [item.description_id for item in docs]) == (1, ["d1980"])
 
 
@@ -550,10 +550,10 @@ def test_search_combines_term_and_facet_with_stable_pagination(use_test_db, db_s
     _link_tag(db_session, other.description_id, health_tag.tag_id)
     db_session.commit()
 
-    first_page, total = repo.search(
+    first_page, total, _ = repo.search(
         DocumentSearchQuery(term="pavimentação", macro_category_id=urban.category_id, limit=1, offset=0)
     )
-    second_page, _ = repo.search(
+    second_page, _, _ = repo.search(
         DocumentSearchQuery(term="pavimentação", macro_category_id=urban.category_id, limit=1, offset=1)
     )
 
@@ -583,7 +583,7 @@ def test_semantic_search_orders_by_cosine_similarity_and_skips_documents_without
     generate_archive_doc(description_id="sem2", original_title="Obras", embedding=_vector(0.0, 1.0))
     generate_archive_doc(description_id="sem3", original_title="Sem vetor")
 
-    docs, total = repo.search(DocumentSearchQuery(term="alagamento", mode="semantic"), query_embedding=_vector(1.0))
+    docs, total, _ = repo.search(DocumentSearchQuery(term="alagamento", mode="semantic"), query_embedding=_vector(1.0))
 
     # Only embedded documents are candidates; the closest one comes first.
     assert total == 2
@@ -606,7 +606,7 @@ def test_semantic_search_respects_facets(use_test_db, db_session, generate_archi
         description_id="fac2", original_title="B", embedding=_vector(1.0), typology_id=photo.typology_id
     )
 
-    docs, total = repo.search(
+    docs, total, _ = repo.search(
         DocumentSearchQuery(term="x", mode="semantic", typology_id=photo.typology_id),
         query_embedding=_vector(1.0),
     )
@@ -619,7 +619,7 @@ def test_semantic_mode_without_a_query_embedding_falls_back_to_browsing(use_test
     repo = DocumentRepository(db_session)
     generate_archive_doc(description_id="noemb", original_title="Qualquer", embedding=_vector(1.0))
 
-    docs, total = repo.search(DocumentSearchQuery(mode="semantic"))
+    docs, total, _ = repo.search(DocumentSearchQuery(mode="semantic"))
 
     assert total == 1
     assert docs[0].rank is None
@@ -629,7 +629,7 @@ def test_lexical_mode_ignores_the_query_embedding(use_test_db, db_session, gener
     repo = DocumentRepository(db_session)
     generate_archive_doc(description_id="lex1", original_title="Matadouro Municipal", embedding=_vector(1.0))
 
-    docs, total = repo.search(DocumentSearchQuery(term="matadouro"), query_embedding=_vector(1.0))
+    docs, total, _ = repo.search(DocumentSearchQuery(term="matadouro"), query_embedding=_vector(1.0))
 
     assert total == 1
     assert docs[0].rank is not None and docs[0].rank > 0
@@ -657,8 +657,8 @@ def test_search_inside_a_branch_returns_the_whole_subtree(db_session, generate_a
 
     repo = DocumentRepository(db_session)
 
-    whole_fund, total_fund = repo.search(DocumentSearchQuery(ancestor_id="fundo", limit=50))
-    branch, total_branch = repo.search(DocumentSearchQuery(ancestor_id="serie", limit=50))
+    whole_fund, total_fund, _ = repo.search(DocumentSearchQuery(ancestor_id="fundo", limit=50))
+    branch, total_branch, _ = repo.search(DocumentSearchQuery(ancestor_id="serie", limit=50))
 
     assert total_fund == 4  # the fund, the série and both items
     assert {doc.description_id for doc in whole_fund} == {"fundo", "serie", "item-1", "item-2"}
@@ -678,7 +678,7 @@ def test_search_by_level_is_a_real_facet(db_session, generate_archive_doc, gener
     db_session.flush()
 
     repo = DocumentRepository(db_session)
-    items, total = repo.search(DocumentSearchQuery(level_id=item.level_id, limit=50))
+    items, total, _ = repo.search(DocumentSearchQuery(level_id=item.level_id, limit=50))
 
     assert total == 2
     assert {doc.description_id for doc in items} == {"i1", "i2"}
@@ -719,7 +719,7 @@ def test_the_hierarchical_facets_combine_with_the_others(db_session, generate_ar
     db_session.flush()
 
     repo = DocumentRepository(db_session)
-    found, total = repo.search(
+    found, total, _ = repo.search(
         DocumentSearchQuery(term="matadouro", ancestor_id="fundo", level_id=item.level_id, limit=50)
     )
 

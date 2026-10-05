@@ -27,3 +27,8 @@ coverage.xml
 .cache-pre-commit/
 .cache-hf/
 .cache-uv/
+
+# Front-end (Bun workspaces)
+node_modules/
+.cache-bun/
+.cache-chrome/

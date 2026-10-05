@@ -98,6 +98,10 @@ class ArchiveDocument(Base):
     scope_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     language_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     archivist_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # ISAD(G) 4.1, "Conditions governing access". It was captured by the staging parser and then
+    # dropped by the transfer, which meant the archive could not state whether a description is
+    # restricted — a defect that only became visible when a diffusion surface was specified.
+    access_conditions: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # --- Hierarchy of the arrangement (Fase 2.5) ---
     # Self-reference because a fund is an archival description like any other: it has a title,
@@ -164,12 +168,27 @@ class ArchiveDocument(Base):
     is_anomaly: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     anomaly_reasons: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
 
+    # --- Diffusion (Fase 4) ---
+    # Publication is deliberately *not* ``review_status = HUMAN_APPROVED``. Review is a statement
+    # about the quality of the record; publication is a statement about what the institution wants
+    # to expose. Binding them would make a typo fix equivalent to publishing, and would lock every
+    # published document against AI rewriting through ``ai_writable_documents``. It is also what
+    # makes the curation load tractable: with the arrangement materialised, a whole Série can be
+    # published at once instead of approving thousands of records one by one.
+    is_published: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False, index=True
+    )
+
     # --- Relationships---
     entities: Mapped[list["ArchiveEntity"]] = relationship(
         secondary="archive_document_entities", back_populates="descriptions"
     )
     tags: Mapped[list["ArchiveTag"]] = relationship(secondary="archive_document_tags", back_populates="descriptions")
-    typology: Mapped["ArchiveTypology"] = relationship(back_populates="documents")
+    # ``typology_ref`` and not ``typology``: the plain name is the *read contract* (the name a
+    # client shows), exposed by the property below, exactly as ``level``/``level_ref`` does. Without
+    # the split, ``DocumentSummary.model_validate(doc)`` would try to validate the ORM object as the
+    # string the read view declares.
+    typology_ref: Mapped["ArchiveTypology"] = relationship(back_populates="documents")
 
     # ``remote_side`` marks the "one" end of the self-referential join; without it SQLAlchemy
     # cannot tell which column points at which on the same table.
@@ -193,6 +212,17 @@ class ArchiveDocument(Base):
         drift from the rung the curator actually chose.
         """
         return self.level_ref.name if self.level_ref else None
+
+    @property
+    def typology(self) -> str | None:
+        """
+        Name of the typology, derived from the foreign key on read.
+
+        Same contract as ``level``: the client reads a name, the database stores an id, and the
+        catalogue stays the single source of truth. It is what lets the read view expose the
+        typology without the front-end resolving an id per row.
+        """
+        return self.typology_ref.name if self.typology_ref else None
 
     __table_args__ = (
         # The GIN index is vital for the AI Workers' polling performance

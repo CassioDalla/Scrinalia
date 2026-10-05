@@ -3,7 +3,11 @@ from collections.abc import Callable
 from memoria_curitibana.domains.archive.engines.base import EmbeddingEngine
 from memoria_curitibana.domains.archive.exceptions import DocumentNotFoundError
 from memoria_curitibana.domains.archive.ports.document import DocumentRepositoryPort
-from memoria_curitibana.domains.archive.schemas.command_schema import DocumentReviewCommand
+from memoria_curitibana.domains.archive.schemas.command_schema import (
+    DocumentReviewCommand,
+    EntityLinkCommand,
+    TagLinkCommand,
+)
 from memoria_curitibana.domains.archive.schemas.document_schema import (
     DocumentListResponse,
     DocumentRevisionDTO,
@@ -50,12 +54,27 @@ class DocumentService:
         if query.mode == "semantic" and query.term and query.term.strip():
             query_embedding = self._get_engine().embed([query.term])[0]
 
-        docs, total = self.repo.search(query, query_embedding=query_embedding)
-        return DocumentListResponse(total=total, limit=query.limit, offset=query.offset, items=list(docs))
+        docs, total, facets = self.repo.search(query, query_embedding=query_embedding)
+        return DocumentListResponse(
+            total=total, limit=query.limit, offset=query.offset, items=list(docs), facets=facets
+        )
 
     def get(self, description_id: str) -> DocumentSummary:
         doc = self.repo.get_by_id(description_id)
         if doc is None:
+            raise DocumentNotFoundError(f"Documento '{description_id}' não encontrado no acervo.")
+        return doc
+
+    def get_published(self, description_id: str) -> DocumentSummary:
+        """
+        One description, but only when the institution cleared it for diffusion.
+
+        A record that is not published raises the same not-found error the diffusion surface already
+        maps to 404, rather than a distinct "forbidden": telling the two apart would confirm that
+        the description exists, which is exactly the fact the gate protects.
+        """
+        doc = self.get(description_id)
+        if not doc.is_published:
             raise DocumentNotFoundError(f"Documento '{description_id}' não encontrado no acervo.")
         return doc
 
@@ -78,4 +97,41 @@ class DocumentService:
         doc = self.repo.update_review(command)
         if doc is None:
             raise DocumentNotFoundError(f"Documento '{command.description_id}' não encontrado no acervo.")
+        return doc
+
+    # --- Local curation of one document's subjects -------------------------------------------
+    #
+    # These four answer the oldest gap of the curation phase: the taxonomy routes merge terms
+    # globally, but "this document is about this too" could only be decided by re-running a
+    # worker. Like every human write here, they take the record out of the AI's reach — which is
+    # why they all funnel into the same revision ledger.
+    def link_tag(
+        self, command: TagLinkCommand, changed_by: str | None = None, note: str | None = None
+    ) -> DocumentSummary:
+        """Attaches a tag to one description as a human decision."""
+        return self._require(self.repo.link_tag(command, changed_by, note), command.description_id)
+
+    def unlink_tag(
+        self, command: TagLinkCommand, changed_by: str | None = None, note: str | None = None
+    ) -> DocumentSummary:
+        """Detaches a tag from one description as a human decision."""
+        return self._require(self.repo.unlink_tag(command, changed_by, note), command.description_id)
+
+    def link_entity(
+        self, command: EntityLinkCommand, changed_by: str | None = None, note: str | None = None
+    ) -> DocumentSummary:
+        """Attaches a named entity to one description as a human decision."""
+        return self._require(self.repo.link_entity(command, changed_by, note), command.description_id)
+
+    def unlink_entity(
+        self, command: EntityLinkCommand, changed_by: str | None = None, note: str | None = None
+    ) -> DocumentSummary:
+        """Detaches a named entity from one description as a human decision."""
+        return self._require(self.repo.unlink_entity(command, changed_by, note), command.description_id)
+
+    @staticmethod
+    def _require(doc: DocumentSummary | None, description_id: str) -> DocumentSummary:
+        """Turns the repository's "no such document" into the business error the API maps to 404."""
+        if doc is None:
+            raise DocumentNotFoundError(f"Documento '{description_id}' não encontrado no acervo.")
         return doc

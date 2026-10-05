@@ -42,6 +42,7 @@ from memoria_curitibana.domains.archive.schemas import (
     UpdateMacroCategoryCommand,
 )
 from memoria_curitibana.domains.archive.schemas.entity_schema import (
+    EntityMergeResponse,
     EntityRelevanceResponse,
     EntitySimilarityResponse,
     NerExclusion,
@@ -376,13 +377,12 @@ class TaxonomyController(Controller):
         return EntitySimilarityResponse.from_payload(list(results))
 
     @post("/entities/merge", sync_to_thread=True)
-    def merge_entities(self, entity_service: NamedDependency[EntityService], data: MergeRequest) -> dict[str, int]:
+    def merge_entities(self, entity_service: NamedDependency[EntityService], data: MergeRequest) -> EntityMergeResponse:
+        """Merges entities into the canonical one, answering with the same shape the tag merge uses."""
         res = entity_service.merge(
             MergeEntityCommand(canonical_id=data.canonical_id, ids_to_merge=data.ids_to_merge, new_name=data.new_name)
         )
-
-        # TODO Create an entity MergeResponse or recycle the tag one
-        return {"documents_updated": res.documents_updated, "entities_deleted": res.entities_deleted}
+        return EntityMergeResponse(documents_updated=res.documents_updated, entities_deleted=res.entities_deleted)
 
     @post("/entities/orphans/purge", sync_to_thread=True)
     def purge_orphan_entities(self, entity_service: NamedDependency[EntityService]) -> dict:

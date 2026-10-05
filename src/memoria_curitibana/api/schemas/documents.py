@@ -29,8 +29,38 @@ class DocumentUpdateRequest(BaseModel):
     scope_content: str | None = Field(default=None, description="Âmbito e conteúdo revisado.")
     language_name: str | None = Field(default=None, description="Idioma.")
     archivist_notes: str | None = Field(default=None, description="Notas do arquivista.")
+    access_conditions: str | None = Field(
+        default=None,
+        description="ISAD(G) 4.1 — condições de acesso. Sem ele o acervo não tem como declarar "
+        "que uma descrição é restrita, e a difusão não tem como respeitar a restrição.",
+    )
+    is_published: bool | None = Field(
+        default=None,
+        description="Decisão de difusão, ortogonal ao status de revisão. Publicar não bloqueia a IA "
+        "de continuar melhorando o registro; aprovar, sim.",
+    )
 
     changed_by: str | None = Field(default=None, description="Quem revisou (autoria, enquanto não há autenticação).")
     review_note: str | None = Field(default=None, description="Motivo da edição; fica no histórico.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class TagLinkRequest(BaseModel):
+    """Attaches or detaches one tag on one description, as a human decision."""
+
+    tag_id: int = Field(description="Id da tag no vocabulário (GET /api/v1/taxonomy/tags).")
+    changed_by: str | None = Field(default=None, description="Quem decidiu; texto livre até haver autenticação.")
+    review_note: str | None = Field(default=None, description="Por que decidiu; fica no histórico do documento.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class EntityLinkRequest(BaseModel):
+    """Attaches or detaches one named entity on one description, as a human decision."""
+
+    entity_id: int = Field(description="Id da entidade nomeada.")
+    changed_by: str | None = Field(default=None, description="Quem decidiu; texto livre até haver autenticação.")
+    review_note: str | None = Field(default=None, description="Por que decidiu; fica no histórico do documento.")
 
     model_config = ConfigDict(extra="forbid")

@@ -1,8 +1,13 @@
 from typing import Protocol
 
-from memoria_curitibana.domains.archive.schemas.command_schema import DocumentReviewCommand
+from memoria_curitibana.domains.archive.schemas.command_schema import (
+    DocumentReviewCommand,
+    EntityLinkCommand,
+    TagLinkCommand,
+)
 from memoria_curitibana.domains.archive.schemas.document_schema import (
     ArchiveDocumentDTO,
+    DocumentFacets,
     DocumentRevisionDTO,
     DocumentSummary,
 )
@@ -20,7 +25,7 @@ class DocumentRepositoryPort(Protocol):
     # --- Read (showcase / curation) ---
     def search(
         self, query: DocumentSearchQuery, query_embedding: list[float] | None = None
-    ) -> tuple[list[DocumentSummary], int]: ...
+    ) -> tuple[list[DocumentSummary], int, DocumentFacets]: ...
     def get_by_id(self, description_id: str) -> DocumentSummary | None: ...
     def fetch_documents_for_clustering(self, columns_to_extract: list[str] | None = None) -> list[str]: ...
     def list_revisions(self, description_id: str) -> list[DocumentRevisionDTO]: ...
@@ -28,3 +33,15 @@ class DocumentRepositoryPort(Protocol):
     # --- Write ---
     def upsert_archive_document(self, doc_data: ArchiveDocumentDTO) -> bool: ...
     def update_review(self, command: DocumentReviewCommand) -> DocumentSummary | None: ...
+    def link_tag(
+        self, command: TagLinkCommand, changed_by: str | None = None, note: str | None = None
+    ) -> DocumentSummary | None: ...
+    def unlink_tag(
+        self, command: TagLinkCommand, changed_by: str | None = None, note: str | None = None
+    ) -> DocumentSummary | None: ...
+    def link_entity(
+        self, command: EntityLinkCommand, changed_by: str | None = None, note: str | None = None
+    ) -> DocumentSummary | None: ...
+    def unlink_entity(
+        self, command: EntityLinkCommand, changed_by: str | None = None, note: str | None = None
+    ) -> DocumentSummary | None: ...

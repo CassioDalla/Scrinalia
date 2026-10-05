@@ -14,6 +14,7 @@ from memoria_curitibana.domains.archive.exceptions import (
     DomainException,
     DuplicateDescriptionLevelError,
     EngineExecutionError,
+    EntityNotFoundError,
     HierarchyNodeNotFoundError,
     HierarchyPlanNotFoundError,
     InvalidDescriptionLevelError,
@@ -45,6 +46,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
         (
             TagNotFoundError,
             TagMergeProposalNotFoundError,
+            EntityNotFoundError,
             MergeLogNotFoundError,
             DocumentNotFoundError,
             CleaningRuleNotFoundError,

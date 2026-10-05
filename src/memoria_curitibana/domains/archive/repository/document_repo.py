@@ -11,15 +11,22 @@ from memoria_curitibana.core.types import Vector
 from memoria_curitibana.domains.archive.domain.hierarchy_code import normalize_reference_code
 from memoria_curitibana.domains.archive.domain.normalization import normalize_synonym
 from memoria_curitibana.domains.archive.domain.search import build_tsquery, tokenize
-from memoria_curitibana.domains.archive.exceptions import HierarchyNodeNotFoundError
+from memoria_curitibana.domains.archive.exceptions import (
+    EntityNotFoundError,
+    HierarchyNodeNotFoundError,
+    TagNotFoundError,
+)
 from memoria_curitibana.domains.archive.models import (
+    ArchiveDescriptionLevel,
     ArchiveDocument,
     ArchiveDocumentEntity,
     ArchiveDocumentRevision,
     ArchiveDocumentTag,
     ArchiveEntity,
+    ArchiveMacroCategory,
     ArchiveReviewStatus,
     ArchiveTag,
+    ArchiveTypology,
     DomainSynonyms,
 )
 from memoria_curitibana.domains.archive.models.document import EMBEDDING_DIMENSIONS
@@ -29,13 +36,20 @@ from memoria_curitibana.domains.archive.repository.text_quality_repo import (
     TextQualityRepository,
     apply_excerpts_in_python,
 )
-from memoria_curitibana.domains.archive.schemas.command_schema import DocumentReviewCommand
+from memoria_curitibana.domains.archive.schemas.command_schema import (
+    DocumentReviewCommand,
+    EntityLinkCommand,
+    TagLinkCommand,
+)
 from memoria_curitibana.domains.archive.schemas.document_schema import (
     ArchiveDocumentDTO,
     DocumentAncestorSummary,
+    DocumentFacets,
     DocumentMacroCategorySummary,
     DocumentRevisionDTO,
     DocumentSummary,
+    DocumentTagSummary,
+    FacetCount,
 )
 from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
 from memoria_curitibana.domains.archive.worker_stamp import (
@@ -167,13 +181,15 @@ class DocumentRepository:
 
     @staticmethod
     def _eager_options() -> tuple[Any, ...]:
-        """Eager loads tags (with their macro category), entities and the level, avoiding N+1."""
+        """Eager loads tags (with their macro category), entities, the level and the typology, avoiding N+1."""
         return (
             selectinload(ArchiveDocument.tags).selectinload(ArchiveTag.macro_category),
             selectinload(ArchiveDocument.entities),
             # ``DocumentSummary.level`` is derived from this relationship, so without the eager
             # load every read view would issue one extra query per document.
             selectinload(ArchiveDocument.level_ref),
+            # Same reason: ``DocumentSummary.typology`` is the name behind the foreign key.
+            selectinload(ArchiveDocument.typology_ref),
         )
 
     def _decorate(
@@ -259,6 +275,18 @@ class DocumentRepository:
         summary.suggested_final_title = self._suggest_title(doc)
         summary.ancestors = ancestors or []
         summary.children_count = children_count
+        # The subject decision travels with each tag: the tab has to show *why* a document is
+        # filed where it is, and asking a second route per tag would be an N+1 on the front-end.
+        summary.tags = [
+            DocumentTagSummary(
+                tag_id=tag.tag_id,
+                name=tag.name,
+                macro_category_id=tag.macro_category_id,
+                macro_category_name=tag.macro_category.name if tag.macro_category else None,
+                ai_confidence_score=tag.ai_confidence_score,
+            )
+            for tag in sorted(doc.tags, key=lambda tag: tag.name)
+        ]
 
         votes: dict[int, DocumentMacroCategorySummary] = {}
         for tag in doc.tags:
@@ -297,18 +325,30 @@ class DocumentRepository:
         return suggested or None
 
     @staticmethod
-    def _facet_filters(query: DocumentSearchQuery, ancestor_path: str | None = None) -> list[Any]:
+    def _facet_filters(
+        query: DocumentSearchQuery,
+        ancestor_path: str | None = None,
+        exclude: frozenset[str] = frozenset(),
+    ) -> list[Any]:
         """
-        Builds the facet predicates shared by the count and the page query.
+        Builds the facet predicates shared by the count, the page and the facet counts.
 
         ``ancestor_path`` arrives already resolved: turning ``ancestor_id`` into a path is a lookup,
         and doing it here would mean a query per facet evaluation.
+
+        ``exclude`` names the dimension whose own filter must be left out. Counting a facet under
+        its own selection is what makes a sidebar a dead end: with "Dossiê" applied, every other
+        rung would report zero and the user could not widen the search back.
         """
         filters: list[Any] = []
 
-        if query.typology_id is not None:
+        # The diffusion gate comes first and is never excluded: it is not a filter the user chose,
+        # it is the institution's decision about what exists in public. No facet may lift it.
+        if query.published_only:
+            filters.append(ArchiveDocument.is_published.is_(True))
+        if query.typology_id is not None and "typology" not in exclude:
             filters.append(ArchiveDocument.typology_id == query.typology_id)
-        if query.level_id is not None:
+        if query.level_id is not None and "level" not in exclude:
             filters.append(ArchiveDocument.level_id == query.level_id)
         if ancestor_path is not None:
             # The whole reason the path is materialised: one indexed prefix match answers
@@ -323,7 +363,11 @@ class DocumentRepository:
             filters.append(ArchiveDocument.document_date >= query.date_from)
         if query.date_to is not None:
             filters.append(ArchiveDocument.document_date <= query.date_to)
-        if query.macro_category_id is not None:
+        if query.status is not None:
+            filters.append(ArchiveDocument.review_status == query.status)
+        if query.is_anomaly is not None:
+            filters.append(ArchiveDocument.is_anomaly.is_(query.is_anomaly))
+        if query.macro_category_id is not None and "macro_category" not in exclude:
             filters.append(
                 exists(
                     select(1)
@@ -335,7 +379,7 @@ class DocumentRepository:
                     )
                 )
             )
-        if query.entity_type is not None:
+        if query.entity_type is not None and "entity_type" not in exclude:
             filters.append(
                 exists(
                     select(1)
@@ -349,6 +393,101 @@ class DocumentRepository:
             )
 
         return filters
+
+    # ==========================================
+    # FACETS OF THE SEARCH SIDEBAR
+    # ==========================================
+    def _facets(
+        self,
+        query: DocumentSearchQuery,
+        ancestor_path: str | None,
+        term_clause: Any | None = None,
+        extra_clauses: tuple[Any, ...] = (),
+    ) -> DocumentFacets:
+        """
+        Counts each facet dimension over the result set, minus the dimension's own filter.
+
+        ``term_clause`` is the *same* clause the page query used, so the sidebar can never disagree
+        with the list it describes; ``extra_clauses`` carries the semantic restriction (documents
+        that have an embedding), which is part of the result set rather than a user filter.
+        """
+
+        def clauses_for(dimension: str) -> list[Any]:
+            clauses = self._facet_filters(query, ancestor_path, frozenset({dimension}))
+            if term_clause is not None:
+                clauses.append(term_clause)
+            clauses.extend(extra_clauses)
+            return clauses
+
+        return DocumentFacets(
+            typology=self._typology_facet(clauses_for("typology")),
+            macro_category=self._macro_category_facet(clauses_for("macro_category")),
+            entity_type=self._entity_type_facet(clauses_for("entity_type")),
+            level=self._level_facet(clauses_for("level")),
+        )
+
+    def _typology_facet(self, clauses: list[Any]) -> list[FacetCount]:
+        stmt = (
+            select(ArchiveDocument.typology_id, ArchiveTypology.name, func.count())
+            .join(ArchiveTypology, ArchiveDocument.typology_id == ArchiveTypology.typology_id)
+            .where(*clauses)
+            .group_by(ArchiveDocument.typology_id, ArchiveTypology.name)
+        )
+        rows = sorted(self.db.execute(stmt).all(), key=lambda row: (-int(row[2]), str(row[1])))
+        return [
+            FacetCount(key=str(typology_id), label=str(name), count=int(count)) for typology_id, name, count in rows
+        ]
+
+    def _macro_category_facet(self, clauses: list[Any]) -> list[FacetCount]:
+        # ``DISTINCT description_id`` because the joins fan a document out over its matching tags:
+        # counting rows instead of documents would inflate every category by the number of tags.
+        stmt = (
+            select(
+                ArchiveMacroCategory.category_id,
+                ArchiveMacroCategory.name,
+                func.count(func.distinct(ArchiveDocument.description_id)),
+            )
+            .select_from(ArchiveDocument)
+            .join(ArchiveDocumentTag, ArchiveDocumentTag.description_id == ArchiveDocument.description_id)
+            .join(ArchiveTag, ArchiveDocumentTag.tag_id == ArchiveTag.tag_id)
+            .join(ArchiveMacroCategory, ArchiveTag.macro_category_id == ArchiveMacroCategory.category_id)
+            .where(*clauses)
+            .group_by(ArchiveMacroCategory.category_id, ArchiveMacroCategory.name)
+        )
+        rows = sorted(self.db.execute(stmt).all(), key=lambda row: (-int(row[2]), str(row[1])))
+        return [
+            FacetCount(key=str(category_id), label=str(name), count=int(count)) for category_id, name, count in rows
+        ]
+
+    def _entity_type_facet(self, clauses: list[Any]) -> list[FacetCount]:
+        stmt = (
+            select(ArchiveEntity.entity_type, func.count(func.distinct(ArchiveDocument.description_id)))
+            .select_from(ArchiveDocument)
+            .join(ArchiveDocumentEntity, ArchiveDocumentEntity.description_id == ArchiveDocument.description_id)
+            .join(ArchiveEntity, ArchiveDocumentEntity.entity_id == ArchiveEntity.entity_id)
+            .where(*clauses)
+            .group_by(ArchiveEntity.entity_type)
+        )
+        rows = sorted(self.db.execute(stmt).all(), key=lambda row: (-int(row[1]), str(row[0])))
+        return [
+            FacetCount(key=str(entity_type), label=str(entity_type), count=int(count)) for entity_type, count in rows
+        ]
+
+    def _level_facet(self, clauses: list[Any]) -> list[FacetCount]:
+        # Ordered by the catalogue's ordinal, not by count: the rungs are a ladder, and a list
+        # sorted by popularity reads as if the arrangement had no order.
+        stmt = (
+            select(
+                ArchiveDocument.level_id, ArchiveDescriptionLevel.name, ArchiveDescriptionLevel.ordinal, func.count()
+            )
+            .join(ArchiveDescriptionLevel, ArchiveDocument.level_id == ArchiveDescriptionLevel.level_id)
+            .where(*clauses)
+            .group_by(ArchiveDocument.level_id, ArchiveDescriptionLevel.name, ArchiveDescriptionLevel.ordinal)
+        )
+        rows = sorted(self.db.execute(stmt).all(), key=lambda row: int(row[2]))
+        return [
+            FacetCount(key=str(level_id), label=str(name), count=int(count)) for level_id, name, _ordinal, count in rows
+        ]
 
     @staticmethod
     def _taxonomy_match(
@@ -430,7 +569,7 @@ class DocumentRepository:
 
     def _semantic_search(
         self, base_stmt: Any, query: DocumentSearchQuery, query_embedding: list[float]
-    ) -> tuple[list[DocumentSummary], int]:
+    ) -> tuple[list[DocumentSummary], int, DocumentFacets]:
         """
         Ranks the embedded documents by cosine similarity to the query vector.
 
@@ -446,7 +585,8 @@ class DocumentRepository:
         distance = ArchiveDocument.embedding.op("<=>", return_type=Float)(query_vector)
         rank = (1 - distance).label("rank")
 
-        stmt = base_stmt.where(ArchiveDocument.embedding.is_not(None)).add_columns(rank)
+        has_embedding = ArchiveDocument.embedding.is_not(None)
+        stmt = base_stmt.where(has_embedding).add_columns(rank)
         total = self._count(stmt)
 
         page_stmt = (
@@ -456,11 +596,17 @@ class DocumentRepository:
             .offset(query.offset)
         )
         rows = self.db.execute(page_stmt).all()
-        return self._page_summaries([(doc, float(relevance)) for doc, relevance in rows]), total
+        items = self._page_summaries([(doc, float(relevance)) for doc, relevance in rows])
+        facets = self._facets(
+            query,
+            self._ancestor_path(query.ancestor_id),
+            extra_clauses=(has_embedding,),
+        )
+        return items, total, facets
 
     def search(
         self, query: DocumentSearchQuery, query_embedding: list[float] | None = None
-    ) -> tuple[list[DocumentSummary], int]:
+    ) -> tuple[list[DocumentSummary], int, DocumentFacets]:
         """
         Searches the collection with native full-text ranking and facets.
 
@@ -476,8 +622,13 @@ class DocumentRepository:
         When ``query.mode`` is ``semantic`` and a ``query_embedding`` is provided, the
         full-text clause is replaced by the cosine-distance ranking; the facets still
         apply.
+
+        The facet counts are computed from **the same clause the page came from** (whichever
+        branch resolved it, fallback included), so the sidebar can never disagree with the list
+        it describes.
         """
-        base_stmt = select(ArchiveDocument).where(*self._facet_filters(query, self._ancestor_path(query.ancestor_id)))
+        ancestor_path = self._ancestor_path(query.ancestor_id)
+        base_stmt = select(ArchiveDocument).where(*self._facet_filters(query, ancestor_path))
 
         if query.mode == "semantic" and query_embedding is not None:
             return self._semantic_search(base_stmt, query, query_embedding)
@@ -516,11 +667,10 @@ class DocumentRepository:
                 + case((tag_match, TAXONOMY_MATCH_BOOST), else_=0.0)
                 + case((entity_match, TAXONOMY_MATCH_BOOST), else_=0.0)
             ).label("rank")
+            term_clause = or_(ArchiveDocument.search_vector.op("@@")(ts_query), tag_match, entity_match)
             # The relevance has to be selected, not only ordered by, so the read view
             # can expose it and the caller can explain the ordering.
-            ranked_stmt = base_stmt.where(
-                or_(ArchiveDocument.search_vector.op("@@")(ts_query), tag_match, entity_match)
-            ).add_columns(rank)
+            ranked_stmt = base_stmt.where(term_clause).add_columns(rank)
 
             total = self._count(ranked_stmt)
             if total:
@@ -531,16 +681,23 @@ class DocumentRepository:
                     .offset(query.offset)
                 )
                 rows = self.db.execute(page_stmt).all()
-                return self._page_summaries([(doc, float(relevance)) for doc, relevance in rows]), total
+                items = self._page_summaries([(doc, float(relevance)) for doc, relevance in rows])
+                return items, total, self._facets(query, ancestor_path, term_clause=term_clause)
 
             if tokens:
-                fallback_stmt = base_stmt.where(self._contains_condition(tokens))
+                fallback_clause = self._contains_condition(tokens)
+                fallback_stmt = base_stmt.where(fallback_clause)
                 total = self._count(fallback_stmt)
                 if total:
-                    return self._browse_page(fallback_stmt, query), total
-            return [], 0
+                    items = self._browse_page(fallback_stmt, query)
+                    return items, total, self._facets(query, ancestor_path, term_clause=fallback_clause)
+            return [], 0, DocumentFacets()
 
-        return self._browse_page(base_stmt, query), self._count(base_stmt)
+        return (
+            self._browse_page(base_stmt, query),
+            self._count(base_stmt),
+            self._facets(query, ancestor_path),
+        )
 
     def _ancestor_path(self, ancestor_id: str | None) -> str | None:
         """
@@ -614,6 +771,120 @@ class DocumentRepository:
             .order_by(ArchiveDocumentRevision.created_at.desc(), ArchiveDocumentRevision.revision_id.desc())
         )
         return [DocumentRevisionDTO.model_validate(row) for row in self.db.scalars(stmt).all()]
+
+    # =========================================================================
+    # Local curation of one document's subjects (Fase 4)
+    # =========================================================================
+    #
+    # The taxonomy routes merge *terms* globally; these four actions edit what one description
+    # carries. Both are curation, but only this one can be expressed as "this document is about
+    # this too", which is the decision an archivist actually makes while reading a record.
+    def _curate_relation(
+        self,
+        doc: ArchiveDocument,
+        field: str,
+        names_before: list[str],
+        names_after: list[str],
+        changed_by: str | None,
+        note: str | None,
+    ) -> None:
+        """
+        Records the before/after of a subject edit and shields the document from the AI.
+
+        Same rule as the field edit: the human decision wins and is explained. The whole list of
+        names is stored on each side rather than a diff of ids, because the names are what the
+        archivist decided and an id would not survive a rename.
+        """
+        if names_before != names_after:
+            self.db.add(
+                ArchiveDocumentRevision(
+                    description_id=doc.description_id,
+                    changed_by=changed_by,
+                    changes={field: {"old": names_before, "new": names_after}},
+                    note=note,
+                )
+            )
+
+        # Deliberate, and the same choice ``update_review`` makes: a human touching the subjects of
+        # a record takes responsibility for it, so the AI stops rewriting it. The UI says so.
+        doc.review_status = ArchiveReviewStatus.HUMAN_APPROVED
+        self.db.flush()
+
+    @staticmethod
+    def _related_names(collection: list[Any]) -> list[str]:
+        return sorted(str(item.name) for item in collection)
+
+    def link_tag(
+        self, command: TagLinkCommand, changed_by: str | None = None, note: str | None = None
+    ) -> DocumentSummary | None:
+        """Attaches one tag to one document as a human decision, with an audit entry."""
+        doc = self._get_orm_by_id(command.description_id)
+        if doc is None:
+            return None
+
+        tag = self.db.get(ArchiveTag, command.tag_id)
+        if tag is None:
+            raise TagNotFoundError(f"Tag '{command.tag_id}' não encontrada na taxonomia.")
+
+        before = self._related_names(doc.tags)
+        if command.tag_id not in {linked.tag_id for linked in doc.tags}:
+            doc.tags.append(tag)
+        self._curate_relation(doc, "tags", before, self._related_names(doc.tags), changed_by, note)
+        return self._page_summaries([(doc, None)])[0]
+
+    def unlink_tag(
+        self, command: TagLinkCommand, changed_by: str | None = None, note: str | None = None
+    ) -> DocumentSummary | None:
+        """Detaches one tag from one document as a human decision, with an audit entry."""
+        doc = self._get_orm_by_id(command.description_id)
+        if doc is None:
+            return None
+
+        linked = next((tag for tag in doc.tags if tag.tag_id == command.tag_id), None)
+        if linked is None:
+            raise TagNotFoundError(f"A descrição '{command.description_id}' não tem a tag '{command.tag_id}'.")
+
+        before = self._related_names(doc.tags)
+        doc.tags.remove(linked)
+        self._curate_relation(doc, "tags", before, self._related_names(doc.tags), changed_by, note)
+        return self._page_summaries([(doc, None)])[0]
+
+    def link_entity(
+        self, command: EntityLinkCommand, changed_by: str | None = None, note: str | None = None
+    ) -> DocumentSummary | None:
+        """Attaches one named entity to one document as a human decision, with an audit entry."""
+        doc = self._get_orm_by_id(command.description_id)
+        if doc is None:
+            return None
+
+        entity = self.db.get(ArchiveEntity, command.entity_id)
+        if entity is None:
+            raise EntityNotFoundError(f"Entidade '{command.entity_id}' não encontrada.")
+
+        before = self._related_names(doc.entities)
+        if command.entity_id not in {linked.entity_id for linked in doc.entities}:
+            doc.entities.append(entity)
+        self._curate_relation(doc, "entities", before, self._related_names(doc.entities), changed_by, note)
+        return self._page_summaries([(doc, None)])[0]
+
+    def unlink_entity(
+        self, command: EntityLinkCommand, changed_by: str | None = None, note: str | None = None
+    ) -> DocumentSummary | None:
+        """Detaches one named entity from one document as a human decision, with an audit entry."""
+        doc = self._get_orm_by_id(command.description_id)
+        if doc is None:
+            return None
+
+        linked = next((entity for entity in doc.entities if entity.entity_id == command.entity_id), None)
+        if linked is None:
+            raise EntityNotFoundError(
+                f"A descrição '{command.description_id}' não tem a entidade '{command.entity_id}'."
+            )
+
+        before = self._related_names(doc.entities)
+        doc.entities.remove(linked)
+        self._curate_relation(doc, "entities", before, self._related_names(doc.entities), changed_by, note)
+        return self._page_summaries([(doc, None)])[0]
 
     def _get_orm_by_id(self, description_id: str) -> ArchiveDocument | None:
         """Internal ORM lookup used by write flows that need the managed entity."""

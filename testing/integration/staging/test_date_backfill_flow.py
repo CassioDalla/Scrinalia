@@ -113,3 +113,56 @@ def test_the_transfer_does_not_touch_a_human_approved_document(db_session) -> No
     db_session.refresh(archived)
 
     assert archived.document_date == date(1900, 1, 1)
+
+
+# ==========================================
+# ISAD(G) 4.1: THE FIELD THE TRANSFER USED TO DROP
+# ==========================================
+
+
+def test_access_conditions_reaches_the_archive(db_session) -> None:
+    """
+    Regression for a silent data loss.
+
+    ``access_conditions`` was parsed into staging from the beginning and had no counterpart in the
+    archive — neither a column nor a field in the transfer DTO — so a restriction declared by the
+    origin disappeared on the way in, without failing anything. It only became visible when a
+    diffusion surface was specified and could not honour a restriction the database never kept.
+    """
+    db_session.add(
+        RawData(
+            description_id="access-1",
+            payload={"Condições de Acesso": "Consulta mediante autorização", "title": "Rua Izaac"},
+            content_hash="raw-access-1",
+            raw_title="Rua Izaac",
+        )
+    )
+    db_session.flush()
+    run_staging_pipeline(db_session, force=True)
+    run_transfer(db_session)
+
+    archived = db_session.get(ArchiveDocument, "access-1")
+
+    assert archived is not None
+    assert archived.access_conditions == "Consulta mediante autorização"
+
+
+def test_declaring_the_field_moves_the_cdc_key(db_session) -> None:
+    """
+    The port declaration changes ``parsed_content_hash`` for every record.
+
+    That is the intended behaviour of the CDC contract, not a side effect: the archive was built
+    without the field, so the next transfer has to re-read the collection for the value to arrive.
+    The test states it so nobody "optimises" it away as a redundant re-sync.
+    """
+    from memoria_curitibana.domains.archive.ports.staging_source import StagingRecord
+
+    db_session.add(_raw(description_id="access-2"))
+    db_session.flush()
+    run_staging_pipeline(db_session, force=True)
+
+    staging = db_session.get(StagingDocument, "access-2")
+    record = StagingRecord.model_validate(staging)
+
+    assert "access_conditions" in record.model_dump()
+    assert record.parsed_content_hash()

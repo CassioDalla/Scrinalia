@@ -7,7 +7,7 @@ from memoria_curitibana.domains.archive.exceptions import DocumentNotFoundError
 from memoria_curitibana.domains.archive.models import ArchiveReviewStatus
 from memoria_curitibana.domains.archive.repository import DocumentRepository
 from memoria_curitibana.domains.archive.schemas.command_schema import DocumentReviewCommand
-from memoria_curitibana.domains.archive.schemas.document_schema import DocumentListResponse
+from memoria_curitibana.domains.archive.schemas.document_schema import DocumentFacets, DocumentListResponse
 from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
 from memoria_curitibana.domains.archive.services.document_service import DocumentService
 
@@ -32,7 +32,7 @@ def _fake_doc(description_id: str = "doc-1", **overrides) -> SimpleNamespace:
 
 def test_search_maps_repository_results() -> None:
     repo = Mock(spec=DocumentRepository)
-    repo.search.return_value = ([_fake_doc("doc-1"), _fake_doc("doc-2")], 2)
+    repo.search.return_value = ([_fake_doc("doc-1"), _fake_doc("doc-2")], 2, DocumentFacets())
     service = DocumentService(repo)
 
     query = DocumentSearchQuery(term="x", limit=10, offset=5)
@@ -49,7 +49,7 @@ def test_search_maps_repository_results() -> None:
 def test_lexical_search_never_builds_the_embedding_engine() -> None:
     """A lexical request must not pay the cost of loading the embedding model."""
     repo = Mock(spec=DocumentRepository)
-    repo.search.return_value = ([], 0)
+    repo.search.return_value = ([], 0, DocumentFacets())
     embedder = Mock()
     service = DocumentService(repo, embedder=embedder)
 
@@ -61,7 +61,7 @@ def test_lexical_search_never_builds_the_embedding_engine() -> None:
 
 def test_semantic_search_embeds_the_term_and_passes_the_vector() -> None:
     repo = Mock(spec=DocumentRepository)
-    repo.search.return_value = ([], 0)
+    repo.search.return_value = ([], 0, DocumentFacets())
     engine = Mock()
     engine.embed.return_value = [[0.1, 0.2]]
     embedder = Mock(return_value=engine)
@@ -75,7 +75,7 @@ def test_semantic_search_embeds_the_term_and_passes_the_vector() -> None:
 
 def test_semantic_search_builds_the_engine_only_once() -> None:
     repo = Mock(spec=DocumentRepository)
-    repo.search.return_value = ([], 0)
+    repo.search.return_value = ([], 0, DocumentFacets())
     engine = Mock()
     engine.embed.return_value = [[0.0]]
     embedder = Mock(return_value=engine)

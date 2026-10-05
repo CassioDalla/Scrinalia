@@ -254,6 +254,9 @@ def mock_staging_doc():
         doc.provenance = None
         doc.language_name = "pt-BR"
         doc.archivist_notes = None
+        # ISAD(G) 4.1: parsed by staging from the beginning and, until the port declared it, never
+        # carried into the archive.
+        doc.access_conditions = None
         doc.indexing_points = "Tag Teste"
         doc.thumb_down_link = ""
         return doc

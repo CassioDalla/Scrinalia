@@ -165,6 +165,7 @@ def execute(
                 scope_content=doc_staging.scope_content,
                 language_name=doc_staging.language_name,
                 archivist_notes=doc_staging.archivist_notes,
+                access_conditions=doc_staging.access_conditions,
                 final_title=None,
                 anomaly_reasons=None,
                 review_status=ArchiveReviewStatus.PENDING_AI,
