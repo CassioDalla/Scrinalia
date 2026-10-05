@@ -1,5 +1,6 @@
 import re
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from typing import Literal
 
 from memoria_curitibana.core.logger import logger
@@ -10,6 +11,7 @@ from memoria_curitibana.domains.archive.exceptions import (
     InvalidParam,
     MacroCategoryNotFoundError,
     TagMergeProposalNotFoundError,
+    TagNotFoundError,
 )
 from memoria_curitibana.domains.archive.ports.document import DocumentRepositoryPort
 from memoria_curitibana.domains.archive.ports.taxonomy import TagRepositoryPort
@@ -28,12 +30,15 @@ from memoria_curitibana.domains.archive.schemas import (
     MergeResponse,
     MergeSuggestionRunResponse,
     MergeTagsCommand,
+    TagCurationCommand,
+    TagCurationResult,
     TagMergeDecisionCommand,
     TagMergeProposalDTO,
     TagMergeProposalListResponse,
     TagPairSimilarity,
     TagRelevanceCount,
     TagRelevanceIdf,
+    TagSearchResult,
     TagSimilarity,
     UpdateMacroCategoryCommand,
 )
@@ -48,6 +53,10 @@ MAX_MERGE_BATCH_CLUSTERS = 200
 
 #: Upper bound of one page of the merge ledger.
 MAX_MERGE_LOG_PAGE = 200
+
+#: How many characters a tag search needs before it is answered. One letter matches thousands of
+#: the tags in the catalogue, and the box exists to *choose* a spelling, not to browse one.
+MIN_SEARCH_TERM = 2
 
 
 class TagService:
@@ -185,6 +194,46 @@ class TagService:
         # Business rule: always search in lowercase
         target_lower = target_tag.strip().lower()
         return list(self.repo.find_similar(target_lower, threshold))
+
+    def search_tags(self, term: str, limit: int = 20) -> list[TagSearchResult]:
+        """
+        Tags matching what the curator is typing, for the type-ahead of the dossier.
+
+        Two characters is the floor: one letter matches thousands of the 8.349 tags and the list
+        would be a lottery, while the whole point of the box is to *choose* a spelling. The floor
+        lives here and not in the route so any other caller inherits it.
+        """
+        if len(term.strip()) < MIN_SEARCH_TERM:
+            return []
+        return list(self.repo.search_tags(term, limit))
+
+    def curate_tag_macro_category(self, tag_id: int, command: TagCurationCommand) -> TagCurationResult:
+        """
+        Records the archivist's verdict on which drawer one tag belongs to.
+
+        This is a **global** decision, not a local one: it changes the badge of every description
+        that carries the tag. The two halves of the verdict are both accepted — moving the tag into
+        a drawer, or declaring that it is not a subject at all — and the second is what
+        ``macro_category_id=None`` means, which is why the field is required and nullable.
+
+        The stamp written into the tag's ledger carries who and when, because tags have no revision
+        table and this is the only trace the decision leaves.
+        """
+        if command.macro_category_id is not None and self.repo.get_macro_category(command.macro_category_id) is None:
+            raise MacroCategoryNotFoundError(f"Categoria macro {command.macro_category_id} não existe no catálogo.")
+
+        stamp = f"{command.macro_category_id if command.macro_category_id is not None else 'NONE'}|{command.changed_by or ''}|{datetime.now(UTC).isoformat(timespec='seconds')}"
+        updated = self.repo.update_tag_macro_category(tag_id, command.macro_category_id, stamp)
+        if updated is None:
+            raise TagNotFoundError(f"Tag {tag_id} não existe no vocabulário.")
+
+        return TagCurationResult(
+            tag_id=updated.tag_id,
+            name=updated.name,
+            macro_category_id=updated.macro_category_id,
+            macro_category_name=updated.macro_category_name,
+            human_classified=True,
+        )
 
     def suggest_merges(self, threshold: float = 0.65, limit: int = 50) -> MergeSuggestionRunResponse:
         """

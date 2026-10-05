@@ -19,8 +19,11 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
+from sqlalchemy.orm.attributes import flag_modified
 
 from memoria_curitibana.domains.archive.domain.normalization import (
+    LIKE_ESCAPE,
+    escape_like,
     normalize_stopword,
     normalize_synonym,
     normalize_tag,
@@ -74,8 +77,10 @@ from memoria_curitibana.domains.archive.schemas import (
     TagPairSimilarity,
     TagRelevanceCount,
     TagRelevanceIdf,
+    TagSearchResult,
     TagSimilarity,
 )
+from memoria_curitibana.domains.archive.worker_stamp import CURATED_MACRO_CATEGORY
 
 #: Who recorded a subject exclusion: the archivist, or the deterministic guard.
 SubjectExclusionSource = Literal["HUMAN", "RULE"]
@@ -178,6 +183,97 @@ class TagRepository:
         results = self.db.scalars(stmt).all()
         return set(results)
 
+    def search_tags(self, term: str, limit: int) -> list[TagSearchResult]:
+        """
+        Tags whose name contains ``term``, the heaviest first.
+
+        Ordered by how many documents carry the tag and not alphabetically, because the curator
+        typing ``igre`` is looking for the drawer-sized tag among thousands of spelling variants
+        that differ by a letter. ``ILIKE '%term%'`` is served by the ``idx_archive_tags_name_trgm``
+        GIN index, and the wildcards the curator typed are escaped so a ``%`` in the box cannot
+        turn the search into a scan of the whole catalogue.
+        """
+        needle = term.strip()
+        if not needle:
+            return []
+
+        pattern = f"%{escape_like(needle)}%"
+        # The count is restricted to the tags that match the pattern: counting the whole link
+        # table on every keystroke would aggregate 59k rows to show at most `limit` of them.
+        counts = (
+            select(ArchiveDocumentTag.tag_id, func.count().label("document_count"))
+            .join(ArchiveTag, ArchiveTag.tag_id == ArchiveDocumentTag.tag_id)
+            .where(ArchiveTag.name.ilike(pattern, escape=LIKE_ESCAPE))
+            .group_by(ArchiveDocumentTag.tag_id)
+            .subquery()
+        )
+        stmt = (
+            select(
+                ArchiveTag.tag_id,
+                ArchiveTag.name,
+                func.coalesce(counts.c.document_count, 0).label("document_count"),
+                ArchiveTag.macro_category_id,
+                ArchiveMacroCategory.name.label("macro_category_name"),
+            )
+            .outerjoin(counts, counts.c.tag_id == ArchiveTag.tag_id)
+            .outerjoin(ArchiveMacroCategory, ArchiveMacroCategory.category_id == ArchiveTag.macro_category_id)
+            .where(ArchiveTag.name.ilike(pattern, escape=LIKE_ESCAPE))
+            .order_by(func.coalesce(counts.c.document_count, 0).desc(), ArchiveTag.name)
+            .limit(limit)
+        )
+        return [TagSearchResult.model_validate(row) for row in self.db.execute(stmt).mappings().all()]
+
+    def update_tag_macro_category(
+        self, tag_id: int, macro_category_id: int | None, stamp: str
+    ) -> TagSearchResult | None:
+        """
+        Writes the curator's decision about one tag and leaves the mark of it in the ledger.
+
+        Three things happen beyond the assignment, and each is deliberate. The AI confidence is
+        cleared, because the number described a decision that no longer stands — leaving it would
+        dress a human verdict in a machine's certainty. The decision is stamped in
+        ``execution_log``, the only per-tag ledger that exists: without it, a tag a person
+        classified is indistinguishable from one the machine got right. And the row comes back as
+        the same read view the type-ahead uses, so the front can redraw it without a second call.
+
+        The write needs no extra guard against the classifier: ``worker_macro_category`` only
+        queues tags whose ``macro_category_id`` is ``NULL``, so a curated tag is out of its reach —
+        and setting the category to ``None`` here hands the tag back to it on purpose.
+        """
+        tag = self.db.get(ArchiveTag, tag_id)
+        if tag is None:
+            return None
+
+        tag.macro_category_id = macro_category_id
+        tag.ai_confidence_score = None
+        tag.execution_log = CURATED_MACRO_CATEGORY.mark_value(tag.execution_log, stamp)
+        flag_modified(tag, "execution_log")
+        self.db.flush()
+        return self.read_tag_result(tag_id)
+
+    def read_tag_result(self, tag_id: int) -> TagSearchResult | None:
+        """One tag in the type-ahead read view: identity, weight and drawer name."""
+        stmt = (
+            select(
+                ArchiveTag.tag_id,
+                ArchiveTag.name,
+                func.count(ArchiveDocumentTag.description_id).label("document_count"),
+                ArchiveTag.macro_category_id,
+                ArchiveMacroCategory.name.label("macro_category_name"),
+            )
+            .outerjoin(ArchiveDocumentTag, ArchiveDocumentTag.tag_id == ArchiveTag.tag_id)
+            .outerjoin(ArchiveMacroCategory, ArchiveMacroCategory.category_id == ArchiveTag.macro_category_id)
+            .where(ArchiveTag.tag_id == tag_id)
+            .group_by(
+                ArchiveTag.tag_id,
+                ArchiveTag.name,
+                ArchiveTag.macro_category_id,
+                ArchiveMacroCategory.name,
+            )
+        )
+        row = self.db.execute(stmt).mappings().first()
+        return TagSearchResult.model_validate(row) if row else None
+
     def get_macro_categories(self, only_active: bool = False) -> list[ArchiveMacroCategoryEntityDTO]:
         """
         Lists the macro categories of the collection.
@@ -229,6 +325,11 @@ class TagRepository:
         categories = {name: category_id for category_id, name, _label in rows}
         labels = {name: label for _category_id, name, label in rows}
         return classifier_labels(categories, labels)
+
+    def get_macro_category(self, category_id: int) -> ArchiveMacroCategoryEntityDTO | None:
+        """One drawer of the subject vocabulary, or ``None`` when the id does not exist."""
+        category = self.db.get(ArchiveMacroCategory, category_id)
+        return ArchiveMacroCategoryEntityDTO.model_validate(category) if category is not None else None
 
     def create_macro_category(
         self, name: str, description: str | None, classifier_label: str | None = None

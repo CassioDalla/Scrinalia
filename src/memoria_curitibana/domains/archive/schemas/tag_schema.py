@@ -83,6 +83,48 @@ class TagMergeMember(BaseModel):
     document_count: int
 
 
+class TagSearchResult(BaseModel):
+    """
+    A tag as the type-ahead sees it: the identity, its weight and the drawer it sits in.
+
+    ``document_count`` is what decides between two spellings of the same word, and
+    ``macro_category_name`` is the badge the curator already knows from the list — without it the
+    suggestion is a name with no context, and the wrong one gets picked.
+    """
+
+    tag_id: int
+    name: str
+    document_count: int = 0
+    macro_category_id: int | None = None
+    macro_category_name: str | None = None
+
+
+class TagCurationCommand(BaseModel):
+    """
+    Moves one tag to a subject drawer, or takes it out of every drawer.
+
+    ``macro_category_id`` is required and nullable on purpose: ``None`` is the decision "this tag
+    is not a subject", not the absence of a decision. A default would make the two
+    indistinguishable, and the difference is the whole point of the command.
+    """
+
+    macro_category_id: int | None = Field(description="Drawer to move the tag into; ``null`` orphans it again.")
+    changed_by: str | None = Field(default=None, description="Who decided; free text until authentication exists.")
+    note: str | None = Field(default=None, description="Why; kept in the tag's ledger.")
+
+
+class TagCurationResult(BaseModel):
+    """The tag after the decision, plus whether a person is now responsible for its drawer."""
+
+    tag_id: int
+    name: str
+    macro_category_id: int | None = None
+    macro_category_name: str | None = None
+    #: True once a curator classified it: the AI's confidence is cleared at that point, because the
+    #: number described a decision that no longer stands.
+    human_classified: bool = False
+
+
 class TagMergeSuggestion(BaseModel):
     """
     A group of tags that probably mean the same thing.

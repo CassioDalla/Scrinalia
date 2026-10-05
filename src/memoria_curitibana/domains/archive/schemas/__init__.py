@@ -65,6 +65,8 @@ from .tag_schema import (
     MergeResponse,
     MergeSuggestionRunResponse,
     TagCount,
+    TagCurationCommand,
+    TagCurationResult,
     TagIdentity,
     TagMergeDecisionCommand,
     TagMergeImpact,
@@ -76,6 +78,7 @@ from .tag_schema import (
     TagRelevanceCount,
     TagRelevanceIdf,
     TagRelevanceResponse,
+    TagSearchResult,
     TagSimilarity,
 )
 from .text_quality_schema import (
@@ -152,6 +155,8 @@ __all__ = [
     "ResolveConflictCommand",
     "SynonymCommand",
     "TagCount",
+    "TagCurationCommand",
+    "TagCurationResult",
     "TagIdentity",
     "TagLinkCommand",
     "TagMergeDecisionCommand",
@@ -164,6 +169,7 @@ __all__ = [
     "TagRelevanceCount",
     "TagRelevanceIdf",
     "TagRelevanceResponse",
+    "TagSearchResult",
     "TagSimilarity",
     "TemplateCreateCommand",
     "TemplateDryRunMatch",

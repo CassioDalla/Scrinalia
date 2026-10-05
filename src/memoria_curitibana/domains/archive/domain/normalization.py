@@ -33,6 +33,23 @@ def is_blank(name: str) -> bool:
     return not name or not name.strip()
 
 
+#: Escape character declared to PostgreSQL in every ``ILIKE ... ESCAPE`` we emit. Kept a constant
+#: so the escaping function and the queries cannot disagree about the literal.
+LIKE_ESCAPE = "\\"
+
+
+def escape_like(term: str) -> str:
+    """
+    Neutralises the wildcards in a term a person typed, so that a search is a search.
+
+    Without it, a ``%`` in the search box matches every row and an ``_`` matches any character:
+    the collection answers the whole catalogue to a typo, which reads as a broken ranking and
+    costs a sequential scan. The escape character goes first, or it would escape the escapes.
+    """
+    escaped = term.replace(LIKE_ESCAPE, LIKE_ESCAPE * 2)
+    return escaped.replace("%", f"{LIKE_ESCAPE}%").replace("_", f"{LIKE_ESCAPE}_")
+
+
 #: Regular Portuguese plural endings mapped to the singular they may come from. Applied
 #: only as *candidates*: a candidate becomes a merge suggestion when the singular already
 #: exists as a tag, so an irregular word simply never matches and no term is invented.

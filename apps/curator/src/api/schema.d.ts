@@ -655,6 +655,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/taxonomy/entities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** SearchEntities */
+        get: operations["ApiV1TaxonomyEntitiesSearchEntities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/taxonomy/entities/merge": {
         parameters: {
             query?: never;
@@ -826,6 +843,23 @@ export interface paths {
         head?: never;
         /** UpdateMacroCategory */
         patch: operations["ApiV1TaxonomyMacroCategoriesCategoryIdUpdateMacroCategory"];
+        trace?: never;
+    };
+    "/api/v1/taxonomy/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** SearchTags */
+        get: operations["ApiV1TaxonomyTagsSearchTags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/taxonomy/tags/merge": {
@@ -1049,6 +1083,23 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxonomy/tags/{tag_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** CurateTag */
+        patch: operations["ApiV1TaxonomyTagsTagIdCurateTag"];
         trace?: never;
     };
 }
@@ -1941,6 +1992,24 @@ export interface components {
              */
             min_ratio: number;
         };
+        /** TagCurationRequest */
+        TagCurationRequest: {
+            /** @description Who decided; free text until authentication exists. */
+            changed_by?: string | null;
+            /** @description Drawer the tag moves into; ``null`` takes it out of the subject axis. */
+            macro_category_id: number | null;
+            /** @description Why; kept in the tag's ledger. */
+            note?: string | null;
+        };
+        /** TagCurationResult */
+        TagCurationResult: {
+            /** @default false */
+            human_classified: boolean;
+            macro_category_id?: number | null;
+            macro_category_name?: string | null;
+            name: string;
+            tag_id: number;
+        };
         /** TagLinkRequest */
         TagLinkRequest: {
             /** @description Quem decidiu; texto livre até haver autenticação. */
@@ -2012,6 +2081,15 @@ export interface components {
             /** @enum {string} */
             mode: "count" | "tfidf";
             payload: (components["schemas"]["TagRelevanceCount"] | components["schemas"]["TagRelevanceIdf"])[];
+        };
+        /** TagSearchResult */
+        TagSearchResult: {
+            /** @default 0 */
+            document_count: number;
+            macro_category_id?: number | null;
+            macro_category_name?: string | null;
+            name: string;
+            tag_id: number;
         };
         /** TagSimilarity */
         TagSimilarity: {
@@ -3701,6 +3779,44 @@ export interface operations {
             };
         };
     };
+    ApiV1TaxonomyEntitiesSearchEntities: {
+        parameters: {
+            query: {
+                term: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityRelevance"][];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
     ApiV1TaxonomyEntitiesMergeMergeEntities: {
         parameters: {
             query?: never;
@@ -4150,6 +4266,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ArchiveMacroCategoryEntityDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyTagsSearchTags: {
+        parameters: {
+            query: {
+                term: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagSearchResult"][];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -4722,6 +4876,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MacroCategoriesSuggestionResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyTagsTagIdCurateTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tag_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TagCurationRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagCurationResult"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

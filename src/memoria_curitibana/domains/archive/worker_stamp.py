@@ -62,6 +62,12 @@ HIERARCHY_PARENT = WorkerStamp("hierarchy_parent_v1")
 HIERARCHY_PARENT_PENDING = "PENDING:"
 HIERARCHY_PARENT_RESOLVED = "DONE:"
 
+#: Not a worker: the mark a **curator's** decision leaves in a tag's log. It reuses the stamp
+#: shape so the JSONB ledger has one format, and it exists so a tag a person reclassified is
+#: visibly curated instead of looking like an unclassified tag whose drawer appeared by magic.
+#: The value is free text (who and when), which is why it is written with ``mark_value``.
+CURATED_MACRO_CATEGORY = WorkerStamp("curated_macro_category")
+
 
 def cleaning_rule_stamp(rule_id: int) -> WorkerStamp:
     """Builds the per-rule stamp used by the dynamic cleaning rules."""

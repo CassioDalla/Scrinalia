@@ -3682,6 +3682,88 @@
         "title": "SuggestTextTemplatesRequest",
         "type": "object"
       },
+      "TagCurationRequest": {
+        "properties": {
+          "changed_by": {
+            "description": "Who decided; free text until authentication exists.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "macro_category_id": {
+            "description": "Drawer the tag moves into; ``null`` takes it out of the subject axis.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "description": "Why; kept in the tag's ledger.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "macro_category_id"
+        ],
+        "title": "TagCurationRequest",
+        "type": "object"
+      },
+      "TagCurationResult": {
+        "properties": {
+          "human_classified": {
+            "default": false,
+            "type": "boolean"
+          },
+          "macro_category_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "macro_category_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "tag_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "tag_id"
+        ],
+        "title": "TagCurationResult",
+        "type": "object"
+      },
       "TagLinkRequest": {
         "properties": {
           "changed_by": {
@@ -3989,6 +4071,46 @@
           "payload"
         ],
         "title": "TagRelevanceResponse",
+        "type": "object"
+      },
+      "TagSearchResult": {
+        "properties": {
+          "document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "macro_category_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "macro_category_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "tag_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "tag_id"
+        ],
+        "title": "TagSearchResult",
         "type": "object"
       },
       "TagSimilarity": {
@@ -7938,6 +8060,95 @@
         ]
       }
     },
+    "/api/v1/taxonomy/entities": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyEntitiesSearchEntities",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "term",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EntityRelevance"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "SearchEntities",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
     "/api/v1/taxonomy/entities/merge": {
       "post": {
         "deprecated": false,
@@ -8853,6 +9064,95 @@
           }
         },
         "summary": "UpdateMacroCategory",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/tags": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsSearchTags",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "term",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TagSearchResult"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "SearchTags",
         "tags": [
           "Taxonomy"
         ]
@@ -10095,6 +10395,88 @@
           }
         },
         "summary": "SuggestMacroCategories",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/tags/{tag_id}": {
+      "patch": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsTagIdCurateTag",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "tag_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagCurationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagCurationResult"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "CurateTag",
         "tags": [
           "Taxonomy"
         ]

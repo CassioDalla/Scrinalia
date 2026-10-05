@@ -7,6 +7,7 @@ from litestar.status_codes import (
     HTTP_400_BAD_REQUEST,
     HTTP_404_NOT_FOUND,
     HTTP_409_CONFLICT,
+    HTTP_422_UNPROCESSABLE_ENTITY,
 )
 from litestar.testing import TestClient
 from sqlalchemy.exc import IntegrityError
@@ -495,3 +496,95 @@ def test_undo_tag_merge_route_maps_an_unknown_merge_to_404(client: TestClient, m
 
     assert response.status_code == HTTP_404_NOT_FOUND
     assert response.json()["error_code"] == "MergeLogNotFoundError"
+
+
+# ==========================================
+# TYPE-AHEAD OF THE DOSSIER AND ONE TAG RECLASSIFICATION
+# ==========================================
+
+
+def test_tag_search_route_reaches_the_service_with_the_term(client: TestClient, mocker):
+    from memoria_curitibana.domains.archive.schemas.tag_schema import TagSearchResult
+
+    mocked = mocker.patch.object(TagService, "search_tags")
+    mocked.return_value = [TagSearchResult(tag_id=42, name="igrejas", document_count=9, macro_category_name="Religião")]
+
+    response = client.get("/api/v1/taxonomy/tags?term=igrej&limit=5")
+
+    assert response.status_code == HTTP_200_OK
+    assert response.json()[0]["name"] == "igrejas"
+    mocked.assert_called_once_with("igrej", 5)
+
+
+def test_tag_search_route_requires_the_term(client: TestClient):
+    """``term`` is not optional: a missing parameter must be a 400 from the framework, not a scan."""
+    assert client.get("/api/v1/taxonomy/tags").status_code == HTTP_400_BAD_REQUEST
+
+
+def test_tag_curation_route_builds_the_command_from_the_payload(client: TestClient, mocker):
+    from memoria_curitibana.domains.archive.schemas.tag_schema import TagCurationResult
+
+    mocked = mocker.patch.object(TagService, "curate_tag_macro_category")
+    mocked.return_value = TagCurationResult(
+        tag_id=42, name="igrejas", macro_category_id=3, macro_category_name="Religião", human_classified=True
+    )
+
+    response = client.patch(
+        "/api/v1/taxonomy/tags/42",
+        json={"macro_category_id": 3, "changed_by": "ana", "note": "não é transporte"},
+    )
+
+    assert response.status_code == HTTP_200_OK
+    assert response.json()["human_classified"] is True
+    tag_id, command = mocked.call_args.args
+    assert tag_id == 42
+    assert command.macro_category_id == 3
+    assert command.changed_by == "ana"
+    assert command.note == "não é transporte"
+
+
+def test_tag_curation_route_accepts_null_as_the_decision_not_a_subject(client: TestClient, mocker):
+    """
+    ``null`` has to survive the request as ``None``.
+
+    The field is required and nullable on purpose: "this tag is not a subject" is a verdict, and a
+    default would let a client send nothing and have it read as one.
+    """
+    from memoria_curitibana.domains.archive.schemas.tag_schema import TagCurationResult
+
+    mocked = mocker.patch.object(TagService, "curate_tag_macro_category")
+    mocked.return_value = TagCurationResult(tag_id=42, name="igrejas", human_classified=True)
+
+    response = client.patch("/api/v1/taxonomy/tags/42", json={"macro_category_id": None})
+
+    assert response.status_code == HTTP_200_OK
+    assert mocked.call_args.args[1].macro_category_id is None
+
+
+def test_tag_curation_route_rejects_a_payload_without_the_decision(client: TestClient):
+    """Sending only ``changed_by`` is not a decision: the field has no default on purpose."""
+    response = client.patch("/api/v1/taxonomy/tags/42", json={"changed_by": "ana"})
+
+    assert response.status_code in (HTTP_400_BAD_REQUEST, HTTP_422_UNPROCESSABLE_ENTITY)
+
+
+def test_tag_curation_route_maps_an_unknown_tag_to_404(client: TestClient, mocker):
+    mocker.patch.object(TagService, "curate_tag_macro_category", side_effect=TagNotFoundError("tag 99 não existe"))
+
+    response = client.patch("/api/v1/taxonomy/tags/99", json={"macro_category_id": None})
+
+    assert response.status_code == HTTP_404_NOT_FOUND
+    assert response.json()["error_code"] == "TagNotFoundError"
+
+
+def test_entity_search_route_reaches_the_service_with_the_term(client: TestClient, mocker):
+    from memoria_curitibana.domains.archive.schemas.entity_schema import EntityRelevance
+
+    mocked = mocker.patch.object(EntityService, "search_entities")
+    mocked.return_value = [EntityRelevance(entity_id=7, name="Igreja Matriz", entity_type="LOC", total_usage=9)]
+
+    response = client.get("/api/v1/taxonomy/entities?term=igreja&limit=5")
+
+    assert response.status_code == HTTP_200_OK
+    assert response.json()[0]["entity_type"] == "LOC"
+    mocked.assert_called_once_with("igreja", 5)

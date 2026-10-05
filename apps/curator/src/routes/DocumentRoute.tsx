@@ -1,9 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getRouteApi, Link } from "@tanstack/react-router";
+import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import type { DocumentSummary, DocumentUpdateRequest } from "@/api/client";
-import { linkTag, unlinkEntity, unlinkTag, updateDocument } from "@/api/client";
+import {
+  curateTag,
+  fetchDocuments,
+  linkEntity,
+  linkTag,
+  moveHierarchyNode,
+  searchEntities,
+  searchTags,
+  unlinkEntity,
+  unlinkTag,
+  updateDocument,
+} from "@/api/client";
 import { queries } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
@@ -12,6 +23,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import { Tabs } from "@/components/ui/Tabs";
+import { Typeahead } from "@/components/ui/Typeahead";
 import { formatCount, formatDate, formatDateTime, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
 
 const routeApi = getRouteApi("/acervo/$descriptionId");
@@ -254,11 +266,13 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
 
 function SubjectsTab({ document }: { document: DocumentSummary }) {
   const queryClient = useQueryClient();
-  const [newTagId, setNewTagId] = useState("");
+  const macroCategories = useQuery(queries.macroCategories());
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["documents"] });
     void queryClient.invalidateQueries({ queryKey: ["curation", "inbox"] });
+    // A reclassification changes the vocabulary, so every cached list of tags is stale too.
+    void queryClient.invalidateQueries({ queryKey: ["taxonomy"] });
   };
 
   const removeTag = useMutation({
@@ -273,14 +287,23 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
 
   const addTag = useMutation({
     mutationFn: (tagId: number) => linkTag(document.description_id, tagId),
-    onSuccess: () => {
-      setNewTagId("");
-      invalidate();
-    },
+    onSuccess: invalidate,
+  });
+
+  const addEntity = useMutation({
+    mutationFn: (entityId: number) => linkEntity(document.description_id, entityId),
+    onSuccess: invalidate,
+  });
+
+  const reclassify = useMutation({
+    mutationFn: ({ tagId, categoryId }: { tagId: number; categoryId: number | null }) =>
+      curateTag(tagId, { macro_category_id: categoryId, changed_by: null, note: null }),
+    onSuccess: invalidate,
   });
 
   const tags = document.tags ?? [];
   const entities = document.entities ?? [];
+  const drawers = macroCategories.data ?? [];
 
   return (
     <div className="grid max-w-5xl gap-4">
@@ -306,7 +329,7 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
 
           <ul className="divide-y divide-(--color-line)">
             {tags.map((tag) => (
-              <li key={tag.tag_id} className="flex items-center justify-between gap-3 py-2">
+              <li key={tag.tag_id} className="flex flex-wrap items-center justify-between gap-3 py-2">
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate text-sm">{tag.name}</span>
                   {tag.macro_category_name ? (
@@ -324,46 +347,78 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                     </span>
                   ) : null}
                 </span>
-                <Button
-                  size="sm"
-                  variant="danger"
-                  disabled={removeTag.isPending}
-                  onClick={() => removeTag.mutate(tag.tag_id)}
-                >
-                  remover
-                </Button>
+                <span className="flex items-center gap-2">
+                  <Select
+                    className="w-44"
+                    aria-label={`Gaveta da tag ${tag.name}`}
+                    value={tag.macro_category_id ?? ""}
+                    disabled={reclassify.isPending}
+                    title="Muda a gaveta desta tag em TODAS as descrições que a carregam, não só nesta."
+                    onChange={(event) =>
+                      reclassify.mutate({
+                        tagId: tag.tag_id,
+                        categoryId: event.target.value ? Number(event.target.value) : null,
+                      })
+                    }
+                  >
+                    <option value="">sem gaveta (não é assunto)</option>
+                    {drawers.map((category) => (
+                      <option key={category.category_id} value={category.category_id}>
+                        {category.name}
+                        {category.is_active ? "" : " (aposentada)"}
+                      </option>
+                    ))}
+                  </Select>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    disabled={removeTag.isPending}
+                    onClick={() => removeTag.mutate(tag.tag_id)}
+                  >
+                    remover
+                  </Button>
+                </span>
               </li>
             ))}
           </ul>
 
+          {reclassify.error ? <ErrorState error={reclassify.error} /> : null}
+          {removeTag.error ? <ErrorState error={removeTag.error} /> : null}
+
           <div className="flex items-end gap-2 border-t border-(--color-line) pt-3">
             <label className="flex-1">
               <span className="mb-1 block text-xs font-medium text-(--color-muted)">
-                Associar tag pelo id (o vocabulário completo está em /assuntos/tags)
+                Associar uma tag pelo nome
               </span>
-              <Input
-                value={newTagId}
-                inputMode="numeric"
-                placeholder="ex.: 42"
-                onChange={(event) => setNewTagId(event.target.value)}
+              <Typeahead
+                placeholder="digite ao menos 2 letras: igrej…"
+                disabled={addTag.isPending}
+                emptyLabel="nenhuma tag com esse trecho"
+                onSearch={async (term) =>
+                  (await searchTags(term)).map((result) => ({
+                    value: String(result.tag_id),
+                    label: result.name,
+                    hint: `${formatCount(result.document_count)} doc${
+                      result.macro_category_name ? ` · ${result.macro_category_name}` : " · sem gaveta"
+                    }`,
+                  }))
+                }
+                onPick={(option) => addTag.mutate(Number(option.value))}
               />
             </label>
-            <Button
-              variant="primary"
-              disabled={!newTagId || addTag.isPending}
-              onClick={() => addTag.mutate(Number(newTagId))}
-            >
-              Associar
-            </Button>
           </div>
+          <p className="text-xs text-(--color-muted)">
+            A gaveta escolhida ao lado vale para <strong>todas</strong> as descrições que carregam a tag: é uma
+            decisão sobre o vocabulário, não sobre este documento. O selo <em>sem gaveta</em> devolve a tag ao
+            classificador.
+          </p>
           {addTag.error ? <ErrorState error={addTag.error} /> : null}
-          {removeTag.error ? <ErrorState error={removeTag.error} /> : null}
         </CardBody>
       </Card>
 
       <Card>
         <CardHeader className="text-sm font-semibold">Entidades nomeadas</CardHeader>
-        <CardBody>
+        <CardBody className="grid gap-2">
           {entities.length === 0 ? (
             <EmptyState title="Nenhuma entidade" hint="O extrator (NER) ainda não passou por esta descrição." />
           ) : null}
@@ -385,6 +440,26 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
               </li>
             ))}
           </ul>
+
+          <div className="border-t border-(--color-line) pt-3">
+            <span className="mb-1 block text-xs font-medium text-(--color-muted)">
+              Associar uma entidade pelo nome
+            </span>
+            <Typeahead
+              placeholder="digite ao menos 2 letras: igreja…"
+              disabled={addEntity.isPending}
+              emptyLabel="nenhuma entidade com esse trecho"
+              onSearch={async (term) =>
+                (await searchEntities(term)).map((result) => ({
+                  value: String(result.entity_id),
+                  label: result.name,
+                  hint: `${result.entity_type} · ${formatCount(result.total_usage)} doc`,
+                }))
+              }
+              onPick={(option) => addEntity.mutate(Number(option.value))}
+            />
+          </div>
+          {addEntity.error ? <ErrorState error={addEntity.error} /> : null}
           {removeEntity.error ? <ErrorState error={removeEntity.error} /> : null}
         </CardBody>
       </Card>
@@ -397,7 +472,38 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
 // ==========================================
 
 function ArrangementTab({ document }: { document: DocumentSummary }) {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const levels = useQuery(queries.levels());
+
+  // The route states where the node goes, so the screen always sends the parent it is showing:
+  // ``null`` means "to the root" and there is no way to express "change only the level".
+  const [parentId, setParentId] = useState<string | null>(document.parent_id ?? null);
+  const [parentLabel, setParentLabel] = useState<string | null>(null);
+  const [levelId, setLevelId] = useState<number | null>(document.level_id ?? null);
+  const [changedBy, setChangedBy] = useState("");
+  const [note, setNote] = useState("");
+
+  const move = useMutation({
+    mutationFn: (newParentId: string | null) =>
+      moveHierarchyNode(document.description_id, {
+        new_parent_id: newParentId,
+        level_id: levelId,
+        changed_by: changedBy || null,
+        note: note || null,
+      }),
+    onSuccess: (data) => {
+      setParentId(data.parent_id ?? null);
+      setParentLabel(null);
+      void queryClient.invalidateQueries({ queryKey: ["documents"] });
+      void queryClient.invalidateQueries({ queryKey: ["hierarchy"] });
+      void queryClient.invalidateQueries({ queryKey: ["curation", "inbox"] });
+    },
+  });
+
   const ancestors = document.ancestors ?? [];
+  const parent = ancestors.length > 0 ? ancestors[ancestors.length - 1] : null;
+  const currentParentTitle = parentLabel ?? parent?.title ?? parent?.description_id ?? null;
 
   return (
     <div className="grid max-w-5xl gap-4">
@@ -407,7 +513,12 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
           {ancestors.length === 0 ? (
             <EmptyState
               title="Esta descrição está na raiz"
-              hint="Com o arranjo ainda não materializado, todas as 3.608 descrições estão soltas. A tela que resolve isso é o plano de arranjo."
+              hint="Com o arranjo ainda não materializado, quase todo o acervo está solto. A tela que resolve isso é o plano de arranjo."
+              action={
+                <Link to="/arranjo/plano">
+                  <Button size="sm">Abrir o plano de arranjo</Button>
+                </Link>
+              }
             />
           ) : (
             <ol className="flex flex-wrap items-center gap-2 text-sm">
@@ -430,19 +541,107 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
       </Card>
 
       <Card>
+        <CardHeader className="text-sm font-semibold">Unidade superior e nível</CardHeader>
+        <CardBody className="grid gap-3">
+          <p className="text-xs text-(--color-muted)">
+            A API valida antes de escrever: um Item não pode ter filhos, um Dossiê não pode ficar sem pai, e
+            mover para dentro da própria subárvore é recusado. A trilha da mudança fica no histórico desta
+            descrição.
+          </p>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="text-(--color-muted)">
+                Unidade superior atual: {currentParentTitle ?? "raiz"}
+              </span>
+              <Typeahead
+                placeholder="buscar a nova unidade superior…"
+                disabled={move.isPending}
+                emptyLabel="nenhuma descrição com esse trecho"
+                onSearch={async (term) => {
+                  const page = await fetchDocuments({ term, limit: 8 });
+                  return page.items
+                    .filter((item) => item.description_id !== document.description_id)
+                    .map((item) => ({
+                      value: item.description_id,
+                      label: item.final_title || item.original_title,
+                      hint: item.level ?? item.description_id,
+                    }));
+                }}
+                onPick={(option) => {
+                  setParentId(option.value);
+                  setParentLabel(option.label);
+                }}
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="text-(--color-muted)">Nível de descrição</span>
+              <Select
+                value={levelId ?? ""}
+                onChange={(event) => setLevelId(event.target.value ? Number(event.target.value) : null)}
+              >
+                <option value="">— manter —</option>
+                {(levels.data ?? []).map((level) => (
+                  <option key={level.level_id} value={level.level_id}>
+                    {level.ordinal}. {level.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="text-(--color-muted)">Quem decide (texto livre até existir auth)</span>
+              <Input value={changedBy} onChange={(event) => setChangedBy(event.target.value)} />
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="text-(--color-muted)">Nota da decisão</span>
+              <Input value={note} onChange={(event) => setNote(event.target.value)} />
+            </label>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="primary" disabled={move.isPending} onClick={() => move.mutate(parentId)}>
+              {move.isPending ? "Movendo…" : "Mover para esta unidade"}
+            </Button>
+            <Button
+              disabled={move.isPending || parentId === null}
+              title="Deixa a descrição na raiz. O nível continua o que estiver escolhido acima."
+              onClick={() => move.mutate(null)}
+            >
+              Promover à raiz
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={move.isPending}
+              onClick={() => navigate({ to: "/arranjo/diagnostico", search: { issue: "LEVEL_DEPTH_MISMATCH" } })}
+            >
+              ver incoerências de nível
+            </Button>
+          </div>
+
+          {move.error ? <ErrorState error={move.error} /> : null}
+          {move.data ? (
+            <p className="rounded-md bg-(--color-ok)/5 px-3 py-2 text-xs text-(--color-ok) ring-1 ring-(--color-ok)/25">
+              Movido: agora pende de {move.data.parent_id ?? "ninguém (raiz)"} e o caminho é{" "}
+              <code>{move.data.path}</code>.
+            </p>
+          ) : null}
+        </CardBody>
+      </Card>
+
+      <Card>
         <CardHeader className="text-sm font-semibold">Filhos</CardHeader>
         <CardBody className="text-sm">
           {document.children_count === 0 ? (
             <p className="text-(--color-muted)">Nenhuma descrição pende diretamente desta.</p>
           ) : (
             <p>
-              <strong>{formatCount(document.children_count)}</strong> descrição(ões) diretamente abaixo.
+              <strong>{formatCount(document.children_count)}</strong> descrição(ões) diretamente abaixo. Mover esta
+              unidade leva a subárvore inteira: o caminho é reescrito em uma instrução.
             </p>
           )}
-          <p className="mt-3 text-xs text-(--color-muted)">
-            Mover um ramo e trocar a unidade superior chegam na onda 2 do plano, junto com a tela de arranjo:
-            a API já valida, mas a decisão estrutural é tomada lá, não aqui.
-          </p>
         </CardBody>
       </Card>
 

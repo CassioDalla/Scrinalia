@@ -9,6 +9,7 @@ import {
   fetchHierarchyVocabulary,
   fetchInbox,
   fetchLevels,
+  fetchMacroCategories,
   fetchMaterialisationLog,
   fetchRevisions,
   type DocumentSearch,
@@ -62,6 +63,20 @@ export const queries = {
     queryOptions({
       queryKey: ["hierarchy", "levels"],
       queryFn: fetchLevels,
+      staleTime: 5 * 60_000,
+    }),
+
+  /**
+   * The subject drawers, for the reclassification select of the dossier.
+   *
+   * Read once and kept: the vocabulary changes when a curator edits it, not while a document is
+   * open. The retired drawers come too, which is deliberate — a tag may still sit in one, and the
+   * select has to be able to show where it is.
+   */
+  macroCategories: () =>
+    queryOptions({
+      queryKey: ["taxonomy", "macro-categories"],
+      queryFn: () => fetchMacroCategories(false),
       staleTime: 5 * 60_000,
     }),
 

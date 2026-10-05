@@ -19,6 +19,10 @@ from memoria_curitibana.domains.archive.schemas.entity_schema import (
     NerExclusion,
 )
 
+#: Character floor of an entity search, mirroring the tags': one letter matches an arbitrary slice
+#: of 3.808 names, and the box is for choosing one of them.
+MIN_ENTITY_SEARCH_TERM = 2
+
 
 class EntityService:
     """
@@ -116,6 +120,17 @@ class EntityService:
         Maps the repository results to the pure Domain DTO.
         """
         return list(self.repo.get_relevance_count(entity_type, limit))
+
+    def search_entities(self, term: str, limit: int = 20) -> Sequence[EntityRelevance]:
+        """
+        Entities matching what the curator is typing, for the type-ahead of the dossier.
+
+        The floor of two characters is the same one the tags use and for the same reason: the
+        collection carries 3.808 entities, and one letter would return an arbitrary slice of them.
+        """
+        if len(term.strip()) < MIN_ENTITY_SEARCH_TERM:
+            return []
+        return list(self.repo.search_entities(term, limit))
 
     def purge_orphan_entities(self) -> int:
         """

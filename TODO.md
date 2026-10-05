@@ -6,9 +6,9 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > **Como ler.** `✅` = feito **e verificado em execução real** (Postgres + engines reais), não
 > apenas lido no código. `[ ]` = pendente. `[~]` = parcial, com o que falta descrito.
 >
-> **Estado do gate (2026-10-05, ciclo da onda 2):** **895 testes** passando · `ruff` limpo ·
-> `basedpyright` **0 erros** · **22 migrações** aplicando sem drift (`alembic check` limpo) ·
-> contrato OpenAPI **61 paths / 71 operações / 101 schemas**, regenerado e verificado por CI ·
+> **Estado do gate (2026-10-05, ciclos da onda 2 e da etapa C):** **914 testes** passando · `ruff`
+> limpo · `basedpyright` **0 erros** · **22 migrações** aplicando sem drift (`alembic check` limpo) ·
+> contrato OpenAPI **64 paths / 74 operações / 104 schemas**, regenerado e verificado por CI ·
 > SPA do curador construindo (`tsc`, `eslint`, `vite build`) e servida pelo próprio Litestar.
 > **Acervo real medido: 4.826 descrições**, não 3.608 — ver "Pendências operacionais".
 
@@ -90,7 +90,10 @@ substituído. O caminho agora é o front do curador.
   Tailwind v4. Bun como gerenciador de pacotes e executor; Vite como bundler. Cliente gerado do
   OpenAPI (`packages/api-contract/openapi.json` → `src/api/schema.d.ts`), com **dois** checks de CI
   bloqueantes (o JSON no job Python, o `.d.ts` no job do front) e `fetch` proibido por lint.
-- [~] **B5 — Telas das ondas 1–3.** Ondas 1 e 2 entregues. Onda 3 (assuntos) pendente.
+- [~] **B5 — Telas das ondas 1–3.** Ondas 1 e 2 entregues, mais a **etapa C** (as lacunas que a
+  própria onda 1 expôs ao ser usada): busca de tag e de entidade **por nome** com type-ahead,
+  reclassificar a gaveta de uma tag na aba Assuntos, escolher a unidade superior na aba Arranjo,
+  filtro de data e busca com debounce na lista. Onda 3 (assuntos) pendente.
 - [~] **B6 — Telas da hierarquia** (ondas 2 e 4 do sitemap). **Onda 2 entregue:**
   `/arranjo/plano` (decidir rung a rung, com nível, título e `collapse_into_code`; filtros por
   status, aviso e código) e `/arranjo/diagnostico` (uma seção por issue, com a evidência e
@@ -119,6 +122,12 @@ substituído. O caminho agora é o front do curador.
 | `/hierarchy/flags` anunciava só `ProposalFlag` | `plan_flag_vocabulary()`: a **união dos quatro** vocabulários que escrevem `flags` numa rung | ✅ |
 | `PATH_DIVERGENCE` chegava sem evidência | `detail` com `path` e `expected_path` — é o único diagnóstico cuja evidência é uma comparação | ✅ |
 | Sem filtro de status no catálogo de rungs | `status` no `GET /hierarchy/plans` (era `Literal` duplicado; agora lido de `PlanStatus`) | ✅ |
+| **Buscar tag por nome não existia** (a aba Assuntos pedia o **id**) | `GET /taxonomy/tags?term=` + type-ahead; piso de 2 letras no serviço | ✅ |
+| **Não havia como mover uma tag de gaveta** | `PATCH /taxonomy/tags/{tag_id}` — decisão **global**, com carimbo no ledger da tag | ✅ |
+| **Buscar entidade por nome não existia** (só remover) | `GET /taxonomy/entities?term=` + type-ahead, mesma leitura da tela de relevância | ✅ |
+| Filtro de data existia na API e não na tela | `date_from`/`date_to` na lateral da lista | ✅ |
+| Busca da lista só disparava no Enter | debounce de 250 ms com o termo na URL (uma fonte de verdade) | ✅ |
+| Não havia como escolher a unidade superior na aba Arranjo | type-ahead de pai + nível + `POST /hierarchy/nodes/{id}/move` | ✅ |
 
 ### Achados que a implementação produziu
 
@@ -126,6 +135,16 @@ substituído. O caminho agora é o front do curador.
   corrigidas — ver "Bugs conhecidos" 7 e 8. A análise anterior neste documento estava **errada** ao
   afirmar que o GIN não serve para comparação coluna-a-coluna: ele serve, desde que `%` seja o
   **único** predicado do join.
+- ✅ **A escrita pela UI foi exercitada no browser, e passou.** Era a pendência mais antiga do front
+  ("o clique nunca foi testado ponta a ponta"). Um browser real, dirigido por DevTools Protocol,
+  ligou uma tag pelo nome, viu o documento virar `HUMAN_APPROVED` (a governança agiu), reclassificou
+  a tag para "Religião", removeu a tag, escolheu a unidade superior pelo nome e moveu a descrição —
+  8 de 8 checagens contra a API. A coleção usada foi a do **banco de teste**, de propósito: escrever
+  pela UI marca a ficha como revisada e fecha a janela de reprocessamento de IA.
+- ✅ **A busca não escapava curingas.** `ILIKE '%termo%'` com um `%` digitado virava "todos os
+  registros": o arquivista recebia o catálogo inteiro por um typo e a consulta abandonava o índice
+  de trigrama. `escape_like()` + `LIKE_ESCAPE` (`domain/normalization.py`) resolveram, com teste que
+  distingue `0%` de "começa com zero" e `a_b` de "a, qualquer coisa, b".
 - ✅ **O vocabulário de `/hierarchy/flags` estava incompleto** e isso só apareceu **olhando a
   tela**: as rungs do acervo real carregam `NEAR_DUPLICATE_NODE`, `MID_CODE_IDENTIFIER`,
   `UNPARSED_TAIL` e `LEVEL_NOT_ALLOWED_AS_CHILD`, e a rota publicava apenas os três
@@ -541,6 +560,23 @@ Diagnóstico estrutural do acervo real (pós-transfer):
 > desta natureza no projeto (já tinham sido o `bg-[--color-surface]` em 105 lugares e o
 > `html_mode` do SPA).
 
+### Ciclo da etapa C (2026-10-05, escrita exercitada no browser)
+
+| Verificação | Resultado |
+| --- | --- |
+| `pytest` (unit + integração) | **914 passed** (+19: busca/curation de taxonomia e as rotas novas) |
+| Gate | `ruff` limpo (280 arquivos) · `basedpyright` **0 errors** · `alembic check` **sem drift** |
+| Contrato OpenAPI | **64 paths / 74 operações / 104 schemas** (3 rotas novas) |
+| Front | `tsc --noEmit` limpo · `eslint` limpo · `vite build` em 197 ms (434 kB, 133 kB gzip) |
+| **Escrita pela UI, browser real (8/8)** | tag ligada **pelo nome** → documento vira `HUMAN_APPROVED`; gaveta trocada para "Religião" (chegou ao vocabulário); tag removida; unidade superior escolhida pelo nome e **movida** (`parent_id` conferido na API); lista filtrada **sem Enter** |
+| Banco usado no exercício | o **de teste**, com 2 descrições semeadas — escrever pela UI marca a ficha como revisada, o que não pode acontecer no acervo real enquanto a IA está pendente |
+| Verificação visual | `.analysis/shots/etapa-c-*.png`: type-ahead aberto na aba Assuntos, aba Arranjo com o seletor de pai, lista com o intervalo de datas |
+
+> **A armadilha que custou uma rodada de testes:** rodar `alembic upgrade head` no banco de **teste**
+> faz o `create_all` do conftest pular as tabelas que já existem, e a suíte roda contra o schema
+> migrado em vez do modelo — **53 falhas + 42 erros** que parecem regressão e somem quando o schema é
+> derrubado. Registrado no `AGENTS.md`.
+
 ### Execuções anteriores (preservadas)
 
 | Verificação | Resultado |
@@ -596,6 +632,14 @@ Diagnóstico estrutural do acervo real (pós-transfer):
     o front renderizava `NEAR_DUPLICATE_NODE` e `MID_CODE_IDENTIFIER` cru. Modo de falha a vigiar em
     qualquer rota que publique um vocabulário: **a lista tem de cobrir todo produtor**, e um teste
     que a prenda aos produtores vale mais que a leitura do código.
+11. ✅ **`ILIKE` sobre texto digitado não escapava curingas** — corrigido no ciclo da etapa C. Um `%`
+    na caixa de busca significava "todos os registros": o acervo respondia 8.349 tags a um typo e a
+    consulta abandonava o índice de trigrama. `escape_like()`/`LIKE_ESCAPE` passaram a ser a única
+    forma de montar o padrão, com teste que distingue `0%` de "começa com zero" e `a_b` de "a,
+    qualquer coisa, b". **A busca do acervo nunca teve esse defeito** porque passa por
+    `domain/search.tokenize` (`[^\W_]+`), que descarta `%` e `_` antes do SQL; o que estava exposto
+    era o termo **cru** das rotas de type-ahead, criadas neste ciclo — daí o utilitário existir e ser
+    o único caminho para montar um padrão.
 
 ---
 

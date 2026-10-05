@@ -1,4 +1,5 @@
 # api/controllers/taxonomy_controller.py
+from collections.abc import Sequence
 from typing import Literal
 
 import anyio
@@ -24,6 +25,7 @@ from memoria_curitibana.api.schemas.taxonomy import (
     StopwordsRequest,
     SubjectExclusionRequest,
     SuggestMacroRequest,
+    TagCurationRequest,
 )
 from memoria_curitibana.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
@@ -37,12 +39,16 @@ from memoria_curitibana.domains.archive.schemas import (
     MergeSuggestionRunResponse,
     MergeTagsCommand,
     ResolveConflictCommand,
+    TagCurationCommand,
+    TagCurationResult,
     TagMergeDecisionCommand,
     TagMergeProposalListResponse,
+    TagSearchResult,
     UpdateMacroCategoryCommand,
 )
 from memoria_curitibana.domains.archive.schemas.entity_schema import (
     EntityMergeResponse,
+    EntityRelevance,
     EntityRelevanceResponse,
     EntitySimilarityResponse,
     NerExclusion,
@@ -66,6 +72,37 @@ class TaxonomyController(Controller):
         "tag_service": Provide(provide_tag_service, sync_to_thread=False),
         "entity_service": Provide(provide_entity_service, sync_to_thread=False),
     }
+
+    @get("/tags", sync_to_thread=True)
+    def search_tags(
+        self,
+        tag_service: NamedDependency[TagService],
+        term: FromQuery[str],
+        limit: FromQuery[int] = 20,
+    ) -> list[TagSearchResult]:
+        """
+        Tags matching what the curator is typing, heaviest first.
+
+        Exists because the dossier used to ask for the **id** of a tag in a text box, which is not
+        a thing an archivist knows. Two characters is the floor; anything shorter answers an empty
+        list rather than an arbitrary slice of the catalogue.
+        """
+        return tag_service.search_tags(term, limit)
+
+    @patch("/tags/{tag_id:int}", sync_to_thread=True)
+    def curate_tag(
+        self,
+        tag_service: NamedDependency[TagService],
+        tag_id: FromPath[int],
+        data: TagCurationRequest,
+    ) -> TagCurationResult:
+        """
+        Moves one tag into a subject drawer, or declares that it is not a subject at all.
+
+        A global decision about the vocabulary, not a local edit: it changes the badge of every
+        description that carries the tag, and the response says as much by being the tag itself.
+        """
+        return tag_service.curate_tag_macro_category(tag_id, TagCurationCommand(**data.model_dump()))
 
     @get("/tags/relevance/{method:str}", sync_to_thread=True)
     def get_tag_relevance(
@@ -349,6 +386,22 @@ class TaxonomyController(Controller):
         """Renames, re-describes, rewrites the classifier label or (de)activates a macro category."""
         command = UpdateMacroCategoryCommand(**data.model_dump(exclude_unset=True))
         return tag_service.update_macro_category(category_id, command)
+
+    @get("/entities", sync_to_thread=True)
+    def search_entities(
+        self,
+        entity_service: NamedDependency[EntityService],
+        term: FromQuery[str],
+        limit: FromQuery[int] = 20,
+    ) -> Sequence[EntityRelevance]:
+        """
+        Entities matching what the curator is typing, most used first.
+
+        The same read view as the relevance screen on purpose: the question a type-ahead answers is
+        "which of these 3.808 names is the one I mean", and how many descriptions carry it is what
+        separates two entities that differ by an abbreviation.
+        """
+        return entity_service.search_entities(term, limit)
 
     @get("/entities/relevance", sync_to_thread=True)
     def get_entity_relevance(

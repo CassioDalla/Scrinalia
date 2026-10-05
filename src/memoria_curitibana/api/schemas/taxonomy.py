@@ -86,6 +86,22 @@ class ReclassifyEntityRequest(BaseModel):
     new_type: Literal["ORG", "PER", "LOC"]
 
 
+class TagCurationRequest(BaseModel):
+    """
+    The archivist's verdict on which drawer one tag belongs to.
+
+    ``macro_category_id`` is required and nullable: ``null`` means "this tag is not a subject", a
+    decision, and not "no decision was sent". A default would blur the two, and telling them apart
+    is the whole reason the command exists.
+    """
+
+    macro_category_id: int | None = Field(
+        description="Drawer the tag moves into; ``null`` takes it out of the subject axis."
+    )
+    changed_by: str | None = Field(default=None, description="Who decided; free text until authentication exists.")
+    note: str | None = Field(default=None, description="Why; kept in the tag's ledger.")
+
+
 class NerExclusionRequest(BaseModel):
     """Terms a curator declares to belong to the subject axis, not to named entities."""
 

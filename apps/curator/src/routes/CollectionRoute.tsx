@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 
 import type { ArchiveReviewStatus, DocumentSearch, FacetCount, SearchMode } from "@/api/client";
 import { queries } from "@/api/queries";
@@ -95,6 +96,100 @@ function activeFilters(search: CollectionSearch): { key: keyof CollectionSearch;
   if (search.date_from !== undefined) entries.push({ key: "date_from", label: `De ${search.date_from}` });
   if (search.date_to !== undefined) entries.push({ key: "date_to", label: `Até ${search.date_to}` });
   return entries;
+}
+
+/**
+ * The search box fires while the archivist types, not only on Enter.
+ *
+ * Two hundred and fifty milliseconds after the last keystroke the term goes into the URL — which is
+ * what actually issues the request, so there is one source of truth and no second copy of the term
+ * to keep in step. The input keeps its own value so typing never waits for the navigation.
+ */
+function SearchBox({ value, onSearch }: { value: string | undefined; onSearch: (term: string | undefined) => void }) {
+  const fromUrl = value ?? "";
+  const [term, setTerm] = useState(fromUrl);
+  const [seen, setSeen] = useState(fromUrl);
+
+  // The URL is the source of truth: a link shared with a colleague, the back button or "limpar
+  // busca" has to win over whatever this box last held. Adjusted during render — the pattern React
+  // documents for syncing state with a prop — instead of in an effect, which would cascade renders.
+  if (fromUrl !== seen) {
+    setSeen(fromUrl);
+    setTerm(fromUrl);
+  }
+
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      const next = term.trim();
+      if (fromUrl === next) return;
+      onSearch(next.length > 0 ? next : undefined);
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [term, fromUrl, onSearch]);
+
+  return (
+    <Input
+      value={term}
+      placeholder="Buscar no acervo…"
+      className="max-w-md"
+      onChange={(event) => setTerm(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          const next = term.trim();
+          onSearch(next.length > 0 ? next : undefined);
+        }
+      }}
+    />
+  );
+}
+
+/**
+ * The date range, which the API already accepted and the screen never offered.
+ *
+ * Each bound is applied on its own: an open-ended "de 1960 em diante" is a legitimate question and
+ * forcing both ends would make the archivist invent the other one.
+ */
+function DateRange({
+  from,
+  to,
+  onChange,
+}: {
+  from: string | undefined;
+  to: string | undefined;
+  onChange: (changes: { date_from?: string; date_to?: string }) => void;
+}) {
+  const active = from !== undefined || to !== undefined;
+
+  return (
+    <div className="border-b border-(--color-line) px-4 py-3">
+      <p className="pb-2 text-[11px] font-semibold tracking-wide text-(--color-muted) uppercase">Data</p>
+      <div className="grid gap-2">
+        <label className="grid gap-1 text-xs">
+          <span className="text-(--color-muted)">de</span>
+          <Input
+            type="date"
+            value={from ?? ""}
+            max={to}
+            onChange={(event) => onChange({ date_from: event.target.value || undefined })}
+          />
+        </label>
+        <label className="grid gap-1 text-xs">
+          <span className="text-(--color-muted)">até</span>
+          <Input
+            type="date"
+            value={to ?? ""}
+            min={from}
+            onChange={(event) => onChange({ date_to: event.target.value || undefined })}
+          />
+        </label>
+        {active ? (
+          <Button size="sm" variant="ghost" onClick={() => onChange({ date_from: undefined, date_to: undefined })}>
+            limpar datas
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 function FacetGroup({
@@ -201,18 +296,16 @@ export function CollectionRoute() {
             selected={search.level_id?.toString()}
             onSelect={(key) => patch({ level_id: key ? Number(key) : undefined })}
           />
+          <DateRange
+            from={search.date_from}
+            to={search.date_to}
+            onChange={(changes) => patch(changes)}
+          />
         </aside>
 
         <div className="min-w-0 flex-1 px-6 py-5">
           <div className="flex flex-wrap items-center gap-2 pb-4">
-            <Input
-              defaultValue={search.term ?? ""}
-              placeholder="Buscar no acervo…"
-              className="max-w-md"
-              onKeyDown={(event) => {
-                if (event.key === "Enter") patch({ term: event.currentTarget.value || undefined });
-              }}
-            />
+            <SearchBox value={search.term} onSearch={(term) => patch({ term })} />
             <Select
               value={search.mode ?? "lexical"}
               onChange={(event) => patch({ mode: event.target.value as SearchMode })}

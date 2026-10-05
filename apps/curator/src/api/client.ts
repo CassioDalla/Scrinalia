@@ -87,6 +87,15 @@ export type DiagnosticSummary = components["schemas"]["HierarchyDiagnosticSummar
  */
 export type PlanStatus = PlanDecision["status"];
 
+// --- The vocabulary of the dossier: tags, entities and the drawers of subject ------------------
+export type TagSearchResult = components["schemas"]["TagSearchResult"];
+export type TagCurationRequest = components["schemas"]["TagCurationRequest"];
+export type TagCurationResult = components["schemas"]["TagCurationResult"];
+export type EntityRelevance = components["schemas"]["EntityRelevance"];
+export type MacroCategory = components["schemas"]["ArchiveMacroCategoryEntityDTO"];
+export type HierarchyNodeMoveRequest = components["schemas"]["HierarchyNodeMoveRequest"];
+export type HierarchyNodeSummary = components["schemas"]["HierarchyNodeSummary"];
+
 /**
  * The issue codes the diagnostics route accepts, exactly as the contract declares them.
  *
@@ -202,6 +211,80 @@ export async function unlinkEntity(
         query: { changed_by: changedBy ?? null, review_note: null },
       },
     }),
+  );
+}
+
+export async function linkEntity(
+  descriptionId: string,
+  entityId: number,
+  changedBy?: string,
+): Promise<DocumentSummary> {
+  return unwrap<DocumentSummary>(
+    await client.POST("/api/v1/documents/{description_id}/entities", {
+      params: { path: { description_id: descriptionId } },
+      body: { entity_id: entityId, changed_by: changedBy ?? null, review_note: null },
+    }),
+  );
+}
+
+/**
+ * Reparents and/or re-levels a description.
+ *
+ * ``new_parent_id`` is explicit even when unchanged, and ``null`` means "to the root" — the route
+ * states where the node goes. That is why the arrangement tab always sends the parent it shows
+ * instead of sending only the field the archivist touched.
+ */
+export async function moveHierarchyNode(
+  descriptionId: string,
+  body: HierarchyNodeMoveRequest,
+): Promise<HierarchyNodeSummary> {
+  return unwrap<HierarchyNodeSummary>(
+    await client.POST("/api/v1/hierarchy/nodes/{description_id}/move", {
+      params: { path: { description_id: descriptionId } },
+      body,
+    }),
+  );
+}
+
+// --- The vocabulary: finding a tag or an entity by name ----------------------------------------
+
+/**
+ * Tags matching what the archivist is typing.
+ *
+ * The route answers an empty list below two characters, so the box never asks for a slice of the
+ * whole catalogue. Replaces an input that asked for the **id** of a tag, which no archivist knows.
+ */
+export async function searchTags(term: string, limit = 10): Promise<TagSearchResult[]> {
+  return unwrap<TagSearchResult[]>(
+    await client.GET("/api/v1/taxonomy/tags", { params: { query: { term, limit } } }),
+  );
+}
+
+/** Entities matching what the archivist is typing, most used first. */
+export async function searchEntities(term: string, limit = 10): Promise<EntityRelevance[]> {
+  return unwrap<EntityRelevance[]>(
+    await client.GET("/api/v1/taxonomy/entities", { params: { query: { term, limit } } }),
+  );
+}
+
+/**
+ * Moves one tag into a subject drawer, or declares it is not a subject.
+ *
+ * A global decision about the vocabulary: it changes the badge of every description carrying the
+ * tag, which the screen has to say out loud.
+ */
+export async function curateTag(tagId: number, body: TagCurationRequest): Promise<TagCurationResult> {
+  return unwrap<TagCurationResult>(
+    await client.PATCH("/api/v1/taxonomy/tags/{tag_id}", {
+      params: { path: { tag_id: tagId } },
+      body,
+    }),
+  );
+}
+
+export async function fetchMacroCategories(onlyActive = false): Promise<MacroCategory[]> {
+  return unwrap<MacroCategory[]>(
+    await client.GET("/api/v1/taxonomy/macro-categories", { params: { query: { only_active: onlyActive } } }),
   );
 }
 

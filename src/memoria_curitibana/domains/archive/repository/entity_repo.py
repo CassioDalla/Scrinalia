@@ -6,6 +6,8 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
 from memoria_curitibana.domains.archive.domain.normalization import (
+    LIKE_ESCAPE,
+    escape_like,
     normalize_entity,
     normalize_stopword,
     normalize_synonym,
@@ -467,6 +469,44 @@ class EntityRepository:
         return deleted_rows
 
     # --- Analytical Queries and Maintenance ---
+
+    def search_entities(self, term: str, limit: int) -> Sequence[EntityRelevance]:
+        """
+        Entities whose name contains ``term``, the most used first.
+
+        The same read view as the relevance screen, because the curator's question is the same —
+        "which of these 3.808 names is the one I mean?" — and the count is what separates two
+        entities that differ by an abbreviation. ``ILIKE '%term%'`` is served by the trigram index
+        on the name, and the wildcards typed in the box are escaped so a ``%`` cannot match
+        everything.
+        """
+        needle = term.strip()
+        if not needle:
+            return []
+
+        pattern = f"%{escape_like(needle)}%"
+        # The count is restricted to the names that match, so the aggregate does not walk the whole
+        # link table on every keystroke of a type-ahead.
+        counts = (
+            select(ArchiveDocumentEntity.entity_id, func.count().label("total_usage"))
+            .join(ArchiveEntity, ArchiveEntity.entity_id == ArchiveDocumentEntity.entity_id)
+            .where(ArchiveEntity.name.ilike(pattern, escape=LIKE_ESCAPE))
+            .group_by(ArchiveDocumentEntity.entity_id)
+            .subquery()
+        )
+        stmt = (
+            select(
+                ArchiveEntity.entity_id,
+                ArchiveEntity.name,
+                ArchiveEntity.entity_type,
+                func.coalesce(counts.c.total_usage, 0).label("total_usage"),
+            )
+            .outerjoin(counts, counts.c.entity_id == ArchiveEntity.entity_id)
+            .where(ArchiveEntity.name.ilike(pattern, escape=LIKE_ESCAPE))
+            .order_by(func.coalesce(counts.c.total_usage, 0).desc(), ArchiveEntity.name)
+            .limit(limit)
+        )
+        return [EntityRelevance.model_validate(row) for row in self.db.execute(stmt).mappings().all()]
 
     def get_relevance_count(
         self, entity_type: Literal["ORG", "PER", "LOC"] | None = None, limit: int = 30
