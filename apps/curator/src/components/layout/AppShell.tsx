@@ -33,8 +33,8 @@ const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: "Assuntos",
     items: [
-      { to: "/assuntos/tags", label: "Tags", hint: "Merge, undo, stopwords", enabled: false },
-      { to: "/assuntos/categorias", label: "Categorias", hint: "As gavetas de assunto", enabled: false },
+      { to: "/assuntos/tags", label: "Tags", hint: "Peso, duplicatas e merges", enabled: true },
+      { to: "/assuntos/categorias", label: "Categorias", hint: "As gavetas de assunto", enabled: true },
     ],
   },
   {

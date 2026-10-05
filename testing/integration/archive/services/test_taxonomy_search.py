@@ -196,6 +196,51 @@ class TestTagCuration:
         assert stored.execution_log is None
 
 
+class TestDrawerWeight:
+    def test_a_drawer_counts_descriptions_not_links(self, db_session, generate_archive_doc, tag_service):
+        """
+        A document with three tags in the same drawer is **one** document in that drawer.
+
+        Counting links would make the weight of a drawer depend on how many spellings its documents
+        happen to carry — ``alvenaria`` and ``alvenarias`` would double the same house — and the
+        screen exists to show how much of the collection each drawer holds.
+        """
+        category = ArchiveMacroCategory(name="Urbanismo e Arquitetura", description=None, is_active=True)
+        db_session.add(category)
+        db_session.flush()
+        _tag(db_session, generate_archive_doc, "alvenaria", 2, category_id=category.category_id)
+
+        # One document, two tags of the same drawer: it must count once.
+        shared = generate_archive_doc(description_id="shared-1", original_title="Mesma casa")
+        for name in ("casa", "residencial"):
+            tag = ArchiveTag(name=name, macro_category_id=category.category_id)
+            db_session.add(tag)
+            db_session.flush()
+            db_session.add(ArchiveDocumentTag(description_id=shared.description_id, tag_id=tag.tag_id))
+        db_session.flush()
+
+        drawer = next(item for item in tag_service.list_macro_categories() if item.category_id == category.category_id)
+
+        # Two documents carry "alvenaria" and one carries the other two: three descriptions, four links.
+        assert drawer.document_count == 3
+
+    def test_an_edited_drawer_keeps_its_weight(self, db_session, generate_archive_doc, tag_service):
+        """The response of an edit is read back through the counted view, not from the ORM row."""
+        category = ArchiveMacroCategory(name="Religião", description=None, is_active=True)
+        db_session.add(category)
+        db_session.flush()
+        _tag(db_session, generate_archive_doc, "igrejas", 4, category_id=category.category_id)
+
+        from memoria_curitibana.domains.archive.schemas import UpdateMacroCategoryCommand
+
+        updated = tag_service.update_macro_category(
+            category.category_id, UpdateMacroCategoryCommand(classifier_label="religião, fé")
+        )
+
+        assert updated.classifier_label == "religião, fé"
+        assert updated.document_count == 4
+
+
 class TestEntitySearch:
     def test_the_most_used_match_comes_first(self, db_session, generate_archive_doc, entity_service):
         db_session.add(ArchiveEntity(entity_id=1, name="Igreja do Rosário", entity_type="ORG"))

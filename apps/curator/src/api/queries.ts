@@ -11,14 +11,23 @@ import {
   fetchLevels,
   fetchMacroCategories,
   fetchMaterialisationLog,
+  fetchMergeLog,
+  fetchMergeProposals,
   fetchRevisions,
+  fetchSimilarTags,
+  fetchTagRelevance,
   type DocumentSearch,
   type PlanStatus,
+  type MergeReason,
+  type ProposalStatus,
 } from "./client";
 
 /** Page sizes: the plan catalogue is ~52 rungs, the diagnostic pages are read one at a time. */
 export const PLANS_PAGE_SIZE = 200;
 export const DIAGNOSTICS_PAGE_SIZE = 25;
+/** The merge queue is hundreds of clusters, so it pages; the ledger shows the latest runs. */
+export const PROPOSALS_PAGE_SIZE = 20;
+export const MERGE_LOG_PAGE_SIZE = 20;
 
 /**
  * Server state, declared once per resource.
@@ -126,6 +135,45 @@ export const queries = {
       queryFn: () => fetchDiagnostics(issue, { limit: DIAGNOSTICS_PAGE_SIZE, offset }),
       staleTime: 10_000,
       placeholderData: (previous) => previous,
+    }),
+
+  // --- The subject vocabulary as a whole (wave 3) --------------------------------------------
+
+  tagRelevance: (method: "count" | "tfidf", limit: number) =>
+    queryOptions({
+      queryKey: ["taxonomy", "tags", "relevance", method, limit],
+      queryFn: () => fetchTagRelevance(method, limit),
+      staleTime: 60_000,
+    }),
+
+  /** Every pair above the threshold: the evidence a merge proposal is built from. */
+  similarTagPairs: (threshold: number) =>
+    queryOptions({
+      queryKey: ["taxonomy", "tags", "similar", threshold],
+      queryFn: () => fetchSimilarTags({ threshold }),
+      staleTime: 60_000,
+    }),
+
+  mergeProposals: (filters: {
+    status?: ProposalStatus;
+    reason?: MergeReason;
+    min_documents?: number;
+    flagged_only?: boolean;
+    offset?: number;
+  }) =>
+    queryOptions({
+      queryKey: ["taxonomy", "merge-proposals", filters],
+      queryFn: () =>
+        fetchMergeProposals({ ...filters, limit: PROPOSALS_PAGE_SIZE, offset: filters.offset ?? 0 }),
+      staleTime: 10_000,
+      placeholderData: (previous) => previous,
+    }),
+
+  mergeLog: () =>
+    queryOptions({
+      queryKey: ["taxonomy", "merge-log"],
+      queryFn: () => fetchMergeLog({ include_undone: true, limit: MERGE_LOG_PAGE_SIZE, offset: 0 }),
+      staleTime: 5_000,
     }),
 };
 

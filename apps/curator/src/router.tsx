@@ -1,12 +1,14 @@
 import { createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
 
 import { AppShell } from "@/components/layout/AppShell";
+import { CategoriesRoute } from "@/routes/CategoriesRoute";
 import { CollectionRoute, validateCollectionSearch } from "@/routes/CollectionRoute";
 import { DiagnosticsRoute, validateDiagnosticsSearch } from "@/routes/DiagnosticsRoute";
 import { DocumentRoute } from "@/routes/DocumentRoute";
 import { InboxRoute } from "@/routes/InboxRoute";
 import { NotFoundRoute } from "@/routes/NotFoundRoute";
 import { PlanRoute, validatePlanSearch } from "@/routes/PlanRoute";
+import { TagsRoute, validateTagsSearch } from "@/routes/TagsRoute";
 
 /**
  * Routes are declared in code, not derived from the filesystem.
@@ -55,8 +57,29 @@ const diagnosticsRoute = createRoute({
   validateSearch: validateDiagnosticsSearch,
 });
 
+const tagsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/assuntos/tags",
+  component: TagsRoute,
+  validateSearch: validateTagsSearch,
+});
+
+const categoriesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/assuntos/categorias",
+  component: CategoriesRoute,
+});
+
 export const router = createRouter({
-  routeTree: rootRoute.addChildren([inboxRoute, collectionRoute, documentRoute, planRoute, diagnosticsRoute]),
+  routeTree: rootRoute.addChildren([
+    inboxRoute,
+    collectionRoute,
+    documentRoute,
+    planRoute,
+    diagnosticsRoute,
+    tagsRoute,
+    categoriesRoute,
+  ]),
   defaultPreload: "intent",
 });
 

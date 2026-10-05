@@ -382,6 +382,10 @@ class ArchiveMacroCategoryEntityDTO(BaseModel):
     #: The proposition the NLI model reads; ``None`` falls back to ``name``.
     classifier_label: str | None = None
     is_active: bool
+    #: How many **descriptions** carry at least one tag in this drawer. Derived on read: the screen
+    #: shows the weight of each drawer, and a count that is stored would go stale the moment a tag
+    #: moves — which is now something a curator does from the dossier.
+    document_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 

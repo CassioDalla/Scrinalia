@@ -1111,6 +1111,8 @@ export interface components {
             category_id: number;
             classifier_label?: string | null;
             description: string | null;
+            /** @default 0 */
+            document_count: number;
             is_active: boolean;
             name: string;
         };

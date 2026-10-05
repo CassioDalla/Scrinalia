@@ -93,6 +93,36 @@ export type TagCurationRequest = components["schemas"]["TagCurationRequest"];
 export type TagCurationResult = components["schemas"]["TagCurationResult"];
 export type EntityRelevance = components["schemas"]["EntityRelevance"];
 export type MacroCategory = components["schemas"]["ArchiveMacroCategoryEntityDTO"];
+export type MacroCategoryCreateRequest = components["schemas"]["MacroCategoryCreateRequest"];
+export type MacroCategoryUpdateRequest = components["schemas"]["MacroCategoryUpdateRequest"];
+export type TagRelevanceResponse = components["schemas"]["TagRelevanceResponse"];
+export type TagRelevanceCount = components["schemas"]["TagRelevanceCount"];
+export type TagRelevanceIdf = components["schemas"]["TagRelevanceIdf"];
+export type TagSimilarity = components["schemas"]["TagSimilarity"];
+export type TagPairSimilarity = components["schemas"]["TagPairSimilarity"];
+export type TagMergeProposal = components["schemas"]["TagMergeProposalDTO"];
+export type TagMergeProposalList = components["schemas"]["TagMergeProposalListResponse"];
+export type MergeProposalDecision = components["schemas"]["MergeProposalDecisionRequest"];
+export type MergeSuggestionRun = components["schemas"]["MergeSuggestionRunResponse"];
+export type MergePreview = components["schemas"]["MergePreviewResponse"];
+export type BatchMergeResponse = components["schemas"]["BatchMergeResponse"];
+export type MergeLogList = components["schemas"]["MergeLogListResponse"];
+export type MergeLogEntry = components["schemas"]["MergeLogEntryDTO"];
+export type MergeResponse = components["schemas"]["MergeResponse"];
+
+/** Which verdict a proposal is waiting for, as the contract enumerates it. */
+export type ProposalStatus = TagMergeProposal["status"];
+
+/**
+ * How a cluster was formed, taken from the **request** the API accepts.
+ *
+ * The DTO carries ``reason`` as a plain string (it is read from storage), while the filter is an
+ * enum — so deriving this from the DTO would give ``string`` and let the screen send a reason the
+ * route refuses.
+ */
+export type MergeReason = NonNullable<
+  paths["/api/v1/taxonomy/tags/merge-proposals"]["get"]["parameters"]["query"]
+>["reason"];
 export type HierarchyNodeMoveRequest = components["schemas"]["HierarchyNodeMoveRequest"];
 export type HierarchyNodeSummary = components["schemas"]["HierarchyNodeSummary"];
 
@@ -285,6 +315,116 @@ export async function curateTag(tagId: number, body: TagCurationRequest): Promis
 export async function fetchMacroCategories(onlyActive = false): Promise<MacroCategory[]> {
   return unwrap<MacroCategory[]>(
     await client.GET("/api/v1/taxonomy/macro-categories", { params: { query: { only_active: onlyActive } } }),
+  );
+}
+
+// --- The subject vocabulary, seen as a whole: the drawers and the tag catalog ------------------
+
+export async function createMacroCategory(body: MacroCategoryCreateRequest): Promise<MacroCategory> {
+  return unwrap<MacroCategory>(await client.POST("/api/v1/taxonomy/macro-categories", { body }));
+}
+
+export async function updateMacroCategory(
+  categoryId: number,
+  body: MacroCategoryUpdateRequest,
+): Promise<MacroCategory> {
+  return unwrap<MacroCategory>(
+    await client.PATCH("/api/v1/taxonomy/macro-categories/{category_id}", {
+      params: { path: { category_id: categoryId } },
+      body,
+    }),
+  );
+}
+
+/** Tags by weight: ``count`` counts usage, ``tfidf`` punishes what appears everywhere. */
+export async function fetchTagRelevance(
+  method: "count" | "tfidf",
+  limit = 30,
+): Promise<TagRelevanceResponse> {
+  return unwrap<TagRelevanceResponse>(
+    await client.GET("/api/v1/taxonomy/tags/relevance/{method}", {
+      params: { path: { method }, query: { limit } },
+    }),
+  );
+}
+
+/**
+ * Tag pairs by trigram similarity, or the neighbours of one tag.
+ *
+ * With no ``target`` the route returns **every** pair above the threshold, which is what the screen
+ * shows: the pairs are the evidence a merge proposal is built from, and hiding them would make the
+ * suggestion look arbitrary.
+ */
+export async function fetchSimilarTags(params: {
+  target?: string;
+  threshold?: number;
+}): Promise<TagPairSimilarity[] | TagSimilarity[]> {
+  return unwrap<TagPairSimilarity[] | TagSimilarity[]>(
+    await client.GET("/api/v1/taxonomy/tags/similar", { params: { query: params } }),
+  );
+}
+
+export async function fetchMergeProposals(params: {
+  status?: ProposalStatus;
+  /** The cluster's reason, as the contract enumerates it: TRIGRAM, PLURAL or MIXED. */
+  reason?: MergeReason;
+  min_documents?: number;
+  flagged_only?: boolean;
+  limit?: number;
+  offset?: number;
+}): Promise<TagMergeProposalList> {
+  return unwrap<TagMergeProposalList>(
+    await client.GET("/api/v1/taxonomy/tags/merge-proposals", { params: { query: params } }),
+  );
+}
+
+/** Idempotent, and it never overwrites a verdict a human already recorded. */
+export async function suggestMergeProposals(body: { threshold: number; limit: number }): Promise<MergeSuggestionRun> {
+  return unwrap<MergeSuggestionRun>(await client.POST("/api/v1/taxonomy/tags/merge-proposals/suggest", { body }));
+}
+
+export async function decideMergeProposal(
+  proposalId: number,
+  body: MergeProposalDecision,
+): Promise<TagMergeProposal> {
+  return unwrap<TagMergeProposal>(
+    await client.PATCH("/api/v1/taxonomy/tags/merge-proposals/{proposal_id}", {
+      params: { path: { proposal_id: proposalId } },
+      body,
+    }),
+  );
+}
+
+/** The dry run, computed by the same planner the merge executes. */
+export async function previewMerge(proposalId: number): Promise<MergePreview> {
+  return unwrap<MergePreview>(
+    await client.POST("/api/v1/taxonomy/tags/merge/preview", { body: { proposal_id: proposalId } }),
+  );
+}
+
+/** Applies the approved clusters, each in its own savepoint: one failure does not roll back the rest. */
+export async function applyMergeBatch(body: {
+  proposal_ids: number[];
+  changed_by?: string | null;
+  note?: string | null;
+}): Promise<BatchMergeResponse> {
+  return unwrap<BatchMergeResponse>(await client.POST("/api/v1/taxonomy/tags/merge/batch", { body }));
+}
+
+export async function fetchMergeLog(params: {
+  include_undone?: boolean;
+  limit?: number;
+  offset?: number;
+}): Promise<MergeLogList> {
+  return unwrap<MergeLogList>(await client.GET("/api/v1/taxonomy/tags/merge-log", { params: { query: params } }));
+}
+
+/** Reverses one absorbed tag: the row, its links, its classification and its spellings. */
+export async function undoMerge(mergeId: number, undoneBy?: string): Promise<MergeLogEntry> {
+  return unwrap<MergeLogEntry>(
+    await client.DELETE("/api/v1/taxonomy/tags/merge-log/{merge_id}", {
+      params: { path: { merge_id: mergeId }, query: { undone_by: undoneBy ?? null } },
+    }),
   );
 }
 

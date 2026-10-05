@@ -6,7 +6,7 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > **Como ler.** `✅` = feito **e verificado em execução real** (Postgres + engines reais), não
 > apenas lido no código. `[ ]` = pendente. `[~]` = parcial, com o que falta descrito.
 >
-> **Estado do gate (2026-10-05, ciclos da onda 2 e da etapa C):** **914 testes** passando · `ruff`
+> **Estado do gate (2026-10-05, ondas 2 e 3 e etapa C):** **916 testes** passando · `ruff`
 > limpo · `basedpyright` **0 erros** · **22 migrações** aplicando sem drift (`alembic check` limpo) ·
 > contrato OpenAPI **64 paths / 74 operações / 104 schemas**, regenerado e verificado por CI ·
 > SPA do curador construindo (`tsc`, `eslint`, `vite build`) e servida pelo próprio Litestar.
@@ -90,10 +90,10 @@ substituído. O caminho agora é o front do curador.
   Tailwind v4. Bun como gerenciador de pacotes e executor; Vite como bundler. Cliente gerado do
   OpenAPI (`packages/api-contract/openapi.json` → `src/api/schema.d.ts`), com **dois** checks de CI
   bloqueantes (o JSON no job Python, o `.d.ts` no job do front) e `fetch` proibido por lint.
-- [~] **B5 — Telas das ondas 1–3.** Ondas 1 e 2 entregues, mais a **etapa C** (as lacunas que a
+- [~] **B5 — Telas das ondas 1–3.** Ondas 1, 2 e 3 entregues, mais a **etapa C** (as lacunas que a
   própria onda 1 expôs ao ser usada): busca de tag e de entidade **por nome** com type-ahead,
   reclassificar a gaveta de uma tag na aba Assuntos, escolher a unidade superior na aba Arranjo,
-  filtro de data e busca com debounce na lista. Onda 3 (assuntos) pendente.
+  filtro de data e busca com debounce na lista.
 - [~] **B6 — Telas da hierarquia** (ondas 2 e 4 do sitemap). **Onda 2 entregue:**
   `/arranjo/plano` (decidir rung a rung, com nível, título e `collapse_into_code`; filtros por
   status, aviso e código) e `/arranjo/diagnostico` (uma seção por issue, com a evidência e
@@ -128,6 +128,7 @@ substituído. O caminho agora é o front do curador.
 | Filtro de data existia na API e não na tela | `date_from`/`date_to` na lateral da lista | ✅ |
 | Busca da lista só disparava no Enter | debounce de 250 ms com o termo na URL (uma fonte de verdade) | ✅ |
 | Não havia como escolher a unidade superior na aba Arranjo | type-ahead de pai + nível + `POST /hierarchy/nodes/{id}/move` | ✅ |
+| A gaveta não mostrava o próprio peso | `document_count` no `ArchiveMacroCategoryEntityDTO`, contando **descrições distintas** | ✅ |
 
 ### Achados que a implementação produziu
 
@@ -145,6 +146,12 @@ substituído. O caminho agora é o front do curador.
   registros": o arquivista recebia o catálogo inteiro por um typo e a consulta abandonava o índice
   de trigrama. `escape_like()` + `LIKE_ESCAPE` (`domain/normalization.py`) resolveram, com teste que
   distingue `0%` de "começa com zero" e `a_b` de "a, qualquer coisa, b".
+- ✅ **O `suggest` de merge, re-executado no acervo novo, propôs 500 clusters** (o teto do pedido) em
+  **1,0 s**, com **707 pendentes** e **123 com aviso**. A previsão do plano se confirmou: eram 371
+  com 6.142 tags, e agora são 8.349 — os pares que o prefilter de comprimento escondia são reais.
+  Entre os primeiros: `igrejas ← igreja` (correto), `residencial ← área residencial, casa
+  residencial, região residencial` (perigoso: perderia o sentido), `trem ← trens` (com aviso
+  `WEAK_MEMBER`). É exatamente a fila que o arquivista decide, e é por isso que os avisos são avisos.
 - ✅ **O vocabulário de `/hierarchy/flags` estava incompleto** e isso só apareceu **olhando a
   tela**: as rungs do acervo real carregam `NEAR_DUPLICATE_NODE`, `MID_CODE_IDENTIFIER`,
   `UNPARSED_TAIL` e `LEVEL_NOT_ALLOWED_AS_CHILD`, e a rota publicava apenas os três
@@ -576,6 +583,23 @@ Diagnóstico estrutural do acervo real (pós-transfer):
 > faz o `create_all` do conftest pular as tabelas que já existem, e a suíte roda contra o schema
 > migrado em vez do modelo — **53 falhas + 42 erros** que parecem regressão e somem quando o schema é
 > derrubado. Registrado no `AGENTS.md`.
+
+### Ciclo da onda 3 (2026-10-05, assuntos)
+
+| Verificação | Resultado |
+| --- | --- |
+| `pytest` (unit + integração) | **916 passed** (+2: o peso da gaveta conta **descrições**, não vínculos) |
+| Gate | `ruff` limpo (280 arquivos) · `basedpyright` **0 errors** · `alembic check` **sem drift** |
+| Front | `tsc --noEmit` limpo · `eslint` limpo · `vite build` em 206 ms (459 kB, 139 kB gzip) |
+| **`suggest` de merge no acervo novo** | **500 clusters** (o teto do pedido) em **1,0 s** · **707 pendentes** · **123 com aviso** |
+| Pesos das gavetas no acervo real | Mobilidade e Transporte **2.296** · Urbanismo e Arquitetura **11** · as outras **0** (a IA ainda não reprocessou) |
+| Telas | `/assuntos/tags` (relevância, similaridade, propostas com preview + lote + ledger/undo) e `/assuntos/categorias` (8 ativas, 3 aposentadas, peso, rótulo editável) |
+| Verificação visual | `.analysis/shots/wave3-*.png` — os clusters reais aparecem na tela: `igrejas ← igreja` (correto) ao lado de `residencial ← área residencial, casa residencial, região residencial` (perigoso) e `trem ← trens` com `WEAK_MEMBER` |
+
+> **O que ficou de fora, e por quê.** A quarta subtela do sitemap (stopwords) **não** entrou: a
+> purga apaga tags, e não existe rota para ler as stopwords atuais nem preview do que seria apagado.
+> A tela diz isso no rodapé em vez de oferecer um botão destrutivo sem impacto — a regra do próprio
+> sitemap é que nenhuma tela escreve sem mostrar o antes.
 
 ### Execuções anteriores (preservadas)
 

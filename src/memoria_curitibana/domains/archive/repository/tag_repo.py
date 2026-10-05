@@ -276,27 +276,42 @@ class TagRepository:
 
     def get_macro_categories(self, only_active: bool = False) -> list[ArchiveMacroCategoryEntityDTO]:
         """
-        Lists the macro categories of the collection.
+        Lists the macro categories of the collection, with the weight of each drawer.
 
         Args:
             only_active: When ``True``, hides the categories a curator deactivated.
-        """
 
-        stmt = select(
+        ``document_count`` counts **distinct descriptions**, not tags: a description with three tags
+        in the same drawer is one document in that drawer, and counting links would make a drawer's
+        weight depend on how many spellings its documents happen to carry.
+        """
+        stmt = self._macro_category_query()
+        if only_active:
+            stmt = stmt.where(ArchiveMacroCategory.is_active.is_(True))
+
+        results = self.db.execute(stmt.order_by(ArchiveMacroCategory.name)).mappings().all()
+        return [ArchiveMacroCategoryEntityDTO.model_validate(r) for r in results]
+
+    def _macro_category_query(self) -> Any:
+        """The drawer read view, shared by the list and the single read so the counts cannot drift."""
+        counts = (
+            select(
+                ArchiveTag.macro_category_id.label("category_id"),
+                func.count(func.distinct(ArchiveDocumentTag.description_id)).label("document_count"),
+            )
+            .join(ArchiveDocumentTag, ArchiveDocumentTag.tag_id == ArchiveTag.tag_id)
+            .where(ArchiveTag.macro_category_id.is_not(None))
+            .group_by(ArchiveTag.macro_category_id)
+            .subquery()
+        )
+        return select(
             ArchiveMacroCategory.category_id,
             ArchiveMacroCategory.name,
             ArchiveMacroCategory.description,
             ArchiveMacroCategory.classifier_label,
             ArchiveMacroCategory.is_active,
-        )
-
-        if only_active:
-            stmt = stmt.where(ArchiveMacroCategory.is_active.is_(True))
-
-        stmt = stmt.order_by(ArchiveMacroCategory.name)
-
-        results = self.db.execute(stmt).mappings().all()
-        return [ArchiveMacroCategoryEntityDTO.model_validate(r) for r in results]
+            func.coalesce(counts.c.document_count, 0).label("document_count"),
+        ).outerjoin(counts, counts.c.category_id == ArchiveMacroCategory.category_id)
 
     def get_active_macro_categories(self) -> dict[str, int]:
         """
@@ -328,8 +343,12 @@ class TagRepository:
 
     def get_macro_category(self, category_id: int) -> ArchiveMacroCategoryEntityDTO | None:
         """One drawer of the subject vocabulary, or ``None`` when the id does not exist."""
-        category = self.db.get(ArchiveMacroCategory, category_id)
-        return ArchiveMacroCategoryEntityDTO.model_validate(category) if category is not None else None
+        row = (
+            self.db.execute(self._macro_category_query().where(ArchiveMacroCategory.category_id == category_id))
+            .mappings()
+            .first()
+        )
+        return ArchiveMacroCategoryEntityDTO.model_validate(row) if row else None
 
     def create_macro_category(
         self, name: str, description: str | None, classifier_label: str | None = None
@@ -338,7 +357,9 @@ class TagRepository:
         category = ArchiveMacroCategory(name=name, description=description, classifier_label=classifier_label)
         self.db.add(category)
         self.db.flush()
-        return ArchiveMacroCategoryEntityDTO.model_validate(category)
+        created = self.get_macro_category(category.category_id)
+        assert created is not None  # just inserted in this session
+        return created
 
     def update_macro_category(self, category_id: int, changes: dict[str, Any]) -> ArchiveMacroCategoryEntityDTO | None:
         """Applies a partial update. Returns ``None`` when the category does not exist."""
@@ -350,7 +371,9 @@ class TagRepository:
             setattr(category, field, value)
 
         self.db.flush()
-        return ArchiveMacroCategoryEntityDTO.model_validate(category)
+        # Read back through the counted view: returning the ORM row would report a weight of zero
+        # for a drawer that holds thousands of documents, and the screen would show it as empty.
+        return self.get_macro_category(category_id)
 
     def get_subject_exclusions(self) -> set[str]:
         """
