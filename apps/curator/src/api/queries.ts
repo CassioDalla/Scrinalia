@@ -3,7 +3,9 @@ import { queryOptions } from "@tanstack/react-query";
 import {
   fetchCleaningRules,
   fetchDeletions,
+  fetchConflictResolutions,
   fetchCrossDomainConflicts,
+  fetchJudgedConflicts,
   fetchDiagnosticSummary,
   fetchDiagnostics,
   fetchDocument,
@@ -35,6 +37,7 @@ import {
   fetchTextTemplates,
   fetchWorkerSettingsRevisions,
   type DocumentSearch,
+  type ConflictPairKindFilter,
   type EntityType,
   type PlanStatus,
   type MergeReason,
@@ -52,6 +55,8 @@ export const PROPOSALS_PAGE_SIZE = 20;
 export const MERGE_LOG_PAGE_SIZE = 20;
 /** The tree is read one branch at a time, and a branch is small: 500 nodes covers the real roots. */
 export const TREE_PAGE_SIZE = 500;
+/** The collision lists are read one page at a time; the trigram join itself is the expensive part. */
+export const CONFLICTS_PAGE_SIZE = 25;
 /** The entity and tag vocabularies are read by weight, so the head of the list is what matters. */
 export const RELEVANCE_PAGE_SIZE = 50;
 export const ANOMALIES_PAGE_SIZE = 20;
@@ -307,13 +312,48 @@ export const queries = {
       staleTime: 30_000,
     }),
 
-  crossDomainConflicts: (threshold: number) =>
+  /**
+   * The live collisions, filtered by population and paged on the server.
+   *
+   * The trigram join is measured in seconds on the real vocabulary, so a threshold change is a
+   * deliberate read and the answer is kept while the archivist works through the queue. ``pair_kind``
+   * is part of the key because it is a different question, not a refinement of the same one.
+   */
+  crossDomainConflicts: (threshold: number, pairKind: ConflictPairKindFilter, offset: number) =>
     queryOptions({
-      queryKey: ["taxonomy", "conflicts", threshold],
-      // The trigram join is measured in seconds on the real vocabulary, so a threshold change is a
-      // deliberate read and the answer is kept while the archivist works through the queue.
-      queryFn: () => fetchCrossDomainConflicts(threshold),
+      queryKey: ["taxonomy", "conflicts", threshold, pairKind, offset],
+      queryFn: () =>
+        fetchCrossDomainConflicts({
+          threshold,
+          pair_kind: pairKind,
+          limit: CONFLICTS_PAGE_SIZE,
+          offset,
+        }),
       staleTime: 60_000,
+      placeholderData: (previous) => previous,
+    }),
+
+  /**
+   * What the judge decided, from the review queue.
+   *
+   * Read separately from the live scan because it answers a different question: an auto-resolution
+   * deletes the losing row, so those decisions are not in the trigram join at all.
+   */
+  judgedConflicts: (offset: number) =>
+    queryOptions({
+      queryKey: ["taxonomy", "conflicts", "judged", offset],
+      queryFn: () => fetchJudgedConflicts({ limit: CONFLICTS_PAGE_SIZE, offset }),
+      staleTime: 60_000,
+      placeholderData: (previous) => previous,
+    }),
+
+  /** The ledger of the resolutions, so the undo is reachable from the screen that wrote them. */
+  conflictResolutions: (offset: number) =>
+    queryOptions({
+      queryKey: ["taxonomy", "conflicts", "resolutions", offset],
+      queryFn: () => fetchConflictResolutions({ limit: CONFLICTS_PAGE_SIZE, offset }),
+      staleTime: 30_000,
+      placeholderData: (previous) => previous,
     }),
 
   // --- Quality of the input data (wave 5) -----------------------------------------------------

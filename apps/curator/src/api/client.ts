@@ -157,10 +157,26 @@ export type ReclassifyTarget = ReclassifyEntityRequest["new_type"];
 
 // --- The tag x entity collision (the LLM judge's queue) ----------------------------------------
 export type CrossDomainConflict = components["schemas"]["CrossDomainConflict"];
-export type CrossDomainConflictList = components["schemas"]["CrossDomainConflictListResponse"];
+export type CrossDomainConflictPage = components["schemas"]["CrossDomainConflictPage"];
+export type JudgedConflict = components["schemas"]["JudgedConflict"];
+export type JudgedConflictPage = components["schemas"]["JudgedConflictPage"];
+export type ConflictResolutionPlan = components["schemas"]["ConflictResolutionPlan"];
+export type ConflictResolutionLogEntry = components["schemas"]["ConflictResolutionLogEntry"];
+export type ConflictResolutionLogList = components["schemas"]["ConflictResolutionLogListResponse"];
 export type ConflictResolutionRequest = components["schemas"]["ConflictResolutionRequest"];
 export type ConflictResolutionResponse = components["schemas"]["ConflictResolutionResponse"];
 export type ConflictWinner = ConflictResolutionRequest["winner"];
+export type ConflictDecider = ConflictResolutionLogEntry["source"];
+/** Which of the two populations a pair belongs to: the same spelling, or the same word written twice. */
+export type ConflictPairKind = CrossDomainConflict["pair_kind"];
+/**
+ * The *filter* vocabulary of the live list.
+ *
+ * Deliberately not the same type as {@link ConflictPairKind}: the DTO states the pair's kind in
+ * the payload (``EXACT_NAME``), while the query string selects a population (``exact_name``,
+ * plus ``all``). One is a fact about a pair, the other is what the archivist asked to see.
+ */
+export type ConflictPairKindFilter = "all" | "exact_name" | "near_duplicate";
 
 // --- The subject vocabulary: exclusions and the cluster discovery ------------------------------
 export type SubjectExclusionBanResponse = components["schemas"]["SubjectExclusionBanResponse"];
@@ -944,9 +960,50 @@ export async function unbanNerExclusions(body: { words: string[] }): Promise<Ner
 
 // --- The tag x entity collision ----------------------------------------------------------------
 
-export async function fetchCrossDomainConflicts(threshold = 0.85): Promise<CrossDomainConflictList> {
-  return unwrap<CrossDomainConflictList>(
-    await client.GET("/api/v1/taxonomy/conflicts/cross-domain", { params: { query: { threshold } } }),
+/**
+ * The collisions that exist today, annotated with whatever has already been decided about each.
+ *
+ * ``pair_kind`` is the lever that makes the list usable: ``near_duplicate`` is the same word written
+ * differently (a spelling question, 122 pairs on the real collection) and ``exact_name`` is the same
+ * spelling on both axes (a structural question, 5 050). ``all`` hides nothing and is the default.
+ */
+export async function fetchCrossDomainConflicts(params: {
+  threshold?: number;
+  pair_kind?: ConflictPairKindFilter;
+  limit?: number;
+  offset?: number;
+}): Promise<CrossDomainConflictPage> {
+  return unwrap<CrossDomainConflictPage>(
+    await client.GET("/api/v1/taxonomy/conflicts/cross-domain", { params: { query: params } }),
+  );
+}
+
+/**
+ * What the judge decided, read from the review queue and not from the live scan.
+ *
+ * This is the read that was missing: an auto-resolution deletes the losing row, so 84 of the 88 real
+ * decisions cannot appear in a trigram join. Each row says whether its two sides still exist, which
+ * is what separates history from work that is still pending.
+ */
+export async function fetchJudgedConflicts(params: { limit?: number; offset?: number } = {}): Promise<JudgedConflictPage> {
+  return unwrap<JudgedConflictPage>(
+    await client.GET("/api/v1/taxonomy/conflicts/judged", { params: { query: params } }),
+  );
+}
+
+/**
+ * The dry run, and it answers **both** verdicts.
+ *
+ * "Which side should win?" is a question about the difference between them — how many links each
+ * would create, which row each would delete, which ban each would plant — so asking one side at a
+ * time would need two round trips to answer it. Nothing is written.
+ */
+export async function previewConflictResolution(body: {
+  tag_id: number;
+  entity_id: number;
+}): Promise<ConflictResolutionPlan> {
+  return unwrap<ConflictResolutionPlan>(
+    await client.POST("/api/v1/taxonomy/conflicts/resolve/preview", { body }),
   );
 }
 
@@ -954,10 +1011,39 @@ export async function fetchCrossDomainConflicts(threshold = 0.85): Promise<Cross
  * Decides which side owns the spelling, and the answer is written to a different place per side.
  *
  * Entity wins -> the tag's name is banned from the subject axis; tag wins -> the term is recorded as
- * a NER exclusion with the tag that justifies it. The screen must say which one it is doing.
+ * a NER exclusion with the tag that justifies it. The screen must say which one it is doing. The
+ * response carries the ``resolution_id`` the undo needs.
  */
 export async function resolveConflict(body: ConflictResolutionRequest): Promise<ConflictResolutionResponse> {
   return unwrap<ConflictResolutionResponse>(await client.POST("/api/v1/taxonomy/conflicts/resolve", { body }));
+}
+
+/** The ledger of the resolutions: what was written, by whom, and what was reversed. */
+export async function fetchConflictResolutions(params: {
+  include_undone?: boolean;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<ConflictResolutionLogList> {
+  return unwrap<ConflictResolutionLogList>(
+    await client.GET("/api/v1/taxonomy/conflicts/resolutions", { params: { query: params } }),
+  );
+}
+
+/**
+ * Reverses one resolution: the deleted row, its links and the ban it planted.
+ *
+ * The second attempt answers 409 and an unknown id 404 — the ledger entry is never deleted, so
+ * "resolved, then reversed" survives the reversal.
+ */
+export async function undoConflictResolution(
+  resolutionId: number,
+  undoneBy?: string,
+): Promise<{ message: string; data: ConflictResolutionLogEntry }> {
+  return unwrap<{ message: string; data: ConflictResolutionLogEntry }>(
+    await client.DELETE("/api/v1/taxonomy/conflicts/resolutions/{resolution_id}", {
+      params: { path: { resolution_id: resolutionId }, query: { undone_by: undoneBy ?? null } },
+    }),
+  );
 }
 
 // --- Quality of the input data: the repeated excerpts ------------------------------------------
