@@ -5,16 +5,18 @@ envelopes, parameter wiring), while the behaviour behind it is covered by the
 service and repository suites.
 """
 
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
-from litestar.status_codes import HTTP_200_OK, HTTP_404_NOT_FOUND
+from litestar.status_codes import HTTP_200_OK, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
 from litestar.testing import TestClient
 
 from memoria_curitibana.asgi import create_app
-from memoria_curitibana.domains.archive.exceptions import DocumentNotFoundError
+from memoria_curitibana.domains.archive.exceptions import DocumentHasChildrenError, DocumentNotFoundError
 from memoria_curitibana.domains.archive.models import ArchiveReviewStatus
 from memoria_curitibana.domains.archive.schemas.document_schema import (
+    DocumentDeletionDTO,
+    DocumentDeletionListResponse,
     DocumentEntitySummary,
     DocumentListResponse,
     DocumentSummary,
@@ -263,3 +265,83 @@ def test_list_revisions_serialises_the_trail(client: TestClient, mocker):
     assert body[0]["changed_by"] == "ana"
     assert body[0]["changes"]["original_title"]["new"] == "B"
     mocked.assert_called_once_with("doc-1")
+
+
+# ==========================================
+# DELETION AND ITS LEDGER
+# ==========================================
+
+
+def test_delete_document_answers_the_ledger_entry(client: TestClient, mocker) -> None:
+    """The route answers what was recorded, not the document that no longer exists."""
+    entry = DocumentDeletionDTO(
+        deletion_id=7,
+        description_id="doc-9",
+        reference_code="BR PRADAP IPPUC FOTOGRAFIA 00575",
+        title="Praça Castro Alves",
+        level_name="Item Documental",
+        snapshot={"original_title": "Praça Castro Alves"},
+        deleted_by="cassio",
+        note="duplicata",
+        deleted_at=datetime(2026, 10, 6, 12, 0, tzinfo=UTC),
+    )
+    mock_delete = mocker.patch.object(DocumentService, "delete")
+    mock_delete.return_value = entry
+
+    response = client.delete("/api/v1/documents/doc-9?changed_by=cassio&note=duplicata")
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["data"]["deletion_id"] == 7
+    assert body["data"]["snapshot"]["original_title"] == "Praça Castro Alves"
+    assert "Praça Castro Alves" in body["message"]
+    assert mock_delete.call_args.args[:1] == ("doc-9",)
+    assert mock_delete.call_args.kwargs == {"changed_by": "cassio", "note": "duplicata"}
+
+
+def test_delete_document_refuses_a_node_with_children(client: TestClient, mocker) -> None:
+    """The arrangement's integrity is a 409, not a 500 from the foreign key."""
+    mocker.patch.object(
+        DocumentService,
+        "delete",
+        side_effect=DocumentHasChildrenError("'doc-1' tem 2 descrição(ões) abaixo dela."),
+    )
+
+    response = client.delete("/api/v1/documents/doc-1")
+
+    assert response.status_code == HTTP_409_CONFLICT
+    assert response.json()["error_code"] == "DocumentHasChildrenError"
+
+
+def test_delete_document_answers_404_for_a_missing_id(client: TestClient, mocker) -> None:
+    """Deleting what is not there is the same 404 as reading it."""
+    mocker.patch.object(
+        DocumentService, "delete", side_effect=DocumentNotFoundError("Documento 'x' não encontrado no acervo.")
+    )
+
+    response = client.delete("/api/v1/documents/x")
+
+    assert response.status_code == HTTP_404_NOT_FOUND
+
+
+def test_the_deletion_ledger_is_a_page_with_a_search(client: TestClient, mocker) -> None:
+    """``term``, ``limit`` and ``offset`` must reach the service, not be silently dropped."""
+    mock_list = mocker.patch.object(DocumentService, "list_deletions")
+    mock_list.return_value = DocumentDeletionListResponse(total=0, limit=10, offset=20, items=[])
+
+    response = client.get("/api/v1/documents/deletions?term=praca&limit=10&offset=20")
+
+    assert response.status_code == HTTP_200_OK
+    assert mock_list.call_args.kwargs == {"term": "praca", "limit": 10, "offset": 20}
+
+
+def test_the_ledger_route_is_not_read_as_a_description_id(client: TestClient, mocker) -> None:
+    """``/documents/deletions`` is static and must win over ``/documents/{description_id}``."""
+    mock_list = mocker.patch.object(DocumentService, "list_deletions")
+    mock_list.return_value = DocumentDeletionListResponse(total=0, limit=50, offset=0, items=[])
+    mock_get = mocker.patch.object(DocumentService, "get")
+
+    response = client.get("/api/v1/documents/deletions")
+
+    assert response.status_code == HTTP_200_OK
+    mock_get.assert_not_called()

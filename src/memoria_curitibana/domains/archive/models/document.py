@@ -269,3 +269,50 @@ class ArchiveDocumentRevision(Base):
 
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ArchiveDocumentDeletion(Base):
+    """
+    Ledger of the one destructive write over the collection.
+
+    **Exclusão definitiva tem guarda e tem trilha.** Two things make it defensible:
+
+    * a node with children is refused (the self-referencing FK is ``RESTRICT``, because every
+      descendant's materialised ``path`` carries its ancestors' ids — a silent delete would leave a
+      whole subtree pointing at a prefix that no longer exists);
+    * the row is **snapshotted here before it is deleted**, with the reference code, the title and the
+      whole ISAD(G) content. The revision ledger cannot carry this: its FK is ``ON DELETE CASCADE``,
+      so a revision written for a deleted document dies with it — an audit trail nobody can read is
+      not an audit trail.
+
+    There is deliberately **no foreign key** to ``archive_documents``: the row it names is gone by
+    design, and this ledger is the thing that outlives it.
+    """
+
+    __tablename__ = "archive_document_deletions"
+
+    deletion_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    description_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+
+    # The three fields a person uses to recognise the record; copied out so the ledger is readable
+    # without opening the snapshot.
+    reference_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    level_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Every ISAD(G) field of the deleted description, so the decision can be explained and the record
+    # could be rebuilt by hand. Not a restore: there is no code path that writes it back.
+    snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    #: How many descriptions the deleted node carried below it. Always 0 today, because a node with
+    #: children is refused — the column exists so the guard's answer is part of the evidence.
+    children_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+
+    # Free text until authentication exists, as everywhere else in the curation writes.
+    deleted_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    deleted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )

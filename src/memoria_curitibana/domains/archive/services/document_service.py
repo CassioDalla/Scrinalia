@@ -1,7 +1,7 @@
 from collections.abc import Callable
 
 from memoria_curitibana.domains.archive.engines.base import EmbeddingEngine
-from memoria_curitibana.domains.archive.exceptions import DocumentNotFoundError
+from memoria_curitibana.domains.archive.exceptions import DocumentHasChildrenError, DocumentNotFoundError
 from memoria_curitibana.domains.archive.ports.document import DocumentRepositoryPort
 from memoria_curitibana.domains.archive.schemas.command_schema import (
     DocumentReviewCommand,
@@ -9,6 +9,8 @@ from memoria_curitibana.domains.archive.schemas.command_schema import (
     TagLinkCommand,
 )
 from memoria_curitibana.domains.archive.schemas.document_schema import (
+    DocumentDeletionDTO,
+    DocumentDeletionListResponse,
     DocumentListResponse,
     DocumentRevisionDTO,
     DocumentSummary,
@@ -128,6 +130,38 @@ class DocumentService:
     ) -> DocumentSummary:
         """Detaches a named entity from one description as a human decision."""
         return self._require(self.repo.unlink_entity(command, changed_by, note), command.description_id)
+
+    # --- Deletion: the only write here that removes a record ------------------------------------
+    def delete(
+        self, description_id: str, changed_by: str | None = None, note: str | None = None
+    ) -> DocumentDeletionDTO:
+        """
+        Removes one description for good, after snapshotting it into the deletion ledger.
+
+        The guard is the arrangement's integrity, not a courtesy: a node with children cannot be
+        deleted, because every descendant's materialised ``path`` carries its ancestors' ids and the
+        FK is ``RESTRICT`` for exactly that reason. A subtree would be left pointing at a prefix that no
+        longer exists, and the tree's navigation (``path LIKE 'x.%'``) would answer nothing for a branch
+        that still shows descriptions in it.
+
+        What the archivist is told is where to go: delete the children first, or move them.
+        """
+        children = self.repo.count_children(description_id)
+        if children > 0:
+            raise DocumentHasChildrenError(
+                f"'{description_id}' tem {children} descrição(ões) abaixo dela. Exclua ou mova os filhos "
+                "primeiro: a árvore não pode ficar apontando para um ramo que não existe."
+            )
+
+        entry = self.repo.delete_document(description_id, changed_by=changed_by, note=note)
+        if entry is None:
+            raise DocumentNotFoundError(f"Documento '{description_id}' não encontrado no acervo.")
+        return entry
+
+    def list_deletions(self, term: str | None = None, limit: int = 50, offset: int = 0) -> DocumentDeletionListResponse:
+        """One page of the deletion ledger, newest first, optionally filtered by a term."""
+        items, total = self.repo.list_deletions(term, limit, offset)
+        return DocumentDeletionListResponse(total=total, limit=limit, offset=offset, items=list(items))
 
     @staticmethod
     def _require(doc: DocumentSummary | None, description_id: str) -> DocumentSummary:

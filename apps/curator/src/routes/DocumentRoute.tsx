@@ -2,9 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
-import type { DocumentSummary, DocumentUpdateRequest } from "@/api/client";
+import type { DocumentDeletion, DocumentSummary, DocumentUpdateRequest } from "@/api/client";
 import {
   curateTag,
+  deleteDocument,
   fetchDocuments,
   linkEntity,
   linkTag,
@@ -98,7 +99,7 @@ export function DocumentRoute() {
         ) : null}
         {document.data && aba === "assuntos" ? <SubjectsTab document={document.data} /> : null}
         {document.data && aba === "arranjo" ? <ArrangementTab document={document.data} /> : null}
-        {document.data && aba === "historico" ? <HistoryTab descriptionId={descriptionId} /> : null}
+        {document.data && aba === "historico" ? <HistoryTab document={document.data} /> : null}
       </div>
     </>
   );
@@ -669,23 +670,23 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
 // TAB: HISTÓRICO
 // ==========================================
 
-function HistoryTab({ descriptionId }: { descriptionId: string }) {
+function HistoryTab({ document }: { document: DocumentSummary }) {
+  const descriptionId = document.description_id;
   const { data, isPending, error } = useQuery(queries.revisions(descriptionId));
 
   if (error) return <ErrorState error={error} />;
   if (isPending) return <Spinner />;
-  if (!data || data.length === 0) {
-    return (
-      <EmptyState
-        title="Nenhuma revisão humana"
-        hint="O histórico é o que dá crédito ao selo de revisado: ele registra quem mudou o quê, de qual valor para qual, e por quê."
-      />
-    );
-  }
 
   return (
-    <ol className="max-w-4xl space-y-3">
-      {data.map((revision) => (
+    <div className="grid max-w-4xl gap-4">
+      {!data || data.length === 0 ? (
+        <EmptyState
+          title="Nenhuma revisão humana"
+          hint="O histórico é o que dá crédito ao selo de revisado: ele registra quem mudou o quê, de qual valor para qual, e por quê."
+        />
+      ) : (
+        <ol className="space-y-3">
+          {data.map((revision) => (
         <li key={revision.revision_id}>
           <Card>
             <CardHeader className="flex items-center justify-between text-sm">
@@ -710,8 +711,134 @@ function HistoryTab({ descriptionId }: { descriptionId: string }) {
               </ul>
             </CardBody>
           </Card>
-        </li>
-      ))}
-    </ol>
+          </li>
+        ))}
+        </ol>
+      )}
+
+      {/*
+        The deletion lives here, at the end of the record's history, and not in the page header.
+        Two reasons, and both are about the cost of a misclick: the header sits next to navigation
+        ("voltar à lista"), and this is the one action in the curator UI that removes a record for
+        good. The confirmation asks for the reference code — the same field the archivist reads to
+        identify the description — so the click cannot be a reflex.
+      */}
+      <DeleteDocumentCard document={document} />
+    </div>
+  );
+}
+
+/**
+ * The confirmation step of the deletion, and the only place its consequences are stated.
+ *
+ * The typed reference code is not decoration: it is the difference between "excluir" and "excluir
+ * *esta* descrição", and it is the same guard the API's children check cannot provide (the API cannot
+ * know whether the archivist meant this row).
+ */
+function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [confirmation, setConfirmation] = useState("");
+  const [changedBy, setChangedBy] = useState("");
+  const [note, setNote] = useState("");
+  const [done, setDone] = useState<DocumentDeletion | null>(null);
+
+  // The reference code is what a person recognises; a description without one is confirmed by its id,
+  // which the screen shows next to the field so there is something to copy.
+  const expected = document.reference_code ?? document.description_id;
+  const matches = confirmation.trim() === expected;
+
+  const remove = useMutation({
+    mutationFn: () =>
+      deleteDocument(document.description_id, { changed_by: changedBy || null, note: note || null }),
+    onSuccess: (response) => {
+      setDone(response.data);
+      // The detail query is *removed*, not invalidated: invalidating it would refetch a document that
+      // no longer exists and paint a 404 in the console of a page the archivist is leaving.
+      queryClient.removeQueries({ queryKey: ["documents", "detail", document.description_id] });
+      queryClient.removeQueries({ queryKey: ["documents", "revisions", document.description_id] });
+      void queryClient.invalidateQueries({ queryKey: ["documents", "search"] });
+      void queryClient.invalidateQueries({ queryKey: ["curation", "inbox"] });
+      void queryClient.invalidateQueries({ queryKey: ["documents", "deletions"] });
+      // The record is gone, so the trail is the only place it still exists — and the archivist has
+      // just made it. Landing there shows the entry instead of a list where something vanished.
+      void navigate({ to: "/acervo/excluidas" });
+    },
+  });
+
+  return (
+    <Card className="ring-(--color-danger)/30">
+      <CardBody className="grid gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="grid gap-1">
+            <p className="text-sm font-semibold text-(--color-danger)">Excluir esta descrição</p>
+            <p className="text-xs text-(--color-muted)">
+              Exclusão definitiva. O retrato da descrição fica na trilha de exclusões; nada a traz de volta.
+            </p>
+          </div>
+          <Button size="sm" variant="danger" onClick={() => setOpen((current) => !current)}>
+            {open ? "cancelar" : "Excluir descrição…"}
+          </Button>
+        </div>
+
+        {open ? (
+          <div className="grid gap-3 rounded-md bg-(--color-danger)/5 p-3 ring-1 ring-(--color-danger)/20">
+            <p className="text-xs text-(--color-danger)">
+              Uma descrição com filhos <strong>não pode</strong> ser excluída: a árvore ficaria apontando para um
+              ramo que não existe. O serviço recusa e diz quantos filhos estão no caminho.
+            </p>
+
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="text-(--color-muted)">
+                Escreva <code>{expected}</code> para confirmar
+              </span>
+              <Input
+                value={confirmation}
+                onChange={(event) => setConfirmation(event.target.value)}
+                placeholder={expected}
+                className="max-w-md font-mono"
+              />
+            </label>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="text-(--color-muted)">Quem exclui (texto livre até existir auth)</span>
+                <Input value={changedBy} onChange={(event) => setChangedBy(event.target.value)} />
+              </label>
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="text-(--color-muted)">Motivo (guardado na trilha)</span>
+                <Input
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  placeholder="ex.: duplicata da descrição 00574"
+                />
+              </label>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="danger"
+                disabled={!matches || remove.isPending}
+                title={matches ? undefined : "O código precisa bater com o da descrição."}
+                onClick={() => remove.mutate()}
+              >
+                {remove.isPending ? "Excluindo…" : "Excluir definitivamente"}
+              </Button>
+              <span className="text-xs text-(--color-muted)">
+                {matches ? "o código confere" : "o botão libera quando o código bater"}
+              </span>
+            </div>
+
+            {remove.error ? <ErrorState error={remove.error} /> : null}
+            {done ? (
+              <p className="text-xs text-(--color-ok)">
+                “{done.title}” foi excluída. A trilha guarda o retrato dela.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </CardBody>
+    </Card>
   );
 }

@@ -1,5 +1,5 @@
 from .associations import ArchiveDocumentEntity, ArchiveDocumentTag
-from .document import ArchiveDocument, ArchiveDocumentRevision
+from .document import ArchiveDocument, ArchiveDocumentDeletion, ArchiveDocumentRevision
 from .entity import ArchiveEntity
 from .enums import AnomalyReason, AnomalyType, ArchiveReviewStatus, StopwordsScope, TagFacetType
 from .governance import (
@@ -28,6 +28,7 @@ __all__ = [
     "ArchiveCleaningRule",
     "ArchiveDescriptionLevel",
     "ArchiveDocument",
+    "ArchiveDocumentDeletion",
     "ArchiveDocumentEntity",
     "ArchiveDocumentRevision",
     "ArchiveDocumentTag",

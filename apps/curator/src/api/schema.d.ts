@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/deletions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListDeletions */
+        get: operations["ApiV1DocumentsDeletionsListDeletions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents/{description_id}": {
         parameters: {
             query?: never;
@@ -49,7 +66,8 @@ export interface paths {
         get: operations["ApiV1DocumentsDescriptionIdGetDocument"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** DeleteDocument */
+        delete: operations["ApiV1DocumentsDescriptionIdDeleteDocument"];
         options?: never;
         head?: never;
         /** UpdateDocument */
@@ -1325,6 +1343,35 @@ export interface components {
             level?: string | null;
             title?: string | null;
         };
+        /** DocumentDeletionDTO */
+        DocumentDeletionDTO: {
+            /** @default 0 */
+            children_count: number;
+            /** Format: date-time */
+            deleted_at: string;
+            deleted_by?: string | null;
+            deletion_id: number;
+            description_id: string;
+            level_name?: string | null;
+            note?: string | null;
+            reference_code?: string | null;
+            snapshot?: {
+                [key: string]: unknown;
+            };
+            title: string;
+        };
+        /** DocumentDeletionListResponse */
+        DocumentDeletionListResponse: {
+            items?: components["schemas"]["DocumentDeletionDTO"][];
+            limit: number;
+            offset: number;
+            total: number;
+        };
+        /** DocumentDeletionResponse */
+        DocumentDeletionResponse: {
+            data: components["schemas"]["DocumentDeletionDTO"];
+            message: string;
+        };
         /** DocumentEntitySummary */
         DocumentEntitySummary: {
             entity_id: number;
@@ -2442,6 +2489,45 @@ export interface operations {
             };
         };
     };
+    ApiV1DocumentsDeletionsListDeletions: {
+        parameters: {
+            query?: {
+                term?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentDeletionListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
     ApiV1DocumentsDescriptionIdGetDocument: {
         parameters: {
             query?: never;
@@ -2460,6 +2546,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentSummary"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DocumentsDescriptionIdDeleteDocument: {
+        parameters: {
+            query?: {
+                changed_by?: string | null;
+                note?: string | null;
+            };
+            header?: never;
+            path: {
+                description_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentDeletionResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

@@ -21,6 +21,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     items: [
       { to: "/acervo/lista", label: "Lista e busca", hint: "Facetas e ranking" },
       { to: "/acervo/arvore", label: "Árvore", hint: "Navegar pelo arranjo" },
+      { to: "/acervo/excluidas", label: "Excluídas", hint: "A trilha do que saiu" },
     ],
   },
   {

@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 
 import {
   fetchCleaningRules,
+  fetchDeletions,
   fetchCrossDomainConflicts,
   fetchDiagnosticSummary,
   fetchDiagnostics,
@@ -47,6 +48,8 @@ export const TREE_PAGE_SIZE = 500;
 /** The entity and tag vocabularies are read by weight, so the head of the list is what matters. */
 export const RELEVANCE_PAGE_SIZE = 50;
 export const ANOMALIES_PAGE_SIZE = 20;
+/** The deletion ledger only grows, so it pages like the proposals queue. */
+export const DELETIONS_PAGE_SIZE = 20;
 
 /**
  * Server state, declared once per resource.
@@ -78,6 +81,20 @@ export const queries = {
       queryKey: ["documents", "detail", descriptionId],
       queryFn: () => fetchDocument(descriptionId),
       staleTime: 0,
+    }),
+
+  /**
+   * The deletion ledger, one page at a time.
+   *
+   * Server-side search and paging, unlike the small in-memory ledgers: the trail has no ceiling, and a
+   * filter that only saw the loaded page would answer "não está aqui" for a record that is.
+   */
+  deletions: (term: string | undefined, offset: number) =>
+    queryOptions({
+      queryKey: ["documents", "deletions", term ?? "", offset],
+      queryFn: () => fetchDeletions({ term, limit: DELETIONS_PAGE_SIZE, offset }),
+      staleTime: 15_000,
+      placeholderData: (previous) => previous,
     }),
 
   revisions: (descriptionId: string) =>

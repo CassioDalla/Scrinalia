@@ -247,6 +247,50 @@ class DocumentRevisionDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class DocumentDeletionDTO(BaseModel):
+    """
+    One entry of the deletion ledger: what was removed, when, by whom, and the snapshot of it.
+
+    ``snapshot`` is typed as ``dict[str, Any]`` and not as a bare ``dict`` for the reason the revision
+    DTO documents: a bare one reaches the generated TypeScript client as ``Record<string, never>``,
+    which the ledger screen cannot even index.
+    """
+
+    deletion_id: int
+    description_id: str
+    reference_code: str | None = None
+    title: str
+    level_name: str | None = None
+    children_count: int = 0
+    snapshot: dict[str, Any] = Field(default_factory=dict)
+    deleted_by: str | None = None
+    note: str | None = None
+    deleted_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DocumentDeletionListResponse(BaseModel):
+    """One page of the deletion ledger; ``total`` counts every row matching the search."""
+
+    total: int
+    limit: int
+    offset: int
+    items: list[DocumentDeletionDTO] = Field(default_factory=list)
+
+
+class DocumentDeletionResponse(BaseModel):
+    """
+    The answer to a deletion.
+
+    It carries the ledger entry, not the deleted document: the only thing left to read afterwards is
+    the snapshot, and returning it here saves the screen a second request to show what was lost.
+    """
+
+    message: str
+    data: DocumentDeletionDTO
+
+
 class DocumentListResponse(BaseModel):
     """
     Page of collection results.

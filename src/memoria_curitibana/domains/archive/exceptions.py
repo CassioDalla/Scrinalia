@@ -153,3 +153,10 @@ class MaterialisationAlreadyUndoneError(DomainException):
 
     # Ideal translation in Litestar: HTTP 409 (Conflict)
     pass
+
+
+class DocumentHasChildrenError(DomainException):
+    """Raised when a description that still has children is asked to be deleted."""
+
+    # Ideal translation in Litestar: HTTP 409 (Conflict)
+    pass

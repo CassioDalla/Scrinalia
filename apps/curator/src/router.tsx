@@ -6,6 +6,7 @@ import { CategoriesRoute } from "@/routes/CategoriesRoute";
 import { CleaningRulesRoute } from "@/routes/CleaningRulesRoute";
 import { CollectionRoute, validateCollectionSearch } from "@/routes/CollectionRoute";
 import { ConflictsRoute, validateConflictsSearch } from "@/routes/ConflictsRoute";
+import { DeletionsRoute, validateDeletionsSearch } from "@/routes/DeletionsRoute";
 import { DiagnosticsRoute, validateDiagnosticsSearch } from "@/routes/DiagnosticsRoute";
 import { DiscoverRoute } from "@/routes/DiscoverRoute";
 import { DocumentRoute } from "@/routes/DocumentRoute";
@@ -49,6 +50,17 @@ const collectionRoute = createRoute({
  * a description id — which is why the tree can live beside ``/acervo/$descriptionId`` without a
  * guard in the dossier.
  */
+/**
+ * The trail of the deletions. A static path beside ``/acervo/lista`` and ``/acervo/arvore``: it is a
+ * ledger of the collection, not a description, and it must never resolve as an id.
+ */
+const deletionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/acervo/excluidas",
+  component: DeletionsRoute,
+  validateSearch: validateDeletionsSearch,
+});
+
 const treeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/acervo/arvore",
@@ -156,6 +168,7 @@ export const router = createRouter({
   routeTree: rootRoute.addChildren([
     inboxRoute,
     collectionRoute,
+    deletionsRoute,
     treeRoute,
     documentRoute,
     planRoute,

@@ -18,6 +18,8 @@ from memoria_curitibana.domains.archive.schemas.command_schema import (
     TagLinkCommand,
 )
 from memoria_curitibana.domains.archive.schemas.document_schema import (
+    DocumentDeletionListResponse,
+    DocumentDeletionResponse,
     DocumentListResponse,
     DocumentRevisionDTO,
     DocumentSummary,
@@ -75,6 +77,22 @@ class DocumentController(Controller):
                 offset=offset,
             )
         )
+
+    @get("/deletions", sync_to_thread=True)
+    def list_deletions(
+        self,
+        document_service: NamedDependency[DocumentService],
+        term: FromQuery[str | None] = None,
+        limit: FromQuery[int] = 50,
+        offset: FromQuery[int] = 0,
+    ) -> DocumentDeletionListResponse:
+        """
+        The deletion ledger: what was removed, when, by whom and the snapshot of it.
+
+        It is a ledger and not a revision because the revision table cascades with the document — an
+        audit trail of a deletion has to outlive the thing it describes.
+        """
+        return document_service.list_deletions(term=term, limit=limit, offset=offset)
 
     @get("/{description_id:str}", sync_to_thread=True)
     def get_document(
@@ -160,4 +178,24 @@ class DocumentController(Controller):
         """Detaches one named entity from this description, records the revision and marks it HUMAN_APPROVED."""
         return document_service.unlink_entity(
             EntityLinkCommand(description_id=description_id, entity_id=entity_id), changed_by, review_note
+        )
+
+    # --- Deletion ------------------------------------------------------------------------------
+    #
+    # The one write on this controller that removes a record. It refuses a node with children (the
+    # arrangement's FK is RESTRICT on purpose) and records the snapshot before deleting, so the
+    # decision can be explained afterwards.
+    @delete("/{description_id:str}", status_code=200, sync_to_thread=True)
+    def delete_document(
+        self,
+        document_service: NamedDependency[DocumentService],
+        description_id: FromPath[str],
+        changed_by: FromQuery[str | None] = None,
+        note: FromQuery[str | None] = None,
+    ) -> DocumentDeletionResponse:
+        """Deletes one description, refusing a node that still has children below it."""
+        entry = document_service.delete(description_id, changed_by=changed_by, note=note)
+        return DocumentDeletionResponse(
+            message=f"Descrição '{entry.title}' excluída do acervo.",
+            data=entry,
         )

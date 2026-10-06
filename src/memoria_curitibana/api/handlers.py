@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from memoria_curitibana.domains.archive.exceptions import (
     CleaningRuleNotFoundError,
     DescriptionLevelNotFoundError,
+    DocumentHasChildrenError,
     DocumentNotFoundError,
     DomainException,
     DuplicateDescriptionLevelError,
@@ -60,7 +61,15 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
     ):
         status_code = HTTP_404_NOT_FOUND
 
-    elif isinstance(exc, (MergeAlreadyUndoneError, DuplicateDescriptionLevelError, MaterialisationAlreadyUndoneError)):
+    elif isinstance(
+        exc,
+        (
+            MergeAlreadyUndoneError,
+            DuplicateDescriptionLevelError,
+            MaterialisationAlreadyUndoneError,
+            DocumentHasChildrenError,
+        ),
+    ):
         status_code = HTTP_409_CONFLICT
 
     elif isinstance(exc, (InvalidParam, InvalidMergeError)):

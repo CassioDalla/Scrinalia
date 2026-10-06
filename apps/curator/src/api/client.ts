@@ -59,6 +59,9 @@ export type FacetCount = components["schemas"]["FacetCount"];
 export type CurationInbox = components["schemas"]["CurationInbox"];
 export type CurationQueue = components["schemas"]["CurationQueue"];
 export type DocumentRevision = components["schemas"]["DocumentRevisionDTO"];
+export type DocumentDeletion = components["schemas"]["DocumentDeletionDTO"];
+export type DocumentDeletionList = components["schemas"]["DocumentDeletionListResponse"];
+export type DocumentDeletionResponse = components["schemas"]["DocumentDeletionResponse"];
 export type DescriptionLevel = components["schemas"]["DescriptionLevelDTO"];
 export type ArchiveReviewStatus = components["schemas"]["ArchiveReviewStatus"];
 export type DocumentUpdateRequest = components["schemas"]["DocumentUpdateRequest"];
@@ -256,6 +259,43 @@ export async function fetchDocument(descriptionId: string): Promise<DocumentSumm
     await client.GET("/api/v1/documents/{description_id}", {
       params: { path: { description_id: descriptionId } },
     }),
+  );
+}
+
+/**
+ * Deletes one description for good.
+ *
+ * The only write in the front that removes a record. The API refuses a node that still has children
+ * (the arrangement's FK is ``RESTRICT``) and answers 409; the screen has to show that message, because
+ * "exclua ou mova os filhos primeiro" is the whole answer to the click.
+ */
+export async function deleteDocument(
+  descriptionId: string,
+  params: { changed_by?: string | null; note?: string | null } = {},
+): Promise<DocumentDeletionResponse> {
+  return unwrap<DocumentDeletionResponse>(
+    await client.DELETE("/api/v1/documents/{description_id}", {
+      params: {
+        path: { description_id: descriptionId },
+        query: { changed_by: params.changed_by ?? null, note: params.note ?? null },
+      },
+    }),
+  );
+}
+
+/**
+ * The deletion ledger: what was removed, when, by whom, and the snapshot of it.
+ *
+ * ``term`` is matched server-side against reference code, title and id, because the trail grows
+ * without bound and a client-side filter would only ever see the page it was given.
+ */
+export async function fetchDeletions(params: {
+  term?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<DocumentDeletionList> {
+  return unwrap<DocumentDeletionList>(
+    await client.GET("/api/v1/documents/deletions", { params: { query: params } }),
   );
 }
 
