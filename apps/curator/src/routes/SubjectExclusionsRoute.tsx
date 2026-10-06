@@ -3,15 +3,17 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { excludeFromSubjects, restoreToSubjects } from "@/api/client";
-import { queries } from "@/api/queries";
+import { SUBJECT_SUGGESTIONS_PAGE_SIZE, queries } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
 import { LedgerList } from "@/components/ui/LedgerList";
-import { formatCount } from "@/lib/format";
+import { descricoes, formatCount } from "@/lib/format";
+import { SIGNAL_HINT, SIGNAL_LABEL } from "@/lib/quality";
 
 /**
  * The curated half of ``NENHUMA``: "this is not a subject at all".
@@ -28,26 +30,38 @@ import { formatCount } from "@/lib/format";
 export function SubjectExclusionsRoute() {
   const queryClient = useQueryClient();
   const exclusions = useQuery(queries.subjectExclusions());
+  const [showRecorded, setShowRecorded] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const suggestions = useQuery(queries.subjectExclusionSuggestions(showRecorded, offset));
 
   const [draft, setDraft] = useState("");
   const [reason, setReason] = useState("");
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["taxonomy", "subject-exclusions"] });
+    void queryClient.invalidateQueries({ queryKey: ["taxonomy", "subject-exclusion-suggestions"] });
     void queryClient.invalidateQueries({ queryKey: ["taxonomy", "tags"] });
     void queryClient.invalidateQueries({ queryKey: ["documents"] });
     void queryClient.invalidateQueries({ queryKey: ["curation", "inbox"] });
   };
 
+  /**
+   * One write for both halves: the field (a human judgement, ``source=HUMAN``) and the candidate
+   * list (the guard's shape, ``source=RULE``). They differ in where the verdict came from, and the
+   * column exists so a later reader can tell a shape from a judgement.
+   */
   const ban = useMutation({
-    mutationFn: () =>
-      excludeFromSubjects({
-        words: draft
-          .split(/[,\n]/)
-          .map((word) => word.trim())
-          .filter(Boolean),
-        reason: reason.trim() || null,
-      }),
+    mutationFn: (body?: { words: string[]; reason: string | null; source: "HUMAN" | "RULE" }) =>
+      excludeFromSubjects(
+        body ?? {
+          words: draft
+            .split(/[,\n]/)
+            .map((word) => word.trim())
+            .filter(Boolean),
+          reason: reason.trim() || null,
+          source: "HUMAN",
+        },
+      ),
     onSuccess: () => {
       setDraft("");
       setReason("");
@@ -84,11 +98,137 @@ export function SubjectExclusionsRoute() {
           continua no acervo e alcançável pela busca; só a classificação de assunto para de adivinhar.
         </p>
 
-        <p className="text-xs text-(--color-muted)">
-          Exemplos medidos que pertencem a esta lista: <code>pessoas</code> (166 documentos),{" "}
-          <code>vista aérea</code> (89) e <code>capanema</code> (91) — nomes e descrições que o
-          classificador não tem como recusar sozinho.
-        </p>
+        {/*
+          The computed candidates, not three hardcoded examples.
+
+          The guard already refuses 1.489 of the real tags inside the classifier and nothing recorded
+          it; this is the list it produces, with the evidence the archivist decides with. The three
+          hand-labelled cases no rule reaches are named in the empty state instead of being offered as
+          buttons, because the route deliberately proposes nothing for them.
+        */}
+        {suggestions.data ? (
+          <section className="grid gap-2">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div className="grid gap-1">
+                <span className="text-sm font-semibold">O guarda já recusa estes termos</span>
+                <span className="text-xs text-(--color-muted)">
+                  {formatCount(suggestions.data.candidate_count)} candidatos ·{" "}
+                  {Object.entries(suggestions.data.by_signal ?? {})
+                    .map(([signal, count]) => `${SIGNAL_LABEL[signal] ?? signal} ${formatCount(count)}`)
+                    .join(" · ")}
+                  {suggestions.data.place_count > 0
+                    ? ` · ${formatCount(suggestions.data.place_count)} vão para a faceta Lugar`
+                    : ""}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant={showRecorded ? "primary" : "ghost"}
+                  title="Inclui os termos que já estão registrados como não-assunto, marcados como tais."
+                  onClick={() => {
+                    setShowRecorded((current) => !current);
+                    setOffset(0);
+                  }}
+                >
+                  {showRecorded ? "esconder os já registrados" : "mostrar os já registrados"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={suggestions.data.candidate_count === 0 || ban.isPending}
+                  title="Registra de uma vez todos os candidatos do guarda, com source=RULE."
+                  onClick={() =>
+                    ban.mutate({
+                      words: (suggestions.data?.items ?? [])
+                        .filter((item) => !item.already_excluded)
+                        .map((item) => item.term),
+                      source: "RULE",
+                      reason: "forma reconhecida pelo guarda determinístico (ano, placeholder, medida, logradouro ou nome de pessoa)",
+                    })
+                  }
+                >
+                  registrar os {formatCount(suggestions.data.candidate_count)} do guarda
+                </Button>
+              </div>
+            </div>
+
+            <ul className="grid gap-2">
+              {(suggestions.data.items ?? []).map((item) => (
+                <li key={item.term}>
+                  <Card className={item.already_excluded ? "opacity-70" : undefined}>
+                    <CardBody className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="grid gap-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <code className="text-sm font-medium">{item.term}</code>
+                          <Badge tone="warn">{SIGNAL_LABEL[item.signal] ?? item.signal}</Badge>
+                          <Badge tone="neutral">{descricoes(item.document_count)}</Badge>
+                          {item.is_place_term ? (
+                            <Badge tone="accent" title="O guarda recusa como assunto, mas a faceta Lugar o reivindica: 'não é assunto' não é 'vai para o lixo'.">
+                              vai para a faceta Lugar
+                            </Badge>
+                          ) : null}
+                          {item.also_an_entity ? (
+                            <Badge tone="ok" title="A mesma grafia existe como entidade nomeada: isso é a tela de conflitos, não esta.">
+                              também é entidade
+                            </Badge>
+                          ) : null}
+                          {item.already_excluded ? <Badge tone="neutral">já registrado</Badge> : null}
+                        </span>
+                        {SIGNAL_HINT[item.signal] ? (
+                          <span className="text-xs text-(--color-muted)">{SIGNAL_HINT[item.signal]}</span>
+                        ) : null}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={item.already_excluded || ban.isPending}
+                        onClick={() =>
+                          ban.mutate({
+                            words: [item.term],
+                            source: "RULE",
+                            reason: `forma reconhecida pelo guarda: ${item.signal}`,
+                          })
+                        }
+                      >
+                        marcar como não-assunto
+                      </Button>
+                    </CardBody>
+                  </Card>
+                </li>
+              ))}
+            </ul>
+
+            {suggestions.data.total > SUBJECT_SUGGESTIONS_PAGE_SIZE ? (
+              <div className="flex items-center justify-between text-sm">
+                <Button size="sm" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - SUBJECT_SUGGESTIONS_PAGE_SIZE))}>
+                  ← Anterior
+                </Button>
+                <span className="text-xs text-(--color-muted)">
+                  página {formatCount(Math.floor(offset / SUBJECT_SUGGESTIONS_PAGE_SIZE) + 1)} de{" "}
+                  {formatCount(Math.ceil(suggestions.data.total / SUBJECT_SUGGESTIONS_PAGE_SIZE))}
+                </span>
+                <Button
+                  size="sm"
+                  disabled={offset + SUBJECT_SUGGESTIONS_PAGE_SIZE >= suggestions.data.total}
+                  onClick={() => setOffset(offset + SUBJECT_SUGGESTIONS_PAGE_SIZE)}
+                >
+                  Próxima →
+                </Button>
+              </div>
+            ) : null}
+
+            <p className="text-xs text-(--color-muted)">
+              A metade semântica não é sugerida por ninguém, de propósito: <code>pessoas</code> (166
+              documentos), <code>vista aérea</code> (89) e <code>capanema</code> (91) não têm forma que
+              uma regra pegue, e o modelo — que não sabe se abster — responde com confiança justamente
+              nesses. Eles entram pelo campo acima, que é julgamento humano.
+            </p>
+          </section>
+        ) : null}
+
+        {suggestions.error ? <ErrorState error={suggestions.error} /> : null}
+        {suggestions.isPending ? <Spinner label="Aplicando o guarda ao vocabulário…" /> : null}
 
         {exclusions.error ? <ErrorState error={exclusions.error} /> : null}
         {exclusions.isPending ? <Spinner /> : null}
@@ -111,18 +251,11 @@ export function SubjectExclusionsRoute() {
           }
         >
           <div className="grid gap-2">
-            <div className="flex flex-wrap gap-1">
-              {["pessoas", "vista aérea", "capanema"].map((example) => (
-                <button
-                  key={example}
-                  className="rounded-full bg-black/5 px-2 py-0.5 text-[11px] hover:bg-black/10"
-                  title="Preenche o campo com este exemplo medido"
-                  onClick={() => setDraft((current) => (current ? `${current}, ${example}` : example))}
-                >
-                  + {example}
-                </button>
-              ))}
-            </div>
+            <p className="text-xs text-(--color-muted)">
+              Para os termos que <strong>nenhuma regra alcança</strong> — os julgamentos semânticos. Os
+              que o guarda já recusa estão na lista acima e entram por ela, com <code>source=RULE</code>{" "}
+              e o motivo declarado.
+            </p>
             <Input
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
@@ -137,7 +270,16 @@ export function SubjectExclusionsRoute() {
               <Button
                 variant="primary"
                 disabled={draft.trim().length === 0 || ban.isPending}
-                onClick={() => ban.mutate()}
+                onClick={() =>
+                  ban.mutate({
+                    words: draft
+                      .split(/[,\n]/)
+                      .map((word) => word.trim())
+                      .filter(Boolean),
+                    reason: reason.trim() || null,
+                    source: "HUMAN",
+                  })
+                }
               >
                 {ban.isPending ? "Vetando…" : "Marcar como não-assunto"}
               </Button>

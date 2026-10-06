@@ -29,6 +29,7 @@ import {
   fetchSimilarEntities,
   fetchSimilarTags,
   fetchStopwords,
+  fetchSubjectExclusionSuggestions,
   fetchSubjectExclusions,
   fetchSystemHealth,
   fetchSystemRuns,
@@ -63,6 +64,8 @@ export const ANOMALIES_PAGE_SIZE = 20;
 /** The execution ledger only grows, so it pages; the settings trail is short by nature. */
 export const RUNS_PAGE_SIZE = 20;
 export const SETTINGS_REVISIONS_PAGE_SIZE = 10;
+/** The guard's candidate list is long (1.489 terms on the real vocabulary), so it pages. */
+export const SUBJECT_SUGGESTIONS_PAGE_SIZE = 25;
 /** The deletion ledger only grows, so it pages like the proposals queue. */
 export const DELETIONS_PAGE_SIZE = 20;
 
@@ -270,6 +273,25 @@ export const queries = {
     }),
 
   /** The curated "this is not a subject" list. It is a bare list of normalized terms. */
+  /**
+   * The computed candidates, read separately from the recorded decisions.
+   *
+   * The guard's verdicts do not change while the archivist works — the vocabulary does — so this is
+   * kept for a minute and invalidated by the writes on the screen.
+   */
+  subjectExclusionSuggestions: (includeExcluded: boolean, offset: number) =>
+    queryOptions({
+      queryKey: ["taxonomy", "subject-exclusion-suggestions", includeExcluded, offset],
+      queryFn: () =>
+        fetchSubjectExclusionSuggestions({
+          limit: SUBJECT_SUGGESTIONS_PAGE_SIZE,
+          offset,
+          include_excluded: includeExcluded,
+        }),
+      staleTime: 60_000,
+      placeholderData: (previous) => previous,
+    }),
+
   subjectExclusions: () =>
     queryOptions({
       queryKey: ["taxonomy", "subject-exclusions"],

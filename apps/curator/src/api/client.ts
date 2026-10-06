@@ -180,6 +180,9 @@ export type ConflictPairKindFilter = "all" | "exact_name" | "near_duplicate";
 
 // --- The subject vocabulary: exclusions and the cluster discovery ------------------------------
 export type SubjectExclusionBanResponse = components["schemas"]["SubjectExclusionBanResponse"];
+export type SubjectExclusionSuggestion = components["schemas"]["SubjectExclusionSuggestion"];
+export type SubjectExclusionSuggestionResponse =
+  components["schemas"]["SubjectExclusionSuggestionResponse"];
 export type SubjectExclusionRemovalResponse = components["schemas"]["SubjectExclusionRemovalResponse"];
 export type MacroCategorySuggested = components["schemas"]["MacroCategorySuggested"];
 export type MacroCategoriesSuggestionResponse = components["schemas"]["MacroCategoriesSuggestionResponse"];
@@ -843,9 +846,32 @@ export async function fetchSubjectExclusions(): Promise<string[]> {
   return unwrap<string[]>(await client.GET("/api/v1/taxonomy/tags/subject-exclusions"));
 }
 
+/**
+ * The deterministic guard's own refusals, computed — and the evidence beside each one.
+ *
+ * Deliberately not a model: the guard is a pure function of the spelling, so its verdict cannot
+ * hallucinate and costs no inference. What the route adds is visibility — the guard has been
+ * skipping these terms inside the classifier while ``source='RULE'`` sat unused in the schema.
+ */
+export async function fetchSubjectExclusionSuggestions(params: {
+  limit?: number;
+  offset?: number;
+  include_excluded?: boolean;
+} = {}): Promise<SubjectExclusionSuggestionResponse> {
+  return unwrap<SubjectExclusionSuggestionResponse>(
+    await client.GET("/api/v1/taxonomy/tags/subject-exclusions/suggestions", { params: { query: params } }),
+  );
+}
+
+/**
+ * Records the decision. ``source`` tells a shape from a judgement: ``RULE`` for a term the guard
+ * refused and the archivist confirmed, ``HUMAN`` for one they typed.
+ */
 export async function excludeFromSubjects(body: {
   words: string[];
   reason?: string | null;
+  /** Required by the contract, and deliberately so: the provenance is never implicit. */
+  source: "HUMAN" | "RULE";
 }): Promise<SubjectExclusionBanResponse> {
   return unwrap<SubjectExclusionBanResponse>(
     await client.POST("/api/v1/taxonomy/tags/subject-exclusions", { body }),

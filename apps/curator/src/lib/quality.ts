@@ -124,3 +124,28 @@ export function anomalyReasonLabel(key: string): string {
 export function anomalyReasonCode(key: string): string {
   return key.split(":")[0] ?? key;
 }
+
+/**
+ * The shapes the deterministic guard recognises, and what each one means.
+ *
+ * These are the reason a term never reaches the subject classifier. The guard has been applying them
+ * silently inside the worker; the catalogue now says which shape fired, because "não é assunto" with
+ * no reason is indistinguishable from a mistake.
+ */
+export const SIGNAL_LABEL: Record<string, string> = {
+  PLACEHOLDER: "placeholder",
+  YEAR: "ano isolado",
+  MEASURE: "número com unidade",
+  STREET: "logradouro",
+  PERSON: "nome de pessoa",
+  RECORDED: "decisão registrada",
+};
+
+export const SIGNAL_HINT: Record<string, string> = {
+  PLACEHOLDER: "O parser de origem grava este texto quando o dado não veio; não é sobre coisa nenhuma.",
+  YEAR: "Um ano solto é uma data, não um assunto — e o modelo o classificava com 0,73 de confiança.",
+  MEASURE: "Número com unidade é medida, não conceito.",
+  STREET: "Logradouro é lugar: sai do assunto e a faceta Lugar o reivindica.",
+  PERSON: "Nome de pessoa é produtor ou biografado, não assunto.",
+  RECORDED: "Não tem forma reconhecível: alguém decidiu, e a decisão é o motivo.",
+};
