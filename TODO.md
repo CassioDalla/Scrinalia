@@ -119,10 +119,10 @@ sugeridas, 5 de 81 rungs, 1 materialização, stopwords 96/88 e carimbos de IA `
 
 | # | Passo | Onde / comando | Por que agora |
 | --- | --- | --- | --- |
-| 1 | **Arquivar as 2 aprovadas sem membros** | `/assuntos/tags?aba=propostas&status=APPROVED` → "arquivar as já cumpridas" | São clusters cuja canônica já não existe; não são trabalho, e a fila fica limpa |
-| 2 | **Triar os 784 clusters sugeridos** | mesma tela, `status=SUGGESTED` (mais pesados primeiro) | Decisão do arquivista; cada um tem "Conferir impacto" antes |
+| 1 | ✅ **Arquivar as 2 aprovadas sem membros** — feito em 2026-10-06 00:1x | `/assuntos/tags?aba=propostas&status=APPROVED` → "arquivar as já cumpridas" | **0 aprovadas** na última medição: a fila ficou limpa |
+| 2 | **Triar os 780 clusters sugeridos** | mesma tela, `status=SUGGESTED` (mais pesados primeiro) | Decisão do arquivista; cada um tem "Conferir impacto" antes |
 | 3 | **Revisar 1 merge perigoso** | ledger em `/assuntos/tags?aba=propostas`, com **desfazer** | `residencial ← área residencial, casa residencial, região residencial` (65+6+6 docs) perde sentido; está aplicado e é reversível |
-| 4 | **Continuar os rungs: 4 de 81 decididos** — e **conferir a materialização que já rodou** | `/arranjo/plano` e `/arranjo/diagnostico`; o undo está em `archive_hierarchy_materialisation_log` | A árvore foi materializada em 2026-10-06 00:15 (4.816 descrições ganharam pai) com 4 rungs aprovados. O diagnóstico diz se o resultado ficou coerente — e a materialização é reversível |
+| 4 | **Continuar os rungs (5 de 81 decididos)** — e **conferir a materialização que já rodou** | `/arranjo/plano` e `/arranjo/diagnostico`; o undo está em `archive_hierarchy_materialisation_log` | A árvore foi materializada em 2026-10-06 00:15 (**4.816 descrições ganharam pai**) com 4 rungs aprovados. O diagnóstico diz se o resultado ficou coerente — e a materialização é reversível |
 | 5 | **Rodar os workers de IA que faltam** — macro-categoria **já rodou** (973 tags, 695 com gaveta); faltam `ner`, `typology`, `conflict-judge`, `quality-validator` e `embedding` | `uv run python -m memoria_curitibana.domains.archive.workers.runner <nome>`, na ordem `ner → typology → conflict-judge → macro-category → quality-validator → embedding` | A janela fecha na **primeira ficha aprovada por humano**, e as 7.547 tags ainda sem gaveta são o que a tela de assuntos não mostra |
 | 6 | **Onda 4 do front** | `/arranjo/niveis` (não depende da árvore) e `/acervo/arvore` (depende do passo 4) | Fecha a seção Arranjo do sitemap |
 | 7 | **Ondas 5–6 do front** | `/entidades/*` e `/qualidade/*` | Últimas telas do sitemap antes do auth |
@@ -133,7 +133,9 @@ sugeridas, 5 de 81 rungs, 1 materialização, stopwords 96/88 e carimbos de IA `
 
 ### O que **não** pode ser rodado no acervo real sem decisão do dono
 
-- `POST /hierarchy/materialisation/apply` — **move 4.813 descrições**. Tem preview e undo.
+- `POST /hierarchy/materialisation/apply` — **já rodou uma vez** (2026-10-06 00:15, 4.816
+  descrições ganharam pai). Rodar de novo move mais; tem preview e undo no
+  `archive_hierarchy_materialisation_log`.
 - Aprovar rungs e aplicar merges em massa — decisões de conteúdo, não de engenharia.
 - `POST /taxonomy/tags/stopwords/purge` — **apaga tags e não tem undo** (o merge tem ledger; a purga
   não). Tem preview obrigatório na tela.
