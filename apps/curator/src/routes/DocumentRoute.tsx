@@ -108,10 +108,13 @@ export function DocumentRoute() {
 // TAB: DESCRIÇÃO
 // ==========================================
 
-const ISAD_FIELDS: { name: keyof DocumentUpdateRequest; label: string; long?: boolean }[] = [
+const ISAD_FIELDS: { name: keyof DocumentUpdateRequest; label: string; long?: boolean; date?: boolean }[] = [
   { name: "original_title", label: "Título original" },
   { name: "final_title", label: "Título final (decisão do arquivista)" },
-  { name: "document_date", label: "Data do documento (AAAA-MM-DD)" },
+  // A real date control: the field used to render the pt-BR display string ("1 de jan. de 1994") in
+  // a box labelled AAAA-MM-DD, so editing it even once would send that text to a route that parses a
+  // date. The ISO value is what the contract stores, so it is what the input holds.
+  { name: "document_date", label: "Data do documento", date: true },
   { name: "reference_code", label: "Código de referência" },
   { name: "producers", label: "Produtor(es)" },
   { name: "scope_content", label: "Âmbito e conteúdo", long: true },
@@ -156,7 +159,6 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
     if (name in draft) return draft[name] ?? "";
     const current = document[name as keyof DocumentSummary];
     if (current === null || current === undefined) return "";
-    if (name === "document_date") return formatDate(String(current)).replace(/^sem data$/, "");
     return String(current);
   };
 
@@ -199,6 +201,7 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
                 />
               ) : (
                 <Input
+                  type={field.date ? "date" : "text"}
                   value={valueOf(field.name)}
                   onChange={(event) => setDraft((previous) => ({ ...previous, [field.name]: event.target.value }))}
                 />

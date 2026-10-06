@@ -1,14 +1,24 @@
 import { createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
 
 import { AppShell } from "@/components/layout/AppShell";
+import { AnomaliesRoute, validateAnomaliesSearch } from "@/routes/AnomaliesRoute";
 import { CategoriesRoute } from "@/routes/CategoriesRoute";
+import { CleaningRulesRoute } from "@/routes/CleaningRulesRoute";
 import { CollectionRoute, validateCollectionSearch } from "@/routes/CollectionRoute";
+import { ConflictsRoute, validateConflictsSearch } from "@/routes/ConflictsRoute";
 import { DiagnosticsRoute, validateDiagnosticsSearch } from "@/routes/DiagnosticsRoute";
+import { DiscoverRoute } from "@/routes/DiscoverRoute";
 import { DocumentRoute } from "@/routes/DocumentRoute";
+import { EntitiesRoute, validateEntitiesSearch } from "@/routes/EntitiesRoute";
 import { InboxRoute } from "@/routes/InboxRoute";
+import { LevelsRoute } from "@/routes/LevelsRoute";
+import { NerExclusionsRoute } from "@/routes/NerExclusionsRoute";
 import { NotFoundRoute } from "@/routes/NotFoundRoute";
 import { PlanRoute, validatePlanSearch } from "@/routes/PlanRoute";
+import { SubjectExclusionsRoute } from "@/routes/SubjectExclusionsRoute";
 import { TagsRoute, validateTagsSearch } from "@/routes/TagsRoute";
+import { TextTemplatesRoute, validateTextTemplatesSearch } from "@/routes/TextTemplatesRoute";
+import { TreeRoute, validateTreeSearch } from "@/routes/TreeRoute";
 
 /**
  * Routes are declared in code, not derived from the filesystem.
@@ -30,6 +40,20 @@ const collectionRoute = createRoute({
   path: "/acervo/lista",
   component: CollectionRoute,
   validateSearch: validateCollectionSearch,
+});
+
+/**
+ * The tree is a static path and the dossier is a dynamic one under the same parent.
+ *
+ * TanStack Router ranks a static segment above a parameter, so ``/acervo/arvore`` never resolves as
+ * a description id — which is why the tree can live beside ``/acervo/$descriptionId`` without a
+ * guard in the dossier.
+ */
+const treeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/acervo/arvore",
+  component: TreeRoute,
+  validateSearch: validateTreeSearch,
 });
 
 const documentRoute = createRoute({
@@ -57,6 +81,12 @@ const diagnosticsRoute = createRoute({
   validateSearch: validateDiagnosticsSearch,
 });
 
+const levelsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/arranjo/niveis",
+  component: LevelsRoute,
+});
+
 const tagsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/assuntos/tags",
@@ -70,15 +100,77 @@ const categoriesRoute = createRoute({
   component: CategoriesRoute,
 });
 
+const discoverRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/assuntos/descobrir",
+  component: DiscoverRoute,
+});
+
+const subjectExclusionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/assuntos/excecoes",
+  component: SubjectExclusionsRoute,
+});
+
+const entitiesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/entidades/lista",
+  component: EntitiesRoute,
+  validateSearch: validateEntitiesSearch,
+});
+
+const nerExclusionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/entidades/excecoes",
+  component: NerExclusionsRoute,
+});
+
+const conflictsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/entidades/conflitos",
+  component: ConflictsRoute,
+  validateSearch: validateConflictsSearch,
+});
+
+const textTemplatesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/qualidade/trechos",
+  component: TextTemplatesRoute,
+  validateSearch: validateTextTemplatesSearch,
+});
+
+const cleaningRulesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/qualidade/regras",
+  component: CleaningRulesRoute,
+});
+
+const anomaliesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/qualidade/anomalias",
+  component: AnomaliesRoute,
+  validateSearch: validateAnomaliesSearch,
+});
+
 export const router = createRouter({
   routeTree: rootRoute.addChildren([
     inboxRoute,
     collectionRoute,
+    treeRoute,
     documentRoute,
     planRoute,
     diagnosticsRoute,
+    levelsRoute,
     tagsRoute,
     categoriesRoute,
+    discoverRoute,
+    subjectExclusionsRoute,
+    entitiesRoute,
+    nerExclusionsRoute,
+    conflictsRoute,
+    textTemplatesRoute,
+    cleaningRulesRoute,
+    anomaliesRoute,
   ]),
   defaultPreload: "intent",
 });

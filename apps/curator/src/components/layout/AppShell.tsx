@@ -3,49 +3,57 @@ import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { cn } from "@/lib/cn";
 
 /**
- * Navigation mirrors the sitemap, and only the screens that exist are enabled.
+ * Navigation mirrors the sitemap.
  *
- * The disabled entries are deliberate and are not hidden: the archivist has to be able to see the
- * shape of the tool, and a menu that grows silently is harder to learn than one that says "not
- * yet". Each of them corresponds to a wave of the plan.
+ * Every entry is a screen that exists and that the API can serve: a menu that offers a route the
+ * back-end refuses is worse than one that says "not yet". The public site (``apps/public``) is the
+ * only part of the sitemap deliberately absent — it is a separate surface, with its own projection.
  */
-type NavItem = { to: string; label: string; hint: string; enabled: boolean };
+type NavItem = { to: string; label: string; hint: string };
 
 const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: "Curadoria",
-    items: [{ to: "/", label: "Início", hint: "O que precisa de mim", enabled: true }],
+    items: [{ to: "/", label: "Início", hint: "O que precisa de mim" }],
   },
   {
     section: "Acervo",
     items: [
-      { to: "/acervo/lista", label: "Lista e busca", hint: "Facetas e ranking", enabled: true },
-      { to: "/acervo/arvore", label: "Árvore", hint: "Arranjo materializado", enabled: false },
+      { to: "/acervo/lista", label: "Lista e busca", hint: "Facetas e ranking" },
+      { to: "/acervo/arvore", label: "Árvore", hint: "Navegar pelo arranjo" },
     ],
   },
   {
     section: "Arranjo",
     items: [
-      { to: "/arranjo/plano", label: "Plano de arranjo", hint: "Decidir os níveis", enabled: true },
-      { to: "/arranjo/diagnostico", label: "Diagnóstico", hint: "Onde está incoerente", enabled: true },
+      { to: "/arranjo/plano", label: "Plano de arranjo", hint: "Decidir os níveis" },
+      { to: "/arranjo/diagnostico", label: "Diagnóstico", hint: "Onde está incoerente" },
+      { to: "/arranjo/niveis", label: "Catálogo de níveis", hint: "A escada NOBRADE" },
     ],
   },
   {
     section: "Assuntos",
     items: [
-      { to: "/assuntos/tags", label: "Tags", hint: "Peso, duplicatas e merges", enabled: true },
-      { to: "/assuntos/categorias", label: "Categorias", hint: "As gavetas de assunto", enabled: true },
+      { to: "/assuntos/tags", label: "Tags", hint: "Peso, duplicatas e merges" },
+      { to: "/assuntos/categorias", label: "Categorias", hint: "As gavetas de assunto" },
+      { to: "/assuntos/descobrir", label: "Descobrir gavetas", hint: "Clusters por tema" },
+      { to: "/assuntos/excecoes", label: "Não é assunto", hint: "O que a regra não pega" },
     ],
   },
   {
     section: "Entidades",
-    items: [{ to: "/entidades/lista", label: "Entidades", hint: "NER: merge e tipos", enabled: false }],
+    items: [
+      { to: "/entidades/lista", label: "Entidades", hint: "NER: peso, tipo e merge" },
+      { to: "/entidades/excecoes", label: "Exclusões de NER", hint: "Isto é assunto, não nome" },
+      { to: "/entidades/conflitos", label: "Conflitos", hint: "Assunto x nome próprio" },
+    ],
   },
   {
     section: "Qualidade",
     items: [
-      { to: "/qualidade/trechos", label: "Trechos", hint: "Boilerplate e escopo", enabled: false },
-      { to: "/qualidade/anomalias", label: "Anomalias", hint: "O que o validador marcou", enabled: false },
+      { to: "/qualidade/trechos", label: "Trechos", hint: "Boilerplate e escopo" },
+      { to: "/qualidade/regras", label: "Regras", hint: "Reescrever ou sinalizar" },
+      { to: "/qualidade/anomalias", label: "Anomalias", hint: "O que o validador marcou" },
     ],
   },
 ];
@@ -69,19 +77,6 @@ export function AppShell() {
               <ul>
                 {group.items.map((item) => {
                   const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
-                  if (!item.enabled) {
-                    return (
-                      <li key={item.to}>
-                        <span
-                          title="Ainda não implementado"
-                          className="flex cursor-not-allowed items-center justify-between rounded-md px-2 py-1.5 text-sm text-(--color-muted)/60"
-                        >
-                          {item.label}
-                          <span className="text-[10px] tracking-wide uppercase">—</span>
-                        </span>
-                      </li>
-                    );
-                  }
                   return (
                     <li key={item.to}>
                       <Link

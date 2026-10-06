@@ -112,6 +112,75 @@ export type MergeResponse = components["schemas"]["MergeResponse"];
 export type Stopword = components["schemas"]["StopwordDTO"];
 export type StopwordPurgePreview = components["schemas"]["StopwordPurgePreview"];
 export type StopwordPurgeTag = components["schemas"]["StopwordPurgeTag"];
+export type StopwordBanResponse = components["schemas"]["StopwordBanResponse"];
+export type StopwordRemovalResponse = components["schemas"]["StopwordRemovalResponse"];
+export type StopwordPurgeResponse = components["schemas"]["StopwordPurgeResponse"];
+export type TagMergeProposalDecisionResponse = components["schemas"]["TagMergeProposalDecisionResponse"];
+export type TagMergeUndoResponse = components["schemas"]["TagMergeUndoResponse"];
+
+// --- The named entities (NER): the relevance view, the merge and the vetoes --------------------
+export type EntityRelevanceResponse = components["schemas"]["EntityRelevanceResponse"];
+export type EntityPairSimilarity = components["schemas"]["EntityPairSimilarity"];
+export type EntitySimilarity = components["schemas"]["EntitySimilarity"];
+export type EntitySimilarityResponse = components["schemas"]["EntitySimilarityResponse"];
+export type EntityMergeResponse = components["schemas"]["EntityMergeResponse"];
+export type EntityMergeRequest = components["schemas"]["MergeRequest"];
+export type ReclassifyEntityRequest = components["schemas"]["ReclassifyEntityRequest"];
+export type EntityReclassifyResponse = components["schemas"]["EntityReclassifyResponse"];
+export type EntityDeleteResponse = components["schemas"]["EntityDeleteResponse"];
+export type OrphanEntityPurgeResponse = components["schemas"]["OrphanEntityPurgeResponse"];
+export type NerExclusion = components["schemas"]["NerExclusion"];
+export type NerExclusionBanResponse = components["schemas"]["NerExclusionBanResponse"];
+export type NerExclusionRemovalResponse = components["schemas"]["NerExclusionRemovalResponse"];
+
+/** An entity type the NER extractor is allowed to speak, taken from the route's own enum. */
+export type EntityType = NonNullable<
+  paths["/api/v1/taxonomy/entities/relevance"]["get"]["parameters"]["query"]
+>["entity_type"];
+export type ReclassifyTarget = ReclassifyEntityRequest["new_type"];
+
+// --- The tag x entity collision (the LLM judge's queue) ----------------------------------------
+export type CrossDomainConflict = components["schemas"]["CrossDomainConflict"];
+export type CrossDomainConflictList = components["schemas"]["CrossDomainConflictListResponse"];
+export type ConflictResolutionRequest = components["schemas"]["ConflictResolutionRequest"];
+export type ConflictResolutionResponse = components["schemas"]["ConflictResolutionResponse"];
+export type ConflictWinner = ConflictResolutionRequest["winner"];
+
+// --- The subject vocabulary: exclusions and the cluster discovery ------------------------------
+export type SubjectExclusionBanResponse = components["schemas"]["SubjectExclusionBanResponse"];
+export type SubjectExclusionRemovalResponse = components["schemas"]["SubjectExclusionRemovalResponse"];
+export type MacroCategorySuggested = components["schemas"]["MacroCategorySuggested"];
+export type MacroCategoriesSuggestionResponse = components["schemas"]["MacroCategoriesSuggestionResponse"];
+
+// --- Quality of the input data: excerpts, cleaning rules and the dry runs ----------------------
+export type TextTemplate = components["schemas"]["TextTemplateDTO"];
+export type TextTemplateMutationResponse = components["schemas"]["TextTemplateMutationResponse"];
+export type TemplateDryRunResponse = components["schemas"]["TemplateDryRunResponse"];
+export type TemplateDryRunMatch = components["schemas"]["TemplateDryRunMatch"];
+export type TemplateSuggestionResponse = components["schemas"]["TemplateSuggestionResponse"];
+export type TemplateSuggestion = components["schemas"]["TemplateSuggestion"];
+export type CreateTextTemplateRequest = components["schemas"]["CreateTextTemplateRequest"];
+export type UpdateTextTemplateRequest = components["schemas"]["UpdateTextTemplateRequest"];
+export type DryRunTextTemplateRequest = components["schemas"]["DryRunTextTemplateRequest"];
+export type CleaningRule = components["schemas"]["CleaningRuleDTO"];
+export type CleaningRuleMutationResponse = components["schemas"]["CleaningRuleMutationResponse"];
+export type CleaningRuleDryRun = components["schemas"]["DryRunResponseDTO"];
+export type CleaningRuleDryRunMatch = components["schemas"]["DryRunMatchDTO"];
+export type CreateCleaningRuleRequest = components["schemas"]["CreateCleaningRuleRequest"];
+export type CleaningRuleDryRunRequest = components["schemas"]["DryRunRequest"];
+
+/** What a rule does: rewrite the match, or only flag it. The difference is cleaning vs. destroying. */
+export type RuleKind = NonNullable<CleaningRule["rule_kind"]>;
+export type TemplateScope = NonNullable<TextTemplate["scope"]>[number];
+export type TemplateStatus = NonNullable<TextTemplate["status"]>;
+export type TemplateAction = NonNullable<TextTemplate["action"]>;
+export type CleaningTargetColumn = CreateCleaningRuleRequest["target_column"];
+
+// --- The arrangement: the ladder of levels and the materialised tree ---------------------------
+export type DescriptionLevelCreateRequest = components["schemas"]["DescriptionLevelCreateRequest"];
+export type DescriptionLevelUpdateRequest = components["schemas"]["DescriptionLevelUpdateRequest"];
+export type HierarchyTree = components["schemas"]["HierarchyTreeResponse"];
+export type HierarchyNodeDetail = components["schemas"]["HierarchyNodeDetail"];
 
 /** Which verdict a proposal is waiting for, as the contract enumerates it. */
 export type ProposalStatus = TagMergeProposal["status"];
@@ -204,6 +273,18 @@ export async function updateDocument(
 export async function fetchLevels(): Promise<DescriptionLevel[]> {
   return unwrap<DescriptionLevel[]>(
     await client.GET("/api/v1/hierarchy/levels", { params: { query: { only_active: true } } }),
+  );
+}
+
+/**
+ * The ladder including the retired rungs.
+ *
+ * Deactivating a rung never deletes it and never moves the descriptions sitting on it, so the
+ * catalog screen has to read them: without them the weight of the ladder looks smaller than it is.
+ */
+export async function fetchLevelCatalog(): Promise<DescriptionLevel[]> {
+  return unwrap<DescriptionLevel[]>(
+    await client.GET("/api/v1/hierarchy/levels", { params: { query: { only_active: false } } }),
   );
 }
 
@@ -392,8 +473,8 @@ export async function suggestMergeProposals(body: { threshold: number; limit: nu
 export async function decideMergeProposal(
   proposalId: number,
   body: MergeProposalDecision,
-): Promise<TagMergeProposal> {
-  return unwrap<TagMergeProposal>(
+): Promise<TagMergeProposalDecisionResponse> {
+  return unwrap<TagMergeProposalDecisionResponse>(
     await client.PATCH("/api/v1/taxonomy/tags/merge-proposals/{proposal_id}", {
       params: { path: { proposal_id: proposalId } },
       body,
@@ -426,8 +507,8 @@ export async function fetchMergeLog(params: {
 }
 
 /** Reverses one absorbed tag: the row, its links, its classification and its spellings. */
-export async function undoMerge(mergeId: number, undoneBy?: string): Promise<MergeLogEntry> {
-  return unwrap<MergeLogEntry>(
+export async function undoMerge(mergeId: number, undoneBy?: string): Promise<TagMergeUndoResponse> {
+  return unwrap<TagMergeUndoResponse>(
     await client.DELETE("/api/v1/taxonomy/tags/merge-log/{merge_id}", {
       params: { path: { merge_id: mergeId }, query: { undone_by: undoneBy ?? null } },
     }),
@@ -547,16 +628,16 @@ export async function fetchStopwords(axis?: StopwordsScope): Promise<Stopword[]>
 export async function banStopwords(body: {
   words: string[];
   scope?: StopwordsScope;
-}): Promise<{ created: number }> {
-  return unwrap<{ created: number }>(await client.POST("/api/v1/taxonomy/tags/stopwords", { body }));
+}): Promise<StopwordBanResponse> {
+  return unwrap<StopwordBanResponse>(await client.POST("/api/v1/taxonomy/tags/stopwords", { body }));
 }
 
 /** Un-bans terms — the only way back from a purge decision, which has no ledger to restore from. */
 export async function unbanStopwords(body: {
   words: string[];
   scope?: StopwordsScope;
-}): Promise<{ removed: number }> {
-  return unwrap<{ removed: number }>(await client.DELETE("/api/v1/taxonomy/tags/stopwords", { body }));
+}): Promise<StopwordRemovalResponse> {
+  return unwrap<StopwordRemovalResponse>(await client.DELETE("/api/v1/taxonomy/tags/stopwords", { body }));
 }
 
 /** What the purge would delete. The step is mandatory: this write cannot be undone. */
@@ -570,8 +651,289 @@ export async function previewStopwordPurge(): Promise<StopwordPurgePreview> {
  * Sent with an empty body on purpose: registering words in the same call would make the numbers the
  * archivist approved different from the numbers that die.
  */
-export async function purgeStopwords(): Promise<{ tags_deleted: number }> {
-  return unwrap<{ tags_deleted: number }>(
+export async function purgeStopwords(): Promise<StopwordPurgeResponse> {
+  return unwrap<StopwordPurgeResponse>(
     await client.POST("/api/v1/taxonomy/tags/stopwords/purge", { body: {} }),
+  );
+}
+
+// --- The subject axis, second half: the terms that are not a subject at all --------------------
+
+/** The curated half of ``NENHUMA``: terms no rule catches because the call is semantic. */
+export async function fetchSubjectExclusions(): Promise<string[]> {
+  return unwrap<string[]>(await client.GET("/api/v1/taxonomy/tags/subject-exclusions"));
+}
+
+export async function excludeFromSubjects(body: {
+  words: string[];
+  reason?: string | null;
+}): Promise<SubjectExclusionBanResponse> {
+  return unwrap<SubjectExclusionBanResponse>(
+    await client.POST("/api/v1/taxonomy/tags/subject-exclusions", { body }),
+  );
+}
+
+export async function restoreToSubjects(body: {
+  words: string[];
+}): Promise<SubjectExclusionRemovalResponse> {
+  return unwrap<SubjectExclusionRemovalResponse>(
+    await client.DELETE("/api/v1/taxonomy/tags/subject-exclusions", { body }),
+  );
+}
+
+/**
+ * Clusters the collection so a drawer the vocabulary lacks can be discovered.
+ *
+ * It drags the real clustering engine into the process, so it is a deliberate click and never a
+ * page load. Below the engine's own floor it answers ``total_suggestions: 0`` with a message,
+ * which is why the screen must render the message instead of an empty list.
+ */
+export async function suggestMacroCategories(body: {
+  source_type: "tags" | "documents";
+}): Promise<MacroCategoriesSuggestionResponse> {
+  return unwrap<MacroCategoriesSuggestionResponse>(
+    await client.POST("/api/v1/taxonomy/tags/suggest-macro", { body }),
+  );
+}
+
+// --- The named entities: relevance, similarity, merge, reclassification and the vetoes ---------
+
+export async function fetchEntityRelevance(params: {
+  entity_type?: EntityType;
+  limit?: number;
+}): Promise<EntityRelevanceResponse> {
+  return unwrap<EntityRelevanceResponse>(
+    await client.GET("/api/v1/taxonomy/entities/relevance", { params: { query: params } }),
+  );
+}
+
+/**
+ * Entity pairs by trigram similarity, or the neighbours of one name.
+ *
+ * ``mode`` is what tells the two payloads apart: a single ``EntitySimilarity`` row is "these are
+ * the neighbours of the name I asked about", a ``EntityPairSimilarity`` row is "these two are
+ * alike". Rendering one as the other would invent a side that does not exist.
+ */
+export async function fetchSimilarEntities(params: {
+  target_name?: string;
+  entity_type?: EntityType;
+  threshold?: number;
+}): Promise<EntitySimilarityResponse> {
+  return unwrap<EntitySimilarityResponse>(
+    await client.GET("/api/v1/taxonomy/entities/similar", { params: { query: params } }),
+  );
+}
+
+export async function mergeEntities(body: EntityMergeRequest): Promise<EntityMergeResponse> {
+  return unwrap<EntityMergeResponse>(await client.POST("/api/v1/taxonomy/entities/merge", { body }));
+}
+
+/**
+ * Changes an entity's type **and teaches the extractor**.
+ *
+ * It is not a label change: the service writes the anchoring synonym that makes the NER worker
+ * obey the decision on every future run. The screen has to say that, or the archivist thinks they
+ * renamed a row.
+ */
+export async function reclassifyEntity(
+  entityId: number,
+  body: ReclassifyEntityRequest,
+): Promise<EntityReclassifyResponse> {
+  return unwrap<EntityReclassifyResponse>(
+    await client.PATCH("/api/v1/taxonomy/entities/{entity_id}/reclassify", {
+      params: { path: { entity_id: entityId } },
+      body,
+    }),
+  );
+}
+
+export async function deleteEntity(entityId: number): Promise<EntityDeleteResponse> {
+  return unwrap<EntityDeleteResponse>(
+    await client.DELETE("/api/v1/taxonomy/entities/{entity_id}", {
+      params: { path: { entity_id: entityId } },
+    }),
+  );
+}
+
+/** Deletes the entities no description carries — the leftovers merges and deletions leave behind. */
+export async function purgeOrphanEntities(): Promise<OrphanEntityPurgeResponse> {
+  return unwrap<OrphanEntityPurgeResponse>(await client.POST("/api/v1/taxonomy/entities/orphans/purge"));
+}
+
+/** The terms the curation decided belong to the subject axis, not to NER. */
+export async function fetchNerExclusions(): Promise<NerExclusion[]> {
+  return unwrap<NerExclusion[]>(await client.GET("/api/v1/taxonomy/entities/ner-exclusions"));
+}
+
+/** Bans terms from NER and purges the entities already extracted from them. */
+export async function banNerExclusions(body: {
+  words: string[];
+  reason?: string | null;
+}): Promise<NerExclusionBanResponse> {
+  return unwrap<NerExclusionBanResponse>(
+    await client.POST("/api/v1/taxonomy/entities/ner-exclusions", { body }),
+  );
+}
+
+export async function unbanNerExclusions(body: { words: string[] }): Promise<NerExclusionRemovalResponse> {
+  return unwrap<NerExclusionRemovalResponse>(
+    await client.DELETE("/api/v1/taxonomy/entities/ner-exclusions", { body }),
+  );
+}
+
+// --- The tag x entity collision ----------------------------------------------------------------
+
+export async function fetchCrossDomainConflicts(threshold = 0.85): Promise<CrossDomainConflictList> {
+  return unwrap<CrossDomainConflictList>(
+    await client.GET("/api/v1/taxonomy/conflicts/cross-domain", { params: { query: { threshold } } }),
+  );
+}
+
+/**
+ * Decides which side owns the spelling, and the answer is written to a different place per side.
+ *
+ * Entity wins -> the tag's name is banned from the subject axis; tag wins -> the term is recorded as
+ * a NER exclusion with the tag that justifies it. The screen must say which one it is doing.
+ */
+export async function resolveConflict(body: ConflictResolutionRequest): Promise<ConflictResolutionResponse> {
+  return unwrap<ConflictResolutionResponse>(await client.POST("/api/v1/taxonomy/conflicts/resolve", { body }));
+}
+
+// --- Quality of the input data: the repeated excerpts ------------------------------------------
+
+export async function fetchTextTemplates(params: {
+  status?: TemplateStatus;
+  only_active?: boolean;
+}): Promise<TextTemplate[]> {
+  return unwrap<TextTemplate[]>(
+    await client.GET("/api/v1/quality/text-templates", { params: { query: params } }),
+  );
+}
+
+export async function createTextTemplate(body: CreateTextTemplateRequest): Promise<TextTemplateMutationResponse> {
+  return unwrap<TextTemplateMutationResponse>(
+    await client.POST("/api/v1/quality/text-templates", { body }),
+  );
+}
+
+export async function updateTextTemplate(
+  templateId: number,
+  body: UpdateTextTemplateRequest,
+): Promise<TextTemplateMutationResponse> {
+  return unwrap<TextTemplateMutationResponse>(
+    await client.PATCH("/api/v1/quality/text-templates/{template_id}", {
+      params: { path: { template_id: templateId } },
+      body,
+    }),
+  );
+}
+
+/** Undoes the decision and puts every document the excerpt touched back in the AI queue. */
+export async function deleteTextTemplate(templateId: number): Promise<TextTemplateMutationResponse> {
+  return unwrap<TextTemplateMutationResponse>(
+    await client.DELETE("/api/v1/quality/text-templates/{template_id}", {
+      params: { path: { template_id: templateId } },
+    }),
+  );
+}
+
+/**
+ * Scans the collection for repeated excerpts and registers them as suggestions.
+ *
+ * The thresholds are the engine's own: how much of the collection a block must cover to be worth
+ * proposing. Nothing is applied to the AI text before a human approves it.
+ */
+export async function suggestTextTemplates(body: {
+  min_ratio: number;
+  min_documents: number;
+}): Promise<TemplateSuggestionResponse> {
+  return unwrap<TemplateSuggestionResponse>(
+    await client.POST("/api/v1/quality/text-templates/suggest", { body }),
+  );
+}
+
+export async function previewTextTemplate(
+  body: DryRunTextTemplateRequest,
+): Promise<TemplateDryRunResponse> {
+  return unwrap<TemplateDryRunResponse>(
+    await client.POST("/api/v1/quality/text-templates/preview", { body }),
+  );
+}
+
+// --- Quality of the input data: the cleaning rules ---------------------------------------------
+
+export async function fetchCleaningRules(): Promise<CleaningRule[]> {
+  return unwrap<CleaningRule[]>(await client.GET("/api/v1/quality/cleaning-rules"));
+}
+
+export async function createCleaningRule(
+  body: CreateCleaningRuleRequest,
+): Promise<CleaningRuleMutationResponse> {
+  return unwrap<CleaningRuleMutationResponse>(
+    await client.POST("/api/v1/quality/cleaning-rules", { body }),
+  );
+}
+
+/** Rules are never deleted: deactivating is the reversible way to stop the worker reading them. */
+export async function deactivateCleaningRule(ruleId: number): Promise<CleaningRuleMutationResponse> {
+  return unwrap<CleaningRuleMutationResponse>(
+    await client.PATCH("/api/v1/quality/cleaning-rules/{rule_id}/deactivate", {
+      params: { path: { rule_id: ruleId } },
+    }),
+  );
+}
+
+/** Before/after of the matches, computed without writing anything. The step before creating a rule. */
+export async function previewCleaningRule(body: CleaningRuleDryRunRequest): Promise<CleaningRuleDryRun> {
+  return unwrap<CleaningRuleDryRun>(
+    await client.POST("/api/v1/quality/cleaning-rules/preview", { body }),
+  );
+}
+
+// --- The arrangement: the ladder and the materialised tree -------------------------------------
+
+export async function createLevel(body: DescriptionLevelCreateRequest): Promise<DescriptionLevel> {
+  return unwrap<DescriptionLevel>(await client.POST("/api/v1/hierarchy/levels", { body }));
+}
+
+/**
+ * Partial edit of a rung. ``ordinal`` is absent on purpose: re-ranking the ladder would silently
+ * renumber the tree, so the route does not accept it.
+ */
+export async function updateLevel(
+  levelId: number,
+  body: DescriptionLevelUpdateRequest,
+): Promise<DescriptionLevel> {
+  return unwrap<DescriptionLevel>(
+    await client.PATCH("/api/v1/hierarchy/levels/{level_id}", {
+      params: { path: { level_id: levelId } },
+      body,
+    }),
+  );
+}
+
+/**
+ * The arrangement, flat and ordered by path.
+ *
+ * ``root_id`` asks for one subtree (an indexed prefix of the materialised path), ``max_depth`` how
+ * far below it to go. The screen builds the indentation from ``path``/``parent_id``; the API does
+ * not return nested children, because a subtree read is one query and not a walk per level.
+ */
+export async function fetchHierarchyTree(params: {
+  root_id?: string;
+  max_depth?: number;
+  limit?: number;
+  offset?: number;
+}): Promise<HierarchyTree> {
+  return unwrap<HierarchyTree>(
+    await client.GET("/api/v1/hierarchy/tree", { params: { query: params } }),
+  );
+}
+
+export async function fetchHierarchyNode(descriptionId: string): Promise<HierarchyNodeDetail> {
+  return unwrap<HierarchyNodeDetail>(
+    await client.GET("/api/v1/hierarchy/nodes/{description_id}", {
+      params: { path: { description_id: descriptionId } },
+    }),
   );
 }

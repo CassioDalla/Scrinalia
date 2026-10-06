@@ -35,6 +35,8 @@ export type CollectionSearch = {
   macro_category_id?: number;
   entity_type?: string;
   level_id?: number;
+  /** "Documents inside this branch": the facet the tree screen hands over. */
+  ancestor_id?: string;
   date_from?: string;
   date_to?: string;
   status?: ArchiveReviewStatus;
@@ -69,6 +71,7 @@ export function validateCollectionSearch(search: Record<string, unknown>): Colle
     macro_category_id: asNumber(search.macro_category_id),
     entity_type: asString(search.entity_type),
     level_id: asNumber(search.level_id),
+    ancestor_id: asString(search.ancestor_id),
     date_from: asString(search.date_from),
     date_to: asString(search.date_to),
     status: asString(search.status) as ArchiveReviewStatus | undefined,
@@ -89,6 +92,8 @@ function activeFilters(search: CollectionSearch): { key: keyof CollectionSearch;
     entries.push({ key: "macro_category_id", label: `Assunto #${search.macro_category_id}` });
   if (search.entity_type !== undefined) entries.push({ key: "entity_type", label: `Entidade ${search.entity_type}` });
   if (search.level_id !== undefined) entries.push({ key: "level_id", label: `Nível #${search.level_id}` });
+  if (search.ancestor_id !== undefined)
+    entries.push({ key: "ancestor_id", label: "Dentro de um ramo do arranjo" });
   if (search.status !== undefined)
     entries.push({ key: "status", label: REVIEW_STATUS_LABEL[search.status] ?? search.status });
   if (search.is_anomaly !== undefined)

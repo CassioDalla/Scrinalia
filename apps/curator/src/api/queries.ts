@@ -1,27 +1,39 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import {
+  fetchCleaningRules,
+  fetchCrossDomainConflicts,
   fetchDiagnosticSummary,
   fetchDiagnostics,
   fetchDocument,
   fetchDocuments,
+  fetchEntityRelevance,
+  fetchHierarchyNode,
   fetchHierarchyPlans,
+  fetchHierarchyTree,
   fetchHierarchyVocabulary,
   fetchInbox,
+  fetchLevelCatalog,
   fetchLevels,
   fetchMacroCategories,
   fetchMaterialisationLog,
   fetchMergeLog,
   fetchMergeProposals,
+  fetchNerExclusions,
   fetchRevisions,
+  fetchSimilarEntities,
   fetchSimilarTags,
   fetchStopwords,
+  fetchSubjectExclusions,
   fetchTagRelevance,
+  fetchTextTemplates,
   type DocumentSearch,
+  type EntityType,
   type PlanStatus,
   type MergeReason,
   type ProposalStatus,
   type StopwordsScope,
+  type TemplateStatus,
 } from "./client";
 
 /** Page sizes: the plan catalogue is ~52 rungs, the diagnostic pages are read one at a time. */
@@ -30,6 +42,11 @@ export const DIAGNOSTICS_PAGE_SIZE = 25;
 /** The merge queue is hundreds of clusters, so it pages; the ledger shows the latest runs. */
 export const PROPOSALS_PAGE_SIZE = 20;
 export const MERGE_LOG_PAGE_SIZE = 20;
+/** The tree is read one branch at a time, and a branch is small: 500 nodes covers the real roots. */
+export const TREE_PAGE_SIZE = 500;
+/** The entity and tag vocabularies are read by weight, so the head of the list is what matters. */
+export const RELEVANCE_PAGE_SIZE = 50;
+export const ANOMALIES_PAGE_SIZE = 20;
 
 /**
  * Server state, declared once per resource.
@@ -183,6 +200,131 @@ export const queries = {
       queryKey: ["taxonomy", "stopwords", axis ?? "ALL"],
       queryFn: () => fetchStopwords(axis),
       staleTime: 30_000,
+    }),
+
+  /** The curated "this is not a subject" list. It is a bare list of normalized terms. */
+  subjectExclusions: () =>
+    queryOptions({
+      queryKey: ["taxonomy", "subject-exclusions"],
+      queryFn: fetchSubjectExclusions,
+      staleTime: 30_000,
+    }),
+
+  // --- The named entities (wave 5) ------------------------------------------------------------
+
+  /**
+   * The entity vocabulary by weight.
+   *
+   * ``entity_type`` filters server-side: the three types answer different questions (a person is
+   * not a place), so switching the tab is a new read and not a client-side filter over a page.
+   */
+  entityRelevance: (entityType: EntityType | undefined, limit: number) =>
+    queryOptions({
+      queryKey: ["taxonomy", "entities", "relevance", entityType ?? "ALL", limit],
+      queryFn: () => fetchEntityRelevance({ entity_type: entityType, limit }),
+      staleTime: 60_000,
+    }),
+
+  /**
+   * Trigrams among the entities, or the neighbours of one name.
+   *
+   * The two modes answer different payloads and the screen renders them differently, so the target
+   * is part of the key: a cached "all pairs" page must never be shown as a neighbour search.
+   */
+  similarEntities: (targetName: string | undefined, threshold: number) =>
+    queryOptions({
+      queryKey: ["taxonomy", "entities", "similar", targetName ?? "ALL", threshold],
+      queryFn: () => fetchSimilarEntities({ target_name: targetName, threshold }),
+      staleTime: 60_000,
+    }),
+
+  nerExclusions: () =>
+    queryOptions({
+      queryKey: ["taxonomy", "ner-exclusions"],
+      queryFn: fetchNerExclusions,
+      staleTime: 30_000,
+    }),
+
+  crossDomainConflicts: (threshold: number) =>
+    queryOptions({
+      queryKey: ["taxonomy", "conflicts", threshold],
+      // The trigram join is measured in seconds on the real vocabulary, so a threshold change is a
+      // deliberate read and the answer is kept while the archivist works through the queue.
+      queryFn: () => fetchCrossDomainConflicts(threshold),
+      staleTime: 60_000,
+    }),
+
+  // --- Quality of the input data (wave 5) -----------------------------------------------------
+
+  textTemplates: (status: TemplateStatus | undefined) =>
+    queryOptions({
+      queryKey: ["quality", "text-templates", status ?? "ALL"],
+      queryFn: () => fetchTextTemplates({ status }),
+      staleTime: 15_000,
+    }),
+
+  cleaningRules: () =>
+    queryOptions({
+      queryKey: ["quality", "cleaning-rules"],
+      queryFn: fetchCleaningRules,
+      // The list is the whole catalogue and it changes only when an archivist writes to it, which
+      // is exactly when the screen invalidates it.
+      staleTime: 60_000,
+    }),
+
+  // --- The arrangement: the ladder and the tree (wave 4) --------------------------------------
+
+  /**
+   * Every rung, retired ones included.
+   *
+   * The dossier's select reads only the active ones; this screen needs the retired ones too,
+   * because the FK is ``SET NULL`` and a deactivated rung still holds the descriptions that sit on
+   * it. Hiding them would make the weight of the ladder look smaller than it is.
+   */
+  levelCatalog: () =>
+    queryOptions({
+      queryKey: ["hierarchy", "levels", "catalog"],
+      queryFn: fetchLevelCatalog,
+      staleTime: 60_000,
+    }),
+
+  /**
+   * One subtree of the materialised arrangement, flat and ordered by path.
+   *
+   * ``rootId`` is the branch the archivist opened and ``maxDepth`` how far below it to look, so the
+   * navigation is one indexed read per level of interest instead of loading the collection.
+   */
+  tree: (rootId: string | undefined, maxDepth: number) =>
+    queryOptions({
+      queryKey: ["hierarchy", "tree", rootId ?? "ROOT", maxDepth],
+      queryFn: () =>
+        fetchHierarchyTree({ root_id: rootId, max_depth: maxDepth, limit: TREE_PAGE_SIZE }),
+      // The tree only changes through the materialisation ledger, which the screen invalidates.
+      staleTime: 30_000,
+    }),
+
+  node: (descriptionId: string) =>
+    queryOptions({
+      queryKey: ["hierarchy", "node", descriptionId],
+      queryFn: () => fetchHierarchyNode(descriptionId),
+      staleTime: 5_000,
+    }),
+
+  // --- The curator's work list over the collection (anomalies) --------------------------------
+
+  /**
+   * The documents the quality validator flagged, read through the same search the list uses.
+   *
+   * ``NEEDS_REVIEW`` is the status the validator writes, so this is a view of an existing
+   * predicate — there is no anomaly route, and there should not be one.
+   */
+  anomalies: (offset: number) =>
+    queryOptions({
+      queryKey: ["quality", "anomalies", offset],
+      queryFn: () =>
+        fetchDocuments({ status: "NEEDS_REVIEW", limit: ANOMALIES_PAGE_SIZE, offset }),
+      staleTime: 15_000,
+      placeholderData: (previous) => previous,
     }),
 };
 

@@ -21,6 +21,16 @@ export function formatCount(value: number): string {
 }
 
 /**
+ * "1 descrição" / "2 descrições".
+ *
+ * A count of one is common here (a rung with a single record, a tag carried by one description), and
+ * the card that said "1 descrições" was the first thing the level screen showed.
+ */
+export function descricoes(value: number): string {
+  return `${formatCount(value)} ${value === 1 ? "descrição" : "descrições"}`;
+}
+
+/**
  * Human labels for the review states.
  *
  * The API speaks the enum; the archivist reads Portuguese. Keeping the mapping here and not in the

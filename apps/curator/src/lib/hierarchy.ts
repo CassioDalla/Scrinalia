@@ -139,3 +139,28 @@ export const ISSUE_ACTION: Record<string, { label: string; to: string; hint: str
 export function labelOf(labels: Record<string, string>, code: string): string {
   return labels[code] ?? code;
 }
+
+/**
+ * The placeholder the staging parser writes when the source carries no title.
+ *
+ * It is data, not an error — but a tree that repeats it six times says nothing at all, which is
+ * exactly what the first render of ``/acervo/arvore`` did.
+ */
+export const UNTITLED = "SEM TÍTULO";
+
+/**
+ * What to call a node on screen.
+ *
+ * Falls back to the reference code and then to the identifier: those at least tell the archivist
+ * *which* description they are looking at. The raw title stays available to the caller for a
+ * tooltip, so nothing is hidden — it is just not repeated as a label.
+ */
+export function nodeLabel(node: {
+  title?: string | null;
+  reference_code?: string | null;
+  description_id: string;
+}): string {
+  const title = node.title?.trim();
+  if (title && title !== UNTITLED) return title;
+  return node.reference_code?.trim() || node.description_id;
+}
