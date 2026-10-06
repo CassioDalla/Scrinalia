@@ -6,10 +6,13 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > **Como ler.** `✅` = feito **e verificado em execução real** (Postgres + engines reais), não
 > apenas lido no código. `[ ]` = pendente. `[~]` = parcial, com o que falta descrito.
 >
-> **Estado do gate (2026-10-05, ondas 2 e 3 e etapa C):** **932 testes** passando · `ruff`
-> limpo · `basedpyright` **0 erros** · **23 migrações** aplicando sem drift (`alembic check` limpo) ·
-> contrato OpenAPI **66 paths / 78 operações / 110 schemas**, regenerado e verificado por CI ·
-> SPA do curador construindo (`tsc`, `eslint`, `vite build`) e servida pelo próprio Litestar.
+> **Estado do gate (2026-10-06, ondas 4–6 e B8):** **933 testes** passando · `ruff` limpo ·
+> `basedpyright` **0 erros** · **23 migrações** aplicando sem drift (`alembic check` limpo) ·
+> contrato OpenAPI **66 paths / 78 operações / 128 schemas**, regenerado e verificado por CI ·
+> SPA do curador construindo (`tsc`, `eslint`, `vite build`) e servida pelo próprio Litestar ·
+> **Streamlit removido do repositório** (diretório, dependência, `uv.lock`, `Procfile`, docs).
+> O sitemap do curador está **completo**: as 17 telas existem. Falta só o site público, que ficou
+> fora deste ciclo por decisão.
 > **Acervo real medido: 4.826 descrições**, não 3.608 — ver "Pendências operacionais".
 
 ---
@@ -24,14 +27,15 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 | 2.5 | Hierarquia das descrições | ✅ **H1–H8 fechadas sem UI** |
 | 3 | Descoberta, performance e observabilidade | 🟡 **Parcial** — busca fechada; falta operação |
 | 3.5 | Qualidade do dado de entrada | ✅ **A–E fechadas sem UI** |
-| 4 | **UI nova, BFF e publicação** | 🟡 **Em andamento** — contrato fechado e **ondas 1–3 + etapa C** entregues (faltam as ondas 4–6 e o auth) |
+| 4 | **UI nova, BFF e publicação** | 🟡 **Em andamento** — contrato fechado e **ondas 1–6 entregues** (sitemap do curador completo); Streamlit desligado e removido; faltam o site público e o auth |
 
 **O sistema está funcionalmente pronto.** Ingestão → staging → archive → enriquecimento por
 IA → curadoria humana → bloqueio de reprocessamento, tudo verificado ponta a ponta.
 
 **O que falta é tela.** Todas as feats recentes (hierarquia, assuntos, qualidade, merge
-reversível) foram entregues **como API**, sem UI — por decisão, já que o Streamlit será
-substituído. O caminho agora é o front do curador.
+reversível) foram entregues **como API**, sem UI — por decisão, já que o Streamlit seria
+substituído. O front do curador fechou esse buraco: o **sitemap do curador está completo** (17
+telas), e o Streamlit saiu do repositório. Falta o **site público** (`apps/public/`) e o **auth**.
 
 > **Primeiro ciclo entregue (2026-10-05).** O **contrato** está fechado: as lacunas que a UI
 > expunha foram resolvidas, o OpenAPI é um artefato gerado e commitado com CI bloqueante, e a
@@ -46,6 +50,12 @@ substituído. O caminho agora é o front do curador.
 > A última foi um defeito de verdade, achado **olhando a tela**: as linhas carregavam
 > `NEAR_DUPLICATE_NODE`, `MID_CODE_IDENTIFIER` e `LEVEL_NOT_ALLOWED_AS_CHILD`, e a rota anunciava
 > só `ProposalFlag` — o front renderizava código cru para o arquivista.
+>
+> **Terceiro ciclo entregue (2026-10-06).** As **ondas 4–6** (níveis, árvore, entidades,
+> qualidade, descoberta, exceções) e o **B8**: o Streamlit foi desligado e removido do repositório.
+> Este ciclo também fechou a última família de lacunas de contrato — as rotas de escrita que
+> devolviam `dict` cru agora devolvem DTOs tipados —, porque sem isso a tela leria a resposta por
+> um `cast` e um campo renomeado chegaria como `undefined`.
 >
 > **Sequenciamento (2026-10-04).** Auth entra **por último**, depois do front novo e
 > imediatamente antes de tornar público. Duas UIs (curador + difusão pública) com BFFs
@@ -124,8 +134,9 @@ sugeridas, 5 de 81 rungs, 1 materialização, stopwords 96/88 e carimbos de IA `
 | 3 | **Revisar 1 merge perigoso** | ledger em `/assuntos/tags?aba=propostas`, com **desfazer** | `residencial ← área residencial, casa residencial, região residencial` (65+6+6 docs) perde sentido; está aplicado e é reversível |
 | 4 | **Continuar os rungs (5 de 81 decididos)** — e **conferir a materialização que já rodou** | `/arranjo/plano` e `/arranjo/diagnostico`; o undo está em `archive_hierarchy_materialisation_log` | A árvore foi materializada em 2026-10-06 00:15 (**4.816 descrições ganharam pai**) com 4 rungs aprovados. O diagnóstico diz se o resultado ficou coerente — e a materialização é reversível |
 | 5 | **Rodar os workers de IA que faltam** — macro-categoria **já rodou** (973 tags, 695 com gaveta); faltam `ner`, `typology`, `conflict-judge`, `quality-validator` e `embedding` | `uv run python -m memoria_curitibana.domains.archive.workers.runner <nome>`, na ordem `ner → typology → conflict-judge → macro-category → quality-validator → embedding` | A janela fecha na **primeira ficha aprovada por humano**, e as 7.547 tags ainda sem gaveta são o que a tela de assuntos não mostra |
-| 6 | **Onda 4 do front** | `/arranjo/niveis` (não depende da árvore) e `/acervo/arvore` (depende do passo 4) | Fecha a seção Arranjo do sitemap |
-| 7 | **Ondas 5–6 do front** | `/entidades/*` e `/qualidade/*` | Últimas telas do sitemap antes do auth |
+| 6 | ✅ **Onda 4 do front** — feito em 2026-10-06 | `/arranjo/niveis` e `/acervo/arvore` | Fecha a seção Arranjo do sitemap |
+| 7 | ✅ **Ondas 5–6 do front** — feito em 2026-10-06 | `/entidades/*`, `/qualidade/*`, `/assuntos/descobrir` e `/assuntos/excecoes` | Sitemap do curador completo |
+| 8 | **B8 — desligar e remover o Streamlit** — feito em 2026-10-06 | diretório, dependência, `uv.lock`, `Procfile` e docs | Uma superfície a menos divergindo |
 
 > **Decisão de produto ainda aberta:** rodar a IA (passo 5) **antes ou depois** dos rungs (passo 4)?
 > Enquanto não rodar, a UI mostra menos do que o sistema sabe — mas decidir os rungs primeiro faz a
@@ -145,7 +156,13 @@ sugeridas, 5 de 81 rungs, 1 materialização, stopwords 96/88 e carimbos de IA `
 
 - **Entidades não têm catálogo de propostas**: os defeitos de merge de entidade foram corrigidos
   (upsert de sinônimo + `repoint_synonyms` antes do delete), mas não há proposta, ledger nem undo
-  como nas tags. A onda 5 vai encostar nisso.
+  como nas tags. A onda 5 encostou nisso e a tela **avisa** que unificar não tem desfazer; criar o
+  ledger é a decisão que falta.
+- **A colisão tag × entidade não tem preview**: `POST /conflicts/resolve` transfere documentos e
+  bane o termo no mesmo passo, sem dry-run e sem undo. A tela mostra o par e o efeito de cada
+  veredito antes do clique, mas não o número — é a lacuna mais próxima de virar defeito.
+- **Não há rota de sugestões de "não é assunto"**: o sitemap pedia famílias sugeridas; a tela
+  oferece os três exemplos medidos e explica que a lista é decisão humana.
 - **A purga de stopwords é a única escrita destrutiva sem undo** — hoje ela é anunciada e tem
   preview; torná-la reversível (escrevendo no ledger, como o merge) é uma decisão em aberto.
 - **Busca híbrida (RRF)** e **qualidade semântica** (o MRR caiu 0.019 enquanto o Hit@10 subiu) —
@@ -188,18 +205,23 @@ sugeridas, 5 de 81 rungs, 1 materialização, stopwords 96/88 e carimbos de IA `
   Tailwind v4. Bun como gerenciador de pacotes e executor; Vite como bundler. Cliente gerado do
   OpenAPI (`packages/api-contract/openapi.json` → `src/api/schema.d.ts`), com **dois** checks de CI
   bloqueantes (o JSON no job Python, o `.d.ts` no job do front) e `fetch` proibido por lint.
-- [~] **B5 — Telas das ondas 1–3.** Ondas 1, 2 e 3 entregues, mais a **etapa C** (as lacunas que a
+- ✅ **B5 — Telas das ondas 1–3.** Ondas 1, 2 e 3 entregues, mais a **etapa C** (as lacunas que a
   própria onda 1 expôs ao ser usada): busca de tag e de entidade **por nome** com type-ahead,
   reclassificar a gaveta de uma tag na aba Assuntos, escolher a unidade superior na aba Arranjo,
   filtro de data e busca com debounce na lista.
-- [~] **B6 — Telas da hierarquia** (ondas 2 e 4 do sitemap). **Onda 2 entregue:**
-  `/arranjo/plano` (decidir rung a rung, com nível, título e `collapse_into_code`; filtros por
-  status, aviso e código) e `/arranjo/diagnostico` (uma seção por issue, com a evidência e
-  **nenhuma correção automática**). Onda 4 (`/acervo/arvore`, `/arranjo/niveis`) pendente: a
-  árvore só faz sentido depois de a onda 2 ser **aplicada** ao acervo.
+- ✅ **B6 — Telas da hierarquia** (ondas 2 e 4 do sitemap). **Onda 2:** `/arranjo/plano` (decidir
+  rung a rung, com nível, título e `collapse_into_code`; filtros por status, aviso e código) e
+  `/arranjo/diagnostico` (uma seção por issue, com a evidência e **nenhuma correção automática**).
+  **Onda 4 (2026-10-06):** `/arranjo/niveis` (a escada NOBRADE, com peso por degrau, sem delete) e
+  `/acervo/arvore` (navegação preguiçosa: raízes por `max_depth=0` e um ramo por expansão, com a
+  contagem de `ORPHAN` avisando quando a árvore ainda não está materializada).
 - [ ] **B7 — Scaffold `apps/public/`** + regras de badge. O BFF público (rotas + projeção) já existe;
-  falta o app.
-- [ ] **B8 — Desligar o Streamlit** (`src/memoria_curitibana/dashboard/` e o `web` do Procfile).
+  falta o app. **Fora do escopo deste ciclo, por decisão.**
+- ✅ **B8 — Streamlit desligado e removido** (2026-10-06): o diretório
+  `src/memoria_curitibana/dashboard/`, a dependência `streamlit` (e o `uv.lock`, com pydeck,
+  starlette e cia.), o processo `web` do `Procfile`, a chave `API_BASE_URL` (que só ele lia) e as
+  referências em `README.md`, `AGENTS.md`, `.env.example` e no skill de commit. O pacote perdeu o
+  segundo root de import que o ADR 0002 registrava.
 - [ ] **B9 — Auth + auditoria + CORS + rate limit** no BFF do curador. **Última etapa.**
   (CORS continua desnecessário: o SPA é servido pelo próprio Litestar, mesma origem.)
 
@@ -229,6 +251,24 @@ sugeridas, 5 de 81 rungs, 1 materialização, stopwords 96/88 e carimbos de IA `
 | A gaveta não mostrava o próprio peso | `document_count` no `ArchiveMacroCategoryEntityDTO`, contando **descrições distintas** | ✅ |
 | **Stopwords não tinham leitura nem preview** (a purga apagava tags às cegas) | `GET/POST/DELETE /taxonomy/tags/stopwords` (com eixo) + `POST /tags/stopwords/purge/preview` + `purge` aceitando corpo vazio | ✅ |
 | Aprovar um merge **parecia** unificar (o ledger parecia travado) | aprovar já seleciona para o lote; banner "aprovada ainda **não** unificada"; "selecionar todas as aprovadas"; teto de 200 no lote | ✅ |
+| **Seis rotas de escrita devolviam `dict` cru** (quality, exclusões, entidades) | DTOs tipados: `CleaningRuleMutationResponse`, `DryRunResponseDTO`, `TextTemplateMutationResponse`, `Stopword*Response`, `SubjectExclusion*Response`, `NerExclusion*Response`, `EntityReclassifyResponse`, `EntityDeleteResponse`, `OrphanEntityPurgeResponse` | ✅ |
+| **A árvore não sabia pedir as raízes** (o `max_depth` era ignorado sem `root_id`) | `list_subtree` aplica profundidade **absoluta** quando não há raiz: `max_depth=0` devolve as raízes | ✅ |
+| **O dossiê mostrava a data em pt-BR num campo AAAA-MM-DD** | `type="date"` com o valor ISO; editar não manda mais "1 de jan. de 1994" para uma rota que parseia data | ✅ |
+| **A colisão tag × entidade não tem preview nem veredito do juiz na leitura** | em aberto: `POST /conflicts/resolve` é irreversível e a rota lista a colisão ao vivo, não o que o juiz decidiu | ⚠️ |
+| **Não há rota de sugestões de "não é assunto"** | em aberto: a tela oferece os exemplos medidos (`pessoas`, `vista aérea`, `capanema`) como atalho, não como sugestão calculada | ⚠️ |
+| **Anomalias não têm faceta por motivo** | em aberto: a tela agrupa pela página em mãos e diz isso, em vez de inventar um total | ⚠️ |
+| **Não há como criar um rung que o código não implica** | em aberto: `POST /hierarchy/nodes` existe ("cria um fundo, seção ou série que a origem nunca entregou") e **nenhuma tela o chama**. O `/arranjo/plano` só decide o que o fatiador propôs a partir dos códigos; um Fundo/Seção/Série **sem documentos** não tem por onde ser declarado | ⚠️ |
+| **Não há como unificar duas tags que o arquivista escolheu** | em aberto: `POST /taxonomy/tags/merge` (+ `/merge/preview`) existe e **nenhuma tela o chama**. A aba Similaridade mostra o par cru (`alameda cabral` ↔ `al. alameda cabral`, 1.000) e é **somente leitura**; para unir é preciso rodar `suggest`, achar o cluster e aprovar. **Assimetria com entidades**, que têm seleção + merge direto na própria tela | ⚠️ |
+| **Rota legada superseded** | `POST /entities/stopwords/purge_stopwords` foi substituída por `POST /entities/ner-exclusions` (catálogo durável com `reason`/`source`, reversível por `DELETE`, e que **também** purga e alimenta o blacklist do NER via `load_entity_blacklist`). A legada está **sem uso no front e sem teste** — candidata a remoção junto de `save_entity_stopwords` | ⚠️ |
+
+**Rotas do backend sem chamada no front que NÃO são lacuna** (auditadas em 2026-10-06, não
+reinvestigar):
+
+| Rota | Por que está correta assim |
+| --- | --- |
+| `GET /hierarchy/nodes/{id}/ancestors` · `/children` | **Redundantes por desenho:** `GET /hierarchy/nodes/{id}` já devolve `ancestors[]` e `children[]` numa leitura. Chamar as três seria três round-trips para o mesmo dado. Mantidas como API pública; a tela usa a leitura única |
+| `POST /hierarchy/proposal` | **Read-only e superseded para a UI** por `/plans/suggest` + `/plans` (que persistem a decisão). Continua sendo a entrada da bancada `testing/evaluation/hierarchy_proposal.py` |
+| `GET /public/documents` · `/public/documents/{id}` | **Superfície de difusão**, deliberadamente ausente do curador (o `AppShell` documenta isso). É o B7 |
 
 ### Achados que a implementação produziu
 
@@ -503,9 +543,11 @@ Bancada de 44 tags rotuladas à mão (aprovadas pelo dono), 3 formatos × 3 arra
 - ✅ **Serviços:** `TagService`, `EntityService`, `DocumentService`, `CleaningService`,
   `TextQualityService`, `HierarchyService`, `HierarchyMaterialisationService`.
 - ✅ **Painel Streamlit (temporário):** 5 páginas, todas via HTTP (nunca Postgres direto).
-- [ ] **Editar tags/entidades de um documento individual pela UI.** Hoje só por rotas globais
-  de merge. Vai para `/acervo/:id` aba Assuntos.
-- [ ] **Vitrine reflete os enriquecimentos.** `DocumentSummary` ainda não expõe tipologia.
+  **Removido do repositório em 2026-10-06** (B8), quando as 17 telas do curador o cobriram.
+- ✅ **Editar tags/entidades de um documento individual pela UI.** `/acervo/:id` aba Assuntos, com
+  busca por nome (type-ahead) em vez do id.
+- ✅ **Vitrine reflete os enriquecimentos.** `DocumentSummary` expõe tipologia, gaveta de assunto e
+  contagem de filhos; a lista mostra o badge vencedor por votos com o contador das secundárias.
 
 ---
 
@@ -718,6 +760,46 @@ Diagnóstico estrutural do acervo real (pós-transfer):
 | `pytest` | **932 passed** (+2 de integração: o lote ignora o já aplicado em `skipped`; a proposta aplicada sai da fila de aprovadas) |
 | Gate | `ruff` limpo (281 arquivos) · `basedpyright` **0 erros** · `alembic check` sem drift · `tsc`/`eslint`/`vite build` limpos |
 | Verificação visual | `.analysis/shots/wave3-cumpridas.png` e `wave3-aplicadas.png` — a tela diz "já não têm o que absorver. Não são falhas" e oferece arquivar, em vez de 20 linhas vermelhas |
+
+### Ciclo das ondas 4–6 e B8 (2026-10-06, o sitemap do curador fechado)
+
+| Verificação | Resultado |
+| --- | --- |
+| `pytest` (unit + integração) | **933 passed** (+1: `max_depth` absoluto devolve só as raízes) |
+| Gate | `ruff` limpo (265 arquivos) · `basedpyright` **0 erros** · `alembic check` **sem drift** (23 migrações; nenhuma nova) |
+| Contrato OpenAPI | **66 paths / 78 operações / 128 schemas** (era 110: as rotas de escrita tipadas entraram) |
+| Front | `tsc --noEmit` limpo · `eslint` limpo · `vite build` em 176 ms (543 kB, 157 kB gzip) |
+| **Streamlit removido** | diretório `dashboard/`, dependência `streamlit`, 8 pacotes transitivos no `uv.lock`, processo `web` do `Procfile`, `API_BASE_URL` (só ele lia), referências em `README.md`/`AGENTS.md`/`.env.example` |
+| Telas novas | `/acervo/arvore` · `/arranjo/niveis` · `/entidades/{lista,excecoes,conflitos}` · `/qualidade/{trechos,regras,anomalias}` · `/assuntos/{descobrir,excecoes}` — **17 telas no menu**, todas rotas que a API serve |
+| **Rotas de leitura exercitadas por HTTP** | 12 rotas em 200; a árvore com `max_depth=0` responde em **10 ms** (ler a floresta seriam 4.831 linhas) |
+| **Dry-runs exercitados (só leitura)** | regra de limpeza: `is_valid_regex=true`, **5 ocorrências**; trecho `Registros Fotográficos - `: **3.162 de 4.844 documentos** mudariam |
+| Links profundos e F5 | `/acervo/arvore`, `/entidades/conflitos`, `/acervo/100148` e `/acervo/100148?aba=arranjo` → **200** com `index.html`; `/api/v1/nao-existe` continua **404** |
+| Verificação visual | `.analysis/shots/waves456/*.png`: 17 telas renderizadas com `chrome-headless-shell`, incluindo as antigas (nenhuma regressão) |
+| **Acervo real, pelo que a tela mostrou** | árvore **materializada** (`Acervo do Departa…` com **1.717 filhos**, 18 raízes, 13 sem nível) · níveis: 6 degraus, 4.831 descrições · entidades: **41.077 vínculos** nos 50 primeiros · conflitos tag × entidade: **2.502** acima de 0,85 · trechos: **0** (feature sem uso) · regras ativas: **0** · anomalias: **0** |
+
+**O que a tela corrigiu neste ciclo** (`tsc`, `eslint`, `vite build` verdes antes disso):
+
+1. **A árvore repetia "SEM TÍTULO" seis vezes.** Não é defeito de dado — é o placeholder que o
+   parser de staging grava quando a origem não manda título —, mas um rótulo que se repete não diz
+   *qual* descrição é. Agora cai para o código de referência e, sem ele, para o identificador, com o
+   título cru no `title=`.
+2. **"1 descrições".** O primeiro card do catálogo de níveis dizia isso; nasceu `descricoes(n)`.
+3. **A colisão tag × entidade eram 2.502 cards de uma vez.** A rota devolve tudo e não tem
+   paginação: a tela desenha 50 e oferece "mostrar mais". O mesmo corte foi aplicado à similaridade
+   de entidades (647 pares a 0,5), espelhando o que a aba de tags já fazia.
+4. **O limiar da colisão disparava uma varredura por tecla.** `onChange` no campo rodava o join de
+   trigrama a cada dígito de "0,75"; passou a aplicar no blur/Enter.
+5. **A data do dossiê era um campo de texto com valor em pt-BR** num rótulo que pedia `AAAA-MM-DD`:
+   editar uma vez mandaria "1 de jan. de 1994" para uma rota que parseia data. Virou `type="date"`
+   com o valor ISO.
+6. **A similaridade de entidades não mostrava os identificadores** — e o acervo real tem pares com
+   os **dois nomes idênticos** (`Cia. #228 ≈ Cia. #291`, similaridade 1.000), onde a confirmação
+   dizia só "unificar Cia. → Cia.". Os ids passaram a acompanhar cada lado.
+
+> **O que este ciclo não fez.** Não escreveu nada no acervo real e **não** exercitou o clique de
+> escrita pela UI nas telas novas — as rotas de escrita estão cobertas por teste de integração e o
+> corpo é tipado contra o contrato, mas o clique ponta a ponta continua sendo a verificação que
+> falta (a do ciclo da etapa C usou o banco de teste, e é o caminho para repetir).
 
 ### Execuções anteriores (preservadas)
 

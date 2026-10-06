@@ -37,14 +37,14 @@ description: Create Conventional Commits in English, splitting the working tree 
 
 ### Scopes in this repo
 
-`archive`, `ingestion`, `staging`, `api`, `dashboard`, `core`, `db`, `tests`, `deps`, `ci`, `repo`
+`archive`, `ingestion`, `staging`, `api`, `web`, `core`, `db`, `tests`, `deps`, `ci`, `repo`
 
 ## Workflow
 
 1. Read `git status --short` and `git diff` to understand each change.
 2. Group changed files into commits **by context** (feature, fix, refactor, tests, docs, ...).
 3. Order groups so each commit stays coherent; put foundations first:
-   `deps/config` -> `core` -> `domains` -> `api` -> `dashboard` -> `tests` -> `docs`.
+   `deps/config` -> `core` -> `domains` -> `api` -> `web` -> `tests` -> `docs`.
 4. For each group: `git add <explicit paths>`, review with `git diff --staged`, then commit.
 5. Repeat until `git status` is clean (or only intentional leftovers remain).
 

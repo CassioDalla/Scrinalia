@@ -9,9 +9,9 @@ categories. Every AI decision is advisory: an archivist reviews and approves, an
 documents are locked against further automatic rewrites.
 
 > **Status:** research project under active development. The curator UI is a React SPA
-> (`apps/curator/`) served by the API; the old Streamlit dashboard is still in the tree and is
-> scheduled to be switched off. The HTTP API is the stable contract, and the TypeScript client
-> is generated from it.
+> (`apps/curator/`) served by the API. The HTTP API is the stable contract, and the TypeScript
+> client is generated from it. The public diffusion site (`apps/public/`) is planned; the public
+> projection and its routes already exist on the API.
 
 ## How it works
 
@@ -124,22 +124,26 @@ The screens that exist today, in the order the work happens:
 | --- | --- |
 | `/` | the work list: what needs the archivist today, one card per queue |
 | `/acervo/lista` | search and facets over the collection (lexical or semantic) |
+| `/acervo/arvore` | the arrangement as navigation: roots, branches and the descriptions inside them |
 | `/acervo/:id` | the dossier: description, subjects, arrangement and history |
 | `/arranjo/plano` | the arrangement plan: decide the proposed levels, preview and materialise |
 | `/arranjo/diagnostico` | the structural diagnosis, one section per problem, with the evidence |
+| `/arranjo/niveis` | the NOBRADE ladder: weight per rung, editable, never deleted |
 | `/assuntos/tags` | the tag catalog: weight, near-duplicates and the merge queue with undo |
 | `/assuntos/categorias` | the subject drawers the classifier reads, with their weight |
+| `/assuntos/descobrir` | cluster the vocabulary to discover a drawer it does not have |
+| `/assuntos/excecoes` | the curated "this is not a subject at all" list |
+| `/entidades/lista` | named entities: weight by type, merge and reclassification |
+| `/entidades/excecoes` | the NER veto: "this spelling is a subject, not a proper name" |
+| `/entidades/conflitos` | the tag x entity collision, and where each verdict is written |
+| `/qualidade/trechos` | repeated excerpts, the scope that drops them and the mandatory dry run |
+| `/qualidade/regras` | cleaning rules: `REWRITE` replaces, `VALIDATE`/`LLM_CHECK` only flag |
+| `/qualidade/anomalias` | what the quality validator marked, and why an empty queue is not proof |
 
 The arrangement screens offer no silent correction: every write is a decision taken on a screen
 that showed its impact first, and the applied materialisations are reversible from the ledger.
-
-### Dashboard (temporary)
-
-The old Streamlit front end talks to the API over HTTP, so the API must be running:
-
-```bash
-uv run streamlit run src/memoria_curitibana/dashboard/app.py
-```
+Where a write has no undo — the stopword purge, an entity merge — the screen says so before the
+click instead of after it.
 
 ## Running the workers
 
@@ -186,7 +190,6 @@ src/memoria_curitibana/   the application (installed package)
   api/                    Litestar controllers, request schemas, composition root
   core/                   settings, logging, database, unit of work
   domains/                ingestion, staging, archive (models/repository/services/workers)
-  dashboard/              temporary Streamlit front end (to be removed)
 apps/curator/             React SPA: the archivist's interface
 packages/api-contract/    openapi.json, generated from the app and committed
 testing/                  test suite (outside the package, on purpose)

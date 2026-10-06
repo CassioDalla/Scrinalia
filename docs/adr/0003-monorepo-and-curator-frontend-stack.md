@@ -135,3 +135,17 @@ Negative, accepted:
 - Reconsider Bun's bundler if Vite becomes a bottleneck or leaves maintenance.
 - Reconsider `is_published` if diffusion ever needs more than a boolean (embargo dates, per-field
   restrictions) — at which point `access_conditions` should already be in the archive.
+
+## Update (2026-10-06)
+
+Three statements above are no longer the state of the tree, and one of them was the point of the
+plan:
+
+- **The Streamlit dashboard no longer coexists with the curator UI.** It was switched off and
+  removed in B8 (`TODO.md`): the app, the dependency, its transitive packages in `uv.lock`, the
+  `web` process in the `Procfile` and the `API_BASE_URL` setting it alone read.
+- **`access_conditions` is no longer dropped at the transfer.** The column, the DTO and the `PATCH`
+  shipped in the cycle that closed this contract (Fase 3.5-C); `access_conditions` and
+  `is_published` are both editable from the dossier.
+- The generated client is no longer "86 schemas": the committed contract is **128 schemas** after
+  the response DTOs of the quality, exclusion and entity routes were typed in the waves 4–6 cycle.

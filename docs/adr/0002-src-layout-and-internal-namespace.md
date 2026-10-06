@@ -81,3 +81,12 @@ Costs, measured before committing to it:
 Reconsider the public packaging (and the name) if the system is distributed for other
 institutions to run, or if a library boundary emerges that is worth publishing on its own.
 Reconsider the monorepo when the React frontend becomes a second deployable.
+
+## Update (2026-10-06)
+
+Item 4 above was a "for now". The React front arrived, and the temporary Streamlit dashboard was
+removed from the repository in B8 (`TODO.md`): the package is now `api/`, `core/` and `domains/`,
+and the **second import root the Streamlit app created is gone** — the cost this ADR predicted
+disappeared exactly as expected. The monorepo revisit trigger above also fired: the front is a
+second deployable under `apps/curator/`, recorded in
+`docs/adr/0003-monorepo-and-curator-frontend-stack.md`.
