@@ -165,22 +165,6 @@ class EntityService:
 
         self.repo.create_synonyms(synonym_data)
 
-    def purge_entity_stopwords(self, words: list[str]) -> int:
-        """
-        Adds terms to the NER extraction blacklist and scans the database
-        to purge false entities that may already have been created.
-        """
-        if not words:
-            return 0
-
-        # 1. Saves to the blacklist (Worker will no longer extract)
-        self.repo.save_entity_stopwords(words)
-
-        # 2. Purges the past (Cleans the current base)
-        deleted_rows = self.repo.delete_entities_by_names(words)
-
-        return deleted_rows
-
     def delete_entity(self, entity_id: int) -> None:
         """Surgically deletes an isolated entity from the database."""
         entity = self.repo.get_by_id(entity_id)

@@ -1696,22 +1696,6 @@
         "title": "EntitySimilarityResponse",
         "type": "object"
       },
-      "EntityStopwordPurgeResponse": {
-        "properties": {
-          "entities_deleted": {
-            "type": "integer"
-          },
-          "message": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "entities_deleted",
-          "message"
-        ],
-        "title": "EntityStopwordPurgeResponse",
-        "type": "object"
-      },
       "FacetCount": {
         "properties": {
           "count": {
@@ -4043,7 +4027,7 @@
       },
       "StopwordsScope": {
         "default": "TAG",
-        "description": "Eixo de onde o termo sai.",
+        "description": "\n    Controls the scope of a domain stopword\n    ",
         "enum": [
           "TAG",
           "ENTITY",
@@ -9157,77 +9141,6 @@
           }
         },
         "summary": "GetSimilarEntities",
-        "tags": [
-          "Taxonomy"
-        ]
-      }
-    },
-    "/api/v1/taxonomy/entities/stopwords/purge_stopwords": {
-      "post": {
-        "deprecated": false,
-        "operationId": "ApiV1TaxonomyEntitiesStopwordsPurgeStopwordsPurgeEntityStopwords",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StopwordsRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EntityStopwordPurgeResponse"
-                }
-              }
-            },
-            "description": "Document created, URL follows",
-            "headers": {}
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "detail": "Bad Request",
-                      "extra": {},
-                      "status_code": 400
-                    }
-                  ],
-                  "properties": {
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    },
-                    "status_code": {
-                      "type": "integer"
-                    }
-                  },
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Bad request syntax or unsupported method"
-          }
-        },
-        "summary": "PurgeEntityStopwords",
         "tags": [
           "Taxonomy"
         ]

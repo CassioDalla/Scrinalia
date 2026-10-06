@@ -759,23 +759,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/taxonomy/entities/stopwords/purge_stopwords": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** PurgeEntityStopwords */
-        post: operations["ApiV1TaxonomyEntitiesStopwordsPurgeStopwordsPurgeEntityStopwords"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/taxonomy/entities/{entity_id}": {
         parameters: {
             query?: never;
@@ -1560,11 +1543,6 @@ export interface components {
             /** @enum {string} */
             mode: "all" | "specific";
         };
-        /** EntityStopwordPurgeResponse */
-        EntityStopwordPurgeResponse: {
-            entities_deleted: number;
-            message: string;
-        };
         /** FacetCount */
         FacetCount: {
             count: number;
@@ -2130,7 +2108,7 @@ export interface components {
         };
         /**
          * StopwordsScope
-         * @description Eixo de onde o termo sai.
+         * @description Controls the scope of a domain stopword
          * @default TAG
          * @enum {string}
          */
@@ -4246,45 +4224,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EntitySimilarityResponse"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                        status_code: number;
-                    };
-                };
-            };
-        };
-    };
-    ApiV1TaxonomyEntitiesStopwordsPurgeStopwordsPurgeEntityStopwords: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StopwordsRequest"];
-            };
-        };
-        responses: {
-            /** @description Document created, URL follows */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EntityStopwordPurgeResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

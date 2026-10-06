@@ -58,7 +58,6 @@ from memoria_curitibana.domains.archive.schemas.entity_schema import (
     EntityRelevance,
     EntityRelevanceResponse,
     EntitySimilarityResponse,
-    EntityStopwordPurgeResponse,
     NerExclusion,
     NerExclusionBanResponse,
     NerExclusionRemovalResponse,
@@ -519,17 +518,6 @@ class TaxonomyController(Controller):
         deleted_count = entity_service.purge_orphan_entities()
         return OrphanEntityPurgeResponse(
             message="Limpeza de entidades órfãs concluída com sucesso.",
-            entities_deleted=deleted_count,
-        )
-
-    @post("/entities/stopwords/purge_stopwords", sync_to_thread=True)
-    def purge_entity_stopwords(
-        self, entity_service: NamedDependency[EntityService], data: StopwordsRequest
-    ) -> EntityStopwordPurgeResponse:
-        deleted_count = entity_service.purge_entity_stopwords(data.words)
-
-        return EntityStopwordPurgeResponse(
-            message="Falsos positivos adicionados à lista negra e expurgados com sucesso.",
             entities_deleted=deleted_count,
         )
 

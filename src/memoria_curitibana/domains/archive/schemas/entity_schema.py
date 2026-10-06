@@ -166,13 +166,6 @@ class OrphanEntityPurgeResponse(BaseModel):
     entities_deleted: int
 
 
-class EntityStopwordPurgeResponse(BaseModel):
-    """The banned spellings were registered and their entities purged in one step."""
-
-    message: str
-    entities_deleted: int
-
-
 class EntityReclassifyResponse(BaseModel):
     """
     The new type, and the promise that matters: reclassifying writes the anchoring synonym.

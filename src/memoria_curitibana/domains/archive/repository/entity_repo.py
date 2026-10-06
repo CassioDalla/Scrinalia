@@ -444,18 +444,6 @@ class EntityRepository:
         if entity:
             entity.name = new_name
 
-    def save_entity_stopwords(self, words: list[str]) -> None:
-        """Saves the words to the blacklist with the scope exclusive to Entities."""
-        for word in words:
-            clean_word = normalize_stopword(word)
-
-            # Checks whether it already exists to avoid a Unique Constraint error
-            exists = self.db.query(DomainStopwords).filter_by(word=clean_word, word_scope=StopwordsScope.ENTITY).first()
-
-            if not exists:
-                new_stopword = DomainStopwords(word=clean_word, word_scope=StopwordsScope.ENTITY)
-                self.db.add(new_stopword)
-
     def delete_entities_by_names(self, names: list[str]) -> int:
         """Deletes entities from the collection by searching for a list of exact names."""
         clean_names = [normalize_entity(n) for n in names]
