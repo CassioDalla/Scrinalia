@@ -30,17 +30,17 @@ import {
   TEMPLATE_STATUS_TONE,
 } from "@/lib/quality";
 import { labelOf } from "@/lib/hierarchy";
+import { asEnum } from "@/lib/search";
 
 const routeApi = getRouteApi("/qualidade/trechos");
 
 export type TextTemplatesSearch = { status?: TemplateStatus };
 
+/** The vocabulary the route accepts, read from the labels the screen already owns. */
+const TEMPLATE_STATUSES = Object.keys(TEMPLATE_STATUS_LABEL) as TemplateStatus[];
+
 export function validateTextTemplatesSearch(search: Record<string, unknown>): TextTemplatesSearch {
-  const status =
-    search.status === "SUGGESTED" || search.status === "APPROVED" || search.status === "REJECTED"
-      ? search.status
-      : undefined;
-  return { status };
+  return { status: asEnum(search.status, TEMPLATE_STATUSES) };
 }
 
 const SCOPES: TemplateScope[] = ["EMBEDDING", "NER", "TITLE"];

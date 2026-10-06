@@ -17,6 +17,7 @@ import { Input, Select } from "@/components/ui/Input";
 import { cn } from "@/lib/cn";
 import { formatCount, formatDate, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
 import { nodeLabel } from "@/lib/hierarchy";
+import { asString } from "@/lib/search";
 
 const routeApi = getRouteApi("/acervo/arvore");
 
@@ -24,8 +25,8 @@ export type TreeSearch = { raiz?: string; termo?: string };
 
 export function validateTreeSearch(search: Record<string, unknown>): TreeSearch {
   return {
-    raiz: typeof search.raiz === "string" && search.raiz.length > 0 ? search.raiz : undefined,
-    termo: typeof search.termo === "string" && search.termo.length > 0 ? search.termo : undefined,
+    raiz: asString(search.raiz),
+    termo: asString(search.termo),
   };
 }
 

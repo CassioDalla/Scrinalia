@@ -8,16 +8,15 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { formatCount, formatDate, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
+import { asNumber } from "@/lib/search";
 
 const routeApi = getRouteApi("/qualidade/anomalias");
 
 export type AnomaliesSearch = { offset?: number };
 
 export function validateAnomaliesSearch(search: Record<string, unknown>): AnomaliesSearch {
-  const offset = typeof search.offset === "string" ? Number(search.offset) : undefined;
-  return {
-    offset: offset !== undefined && Number.isFinite(offset) && offset > 0 ? offset : undefined,
-  };
+  const offset = asNumber(search.offset);
+  return { offset: offset !== undefined && offset > 0 ? offset : undefined };
 }
 
 /**

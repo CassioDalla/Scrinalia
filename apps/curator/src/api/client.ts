@@ -204,8 +204,8 @@ export type StopwordsScope = NonNullable<Stopword["scope"]>;
  * route refuses.
  */
 export type MergeReason = NonNullable<
-  paths["/api/v1/taxonomy/tags/merge-proposals"]["get"]["parameters"]["query"]
->["reason"];
+  NonNullable<paths["/api/v1/taxonomy/tags/merge-proposals"]["get"]["parameters"]["query"]>["reason"]
+>;
 export type HierarchyNodeMoveRequest = components["schemas"]["HierarchyNodeMoveRequest"];
 export type HierarchyNodeCreateRequest = components["schemas"]["HierarchyNodeCreateRequest"];
 export type HierarchyNodeSummary = components["schemas"]["HierarchyNodeSummary"];

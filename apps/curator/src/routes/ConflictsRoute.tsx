@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/Input";
 import { CONFLICT_WINNER_HINT, CONFLICT_WINNER_LABEL, CONFLICT_WINNER_TONE, ENTITY_TYPE_LABEL } from "@/lib/entities";
 import { formatCount } from "@/lib/format";
 import { labelOf } from "@/lib/hierarchy";
+import { asNumber } from "@/lib/search";
 
 const routeApi = getRouteApi("/entidades/conflitos");
 
@@ -22,10 +23,8 @@ export type ConflictsSearch = { limiar?: number };
 const WINDOW = 50;
 
 export function validateConflictsSearch(search: Record<string, unknown>): ConflictsSearch {
-  const raw = typeof search.limiar === "string" ? Number(search.limiar) : undefined;
-  return {
-    limiar: raw !== undefined && Number.isFinite(raw) && raw > 0 && raw <= 1 ? raw : undefined,
-  };
+  const limiar = asNumber(search.limiar);
+  return { limiar: limiar !== undefined && limiar > 0 && limiar <= 1 ? limiar : undefined };
 }
 
 /**

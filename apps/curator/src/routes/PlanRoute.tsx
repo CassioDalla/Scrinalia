@@ -25,6 +25,7 @@ import {
   PLAN_STATUS_TONE,
   labelOf,
 } from "@/lib/hierarchy";
+import { asEnum, asString } from "@/lib/search";
 
 const routeApi = getRouteApi("/arranjo/plano");
 
@@ -41,11 +42,10 @@ export type PlanSearch = { status?: PlanStatus; flag?: string; q?: string };
 const STATUSES: PlanStatus[] = ["SUGGESTED", "APPROVED", "REJECTED"];
 
 export function validatePlanSearch(search: Record<string, unknown>): PlanSearch {
-  const status = search.status;
   return {
-    status: typeof status === "string" && (STATUSES as string[]).includes(status) ? (status as PlanStatus) : undefined,
-    flag: typeof search.flag === "string" && search.flag.length > 0 ? search.flag : undefined,
-    q: typeof search.q === "string" && search.q.length > 0 ? search.q : undefined,
+    status: asEnum(search.status, STATUSES),
+    flag: asString(search.flag),
+    q: asString(search.q),
   };
 }
 

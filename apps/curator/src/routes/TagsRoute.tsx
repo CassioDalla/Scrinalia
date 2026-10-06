@@ -17,6 +17,7 @@ import {
   undoMerge,
   type BatchMergeResponse,
   type MergePreview,
+  type MergeReason,
   type MergeResponse,
   type ProposalStatus,
   type StopwordPurgePreview,
@@ -33,6 +34,7 @@ import { EmptyState, ErrorState, Skeleton, Spinner } from "@/components/ui/Feedb
 import { Input, Select } from "@/components/ui/Input";
 import { Tabs } from "@/components/ui/Tabs";
 import { formatCount, formatDateTime } from "@/lib/format";
+import { asBoolean, asEnum, asNumber, asString } from "@/lib/search";
 import {
   MERGE_REASON_LABEL,
   MERGE_REASON_TONE,
@@ -54,7 +56,7 @@ const TABS = [
   { id: "stopwords", label: "Stopwords" },
 ];
 
-const REASONS = ["TRIGRAM", "PLURAL", "MIXED"];
+const REASONS: MergeReason[] = ["TRIGRAM", "PLURAL", "MIXED"];
 const SCOPE_VALUES: StopwordsScope[] = ["TAG", "ENTITY", "ALL"];
 
 /** Mirrors ``MAX_MERGE_BATCH_CLUSTERS``: the API refuses a bigger batch, so the screen does not send one. */
@@ -68,37 +70,26 @@ export type TagsSearch = {
   alvo?: string;
   nome?: string;
   status?: ProposalStatus;
-  motivo?: string;
+  motivo?: MergeReason;
   min?: number;
   flag?: boolean;
   offset?: number;
   escopo?: StopwordsScope;
 };
 
-function asNumber(value: unknown): number | undefined {
-  const parsed = typeof value === "string" ? Number(value) : undefined;
-  return parsed !== undefined && Number.isFinite(parsed) ? parsed : undefined;
-}
-
 export function validateTagsSearch(search: Record<string, unknown>): TagsSearch {
-  const status = search.status;
-  const metodo = search.metodo;
-  const aba = search.aba;
   return {
-    aba: typeof aba === "string" && TABS.some((tab) => tab.id === aba) ? aba : "relevancia",
-    metodo: metodo === "tfidf" ? "tfidf" : "count",
+    aba: asEnum(search.aba, TABS.map((tab) => tab.id)) ?? "relevancia",
+    metodo: asEnum(search.metodo, ["count", "tfidf"]) ?? "count",
     limiar: asNumber(search.limiar) ?? 0.65,
-    alvo: typeof search.alvo === "string" && search.alvo.length > 0 ? search.alvo : undefined,
-    nome: typeof search.nome === "string" && search.nome.length > 0 ? search.nome : undefined,
-    status:
-      typeof status === "string" && (STATUSES as string[]).includes(status) ? (status as ProposalStatus) : undefined,
-    motivo: typeof search.motivo === "string" && REASONS.includes(search.motivo) ? search.motivo : undefined,
+    alvo: asString(search.alvo),
+    nome: asString(search.nome),
+    status: asEnum(search.status, STATUSES),
+    motivo: asEnum(search.motivo, REASONS),
     min: asNumber(search.min),
-    flag: search.flag === true || search.flag === "true" ? true : undefined,
+    flag: asBoolean(search.flag),
     offset: asNumber(search.offset),
-    escopo: SCOPE_VALUES.includes(search.escopo as StopwordsScope)
-      ? (search.escopo as StopwordsScope)
-      : undefined,
+    escopo: asEnum(search.escopo, SCOPE_VALUES),
   };
 }
 
@@ -117,8 +108,16 @@ export function TagsRoute() {
   const search = routeApi.useSearch();
   const navigate = useNavigate();
 
+  /**
+   * The URL is the state, as everywhere else.
+   *
+   * ``offset: changes.offset`` and not ``offset: undefined``: a filter change has to return to the
+   * first page — page 3 of the previous filter means nothing — but the pagination of the proposals
+   * tab goes through this same function, and the unconditional reset silently threw its page number
+   * away, so "Próxima" reloaded page 1 forever.
+   */
   const patch = (changes: Partial<TagsSearch>) =>
-    navigate({ to: "/assuntos/tags", search: { ...search, ...changes, offset: undefined } });
+    navigate({ to: "/assuntos/tags", search: { ...search, ...changes, offset: changes.offset } });
 
   return (
     <>
@@ -554,7 +553,23 @@ function ProposalsTab({
   const [batch, setBatch] = useState<BatchMergeResponse | null>(null);
   const [logLimit, setLogLimit] = useState(MERGE_LOG_PAGE_SIZE);
 
-  const proposals = useQuery(queries.mergeProposals(search));
+  /**
+   * The filters are translated explicitly into the API's own names.
+   *
+   * Passing the search object straight through looked equivalent and was not: the route's keys are
+   * ``motivo``/``min``/``flag`` while the request expects ``reason``/``min_documents``/``flagged_only``,
+   * so three of the four controls answered "every cluster" no matter what the archivist chose. A
+   * mismatch the type checker cannot see, because the query builder receives an object either way.
+   */
+  const proposals = useQuery(
+    queries.mergeProposals({
+      status: search.status,
+      reason: search.motivo,
+      min_documents: search.min,
+      flagged_only: search.flag,
+      offset: search.offset,
+    }),
+  );
   const log = useQuery(queries.mergeLog(logLimit));
 
   const invalidate = () => {
@@ -661,7 +676,7 @@ function ProposalsTab({
         <Select
           className="w-44"
           value={search.motivo ?? ""}
-          onChange={(event) => patch({ motivo: event.target.value || undefined })}
+          onChange={(event) => patch({ motivo: asEnum(event.target.value, REASONS) })}
         >
           <option value="">Todo motivo</option>
           {REASONS.map((reason) => (

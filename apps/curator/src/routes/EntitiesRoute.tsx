@@ -23,28 +23,25 @@ import { Input, Select } from "@/components/ui/Input";
 import { Tabs } from "@/components/ui/Tabs";
 import { ENTITY_TYPE_HINT, ENTITY_TYPE_LABEL, ENTITY_TYPE_TONE } from "@/lib/entities";
 import { descricoes, formatCount } from "@/lib/format";
+import { asEnum, asNumber } from "@/lib/search";
 import { labelOf } from "@/lib/hierarchy";
 
 const routeApi = getRouteApi("/entidades/lista");
 
 export type EntitiesSearch = { aba?: "relevancia" | "similaridade"; tipo?: EntityType; limiar?: number };
 
+const TYPE_VALUES: ReclassifyTarget[] = ["ORG", "PER", "LOC"];
+
 export function validateEntitiesSearch(search: Record<string, unknown>): EntitiesSearch {
   const aba = search.aba === "similaridade" ? "similaridade" : "relevancia";
-  const tipo =
-    search.tipo === "ORG" || search.tipo === "PER" || search.tipo === "LOC" ? search.tipo : undefined;
-  const rawThreshold = typeof search.limiar === "string" ? Number(search.limiar) : undefined;
+  const tipo = asEnum(search.tipo, TYPE_VALUES);
+  const limiar = asNumber(search.limiar);
   return {
     aba,
     tipo,
-    limiar:
-      rawThreshold !== undefined && Number.isFinite(rawThreshold) && rawThreshold > 0 && rawThreshold <= 1
-        ? rawThreshold
-        : undefined,
+    limiar: limiar !== undefined && limiar > 0 && limiar <= 1 ? limiar : undefined,
   };
 }
-
-const TYPE_VALUES: ReclassifyTarget[] = ["ORG", "PER", "LOC"];
 
 /** How many similarity rows are drawn before the archivist asks for the rest. */
 const WINDOW = 100;

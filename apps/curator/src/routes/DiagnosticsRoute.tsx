@@ -9,16 +9,17 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { formatCount } from "@/lib/format";
 import { DETAIL_LABEL, ISSUE_ACTION, ISSUE_HINT, ISSUE_LABEL, labelOf } from "@/lib/hierarchy";
+import { asNumber, asString } from "@/lib/search";
 
 const routeApi = getRouteApi("/arranjo/diagnostico");
 
 export type DiagnosticsSearch = { issue?: string; offset?: number };
 
 export function validateDiagnosticsSearch(search: Record<string, unknown>): DiagnosticsSearch {
-  const offset = typeof search.offset === "string" ? Number(search.offset) : undefined;
+  const offset = asNumber(search.offset);
   return {
-    issue: typeof search.issue === "string" && search.issue.length > 0 ? search.issue : undefined,
-    offset: offset !== undefined && Number.isFinite(offset) && offset > 0 ? offset : undefined,
+    issue: asString(search.issue),
+    offset: offset !== undefined && offset > 0 ? offset : undefined,
   };
 }
 

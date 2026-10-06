@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
-import type { ArchiveReviewStatus, DocumentSearch, FacetCount, SearchMode } from "@/api/client";
+import type { ArchiveReviewStatus, DocumentFacets, DocumentSearch, FacetCount, SearchMode } from "@/api/client";
 import { queries } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
@@ -11,6 +11,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input, Select } from "@/components/ui/Input";
 import { formatCount, formatDate, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE, subjectBadge } from "@/lib/format";
+import { asBoolean, asEnum, asNumber, asString } from "@/lib/search";
 
 const PAGE_SIZE = 25;
 
@@ -44,29 +45,12 @@ export type CollectionSearch = {
   offset?: number;
 };
 
-function asString(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function asNumber(value: unknown): number | undefined {
-  const text = asString(value);
-  if (text === undefined) return undefined;
-  const parsed = Number(text);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function asBoolean(value: unknown): boolean | undefined {
-  const text = asString(value);
-  if (text === undefined) return undefined;
-  if (text === "true") return true;
-  if (text === "false") return false;
-  return undefined;
-}
+const REVIEW_STATUSES = Object.keys(REVIEW_STATUS_LABEL) as ArchiveReviewStatus[];
 
 export function validateCollectionSearch(search: Record<string, unknown>): CollectionSearch {
   return {
     term: asString(search.term),
-    mode: search.mode === "semantic" ? "semantic" : "lexical",
+    mode: asEnum(search.mode, ["lexical", "semantic"]) ?? "lexical",
     typology_id: asNumber(search.typology_id),
     macro_category_id: asNumber(search.macro_category_id),
     entity_type: asString(search.entity_type),
@@ -74,7 +58,7 @@ export function validateCollectionSearch(search: Record<string, unknown>): Colle
     ancestor_id: asString(search.ancestor_id),
     date_from: asString(search.date_from),
     date_to: asString(search.date_to),
-    status: asString(search.status) as ArchiveReviewStatus | undefined,
+    status: asEnum(search.status, REVIEW_STATUSES),
     is_anomaly: asBoolean(search.is_anomaly),
     offset: asNumber(search.offset),
   };
@@ -84,14 +68,34 @@ function toRequest(search: CollectionSearch): DocumentSearch {
   return { ...search, limit: PAGE_SIZE, offset: search.offset ?? 0 };
 }
 
-/** Filters that are set, so the UI can show and clear them as a group. */
-function activeFilters(search: CollectionSearch): { key: keyof CollectionSearch; label: string }[] {
+/**
+ * Filters that are set, so the UI can show and clear them as a group.
+ *
+ * The label comes from the facet the API returned, not from the raw id: a chip reading "Tipologia #1"
+ * tells the archivist nothing about what they filtered, and the name is already in the payload that
+ * produced the click. The id is the fallback for the one case where there is no facet — a deep link
+ * opened before the first response arrives.
+ */
+function activeFilters(
+  search: CollectionSearch,
+  facets: DocumentFacets | undefined,
+): { key: keyof CollectionSearch; label: string }[] {
+  const nameFrom = (values: FacetCount[] | undefined, key: string | number | undefined, prefix: string) => {
+    const match = values?.find((value) => value.key === String(key));
+    return match ? `${prefix} ${match.label}` : `${prefix} #${key}`;
+  };
+
   const entries: { key: keyof CollectionSearch; label: string }[] = [];
-  if (search.typology_id !== undefined) entries.push({ key: "typology_id", label: `Tipologia #${search.typology_id}` });
+  if (search.typology_id !== undefined)
+    entries.push({ key: "typology_id", label: nameFrom(facets?.typology, search.typology_id, "Tipologia") });
   if (search.macro_category_id !== undefined)
-    entries.push({ key: "macro_category_id", label: `Assunto #${search.macro_category_id}` });
+    entries.push({
+      key: "macro_category_id",
+      label: nameFrom(facets?.macro_category, search.macro_category_id, "Assunto"),
+    });
   if (search.entity_type !== undefined) entries.push({ key: "entity_type", label: `Entidade ${search.entity_type}` });
-  if (search.level_id !== undefined) entries.push({ key: "level_id", label: `Nível #${search.level_id}` });
+  if (search.level_id !== undefined)
+    entries.push({ key: "level_id", label: nameFrom(facets?.level, search.level_id, "Nível") });
   if (search.ancestor_id !== undefined)
     entries.push({ key: "ancestor_id", label: "Dentro de um ramo do arranjo" });
   if (search.status !== undefined)
@@ -256,7 +260,7 @@ export function CollectionRoute() {
   const facets = data?.facets;
   const total = data?.total ?? 0;
   const offset = search.offset ?? 0;
-  const filters = activeFilters(search);
+  const filters = activeFilters(search, facets);
 
   return (
     <>
