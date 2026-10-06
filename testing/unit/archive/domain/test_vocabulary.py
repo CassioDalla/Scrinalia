@@ -16,6 +16,7 @@ import pytest
 from memoria_curitibana.domains.archive.domain.vocabulary import (
     RETIRED_CATEGORIES,
     SUBJECT_CATEGORIES,
+    SUBJECT_EXCLUSION_SIGNALS,
     is_measure,
     is_person_name,
     is_place_term,
@@ -23,6 +24,7 @@ from memoria_curitibana.domains.archive.domain.vocabulary import (
     is_street,
     is_subject_candidate,
     is_year,
+    subject_exclusion_signal,
 )
 
 #: The repository root, derived from this file (testing/unit/archive/domain/) so the test
@@ -188,3 +190,80 @@ class TestVocabularyShape:
         migration = _load_migration("f8760cab6d12_replace_the_subject_vocabulary_and_.py")
         assert tuple(name for name, _description in migration.SUBJECT_CATEGORIES) == SUBJECT_CATEGORIES
         assert migration.RETIRED_CATEGORIES == RETIRED_CATEGORIES
+
+
+# ==========================================
+# THE SIGNAL: WHY THE GUARD REFUSED, NOT ONLY THAT IT DID
+# ==========================================
+
+
+class TestSubjectExclusionSignal:
+    """
+    The suggestion route publishes this, so it has to be the guard's own verdict.
+
+    ``is_subject_candidate`` is what the classifier obeys; this is what the catalogue shows. Two
+    implementations of the same rule would drift, and the archivist would read a reason the worker
+    does not act on.
+    """
+
+    @pytest.mark.parametrize(
+        ("term", "expected"),
+        [
+            ("local não identificado", "PLACEHOLDER"),
+            ("ilegível", "PLACEHOLDER"),
+            ("1924", "YEAR"),
+            ("2019", "YEAR"),
+            ("3202", "MEASURE"),
+            ("rua xv de novembro", "STREET"),
+            ("alameda júlia da costa", "STREET"),
+            ("marilia kranz", "PERSON"),
+            ("ernesto guaita", "PERSON"),
+        ],
+    )
+    def test_it_names_the_shape(self, term: str, expected: str) -> None:
+        assert subject_exclusion_signal(term) == expected
+
+    @pytest.mark.parametrize(
+        "term",
+        ["igrejas", "residencial", "madeira", "ecletismo", "pessoas", "vista aérea", "capanema"],
+    )
+    def test_a_real_subject_has_no_signal(self, term: str) -> None:
+        """
+        The signal must not fire on the terms no rule reaches.
+
+        Every spelling here is a subject the collection carries — ``igrejas`` reaches 2.474
+        documents — or one of the three hand-labelled non-subjects the guard was measured to miss
+        (``pessoas`` 166, ``vista aérea`` 89, ``capanema`` 91). A rule that fired on them would turn
+        a semantic judgement into a wrong automatic verdict.
+        """
+        assert subject_exclusion_signal(term) is None
+
+    def test_the_signal_and_the_candidate_guard_agree(self) -> None:
+        """
+        The two functions answer different questions about the same term and cannot disagree.
+
+        ``is_subject_candidate`` says yes/no; the signal says why. A term with a signal must be
+        refused by the guard, and a term the guard refuses because of one of the five shapes must
+        have a signal — otherwise the worker would skip a term the catalogue does not explain.
+        """
+        probes = [
+            "local não identificado",
+            "ilegível",
+            "1924",
+            "3202",
+            "rua xv de novembro",
+            "marilia kranz",
+            "igrejas",
+            "residencial",
+            "pessoas",
+            "madeira",
+        ]
+        for term in probes:
+            signal = subject_exclusion_signal(term)
+            if signal is not None:
+                assert signal in SUBJECT_EXCLUSION_SIGNALS
+                assert not is_subject_candidate(term), f"{term} tem sinal {signal} e passaria no guarda"
+            else:
+                assert is_subject_candidate(term) or is_place_term(term), (
+                    f"{term} não tem sinal e mesmo assim o guarda o recusaria sem explicação"
+                )

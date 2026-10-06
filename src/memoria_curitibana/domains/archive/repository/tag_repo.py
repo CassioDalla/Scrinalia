@@ -1,7 +1,7 @@
 from collections import defaultdict
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 from sqlalchemy import (
     CursorResult,
@@ -39,7 +39,11 @@ from memoria_curitibana.domains.archive.domain.tag_merge import (
     cluster_fingerprint,
     has_digits,
 )
-from memoria_curitibana.domains.archive.domain.vocabulary import classifier_labels
+from memoria_curitibana.domains.archive.domain.vocabulary import (
+    classifier_labels,
+    is_place_term,
+    subject_exclusion_signal,
+)
 from memoria_curitibana.domains.archive.exceptions import (
     InvalidParam,
     MergeAlreadyUndoneError,
@@ -48,6 +52,7 @@ from memoria_curitibana.domains.archive.exceptions import (
 from memoria_curitibana.domains.archive.models import (
     ArchiveDocument,
     ArchiveDocumentTag,
+    ArchiveEntity,
     ArchiveMacroCategory,
     ArchiveTag,
     ArchiveTagMergeProposal,
@@ -57,6 +62,7 @@ from memoria_curitibana.domains.archive.models import (
     DomainSynonyms,
     StopwordsScope,
 )
+from memoria_curitibana.domains.archive.ports.taxonomy import SubjectExclusionSource
 from memoria_curitibana.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
@@ -69,6 +75,8 @@ from memoria_curitibana.domains.archive.schemas import (
     MergeResponse,
     StopwordDTO,
     StopwordPurgeTag,
+    SubjectExclusionSuggestion,
+    SubjectExclusionSuggestionResponse,
     SynonymCommand,
     TagCount,
     TagIdentity,
@@ -85,10 +93,8 @@ from memoria_curitibana.domains.archive.schemas import (
 )
 from memoria_curitibana.domains.archive.worker_stamp import CURATED_MACRO_CATEGORY
 
+
 #: Who recorded a subject exclusion: the archivist, or the deterministic guard.
-SubjectExclusionSource = Literal["HUMAN", "RULE"]
-
-
 class TagRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -453,6 +459,75 @@ class TagRepository:
         """
         stmt = select(DomainSubjectExclusion.term)
         return set(self.db.scalars(stmt).all())
+
+    def find_subject_exclusion_candidates(
+        self, limit: int = 50, offset: int = 0, include_excluded: bool = False
+    ) -> SubjectExclusionSuggestionResponse:
+        """
+        The tags the deterministic guard already refuses, with the evidence around each one.
+
+        Computed in Python because the guard is a pure function of the spelling, not a column: a
+        regex in SQL would be a second implementation of the same rule, and the two would drift. The
+        whole vocabulary is 8.155 rows, so reading it once is cheaper than the join the merge
+        suggestions need.
+
+        ``is_subject_candidate`` is what the classifier obeys and ``subject_exclusion_signal`` is what
+        this route publishes; both read the same three predicates, so a term the worker skips is a
+        term the catalogue shows.
+
+        Deliberately **no verdict for the semantic half**: ``pessoas``, ``vista aérea`` and
+        ``capanema`` have no shape to match, and the measurement on the labelled set says the
+        statistical signals available lie — by document count the top of the orphans is ``igrejas``
+        (2.474, a real subject missing a drawer), and by low confidence it is ``madeira`` (0.30) and
+        ``ecletismo`` (0.38), also real subjects. Proposing those would be worse than the three
+        hardcoded examples the screen used to offer.
+        """
+        excluded = self.get_subject_exclusions()
+        entity_names = set(self.db.scalars(select(func.lower(ArchiveEntity.name))).all())
+
+        candidates: list[SubjectExclusionSuggestion] = []
+        already: list[SubjectExclusionSuggestion] = []
+
+        for row in self.get_all_tags_with_counts():
+            normalized = normalize_tag(row.name)
+            signal = subject_exclusion_signal(normalized)
+            is_excluded = normalized in excluded
+
+            # A recorded decision is not a candidate; it is shown apart so the screen can explain
+            # why the guard's number is smaller than the vocabulary it refuses.
+            if signal is None and not is_excluded:
+                continue
+
+            suggestion = SubjectExclusionSuggestion(
+                term=normalized,
+                signal=signal or "RECORDED",
+                document_count=row.document_count,
+                is_place_term=is_place_term(normalized),
+                also_an_entity=normalized in entity_names,
+                word_count=len(normalized.split()),
+                already_excluded=is_excluded,
+            )
+            (already if is_excluded else candidates).append(suggestion)
+
+        # Heaviest first: the archivist decides about the terms that move the collection.
+        candidates.sort(key=lambda item: (-item.document_count, item.term))
+        already.sort(key=lambda item: (-item.document_count, item.term))
+
+        visible = candidates + already if include_excluded else candidates
+        by_signal: dict[str, int] = {}
+        for item in candidates:
+            by_signal[item.signal] = by_signal.get(item.signal, 0) + 1
+
+        return SubjectExclusionSuggestionResponse(
+            total=len(visible),
+            limit=limit,
+            offset=offset,
+            items=visible[offset : offset + limit],
+            candidate_count=len(candidates),
+            already_excluded_count=len(already),
+            by_signal=by_signal,
+            place_count=sum(1 for item in candidates if item.is_place_term),
+        )
 
     def add_subject_exclusions(
         self,

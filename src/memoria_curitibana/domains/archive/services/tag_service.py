@@ -15,7 +15,7 @@ from memoria_curitibana.domains.archive.exceptions import (
 )
 from memoria_curitibana.domains.archive.models.enums import StopwordsScope
 from memoria_curitibana.domains.archive.ports.document import DocumentRepositoryPort
-from memoria_curitibana.domains.archive.ports.taxonomy import TagRepositoryPort
+from memoria_curitibana.domains.archive.ports.taxonomy import SubjectExclusionSource, TagRepositoryPort
 from memoria_curitibana.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
@@ -33,6 +33,7 @@ from memoria_curitibana.domains.archive.schemas import (
     MergeTagsCommand,
     StopwordDTO,
     StopwordPurgePreview,
+    SubjectExclusionSuggestionResponse,
     TagCurationCommand,
     TagCurationResult,
     TagMergeDecisionCommand,
@@ -563,7 +564,24 @@ class TagService:
         """Lists the terms the curation decided are not a subject."""
         return sorted(self.repo.get_subject_exclusions())
 
-    def exclude_terms_from_subjects(self, words: list[str], reason: str | None = None) -> int:
+    def suggest_subject_exclusions(
+        self, limit: int = 50, offset: int = 0, include_excluded: bool = False
+    ) -> SubjectExclusionSuggestionResponse:
+        """
+        The terms the deterministic guard already refuses, with the evidence around each.
+
+        Suggestion only, and deliberately not a model: the guard is a pure function of the spelling,
+        so its verdict cannot hallucinate and costs no inference. What the route adds is visibility —
+        the guard has been skipping these terms inside ``worker_macro_category`` while the
+        ``source='RULE'`` value the schema anticipated was never written by anything.
+        """
+        return self.repo.find_subject_exclusion_candidates(
+            limit=limit, offset=offset, include_excluded=include_excluded
+        )
+
+    def exclude_terms_from_subjects(
+        self, words: list[str], reason: str | None = None, source: SubjectExclusionSource = "HUMAN"
+    ) -> int:
         """
         Records that a term is not a subject, so the classifier stops guessing at it.
 
@@ -580,7 +598,9 @@ class TagService:
             raise InvalidParam("Nenhum termo válido foi informado.")
 
         logger.info(f"🚫 Marking {len(clean_words)} term(s) as not-a-subject...")
-        return self.repo.add_subject_exclusions(clean_words, source="HUMAN", reason=reason)
+        # The provenance is the point of the column: a term the guard refused and the archivist
+        # confirmed is a ``RULE`` decision, and one they typed is ``HUMAN``. Both are reversible.
+        return self.repo.add_subject_exclusions(clean_words, source=source, reason=reason)
 
     def remove_subject_exclusions(self, words: list[str]) -> int:
         """Undoes the decision and puts the terms back in the classification queue."""

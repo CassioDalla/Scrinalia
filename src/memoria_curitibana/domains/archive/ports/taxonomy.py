@@ -12,6 +12,7 @@ from memoria_curitibana.domains.archive.schemas import (
     MergeResponse,
     StopwordDTO,
     StopwordPurgeTag,
+    SubjectExclusionSuggestionResponse,
     SynonymCommand,
     TagCount,
     TagIdentity,
@@ -23,6 +24,10 @@ from memoria_curitibana.domains.archive.schemas import (
     TagSearchResult,
     TagSimilarity,
 )
+
+#: Who recorded a subject exclusion: an archivist, or the deterministic guard whose verdict the
+#: archivist confirmed. Both are reversible, and the column exists to tell them apart.
+SubjectExclusionSource = Literal["HUMAN", "RULE"]
 
 
 class TagRepositoryPort(Protocol):
@@ -84,6 +89,9 @@ class TagRepositoryPort(Protocol):
         self, category_id: int, changes: dict[str, Any]
     ) -> ArchiveMacroCategoryEntityDTO | None: ...
     def get_subject_exclusions(self) -> set[str]: ...
+    def find_subject_exclusion_candidates(
+        self, limit: int = 50, offset: int = 0, include_excluded: bool = False
+    ) -> SubjectExclusionSuggestionResponse: ...
     def list_stopwords(self, scope: StopwordsScope | None = None) -> list[StopwordDTO]: ...
     def remove_stopwords(self, words: list[str], scope: StopwordsScope | None = None) -> int: ...
     def find_tags_by_stopwords(self, stopwords: set[str]) -> list[StopwordPurgeTag]: ...

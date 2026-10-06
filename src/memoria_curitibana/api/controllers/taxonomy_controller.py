@@ -25,6 +25,7 @@ from memoria_curitibana.api.schemas.taxonomy import (
     StopwordCreateRequest,
     StopwordRemovalRequest,
     StopwordsRequest,
+    SubjectExclusionRemovalRequest,
     SubjectExclusionRequest,
     SuggestMacroRequest,
     TagCurationRequest,
@@ -48,6 +49,7 @@ from memoria_curitibana.domains.archive.schemas import (
     ResolveConflictCommand,
     StopwordDTO,
     StopwordPurgePreview,
+    SubjectExclusionSuggestionResponse,
     TagCurationCommand,
     TagCurationResult,
     TagMergeDecisionCommand,
@@ -415,6 +417,27 @@ class TaxonomyController(Controller):
         """Lists the terms the curation decided are not a subject."""
         return tag_service.list_subject_exclusions()
 
+    @get("/tags/subject-exclusions/suggestions", sync_to_thread=True)
+    def suggest_subject_exclusions(
+        self,
+        tag_service: NamedDependency[TagService],
+        limit: FromQuery[int] = 50,
+        offset: FromQuery[int] = 0,
+        include_excluded: FromQuery[bool] = False,
+    ) -> SubjectExclusionSuggestionResponse:
+        """
+        The terms the deterministic guard already refuses, computed — not judged by a model.
+
+        The guard has always skipped these terms inside ``worker_macro_category``, and until now the
+        archivist could not see a single one of them: 1.489 of the 8.155 real tags, including
+        ``local não identificado`` (310 documents), 689 streets and 707 bare numbers. Each candidate
+        carries its evidence — weight, whether the PLACE facet claims it, whether the same spelling is
+        also a named entity — and the route deliberately proposes **nothing** for the semantic half
+        (``pessoas``, ``vista aérea``), where the measurement says the model answers confidently and
+        wrongly.
+        """
+        return tag_service.suggest_subject_exclusions(limit=limit, offset=offset, include_excluded=include_excluded)
+
     @post("/tags/subject-exclusions", status_code=201, sync_to_thread=True)
     def create_subject_exclusions(
         self, tag_service: NamedDependency[TagService], data: SubjectExclusionRequest
@@ -426,7 +449,7 @@ class TaxonomyController(Controller):
         search. Only the subject classification is silenced, which is what turns "the model
         answers confidently and wrongly" into "the curator decided".
         """
-        created = tag_service.exclude_terms_from_subjects(data.words, reason=data.reason)
+        created = tag_service.exclude_terms_from_subjects(data.words, reason=data.reason, source=data.source)
         return SubjectExclusionBanResponse(
             message="Termos marcados como não-assunto: o classificador de assuntos vai ignorá-los.",
             created=created,
@@ -434,7 +457,7 @@ class TaxonomyController(Controller):
 
     @delete("/tags/subject-exclusions", status_code=200, sync_to_thread=True)
     def remove_subject_exclusions(
-        self, tag_service: NamedDependency[TagService], data: SubjectExclusionRequest
+        self, tag_service: NamedDependency[TagService], data: SubjectExclusionRemovalRequest
     ) -> SubjectExclusionRemovalResponse:
         """Undoes the decision and puts the terms back in the classification queue."""
         removed = tag_service.remove_subject_exclusions(data.words)

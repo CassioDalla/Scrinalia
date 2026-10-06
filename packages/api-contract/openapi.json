@@ -5090,6 +5090,23 @@
         "title": "SubjectExclusionBanResponse",
         "type": "object"
       },
+      "SubjectExclusionRemovalRequest": {
+        "properties": {
+          "words": {
+            "description": "Terms to put back into the subject classifier.",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "words"
+        ],
+        "title": "SubjectExclusionRemovalRequest",
+        "type": "object"
+      },
       "SubjectExclusionRemovalResponse": {
         "properties": {
           "message": {
@@ -5119,6 +5136,15 @@
               }
             ]
           },
+          "source": {
+            "default": "HUMAN",
+            "description": "HUMAN: o arquivista digitou o termo. RULE: veio do guarda determinístico e foi confirmado.",
+            "enum": [
+              "HUMAN",
+              "RULE"
+            ],
+            "type": "string"
+          },
           "words": {
             "description": "Terms to keep out of the subject classifier.",
             "items": {
@@ -5132,6 +5158,85 @@
           "words"
         ],
         "title": "SubjectExclusionRequest",
+        "type": "object"
+      },
+      "SubjectExclusionSuggestion": {
+        "properties": {
+          "already_excluded": {
+            "default": false,
+            "type": "boolean"
+          },
+          "also_an_entity": {
+            "default": false,
+            "type": "boolean"
+          },
+          "document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "is_place_term": {
+            "default": false,
+            "type": "boolean"
+          },
+          "signal": {
+            "type": "string"
+          },
+          "term": {
+            "type": "string"
+          },
+          "word_count": {
+            "default": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "signal",
+          "term"
+        ],
+        "title": "SubjectExclusionSuggestion",
+        "type": "object"
+      },
+      "SubjectExclusionSuggestionResponse": {
+        "properties": {
+          "already_excluded_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "by_signal": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "candidate_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SubjectExclusionSuggestion"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "default": 50,
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "type": "integer"
+          },
+          "place_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "title": "SubjectExclusionSuggestionResponse",
         "type": "object"
       },
       "SuggestMacroRequest": {
@@ -13812,7 +13917,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SubjectExclusionRequest"
+                "$ref": "#/components/schemas/SubjectExclusionRemovalRequest"
               }
             }
           },
@@ -13963,6 +14068,105 @@
           }
         },
         "summary": "CreateSubjectExclusions",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/tags/subject-exclusions/suggestions": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsSubjectExclusionsSuggestionsSuggestSubjectExclusions",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "include_excluded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubjectExclusionSuggestionResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "SuggestSubjectExclusions",
         "tags": [
           "Taxonomy"
         ]

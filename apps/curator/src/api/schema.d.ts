@@ -1276,6 +1276,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/taxonomy/tags/subject-exclusions/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** SuggestSubjectExclusions */
+        get: operations["ApiV1TaxonomyTagsSubjectExclusionsSuggestionsSuggestSubjectExclusions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/taxonomy/tags/suggest-macro": {
         parameters: {
             query?: never;
@@ -2596,6 +2613,11 @@ export interface components {
             created: number;
             message: string;
         };
+        /** SubjectExclusionRemovalRequest */
+        SubjectExclusionRemovalRequest: {
+            /** @description Terms to put back into the subject classifier. */
+            words: string[];
+        };
         /** SubjectExclusionRemovalResponse */
         SubjectExclusionRemovalResponse: {
             message: string;
@@ -2605,8 +2627,48 @@ export interface components {
         SubjectExclusionRequest: {
             /** @description Why the decision was made; kept for auditing. */
             reason?: string | null;
+            /**
+             * @description HUMAN: o arquivista digitou o termo. RULE: veio do guarda determinístico e foi confirmado.
+             * @default HUMAN
+             * @enum {string}
+             */
+            source: "HUMAN" | "RULE";
             /** @description Terms to keep out of the subject classifier. */
             words: string[];
+        };
+        /** SubjectExclusionSuggestion */
+        SubjectExclusionSuggestion: {
+            /** @default false */
+            already_excluded: boolean;
+            /** @default false */
+            also_an_entity: boolean;
+            /** @default 0 */
+            document_count: number;
+            /** @default false */
+            is_place_term: boolean;
+            signal: string;
+            term: string;
+            /** @default 1 */
+            word_count: number;
+        };
+        /** SubjectExclusionSuggestionResponse */
+        SubjectExclusionSuggestionResponse: {
+            /** @default 0 */
+            already_excluded_count: number;
+            by_signal?: {
+                [key: string]: number;
+            };
+            /** @default 0 */
+            candidate_count: number;
+            items?: components["schemas"]["SubjectExclusionSuggestion"][];
+            /** @default 50 */
+            limit: number;
+            /** @default 0 */
+            offset: number;
+            /** @default 0 */
+            place_count: number;
+            /** @default 0 */
+            total: number;
         };
         /** SuggestMacroRequest */
         SuggestMacroRequest: {
@@ -6250,7 +6312,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SubjectExclusionRequest"];
+                "application/json": components["schemas"]["SubjectExclusionRemovalRequest"];
             };
         };
         responses: {
@@ -6261,6 +6323,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SubjectExclusionRemovalResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyTagsSubjectExclusionsSuggestionsSuggestSubjectExclusions: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                include_excluded?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubjectExclusionSuggestionResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

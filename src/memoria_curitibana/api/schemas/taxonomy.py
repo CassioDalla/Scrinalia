@@ -128,10 +128,37 @@ class NerExclusionRequest(BaseModel):
 
 
 class SubjectExclusionRequest(BaseModel):
-    """Terms a curator declares to be no subject at all (the second half of NENHUMA)."""
+    """
+    Terms a curator declares to be no subject at all (the second half of NENHUMA).
+
+    ``source`` says where the verdict came from: ``HUMAN`` for a term the archivist typed, ``RULE``
+    for one the deterministic guard had already refused and the archivist confirmed. The column
+    existed since the table was created and nothing ever wrote ``RULE``; the suggestion route is what
+    makes the distinction real, and it is what lets a later reader tell a judgement from a shape.
+    """
 
     words: list[str] = Field(min_length=1, description="Terms to keep out of the subject classifier.")
     reason: str | None = Field(default=None, description="Why the decision was made; kept for auditing.")
+    source: Literal["HUMAN", "RULE"] = Field(
+        default="HUMAN",
+        description="HUMAN: o arquivista digitou o termo. RULE: veio do guarda determinístico e foi confirmado.",
+    )
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class SubjectExclusionRemovalRequest(BaseModel):
+    """
+    Undoes the decision for the given terms.
+
+    Deliberately **not** ``SubjectExclusionRequest``: removing an exclusion has no provenance to
+    declare — the deletion is its own record — and sharing the model forced a ``source`` the route
+    ignores, which the generated client would then require of every caller.
+    """
+
+    words: list[str] = Field(min_length=1, description="Terms to put back into the subject classifier.")
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class ConflictResolutionResponse(BaseModel):

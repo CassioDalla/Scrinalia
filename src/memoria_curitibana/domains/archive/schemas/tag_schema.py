@@ -467,6 +467,54 @@ class ArchiveMacroCategoryEntityDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class SubjectExclusionSuggestion(BaseModel):
+    """
+    A term the deterministic guard already refuses, with the evidence around it.
+
+    The route does **not** invent a verdict for the terms no rule reaches — ``pessoas``,
+    ``vista aérea``, ``capanema`` are semantic calls, and the measurement says the model cannot
+    abstain on exactly those (asked to choose, it chooses confidently and wrongly). What it does is
+    make the guard's existing verdict legible: it has been silently skipping these terms inside
+    ``worker_macro_category`` while ``source='RULE'`` sat unused in the schema.
+
+    The evidence travels with the candidate because the archivist is deciding, not confirming:
+    ``document_count`` is the weight at stake, ``is_place_term`` says the term has somewhere else to
+    go (the PLACE facet — "not a subject" and "goes nowhere" are different statements), and
+    ``also_an_entity`` says the same spelling lives on the NER axis, which is the collision screen's
+    business rather than this one's.
+    """
+
+    term: str
+    #: Why the guard refuses it: ``PLACEHOLDER``/``YEAR``/``MEASURE``/``STREET``/``PERSON``. For a
+    #: term already recorded by hand, with no shape to report, ``RECORDED`` — the route never invents
+    #: a shape, and the guard's reason stays visible even after the decision was taken.
+    signal: str
+    document_count: int = 0
+    #: The term is a place, so the PLACE facet claims it even though the subject axis does not.
+    is_place_term: bool = False
+    #: The same spelling exists as a named entity: that is a tag x entity collision, not a subject.
+    also_an_entity: bool = False
+    word_count: int = 1
+    #: Already recorded as not-a-subject. The screen shows them apart instead of offering them again.
+    already_excluded: bool = False
+
+
+class SubjectExclusionSuggestionResponse(BaseModel):
+    """The computed candidates, with the totals the screen cannot derive from a page."""
+
+    total: int = 0
+    limit: int = 50
+    offset: int = 0
+    items: list[SubjectExclusionSuggestion] = Field(default_factory=list)
+    #: How many candidates there are in total, before the page, and how many are already recorded.
+    candidate_count: int = 0
+    already_excluded_count: int = 0
+    #: One count per signal, over the whole candidate set.
+    by_signal: dict[str, int] = Field(default_factory=dict)
+    #: How many candidates the PLACE facet claims, so "excluir do assunto" is not read as "discard".
+    place_count: int = 0
+
+
 class ArchiveTagDTO(BaseModel):
     """
     Strict contract for creating Tags (Taxonomy).

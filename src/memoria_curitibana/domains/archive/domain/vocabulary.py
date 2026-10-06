@@ -129,6 +129,38 @@ def is_subject_candidate(term: str) -> bool:
     return not (is_placeholder(term) or is_year(term) or is_measure(term) or is_street(term) or is_person_name(term))
 
 
+#: The guard's verdicts, as codes. Declared once because the suggestion route publishes them and
+#: the screen translates them: a bare string in two places would drift.
+SUBJECT_EXCLUSION_SIGNALS: tuple[str, ...] = ("PLACEHOLDER", "YEAR", "MEASURE", "STREET", "PERSON")
+
+
+def subject_exclusion_signal(term: str) -> str | None:
+    """
+    Which shape of non-subject the guard recognised, or ``None`` when it recognises nothing.
+
+    ``is_subject_candidate`` answers yes/no and is what the classifier obeys; this answers *why*,
+    and it is what the suggestion route publishes. The two share this one function so the reason a
+    term is skipped in the worker is the reason the catalogue shows — the guard's verdicts were
+    applied silently for months, and 1.489 of the 8.155 real tags are refused by it without the
+    archivist being able to see it anywhere.
+
+    Order matters and mirrors ``is_subject_candidate``: a term that is both a year and a street is
+    reported as the first shape that matched, so the two functions can never disagree.
+    """
+    stripped = term.strip()
+    if is_placeholder(stripped):
+        return "PLACEHOLDER"
+    if is_year(stripped):
+        return "YEAR"
+    if is_measure(stripped):
+        return "MEASURE"
+    if is_street(stripped):
+        return "STREET"
+    if is_person_name(stripped):
+        return "PERSON"
+    return None
+
+
 def is_place_term(term: str) -> bool:
     """
     Whether the term is a place, and therefore belongs to the ``PLACE`` facet.
