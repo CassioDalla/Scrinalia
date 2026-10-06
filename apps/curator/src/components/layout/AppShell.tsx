@@ -57,6 +57,14 @@ const NAV: { section: string; items: NavItem[] }[] = [
       { to: "/qualidade/anomalias", label: "Anomalias", hint: "O que o validador marcou" },
     ],
   },
+  {
+    section: "Sistema",
+    items: [
+      { to: "/sistema/workers", label: "Workers de IA", hint: "Presets, filas e execução" },
+      { to: "/sistema/execucoes", label: "Execuções", hint: "O ledger do que rodou" },
+      { to: "/sistema/diagnostico", label: "Diagnóstico", hint: "Banco, modelos e storage" },
+    ],
+  },
 ];
 
 export function AppShell() {

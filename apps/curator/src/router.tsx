@@ -17,6 +17,9 @@ import { NerExclusionsRoute } from "@/routes/NerExclusionsRoute";
 import { NotFoundRoute } from "@/routes/NotFoundRoute";
 import { PlanRoute, validatePlanSearch } from "@/routes/PlanRoute";
 import { SubjectExclusionsRoute } from "@/routes/SubjectExclusionsRoute";
+import { SystemHealthRoute } from "@/routes/SystemHealthRoute";
+import { SystemRunsRoute, validateSystemRunsSearch } from "@/routes/SystemRunsRoute";
+import { SystemWorkersRoute } from "@/routes/SystemWorkersRoute";
 import { TagsRoute, validateTagsSearch } from "@/routes/TagsRoute";
 import { TextTemplatesRoute, validateTextTemplatesSearch } from "@/routes/TextTemplatesRoute";
 import { TreeRoute, validateTreeSearch } from "@/routes/TreeRoute";
@@ -164,6 +167,32 @@ const anomaliesRoute = createRoute({
   validateSearch: validateAnomaliesSearch,
 });
 
+/**
+ * The operational face of the system: which workers exist, how they are configured, what ran.
+ *
+ * A section of its own, not a corner of another screen: the person asking "with which model is this
+ * running?" is not doing archival curation, and mixing the two would put engine names in the middle
+ * of the collection.
+ */
+const systemWorkersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/sistema/workers",
+  component: SystemWorkersRoute,
+});
+
+const systemRunsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/sistema/execucoes",
+  component: SystemRunsRoute,
+  validateSearch: validateSystemRunsSearch,
+});
+
+const systemHealthRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/sistema/diagnostico",
+  component: SystemHealthRoute,
+});
+
 export const router = createRouter({
   routeTree: rootRoute.addChildren([
     inboxRoute,
@@ -184,6 +213,9 @@ export const router = createRouter({
     textTemplatesRoute,
     cleaningRulesRoute,
     anomaliesRoute,
+    systemWorkersRoute,
+    systemRunsRoute,
+    systemHealthRoute,
   ]),
   defaultPreload: "intent",
 });

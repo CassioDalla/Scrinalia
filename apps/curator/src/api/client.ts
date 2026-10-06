@@ -224,6 +224,36 @@ export type DiagnosticIssue = NonNullable<
   paths["/api/v1/hierarchy/diagnostics"]["get"]["parameters"]["query"]
 >["issue"];
 
+// --- The operations panel: the AI workers, their configuration and the execution ledger --------
+
+export type SystemWorkers = components["schemas"]["SystemWorkersResponse"];
+export type WorkerStatus = components["schemas"]["WorkerStatusDTO"];
+export type WorkerSettings = components["schemas"]["WorkerSettingsDTO"];
+export type WorkerSettingsRequest = components["schemas"]["WorkerSettingsRequest"];
+export type WorkerSettingsRevision = components["schemas"]["WorkerSettingsRevisionDTO"];
+export type WorkerSettingsRevisionList = components["schemas"]["WorkerSettingsRevisionListResponse"];
+export type WorkerEngine = components["schemas"]["WorkerEngineDTO"];
+export type WorkerPreset = components["schemas"]["WorkerPresetDTO"];
+export type WorkerRun = components["schemas"]["WorkerRunDTO"];
+export type WorkerRunList = components["schemas"]["WorkerRunListResponse"];
+export type WorkerRunRequest = components["schemas"]["WorkerRunRequest"];
+export type SystemHealth = components["schemas"]["SystemHealthResponse"];
+export type DatabaseHealth = components["schemas"]["DatabaseHealthDTO"];
+export type OllamaHealth = components["schemas"]["OllamaHealthDTO"];
+export type StorageHealth = components["schemas"]["StorageHealthDTO"];
+export type ProcessHealth = components["schemas"]["ProcessHealthDTO"];
+
+/** The run lifecycle, as the contract enumerates it (never a second copy of the vocabulary). */
+export type WorkerRunStatus = WorkerRun["status"];
+
+/**
+ * Where a worker's engine comes from, which is what the screen may offer.
+ *
+ * ``signature``: engine and preset are editable here. ``llm_check_rule``: the engine lives in the
+ * cleaning rule, so the editor must not pretend to own it. ``none``: no model at all.
+ */
+export type EngineSource = WorkerSettings["engine_source"];
+
 export type SearchMode = "lexical" | "semantic";
 
 /** Every filter the collection search accepts; they all live in the URL. */
@@ -1032,4 +1062,84 @@ export async function fetchHierarchyNode(descriptionId: string): Promise<Hierarc
  */
 export async function createHierarchyNode(body: HierarchyNodeCreateRequest): Promise<HierarchyNodeSummary> {
   return unwrap<HierarchyNodeSummary>(await client.POST("/api/v1/hierarchy/nodes", { body }));
+}
+
+// --- The operations panel: read the workers, configure them, run them ---------------------------
+
+/**
+ * The whole panel in one request: nine workers with configuration, queues and last run.
+ *
+ * One request because the API serves it as one; splitting it here would make the screen show
+ * numbers from different moments.
+ */
+export async function fetchSystemWorkers(): Promise<SystemWorkers> {
+  return unwrap<SystemWorkers>(await client.GET("/api/v1/system/workers"));
+}
+
+/** The execution ledger, newest first; the filters are applied server-side. */
+export async function fetchSystemRuns(params: {
+  worker?: string;
+  status?: WorkerRunStatus;
+  limit?: number;
+  offset?: number;
+}): Promise<WorkerRunList> {
+  return unwrap<WorkerRunList>(await client.GET("/api/v1/system/runs", { params: { query: params } }));
+}
+
+/**
+ * Queues one run and answers immediately with the row it created.
+ *
+ * The body carries overrides for this run only. A worker that already has a run in flight answers
+ * 409 — the guarantee is the partial unique index in the database, not a check the screen could do.
+ */
+export async function triggerWorkerRun(worker: string, body: WorkerRunRequest): Promise<WorkerRun> {
+  return unwrap<WorkerRun>(
+    await client.POST("/api/v1/system/workers/{worker_name}/runs", {
+      params: { path: { worker_name: worker } },
+      body,
+    }),
+  );
+}
+
+/** Persists the default engine/preset/batch/options of one worker. */
+export async function saveWorkerSettings(
+  worker: string,
+  body: WorkerSettingsRequest,
+): Promise<WorkerSettings> {
+  return unwrap<WorkerSettings>(
+    await client.PUT("/api/v1/system/workers/{worker_name}/settings", {
+      params: { path: { worker_name: worker } },
+      body,
+    }),
+  );
+}
+
+/** Drops the override so the worker follows the code again; idempotent. */
+export async function clearWorkerSettings(worker: string, changedBy?: string): Promise<WorkerSettings> {
+  return unwrap<WorkerSettings>(
+    await client.DELETE("/api/v1/system/workers/{worker_name}/settings", {
+      params: { path: { worker_name: worker }, query: { changed_by: changedBy ?? null } },
+    }),
+  );
+}
+
+/** Who changed what, when — the audit trail of the worker's configuration. */
+export async function fetchWorkerSettingsRevisions(params: {
+  worker: string;
+  limit?: number;
+  offset?: number;
+}): Promise<WorkerSettingsRevisionList> {
+  return unwrap<WorkerSettingsRevisionList>(
+    await client.GET("/api/v1/system/workers/{worker_name}/settings/revisions", {
+      params: {
+        path: { worker_name: params.worker },
+        query: { limit: params.limit, offset: params.offset },
+      },
+    }),
+  );
+}
+
+/** Database, Ollama (with the models the presets need), object storage and the process. */
+export async function fetchSystemHealth(): Promise<SystemHealth> {
+  return unwrap<SystemHealth>(await client.GET("/api/v1/system/health"));
 }

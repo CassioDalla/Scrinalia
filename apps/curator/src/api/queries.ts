@@ -26,8 +26,12 @@ import {
   fetchSimilarTags,
   fetchStopwords,
   fetchSubjectExclusions,
+  fetchSystemHealth,
+  fetchSystemRuns,
+  fetchSystemWorkers,
   fetchTagRelevance,
   fetchTextTemplates,
+  fetchWorkerSettingsRevisions,
   type DocumentSearch,
   type EntityType,
   type PlanStatus,
@@ -35,6 +39,7 @@ import {
   type ProposalStatus,
   type StopwordsScope,
   type TemplateStatus,
+  type WorkerRunStatus,
 } from "./client";
 
 /** Page sizes: the plan catalogue is ~52 rungs, the diagnostic pages are read one at a time. */
@@ -48,6 +53,9 @@ export const TREE_PAGE_SIZE = 500;
 /** The entity and tag vocabularies are read by weight, so the head of the list is what matters. */
 export const RELEVANCE_PAGE_SIZE = 50;
 export const ANOMALIES_PAGE_SIZE = 20;
+/** The execution ledger only grows, so it pages; the settings trail is short by nature. */
+export const RUNS_PAGE_SIZE = 20;
+export const SETTINGS_REVISIONS_PAGE_SIZE = 10;
 /** The deletion ledger only grows, so it pages like the proposals queue. */
 export const DELETIONS_PAGE_SIZE = 20;
 
@@ -349,6 +357,50 @@ export const queries = {
         fetchDocuments({ status: "NEEDS_REVIEW", limit: ANOMALIES_PAGE_SIZE, offset }),
       staleTime: 15_000,
       placeholderData: (previous) => previous,
+    }),
+
+  // --- The operations panel: the workers, the ledger and the probes ---------------------------
+
+  /**
+   * The catalogue, the effective configuration and the queues, in one request.
+   *
+   * The counts are live but not free — the transfer's counter validates the whole staging table —
+   * so the screen keeps them for 30 s and only shortens that while a run is in flight.
+   */
+  systemWorkers: () =>
+    queryOptions({
+      queryKey: ["system", "workers"],
+      queryFn: fetchSystemWorkers,
+      staleTime: 30_000,
+    }),
+
+  /** The execution ledger, one page at a time; the filters are server-side like the collection's. */
+  systemRuns: (worker: string | undefined, status: WorkerRunStatus | undefined, offset: number) =>
+    queryOptions({
+      queryKey: ["system", "runs", worker ?? "", status ?? "", offset],
+      queryFn: () => fetchSystemRuns({ worker, status, limit: RUNS_PAGE_SIZE, offset }),
+      staleTime: 10_000,
+      placeholderData: (previous) => previous,
+    }),
+
+  /**
+   * The infrastructure probes. Read on demand and kept for 30 s: the Ollama and S3 calls are
+   * network I/O with a two-second ceiling each, so they are not something to refetch on every focus.
+   */
+  systemHealth: () =>
+    queryOptions({
+      queryKey: ["system", "health"],
+      queryFn: fetchSystemHealth,
+      staleTime: 30_000,
+    }),
+
+  /** The audit trail of one worker's configuration, shown next to the editor. */
+  systemSettingsRevisions: (worker: string) =>
+    queryOptions({
+      queryKey: ["system", "settings", "revisions", worker],
+      queryFn: () =>
+        fetchWorkerSettingsRevisions({ worker, limit: SETTINGS_REVISIONS_PAGE_SIZE }),
+      staleTime: 5_000,
     }),
 };
 
