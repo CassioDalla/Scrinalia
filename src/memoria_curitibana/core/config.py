@@ -44,9 +44,6 @@ class Settings(BaseSettings):
     # LLM hosts
     OLLAMA_HOST_URL: str | None = None
 
-    # API consumed by the dashboard
-    API_BASE_URL: str = "http://localhost:8000/"
-
     # Observability
     LOG_DIR: str = "logs"
     LOG_LEVEL: str = "INFO"

@@ -1,4 +1,4 @@
-"""Loguru sinks shared by the API, the workers and the dashboard."""
+"""Loguru sinks shared by the API and the workers."""
 
 import logging
 import sys

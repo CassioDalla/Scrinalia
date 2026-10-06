@@ -97,7 +97,7 @@ def execute(
                 sent_to_review += 1
                 logger.warning(f"⚠️ Doubt! Confidence: {decision.confidence:.2f} | Reason: {decision.reason}")
 
-            # 6. Log Writing in the Generic Queue (For the Streamlit UI to read later)
+            # 6. Log Writing in the Generic Review Queue (read by the curation inbox and the screens)
             new_log = ArchiveAIReviewQueue(
                 anomaly_type=AnomalyType.CROSS_DOMAIN_COLLISION,
                 status=final_status,
