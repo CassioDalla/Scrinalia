@@ -1,4 +1,6 @@
-from sqlalchemy import select
+from typing import Any
+
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from memoria_curitibana.core.database import get_db
@@ -8,6 +10,23 @@ from memoria_curitibana.domains.archive.engines.LLMs.registry import EngineName,
 from memoria_curitibana.domains.archive.models import ArchiveReviewStatus
 from memoria_curitibana.domains.archive.models.governance import AnomalyType, ArchiveAIReviewQueue
 from memoria_curitibana.domains.archive.repository import EntityRepository
+
+
+def count_judged(db: Session, **options: Any) -> int:
+    """
+    Pairs already decided by the judge, read from the review queue.
+
+    This is not the *pending* queue, and it is deliberately not the live trigram scan: that scan
+    compares every tag with every entity and measured 53 s on the real collection. Every decision —
+    auto-resolved or sent to a human — leaves a row in ``archive_ai_review_queue``, so the count is
+    an indexed read of what has been judged.
+    """
+    stmt = (
+        select(func.count())
+        .select_from(ArchiveAIReviewQueue)
+        .where(ArchiveAIReviewQueue.anomaly_type == AnomalyType.CROSS_DOMAIN_COLLISION)
+    )
+    return int(db.scalar(stmt) or 0)
 
 
 def execute(

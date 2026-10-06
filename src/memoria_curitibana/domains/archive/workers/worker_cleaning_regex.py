@@ -1,4 +1,5 @@
 import re
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -10,6 +11,21 @@ from memoria_curitibana.domains.archive.schemas.cleaning_schema import CleaningU
 from memoria_curitibana.domains.archive.worker_stamp import cleaning_rule_stamp
 
 BATCH_SIZE = 500
+
+
+def count_pending(db: Session, **options: Any) -> int:
+    """
+    Documents the next cleaning pass would read, summed over the active ``REWRITE`` rules.
+
+    The unit of this worker is the pair (document, rule): it makes one pass per rule, so a
+    document pending for two rules is two units of work and is counted twice. ``VALIDATE`` rules
+    are excluded for the same reason the worker excludes them — they never rewrite anything.
+    """
+    repository = CleaningRepository(db)
+    return sum(
+        repository.count_unprocessed_documents_for_rule(rule.rule_id, rule.target_column)
+        for rule in repository.get_active_rules(rule_kind="REWRITE")
+    )
 
 
 def execute(db: Session) -> None:

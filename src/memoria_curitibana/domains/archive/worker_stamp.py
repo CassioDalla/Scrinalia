@@ -3,6 +3,11 @@ from typing import Literal
 
 StampStatus = Literal["DONE", "ERROR", "True"]
 
+#: Stamp values that mean the unit failed. ``True`` is the thumbnail worker's failure mark
+#: (``thumbnail_failed``), which predates the ``ERROR`` convention; both mean "do not retry
+#: silently", and the operations panel counts them as one number.
+FAILURE_STAMP_VALUES: tuple[str, ...] = ("ERROR", "True")
+
 
 @dataclass(frozen=True)
 class WorkerStamp:

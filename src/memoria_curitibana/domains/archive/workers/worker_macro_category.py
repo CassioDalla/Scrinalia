@@ -1,3 +1,5 @@
+from typing import Any
+
 from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
@@ -18,6 +20,40 @@ from memoria_curitibana.domains.archive.models import (
 )
 from memoria_curitibana.domains.archive.repository import TagRepository
 from memoria_curitibana.domains.archive.worker_stamp import MACRO_CATEGORY
+
+
+def pending_conditions(categories_map: dict[str, Any], force: bool = False) -> list[ColumnElement[bool]]:
+    """
+    Predicate of the macro-category queue, shared by ``execute`` and the operations panel.
+
+    The unit is the **tag**, not the document. A tag with a drawer already set is out of reach: the
+    worker's queue is ``macro_category_id IS NULL``, so a curator's decision is never rewritten.
+    Without an active drawer the worker cannot classify anything, so the predicate degrades to the
+    orphan backlog — the panel then shows the real queue instead of a comforting zero.
+    """
+    conditions: list[ColumnElement[bool]] = [ArchiveTag.macro_category_id.is_(None)]
+    if force or not categories_map:
+        return conditions
+
+    # A tag whose stamp already carries this label set left the queue, even if it stayed orphan
+    # because the best score was below the threshold. A stamp with a *different* value is pending:
+    # the vocabulary changed under it.
+    fingerprint = label_set_fingerprint(categories_map)
+    conditions.append(
+        or_(
+            ArchiveTag.execution_log.is_(None),
+            ~ArchiveTag.execution_log.has_key(MACRO_CATEGORY.key),
+            func.coalesce(ArchiveTag.execution_log[MACRO_CATEGORY.key].astext, "") != fingerprint,
+        )
+    )
+    return conditions
+
+
+def count_pending(db: Session, force: bool = False, **options: Any) -> int:
+    """Tags the next classification run would read."""
+    categories_map = TagRepository(db).get_active_macro_categories()
+    stmt = select(func.count()).select_from(ArchiveTag).where(*pending_conditions(categories_map, force))
+    return int(db.scalar(stmt) or 0)
 
 
 def execute(
@@ -105,19 +141,7 @@ def execute(
     if excluded_terms:
         logger.info(f"🚫 {len(excluded_terms)} curated subject exclusion(s) will be honoured.")
 
-    where_cond: list[ColumnElement[bool]] = [ArchiveTag.macro_category_id.is_(None)]
-
-    if not force:
-        # A tag whose stamp already carries this label set left the queue, even if it stayed
-        # orphan because the best score was below the threshold. A stamp with a *different*
-        # value is pending: the vocabulary changed under it.
-        where_cond.append(
-            or_(
-                ArchiveTag.execution_log.is_(None),
-                ~ArchiveTag.execution_log.has_key(MACRO_CATEGORY.key),
-                func.coalesce(ArchiveTag.execution_log[MACRO_CATEGORY.key].astext, "") != label_fingerprint,
-            )
-        )
+    where_cond: list[ColumnElement[bool]] = pending_conditions(categories_map, force)
 
     query_count = select(func.count()).select_from(ArchiveTag).where(*where_cond)
     total_tags = db.scalar(query_count)

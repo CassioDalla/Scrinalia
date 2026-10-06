@@ -1,5 +1,6 @@
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from memoria_curitibana.core.database import get_db
@@ -8,9 +9,10 @@ from memoria_curitibana.core.unit_of_work import UnitOfWork
 from memoria_curitibana.domains.archive.domain.hierarchy import build_path
 from memoria_curitibana.domains.archive.domain.hierarchy_code import normalize_reference_code
 from memoria_curitibana.domains.archive.domain.level_catalog import resolve_level_id
-from memoria_curitibana.domains.archive.models import ArchiveReviewStatus
+from memoria_curitibana.domains.archive.models import ArchiveDocument, ArchiveReviewStatus
 from memoria_curitibana.domains.archive.ports.staging_source import StagingRecordSource
 from memoria_curitibana.domains.archive.repository import DocumentRepository, TagRepository
+from memoria_curitibana.domains.archive.repository.governance import ai_writable_documents
 from memoria_curitibana.domains.archive.repository.level_catalog_repo import LevelCatalogRepository
 from memoria_curitibana.domains.archive.repository.staging_source import SqlStagingRecordSource
 from memoria_curitibana.domains.archive.schemas.command_schema import TagLinkCommand
@@ -67,6 +69,33 @@ def _resolve_pending_parents(db_session: Session, doc_repo: DocumentRepository) 
         doc_repo.resolve_hierarchy_parent(description_id, parent.description_id, parent.path)
         linked += 1
     return linked
+
+
+def count_pending(db_session: Session, **options: Any) -> int:
+    """
+    Staging records the next transfer would write.
+
+    The transfer streams every staging row and lets the ``ON CONFLICT`` decide, so the only exact
+    way to count the work is to compute the same CDC key here: a record with no archive row, or
+    whose ``parsed_content_hash`` differs from the archived ``staging_content_hash``, is pending.
+    A document a human approved (or rejected) is not: the upsert refuses to overwrite it.
+
+    This is the heaviest count of the panel — it validates the staging table through the same port
+    the transfer uses, which is the price of not duplicating the hash. It is read once per panel
+    load, never in a loop.
+    """
+    source = SqlStagingRecordSource(db_session)
+    archived = dict(
+        db_session.execute(select(ArchiveDocument.description_id, ArchiveDocument.staging_content_hash)).tuples().all()
+    )
+    protected = set(db_session.scalars(select(ArchiveDocument.description_id).where(~ai_writable_documents())).all())
+
+    pending = 0
+    for record in source.stream(1000):
+        current = archived.get(record.description_id)
+        if current is None or (current != record.parsed_content_hash() and record.description_id not in protected):
+            pending += 1
+    return pending
 
 
 def execute(

@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from memoria_curitibana.domains.archive.engines.base import EntityExtractionEngine
+from memoria_curitibana.domains.archive.engines.base import EntityExtractionEngine, describe_engine_config
 
 from .spacy_engine import SpacyEngine
 
@@ -32,3 +32,8 @@ def get_engine(engine_name: EngineName, preset: PresetName | None = None, **kwar
     final_kwargs.update(kwargs)
 
     return AVAILABLE_ENGINES[engine_name](**final_kwargs)
+
+
+def describe_config(engine_name: EngineName, preset: PresetName | None = None, **overrides: Any) -> dict[str, Any]:
+    """Effective configuration of the requested engine, without loading spaCy's pipeline."""
+    return describe_engine_config(AVAILABLE_ENGINES, PRESETS, engine_name, preset, **overrides)

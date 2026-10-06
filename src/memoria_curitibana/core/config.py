@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     DEBUG: bool = False
 
+    #: How many worker runs the API's background executor accepts at once. One by default: the
+    #: workers are CPU-bound and the pipeline has an order, so a second torch model on the same CPU
+    #: slows the first without producing more.
+    WORKER_RUNTIME_MAX_WORKERS: int = 1
+
     @property
     def DATABASE_URL(self) -> str:
         """DSN with user and password percent-encoded, so odd credentials cannot break the URL."""
@@ -61,6 +66,18 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Cached accessor; tests can isolate configuration with ``get_settings.cache_clear()``."""
     return Settings()
+
+
+#: Host the Ollama-backed engines talk to when neither the caller nor the environment says
+#: otherwise. The presets deliberately do **not** carry a host: it is environment configuration,
+#: not part of a model's identity. Hardcoding it in ``PRESETS`` made ``OLLAMA_HOST_URL`` a lie for
+#: every engine built through a preset — the variable only reached the generic ``OllamaClient``.
+DEFAULT_OLLAMA_HOST = "http://localhost:11434"
+
+
+def resolve_ollama_host(explicit: str | None = None) -> str:
+    """Explicit host wins, then ``OLLAMA_HOST_URL``, then the local default."""
+    return explicit or settings.OLLAMA_HOST_URL or DEFAULT_OLLAMA_HOST
 
 
 settings = get_settings()

@@ -12,10 +12,12 @@ from memoria_curitibana.api.controllers.curation_controller import CurationContr
 from memoria_curitibana.api.controllers.document_controller import DocumentController
 from memoria_curitibana.api.controllers.hierarchy_controller import HierarchyController
 from memoria_curitibana.api.controllers.public_controller import PublicController
+from memoria_curitibana.api.controllers.system_controller import SystemController
 from memoria_curitibana.api.controllers.taxonomy_controller import TaxonomyController
 from memoria_curitibana.api.controllers.text_quality_controller import TextQualityController
 from memoria_curitibana.api.dependencies import provide_unit_of_work
 from memoria_curitibana.api.handlers import domain_exception_handler, integrity_error_handler
+from memoria_curitibana.api.lifespan import application_lifespan
 from memoria_curitibana.api.spa import curator_spa_router
 from memoria_curitibana.core.config import settings
 from memoria_curitibana.core.logger import InterceptHandler, intercept_stdlib_logging
@@ -48,6 +50,7 @@ def create_app() -> Litestar:
         DocumentController,
         HierarchyController,
         PublicController,
+        SystemController,
         TextQualityController,
     ]
 
@@ -61,6 +64,7 @@ def create_app() -> Litestar:
             DomainException: domain_exception_handler,
             IntegrityError: integrity_error_handler,
         },
+        lifespan=[application_lifespan],
         logging_config=_logging_config(),
         debug=settings.DEBUG,
     )

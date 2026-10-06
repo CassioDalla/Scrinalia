@@ -16,6 +16,31 @@ from memoria_curitibana.domains.archive.repository.text_quality_repo import (
 from memoria_curitibana.domains.archive.worker_stamp import EMBEDDING
 
 
+def pending_conditions(db: Session, force: bool = False) -> list[ColumnElement[bool]]:
+    """
+    Predicate of the embedding queue, shared by ``execute`` and the operations panel.
+
+    The stamp is the MD5 of the effective text, so ``IS DISTINCT FROM`` covers both the first run
+    and every later text change in a single predicate. The effective text depends on the approved
+    excerpts, which is why the repository is read here.
+    """
+    rules = TextQualityRepository(db).get_active_rules("EMBEDDING")
+    conditions: list[ColumnElement[bool]] = [
+        ArchiveDocument.review_status != ArchiveReviewStatus.REJECTED,
+    ]
+    if not force:
+        conditions.append(
+            ArchiveDocument.execution_log[EMBEDDING.key].astext.is_distinct_from(embedding_hash_sql(rules))
+        )
+    return conditions
+
+
+def count_pending(db: Session, force: bool = False, **options) -> int:
+    """Documents the next embedding run would embed."""
+    stmt = select(func.count()).select_from(ArchiveDocument).where(*pending_conditions(db, force))
+    return int(db.scalar(stmt) or 0)
+
+
 def execute(
     db: Session,
     engine_name: EngineName = "sentence_transformer",
@@ -87,14 +112,7 @@ def execute(
     text_hash = embedding_hash_sql(rules)
     text_expression = embedding_text_sql(rules)
 
-    where_cond: list[ColumnElement[bool]] = [
-        ArchiveDocument.review_status != ArchiveReviewStatus.REJECTED,
-    ]
-
-    if not force:
-        # NULL (no stamp yet) is DISTINCT FROM the hash, so the condition covers both
-        # the first run and every later text change in a single predicate.
-        where_cond.append(ArchiveDocument.execution_log[EMBEDDING.key].astext.is_distinct_from(text_hash))
+    where_cond: list[ColumnElement[bool]] = pending_conditions(db, force)
 
     total_pending = db.scalar(select(func.count()).select_from(ArchiveDocument).where(*where_cond))
 

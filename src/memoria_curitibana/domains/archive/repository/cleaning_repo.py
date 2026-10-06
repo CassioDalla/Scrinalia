@@ -1,8 +1,9 @@
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.sql.elements import ColumnElement
 
 from memoria_curitibana.domains.archive.domain.governance import DocumentWritePolicy
 from memoria_curitibana.domains.archive.models import ArchiveCleaningRule, ArchiveDocument
@@ -55,6 +56,22 @@ class CleaningRepository:
         self.db.flush()
         return CleaningRuleDTO.model_validate(rule, from_attributes=True)
 
+    def _unprocessed_conditions(self, rule_id: int, target_column: AllowedColumns) -> list[ColumnElement[bool]]:
+        """
+        The predicate of "this document still has to see this rule", defined once.
+
+        Both the batch read and the panel's count go through here, so a change to the governance
+        rule cannot make the screen disagree with the worker.
+        """
+        rule_key = cleaning_rule_stamp(rule_id).key
+        column = getattr(ArchiveDocument, target_column)
+        return [
+            column.is_not(None),
+            ai_writable_documents(),
+            # Either the log does not exist, or if it does, it does not contain the rule key.
+            (ArchiveDocument.execution_log.is_(None)) | (~ArchiveDocument.execution_log.has_key(rule_key)),
+        ]
+
     def get_unprocessed_documents_for_rule(
         self, rule_id: int, target_column: AllowedColumns, limit: int = 500
     ) -> Sequence[CleanableDocumentDTO]:
@@ -65,20 +82,22 @@ class CleaningRepository:
         Documents validated by a human (``HUMAN_APPROVED``) are excluded: the AI must
         never overwrite a human's decision.
         """
-        rule_key = cleaning_rule_stamp(rule_id).key
         column = getattr(ArchiveDocument, target_column)
-
         stmt = (
             select(ArchiveDocument.description_id, column.label("text"))
-            .where(column.is_not(None))
-            .where(ai_writable_documents())
-            .where(
-                # Either the log does not exist, or if it does, it does not contain the rule key
-                (ArchiveDocument.execution_log.is_(None)) | (~ArchiveDocument.execution_log.has_key(rule_key))
-            )
+            .where(*self._unprocessed_conditions(rule_id, target_column))
             .limit(limit)
         )
         return [CleanableDocumentDTO.model_validate(row._mapping) for row in self.db.execute(stmt)]
+
+    def count_unprocessed_documents_for_rule(self, rule_id: int, target_column: AllowedColumns) -> int:
+        """How many documents the next pass of one rule would read."""
+        stmt = (
+            select(func.count())
+            .select_from(ArchiveDocument)
+            .where(*self._unprocessed_conditions(rule_id, target_column))
+        )
+        return int(self.db.scalar(stmt) or 0)
 
     def get_random_sample_for_dry_run(
         self, target_column: AllowedColumns, limit: int = 200

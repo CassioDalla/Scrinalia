@@ -160,3 +160,31 @@ class DocumentHasChildrenError(DomainException):
 
     # Ideal translation in Litestar: HTTP 409 (Conflict)
     pass
+
+
+class WorkerNotFoundError(DomainException):
+    """Raised when the operations panel names a worker the catalogue does not have."""
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
+class WorkerRunNotFoundError(DomainException):
+    """Raised when a run of the execution ledger does not exist."""
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
+class WorkerRunAlreadyActiveError(DomainException):
+    """Raised when a worker already has a run in flight; the database refuses a second one."""
+
+    # Ideal translation in Litestar: HTTP 409 (Conflict)
+    pass
+
+
+class InvalidWorkerSettingsError(DomainException):
+    """Raised when an override names an engine/preset/option the worker cannot accept."""
+
+    # Ideal translation in Litestar: HTTP 422 (Unprocessable Entity)
+    pass

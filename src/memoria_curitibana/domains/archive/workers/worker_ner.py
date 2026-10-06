@@ -4,6 +4,7 @@ from typing import Any, cast
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.sql.elements import ColumnElement
 
 from memoria_curitibana.core.database import get_db
 from memoria_curitibana.core.logger import logger
@@ -91,6 +92,37 @@ def _clean_raw_text(text: str) -> str:
     return text_no_urls.strip()
 
 
+def pending_conditions(columns_to_extract: list[str]) -> list[ColumnElement[bool]]:
+    """
+    Predicate of the NER queue, shared by ``execute`` and the operations panel.
+
+    HUMAN_APPROVED documents are shielded: the AI must not overwrite human curation. A document
+    with no text in any of the extracted columns is skipped because there is nothing to read.
+    """
+    filters_columns = [getattr(ArchiveDocument, col).is_not(None) for col in columns_to_extract]
+    return [
+        ai_writable_documents(),
+        or_(*filters_columns),
+        or_(
+            ArchiveDocument.execution_log.is_(None),
+            ~ArchiveDocument.execution_log.has_key(NER.key),
+        ),
+    ]
+
+
+def count_pending(
+    db: Session,
+    columns_to_extract: list[str] | None = None,
+    config: NerRunnerConfig | None = None,
+    **options: Any,
+) -> int:
+    """Documents the next NER run would read."""
+    resolved = config or NerRunnerConfig()
+    columns = columns_to_extract or list(resolved.columns_to_extract)
+    stmt = select(func.count()).select_from(ArchiveDocument).where(*pending_conditions(columns))
+    return int(db.scalar(stmt) or 0)
+
+
 def execute(
     db: Session,
     engine_name: ExtractEngineName = "spacy_ner",
@@ -162,15 +194,7 @@ def execute(
 
     # 1. Filters (We look for docs that do NOT yet have the NER stamp).
     # HUMAN_APPROVED documents are shielded: the AI must not overwrite human curation.
-    filters_columns = [getattr(ArchiveDocument, col).is_not(None) for col in columns_to_extract]
-    where_cond = [
-        ai_writable_documents(),
-        or_(*filters_columns),
-        or_(
-            ArchiveDocument.execution_log.is_(None),
-            ~ArchiveDocument.execution_log.has_key(NER.key),
-        ),
-    ]
+    where_cond = pending_conditions(columns_to_extract)
 
     # Pre-Query for the logs
     query_count = select(func.count()).select_from(ArchiveDocument).where(*where_cond)

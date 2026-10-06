@@ -23,6 +23,7 @@ from memoria_curitibana.domains.archive.exceptions import (
     InvalidHierarchyPlanError,
     InvalidMergeError,
     InvalidParam,
+    InvalidWorkerSettingsError,
     MacroCategoryNotFoundError,
     MaterialisationAlreadyUndoneError,
     MaterialisationNotFoundError,
@@ -31,6 +32,9 @@ from memoria_curitibana.domains.archive.exceptions import (
     TagMergeProposalNotFoundError,
     TagNotFoundError,
     TextTemplateNotFoundError,
+    WorkerNotFoundError,
+    WorkerRunAlreadyActiveError,
+    WorkerRunNotFoundError,
 )
 
 
@@ -57,6 +61,8 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             HierarchyNodeNotFoundError,
             HierarchyPlanNotFoundError,
             MaterialisationNotFoundError,
+            WorkerNotFoundError,
+            WorkerRunNotFoundError,
         ),
     ):
         status_code = HTTP_404_NOT_FOUND
@@ -68,6 +74,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             DuplicateDescriptionLevelError,
             MaterialisationAlreadyUndoneError,
             DocumentHasChildrenError,
+            WorkerRunAlreadyActiveError,
         ),
     ):
         status_code = HTTP_409_CONFLICT
@@ -82,6 +89,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             InvalidDescriptionLevelError,
             InvalidHierarchyMoveError,
             InvalidHierarchyPlanError,
+            InvalidWorkerSettingsError,
         ),
     ):
         status_code = HTTP_422_UNPROCESSABLE_ENTITY

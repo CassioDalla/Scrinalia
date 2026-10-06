@@ -1,6 +1,7 @@
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.sql.elements import ColumnElement
 
 from memoria_curitibana.core.database import get_db
 from memoria_curitibana.core.logger import logger
@@ -16,6 +17,38 @@ from memoria_curitibana.domains.archive.repository.text_quality_repo import (
     composed_text_sql,
 )
 from memoria_curitibana.domains.archive.worker_stamp import TYPOLOGY
+
+
+def pending_conditions(columns_to_classify: list[str]) -> list[ColumnElement[bool]]:
+    """
+    Predicate of the typology queue, shared by ``execute`` and the operations panel.
+
+    A document that already carries a typology is out, and so is one a human approved: the AI must
+    not reclassify a decision someone made.
+    """
+    filters_columns = [getattr(ArchiveDocument, col).is_not(None) for col in columns_to_classify]
+    return [
+        ArchiveDocument.typology_id.is_(None),
+        ai_writable_documents(),
+        or_(*filters_columns),
+        or_(
+            ArchiveDocument.execution_log.is_(None),
+            ~ArchiveDocument.execution_log.has_key(TYPOLOGY.key),
+        ),
+    ]
+
+
+def count_pending(
+    db: Session,
+    columns_to_classify: list[str] | None = None,
+    config: TypologyRunnerConfig | None = None,
+    **options,
+) -> int:
+    """Documents the next typology run would classify."""
+    resolved = config or TypologyRunnerConfig()
+    columns = columns_to_classify or list(resolved.columns_to_classify)
+    stmt = select(func.count()).select_from(ArchiveDocument).where(*pending_conditions(columns))
+    return int(db.scalar(stmt) or 0)
 
 
 def execute(
@@ -88,17 +121,7 @@ def execute(
     logger.info(f"📂 {len(candidate_labels)} typologies loaded.")
 
     # Fetches the ArchiveDocument class attributes at runtime
-    filters_columns = [getattr(ArchiveDocument, col).is_not(None) for col in columns_to_classify]
-    where_cond = [
-        ArchiveDocument.typology_id.is_(None),
-        # HUMAN_APPROVED documents are shielded from AI reclassification.
-        ai_writable_documents(),
-        or_(*filters_columns),
-        or_(
-            ArchiveDocument.execution_log.is_(None),
-            ~ArchiveDocument.execution_log.has_key(TYPOLOGY.key),
-        ),
-    ]
+    where_cond = pending_conditions(columns_to_classify)
 
     query_count = select(func.count()).select_from(ArchiveDocument).where(*where_cond)
     total_documents = db.scalar(query_count)

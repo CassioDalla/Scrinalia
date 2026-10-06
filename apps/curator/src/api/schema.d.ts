@@ -639,6 +639,109 @@ export interface paths {
         patch: operations["ApiV1QualityTextTemplatesTemplateIdUpdateTemplate"];
         trace?: never;
     };
+    "/api/v1/system/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Health */
+        get: operations["ApiV1SystemHealthHealth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListRuns */
+        get: operations["ApiV1SystemRunsListRuns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/workers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListWorkers */
+        get: operations["ApiV1SystemWorkersListWorkers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/workers/{worker_name}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** TriggerRun */
+        post: operations["ApiV1SystemWorkersWorkerNameRunsTriggerRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/workers/{worker_name}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** UpdateSettings */
+        put: operations["ApiV1SystemWorkersWorkerNameSettingsUpdateSettings"];
+        post?: never;
+        /** ClearSettings */
+        delete: operations["ApiV1SystemWorkersWorkerNameSettingsClearSettings"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/workers/{worker_name}/settings/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListSettingsRevisions */
+        get: operations["ApiV1SystemWorkersWorkerNameSettingsRevisionsListSettingsRevisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/taxonomy/conflicts/cross-domain": {
         parameters: {
             query?: never;
@@ -1290,6 +1393,15 @@ export interface components {
             label: string;
             /** @description Screen that resolves the queue, already filtered. */
             route: string;
+        };
+        /** DatabaseHealthDTO */
+        DatabaseHealthDTO: {
+            detail?: string | null;
+            documents?: number | null;
+            entities?: number | null;
+            ok: boolean;
+            staging_records?: number | null;
+            tags?: number | null;
         };
         /** DescriptionLevelCreateRequest */
         DescriptionLevelCreateRequest: {
@@ -2029,10 +2141,38 @@ export interface components {
             /** @description Terms to keep out of the NER extraction. */
             words: string[];
         };
+        /** OllamaHealthDTO */
+        OllamaHealthDTO: {
+            detail?: string | null;
+            host: string;
+            /** @description De onde o host veio: OLLAMA_HOST_URL ou o default local. */
+            host_source: string;
+            installed_models?: string[];
+            missing_models?: string[];
+            ok: boolean;
+            required_models?: string[];
+        };
         /** OrphanEntityPurgeResponse */
         OrphanEntityPurgeResponse: {
             entities_deleted: number;
             message: string;
+        };
+        /** ProcessHealthDTO */
+        ProcessHealthDTO: {
+            arqdoc_configured: boolean;
+            /** @description host:porta/banco, sem credenciais. */
+            database: string;
+            debug: boolean;
+            log_dir: string;
+            log_level: string;
+            ollama_host_url?: string | null;
+            public_scrape_configured: boolean;
+            s3_bucket_name?: string | null;
+            s3_endpoint_url?: string | null;
+            /** @description Presença (nunca o valor) de cada segredo configurado. */
+            secrets_present?: {
+                [key: string]: boolean;
+            };
         };
         /** PublicAncestorSummary */
         PublicAncestorSummary: {
@@ -2160,6 +2300,14 @@ export interface components {
          * @enum {string}
          */
         StopwordsScope: "TAG" | "ENTITY" | "ALL";
+        /** StorageHealthDTO */
+        StorageHealthDTO: {
+            bucket?: string | null;
+            configured: boolean;
+            detail?: string | null;
+            endpoint?: string | null;
+            ok: boolean;
+        };
         /** SubjectExclusionBanResponse */
         SubjectExclusionBanResponse: {
             created: number;
@@ -2199,6 +2347,21 @@ export interface components {
              * @default 0.05
              */
             min_ratio: number;
+        };
+        /** SystemHealthResponse */
+        SystemHealthResponse: {
+            database: components["schemas"]["DatabaseHealthDTO"];
+            /** Format: date-time */
+            generated_at: string;
+            ollama: components["schemas"]["OllamaHealthDTO"];
+            process: components["schemas"]["ProcessHealthDTO"];
+            storage: components["schemas"]["StorageHealthDTO"];
+        };
+        /** SystemWorkersResponse */
+        SystemWorkersResponse: {
+            /** Format: date-time */
+            generated_at: string;
+            workers?: components["schemas"]["WorkerStatusDTO"][];
         };
         /** TagCurationRequest */
         TagCurationRequest: {
@@ -2410,6 +2573,146 @@ export interface components {
             status?: "SUGGESTED" | "APPROVED" | "REJECTED" | null;
             text?: string | null;
             variants?: string[] | null;
+        };
+        /** WorkerEngineDTO */
+        WorkerEngineDTO: {
+            name: string;
+            presets?: components["schemas"]["WorkerPresetDTO"][];
+        };
+        /** WorkerPresetDTO */
+        WorkerPresetDTO: {
+            config?: {
+                [key: string]: unknown;
+            };
+            name: string;
+        };
+        /** WorkerRunDTO */
+        WorkerRunDTO: {
+            /** @description Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código. */
+            config?: {
+                [key: string]: unknown;
+            };
+            duration_ms?: number | null;
+            engine_name?: string | null;
+            error?: string | null;
+            finished_at?: string | null;
+            preset?: string | null;
+            /** Format: date-time */
+            queued_at: string;
+            /** @description Quem pediu a execução; texto livre até haver auth. */
+            requested_by?: string | null;
+            run_id: number;
+            started_at?: string | null;
+            status: components["schemas"]["WorkerRunStatus"];
+            trigger: components["schemas"]["WorkerRunTrigger"];
+            worker_name: string;
+        };
+        /** WorkerRunListResponse */
+        WorkerRunListResponse: {
+            items?: components["schemas"]["WorkerRunDTO"][];
+            limit: number;
+            offset: number;
+            total: number;
+        };
+        /** WorkerRunRequest */
+        WorkerRunRequest: {
+            db_batch_size?: number | null;
+            engine_name?: string | null;
+            options?: {
+                [key: string]: unknown;
+            };
+            preset?: string | null;
+            requested_by?: string | null;
+        };
+        /**
+         * WorkerRunStatus
+         * @description Lifecycle of one execution of an AI worker.
+         *
+         *         ``QUEUED`` exists so the ledger does not lie about the start time: the executor accepts a
+         *         single run at a time, so a submitted run may wait before it actually starts. ``INTERRUPTED`` is
+         *         written by the next start-up for a row the previous process left behind — without it the row
+         *         would stay ``RUNNING`` forever, and the partial unique index would block that worker for good.
+         * @enum {string}
+         */
+        WorkerRunStatus: "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "INTERRUPTED";
+        /**
+         * WorkerRunTrigger
+         * @description Who asked for the run: the command line or the curator's panel.
+         * @enum {string}
+         */
+        WorkerRunTrigger: "CLI" | "API";
+        /** WorkerSettingsDTO */
+        WorkerSettingsDTO: {
+            available_engines?: components["schemas"]["WorkerEngineDTO"][];
+            config?: {
+                [key: string]: unknown;
+            };
+            db_batch_size?: number | null;
+            engine_name?: string | null;
+            /** @enum {string} */
+            engine_source: "signature" | "llm_check_rule" | "none";
+            note?: string | null;
+            options?: {
+                [key: string]: unknown;
+            };
+            /** @default false */
+            overridden: boolean;
+            preset?: string | null;
+            updated_at?: string | null;
+            updated_by?: string | null;
+            worker_name: string;
+        };
+        /** WorkerSettingsRequest */
+        WorkerSettingsRequest: {
+            changed_by?: string | null;
+            db_batch_size?: number | null;
+            engine_name?: string | null;
+            options?: {
+                [key: string]: unknown;
+            };
+            preset?: string | null;
+        };
+        /** WorkerSettingsRevisionDTO */
+        WorkerSettingsRevisionDTO: {
+            after?: {
+                [key: string]: unknown;
+            } | null;
+            before?: {
+                [key: string]: unknown;
+            } | null;
+            /** Format: date-time */
+            changed_at: string;
+            changed_by?: string | null;
+            revision_id: number;
+            worker_name: string;
+        };
+        /** WorkerSettingsRevisionListResponse */
+        WorkerSettingsRevisionListResponse: {
+            items?: components["schemas"]["WorkerSettingsRevisionDTO"][];
+            total: number;
+        };
+        /** WorkerStatusDTO */
+        WorkerStatusDTO: {
+            active_run?: components["schemas"]["WorkerRunDTO"] | null;
+            description: string;
+            /** @description Unidades cujo carimbo registra falha. */
+            failed?: number | null;
+            /** @description Se o worker respeita o bloqueio de HUMAN_APPROVED/REJECTED. */
+            governed: boolean;
+            label: string;
+            last_run?: components["schemas"]["WorkerRunDTO"] | null;
+            name: string;
+            /** @description Posição na ordem do pipeline. */
+            order: number;
+            /** @description Unidades que a próxima execução leria. Nulo quando a fila não é mensurável barato. */
+            pending?: number | null;
+            /** @description Por que o pendente não é contado. */
+            pending_reason?: string | null;
+            /** @description Unidades que o worker já carimbou. */
+            processed?: number | null;
+            settings: components["schemas"]["WorkerSettingsDTO"];
+            /** @enum {string} */
+            unit: "staging" | "document" | "tag" | "pair";
         };
     };
     responses: never;
@@ -4003,6 +4306,247 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TextTemplateMutationResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1SystemHealthHealth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemHealthResponse"];
+                };
+            };
+        };
+    };
+    ApiV1SystemRunsListRuns: {
+        parameters: {
+            query?: {
+                worker?: string | null;
+                status?: components["schemas"]["WorkerRunStatus"] | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerRunListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1SystemWorkersListWorkers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemWorkersResponse"];
+                };
+            };
+        };
+    };
+    ApiV1SystemWorkersWorkerNameRunsTriggerRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkerRunRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerRunDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1SystemWorkersWorkerNameSettingsUpdateSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkerSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerSettingsDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1SystemWorkersWorkerNameSettingsClearSettings: {
+        parameters: {
+            query?: {
+                changed_by?: string | null;
+            };
+            header?: never;
+            path: {
+                worker_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerSettingsDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1SystemWorkersWorkerNameSettingsRevisionsListSettingsRevisions: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                worker_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerSettingsRevisionListResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

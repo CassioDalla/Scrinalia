@@ -493,6 +493,68 @@
         "title": "CurationQueue",
         "type": "object"
       },
+      "DatabaseHealthDTO": {
+        "properties": {
+          "detail": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "documents": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entities": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "staging_records": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "DatabaseHealthDTO",
+        "type": "object"
+      },
       "DescriptionLevelCreateRequest": {
         "properties": {
           "aliases": {
@@ -3665,6 +3727,55 @@
         "title": "NerExclusionRequest",
         "type": "object"
       },
+      "OllamaHealthDTO": {
+        "properties": {
+          "detail": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "host": {
+            "type": "string"
+          },
+          "host_source": {
+            "description": "De onde o host veio: OLLAMA_HOST_URL ou o default local.",
+            "type": "string"
+          },
+          "installed_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "missing_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "required_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "host",
+          "host_source",
+          "ok"
+        ],
+        "title": "OllamaHealthDTO",
+        "type": "object"
+      },
       "OrphanEntityPurgeResponse": {
         "properties": {
           "entities_deleted": {
@@ -3679,6 +3790,76 @@
           "message"
         ],
         "title": "OrphanEntityPurgeResponse",
+        "type": "object"
+      },
+      "ProcessHealthDTO": {
+        "properties": {
+          "arqdoc_configured": {
+            "type": "boolean"
+          },
+          "database": {
+            "description": "host:porta/banco, sem credenciais.",
+            "type": "string"
+          },
+          "debug": {
+            "type": "boolean"
+          },
+          "log_dir": {
+            "type": "string"
+          },
+          "log_level": {
+            "type": "string"
+          },
+          "ollama_host_url": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "public_scrape_configured": {
+            "type": "boolean"
+          },
+          "s3_bucket_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "s3_endpoint_url": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "secrets_present": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "description": "Presença (nunca o valor) de cada segredo configurado.",
+            "type": "object"
+          }
+        },
+        "required": [
+          "arqdoc_configured",
+          "database",
+          "debug",
+          "log_dir",
+          "log_level",
+          "public_scrape_configured"
+        ],
+        "title": "ProcessHealthDTO",
         "type": "object"
       },
       "PublicAncestorSummary": {
@@ -4151,6 +4332,52 @@
         "title": "StopwordsScope",
         "type": "string"
       },
+      "StorageHealthDTO": {
+        "properties": {
+          "bucket": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "detail": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endpoint": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "configured",
+          "ok"
+        ],
+        "title": "StorageHealthDTO",
+        "type": "object"
+      },
       "SubjectExclusionBanResponse": {
         "properties": {
           "created": {
@@ -4258,6 +4485,54 @@
         },
         "required": [],
         "title": "SuggestTextTemplatesRequest",
+        "type": "object"
+      },
+      "SystemHealthResponse": {
+        "properties": {
+          "database": {
+            "$ref": "#/components/schemas/DatabaseHealthDTO"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "ollama": {
+            "$ref": "#/components/schemas/OllamaHealthDTO"
+          },
+          "process": {
+            "$ref": "#/components/schemas/ProcessHealthDTO"
+          },
+          "storage": {
+            "$ref": "#/components/schemas/StorageHealthDTO"
+          }
+        },
+        "required": [
+          "database",
+          "generated_at",
+          "ollama",
+          "process",
+          "storage"
+        ],
+        "title": "SystemHealthResponse",
+        "type": "object"
+      },
+      "SystemWorkersResponse": {
+        "properties": {
+          "generated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "workers": {
+            "items": {
+              "$ref": "#/components/schemas/WorkerStatusDTO"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at"
+        ],
+        "title": "SystemWorkersResponse",
         "type": "object"
       },
       "TagCurationRequest": {
@@ -5106,6 +5381,584 @@
         },
         "required": [],
         "title": "UpdateTextTemplateRequest",
+        "type": "object"
+      },
+      "WorkerEngineDTO": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "presets": {
+            "items": {
+              "$ref": "#/components/schemas/WorkerPresetDTO"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "WorkerEngineDTO",
+        "type": "object"
+      },
+      "WorkerPresetDTO": {
+        "properties": {
+          "config": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "WorkerPresetDTO",
+        "type": "object"
+      },
+      "WorkerRunDTO": {
+        "properties": {
+          "config": {
+            "additionalProperties": {},
+            "description": "Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código.",
+            "type": "object"
+          },
+          "duration_ms": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "engine_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finished_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preset": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "queued_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "requested_by": {
+            "description": "Quem pediu a execução; texto livre até haver auth.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_id": {
+            "type": "integer"
+          },
+          "started_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkerRunStatus"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/WorkerRunTrigger"
+          },
+          "worker_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "queued_at",
+          "run_id",
+          "status",
+          "trigger",
+          "worker_name"
+        ],
+        "title": "WorkerRunDTO",
+        "type": "object"
+      },
+      "WorkerRunListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkerRunDTO"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "minimum": 1.0,
+            "type": "integer"
+          },
+          "offset": {
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "offset",
+          "total"
+        ],
+        "title": "WorkerRunListResponse",
+        "type": "object"
+      },
+      "WorkerRunRequest": {
+        "properties": {
+          "db_batch_size": {
+            "maximum": 10000,
+            "minimum": 1,
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "engine_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "options": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "preset": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requested_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "title": "WorkerRunRequest",
+        "type": "object"
+      },
+      "WorkerRunStatus": {
+        "description": "\n    Lifecycle of one execution of an AI worker.\n\n    ``QUEUED`` exists so the ledger does not lie about the start time: the executor accepts a\n    single run at a time, so a submitted run may wait before it actually starts. ``INTERRUPTED`` is\n    written by the next start-up for a row the previous process left behind — without it the row\n    would stay ``RUNNING`` forever, and the partial unique index would block that worker for good.\n    ",
+        "enum": [
+          "QUEUED",
+          "RUNNING",
+          "SUCCESS",
+          "FAILED",
+          "INTERRUPTED"
+        ],
+        "title": "WorkerRunStatus",
+        "type": "string"
+      },
+      "WorkerRunTrigger": {
+        "description": "Who asked for the run: the command line or the curator's panel.",
+        "enum": [
+          "CLI",
+          "API"
+        ],
+        "title": "WorkerRunTrigger",
+        "type": "string"
+      },
+      "WorkerSettingsDTO": {
+        "properties": {
+          "available_engines": {
+            "items": {
+              "$ref": "#/components/schemas/WorkerEngineDTO"
+            },
+            "type": "array"
+          },
+          "config": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "db_batch_size": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "engine_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "engine_source": {
+            "enum": [
+              "signature",
+              "llm_check_rule",
+              "none"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "options": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "overridden": {
+            "default": false,
+            "type": "boolean"
+          },
+          "preset": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "worker_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "engine_source",
+          "worker_name"
+        ],
+        "title": "WorkerSettingsDTO",
+        "type": "object"
+      },
+      "WorkerSettingsRequest": {
+        "properties": {
+          "changed_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "db_batch_size": {
+            "maximum": 10000,
+            "minimum": 1,
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "engine_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "options": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "preset": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "title": "WorkerSettingsRequest",
+        "type": "object"
+      },
+      "WorkerSettingsRevisionDTO": {
+        "properties": {
+          "after": {
+            "oneOf": [
+              {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "before": {
+            "oneOf": [
+              {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "changed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "changed_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision_id": {
+            "type": "integer"
+          },
+          "worker_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "changed_at",
+          "revision_id",
+          "worker_name"
+        ],
+        "title": "WorkerSettingsRevisionDTO",
+        "type": "object"
+      },
+      "WorkerSettingsRevisionListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkerSettingsRevisionDTO"
+            },
+            "type": "array"
+          },
+          "total": {
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "WorkerSettingsRevisionListResponse",
+        "type": "object"
+      },
+      "WorkerStatusDTO": {
+        "properties": {
+          "active_run": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorkerRunDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "failed": {
+            "description": "Unidades cujo carimbo registra falha.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "governed": {
+            "description": "Se o worker respeita o bloqueio de HUMAN_APPROVED/REJECTED.",
+            "type": "boolean"
+          },
+          "label": {
+            "type": "string"
+          },
+          "last_run": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorkerRunDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "order": {
+            "description": "Posição na ordem do pipeline.",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "pending": {
+            "description": "Unidades que a próxima execução leria. Nulo quando a fila não é mensurável barato.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pending_reason": {
+            "description": "Por que o pendente não é contado.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "processed": {
+            "description": "Unidades que o worker já carimbou.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "settings": {
+            "$ref": "#/components/schemas/WorkerSettingsDTO"
+          },
+          "unit": {
+            "enum": [
+              "staging",
+              "document",
+              "tag",
+              "pair"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "governed",
+          "label",
+          "name",
+          "order",
+          "settings",
+          "unit"
+        ],
+        "title": "WorkerStatusDTO",
         "type": "object"
       }
     }
@@ -8786,6 +9639,523 @@
         "summary": "UpdateTemplate",
         "tags": [
           "Data Quality"
+        ]
+      }
+    },
+    "/api/v1/system/health": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemHealthHealth",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemHealthResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/runs": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemRunsListRuns",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "worker",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/WorkerRunStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunListResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListRuns",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/workers": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemWorkersListWorkers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemWorkersResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ListWorkers",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/workers/{worker_name}/runs": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemWorkersWorkerNameRunsTriggerRun",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "worker_name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkerRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDTO"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "TriggerRun",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/workers/{worker_name}/settings": {
+      "delete": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemWorkersWorkerNameSettingsClearSettings",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "worker_name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "changed_by",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerSettingsDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ClearSettings",
+        "tags": [
+          "System"
+        ]
+      },
+      "put": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemWorkersWorkerNameSettingsUpdateSettings",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "worker_name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkerSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerSettingsDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "UpdateSettings",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/workers/{worker_name}/settings/revisions": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemWorkersWorkerNameSettingsRevisionsListSettingsRevisions",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "worker_name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerSettingsRevisionListResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListSettingsRevisions",
+        "tags": [
+          "System"
         ]
       }
     },

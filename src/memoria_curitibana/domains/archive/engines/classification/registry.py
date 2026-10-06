@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from ..base import TypologyEngine
+from ..base import TypologyEngine, describe_engine_config
 from .deberta_typology import DebertaEngine
 from .ollama_typology import OllamaTypologyEngine
 
@@ -44,3 +44,8 @@ def get_engine(engine_name: EngineName, preset: PresetName | None = None, **kwar
 
     # 3. Instantiates the engine by unpacking the final combined dictionary
     return AVAILABLE_ENGINES[engine_name](**final_kwargs)
+
+
+def describe_config(engine_name: EngineName, preset: PresetName | None = None, **overrides: Any) -> dict[str, Any]:
+    """Effective configuration of the requested engine, without importing transformers."""
+    return describe_engine_config(AVAILABLE_ENGINES, PRESETS, engine_name, preset, **overrides)

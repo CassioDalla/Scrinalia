@@ -77,3 +77,33 @@ class AnomalyReason(enum.StrEnum):
     RULE_MATCH = "RULE_MATCH"
     #: The optional language-model check considered the title suspicious.
     LLM_SUSPECT = "LLM_SUSPECT"
+
+
+class WorkerRunStatus(enum.StrEnum):
+    """
+    Lifecycle of one execution of an AI worker.
+
+    ``QUEUED`` exists so the ledger does not lie about the start time: the executor accepts a
+    single run at a time, so a submitted run may wait before it actually starts. ``INTERRUPTED`` is
+    written by the next start-up for a row the previous process left behind — without it the row
+    would stay ``RUNNING`` forever, and the partial unique index would block that worker for good.
+    """
+
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    INTERRUPTED = "INTERRUPTED"
+
+
+class WorkerRunTrigger(enum.StrEnum):
+    """Who asked for the run: the command line or the curator's panel."""
+
+    CLI = "CLI"
+    API = "API"
+
+
+#: Statuses that mean "this worker has a run in flight". The partial unique index on
+#: ``archive_worker_runs`` uses exactly this set, so a second run cannot be queued for the same
+#: worker — the guarantee is in the database, not in a process-local lock that a reload would drop.
+ACTIVE_WORKER_RUN_STATUSES: tuple[WorkerRunStatus, ...] = (WorkerRunStatus.QUEUED, WorkerRunStatus.RUNNING)

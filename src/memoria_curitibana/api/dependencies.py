@@ -5,6 +5,7 @@ from functools import lru_cache
 
 from litestar.di import NamedDependency
 
+from memoria_curitibana.api.worker_runtime import provide_worker_runtime
 from memoria_curitibana.core.database import create_session
 from memoria_curitibana.core.unit_of_work import UnitOfWork
 from memoria_curitibana.domains.archive.engines.base import EmbeddingEngine
@@ -28,6 +29,8 @@ from memoria_curitibana.domains.archive.services.hierarchy_service import Hierar
 from memoria_curitibana.domains.archive.services.level_catalog_service import LevelCatalogService
 from memoria_curitibana.domains.archive.services.tag_service import TagService
 from memoria_curitibana.domains.archive.services.text_quality_service import TextQualityService
+from memoria_curitibana.domains.archive.services.worker_operations_service import WorkerOperationsService
+from memoria_curitibana.domains.archive.services.worker_run_service import WorkerRunService
 
 
 @lru_cache(maxsize=1)
@@ -128,3 +131,18 @@ def provide_hierarchy_materialisation_service(
     repo = HierarchyRepository(db)
     catalog = LevelCatalogRepository(db)
     return HierarchyMaterialisationService(repo, catalog, HierarchyProposalService(repo, catalog))
+
+
+def provide_worker_operations_service(unit_of_work: NamedDependency[UnitOfWork]) -> WorkerOperationsService:
+    """Builds the operations read model over the request transaction; it only reads settings."""
+    return WorkerOperationsService(unit_of_work.db)
+
+
+def provide_worker_run_service(unit_of_work: NamedDependency[UnitOfWork]) -> WorkerRunService:
+    """
+    Builds the trigger/ledger service.
+
+    The runtime is the process-wide executor; the ledger writes through its own committed sessions,
+    which is what lets the background thread see the queued row before the request transaction ends.
+    """
+    return WorkerRunService(unit_of_work.db, provide_worker_runtime())

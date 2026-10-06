@@ -132,6 +132,30 @@ def evaluate_document(
     return reasons
 
 
+def pending_conditions(force: bool = False) -> list[ColumnElement[bool]]:
+    """
+    Predicate of the quality-validator queue, shared by ``execute`` and the operations panel.
+
+    ``force`` re-reads every ai-writable document; the default only reads the ones without the
+    stamp, so a second run of the worker is free.
+    """
+    if force:
+        return [ai_writable_documents()]
+    return [
+        ai_writable_documents(),
+        or_(
+            ArchiveDocument.execution_log.is_(None),
+            ~ArchiveDocument.execution_log.has_key(QUALITY_VALIDATOR.key),
+        ),
+    ]
+
+
+def count_pending(db: Session, force: bool = False, **options: Any) -> int:
+    """Documents the next validation run would read."""
+    stmt = select(func.count()).select_from(ArchiveDocument).where(*pending_conditions(force))
+    return int(db.scalar(stmt) or 0)
+
+
 def execute(
     db: Session,
     db_batch_size: int = 64,
@@ -189,15 +213,7 @@ def execute(
         .exists()
     )
 
-    where_cond: list[ColumnElement[bool]] = [
-        ai_writable_documents(),
-        or_(
-            ArchiveDocument.execution_log.is_(None),
-            ~ArchiveDocument.execution_log.has_key(QUALITY_VALIDATOR.key),
-        ),
-    ]
-    if force:
-        where_cond = [ai_writable_documents()]
+    where_cond: list[ColumnElement[bool]] = pending_conditions(force)
 
     pending = db.scalar(select(func.count()).select_from(ArchiveDocument).where(*where_cond))
     if not pending:

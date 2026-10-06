@@ -1,11 +1,13 @@
 import time
 from io import BytesIO
+from typing import Any
 
 import requests
 from PIL import Image
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.sql.elements import ColumnElement
 
 from memoria_curitibana.core.database import get_db
 from memoria_curitibana.core.logger import logger
@@ -15,6 +17,44 @@ from memoria_curitibana.domains.archive.models import ArchiveDocument
 from memoria_curitibana.domains.archive.ports.storage import ThumbnailStoragePort
 from memoria_curitibana.domains.archive.repository.governance import ai_writable_documents
 from memoria_curitibana.domains.archive.worker_stamp import THUMBNAIL_FAILED
+
+
+def pending_conditions() -> list[ColumnElement[bool]]:
+    """
+    Predicate of the thumbnail queue, shared by ``execute`` and the operations panel.
+
+    The unit is the description, but the ledger is the storage URI and not the ``thumbnail``
+    stamp: a document leaves the queue when its miniatures is actually in the bucket. The
+    permanent-failure mark is the ``thumbnail_failed`` stamp.
+    """
+    return [
+        ArchiveDocument.original_thumbnail_url.is_not(None),
+        ArchiveDocument.storage_thumbnail_uri.is_(None),
+        ai_writable_documents(),
+        ~ArchiveDocument.execution_log.has_key(THUMBNAIL_FAILED.key),
+    ]
+
+
+def count_pending(db: Session, **options: Any) -> int:
+    """Documents the next thumbnail run would download."""
+    stmt = select(func.count()).select_from(ArchiveDocument).where(*pending_conditions())
+    return int(db.scalar(stmt) or 0)
+
+
+def count_processed(db: Session, **options: Any) -> int:
+    """Documents whose miniatures is already in the storage."""
+    stmt = select(func.count()).select_from(ArchiveDocument).where(ArchiveDocument.storage_thumbnail_uri.is_not(None))
+    return int(db.scalar(stmt) or 0)
+
+
+def count_failed(db: Session, **options: Any) -> int:
+    """Documents marked as permanently failed, so the worker will not retry them."""
+    stmt = (
+        select(func.count())
+        .select_from(ArchiveDocument)
+        .where(ArchiveDocument.execution_log.has_key(THUMBNAIL_FAILED.key))
+    )
+    return int(db.scalar(stmt) or 0)
 
 
 def download_image_to_memory(url: str) -> BytesIO | None:
@@ -71,12 +111,7 @@ def execute(db: Session, storage: ThumbnailStoragePort | None = None) -> None:
 
     # Fetches images that have not yet been uploaded AND that have not failed permanently.
     # HUMAN_APPROVED documents are left untouched.
-    query = select(ArchiveDocument).where(
-        ArchiveDocument.original_thumbnail_url.is_not(None)
-        & ArchiveDocument.storage_thumbnail_uri.is_(None)
-        & ai_writable_documents()
-        & ~ArchiveDocument.execution_log.has_key(THUMBNAIL_FAILED.key)
-    )
+    query = select(ArchiveDocument).where(*pending_conditions())
 
     pending_documents = db.scalars(query).yield_per(50)
 
