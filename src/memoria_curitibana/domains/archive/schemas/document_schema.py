@@ -142,6 +142,10 @@ class DocumentFacets(BaseModel):
     macro_category: list[FacetCount] = Field(default_factory=list)
     entity_type: list[FacetCount] = Field(default_factory=list)
     level: list[FacetCount] = Field(default_factory=list)
+    #: Why the quality validator flagged the descriptions. It is **curation metadata**, and the
+    #: public projection refuses it on purpose (``NOT_PUBLIC_FACETS``): the diffusion surface has no
+    #: business publishing how many records are missing a date.
+    anomaly_reason: list[FacetCount] = Field(default_factory=list)
 
 
 class DocumentMacroCategorySummary(BaseModel):

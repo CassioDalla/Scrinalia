@@ -51,6 +51,7 @@ class DocumentController(Controller):
         date_to: FromQuery[date | None] = None,
         status: FromQuery[ArchiveReviewStatus | None] = None,
         is_anomaly: FromQuery[bool | None] = None,
+        anomaly_reason: FromQuery[str | None] = None,
         limit: FromQuery[int] = 50,
         offset: FromQuery[int] = 0,
     ) -> DocumentListResponse:
@@ -73,6 +74,7 @@ class DocumentController(Controller):
                 date_to=date_to,
                 status=status,
                 is_anomaly=is_anomaly,
+                anomaly_reason=anomaly_reason,
                 limit=limit,
                 offset=offset,
             )

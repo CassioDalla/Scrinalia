@@ -175,3 +175,110 @@ def test_typology_facet_ignores_documents_without_a_typology(db_session, generat
 
     assert total == 2
     assert [(item.key, item.count) for item in facets.typology] == [("1", 1)]
+
+
+# ==========================================
+# ANOMALY REASONS: A FACET OVER A MIXED COLUMN
+# ==========================================
+
+
+def _flag(db_session, doc, reasons: list[str]) -> None:
+    """Writes the two columns the validator writes, so the fixture matches production."""
+    doc.anomaly_reasons = reasons
+    doc.is_anomaly = bool(reasons)
+    db_session.flush()
+
+
+def test_the_anomaly_facet_groups_by_code_and_names_the_rule(db_session, generate_archive_doc):
+    """
+    ``anomaly_reasons`` mixes a stable code with an optional payload, and the bucket is the code.
+
+    ``RULE_MATCH`` is the exception: the rule's name *is* the payload, and a rule is a catalogue
+    entry the archivist maintains — "which rule flagged this?" is the question the screen exists to
+    answer. So that one keeps its payload in the key.
+    """
+    first = generate_archive_doc(description_id="a1", original_title="Sem data")
+    second = generate_archive_doc(description_id="a2", original_title="Sem tags")
+    third = generate_archive_doc(description_id="a3", original_title="Tudo junto")
+
+    _flag(db_session, first, ["MISSING_DATE"])
+    _flag(db_session, second, ["NO_TAGS", "RULE_MATCH:data fora do intervalo"])
+    _flag(db_session, third, ["MISSING_DATE", "NO_TAGS", "RULE_MATCH:data fora do intervalo"])
+
+    _, total, facets = DocumentRepository(db_session).search(DocumentSearchQuery())
+
+    assert total == 3
+    assert {(item.key, item.count) for item in facets.anomaly_reason} == {
+        ("MISSING_DATE", 2),
+        ("NO_TAGS", 2),
+        ("RULE_MATCH:data fora do intervalo", 2),
+    }
+
+
+def test_the_free_text_of_an_llm_check_collapses_to_its_code(db_session, generate_archive_doc):
+    """
+    A facet over the model's prose would be a long tail of buckets that never repeat.
+
+    ``LLM_SUSPECT:<reason>`` carries free text the model wrote about one title, so the bucket is the
+    code: the archivist filters "the model found this suspicious" and reads the text on the card.
+    """
+    first = generate_archive_doc(description_id="l1", original_title="A")
+    second = generate_archive_doc(description_id="l2", original_title="B")
+    _flag(db_session, first, ["LLM_SUSPECT:título genérico demais"])
+    _flag(db_session, second, ["LLM_SUSPECT:parece um boilerplate de origem"])
+
+    _, _, facets = DocumentRepository(db_session).search(DocumentSearchQuery())
+
+    assert {(item.key, item.count) for item in facets.anomaly_reason} == {("LLM_SUSPECT", 2)}
+
+
+def test_selecting_a_reason_does_not_zero_its_own_options(db_session, generate_archive_doc):
+    """The sidebar rule holds for the new dimension too, or the filter is a dead end."""
+    first = generate_archive_doc(description_id="r1", original_title="A")
+    second = generate_archive_doc(description_id="r2", original_title="B")
+    _flag(db_session, first, ["MISSING_DATE"])
+    _flag(db_session, second, ["NO_TAGS"])
+
+    _, total, facets = DocumentRepository(db_session).search(DocumentSearchQuery(anomaly_reason="MISSING_DATE"))
+
+    assert total == 1
+    # Both buckets still show: the archivist can switch to the other reason without clearing first.
+    assert {(item.key, item.count) for item in facets.anomaly_reason} == {("MISSING_DATE", 1), ("NO_TAGS", 1)}
+
+
+def test_the_reason_filter_accepts_the_key_the_facet_shows(db_session, generate_archive_doc):
+    """
+    The key the sidebar offers is a key the route accepts.
+
+    The filter and the facet share one expression for the bucket, so a screen cannot render a bucket
+    the search refuses — which is what a hand-written ``split_part`` in either place would allow.
+    """
+    first = generate_archive_doc(description_id="k1", original_title="A")
+    second = generate_archive_doc(description_id="k2", original_title="B")
+    third = generate_archive_doc(description_id="k3", original_title="C")
+    _flag(db_session, first, ["RULE_MATCH:data fora do intervalo"])
+    _flag(db_session, second, ["RULE_MATCH:outra regra"])
+    _flag(db_session, third, ["MISSING_DATE"])
+
+    _, total, facets = DocumentRepository(db_session).search(
+        DocumentSearchQuery(anomaly_reason="RULE_MATCH:data fora do intervalo")
+    )
+
+    assert total == 1
+    assert {item.key for item in facets.anomaly_reason} == {
+        "RULE_MATCH:data fora do intervalo",
+        "RULE_MATCH:outra regra",
+        "MISSING_DATE",
+    }
+
+
+def test_documents_without_reasons_are_not_counted(db_session, generate_archive_doc):
+    """A clean description belongs to no bucket — ``NULL`` is not a reason."""
+    generate_archive_doc(description_id="c1", original_title="Limpa")
+    flagged = generate_archive_doc(description_id="c2", original_title="Marcada")
+    _flag(db_session, flagged, ["NO_ENTITIES"])
+
+    _, total, facets = DocumentRepository(db_session).search(DocumentSearchQuery())
+
+    assert total == 2
+    assert {(item.key, item.count) for item in facets.anomaly_reason} == {("NO_ENTITIES", 1)}

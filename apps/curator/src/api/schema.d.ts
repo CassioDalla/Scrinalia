@@ -1720,6 +1720,7 @@ export interface components {
         };
         /** DocumentFacets */
         DocumentFacets: {
+            anomaly_reason?: components["schemas"]["FacetCount"][];
             entity_type?: components["schemas"]["FacetCount"][];
             level?: components["schemas"]["FacetCount"][];
             macro_category?: components["schemas"]["FacetCount"][];
@@ -2455,9 +2456,16 @@ export interface components {
             level?: string | null;
             title?: string | null;
         };
+        /** PublicDocumentFacets */
+        PublicDocumentFacets: {
+            entity_type?: components["schemas"]["FacetCount"][];
+            level?: components["schemas"]["FacetCount"][];
+            macro_category?: components["schemas"]["FacetCount"][];
+            typology?: components["schemas"]["FacetCount"][];
+        };
         /** PublicDocumentListResponse */
         PublicDocumentListResponse: {
-            facets?: components["schemas"]["DocumentFacets"];
+            facets?: components["schemas"]["PublicDocumentFacets"];
             items: components["schemas"]["PublicDocumentSummary"][];
             limit: number;
             offset: number;
@@ -3054,6 +3062,7 @@ export interface operations {
                 date_to?: string | null;
                 status?: components["schemas"]["ArchiveReviewStatus"] | null;
                 is_anomaly?: boolean | null;
+                anomaly_reason?: string | null;
                 limit?: number;
                 offset?: number;
             };

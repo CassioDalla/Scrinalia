@@ -42,6 +42,12 @@ class DocumentSearchQuery(BaseModel):
     #: a screen the search cannot produce would be a dead end.
     status: ArchiveReviewStatus | None = Field(default=None, description="Only descriptions in this review state.")
     is_anomaly: bool | None = Field(default=None, description="Only flagged, or only clean, descriptions.")
+    anomaly_reason: str | None = Field(
+        default=None,
+        description="Only descriptions flagged for this reason, as the facet key names it: a bare code "
+        "('NO_TAGS', 'LLM_SUSPECT') or a code with its payload when the payload is a catalogue entry "
+        "('RULE_MATCH:nome da regra'). The free text of an LLM check is never a key.",
+    )
     #: Diffusion gate, applied by the public surface and never exposed to it as a parameter: the
     #: public controller sets it to ``True`` server-side, so a client cannot ask to see unpublished
     #: records by flipping a query string. It is a *filter*, not a facet, so it constrains every

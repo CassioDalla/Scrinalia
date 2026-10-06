@@ -2,7 +2,7 @@ import re
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import Float, and_, bindparam, case, delete, exists, func, or_, select
+from sqlalchemy import Float, and_, bindparam, case, delete, exists, func, or_, select, true
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.attributes import flag_modified
@@ -21,6 +21,7 @@ from memoria_curitibana.domains.archive.exceptions import (
     TagNotFoundError,
 )
 from memoria_curitibana.domains.archive.models import (
+    AnomalyReason,
     ArchiveDescriptionLevel,
     ArchiveDocument,
     ArchiveDocumentDeletion,
@@ -82,6 +83,34 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, date | datetime):
         return value.isoformat()
     return value
+
+
+def _anomaly_reasons_table() -> Any:
+    """
+    The document's reasons as one row each, correlated with the document in the outer query.
+
+    ``unnest`` has to live in a FROM clause, not in the SELECT list: PostgreSQL refuses a CASE over a
+    set-returning function ("argument of CASE/WHEN must not return a set"). Written as a table-valued
+    function it is implicitly LATERAL in PostgreSQL, so it reads the outer document's array without
+    an explicit join condition.
+    """
+    # ``render_derived`` is what makes the alias carry its column list — without it the SQL reads
+    # ``unnest(...) AS anon_1`` and the column keeps the function's own name, so a reference to
+    # ``anon_1.reason`` does not resolve.
+    return func.unnest(ArchiveDocument.anomaly_reasons).table_valued("reason").render_derived().lateral()
+
+
+def _anomaly_reason_key(reason: Any) -> Any:
+    """
+    The bucket a stored anomaly reason belongs to.
+
+    The column mixes a stable code with an optional payload — ``RULE_MATCH:<rule name>`` and
+    ``LLM_SUSPECT:<free text from the model>`` — so the raw value is not a facet dimension. This is
+    the one definition of the key, used by the facet that groups and by the filter that selects, so
+    the sidebar cannot offer a bucket the route refuses to filter.
+    """
+    code = func.split_part(reason, ":", 1)
+    return case((code == AnomalyReason.RULE_MATCH.value, reason), else_=code)
 
 
 class DocumentRepository:
@@ -373,6 +402,17 @@ class DocumentRepository:
             filters.append(ArchiveDocument.review_status == query.status)
         if query.is_anomaly is not None:
             filters.append(ArchiveDocument.is_anomaly.is_(query.is_anomaly))
+        if query.anomaly_reason is not None and "anomaly_reason" not in exclude:
+            # The same key expression the facet groups by, so a key the sidebar shows is a key the
+            # filter accepts — a screen that offered a bucket the route could not filter would be a
+            # dead end. ``EXISTS unnest`` keeps it a predicate on the document, not a join that
+            # multiplies rows.
+            reasons = _anomaly_reasons_table()
+            filters.append(
+                exists(
+                    select(1).select_from(reasons).where(_anomaly_reason_key(reasons.c.reason) == query.anomaly_reason)
+                )
+            )
         if query.macro_category_id is not None and "macro_category" not in exclude:
             filters.append(
                 exists(
@@ -430,7 +470,39 @@ class DocumentRepository:
             macro_category=self._macro_category_facet(clauses_for("macro_category")),
             entity_type=self._entity_type_facet(clauses_for("entity_type")),
             level=self._level_facet(clauses_for("level")),
+            anomaly_reason=self._anomaly_reason_facet(clauses_for("anomaly_reason")),
         )
+
+    def _anomaly_reason_facet(self, clauses: list[Any]) -> list[FacetCount]:
+        """
+        Counts the descriptions per reason the validator wrote, over the whole filtered set.
+
+        The bucket key is the reason **code**, except for ``RULE_MATCH``, where the rule's name is
+        part of the key: a rule is a catalogue entry the archivist maintains, and "which rule flagged
+        this?" is exactly the question the screen has to answer. ``LLM_SUSPECT`` carries free text
+        from the model, so it collapses to the code — a facet over prose would produce a long tail of
+        buckets that never repeat.
+
+        ``unnest`` makes one row per (document, reason), which is the correct facet arithmetic here:
+        a description flagged for three reasons counts once in each of the three buckets, exactly
+        like a description carrying two tags counts in both drawers. No ``DISTINCT`` is needed
+        because ``anomaly_reasons`` holds distinct codes — the validator appends each once.
+        """
+        reasons = _anomaly_reasons_table()
+        key = _anomaly_reason_key(reasons.c.reason)
+
+        stmt = (
+            select(key.label("reason_key"), func.count())
+            .select_from(ArchiveDocument)
+            # LATERAL and an explicit ``ON true``: the function reads the document's own array, and
+            # saying so is what keeps SQLAlchemy from reporting a cartesian product it cannot see
+            # through.
+            .join(reasons, true())
+            .where(ArchiveDocument.anomaly_reasons.is_not(None), *clauses)
+            .group_by(key)
+        )
+        rows = sorted(self.db.execute(stmt).all(), key=lambda row: (-int(row[1]), str(row[0])))
+        return [FacetCount(key=str(key_value), label=str(key_value), count=int(count)) for key_value, count in rows]
 
     def _typology_facet(self, clauses: list[Any]) -> list[FacetCount]:
         stmt = (

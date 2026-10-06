@@ -21,7 +21,11 @@ from litestar.di import NamedDependency, Provide
 from litestar.params import FromPath, FromQuery
 
 from memoria_curitibana.api.dependencies import provide_document_service
-from memoria_curitibana.api.schemas.public import PublicDocumentListResponse, PublicDocumentSummary
+from memoria_curitibana.api.schemas.public import (
+    PublicDocumentFacets,
+    PublicDocumentListResponse,
+    PublicDocumentSummary,
+)
 from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
 from memoria_curitibana.domains.archive.services.document_service import DocumentService
 
@@ -73,7 +77,7 @@ class PublicController(Controller):
             limit=page.limit,
             offset=page.offset,
             items=[PublicDocumentSummary.from_summary(item) for item in page.items],
-            facets=page.facets,
+            facets=PublicDocumentFacets.from_facets(page.facets),
         )
 
     @get("/documents/{description_id:str}", sync_to_thread=True)

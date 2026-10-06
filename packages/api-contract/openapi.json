@@ -1415,6 +1415,12 @@
       },
       "DocumentFacets": {
         "properties": {
+          "anomaly_reason": {
+            "items": {
+              "$ref": "#/components/schemas/FacetCount"
+            },
+            "type": "array"
+          },
           "entity_type": {
             "items": {
               "$ref": "#/components/schemas/FacetCount"
@@ -4553,10 +4559,41 @@
         "title": "PublicAncestorSummary",
         "type": "object"
       },
+      "PublicDocumentFacets": {
+        "properties": {
+          "entity_type": {
+            "items": {
+              "$ref": "#/components/schemas/FacetCount"
+            },
+            "type": "array"
+          },
+          "level": {
+            "items": {
+              "$ref": "#/components/schemas/FacetCount"
+            },
+            "type": "array"
+          },
+          "macro_category": {
+            "items": {
+              "$ref": "#/components/schemas/FacetCount"
+            },
+            "type": "array"
+          },
+          "typology": {
+            "items": {
+              "$ref": "#/components/schemas/FacetCount"
+            },
+            "type": "array"
+          }
+        },
+        "required": [],
+        "title": "PublicDocumentFacets",
+        "type": "object"
+      },
       "PublicDocumentListResponse": {
         "properties": {
           "facets": {
-            "$ref": "#/components/schemas/DocumentFacets"
+            "$ref": "#/components/schemas/PublicDocumentFacets"
           },
           "items": {
             "items": {
@@ -6946,6 +6983,24 @@
               "oneOf": [
                 {
                   "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "anomaly_reason",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
                 },
                 {
                   "type": "null"

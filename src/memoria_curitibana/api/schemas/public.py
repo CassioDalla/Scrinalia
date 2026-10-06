@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from memoria_curitibana.domains.archive.schemas.document_schema import (
     DocumentFacets,
     DocumentSummary,
+    FacetCount,
 )
 
 #: Fields of ``DocumentSummary`` that are deliberately **not** published. Kept as data, and asserted
@@ -172,11 +173,45 @@ class PublicDocumentSummary(BaseModel):
         )
 
 
+#: Facet dimensions the diffusion surface must never publish, as an **exact partition** of
+#: ``DocumentFacets`` — the same rule ``NOT_PUBLIC_FIELDS`` applies to the summary, and for the same
+#: reason. Sharing the internal envelope meant that adding a dimension to ``DocumentFacets``
+#: published it automatically, which is how the anomaly counts would have reached the public site:
+#: "how many records are missing a date" is curation metadata, not a description of the collection.
+NOT_PUBLIC_FACETS = frozenset({"anomaly_reason"})
+
+
+class PublicDocumentFacets(BaseModel):
+    """
+    The sidebar of the diffusion surface, built **field by field** from the internal one.
+
+    Not ``model_validate``: validating the internal object would make every dimension it gains
+    automatically public, which is exactly the failure ``NOT_PUBLIC_FIELDS`` exists to prevent on the
+    summary side. The four dimensions here are the ones the public route already accepts as filters,
+    so a visitor can widen the search along an axis the sidebar offers.
+    """
+
+    typology: list[FacetCount] = Field(default_factory=list)
+    macro_category: list[FacetCount] = Field(default_factory=list)
+    entity_type: list[FacetCount] = Field(default_factory=list)
+    level: list[FacetCount] = Field(default_factory=list)
+
+    @classmethod
+    def from_facets(cls, facets: DocumentFacets) -> "PublicDocumentFacets":
+        """Narrows the internal envelope to the published dimensions."""
+        return cls(
+            typology=facets.typology,
+            macro_category=facets.macro_category,
+            entity_type=facets.entity_type,
+            level=facets.level,
+        )
+
+
 class PublicDocumentListResponse(BaseModel):
-    """Page of the diffusion surface, with the same facet envelope the internal search uses."""
+    """Page of the diffusion surface, with the facet envelope the diffusion is allowed to show."""
 
     total: int
     limit: int
     offset: int
     items: list[PublicDocumentSummary]
-    facets: DocumentFacets = Field(default_factory=DocumentFacets)
+    facets: PublicDocumentFacets = Field(default_factory=PublicDocumentFacets)

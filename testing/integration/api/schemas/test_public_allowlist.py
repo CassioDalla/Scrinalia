@@ -10,16 +10,20 @@ from datetime import date
 import pytest
 
 from memoria_curitibana.api.schemas.public import (
+    NOT_PUBLIC_FACETS,
     NOT_PUBLIC_FIELDS,
+    PublicDocumentFacets,
     PublicDocumentSummary,
 )
 from memoria_curitibana.domains.archive.models import ArchiveReviewStatus
 from memoria_curitibana.domains.archive.schemas.document_schema import (
     DocumentAncestorSummary,
     DocumentEntitySummary,
+    DocumentFacets,
     DocumentMacroCategorySummary,
     DocumentSummary,
     DocumentTagSummary,
+    FacetCount,
 )
 
 
@@ -120,3 +124,56 @@ def test_the_projection_keeps_what_describes_the_record() -> None:
     assert [(category.name, category.tag_count) for category in projected.macro_categories] == [("Urbanismo", 1)]
     assert [ancestor.description_id for ancestor in projected.ancestors] == ["serie"]
     assert projected.children_count == 2
+
+
+# ==========================================
+# THE FACET ENVELOPE: THE SAME RULE, ONE LEVEL UP
+# ==========================================
+
+
+def test_every_internal_facet_is_classified() -> None:
+    """
+    The facet allowlist is an exact partition too, and it was not one before.
+
+    The public list response shared ``DocumentFacets`` with the internal search, so adding a
+    dimension to the internal envelope published it automatically — which is how the anomaly counts
+    would have reached the diffusion surface. A new dimension now defaults to private and CI says so.
+    """
+    internal = set(DocumentFacets.model_fields)
+    published = set(PublicDocumentFacets.model_fields)
+
+    unclassified = internal - published - NOT_PUBLIC_FACETS
+    assert not unclassified, (
+        f"Dimensões novas em DocumentFacets sem decisão de difusão: {sorted(unclassified)}. "
+        "Publique-a em PublicDocumentFacets ou declare-a em NOT_PUBLIC_FACETS."
+    )
+
+    both = published & NOT_PUBLIC_FACETS
+    assert not both, f"Dimensões declaradas como não públicas e expostas ao mesmo tempo: {sorted(both)}"
+
+
+def test_no_public_facet_is_invented() -> None:
+    """The projection narrows the internal envelope; it never adds a dimension the search lacks."""
+    invented = set(PublicDocumentFacets.model_fields) - set(DocumentFacets.model_fields)
+    assert not invented, f"Dimensões públicas sem origem no domínio: {sorted(invented)}"
+
+
+def test_the_anomaly_counts_never_reach_the_diffusion_surface() -> None:
+    """
+    "How many records are missing a date" is curation metadata, not a description of the collection.
+
+    The internal envelope carries the counts; the projection drops them and keeps the four axes the
+    public route already accepts as filters.
+    """
+    internal = DocumentFacets(
+        typology=[FacetCount(key="1", label="Fotografia", count=3)],
+        anomaly_reason=[FacetCount(key="MISSING_DATE", label="MISSING_DATE", count=41)],
+    )
+
+    projected = PublicDocumentFacets.from_facets(internal)
+
+    assert "anomaly_reason" not in projected.model_dump()
+    assert [(item.label, item.count) for item in projected.typology] == [("Fotografia", 3)]
+    assert projected.macro_category == []
+    assert projected.entity_type == []
+    assert projected.level == []
