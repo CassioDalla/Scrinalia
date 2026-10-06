@@ -10,6 +10,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
+import { LedgerList } from "@/components/ui/LedgerList";
 import { formatCount } from "@/lib/format";
 
 /**
@@ -161,23 +162,35 @@ export function SubjectExclusionsRoute() {
         {words.length > 0 ? (
           <Card>
             <CardHeader className="text-sm font-semibold">Termos vetados</CardHeader>
-            <CardBody className="flex flex-wrap gap-2">
-              {words.map((word) => (
-                <span
-                  key={word}
-                  className="inline-flex items-center gap-1 rounded-full bg-black/5 py-0.5 pr-1 pl-2 text-xs"
-                >
-                  {word}
-                  <button
-                    title="O classificador volta a considerar o termo"
-                    disabled={restore.isPending}
-                    onClick={() => restore.mutate(word)}
-                    className="grid size-5 place-items-center rounded-full text-(--color-muted) hover:bg-black/10 hover:text-(--color-ink)"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
+            <CardBody>
+              {/*
+                A list with a search and not a cloud of chips: the chips read well at twenty and become a
+                wall at two hundred, and finding the one term a colleague mentions is the whole reason
+                anyone opens this screen a second time.
+              */}
+              <LedgerList
+                items={words}
+                keyOf={(word) => word}
+                termOf={(word) => [word]}
+                searchPlaceholder="buscar termo vetado…"
+                nounSingular="termo vetado"
+                nounPlural="termos vetados"
+                emptyTitle="Nenhum termo vetado"
+                renderItem={(word) => (
+                  <div className="flex items-center justify-between gap-3 py-1.5">
+                    <span className="truncate">{word}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={restore.isPending}
+                      title="O classificador volta a considerar o termo"
+                      onClick={() => restore.mutate(word)}
+                    >
+                      restaurar
+                    </Button>
+                  </div>
+                )}
+              />
             </CardBody>
           </Card>
         ) : null}

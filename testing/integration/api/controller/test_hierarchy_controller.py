@@ -517,7 +517,17 @@ class TestMaterialisationOverHttp:
             return_value=HierarchyMaterialisationLogListResponse(total=0, limit=50, offset=0, items=[]),
         )
         client.get("/api/v1/hierarchy/materialisation/log?include_undone=false")
-        mocked.assert_called_once_with(include_undone=False, limit=50, offset=0)
+        mocked.assert_called_once_with(include_undone=False, term=None, limit=50, offset=0)
+
+    def test_the_materialisation_ledger_forwards_its_search_term(self, client: TestClient, mocker):
+        """``q`` reaches the service as ``term``, and is not silently dropped on the way."""
+        mocked = mocker.patch.object(
+            HierarchyMaterialisationService,
+            "list_log",
+            return_value=HierarchyMaterialisationLogListResponse(total=0, limit=50, offset=0, items=[]),
+        )
+        client.get("/api/v1/hierarchy/materialisation/log?q=microfilme")
+        assert mocked.call_args.kwargs["term"] == "microfilme"
 
     def test_undoing_twice_is_409(self, client: TestClient, mocker):
         mocker.patch.object(

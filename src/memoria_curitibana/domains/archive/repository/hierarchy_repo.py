@@ -20,6 +20,7 @@ from memoria_curitibana.domains.archive.domain.hierarchy import (
     PlanStatus,
     build_path,
 )
+from memoria_curitibana.domains.archive.domain.normalization import LIKE_ESCAPE, escape_like
 from memoria_curitibana.domains.archive.models import (
     ArchiveDescriptionLevel,
     ArchiveDocument,
@@ -628,11 +629,25 @@ class HierarchyRepository:
         return self.db.get(ArchiveHierarchyMaterialisationLog, materialisation_id)
 
     def list_materialisation_logs(
-        self, include_undone: bool, limit: int, offset: int
+        self, include_undone: bool, limit: int, offset: int, term: str | None = None
     ) -> tuple[list[ArchiveHierarchyMaterialisationLog], int]:
+        """
+        One page of the materialisation ledger, newest first.
+
+        ``term`` matches the author and the note: a run is recognised by who ran it and why, and those
+        are the two fields the ledger carries. ``escape_like`` keeps a ``%`` in the box a character.
+        """
         base = select(ArchiveHierarchyMaterialisationLog)
         if not include_undone:
             base = base.where(ArchiveHierarchyMaterialisationLog.undone_at.is_(None))
+        if term:
+            pattern = f"%{escape_like(term)}%"
+            base = base.where(
+                or_(
+                    ArchiveHierarchyMaterialisationLog.changed_by.ilike(pattern, escape=LIKE_ESCAPE),
+                    ArchiveHierarchyMaterialisationLog.note.ilike(pattern, escape=LIKE_ESCAPE),
+                )
+            )
         total = int(self.db.scalar(select(func.count()).select_from(base.subquery())) or 0)
         rows = self.db.scalars(
             base.order_by(ArchiveHierarchyMaterialisationLog.changed_at.desc()).limit(limit).offset(offset)

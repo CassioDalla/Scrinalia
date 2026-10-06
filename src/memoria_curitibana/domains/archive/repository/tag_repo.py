@@ -12,6 +12,7 @@ from sqlalchemy import (
     delete,
     desc,
     func,
+    or_,
     select,
     text,
     update,
@@ -1298,8 +1299,20 @@ class TagRepository:
         )
 
     def _tag_merge_log_filters(
-        self, canonical_id: int | None, changed_by: str | None, include_undone: bool
+        self,
+        canonical_id: int | None,
+        changed_by: str | None,
+        include_undone: bool,
+        term: str | None = None,
     ) -> list[Any]:
+        """
+        The filters of the ledger, including the free-text one.
+
+        The term is matched against **both names** of the entry: the question that sends an archivist to
+        this list arrives as "where did *this* spelling go?", and which side of the merge it was is
+        exactly what they do not know yet. ``escape_like`` keeps a ``%`` in the box a character instead
+        of "match everything".
+        """
         filters: list[Any] = []
         if canonical_id is not None:
             filters.append(ArchiveTaxonomyMergeLog.canonical_id == canonical_id)
@@ -1307,15 +1320,27 @@ class TagRepository:
             filters.append(ArchiveTaxonomyMergeLog.changed_by == changed_by)
         if not include_undone:
             filters.append(ArchiveTaxonomyMergeLog.undone_at.is_(None))
+        if term:
+            pattern = f"%{escape_like(term)}%"
+            filters.append(
+                or_(
+                    ArchiveTaxonomyMergeLog.absorbed_name.ilike(pattern, escape=LIKE_ESCAPE),
+                    ArchiveTaxonomyMergeLog.canonical_name.ilike(pattern, escape=LIKE_ESCAPE),
+                )
+            )
         return filters
 
     def count_merge_log(
-        self, canonical_id: int | None = None, changed_by: str | None = None, include_undone: bool = True
+        self,
+        canonical_id: int | None = None,
+        changed_by: str | None = None,
+        include_undone: bool = True,
+        term: str | None = None,
     ) -> int:
         stmt = (
             select(func.count())
             .select_from(ArchiveTaxonomyMergeLog)
-            .where(*self._tag_merge_log_filters(canonical_id, changed_by, include_undone))
+            .where(*self._tag_merge_log_filters(canonical_id, changed_by, include_undone, term))
         )
         return self.db.scalar(stmt) or 0
 
@@ -1324,13 +1349,14 @@ class TagRepository:
         canonical_id: int | None = None,
         changed_by: str | None = None,
         include_undone: bool = True,
+        term: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[MergeLogEntryDTO]:
         """The audit trail: most recent first, undone entries included unless filtered out."""
         stmt = (
             select(ArchiveTaxonomyMergeLog)
-            .where(*self._tag_merge_log_filters(canonical_id, changed_by, include_undone))
+            .where(*self._tag_merge_log_filters(canonical_id, changed_by, include_undone, term))
             .order_by(ArchiveTaxonomyMergeLog.merge_id.desc())
             .limit(limit)
             .offset(offset)

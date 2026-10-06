@@ -467,6 +467,18 @@ class TestUndo:
         assert log.items[0].undone_by == "ana"
         assert log.items[0].changed_rows > 0
 
+    def test_the_ledger_searches_the_author_and_the_note(self, service, collection, nobrade):
+        """The two fields that let someone find "the run Ana did when the microfilm was attached"."""
+        service.suggest()
+        _approve(service, nobrade, _full_decisions())
+        service.apply(HierarchyMaterialisationRequest(changed_by="ana", note="microfilmes anexados"))
+
+        assert service.list_log(include_undone=True, limit=10, offset=0, term="ana").total == 1
+        assert service.list_log(include_undone=True, limit=10, offset=0, term="microfilme").total == 1
+        assert service.list_log(include_undone=True, limit=10, offset=0, term="ninguém").total == 0
+        # A ``%`` is a character, not "everything": the ledger must not answer the whole trail.
+        assert service.list_log(include_undone=True, limit=10, offset=0, term="%").total == 0
+
     def test_a_run_that_gained_descriptions_later_cannot_be_undone_blindly(
         self, service, collection, nobrade, db_session
     ):

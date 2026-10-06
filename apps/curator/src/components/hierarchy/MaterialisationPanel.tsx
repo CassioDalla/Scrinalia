@@ -15,6 +15,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
 import { formatCount, formatDateTime } from "@/lib/format";
+import { useDebounced } from "@/lib/useDebounced";
 import { ACTION_LABEL, ACTION_TONE, PLAN_STATUS_LABEL, PLAN_STATUS_TONE, labelOf } from "@/lib/hierarchy";
 
 /**
@@ -41,8 +42,12 @@ export function MaterialisationPanel({
   const [changedBy, setChangedBy] = useState("");
   const [note, setNote] = useState("");
   const [showAllItems, setShowAllItems] = useState(false);
+  const [logLimit, setLogLimit] = useState(10);
+  const [logTerm, setLogTerm] = useState("");
 
-  const log = useQuery(queries.materialisationLog());
+  const settledLogTerm = useDebounced(logTerm);
+  const term = settledLogTerm.trim();
+  const log = useQuery(queries.materialisationLog(logLimit, term.length > 0 ? term : undefined));
   const approved = statusCounts.APPROVED ?? 0;
   const decided = totalPlans - (statusCounts.SUGGESTED ?? 0);
 
@@ -231,13 +236,26 @@ export function MaterialisationPanel({
         <CardHeader>
           <p className="text-sm font-medium">Ledger</p>
         </CardHeader>
-        <CardBody>
+        <CardBody className="grid gap-2">
+          {/*
+            The search is server-side and covers the author and the note: a ledger read one page at a
+            time cannot be searched in the browser without lying about what it holds.
+          */}
+          <Input
+            value={logTerm}
+            placeholder="buscar por quem autorizou ou pela nota…"
+            onChange={(event) => setLogTerm(event.target.value)}
+          />
           {log.isPending ? <Spinner label="Lendo o ledger…" /> : null}
           {log.error ? <ErrorState error={log.error} /> : null}
           {log.data && log.data.items.length === 0 ? (
             <EmptyState
-              title="Nenhuma materialização ainda"
-              hint="Cada apply grava uma entrada aqui, com o estado anterior das linhas que mudou."
+              title={term ? `Nenhuma materialização para “${term}”` : "Nenhuma materialização ainda"}
+              hint={
+                term
+                  ? "A busca cobre quem autorizou e a nota da decisão."
+                  : "Cada apply grava uma entrada aqui, com o estado anterior das linhas que mudou."
+              }
             />
           ) : null}
           <ul className="flex flex-col gap-2">
@@ -266,6 +284,19 @@ export function MaterialisationPanel({
               </li>
             ))}
           </ul>
+          {log.data && (log.data.total > log.data.items.length || term) ? (
+            <div className="flex items-center gap-2">
+              {log.data.total > log.data.items.length ? (
+                <Button size="sm" variant="ghost" onClick={() => setLogLimit((current) => current + 10)}>
+                  ver mais
+                </Button>
+              ) : null}
+              <span className="text-xs text-(--color-muted)">
+                mostrando {formatCount(log.data.items.length)} de {formatCount(log.data.total)}{" "}
+                {term ? "materialização(ões) que casam com a busca" : "materialização(ões)"}
+              </span>
+            </div>
+          ) : null}
         </CardBody>
       </Card>
     </div>

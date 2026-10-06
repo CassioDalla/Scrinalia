@@ -265,14 +265,23 @@ class TaxonomyController(Controller):
         canonical_id: FromQuery[int | None] = None,
         changed_by: FromQuery[str | None] = None,
         include_undone: FromQuery[bool] = True,
+        # ``q`` and not ``term``: the collection search already owns ``term`` for its own meaning, and
+        # this one is a filter *inside* a ledger. The front reads the same name it sends.
+        q: FromQuery[str | None] = None,
         limit: FromQuery[int] = 50,
         offset: FromQuery[int] = 0,
     ) -> MergeLogListResponse:
-        """The audit trail of the merges: what was merged, by whom, and what was undone."""
+        """
+        The audit trail of the merges: what was merged, by whom, and what was undone.
+
+        ``q`` matches both sides of the entry — the absorbed and the canonical name — because the
+        archivist asking "where did this spelling go?" does not know which side it was on.
+        """
         return tag_service.list_merge_log(
             canonical_id=canonical_id,
             changed_by=changed_by,
             include_undone=include_undone,
+            term=q,
             limit=limit,
             offset=offset,
         )

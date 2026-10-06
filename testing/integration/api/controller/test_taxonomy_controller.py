@@ -492,9 +492,23 @@ def test_list_tag_merge_log_route_paginates(client: TestClient, mocker):
         "canonical_id": 1,
         "changed_by": None,
         "include_undone": False,
+        "term": None,
         "limit": 5,
         "offset": 0,
     }
+
+
+def test_the_merge_ledger_forwards_its_search_term(client: TestClient, mocker):
+    """``q`` reaches the service as ``term``: a ledger that ignores its search box is a lie."""
+    from memoria_curitibana.domains.archive.schemas.tag_schema import MergeLogListResponse
+
+    mocked = mocker.patch.object(TagService, "list_merge_log")
+    mocked.return_value = MergeLogListResponse(total=1, limit=50, offset=0, items=[_log_entry()])
+
+    response = client.get("/api/v1/taxonomy/tags/merge-log?q=alameda")
+
+    assert response.status_code == HTTP_200_OK
+    assert mocked.call_args.kwargs["term"] == "alameda"
 
 
 def test_undo_tag_merge_route_returns_the_restored_entry(client: TestClient, mocker):

@@ -547,8 +547,16 @@ export async function applyMergeBatch(body: {
   return unwrap<BatchMergeResponse>(await client.POST("/api/v1/taxonomy/tags/merge/batch", { body }));
 }
 
+/**
+ * The merge ledger, optionally filtered by a term.
+ *
+ * ``q`` is matched **server-side against both sides** of each entry — the absorbed and the canonical
+ * name — because "where did this spelling go?" does not say which side it was on, and the trail grows
+ * without bound: a filter over the loaded page would answer "não está aqui" for a row that is.
+ */
 export async function fetchMergeLog(params: {
   include_undone?: boolean;
+  q?: string;
   limit?: number;
   offset?: number;
 }): Promise<MergeLogList> {
@@ -645,8 +653,10 @@ export async function applyMaterialisation(body: MaterialisationRequest): Promis
   );
 }
 
+/** The materialisation ledger, filtered by author or note — the two fields a run is recognised by. */
 export async function fetchMaterialisationLog(params: {
   include_undone?: boolean;
+  q?: string;
   limit?: number;
   offset?: number;
 }): Promise<MaterialisationLog> {

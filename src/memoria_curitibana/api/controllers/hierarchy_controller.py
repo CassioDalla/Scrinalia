@@ -369,11 +369,17 @@ class HierarchyController(Controller):
         self,
         materialisation_service: NamedDependency[HierarchyMaterialisationService],
         include_undone: FromQuery[bool] = True,
+        q: FromQuery[str | None] = None,
         limit: FromQuery[int] = 50,
         offset: FromQuery[int] = 0,
     ) -> HierarchyMaterialisationLogListResponse:
-        """The audit trail of the materialisations: what was created, how much moved, by whom."""
-        return materialisation_service.list_log(include_undone=include_undone, limit=limit, offset=offset)
+        """
+        The audit trail of the materialisations: what was created, how much moved, by whom.
+
+        ``q`` matches the author and the note — the two fields that let someone find "the run Ana did
+        when the microfilm series was attached".
+        """
+        return materialisation_service.list_log(include_undone=include_undone, term=q, limit=limit, offset=offset)
 
     @delete("/materialisation/log/{materialisation_id:int}", status_code=200, sync_to_thread=True)
     def undo_materialisation(

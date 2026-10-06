@@ -550,13 +550,19 @@ def test_list_merge_log_reports_the_total_with_the_page(mocker: MockerFixture) -
     mock_tag_repo.list_merge_log.return_value = []
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    page = service.list_merge_log(canonical_id=4, changed_by="arquivista", include_undone=False, limit=5, offset=5)
+    page = service.list_merge_log(
+        canonical_id=4, changed_by="arquivista", include_undone=False, term="alameda", limit=5, offset=5
+    )
 
     assert page.total == 12
     assert page.limit == 5
     assert page.offset == 5
+    # The search reaches both halves of the ledger — the count and the page — or the footer lies.
+    mock_tag_repo.count_merge_log.assert_called_once_with(
+        canonical_id=4, changed_by="arquivista", include_undone=False, term="alameda"
+    )
     mock_tag_repo.list_merge_log.assert_called_once_with(
-        canonical_id=4, changed_by="arquivista", include_undone=False, limit=5, offset=5
+        canonical_id=4, changed_by="arquivista", include_undone=False, term="alameda", limit=5, offset=5
     )
 
 

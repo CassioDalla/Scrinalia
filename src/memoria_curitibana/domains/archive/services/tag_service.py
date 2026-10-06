@@ -457,6 +457,7 @@ class TagService:
         canonical_id: int | None = None,
         changed_by: str | None = None,
         include_undone: bool = True,
+        term: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> MergeLogListResponse:
@@ -467,12 +468,13 @@ class TagService:
             raise InvalidParam("O parâmetro 'offset' não pode ser negativo.")
 
         total = self.repo.count_merge_log(
-            canonical_id=canonical_id, changed_by=changed_by, include_undone=include_undone
+            canonical_id=canonical_id, changed_by=changed_by, include_undone=include_undone, term=term
         )
         items = self.repo.list_merge_log(
             canonical_id=canonical_id,
             changed_by=changed_by,
             include_undone=include_undone,
+            term=term,
             limit=limit,
             offset=offset,
         )

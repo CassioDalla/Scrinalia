@@ -351,8 +351,10 @@ class HierarchyMaterialisationService:
             items=self._items(plan, limit=request.limit),
         )
 
-    def list_log(self, include_undone: bool, limit: int, offset: int) -> HierarchyMaterialisationLogListResponse:
-        entries, total = self.repo.list_materialisation_logs(include_undone, limit, offset)
+    def list_log(
+        self, include_undone: bool, limit: int, offset: int, term: str | None = None
+    ) -> HierarchyMaterialisationLogListResponse:
+        entries, total = self.repo.list_materialisation_logs(include_undone, limit, offset, term)
         return HierarchyMaterialisationLogListResponse(
             total=total,
             limit=limit,

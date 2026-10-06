@@ -3086,6 +3086,7 @@ export interface operations {
         parameters: {
             query?: {
                 include_undone?: boolean;
+                q?: string | null;
                 limit?: number;
                 offset?: number;
             };
@@ -4647,6 +4648,7 @@ export interface operations {
                 canonical_id?: number | null;
                 changed_by?: string | null;
                 include_undone?: boolean;
+                q?: string | null;
                 limit?: number;
                 offset?: number;
             };

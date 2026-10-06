@@ -32,9 +32,11 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton, Spinner } from "@/components/ui/Feedback";
 import { Input, Select } from "@/components/ui/Input";
+import { LedgerList } from "@/components/ui/LedgerList";
 import { Tabs } from "@/components/ui/Tabs";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { asBoolean, asEnum, asNumber, asString } from "@/lib/search";
+import { useDebounced } from "@/lib/useDebounced";
 import {
   MERGE_REASON_LABEL,
   MERGE_REASON_TONE,
@@ -782,6 +784,7 @@ function ProposalsTab({
   const [selected, setSelected] = useState<number[]>([]);
   const [batch, setBatch] = useState<BatchMergeResponse | null>(null);
   const [logLimit, setLogLimit] = useState(MERGE_LOG_PAGE_SIZE);
+  const [logTerm, setLogTerm] = useState("");
   /** The cluster the archivist is editing before applying — "tira o '289 anos' do meio". */
   const [editing, setEditing] = useState<TagMergeProposal | null>(null);
   const [lastEdited, setLastEdited] = useState<{ proposalId: number; outcome: MergeResponse } | null>(null);
@@ -803,7 +806,8 @@ function ProposalsTab({
       offset: search.offset,
     }),
   );
-  const log = useQuery(queries.mergeLog(logLimit));
+  const settledLogTerm = useDebounced(logTerm);
+  const log = useQuery(queries.mergeLog(logLimit, settledLogTerm.trim() || undefined));
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["taxonomy", "merge-proposals"] });
@@ -1159,10 +1163,27 @@ function ProposalsTab({
             Aqui só entram merges <strong>aplicados</strong>: aprovar não escreve nesta lista. Cada linha guarda o
             estado anterior — tag, vínculos, classificação e grafias — e o desfazer restaura tudo.
           </p>
+          {/*
+            The search is server-side and covers both sides of each entry: the ledger only grows, and a
+            box that filtered the loaded page would say "não está aqui" for a merge that happened.
+          */}
+          <Input
+            className="max-w-xs"
+            value={logTerm}
+            placeholder="buscar por grafia absorvida ou canônica…"
+            onChange={(event) => setLogTerm(event.target.value)}
+          />
           {log.isPending ? <Spinner label="Lendo o ledger…" /> : null}
           {log.error ? <ErrorState error={log.error} /> : null}
           {log.data && (log.data.items ?? []).length === 0 ? (
-            <EmptyState title="Nenhum merge aplicado ainda" hint="O ledger registra cada tag absorvida, com o antes." />
+            <EmptyState
+              title={logTerm.trim() ? `Nenhum merge para “${logTerm.trim()}”` : "Nenhum merge aplicado ainda"}
+              hint={
+                logTerm.trim()
+                  ? "A busca cobre as duas grafias de cada linha: a absorvida e a canônica."
+                  : "O ledger registra cada tag absorvida, com o antes."
+              }
+            />
           ) : null}
           <ul className="divide-y divide-(--color-line) text-xs">
             {(log.data?.items ?? []).map((entry) => (
@@ -1193,13 +1214,21 @@ function ProposalsTab({
             ))}
           </ul>
           {undo.error ? <ErrorState error={undo.error} /> : null}
-          {log.data && log.data.total > logLimit ? (
+          {/*
+            The footer appears whenever there is something to say: more rows below, or a search that
+            matched. A filtered ledger that shows one row and no count leaves the archivist wondering
+            whether the filter ran.
+          */}
+          {log.data && (log.data.total > (log.data.items ?? []).length || settledLogTerm.trim()) ? (
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setLogLimit((current) => current + MERGE_LOG_PAGE_SIZE)}>
-                ver mais
-              </Button>
+              {log.data.total > (log.data.items ?? []).length ? (
+                <Button size="sm" variant="ghost" onClick={() => setLogLimit((current) => current + MERGE_LOG_PAGE_SIZE)}>
+                  ver mais
+                </Button>
+              ) : null}
               <span className="text-xs text-(--color-muted)">
-                mostrando os {formatCount(logLimit)} mais recentes de {formatCount(log.data.total)} merge(s) aplicado(s)
+                mostrando {formatCount((log.data.items ?? []).length)} de {formatCount(log.data.total)}{" "}
+                {settledLogTerm.trim() ? "merge(s) que casam com a busca" : "merge(s) aplicado(s)"}
               </span>
             </div>
           ) : null}
@@ -1495,13 +1524,28 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
       {words.length > 0 ? (
         <Card>
           <CardHeader className="text-sm font-semibold">Termos banidos</CardHeader>
-          <CardBody className="p-0">
-            <ul className="divide-y divide-(--color-line) text-sm">
-              {words.map((item) => (
-                <li key={item.word} className="flex items-center justify-between gap-3 px-3 py-1.5">
+          <CardBody>
+            {/*
+              A searchable ledger and not a flat column: 200 banned terms is already past the point
+              where scrolling to find one is reasonable, and the list only grows.
+            */}
+            <LedgerList
+              items={words}
+              keyOf={(item) => item.word}
+              termOf={(item) => [item.word, labelOf(STOPWORD_SCOPE_LABEL, item.scope)]}
+              searchPlaceholder="buscar termo banido…"
+              nounSingular="termo banido"
+              nounPlural="termos banidos"
+              emptyTitle="Nenhum termo banido"
+              emptyHint="Banir um termo o tira do eixo escolhido. Nada é apagado por banir: a purga é um passo separado, abaixo."
+              renderItem={(item) => (
+                <div className="flex items-center justify-between gap-3 py-1.5">
                   <span className="flex min-w-0 items-center gap-2">
                     <span className="truncate">{item.word}</span>
-                    <Badge tone={item.scope === "ENTITY" ? "neutral" : "accent"} title={STOPWORD_SCOPE_HINT[item.scope]}>
+                    <Badge
+                      tone={item.scope === "ENTITY" ? "neutral" : "accent"}
+                      title={STOPWORD_SCOPE_HINT[item.scope]}
+                    >
                       {labelOf(STOPWORD_SCOPE_LABEL, item.scope)}
                     </Badge>
                   </span>
@@ -1513,9 +1557,9 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
                   >
                     desbanir
                   </Button>
-                </li>
-              ))}
-            </ul>
+                </div>
+              )}
+            />
           </CardBody>
         </Card>
       ) : null}

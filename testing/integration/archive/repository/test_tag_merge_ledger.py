@@ -341,3 +341,41 @@ def test_merge_log_is_paginated_and_filtered(use_test_db, db_session):
     db_session.flush()
     assert repo.count_merge_log(include_undone=False) == 2
     assert repo.count_merge_log(include_undone=True) == 3
+
+
+def test_the_ledger_searches_both_sides_of_the_entry(db_session) -> None:
+    """The archivist asking "where did this spelling go?" does not know which side it was on."""
+    repo = TagRepository(db_session)
+    for canonical_name, variant_name in (("avenida paulista", "av. paulista"), ("casa", "casas")):
+        canonical = ArchiveTag(name=canonical_name)
+        variant = ArchiveTag(name=variant_name)
+        db_session.add_all([canonical, variant])
+        db_session.flush()
+        repo.apply_merge(repo.plan_merge(canonical.tag_id, [variant.tag_id]))
+    db_session.flush()
+
+    # The canonical side alone, the absorbed side alone, both sides of one entry (still one row), and
+    # a term that is in neither.
+    assert repo.count_merge_log(term="avenida") == 1
+    assert repo.count_merge_log(term="av.") == 1
+    assert repo.count_merge_log(term="paulista") == 1
+    assert repo.count_merge_log(term="casas") == 1
+    assert repo.count_merge_log(term="nada disso") == 0
+
+    # The page and the count must agree on the filter, or the footer lies about the total.
+    assert len(repo.list_merge_log(term="paulista")) == repo.count_merge_log(term="paulista")
+
+
+def test_a_wildcard_in_the_ledger_search_is_a_character(db_session) -> None:
+    """``%`` must not mean "everything": the ledger would answer the whole trail to a typo."""
+    repo = TagRepository(db_session)
+    for canonical_name, variant_name in (("casa", "casas"), ("cem por cento", "100%")):
+        canonical = ArchiveTag(name=canonical_name)
+        variant = ArchiveTag(name=variant_name)
+        db_session.add_all([canonical, variant])
+        db_session.flush()
+        repo.apply_merge(repo.plan_merge(canonical.tag_id, [variant.tag_id]))
+    db_session.flush()
+
+    assert repo.count_merge_log(term="%") == 1
+    assert repo.count_merge_log(term="_") == 0

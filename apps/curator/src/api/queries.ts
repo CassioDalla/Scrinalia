@@ -151,10 +151,16 @@ export const queries = {
       placeholderData: (previous) => previous,
     }),
 
-  materialisationLog: () =>
+  /**
+   * The materialisation ledger.
+   *
+   * ``limit`` grows with "ver mais" and ``term`` is filtered on the server: the ledger has no ceiling,
+   * and the search has to cover the whole trail, not the ten rows on screen.
+   */
+  materialisationLog: (limit: number, term: string | undefined) =>
     queryOptions({
-      queryKey: ["hierarchy", "materialisation", "log"],
-      queryFn: () => fetchMaterialisationLog({ include_undone: true, limit: 10, offset: 0 }),
+      queryKey: ["hierarchy", "materialisation", "log", limit, term ?? ""],
+      queryFn: () => fetchMaterialisationLog({ include_undone: true, q: term, limit, offset: 0 }),
       staleTime: 5_000,
     }),
 
@@ -205,10 +211,11 @@ export const queries = {
       placeholderData: (previous) => previous,
     }),
 
-  mergeLog: (limit: number) =>
+  /** The merge ledger: server-side term, growing window — same reasoning as the materialisation one. */
+  mergeLog: (limit: number, term: string | undefined) =>
     queryOptions({
-      queryKey: ["taxonomy", "merge-log", limit],
-      queryFn: () => fetchMergeLog({ include_undone: true, limit, offset: 0 }),
+      queryKey: ["taxonomy", "merge-log", limit, term ?? ""],
+      queryFn: () => fetchMergeLog({ include_undone: true, q: term, limit, offset: 0 }),
       staleTime: 5_000,
     }),
 

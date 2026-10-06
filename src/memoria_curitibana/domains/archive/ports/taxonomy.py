@@ -114,13 +114,18 @@ class TagRepositoryPort(Protocol):
     ) -> BatchMergeResponse: ...
     def undo_merge(self, merge_id: int, undone_by: str | None = None) -> MergeLogEntryDTO: ...
     def count_merge_log(
-        self, canonical_id: int | None = None, changed_by: str | None = None, include_undone: bool = True
+        self,
+        canonical_id: int | None = None,
+        changed_by: str | None = None,
+        include_undone: bool = True,
+        term: str | None = None,
     ) -> int: ...
     def list_merge_log(
         self,
         canonical_id: int | None = None,
         changed_by: str | None = None,
         include_undone: bool = True,
+        term: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[MergeLogEntryDTO]: ...

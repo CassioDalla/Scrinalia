@@ -6734,6 +6734,24 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -10066,6 +10084,24 @@
             "schema": {
               "default": true,
               "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           {
