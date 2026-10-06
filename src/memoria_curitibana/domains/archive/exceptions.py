@@ -120,6 +120,37 @@ class TypologyNotFoundError(DomainException):
     pass
 
 
+class ConflictResolutionNotFoundError(DomainException):
+    """Raised when a tag x entity resolution does not exist in the ledger."""
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
+class UnresolvableConflictError(DomainException):
+    """Raised when a tag x entity pair cannot be resolved because a side no longer exists.
+
+    Not an ``InvalidParam``: the parameters are well formed, the *state* is what makes the write
+    impossible — the losing row was already deleted by an earlier resolution. A 400 would blame the
+    client for a business condition.
+    """
+
+    # Ideal translation in Litestar: HTTP 422 (Unprocessable Entity)
+    pass
+
+
+class ConflictResolutionAlreadyUndoneError(DomainException):
+    """Raised when the same resolution is reversed twice.
+
+    The undo is single-shot, like the merge's: the ledger row is never deleted, so "this was
+    resolved, then reversed" survives the reversal and the second attempt is a conflict, not a
+    silent no-op that would look like it worked.
+    """
+
+    # Ideal translation in Litestar: HTTP 409 (Conflict)
+    pass
+
+
 class DuplicateTypologyError(DomainException):
     """Raised when the name of a typology is already taken (case-insensitively)."""
 

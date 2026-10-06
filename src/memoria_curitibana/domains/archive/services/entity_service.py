@@ -11,11 +11,15 @@ from memoria_curitibana.domains.archive.schemas.command_schema import (
 )
 from memoria_curitibana.domains.archive.schemas.entity_schema import (
     ConflictResolutionData,
+    ConflictResolutionLogEntry,
+    ConflictResolutionPlan,
     CrossDomainConflict,
+    CrossDomainConflictPage,
     EntityMergeResponse,
     EntityPairSimilarity,
     EntityRelevance,
     EntitySimilarity,
+    JudgedConflictPage,
     NerExclusion,
 )
 
@@ -224,18 +228,79 @@ class EntityService:
         """Scans the database looking for Tags and Entities that have the same name or very close spelling."""
         return list(self.repo.get_cross_domain_conflicts(threshold))
 
+    def page_cross_domain_conflicts(
+        self,
+        threshold: float = 0.85,
+        pair_kind: Literal["all", "exact_name", "near_duplicate"] = "all",
+        limit: int = 50,
+        offset: int = 0,
+    ) -> CrossDomainConflictPage:
+        """
+        One page of the live collisions, annotated with the judge's verdict and the ledger's write.
+
+        The list is the *pending* work, and it is only usable because of ``scope``: on the real
+        collection the trigram join returns 5 408 pairs, of which 5 050 are the same spelling on both
+        axes and 122 are the same word written differently. Those are two different questions, and
+        the screen chooses which one to open.
+        """
+        if not 0 < threshold <= 1:
+            raise InvalidParam("O parâmetro 'threshold' deve estar entre 0 e 1.")
+        return self.repo.page_cross_domain_conflicts(
+            threshold=threshold, pair_kind=pair_kind, limit=limit, offset=offset
+        )
+
+    def list_judged_conflicts(self, limit: int = 50, offset: int = 0) -> JudgedConflictPage:
+        """
+        The pairs the judge already evaluated, read from the review queue.
+
+        Deliberately not the live scan: an auto-resolution deletes the losing row, so 84 of the 88
+        real decisions cannot appear in a trigram join. The queue is where the judge's work survives.
+        """
+        return self.repo.list_judged_conflicts(limit=limit, offset=offset)
+
+    def plan_conflict_resolution(self, tag_id: int, entity_id: int) -> ConflictResolutionPlan:
+        """
+        What each verdict would do, computed without writing anything.
+
+        Both sides of the comparison are returned, because "which one wins?" is a question about the
+        difference between them, and the answer has to be in front of the archivist before the click.
+        """
+        return self.repo.plan_conflict_resolution(tag_id, entity_id)
+
     def resolve_cross_domain_conflict(
         self, command: ResolveConflictCommand, source: Literal["JUDGE", "HUMAN"] = "HUMAN"
     ) -> ConflictResolutionData:
         """
         Resolves the conflict by transferring the relationships to the winner and purging the loser.
 
+        Goes through plan + apply, so the write always leaves a ledger row and is therefore
+        reversible — the judge's auto-resolution included, which used to call the raw transfer and
+        left nothing behind.
+
         Args:
-            command: Winner and the pair being resolved.
-            source: Who decided, forwarded to the NER exclusion catalog when the TAG wins.
+            command: Winner, the pair being resolved, who decided and why.
+            source: Who decided, forwarded to the ledger and to the governance write.
         """
-        transferred_docs = self.repo.resolve_cross_domain_conflict(
-            command.winner, command.tag_id, command.entity_id, source=source
+        plan = self.repo.plan_conflict_resolution(command.tag_id, command.entity_id)
+        return self.repo.apply_conflict_resolution(
+            plan,
+            command.winner,
+            source=source,
+            decided_by=command.decided_by or source,
+            note=command.note,
         )
 
-        return ConflictResolutionData(winner=command.winner, documents_transferred=transferred_docs)
+    def list_conflict_resolutions(
+        self, include_undone: bool = True, limit: int = 50, offset: int = 0
+    ) -> tuple[list[ConflictResolutionLogEntry], int]:
+        """The audit trail of the resolutions: what was written, by whom, and what was reversed."""
+        return self.repo.list_conflict_resolutions(include_undone=include_undone, limit=limit, offset=offset)
+
+    def undo_conflict_resolution(self, resolution_id: int, undone_by: str | None = None) -> ConflictResolutionLogEntry:
+        """
+        Reverses one resolution: the losing row, its links and the ban it planted.
+
+        The second attempt is a conflict and an unknown id is a not-found, because a silent no-op
+        would read as "it worked" when nothing was restored.
+        """
+        return self.repo.undo_conflict_resolution(resolution_id, undone_by=undone_by)

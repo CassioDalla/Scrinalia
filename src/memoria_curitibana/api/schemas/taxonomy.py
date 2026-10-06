@@ -1,9 +1,9 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from memoria_curitibana.domains.archive.models.enums import StopwordsScope
-from memoria_curitibana.domains.archive.schemas.entity_schema import ConflictResolutionData, CrossDomainConflict
+from memoria_curitibana.domains.archive.schemas.entity_schema import ConflictResolutionData
 
 
 class MergeRequest(BaseModel):
@@ -139,11 +139,33 @@ class ConflictResolutionResponse(BaseModel):
     data: ConflictResolutionData
 
 
-class CrossDomainConflictListResponse(BaseModel):
-    data: list[CrossDomainConflict]
+class ConflictPreviewRequest(BaseModel):
+    """
+    The pair whose impact is being asked about.
+
+    No winner: the preview returns **both** verdicts, because "which one should win?" is a question
+    about the difference between them, and asking one side at a time would need two round trips to
+    answer it.
+    """
+
+    tag_id: int = Field(description="Id da tag no vocabulário.")
+    entity_id: int = Field(description="Id da entidade nomeada.")
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class ConflictResolutionRequest(BaseModel):
+    """
+    The verdict, with its authorship.
+
+    ``decided_by`` and ``note`` are not decoration: the resolution now leaves a durable ledger row,
+    and a row that cannot say who decided is not an audit trail.
+    """
+
     winner: Literal["TAG", "ENTITY"]
     tag_id: int
     entity_id: int
+    decided_by: str | None = Field(default=None, description="Quem decidiu; texto livre até haver autenticação.")
+    note: str | None = Field(default=None, description="Por que decidiu; fica no ledger da resolução.")
+
+    model_config = ConfigDict(extra="forbid")

@@ -10,9 +10,9 @@ from litestar.params import FromPath, FromQuery
 
 from memoria_curitibana.api.dependencies import provide_entity_service, provide_tag_service
 from memoria_curitibana.api.schemas.taxonomy import (
+    ConflictPreviewRequest,
     ConflictResolutionRequest,
     ConflictResolutionResponse,
-    CrossDomainConflictListResponse,
     MacroCategoryCreateRequest,
     MacroCategoryUpdateRequest,
     MergeBatchRequest,
@@ -33,7 +33,11 @@ from memoria_curitibana.domains.archive.models.enums import StopwordsScope
 from memoria_curitibana.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     BatchMergeResponse,
+    ConflictResolutionLogListResponse,
+    ConflictResolutionPlan,
     CreateMacroCategoryCommand,
+    CrossDomainConflictPage,
+    JudgedConflictPage,
     MergeBatchCommand,
     MergeEntityCommand,
     MergeLogListResponse,
@@ -593,19 +597,111 @@ class TaxonomyController(Controller):
         self,
         entity_service: NamedDependency[EntityService],
         threshold: FromQuery[float] = 0.85,
-    ) -> CrossDomainConflictListResponse:
-        """Returns a list of conflicts where Tags and Entities share the same naming."""
-        results = entity_service.find_cross_domain_conflicts(threshold=threshold)
-        return CrossDomainConflictListResponse(data=list(results))
+        pair_kind: FromQuery[Literal["all", "exact_name", "near_duplicate"]] = "all",
+        limit: FromQuery[int] = 50,
+        offset: FromQuery[int] = 0,
+    ) -> CrossDomainConflictPage:
+        """
+        The collisions that exist **today**, annotated with what has already been decided.
+
+        ``scope`` is what makes the list usable rather than overwhelming: the trigram join returns
+        5 408 pairs on the real collection, of which 5 050 are the same spelling on both axes (a
+        structural question) and 122 are the same word written differently (a spelling question).
+        Each pair carries the judge's verdict when there is one, so a pair the judge already doubted
+        is not put in front of the archivist as if it were new.
+        """
+        return entity_service.page_cross_domain_conflicts(
+            threshold=threshold, pair_kind=pair_kind, limit=limit, offset=offset
+        )
+
+    @get("/conflicts/judged", sync_to_thread=True)
+    def list_judged_conflicts(
+        self,
+        entity_service: NamedDependency[EntityService],
+        limit: FromQuery[int] = 50,
+        offset: FromQuery[int] = 0,
+    ) -> JudgedConflictPage:
+        """
+        What the judge decided, read from the review queue rather than from the live scan.
+
+        This is the read that was missing. An auto-resolution deletes the losing row, so 84 of the
+        88 decisions on the real collection cannot appear in a trigram join; the queue row survives
+        because its payload is a snapshot without a foreign key. ``still_applicable`` counts the
+        decisions that are still about something — both sides alive and nothing written.
+        """
+        return entity_service.list_judged_conflicts(limit=limit, offset=offset)
+
+    @post("/conflicts/resolve/preview", status_code=200, sync_to_thread=True)
+    def preview_conflict_resolution(
+        self, entity_service: NamedDependency[EntityService], data: ConflictPreviewRequest
+    ) -> ConflictResolutionPlan:
+        """
+        The dry run: what each verdict would transfer, delete and ban. **Nothing is written.**
+
+        Computed by the same planner the apply executes, so the number the archivist approves is the
+        number the write produces.
+        """
+        return entity_service.plan_conflict_resolution(data.tag_id, data.entity_id)
 
     @post("/conflicts/resolve", sync_to_thread=True)
     def resolve_cross_domain_conflict(
         self, entity_service: NamedDependency[EntityService], data: ConflictResolutionRequest
     ) -> ConflictResolutionResponse:
-        """Resolves the conflict by forcing the victory of a Tag or an Entity."""
+        """
+        Forces the victory of a Tag or an Entity, and records the write so it can be reversed.
+
+        The response carries the ``resolution_id`` the screen needs to offer the undo — without it
+        the archivist would have to go find the row in the ledger to reverse the click they just made.
+        """
         result = entity_service.resolve_cross_domain_conflict(
-            ResolveConflictCommand(winner=data.winner, tag_id=data.tag_id, entity_id=data.entity_id)
+            ResolveConflictCommand(
+                winner=data.winner,
+                tag_id=data.tag_id,
+                entity_id=data.entity_id,
+                decided_by=data.decided_by,
+                note=data.note,
+            )
         )
         return ConflictResolutionResponse(
-            message=f"Conflito resolvido! A vitória foi concedida para {data.winner}.", data=result
+            message=(
+                f"Conflito resolvido a favor de {data.winner}: "
+                f"{result.documents_transferred} vínculo(s) transferido(s). A resolução pode ser desfeita."
+            ),
+            data=result,
         )
+
+    @get("/conflicts/resolutions", sync_to_thread=True)
+    def list_conflict_resolutions(
+        self,
+        entity_service: NamedDependency[EntityService],
+        include_undone: FromQuery[bool] = True,
+        limit: FromQuery[int] = 50,
+        offset: FromQuery[int] = 0,
+    ) -> ConflictResolutionLogListResponse:
+        """The audit trail of the resolutions: what was written, by whom, and what was reversed."""
+        items, total = entity_service.list_conflict_resolutions(
+            include_undone=include_undone, limit=limit, offset=offset
+        )
+        return ConflictResolutionLogListResponse(total=total, limit=limit, offset=offset, items=items)
+
+    @delete("/conflicts/resolutions/{resolution_id:int}", status_code=200, sync_to_thread=True)
+    def undo_conflict_resolution(
+        self,
+        entity_service: NamedDependency[EntityService],
+        resolution_id: FromPath[int],
+        undone_by: FromQuery[str | None] = None,
+    ) -> dict:
+        """
+        Reverses one resolution: the losing row, its links and the ban it planted.
+
+        The second attempt is **409** and an unknown id is **404**; the ledger entry is never
+        deleted, so "this was resolved, then reversed" survives the reversal.
+        """
+        entry = entity_service.undo_conflict_resolution(resolution_id, undone_by=undone_by)
+        return {
+            "message": (
+                f"Resolução {resolution_id} desfeita: {entry.documents_transferred} vínculo(s) "
+                f"voltaram e {entry.ban_term or 'nenhum termo'} saiu do bloqueio."
+            ),
+            "data": entry.model_dump(),
+        }

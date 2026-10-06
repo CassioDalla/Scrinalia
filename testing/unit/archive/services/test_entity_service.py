@@ -2,9 +2,15 @@ import pytest
 from pydantic import ValidationError
 from pytest_mock import MockerFixture
 
+from memoria_curitibana.domains.archive.exceptions import InvalidParam
 from memoria_curitibana.domains.archive.repository import EntityRepository
 from memoria_curitibana.domains.archive.schemas import ResolveConflictCommand
-from memoria_curitibana.domains.archive.schemas.entity_schema import CrossDomainConflict
+from memoria_curitibana.domains.archive.schemas.entity_schema import (
+    ConflictResolutionData,
+    ConflictResolutionPlan,
+    CrossDomainConflict,
+    CrossDomainConflictPage,
+)
 from memoria_curitibana.domains.archive.services import EntityService
 
 # ==========================================
@@ -44,31 +50,73 @@ def test_resolve_cross_domain_conflict_invalid_winner() -> None:
         ResolveConflictCommand(winner="VENCEDOR_FALSO", tag_id=1, entity_id=2)  # type: ignore
 
 
-def test_resolve_cross_domain_conflict_success(mocker: MockerFixture) -> None:
-    """Happy path: Confirms the forwarding of the atomic instruction to the repository."""
-    mock_ent_repo = mocker.Mock(spec=EntityRepository)
+def test_resolve_cross_domain_conflict_plans_then_applies(mocker: MockerFixture) -> None:
+    """
+    The write goes through plan + apply, never straight to the transfer.
 
-    mock_ent_repo.resolve_cross_domain_conflict.return_value = 5  # 5 documents transferred
+    That is what makes every resolution reversible: the apply is the only method that writes the
+    ledger row, so a path that skipped the plan would be a path that could forget to record. The
+    preview and the write therefore read the same numbers.
+    """
+    mock_ent_repo = mocker.Mock(spec=EntityRepository)
+    plan = ConflictResolutionPlan(tag_id=10, tag_name="batel", entity_id=20, entity_name="Batel", entity_type="LOC")
+    mock_ent_repo.plan_conflict_resolution.return_value = plan
+    mock_ent_repo.apply_conflict_resolution.return_value = ConflictResolutionData(
+        winner="ENTITY", documents_transferred=5, resolution_id=7
+    )
 
     service = EntityService(mock_ent_repo)
-    command = ResolveConflictCommand(winner="ENTITY", tag_id=10, entity_id=20)
+    command = ResolveConflictCommand(winner="ENTITY", tag_id=10, entity_id=20, decided_by="ana", note="bairro")
     result = service.resolve_cross_domain_conflict(command)
 
-    # The provenance of the decision travels with it: the catalog records who decided.
-    mock_ent_repo.resolve_cross_domain_conflict.assert_called_once_with("ENTITY", 10, 20, source="HUMAN")
+    mock_ent_repo.plan_conflict_resolution.assert_called_once_with(10, 20)
+    mock_ent_repo.apply_conflict_resolution.assert_called_once_with(
+        plan, "ENTITY", source="HUMAN", decided_by="ana", note="bairro"
+    )
     assert result.winner == "ENTITY"
     assert result.documents_transferred == 5
+    assert result.resolution_id == 7
 
 
 def test_resolve_cross_domain_conflict_forwards_judge_source(mocker: MockerFixture) -> None:
     """The LLM judge must be recorded as the author of the decision, not the curator."""
     mock_ent_repo = mocker.Mock(spec=EntityRepository)
-    mock_ent_repo.resolve_cross_domain_conflict.return_value = 0
+    mock_ent_repo.plan_conflict_resolution.return_value = ConflictResolutionPlan(
+        tag_id=1, tag_name="batel", entity_id=2, entity_name="Batel", entity_type="LOC"
+    )
+    mock_ent_repo.apply_conflict_resolution.return_value = ConflictResolutionData(winner="TAG", documents_transferred=0)
 
     service = EntityService(mock_ent_repo)
     service.resolve_cross_domain_conflict(ResolveConflictCommand(winner="TAG", tag_id=1, entity_id=2), source="JUDGE")
 
-    mock_ent_repo.resolve_cross_domain_conflict.assert_called_once_with("TAG", 1, 2, source="JUDGE")
+    # With no ``decided_by``, the source names the author: the judge decided, not a person.
+    assert mock_ent_repo.apply_conflict_resolution.call_args.kwargs["source"] == "JUDGE"
+    assert mock_ent_repo.apply_conflict_resolution.call_args.kwargs["decided_by"] == "JUDGE"
+
+
+def test_the_preview_refuses_a_threshold_out_of_range(mocker: MockerFixture) -> None:
+    """The dry run validates its own input instead of scanning with a meaningless threshold."""
+    service = EntityService(mocker.Mock(spec=EntityRepository))
+    with pytest.raises(InvalidParam):
+        service.page_cross_domain_conflicts(threshold=1.5)
+
+
+def test_the_page_forwards_the_pair_kind_that_makes_the_list_usable(mocker: MockerFixture) -> None:
+    """
+    ``pair_kind`` is the lever that separates 122 spelling questions from 5 050 structural ones.
+
+    It is not called ``scope``: Litestar reserves that name for the ASGI scope, and a handler
+    parameter with it silently receives the raw request instead of the query string.
+    """
+    mock_ent_repo = mocker.Mock(spec=EntityRepository)
+    mock_ent_repo.page_cross_domain_conflicts.return_value = CrossDomainConflictPage(total=0, limit=50, offset=0)
+
+    service = EntityService(mock_ent_repo)
+    service.page_cross_domain_conflicts(threshold=0.9, pair_kind="near_duplicate", limit=10, offset=20)
+
+    mock_ent_repo.page_cross_domain_conflicts.assert_called_once_with(
+        threshold=0.9, pair_kind="near_duplicate", limit=10, offset=20
+    )
 
 
 # ==========================================

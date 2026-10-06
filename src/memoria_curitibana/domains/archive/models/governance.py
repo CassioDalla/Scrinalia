@@ -8,6 +8,7 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -181,8 +182,87 @@ class ArchiveAIReviewQueue(Base):
 
     # Structured AI responses
     llm_decision: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    llm_confidence: Mapped[str | None] = mapped_column(Float, nullable=True)
+    llm_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     llm_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ArchiveConflictResolutionLog(Base):
+    """
+    Ledger of every tag x entity resolution, with enough detail to undo it without loss.
+
+    One row per resolution, and the unit of undo is the pair. It lives next to
+    :class:`ArchiveAIReviewQueue` because the two are the two halves of the same operation: the
+    queue keeps the *decision* (the judge's verdict, or the human's), this keeps the *write* —
+    what was transferred, what was deleted, which ban was planted — so a decision a human took
+    can be reversed by a human.
+
+    Both sides are **snapshotted, not referenced**: the resolution deletes the loser, so a foreign
+    key would be a promise the row cannot keep. The same reasoning as
+    ``ArchiveTaxonomyMergeLog.absorbed_snapshot``, and the reason ``context_payload`` in the queue
+    has no FK either.
+
+    ``created_link_ids`` is what makes the undo exact rather than approximate. The resolution links
+    the loser's documents to the winner with ``ON CONFLICT DO NOTHING``, so a document that already
+    carried the winner keeps its link; without recording which links this resolution actually
+    created, the undo would delete links that existed before it.
+
+    ``ban_created`` is the same care applied to the governance write: the ban is planted with
+    ``ON CONFLICT DO NOTHING``, so the undo must remove it only when this resolution is the one that
+    planted it — otherwise reversing one resolution would lift a ban an earlier one decided.
+    """
+
+    __tablename__ = "archive_conflict_resolution_log"
+
+    resolution_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    #: The axis that won. The loser's row is gone; the winner may be gone too, absorbed later.
+    winner: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+
+    #: Who decided: the judge worker auto-resolving, or a human on the conflict screen.
+    source: Mapped[str] = mapped_column(String(10), nullable=False, default="HUMAN", server_default="HUMAN")
+
+    # The pair, as it was at decision time. Indexed so "was this spelling already decided?" is one
+    # lookup rather than a scan of the ledger.
+    tag_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    tag_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    entity_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    entity_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    entity_type: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    #: Full snapshot of the deleted row (every column plus ``created_at``), so the undo restores
+    #: the row instead of an approximation of it.
+    loser_snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    #: Documents whose link was moved to the winner.
+    transferred_document_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+
+    #: The subset this resolution newly linked. The undo removes exactly these.
+    created_link_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+
+    #: The governance write in the winning axis: ``NER_EXCLUSION`` (tag won) or ``STOPWORD``
+    #: (entity won), the spelling it names, and whether this resolution is what created it.
+    ban_kind: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    ban_term: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    ban_created: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+
+    decided_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    undone_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    undone_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("winner IN ('TAG', 'ENTITY')", name="chk_conflict_resolution_winner"),
+        CheckConstraint("source IN ('JUDGE', 'HUMAN')", name="chk_conflict_resolution_source"),
+        CheckConstraint(
+            "ban_kind IS NULL OR ban_kind IN ('NER_EXCLUSION', 'STOPWORD')",
+            name="chk_conflict_resolution_ban_kind",
+        ),
+        # The read asks "was this pair already resolved?" once per row of the live scan, so the
+        # pair is the key — the two single-column indexes only serve "everything about this tag".
+        Index("ix_conflict_resolution_pair", "tag_id", "entity_id"),
+    )
 
 
 class DomainTextTemplate(Base):

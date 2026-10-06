@@ -187,10 +187,59 @@
         "title": "CleaningRuleMutationResponse",
         "type": "object"
       },
+      "ConflictPreviewRequest": {
+        "properties": {
+          "entity_id": {
+            "description": "Id da entidade nomeada.",
+            "type": "integer"
+          },
+          "tag_id": {
+            "description": "Id da tag no vocabulário.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entity_id",
+          "tag_id"
+        ],
+        "title": "ConflictPreviewRequest",
+        "type": "object"
+      },
       "ConflictResolutionData": {
         "properties": {
+          "ban_kind": {
+            "enum": [
+              "NER_EXCLUSION",
+              "STOPWORD",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ban_term": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "documents_transferred": {
             "type": "integer"
+          },
+          "resolution_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "winner": {
             "enum": [
@@ -207,10 +256,358 @@
         "title": "ConflictResolutionData",
         "type": "object"
       },
-      "ConflictResolutionRequest": {
+      "ConflictResolutionLogEntry": {
         "properties": {
+          "ban_created": {
+            "default": false,
+            "type": "boolean"
+          },
+          "ban_kind": {
+            "enum": [
+              "NER_EXCLUSION",
+              "STOPWORD",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ban_term": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decided_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decided_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "documents_transferred": {
+            "default": 0,
+            "type": "integer"
+          },
           "entity_id": {
             "type": "integer"
+          },
+          "entity_name": {
+            "type": "string"
+          },
+          "entity_type": {
+            "type": "string"
+          },
+          "is_undone": {
+            "description": "Computed so the front reads one definition instead of comparing a timestamp itself.",
+            "readOnly": true,
+            "type": "boolean"
+          },
+          "loser_restored": {
+            "default": false,
+            "type": "boolean"
+          },
+          "note": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resolution_id": {
+            "type": "integer"
+          },
+          "source": {
+            "enum": [
+              "JUDGE",
+              "HUMAN"
+            ],
+            "type": "string"
+          },
+          "tag_id": {
+            "type": "integer"
+          },
+          "tag_name": {
+            "type": "string"
+          },
+          "undone_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "undone_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "winner": {
+            "enum": [
+              "TAG",
+              "ENTITY"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id",
+          "entity_name",
+          "entity_type",
+          "is_undone",
+          "resolution_id",
+          "source",
+          "tag_id",
+          "tag_name",
+          "winner"
+        ],
+        "title": "ConflictResolutionLogEntry",
+        "type": "object"
+      },
+      "ConflictResolutionLogListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ConflictResolutionLogEntry"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "offset",
+          "total"
+        ],
+        "title": "ConflictResolutionLogListResponse",
+        "type": "object"
+      },
+      "ConflictResolutionPlan": {
+        "properties": {
+          "already_resolved": {
+            "default": false,
+            "type": "boolean"
+          },
+          "blocker": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entity_alive": {
+            "default": true,
+            "type": "boolean"
+          },
+          "entity_document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "entity_id": {
+            "type": "integer"
+          },
+          "entity_name": {
+            "type": "string"
+          },
+          "entity_type": {
+            "type": "string"
+          },
+          "entity_wins_ban_exists": {
+            "default": false,
+            "type": "boolean"
+          },
+          "entity_wins_ban_term": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entity_wins_documents_already_linked": {
+            "default": 0,
+            "type": "integer"
+          },
+          "entity_wins_documents_transferred": {
+            "default": 0,
+            "type": "integer"
+          },
+          "entity_wins_loses": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "judge_confidence": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "judge_reason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "judge_winner": {
+            "enum": [
+              "TAG",
+              "ENTITY",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "resolvable": {
+            "default": true,
+            "type": "boolean"
+          },
+          "similarity": {
+            "default": 0.0,
+            "type": "number"
+          },
+          "tag_alive": {
+            "default": true,
+            "type": "boolean"
+          },
+          "tag_document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "tag_id": {
+            "type": "integer"
+          },
+          "tag_name": {
+            "type": "string"
+          },
+          "tag_wins_ban_exists": {
+            "default": false,
+            "type": "boolean"
+          },
+          "tag_wins_ban_term": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tag_wins_documents_already_linked": {
+            "default": 0,
+            "type": "integer"
+          },
+          "tag_wins_documents_transferred": {
+            "default": 0,
+            "type": "integer"
+          },
+          "tag_wins_loses": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "entity_id",
+          "entity_name",
+          "entity_type",
+          "tag_id",
+          "tag_name"
+        ],
+        "title": "ConflictResolutionPlan",
+        "type": "object"
+      },
+      "ConflictResolutionRequest": {
+        "properties": {
+          "decided_by": {
+            "description": "Quem decidiu; texto livre até haver autenticação.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entity_id": {
+            "type": "integer"
+          },
+          "note": {
+            "description": "Por que decidiu; fica no ledger da resolução.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "tag_id": {
             "type": "integer"
@@ -404,6 +801,92 @@
           "entity_type": {
             "type": "string"
           },
+          "judge_confidence": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "judge_reason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "judge_status": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "judge_winner": {
+            "enum": [
+              "TAG",
+              "ENTITY",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "pair_kind": {
+            "description": "Which of the two populations the pair belongs to, derived from the score itself.\n\nA computed field rather than a column or a plain attribute, because it *is* the similarity:\n``pg_trgm`` scores 1 exactly when the two spellings are the same word, so keeping the two as\nseparate values would be an invitation for them to disagree. It is in the payload because the\nscreen's whole job is to let the archivist open one population at a time.",
+            "enum": [
+              "EXACT_NAME",
+              "NEAR_DUPLICATE"
+            ],
+            "readOnly": true,
+            "type": "string"
+          },
+          "resolution_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resolution_source": {
+            "enum": [
+              "JUDGE",
+              "HUMAN",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "resolution_winner": {
+            "enum": [
+              "TAG",
+              "ENTITY",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "resolved_undone": {
+            "default": false,
+            "type": "boolean"
+          },
           "similarity": {
             "type": "number"
           },
@@ -418,6 +901,7 @@
           "entity_id",
           "entity_name",
           "entity_type",
+          "pair_kind",
           "similarity",
           "tag_id",
           "tag_name"
@@ -425,19 +909,42 @@
         "title": "CrossDomainConflict",
         "type": "object"
       },
-      "CrossDomainConflictListResponse": {
+      "CrossDomainConflictPage": {
         "properties": {
-          "data": {
+          "exact_name_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "items": {
             "items": {
               "$ref": "#/components/schemas/CrossDomainConflict"
             },
             "type": "array"
+          },
+          "judged_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "near_duplicate_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
           }
         },
         "required": [
-          "data"
+          "limit",
+          "offset",
+          "total"
         ],
-        "title": "CrossDomainConflictListResponse",
+        "title": "CrossDomainConflictPage",
         "type": "object"
       },
       "CurationInbox": {
@@ -3039,6 +3546,147 @@
         "title": "HierarchyVocabulary",
         "type": "object"
       },
+      "JudgedConflict": {
+        "properties": {
+          "applicable": {
+            "description": "Both sides alive and nothing written: the only state with work left.\n\nThe single definition of \"there is still something to decide here\", exposed in the payload\nso the screen and the counter cannot drift apart on what \"pending\" means.",
+            "readOnly": true,
+            "type": "boolean"
+          },
+          "entity_alive": {
+            "default": false,
+            "type": "boolean"
+          },
+          "entity_id": {
+            "type": "integer"
+          },
+          "entity_name": {
+            "type": "string"
+          },
+          "entity_type": {
+            "type": "string"
+          },
+          "judge_confidence": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "judge_reason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "judge_status": {
+            "type": "string"
+          },
+          "judge_winner": {
+            "enum": [
+              "TAG",
+              "ENTITY",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "queue_id": {
+            "type": "integer"
+          },
+          "resolution_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resolution_undone": {
+            "default": false,
+            "type": "boolean"
+          },
+          "tag_alive": {
+            "default": false,
+            "type": "boolean"
+          },
+          "tag_id": {
+            "type": "integer"
+          },
+          "tag_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "applicable",
+          "entity_id",
+          "entity_name",
+          "entity_type",
+          "judge_status",
+          "queue_id",
+          "tag_id",
+          "tag_name"
+        ],
+        "title": "JudgedConflict",
+        "type": "object"
+      },
+      "JudgedConflictPage": {
+        "properties": {
+          "auto_resolved": {
+            "default": 0,
+            "type": "integer"
+          },
+          "entity_wins": {
+            "default": 0,
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/JudgedConflict"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "sent_to_human": {
+            "default": 0,
+            "type": "integer"
+          },
+          "still_applicable": {
+            "default": 0,
+            "type": "integer"
+          },
+          "tag_wins": {
+            "default": 0,
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "offset",
+          "total"
+        ],
+        "title": "JudgedConflictPage",
+        "type": "object"
+      },
       "MacroCategoriesSuggestionResponse": {
         "properties": {
           "categories": {
@@ -4334,7 +4982,7 @@
       },
       "StopwordsScope": {
         "default": "TAG",
-        "description": "Eixo de onde o termo sai.",
+        "description": "\n    Controls the scope of a domain stopword\n    ",
         "enum": [
           "TAG",
           "ENTITY",
@@ -10285,6 +10933,47 @@
               "default": 0.85,
               "type": "number"
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "pair_kind",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "all",
+                "exact_name",
+                "near_duplicate"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -10292,7 +10981,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CrossDomainConflictListResponse"
+                  "$ref": "#/components/schemas/CrossDomainConflictPage"
                 }
               }
             },
@@ -10339,6 +11028,282 @@
           }
         },
         "summary": "GetCrossDomainConflicts",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/conflicts/judged": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyConflictsJudgedListJudgedConflicts",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JudgedConflictPage"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListJudgedConflicts",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/conflicts/resolutions": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyConflictsResolutionsListConflictResolutions",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "include_undone",
+            "required": false,
+            "schema": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictResolutionLogListResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListConflictResolutions",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/conflicts/resolutions/{resolution_id}": {
+      "delete": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyConflictsResolutionsResolutionIdUndoConflictResolution",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "resolution_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "undone_by",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "UndoConflictResolution",
         "tags": [
           "Taxonomy"
         ]
@@ -10410,6 +11375,77 @@
           }
         },
         "summary": "ResolveCrossDomainConflict",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/conflicts/resolve/preview": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyConflictsResolvePreviewPreviewConflictResolution",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConflictPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictResolutionPlan"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "PreviewConflictResolution",
         "tags": [
           "Taxonomy"
         ]

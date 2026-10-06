@@ -759,6 +759,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/taxonomy/conflicts/judged": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListJudgedConflicts */
+        get: operations["ApiV1TaxonomyConflictsJudgedListJudgedConflicts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxonomy/conflicts/resolutions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListConflictResolutions */
+        get: operations["ApiV1TaxonomyConflictsResolutionsListConflictResolutions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxonomy/conflicts/resolutions/{resolution_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** UndoConflictResolution */
+        delete: operations["ApiV1TaxonomyConflictsResolutionsResolutionIdUndoConflictResolution"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/taxonomy/conflicts/resolve": {
         parameters: {
             query?: never;
@@ -770,6 +821,23 @@ export interface paths {
         put?: never;
         /** ResolveCrossDomainConflict */
         post: operations["ApiV1TaxonomyConflictsResolveResolveCrossDomainConflict"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxonomy/conflicts/resolve/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** PreviewConflictResolution */
+        post: operations["ApiV1TaxonomyConflictsResolvePreviewPreviewConflictResolution"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1328,15 +1396,109 @@ export interface components {
             data: components["schemas"]["CleaningRuleDTO"];
             message: string;
         };
+        /** ConflictPreviewRequest */
+        ConflictPreviewRequest: {
+            /** @description Id da entidade nomeada. */
+            entity_id: number;
+            /** @description Id da tag no vocabulário. */
+            tag_id: number;
+        };
         /** ConflictResolutionData */
         ConflictResolutionData: {
+            /** @enum {null|string} */
+            ban_kind?: "NER_EXCLUSION" | "STOPWORD" | null;
+            ban_term?: string | null;
             documents_transferred: number;
+            resolution_id?: number | null;
             /** @enum {string} */
             winner: "TAG" | "ENTITY";
         };
+        /** ConflictResolutionLogEntry */
+        ConflictResolutionLogEntry: {
+            /** @default false */
+            ban_created: boolean;
+            /** @enum {null|string} */
+            ban_kind?: "NER_EXCLUSION" | "STOPWORD" | null;
+            ban_term?: string | null;
+            decided_at?: string | null;
+            decided_by?: string | null;
+            /** @default 0 */
+            documents_transferred: number;
+            entity_id: number;
+            entity_name: string;
+            entity_type: string;
+            /** @description Computed so the front reads one definition instead of comparing a timestamp itself. */
+            readonly is_undone: boolean;
+            /** @default false */
+            loser_restored: boolean;
+            note?: string | null;
+            resolution_id: number;
+            /** @enum {string} */
+            source: "JUDGE" | "HUMAN";
+            tag_id: number;
+            tag_name: string;
+            undone_at?: string | null;
+            undone_by?: string | null;
+            /** @enum {string} */
+            winner: "TAG" | "ENTITY";
+        };
+        /** ConflictResolutionLogListResponse */
+        ConflictResolutionLogListResponse: {
+            items?: components["schemas"]["ConflictResolutionLogEntry"][];
+            limit: number;
+            offset: number;
+            total: number;
+        };
+        /** ConflictResolutionPlan */
+        ConflictResolutionPlan: {
+            /** @default false */
+            already_resolved: boolean;
+            blocker?: string | null;
+            /** @default true */
+            entity_alive: boolean;
+            /** @default 0 */
+            entity_document_count: number;
+            entity_id: number;
+            entity_name: string;
+            entity_type: string;
+            /** @default false */
+            entity_wins_ban_exists: boolean;
+            entity_wins_ban_term?: string | null;
+            /** @default 0 */
+            entity_wins_documents_already_linked: number;
+            /** @default 0 */
+            entity_wins_documents_transferred: number;
+            entity_wins_loses?: string | null;
+            judge_confidence?: number | null;
+            judge_reason?: string | null;
+            /** @enum {null|string} */
+            judge_winner?: "TAG" | "ENTITY" | null;
+            /** @default true */
+            resolvable: boolean;
+            /** @default 0 */
+            similarity: number;
+            /** @default true */
+            tag_alive: boolean;
+            /** @default 0 */
+            tag_document_count: number;
+            tag_id: number;
+            tag_name: string;
+            /** @default false */
+            tag_wins_ban_exists: boolean;
+            tag_wins_ban_term?: string | null;
+            /** @default 0 */
+            tag_wins_documents_already_linked: number;
+            /** @default 0 */
+            tag_wins_documents_transferred: number;
+            tag_wins_loses?: string | null;
+        };
         /** ConflictResolutionRequest */
         ConflictResolutionRequest: {
+            /** @description Quem decidiu; texto livre até haver autenticação. */
+            decided_by?: string | null;
             entity_id: number;
+            /** @description Por que decidiu; fica no ledger da resolução. */
+            note?: string | null;
             tag_id: number;
             /** @enum {string} */
             winner: "TAG" | "ENTITY";
@@ -1402,13 +1564,44 @@ export interface components {
             entity_id: number;
             entity_name: string;
             entity_type: string;
+            judge_confidence?: number | null;
+            judge_reason?: string | null;
+            judge_status?: string | null;
+            /** @enum {null|string} */
+            judge_winner?: "TAG" | "ENTITY" | null;
+            /**
+             * @description Which of the two populations the pair belongs to, derived from the score itself.
+             *
+             *     A computed field rather than a column or a plain attribute, because it *is* the similarity:
+             *     ``pg_trgm`` scores 1 exactly when the two spellings are the same word, so keeping the two as
+             *     separate values would be an invitation for them to disagree. It is in the payload because the
+             *     screen's whole job is to let the archivist open one population at a time.
+             * @enum {string}
+             */
+            readonly pair_kind: "EXACT_NAME" | "NEAR_DUPLICATE";
+            resolution_id?: number | null;
+            /** @enum {null|string} */
+            resolution_source?: "JUDGE" | "HUMAN" | null;
+            /** @enum {null|string} */
+            resolution_winner?: "TAG" | "ENTITY" | null;
+            /** @default false */
+            resolved_undone: boolean;
             similarity: number;
             tag_id: number;
             tag_name: string;
         };
-        /** CrossDomainConflictListResponse */
-        CrossDomainConflictListResponse: {
-            data: components["schemas"]["CrossDomainConflict"][];
+        /** CrossDomainConflictPage */
+        CrossDomainConflictPage: {
+            /** @default 0 */
+            exact_name_count: number;
+            items?: components["schemas"]["CrossDomainConflict"][];
+            /** @default 0 */
+            judged_count: number;
+            limit: number;
+            /** @default 0 */
+            near_duplicate_count: number;
+            offset: number;
+            total: number;
         };
         /** CurationInbox */
         CurationInbox: {
@@ -2008,6 +2201,51 @@ export interface components {
             /** @description Why a move or a creation is refused, so the screen can explain the refusal. */
             violations?: string[];
         };
+        /** JudgedConflict */
+        JudgedConflict: {
+            /**
+             * @description Both sides alive and nothing written: the only state with work left.
+             *
+             *     The single definition of "there is still something to decide here", exposed in the payload
+             *     so the screen and the counter cannot drift apart on what "pending" means.
+             */
+            readonly applicable: boolean;
+            /** @default false */
+            entity_alive: boolean;
+            entity_id: number;
+            entity_name: string;
+            entity_type: string;
+            judge_confidence?: number | null;
+            judge_reason?: string | null;
+            judge_status: string;
+            /** @enum {null|string} */
+            judge_winner?: "TAG" | "ENTITY" | null;
+            queue_id: number;
+            resolution_id?: number | null;
+            /** @default false */
+            resolution_undone: boolean;
+            /** @default false */
+            tag_alive: boolean;
+            tag_id: number;
+            tag_name: string;
+        };
+        /** JudgedConflictPage */
+        JudgedConflictPage: {
+            /** @default 0 */
+            auto_resolved: number;
+            /** @default 0 */
+            entity_wins: number;
+            items?: components["schemas"]["JudgedConflict"][];
+            limit: number;
+            offset: number;
+            /** @default 0 */
+            sent_to_human: number;
+            /** @default 0 */
+            still_applicable: number;
+            /** @default 0 */
+            tag_wins: number;
+            total: number;
+        };
         /** MacroCategoriesSuggestionResponse */
         MacroCategoriesSuggestionResponse: {
             categories: components["schemas"]["MacroCategorySuggested"][];
@@ -2332,7 +2570,7 @@ export interface components {
         };
         /**
          * StopwordsScope
-         * @description Eixo de onde o termo sai.
+         * @description Controls the scope of a domain stopword
          * @default TAG
          * @enum {string}
          */
@@ -4629,6 +4867,9 @@ export interface operations {
         parameters: {
             query?: {
                 threshold?: number;
+                pair_kind?: "all" | "exact_name" | "near_duplicate";
+                limit?: number;
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -4642,7 +4883,123 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CrossDomainConflictListResponse"];
+                    "application/json": components["schemas"]["CrossDomainConflictPage"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyConflictsJudgedListJudgedConflicts: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JudgedConflictPage"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyConflictsResolutionsListConflictResolutions: {
+        parameters: {
+            query?: {
+                include_undone?: boolean;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictResolutionLogListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyConflictsResolutionsResolutionIdUndoConflictResolution: {
+        parameters: {
+            query?: {
+                undone_by?: string | null;
+            };
+            header?: never;
+            path: {
+                resolution_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -4682,6 +5039,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConflictResolutionResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyConflictsResolvePreviewPreviewConflictResolution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConflictPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictResolutionPlan"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

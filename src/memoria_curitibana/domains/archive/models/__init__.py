@@ -14,6 +14,7 @@ from .enums import (
 from .governance import (
     ArchiveAIReviewQueue,
     ArchiveCleaningRule,
+    ArchiveConflictResolutionLog,
     DomainNerExclusion,
     DomainStopwords,
     DomainSubjectExclusion,
@@ -37,6 +38,7 @@ __all__ = [
     "AnomalyType",
     "ArchiveAIReviewQueue",
     "ArchiveCleaningRule",
+    "ArchiveConflictResolutionLog",
     "ArchiveDescriptionLevel",
     "ArchiveDocument",
     "ArchiveDocumentDeletion",

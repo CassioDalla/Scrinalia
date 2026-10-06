@@ -38,11 +38,18 @@ class MergeEntityCommand(BaseModel):
 
 
 class ResolveConflictCommand(BaseModel):
-    """Command to resolve a Tag/Entity naming collision."""
+    """
+    Command to resolve a Tag/Entity naming collision.
+
+    ``decided_by`` and ``note`` travel with the verdict because the resolution now leaves a durable
+    row: the ledger has to say who decided and why, not only what changed.
+    """
 
     winner: Literal["TAG", "ENTITY"]
     tag_id: int
     entity_id: int
+    decided_by: str | None = None
+    note: str | None = None
 
 
 class DocumentReviewCommand(BaseModel):

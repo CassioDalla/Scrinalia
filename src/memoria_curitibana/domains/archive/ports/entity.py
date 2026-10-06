@@ -4,11 +4,16 @@ from typing import Literal, Protocol
 from memoria_curitibana.domains.archive.schemas.command_schema import EntityLinkCommand, SynonymCommand
 from memoria_curitibana.domains.archive.schemas.entity_schema import (
     ArchiveEntityDTO,
+    ConflictResolutionData,
+    ConflictResolutionLogEntry,
+    ConflictResolutionPlan,
     CrossDomainConflict,
+    CrossDomainConflictPage,
     EntityIdentity,
     EntityPairSimilarity,
     EntityRelevance,
     EntitySimilarity,
+    JudgedConflictPage,
     NerExclusion,
     NerExclusionSource,
     NerSynonymRule,
@@ -30,6 +35,23 @@ class EntityRepositoryPort(Protocol):
     ) -> Sequence[EntitySimilarity]: ...
     def find_all_similar_pairs(self, threshold: float = 0.65) -> Sequence[EntityPairSimilarity]: ...
     def get_cross_domain_conflicts(self, threshold: float) -> Sequence[CrossDomainConflict]: ...
+    def page_cross_domain_conflicts(
+        self,
+        threshold: float = 0.85,
+        pair_kind: Literal["all", "exact_name", "near_duplicate"] = "all",
+        limit: int = 50,
+        offset: int = 0,
+    ) -> CrossDomainConflictPage: ...
+    def list_judged_conflicts(self, limit: int = 50, offset: int = 0) -> JudgedConflictPage: ...
+    def plan_conflict_resolution(
+        self, tag_id: int, entity_id: int, similarity: float = 0.0
+    ) -> ConflictResolutionPlan: ...
+    def list_conflict_resolutions(
+        self, include_undone: bool = True, limit: int = 50, offset: int = 0
+    ) -> tuple[list[ConflictResolutionLogEntry], int]: ...
+    def undo_conflict_resolution(
+        self, resolution_id: int, undone_by: str | None = None
+    ) -> ConflictResolutionLogEntry: ...
     def get_relevance_count(
         self, entity_type: Literal["ORG", "PER", "LOC"] | None = None, limit: int = 30
     ) -> Sequence[EntityRelevance]: ...
@@ -62,6 +84,14 @@ class EntityRepositoryPort(Protocol):
         tag_id: int | None = None,
     ) -> int: ...
     def remove_ner_exclusions(self, terms: Sequence[str]) -> int: ...
+    def apply_conflict_resolution(
+        self,
+        plan: ConflictResolutionPlan,
+        winner: Literal["TAG", "ENTITY"],
+        source: NerExclusionSource = "HUMAN",
+        decided_by: str | None = None,
+        note: str | None = None,
+    ) -> ConflictResolutionData: ...
     def resolve_cross_domain_conflict(
         self,
         winner: Literal["TAG", "ENTITY"],

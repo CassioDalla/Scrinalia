@@ -9,6 +9,8 @@ from sqlalchemy.exc import IntegrityError
 
 from memoria_curitibana.domains.archive.exceptions import (
     CleaningRuleNotFoundError,
+    ConflictResolutionAlreadyUndoneError,
+    ConflictResolutionNotFoundError,
     DescriptionLevelNotFoundError,
     DocumentHasChildrenError,
     DocumentNotFoundError,
@@ -35,6 +37,7 @@ from memoria_curitibana.domains.archive.exceptions import (
     TagNotFoundError,
     TextTemplateNotFoundError,
     TypologyNotFoundError,
+    UnresolvableConflictError,
     WorkerNotFoundError,
     WorkerRunAlreadyActiveError,
     WorkerRunNotFoundError,
@@ -62,6 +65,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             TextTemplateNotFoundError,
             DescriptionLevelNotFoundError,
             TypologyNotFoundError,
+            ConflictResolutionNotFoundError,
             HierarchyNodeNotFoundError,
             HierarchyPlanNotFoundError,
             MaterialisationNotFoundError,
@@ -78,6 +82,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             DuplicateDescriptionLevelError,
             DuplicateTypologyError,
             MaterialisationAlreadyUndoneError,
+            ConflictResolutionAlreadyUndoneError,
             DocumentHasChildrenError,
             WorkerRunAlreadyActiveError,
         ),
@@ -95,6 +100,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             InvalidHierarchyMoveError,
             InvalidHierarchyPlanError,
             InvalidTypologyError,
+            UnresolvableConflictError,
             InvalidWorkerSettingsError,
         ),
     ):
