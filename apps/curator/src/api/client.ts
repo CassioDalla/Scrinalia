@@ -124,7 +124,15 @@ export type EntityPairSimilarity = components["schemas"]["EntityPairSimilarity"]
 export type EntitySimilarity = components["schemas"]["EntitySimilarity"];
 export type EntitySimilarityResponse = components["schemas"]["EntitySimilarityResponse"];
 export type EntityMergeResponse = components["schemas"]["EntityMergeResponse"];
-export type EntityMergeRequest = components["schemas"]["MergeRequest"];
+
+/**
+ * One canonical row absorbing the others — the payload both vocabularies accept.
+ *
+ * Tags and entities share the shape on purpose: the operation is the same, and the front should not
+ * learn a second spelling of "merge these two".
+ */
+export type MergeRequest = components["schemas"]["MergeRequest"];
+export type EntityMergeRequest = MergeRequest;
 export type ReclassifyEntityRequest = components["schemas"]["ReclassifyEntityRequest"];
 export type EntityReclassifyResponse = components["schemas"]["EntityReclassifyResponse"];
 export type EntityDeleteResponse = components["schemas"]["EntityDeleteResponse"];
@@ -199,6 +207,7 @@ export type MergeReason = NonNullable<
   paths["/api/v1/taxonomy/tags/merge-proposals"]["get"]["parameters"]["query"]
 >["reason"];
 export type HierarchyNodeMoveRequest = components["schemas"]["HierarchyNodeMoveRequest"];
+export type HierarchyNodeCreateRequest = components["schemas"]["HierarchyNodeCreateRequest"];
 export type HierarchyNodeSummary = components["schemas"]["HierarchyNodeSummary"];
 
 /**
@@ -513,6 +522,32 @@ export async function undoMerge(mergeId: number, undoneBy?: string): Promise<Tag
       params: { path: { merge_id: mergeId }, query: { undone_by: undoneBy ?? null } },
     }),
   );
+}
+
+/**
+ * The dry run for a pair the archivist chose by hand.
+ *
+ * The proposal flow previews by ``proposal_id``; here the pair comes from the similarity list, which
+ * is the raw evidence and carries no proposal. The same endpoint answers both, and one planner
+ * computes both — so the numbers shown are the numbers the write produces.
+ */
+export async function previewTagPair(body: {
+  canonical_id: number;
+  ids_to_merge: number[];
+}): Promise<MergePreview> {
+  return unwrap<MergePreview>(await client.POST("/api/v1/taxonomy/tags/merge/preview", { body }));
+}
+
+/**
+ * Merges tags the archivist selected, without going through a proposal.
+ *
+ * Reversible on purpose: the write lands in ``archive_taxonomy_merge_log`` and
+ * ``DELETE /tags/merge-log/{merge_id}`` restores the tag, its links, its classification and the
+ * spellings earlier merges had absorbed. That is the difference from the entity merge, which has no
+ * ledger — and the reason this screen can offer the button the entity screen offers with a warning.
+ */
+export async function mergeTags(body: MergeRequest): Promise<MergeResponse> {
+  return unwrap<MergeResponse>(await client.POST("/api/v1/taxonomy/tags/merge", { body }));
 }
 
 // --- Arrangement: decisions about the tree -----------------------------------------------------
@@ -936,4 +971,15 @@ export async function fetchHierarchyNode(descriptionId: string): Promise<Hierarc
       params: { path: { description_id: descriptionId } },
     }),
   );
+}
+
+/**
+ * Declares an arrangement node the source never delivered.
+ *
+ * A fund, a section or a series with no documents yet has no reference code to be sliced out of:
+ * the plan only decides the rungs the slicer proposed. This is the write that declares one by hand,
+ * and the ladder is validated against the chosen parent by the same code a move uses.
+ */
+export async function createHierarchyNode(body: HierarchyNodeCreateRequest): Promise<HierarchyNodeSummary> {
+  return unwrap<HierarchyNodeSummary>(await client.POST("/api/v1/hierarchy/nodes", { body }));
 }

@@ -7,14 +7,17 @@ import {
   banStopwords,
   fetchMergeProposals,
   decideMergeProposal,
+  mergeTags,
   previewMerge,
   previewStopwordPurge,
+  previewTagPair,
   purgeStopwords,
   suggestMergeProposals,
   unbanStopwords,
   undoMerge,
   type BatchMergeResponse,
   type MergePreview,
+  type MergeResponse,
   type ProposalStatus,
   type StopwordPurgePreview,
   type StopwordsScope,
@@ -242,8 +245,10 @@ function SimilarityTab({
   search: TagsSearch;
   patch: (changes: Partial<TagsSearch>) => void;
 }) {
+  const queryClient = useQueryClient();
   const threshold = search.limiar ?? 0.65;
   const [showAll, setShowAll] = useState(false);
+  const [pending, setPending] = useState<TagPairSimilarity | null>(null);
   const similar = useQuery(queries.similarTagPairs(threshold));
 
   const pairs = (similar.data ?? []).filter(
@@ -255,6 +260,18 @@ function SimilarityTab({
     return pair.name_1.toLowerCase().includes(term) || pair.name_2.toLowerCase().includes(term);
   });
   const shown = showAll ? visible : visible.slice(0, 100);
+
+  /**
+   * A merge touches four screens at once: the pairs it just changed, the ledger it writes, the
+   * clusters a future suggestion may re-propose, and every description that carried either spelling.
+   */
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ["taxonomy", "tags"] });
+    void queryClient.invalidateQueries({ queryKey: ["taxonomy", "merge-log"] });
+    void queryClient.invalidateQueries({ queryKey: ["taxonomy", "merge-proposals"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents"] });
+    void queryClient.invalidateQueries({ queryKey: ["curation", "inbox"] });
+  };
 
   return (
     <div className="grid gap-3">
@@ -282,11 +299,16 @@ function SimilarityTab({
       <p className="max-w-3xl text-xs text-(--color-muted)">
         Pares por similaridade de trigrama. É a evidência que a proposta de merge usa — mostrada crua, sem julgar:
         <code> 'alameda cabral' </code> e <code> 'al. alameda cabral' </code> têm similaridade 1.000, e nenhum
-        limiar distingue sozinho o que é abreviação do que é outra coisa.
+        limiar distingue sozinho o que é abreviação do que é outra coisa. Por isso o par traz o botão de unificar e
+        a escolha da canônica: a decisão é sua, com o impacto na frente, e o ledger desfaz.
       </p>
 
       {similar.error ? <ErrorState error={similar.error} /> : null}
       {similar.isPending ? <Spinner /> : null}
+
+      {pending ? (
+        <MergePairPanel pair={pending} onMerged={invalidate} onClose={() => setPending(null)} />
+      ) : null}
 
       {similar.data && pairs.length === 0 ? (
         <EmptyState
@@ -309,10 +331,21 @@ function SimilarityTab({
                 <li key={`${pair.id_1}-${pair.id_2}`} className="flex items-center justify-between gap-3 px-3 py-1.5">
                   <span className="flex min-w-0 items-center gap-2">
                     <span className="truncate">{pair.name_1}</span>
+                    {/*
+                      The identifiers are not decoration: two rows can read the same and the panel asks
+                      which side is canonical — without the ids the archivist cannot tell them apart.
+                    */}
+                    <code className="text-[10px] text-(--color-muted)">#{pair.id_1}</code>
                     <span className="text-(--color-muted)">↔</span>
                     <span className="truncate">{pair.name_2}</span>
+                    <code className="text-[10px] text-(--color-muted)">#{pair.id_2}</code>
                   </span>
-                  <span className="shrink-0 tabular-nums text-(--color-muted)">{pair.sim_score.toFixed(3)}</span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span className="tabular-nums text-(--color-muted)">{pair.sim_score.toFixed(3)}</span>
+                    <Button size="sm" variant="secondary" onClick={() => setPending(pair)}>
+                      unificar ↦
+                    </Button>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -328,6 +361,179 @@ function SimilarityTab({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The confirmation step of a hand-picked merge, and the only place the effect is stated.
+ *
+ * The dry run is fetched as the panel opens and the button waits for it: the numbers the archivist
+ * approves come from the same planner the write executes, and ``category_would_be_lost`` is the one
+ * warning that has to be read **before** the click — approving on the hope that the pair is harmless
+ * is exactly what the measurement forbade (``rua 24 de maio`` <- ``rua 13 de maio``).
+ *
+ * Unlike the entity merge, this one is reversible: the ledger keeps the tag, its links, its
+ * classification and the spellings earlier merges absorbed, and the Propostas tab restores them.
+ */
+function MergePairPanel({
+  pair,
+  onMerged,
+  onClose,
+}: {
+  pair: TagPairSimilarity;
+  onMerged: () => void;
+  onClose: () => void;
+}) {
+  const [canonicalId, setCanonicalId] = useState(pair.id_1);
+  const [outcome, setOutcome] = useState<MergeResponse | null>(null);
+
+  /**
+   * The impact carries only the drawer **id**, and a number is not a decision anybody can read.
+   *
+   * The catalogue is already cached by the categories screen, so naming the drawer costs no request
+   * the archivist would not have paid anyway.
+   */
+  const categories = useQuery(queries.macroCategories());
+
+  const absorbedId = canonicalId === pair.id_1 ? pair.id_2 : pair.id_1;
+  const nameOf = (tagId: number) => (tagId === pair.id_1 ? pair.name_1 : pair.name_2);
+  const categoryName = (categoryId: number) =>
+    categories.data?.find((category) => category.category_id === categoryId)?.name ?? `#${categoryId}`;
+
+  const preview = useQuery({
+    // Deliberately **not** under ``["taxonomy", "tags"]``: the merge invalidates that prefix, and a
+    // preview keyed inside it would refetch itself with the pair it just absorbed — turning a
+    // successful merge into a red panel.
+    queryKey: ["taxonomy", "merge-preview", canonicalId, absorbedId],
+    queryFn: () => previewTagPair({ canonical_id: canonicalId, ids_to_merge: [absorbedId] }),
+    staleTime: 30_000,
+  });
+
+  const merge = useMutation({
+    mutationFn: () =>
+      mergeTags({
+        canonical_id: canonicalId,
+        ids_to_merge: [absorbedId],
+        new_name: null,
+        changed_by: null,
+      }),
+    onSuccess: (data) => {
+      setOutcome(data);
+      onMerged();
+    },
+  });
+
+  const tagsDeleted = preview.data?.tags_deleted ?? [];
+  // ``category_would_be_lost`` is true only when the canonical has no drawer and a member does, so
+  // every drawer listed here is exactly the classification that would disappear.
+  const lostDrawers = [
+    ...new Set(
+      tagsDeleted
+        .filter((impact) => impact.macro_category_id !== null)
+        .map((impact) => categoryName(impact.macro_category_id as number)),
+    ),
+  ];
+
+  return (
+    <Card className="ring-(--color-accent)/40">
+      <CardBody className="grid gap-3">
+        <p className="text-sm font-semibold">Unificar duas tags</p>
+
+        <div className="grid gap-2 text-xs">
+          {[pair.id_1, pair.id_2].map((tagId) => (
+            <label key={tagId} className="flex items-center gap-2">
+              <input
+                type="radio"
+                name={`canonical-tag-${pair.id_1}-${pair.id_2}`}
+                checked={canonicalId === tagId}
+                disabled={outcome !== null}
+                onChange={() => {
+                  setCanonicalId(tagId);
+                  setOutcome(null);
+                }}
+              />
+              <span className={canonicalId === tagId ? "font-medium" : "text-(--color-muted)"}>
+                {nameOf(tagId)} <code className="text-[10px]">#{tagId}</code>
+                {canonicalId === tagId ? " — mantida (canônica)" : " — absorvida"}
+              </span>
+            </label>
+          ))}
+        </div>
+
+        <p className="text-xs text-(--color-muted)">
+          A similaridade não diz qual das duas é a boa: o par vem cru. Trocar a canônica recalcula o impacto com o
+          mesmo planejador do unificar.
+        </p>
+
+        {preview.isPending ? <Spinner label="Conferindo o impacto…" /> : null}
+        {preview.error ? <ErrorState error={preview.error} /> : null}
+
+        {preview.data ? (
+          <div className="grid gap-1 rounded-md bg-black/[0.02] p-3 text-xs ring-1 ring-(--color-line)">
+            <p className="font-medium">Nada foi escrito ainda. O unificar usa este mesmo planejador.</p>
+            <p className="text-(--color-muted)">
+              {formatCount(preview.data.documents_updated)} documento(s) atualizado(s) ·{" "}
+              {formatCount(preview.data.links_rewritten)} vínculo(s) reescrito(s) ·{" "}
+              {formatCount(tagsDeleted.length)} tag(s) absorvida(s)
+            </p>
+            <ul className="text-(--color-muted)">
+              {tagsDeleted.map((impact) => (
+                <li key={impact.tag_id}>
+                  {impact.name} <code className="text-[10px]">#{impact.tag_id}</code> (
+                  {formatCount(impact.document_count)} doc
+                  {impact.macro_category_id ? `, gaveta ${categoryName(impact.macro_category_id)}` : ""})
+                </li>
+              ))}
+            </ul>
+            {(preview.data.synonyms_created ?? []).length > 0 ? (
+              <p className="text-(--color-muted)">
+                grafias registradas: <code>{(preview.data.synonyms_created ?? []).join(", ")}</code>
+              </p>
+            ) : null}
+            {(preview.data.synonyms_repointed ?? []).length > 0 ? (
+              <p className="text-(--color-muted)">
+                grafias reapontadas: <code>{(preview.data.synonyms_repointed ?? []).join(", ")}</code>
+              </p>
+            ) : null}
+            {preview.data.category_would_be_lost ? (
+              <p className="rounded bg-(--color-danger)/5 px-2 py-1 text-(--color-danger) ring-1 ring-(--color-danger)/20">
+                Esta unificação <strong>apaga uma classificação de assunto</strong>: a tag absorvida está na gaveta{" "}
+                <strong>{lostDrawers.join(", ") || "—"}</strong> e a canônica não tem gaveta.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        <p className="rounded-md bg-(--color-ok)/5 px-3 py-2 text-xs text-(--color-ok) ring-1 ring-(--color-ok)/20">
+          Diferente do merge de entidades, este <strong>tem desfazer</strong>: o ledger da aba Propostas guarda a tag,
+          os vínculos, a classificação e as grafias, e restaura tudo.
+        </p>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="primary"
+            disabled={!preview.data || merge.isPending || outcome !== null}
+            title={preview.data ? undefined : "O impacto é obrigatório: o unificar espera o dry-run."}
+            onClick={() => merge.mutate()}
+          >
+            {merge.isPending ? "Unificando…" : `Unificar ${nameOf(absorbedId)} em ${nameOf(canonicalId)}`}
+          </Button>
+          <Button variant="ghost" onClick={onClose}>
+            {outcome ? "fechar" : "cancelar"}
+          </Button>
+        </div>
+
+        {merge.error ? <ErrorState error={merge.error} /> : null}
+
+        {outcome ? (
+          <p className="rounded-md bg-(--color-ok)/5 px-3 py-2 text-xs text-(--color-ok) ring-1 ring-(--color-ok)/25">
+            {formatCount(outcome.documents_updated)} documento(s) atualizado(s) ·{" "}
+            {formatCount(outcome.tags_deleted)} tag(s) absorvida(s). Ledger{" "}
+            <code>{(outcome.merge_ids ?? []).join(", ") || "—"}</code>: o desfazer fica na aba Propostas.
+          </p>
+        ) : null}
+      </CardBody>
+    </Card>
   );
 }
 

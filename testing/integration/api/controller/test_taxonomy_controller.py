@@ -387,6 +387,36 @@ def test_preview_tag_merge_route_returns_the_impact(client: TestClient, mocker):
     assert mocked.call_args[0][0].proposal_id == 7
 
 
+def test_preview_tag_merge_route_accepts_the_pair_the_archivist_picked(client: TestClient, mocker):
+    """
+    The similarity tab previews a **hand-picked** pair, and a raw trigram pair carries no proposal.
+
+    ``canonical_id`` + ``ids_to_merge`` is therefore the only source that screen can send, and the
+    route has to forward both to the same planner instead of demanding a persisted proposal — the
+    dry run it answers is the same one the batch apply uses.
+    """
+    from memoria_curitibana.domains.archive.schemas.tag_schema import MergePreviewResponse
+
+    mocked = mocker.patch.object(TagService, "preview_merge")
+    mocked.return_value = MergePreviewResponse(
+        canonical_id=3,
+        canonical_name="alameda cabral",
+        documents_updated=2,
+        links_rewritten=2,
+    )
+
+    response = client.post(
+        "/api/v1/taxonomy/tags/merge/preview",
+        json={"canonical_id": 3, "ids_to_merge": [9]},
+    )
+
+    assert response.status_code == HTTP_200_OK
+    command = mocked.call_args[0][0]
+    assert command.proposal_id is None
+    assert command.canonical_id == 3
+    assert command.ids_to_merge == [9]
+
+
 def test_preview_tag_merge_route_rejects_two_sources(client: TestClient):
     response = client.post(
         "/api/v1/taxonomy/tags/merge/preview",

@@ -1,15 +1,19 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
-import type { HierarchyNodeSummary } from "@/api/client";
+import {
+  createHierarchyNode,
+  type HierarchyNodeCreateRequest,
+  type HierarchyNodeSummary,
+} from "@/api/client";
 import { queries, TREE_PAGE_SIZE } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card, CardBody } from "@/components/ui/Card";
+import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton, Spinner } from "@/components/ui/Feedback";
-import { Input } from "@/components/ui/Input";
+import { Input, Select } from "@/components/ui/Input";
 import { cn } from "@/lib/cn";
 import { formatCount, formatDate, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
 import { nodeLabel } from "@/lib/hierarchy";
@@ -48,6 +52,7 @@ export function TreeRoute() {
   const search = routeApi.useSearch();
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [creating, setCreating] = useState(false);
 
   const roots = useQuery(queries.tree(undefined, 0));
   const summary = useQuery(queries.diagnosticSummary());
@@ -69,9 +74,18 @@ export function TreeRoute() {
         title="Árvore arquivística"
         subtitle="Navegação pelo arranjo materializado. Escolher um nó mostra o ramo e as descrições que ele contém."
         actions={
-          <Link to="/arranjo/plano">
-            <Button size="sm">Plano de arranjo</Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant={creating ? "secondary" : "primary"}
+              onClick={() => setCreating((current) => !current)}
+            >
+              {creating ? "cancelar criação" : "Criar nó"}
+            </Button>
+            <Link to="/arranjo/plano">
+              <Button size="sm">Plano de arranjo</Button>
+            </Link>
+          </div>
         }
       />
 
@@ -128,6 +142,24 @@ export function TreeRoute() {
         </aside>
 
         <div className="min-w-0 flex-1 px-6 py-5">
+          {creating ? (
+            <div className="mb-4">
+              <CreateNodePanel
+                selectedId={selected ?? null}
+                onClose={() => setCreating(false)}
+                onCreated={(created) => {
+                  setCreating(false);
+                  // The new child only shows if its parent is open, and selecting it puts the
+                  // archivist in front of what was just declared.
+                  if (created.parent_id) {
+                    setExpanded((current) => new Set(current).add(created.parent_id as string));
+                  }
+                  void navigate({ to: "/acervo/arvore", search: { ...search, raiz: created.description_id } });
+                }}
+              />
+            </div>
+          ) : null}
+
           {selected ? (
             <BranchPanel
               descriptionId={selected}
@@ -151,6 +183,154 @@ export function TreeRoute() {
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * Declares an arrangement node the collection never delivered.
+ *
+ * The plan decides the rungs the slicer proposed out of the reference codes; a Fundo, a Seção or a
+ * Série **without documents** has no code to be sliced out of, and this is the only way to declare
+ * it. The ladder is validated against the chosen parent by the same code a move uses, so the
+ * refusals shown here are the API's — not a second copy of the rules living in the screen.
+ *
+ * The parent is limited to "the root" or "the node I am looking at" on purpose: the route takes a
+ * ``description_id``, and inventing a node type-ahead for it would be a new surface for a case the
+ * arrangement already answers — you navigate to the parent and declare the child under it.
+ */
+function CreateNodePanel({
+  selectedId,
+  onCreated,
+  onClose,
+}: {
+  selectedId: string | null;
+  onCreated: (node: HierarchyNodeSummary) => void;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const levels = useQuery(queries.levels());
+  const parent = useQuery({ ...queries.node(selectedId ?? ""), enabled: selectedId !== null });
+
+  const [atRoot, setAtRoot] = useState(selectedId === null);
+  const [referenceCode, setReferenceCode] = useState("");
+  const [title, setTitle] = useState("");
+  const [levelId, setLevelId] = useState<number | null>(null);
+  const [scopeContent, setScopeContent] = useState("");
+
+  const create = useMutation({
+    mutationFn: () => {
+      const body: HierarchyNodeCreateRequest = {
+        reference_code: referenceCode.trim(),
+        title: title.trim(),
+        level_id: levelId,
+        parent_id: atRoot ? null : selectedId,
+        scope_content: scopeContent.trim() || null,
+        changed_by: null,
+        note: null,
+      };
+      return createHierarchyNode(body);
+    },
+    onSuccess: (node) => {
+      void queryClient.invalidateQueries({ queryKey: ["hierarchy", "tree"] });
+      void queryClient.invalidateQueries({ queryKey: ["hierarchy", "diagnostics"] });
+      void queryClient.invalidateQueries({ queryKey: ["hierarchy", "node"] });
+      void queryClient.invalidateQueries({ queryKey: ["curation", "inbox"] });
+      onCreated(node);
+    },
+  });
+
+  const valid =
+    referenceCode.trim().length > 0 && title.trim().length > 0 && levelId !== null;
+
+  return (
+    <Card className="ring-(--color-accent)/40">
+      <CardHeader className="text-sm font-semibold">Criar um nó que a origem não entregou</CardHeader>
+      <CardBody className="grid gap-3">
+        <p className="text-xs text-(--color-muted)">
+          Um Fundo, uma Seção ou uma Série <strong>sem documentos</strong> não sai de nenhum código de
+          referência, e o plano só decide as rungs que o fatiador propôs. Declarar aqui é o outro
+          caminho: a descrição nasce <code>HUMAN_APPROVED</code> e a escada é validada contra o pai
+          escolhido pela mesma regra do mover.
+        </p>
+
+        <div className="grid gap-2 text-xs">
+          <span className="text-(--color-muted)">Onde o nó entra</span>
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-2">
+              <input type="radio" name="create-node-parent" checked={atRoot} onChange={() => setAtRoot(true)} />
+              <span>na raiz</span>
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="create-node-parent"
+                checked={!atRoot}
+                disabled={selectedId === null}
+                onChange={() => setAtRoot(false)}
+              />
+              <span className={selectedId === null ? "text-(--color-muted)" : undefined}>
+                sob o nó selecionado
+                {parent.data?.node ? `: ${nodeLabel(parent.data.node)}` : selectedId === null ? " (escolha um nó na árvore)" : ""}
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-3">
+          <label className="flex flex-col gap-1 text-xs">
+            <span className="text-(--color-muted)">Código de referência</span>
+            <Input
+              value={referenceCode}
+              onChange={(event) => setReferenceCode(event.target.value)}
+              placeholder="ex.: BR PRADAP SMU ED"
+              maxLength={500}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs">
+            <span className="text-(--color-muted)">Título</span>
+            <Input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={300} />
+          </label>
+          <label className="flex flex-col gap-1 text-xs">
+            <span className="text-(--color-muted)">Nível de descrição</span>
+            <Select
+              value={levelId ?? ""}
+              onChange={(event) => setLevelId(event.target.value ? Number(event.target.value) : null)}
+            >
+              <option value="">— escolher —</option>
+              {(levels.data ?? []).map((level) => (
+                <option key={level.level_id} value={level.level_id}>
+                  {level.ordinal}. {level.name}
+                </option>
+              ))}
+            </Select>
+          </label>
+        </div>
+
+        <label className="flex flex-col gap-1 text-xs">
+          <span className="text-(--color-muted)">Escopo e conteúdo (opcional)</span>
+          <Input value={scopeContent} onChange={(event) => setScopeContent(event.target.value)} />
+        </label>
+
+        {levels.error ? <ErrorState error={levels.error} /> : null}
+        {parent.error ? <ErrorState error={parent.error} /> : null}
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="primary" disabled={!valid || create.isPending} onClick={() => create.mutate()}>
+            {create.isPending ? "Criando…" : "Criar nó"}
+          </Button>
+          <Button variant="ghost" onClick={onClose}>
+            cancelar
+          </Button>
+          {!valid ? (
+            <span className="text-xs text-(--color-muted)">
+              Código, título e nível são obrigatórios — o nível é a decisão que o código não sabe tomar.
+            </span>
+          ) : null}
+        </div>
+
+        {create.error ? <ErrorState error={create.error} /> : null}
+      </CardBody>
+    </Card>
   );
 }
 
