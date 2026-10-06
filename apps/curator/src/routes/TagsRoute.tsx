@@ -59,6 +59,15 @@ const TABS = [
 const REASONS: MergeReason[] = ["TRIGRAM", "PLURAL", "MIXED"];
 const SCOPE_VALUES: StopwordsScope[] = ["TAG", "ENTITY", "ALL"];
 
+/**
+ * What a merge panel needs to know about one tag: the row it points at, and what it reads.
+ *
+ * Deliberately *not* the contract's ``TagMergeMember``: that one carries ``document_count``, which is
+ * the proposal's refreshed evidence and not something a hand-picked pair knows. Requiring it here
+ * would force the screen to invent a number to fill a field nothing reads.
+ */
+type MergeCandidate = { tag_id: number; name: string };
+
 /** Mirrors ``MAX_MERGE_BATCH_CLUSTERS``: the API refuses a bigger batch, so the screen does not send one. */
 const MAX_BATCH = 200;
 const STATUSES: ProposalStatus[] = ["SUGGESTED", "APPROVED", "REJECTED", "APPLIED"];
@@ -247,7 +256,13 @@ function SimilarityTab({
   const queryClient = useQueryClient();
   const threshold = search.limiar ?? 0.65;
   const [showAll, setShowAll] = useState(false);
-  const [pending, setPending] = useState<TagPairSimilarity | null>(null);
+  /** One row opened by its own button: the panel renders right under it. */
+  const [openPair, setOpenPair] = useState<TagPairSimilarity | null>(null);
+  /** Tags marked across rows, for the case the pair list cannot express: one merge out of many rows. */
+  const [marked, setMarked] = useState<MergeCandidate[]>([]);
+  const [clusterOpen, setClusterOpen] = useState(false);
+  const [lastMerge, setLastMerge] = useState<{ label: string; outcome: MergeResponse } | null>(null);
+
   const similar = useQuery(queries.similarTagPairs(threshold));
 
   const pairs = (similar.data ?? []).filter(
@@ -270,6 +285,57 @@ function SimilarityTab({
     void queryClient.invalidateQueries({ queryKey: ["taxonomy", "merge-proposals"] });
     void queryClient.invalidateQueries({ queryKey: ["documents"] });
     void queryClient.invalidateQueries({ queryKey: ["curation", "inbox"] });
+  };
+
+  const isMarked = (tagId: number) => marked.some((member) => member.tag_id === tagId);
+
+  /**
+   * A row is marked as a whole.
+   *
+   * The unit the archivist reads is the pair — "these two are the same thing" — so ticking it has to
+   * add *both* sides; adding only one would build a cluster out of half of what was on screen. Two
+   * rows that share a side (`carlos de carvalho` ↔ X and `carlos de carvalho` ↔ Y) therefore merge
+   * into three tags, which is exactly the case the pair list cannot express and the reason marking a
+   * row exists at all.
+   */
+  const rowMarked = (pair: TagPairSimilarity) => isMarked(pair.id_1) && isMarked(pair.id_2);
+
+  const toggleRow = (pair: TagPairSimilarity) => {
+    const members = [
+      { tag_id: pair.id_1, name: pair.name_1 },
+      { tag_id: pair.id_2, name: pair.name_2 },
+    ];
+    setMarked((current) => {
+      const already = members.every((member) => current.some((item) => item.tag_id === member.tag_id));
+      if (already) return current.filter((item) => !members.some((member) => member.tag_id === item.tag_id));
+      return [...current, ...members.filter((member) => !current.some((item) => item.tag_id === member.tag_id))];
+    });
+  };
+
+  const clearMarked = () => {
+    setMarked([]);
+    setClusterOpen(false);
+  };
+
+  /**
+   * A successful merge invalidates the data and **leaves the panel open**.
+   *
+   * The panel is the only place the write is reported ("N documentos atualizados, M tags absorvidas,
+   * ledger 195"), and closing it on success threw that message away: the archivist clicked, the panel
+   * vanished and nothing said whether it had worked. Closing is a separate click, and it is also what
+   * clears the marks — the absorbed tags no longer exist, so the floating bar would be pointing at
+   * names that are gone.
+   */
+  const afterMerge = (outcome: MergeResponse) => {
+    setLastMerge({ label: "Unificação aplicada", outcome });
+    setMarked([]);
+    invalidate();
+  };
+
+  const closePanel = () => {
+    setOpenPair(null);
+    setClusterOpen(false);
+    setMarked([]);
   };
 
   return (
@@ -299,14 +365,28 @@ function SimilarityTab({
         Pares por similaridade de trigrama. É a evidência que a proposta de merge usa — mostrada crua, sem julgar:
         <code> 'alameda cabral' </code> e <code> 'al. alameda cabral' </code> têm similaridade 1.000, e nenhum
         limiar distingue sozinho o que é abreviação do que é outra coisa. Por isso o par traz o botão de unificar e
-        a escolha da canônica: a decisão é sua, com o impacto na frente, e o ledger desfaz.
+        a escolha da canônica: a decisão é sua, com o impacto na frente, e o ledger desfaz. Para juntar mais de um
+        par de uma vez — “carlos de carvalho” aparece em várias linhas —, marque as linhas e use a barra que aparece
+        embaixo.
       </p>
 
       {similar.error ? <ErrorState error={similar.error} /> : null}
       {similar.isPending ? <Spinner /> : null}
 
-      {pending ? (
-        <MergePairPanel pair={pending} onMerged={invalidate} onClose={() => setPending(null)} />
+      {lastMerge ? <MergeOutcome label={lastMerge.label} outcome={lastMerge.outcome} /> : null}
+
+      {/*
+        Two rows at once is a different operation from one row, and it gets the panel in the place the
+        archivist suggested for it: the top, because there is no single row it belongs under.
+      */}
+      {clusterOpen && marked.length >= 2 ? (
+        <TagMergePanel
+          members={marked}
+          title={`Unificar ${formatCount(marked.length)} tags marcadas`}
+          hint="Estas tags vieram de linhas diferentes da lista: a canônica é escolhida abaixo, e o impacto é recalculado para o conjunto inteiro."
+          onMerged={afterMerge}
+          onClose={closePanel}
+        />
       ) : null}
 
       {similar.data && pairs.length === 0 ? (
@@ -323,28 +403,64 @@ function SimilarityTab({
               {formatCount(visible.length)} par(es)
               {term ? ` para “${search.nome}”` : ""} de {formatCount(pairs.length)}
             </span>
+            {marked.length > 0 ? (
+              <Button size="sm" variant="ghost" onClick={clearMarked}>
+                limpar marcação ({formatCount(marked.length)})
+              </Button>
+            ) : null}
           </CardHeader>
           <CardBody className="p-0">
             <ul className="divide-y divide-(--color-line) text-sm">
               {shown.map((pair) => (
-                <li key={`${pair.id_1}-${pair.id_2}`} className="flex items-center justify-between gap-3 px-3 py-1.5">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="truncate">{pair.name_1}</span>
-                    {/*
-                      The identifiers are not decoration: two rows can read the same and the panel asks
-                      which side is canonical — without the ids the archivist cannot tell them apart.
-                    */}
-                    <code className="text-[10px] text-(--color-muted)">#{pair.id_1}</code>
-                    <span className="text-(--color-muted)">↔</span>
-                    <span className="truncate">{pair.name_2}</span>
-                    <code className="text-[10px] text-(--color-muted)">#{pair.id_2}</code>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <span className="tabular-nums text-(--color-muted)">{pair.sim_score.toFixed(3)}</span>
-                    <Button size="sm" variant="secondary" onClick={() => setPending(pair)}>
-                      unificar ↦
-                    </Button>
-                  </span>
+                <li key={`${pair.id_1}-${pair.id_2}`}>
+                  <div className="flex items-center justify-between gap-3 px-3 py-1.5">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={rowMarked(pair)}
+                        onChange={() => toggleRow(pair)}
+                        title="Marcar as duas tags desta linha para unificar em conjunto"
+                        aria-label={`Marcar ${pair.name_1} e ${pair.name_2}`}
+                      />
+                      <span className="truncate">{pair.name_1}</span>
+                      {/*
+                        The identifiers are not decoration: two rows can read the same and the panel asks
+                        which side is canonical — without the ids the archivist cannot tell them apart.
+                      */}
+                      <code className="text-[10px] text-(--color-muted)">#{pair.id_1}</code>
+                      <span className="text-(--color-muted)">↔</span>
+                      <span className="truncate">{pair.name_2}</span>
+                      <code className="text-[10px] text-(--color-muted)">#{pair.id_2}</code>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span className="tabular-nums text-(--color-muted)">{pair.sim_score.toFixed(3)}</span>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setOpenPair(openPair === pair ? null : pair)}
+                      >
+                        {openPair === pair ? "fechar" : "unificar ↦"}
+                      </Button>
+                    </span>
+                  </div>
+                  {/*
+                    The panel opens *under its own row*, which is the whole point: it used to render at
+                    the top of the page, so unifying a row from the bottom meant scrolling back up to
+                    read the impact and back down to find the next one.
+                  */}
+                  {openPair === pair ? (
+                    <div className="px-3 pb-3">
+                      <TagMergePanel
+                        members={[
+                          { tag_id: pair.id_1, name: pair.name_1 },
+                          { tag_id: pair.id_2, name: pair.name_2 },
+                        ]}
+                        title="Unificar duas tags"
+                        onMerged={afterMerge}
+                        onClose={closePanel}
+                      />
+                    </div>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -359,8 +475,49 @@ function SimilarityTab({
           </Button>
         </div>
       ) : null}
+
+      {/* The bar floats over the list so the decision is reachable from anywhere in it. */}
+      {marked.length >= 2 && !clusterOpen ? (
+        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center">
+          <div className="pointer-events-auto flex flex-wrap items-center gap-3 rounded-full bg-(--color-ink) px-4 py-2 text-sm text-white shadow-lg">
+            <span>
+              {formatCount(marked.length)} tags marcadas em {formatCount(countRows(marked, pairs))} linha(s)
+            </span>
+            <Button size="sm" variant="primary" onClick={() => setClusterOpen(true)}>
+              Mesclar tags
+            </Button>
+            <button className="text-xs text-white/70 hover:text-white" onClick={clearMarked}>
+              limpar
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
+}
+
+/**
+ * The report of a merge, rendered by the **screen** and not by the row that started it.
+ *
+ * A merge is a write over the vocabulary, so the pair or the cluster that triggered it usually stops
+ * existing in the very refetch that follows: the row disappears and any message living inside it
+ * disappears with it. The archivist clicked, the panel vanished and nothing said whether it had
+ * worked — which is the one thing a destructive-looking operation must never do.
+ */
+function MergeOutcome({ label, outcome }: { label: string; outcome: MergeResponse }) {
+  return (
+    <p className="rounded-md bg-(--color-ok)/5 px-3 py-2 text-xs text-(--color-ok) ring-1 ring-(--color-ok)/25">
+      <strong>{label}</strong> · {formatCount(outcome.documents_updated)} documento(s) atualizado(s) ·{" "}
+      {formatCount(outcome.tags_deleted)} tag(s) absorvida(s) · ledger{" "}
+      <code>{(outcome.merge_ids ?? []).join(", ") || "—"}</code>. O desfazer está no ledger de merges.
+    </p>
+  );
+}
+
+/** How many of the marked tags came from the rows on screen — the bar's own honesty check. */
+function countRows(marked: MergeCandidate[], pairs: TagPairSimilarity[]): number {
+  const ids = new Set(marked.map((member) => member.tag_id));
+  return pairs.filter((pair) => ids.has(pair.id_1) || ids.has(pair.id_2)).length;
 }
 
 /**
@@ -374,17 +531,38 @@ function SimilarityTab({
  * Unlike the entity merge, this one is reversible: the ledger keeps the tag, its links, its
  * classification and the spellings earlier merges absorbed, and the Propostas tab restores them.
  */
-function MergePairPanel({
-  pair,
+function TagMergePanel({
+  members,
+  title,
+  hint,
+  initialCanonicalId,
   onMerged,
   onClose,
 }: {
-  pair: TagPairSimilarity;
-  onMerged: () => void;
+  /** Two or more tags. The first is the default canonical, so the order the archivist chose survives. */
+  members: MergeCandidate[];
+  title?: string;
+  hint?: string;
+  initialCanonicalId?: number;
+  /** Runs after a successful write: the caller invalidates, and the proposal editor closes the row. */
+  onMerged: (outcome: MergeResponse) => void;
   onClose: () => void;
 }) {
-  const [canonicalId, setCanonicalId] = useState(pair.id_1);
+  const first = members[0];
+  const [canonicalId, setCanonicalId] = useState(initialCanonicalId ?? first?.tag_id ?? 0);
+  /**
+   * Members the archivist took out of the cluster.
+   *
+   * This is the whole point of editing a proposal: a machine cluster is usually *nearly* right — the
+   * report is explicit about it ("289 anos é diferente de 294") — and without a way to drop one tag the
+   * only options were to accept a wrong merge or reject a good one. Leaving a member out is also how
+   * the pair panel says "actually, only this one".
+   */
+  const [excluded, setExcluded] = useState<number[]>([]);
   const [outcome, setOutcome] = useState<MergeResponse | null>(null);
+
+  const included = members.filter((member) => !excluded.includes(member.tag_id));
+  const absorbed = included.filter((member) => member.tag_id !== canonicalId);
 
   /**
    * The impact carries only the drawer **id**, and a number is not a decision anybody can read.
@@ -394,31 +572,34 @@ function MergePairPanel({
    */
   const categories = useQuery(queries.macroCategories());
 
-  const absorbedId = canonicalId === pair.id_1 ? pair.id_2 : pair.id_1;
-  const nameOf = (tagId: number) => (tagId === pair.id_1 ? pair.name_1 : pair.name_2);
+  const absorbedIds = absorbed.map((member) => member.tag_id);
+  const nameOf = (tagId: number) => members.find((member) => member.tag_id === tagId)?.name ?? `#${tagId}`;
   const categoryName = (categoryId: number) =>
     categories.data?.find((category) => category.category_id === categoryId)?.name ?? `#${categoryId}`;
 
   const preview = useQuery({
     // Deliberately **not** under ``["taxonomy", "tags"]``: the merge invalidates that prefix, and a
-    // preview keyed inside it would refetch itself with the pair it just absorbed — turning a
-    // successful merge into a red panel.
-    queryKey: ["taxonomy", "merge-preview", canonicalId, absorbedId],
-    queryFn: () => previewTagPair({ canonical_id: canonicalId, ids_to_merge: [absorbedId] }),
+    // preview keyed inside it would refetch itself with the tags it just absorbed — turning a
+    // successful merge into a red panel. The key carries the *kept* set, so unchecking a tag
+    // recomputes the impact instead of showing the previous cluster's numbers.
+    queryKey: ["taxonomy", "merge-preview", canonicalId, included.map((m) => m.tag_id).join(",")],
+    queryFn: () => previewTagPair({ canonical_id: canonicalId, ids_to_merge: absorbedIds }),
     staleTime: 30_000,
+    // A cluster with nothing to absorb has no impact to compute, and the write is refused below.
+    enabled: absorbedIds.length > 0,
   });
 
   const merge = useMutation({
     mutationFn: () =>
       mergeTags({
         canonical_id: canonicalId,
-        ids_to_merge: [absorbedId],
+        ids_to_merge: absorbedIds,
         new_name: null,
         changed_by: null,
       }),
     onSuccess: (data) => {
       setOutcome(data);
-      onMerged();
+      onMerged(data);
     },
   });
 
@@ -433,35 +614,74 @@ function MergePairPanel({
     ),
   ];
 
+  const toggleMember = (tagId: number) => {
+    setOutcome(null);
+    setExcluded((current) => {
+      const next = current.includes(tagId)
+        ? current.filter((id) => id !== tagId)
+        : [...current, tagId];
+      // The canonical cannot be a member that just left: the radio follows the first one still in.
+      if (next.includes(canonicalId)) {
+        const fallback = members.find((member) => !next.includes(member.tag_id));
+        if (fallback) setCanonicalId(fallback.tag_id);
+      }
+      return next;
+    });
+  };
+
   return (
     <Card className="ring-(--color-accent)/40">
       <CardBody className="grid gap-3">
-        <p className="text-sm font-semibold">Unificar duas tags</p>
+        <p className="text-sm font-semibold">{title ?? "Unificar tags"}</p>
+        {hint ? <p className="text-xs text-(--color-muted)">{hint}</p> : null}
 
         <div className="grid gap-2 text-xs">
-          {[pair.id_1, pair.id_2].map((tagId) => (
-            <label key={tagId} className="flex items-center gap-2">
-              <input
-                type="radio"
-                name={`canonical-tag-${pair.id_1}-${pair.id_2}`}
-                checked={canonicalId === tagId}
-                disabled={outcome !== null}
-                onChange={() => {
-                  setCanonicalId(tagId);
-                  setOutcome(null);
-                }}
-              />
-              <span className={canonicalId === tagId ? "font-medium" : "text-(--color-muted)"}>
-                {nameOf(tagId)} <code className="text-[10px]">#{tagId}</code>
-                {canonicalId === tagId ? " — mantida (canônica)" : " — absorvida"}
-              </span>
-            </label>
-          ))}
+          {members.map((member) => {
+            const isCanonical = canonicalId === member.tag_id;
+            const out = excluded.includes(member.tag_id);
+            return (
+              <div
+                key={member.tag_id}
+                className={
+                  "flex flex-wrap items-center gap-2 rounded px-1 py-0.5 " +
+                  (out ? "opacity-50" : "")
+                }
+              >
+                <input
+                  type="checkbox"
+                  checked={!out}
+                  disabled={outcome !== null}
+                  onChange={() => toggleMember(member.tag_id)}
+                  title={out ? "Trazer de volta para o cluster" : "Tirar do cluster"}
+                  aria-label={`Incluir ${member.name} no cluster`}
+                />
+                <input
+                  type="radio"
+                  name={`canonical-tag-${members.map((item) => item.tag_id).join("-")}`}
+                  checked={isCanonical}
+                  disabled={out || outcome !== null}
+                  onChange={() => {
+                    setCanonicalId(member.tag_id);
+                    setOutcome(null);
+                  }}
+                  title="Manter esta grafia"
+                />
+                <span className={isCanonical ? "font-medium" : "text-(--color-muted)"}>
+                  {member.name} <code className="text-[10px]">#{member.tag_id}</code>
+                  {out
+                    ? " — fora do cluster"
+                    : isCanonical
+                      ? " — mantida (canônica)"
+                      : " — absorvida"}
+                </span>
+              </div>
+            );
+          })}
         </div>
 
         <p className="text-xs text-(--color-muted)">
-          A similaridade não diz qual das duas é a boa: o par vem cru. Trocar a canônica recalcula o impacto com o
-          mesmo planejador do unificar.
+          A similaridade não diz qual delas é a boa: a lista vem crua. Desmarque o que não pertence ao conjunto —
+          “289 anos” não é “294 anos” — e o impacto é recalculado com o mesmo planejador do unificar.
         </p>
 
         {preview.isPending ? <Spinner label="Conferindo o impacto…" /> : null}
@@ -511,11 +731,21 @@ function MergePairPanel({
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="primary"
-            disabled={!preview.data || merge.isPending || outcome !== null}
-            title={preview.data ? undefined : "O impacto é obrigatório: o unificar espera o dry-run."}
+            disabled={!preview.data || merge.isPending || outcome !== null || included.length < 2}
+            title={
+              included.length < 2
+                ? "Um cluster precisa de ao menos duas tags: uma canônica e uma absorvida."
+                : preview.data
+                  ? undefined
+                  : "O impacto é obrigatório: o unificar espera o dry-run."
+            }
             onClick={() => merge.mutate()}
           >
-            {merge.isPending ? "Unificando…" : `Unificar ${nameOf(absorbedId)} em ${nameOf(canonicalId)}`}
+            {merge.isPending
+              ? "Unificando…"
+              : absorbed.length === 1
+                ? `Unificar ${absorbed[0]?.name} em ${nameOf(canonicalId)}`
+                : `Unificar ${formatCount(absorbed.length)} tags em ${nameOf(canonicalId)}`}
           </Button>
           <Button variant="ghost" onClick={onClose}>
             {outcome ? "fechar" : "cancelar"}
@@ -552,6 +782,9 @@ function ProposalsTab({
   const [selected, setSelected] = useState<number[]>([]);
   const [batch, setBatch] = useState<BatchMergeResponse | null>(null);
   const [logLimit, setLogLimit] = useState(MERGE_LOG_PAGE_SIZE);
+  /** The cluster the archivist is editing before applying — "tira o '289 anos' do meio". */
+  const [editing, setEditing] = useState<TagMergeProposal | null>(null);
+  const [lastEdited, setLastEdited] = useState<{ proposalId: number; outcome: MergeResponse } | null>(null);
 
   /**
    * The filters are translated explicitly into the API's own names.
@@ -630,6 +863,25 @@ function ProposalsTab({
 
   const undo = useMutation({
     mutationFn: (mergeId: number) => undoMerge(mergeId),
+    onSuccess: invalidate,
+  });
+
+  /**
+   * Files away the machine's cluster after the archivist applied their own version of it.
+   *
+   * Rejecting is the only verdict the catalogue has for "this question is answered", and it is what
+   * keeps the cluster from coming back: the suggestion run re-proposes a fingerprint whose row is
+   * still ``SUGGESTED``, and a row that left ``SUGGESTED`` is never rewritten. Editing the members in
+   * place was the alternative and it does not work — the fingerprint *is* the member list, so the next
+   * run would insert the original cluster again as brand-new work.
+   */
+  const closeEdited = useMutation({
+    mutationFn: (proposal: TagMergeProposal) =>
+      decideMergeProposal(proposal.proposal_id, {
+        status: "REJECTED",
+        decided_by: null,
+        note: `Editada e aplicada à mão: a máquina propôs ${formatCount((proposal.members ?? []).length)} membros e a seleção revisada foi unificada pelo ledger.`,
+      }),
     onSuccess: invalidate,
   });
 
@@ -824,11 +1076,21 @@ function ProposalsTab({
         />
       ) : null}
 
+      {closeEdited.error ? <ErrorState error={closeEdited.error} /> : null}
+      {lastEdited ? (
+        <MergeOutcome
+          label={`Cluster #${lastEdited.proposalId} editado e fechado como rejeitado`}
+          outcome={lastEdited.outcome}
+        />
+      ) : null}
+
       <ul className="grid gap-2">
         {items.map((proposal) => (
-          <li key={proposal.proposal_id}>
+          <li key={proposal.proposal_id} className="grid gap-2">
             <ProposalCard
               proposal={proposal}
+              editing={editing?.proposal_id === proposal.proposal_id}
+              onEdit={() => setEditing(editing?.proposal_id === proposal.proposal_id ? null : proposal)}
               selected={selected.includes(proposal.proposal_id)}
               onToggle={(checked) =>
                 setSelected((current) =>
@@ -843,6 +1105,27 @@ function ProposalsTab({
                 )
               }
             />
+            {/*
+              The editor is a *hand merge* of the members that survived the edit, run by the same
+              planner the batch uses — so the numbers do not change depending on which door was used.
+              The preview inside the panel is the dry run; the machine's cluster is closed afterwards.
+            */}
+            {editing?.proposal_id === proposal.proposal_id ? (
+              <TagMergePanel
+                members={(proposal.members ?? []).map((member) => ({ tag_id: member.tag_id, name: member.name }))}
+                initialCanonicalId={proposal.canonical_id ?? undefined}
+                title={`Editar e aplicar o cluster #${proposal.proposal_id}`}
+                hint="Desmarque a tag que não pertence ao conjunto e escolha a canônica. Aplicar unifica a seleção revisada pelo mesmo planejador do lote, registra no ledger — e fecha esta proposta como rejeitada, porque a pergunta da máquina foi respondida de outro jeito."
+                onMerged={(outcome) => {
+                  // The report goes to the screen: this row is about to leave the SUGGESTED filter.
+                  setLastEdited({ proposalId: proposal.proposal_id, outcome });
+                  setEditing(null);
+                  closeEdited.mutate(proposal);
+                  invalidate();
+                }}
+                onClose={() => setEditing(null)}
+              />
+            ) : null}
           </li>
         ))}
       </ul>
@@ -937,13 +1220,17 @@ function ProposalsTab({
 function ProposalCard({
   proposal,
   selected,
+  editing,
   onToggle,
   onApproved,
+  onEdit,
 }: {
   proposal: TagMergeProposal;
   selected: boolean;
+  editing: boolean;
   onToggle: (checked: boolean) => void;
   onApproved: () => void;
+  onEdit: () => void;
 }) {
   const queryClient = useQueryClient();
   const [preview, setPreview] = useState<MergePreview | null>(null);
@@ -1037,6 +1324,20 @@ function ProposalCard({
           >
             Rejeitar
           </Button>
+          {/*
+            Editing is offered only while there is still a member to absorb: an applied cluster has no
+            tags left to unify, and "editar" there would open a panel over names that no longer exist.
+          */}
+          {proposal.applicable ? (
+            <Button
+              size="sm"
+              variant={editing ? "primary" : "secondary"}
+              onClick={onEdit}
+              title="Tirar membros do cluster antes de unificar"
+            >
+              {editing ? "fechando edição" : "editar"}
+            </Button>
+          ) : null}
           {proposal.decided_by || proposal.decision_note ? (
             <span className="text-xs text-(--color-muted)">
               {proposal.decided_by ? `por ${proposal.decided_by}` : ""}

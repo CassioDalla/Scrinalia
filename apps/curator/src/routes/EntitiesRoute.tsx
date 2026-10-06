@@ -32,6 +32,15 @@ export type EntitiesSearch = { aba?: "relevancia" | "similaridade"; tipo?: Entit
 
 const TYPE_VALUES: ReclassifyTarget[] = ["ORG", "PER", "LOC"];
 
+/**
+ * One entity a merge panel may absorb.
+ *
+ * The ids travel together with the names because the two lists a merge can start from are different
+ * screens: the similarity pair may name an entity that is not on the relevance page at all, and a
+ * panel that looked the name up there would label the canonical with a bare id.
+ */
+type EntityCandidate = { entity_id: number; name: string };
+
 export function validateEntitiesSearch(search: Record<string, unknown>): EntitiesSearch {
   const aba = search.aba === "similaridade" ? "similaridade" : "relevancia";
   const tipo = asEnum(search.tipo, TYPE_VALUES);
@@ -60,8 +69,6 @@ export function EntitiesRoute() {
   const queryClient = useQueryClient();
 
   const [selected, setSelected] = useState<number[]>([]);
-  const [canonicalId, setCanonicalId] = useState<number | null>(null);
-  const [newName, setNewName] = useState("");
 
   const tab = search.aba ?? "relevancia";
 
@@ -82,21 +89,24 @@ export function EntitiesRoute() {
   const rows = relevance.data?.data ?? [];
 
   const toggle = (entityId: number) =>
-    setSelected((current) => {
-      const next = current.includes(entityId)
-        ? current.filter((id) => id !== entityId)
-        : [...current, entityId];
-      if (canonicalId !== null && !next.includes(canonicalId)) setCanonicalId(next[0] ?? null);
-      return next;
-    });
+    setSelected((current) =>
+      current.includes(entityId) ? current.filter((id) => id !== entityId) : [...current, entityId],
+    );
 
-  const nameOf = (entityId: number) => rows.find((row) => row.entity_id === entityId)?.name ?? `#${entityId}`;
+  /**
+   * The names travel with the ids instead of being looked up in the relevance list.
+   *
+   * They are two different lists: a name unified from the similarity tab may not be in the page of
+   * "the 50 heaviest", and the panel would then label the canonical as ``#70317`` — an identifier the
+   * archivist cannot check against anything.
+   */
+  const membersOf = (ids: number[]): EntityCandidate[] =>
+    ids.map((entityId) => ({
+      entity_id: entityId,
+      name: rows.find((row) => row.entity_id === entityId)?.name ?? `#${entityId}`,
+    }));
 
-  const clear = () => {
-    setSelected([]);
-    setCanonicalId(null);
-    setNewName("");
-  };
+  const clear = () => setSelected([]);
 
   return (
     <>
@@ -148,14 +158,7 @@ export function EntitiesRoute() {
 
         {selected.length >= 2 ? (
           <MergePanel
-            selected={selected}
-            // The panel only renders with two or more selected, so the first one exists; the
-            // fallback keeps the type checker honest about the index.
-            canonicalId={canonicalId ?? selected[0] ?? 0}
-            nameOf={nameOf}
-            newName={newName}
-            onCanonical={setCanonicalId}
-            onNewName={setNewName}
+            members={membersOf(selected)}
             onDone={() => {
               clear();
               invalidate();
@@ -315,54 +318,53 @@ function EntityRow({
  * because there is none.
  */
 function MergePanel({
-  selected,
-  canonicalId,
-  nameOf,
-  newName,
-  onCanonical,
-  onNewName,
+  members,
+  title,
+  hint,
   onDone,
   onCancel,
 }: {
-  selected: number[];
-  canonicalId: number;
-  nameOf: (id: number) => string;
-  newName: string;
-  onCanonical: (id: number) => void;
-  onNewName: (name: string) => void;
+  members: EntityCandidate[];
+  title?: string;
+  hint?: string;
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const [canonicalId, setCanonicalId] = useState(members[0]?.entity_id ?? 0);
+  const [newName, setNewName] = useState("");
+  const nameOf = (id: number) => members.find((member) => member.entity_id === id)?.name ?? `#${id}`;
+
   const merge = useMutation({
     mutationFn: () =>
       mergeEntities({
         canonical_id: canonicalId,
-        ids_to_merge: selected.filter((id) => id !== canonicalId),
+        ids_to_merge: members.map((member) => member.entity_id).filter((id) => id !== canonicalId),
         new_name: newName.trim() || null,
         changed_by: null,
       }),
     onSuccess: onDone,
   });
 
-  const absorbed = selected.filter((id) => id !== canonicalId);
+  const absorbed = members.filter((member) => member.entity_id !== canonicalId);
 
   return (
     <Card className="ring-(--color-warn)/40">
       <CardBody className="grid gap-3">
-        <p className="text-sm font-semibold">Unificar {formatCount(selected.length)} entidades</p>
+        <p className="text-sm font-semibold">{title ?? `Unificar ${formatCount(members.length)} entidades`}</p>
+        {hint ? <p className="text-xs text-(--color-muted)">{hint}</p> : null}
 
         <div className="grid gap-2 text-xs">
-          {selected.map((entityId) => (
-            <label key={entityId} className="flex items-center gap-2">
+          {members.map((member) => (
+            <label key={member.entity_id} className="flex items-center gap-2">
               <input
                 type="radio"
-                name="canonical"
-                checked={canonicalId === entityId}
-                onChange={() => onCanonical(entityId)}
+                name={`canonical-${members.map((item) => item.entity_id).join("-")}`}
+                checked={canonicalId === member.entity_id}
+                onChange={() => setCanonicalId(member.entity_id)}
               />
-              <span className={canonicalId === entityId ? "font-medium" : "text-(--color-muted)"}>
-                {nameOf(entityId)}
-                {canonicalId === entityId ? " — mantida (canônica)" : " — absorvida"}
+              <span className={canonicalId === member.entity_id ? "font-medium" : "text-(--color-muted)"}>
+                {member.name} <code className="text-[10px]">#{member.entity_id}</code>
+                {canonicalId === member.entity_id ? " — mantida (canônica)" : " — absorvida"}
               </span>
             </label>
           ))}
@@ -372,7 +374,7 @@ function MergePanel({
           <span className="text-(--color-muted)">Renomear a canônica (opcional; o nome antigo vira sinônimo)</span>
           <Input
             value={newName}
-            onChange={(event) => onNewName(event.target.value)}
+            onChange={(event) => setNewName(event.target.value)}
             placeholder={nameOf(canonicalId)}
             className="max-w-md"
           />
@@ -387,7 +389,11 @@ function MergePanel({
 
         <div className="flex items-center gap-2">
           <Button variant="primary" disabled={merge.isPending} onClick={() => merge.mutate()}>
-            {merge.isPending ? "Unificando…" : "Unificar"}
+            {merge.isPending
+              ? "Unificando…"
+              : absorbed.length === 1
+                ? `Unificar ${absorbed[0]?.name} em ${nameOf(canonicalId)}`
+                : `Unificar ${formatCount(absorbed.length)} nomes em ${nameOf(canonicalId)}`}
           </Button>
           <Button variant="ghost" onClick={onCancel}>
             cancelar
@@ -409,25 +415,57 @@ function MergePanel({
 function SimilarityTab({ onMerged }: { onMerged: () => void }) {
   const [target, setTarget] = useState("");
   const [threshold, setThreshold] = useState(0.5);
-  const [pending, setPending] = useState<{ canonical: number; absorbed: number; label: string } | null>(null);
+  /** One pair opened by its own button: the panel renders right under it. */
+  const [openPair, setOpenPair] = useState<EntityPairSimilarity | null>(null);
+  /** Entities marked across rows, for the case one merge has to span several pairs. */
+  const [marked, setMarked] = useState<EntityCandidate[]>([]);
+  const [clusterOpen, setClusterOpen] = useState(false);
   // "All pairs" answers hundreds of rows (647 at threshold 0.5 on the real vocabulary), so the list
   // starts windowed and grows on request — the same cut the tag similarity tab makes.
   const [showAll, setShowAll] = useState(false);
 
   const pull = useQuery(queries.similarEntities(target.trim() || undefined, threshold));
 
-  const merge = useMutation({
-    mutationFn: (pair: { canonical: number; absorbed: number }) =>
-      mergeEntities({ canonical_id: pair.canonical, ids_to_merge: [pair.absorbed], new_name: null, changed_by: null }),
-    onSuccess: () => {
-      setPending(null);
-      onMerged();
-    },
-  });
-
   const mode = pull.data?.mode;
   const all = pull.data?.data ?? [];
   const data = showAll ? all : all.slice(0, WINDOW);
+  const pairs = mode === "specific" ? [] : (all as EntityPairSimilarity[]);
+
+  const isMarked = (entityId: number) => marked.some((member) => member.entity_id === entityId);
+  const rowMarked = (pair: EntityPairSimilarity) => isMarked(pair.id_1) && isMarked(pair.id_2);
+
+  /**
+   * A row is marked as a whole: the unit the archivist reads is the pair ("these two are the same
+   * name"), and half of it is not a cluster. Two rows sharing a side therefore merge into three
+   * entities, which is the case the pair list cannot express on its own.
+   */
+  const toggleRow = (pair: EntityPairSimilarity) => {
+    const members: EntityCandidate[] = [
+      { entity_id: pair.id_1, name: pair.name_1 },
+      { entity_id: pair.id_2, name: pair.name_2 },
+    ];
+    setMarked((current) => {
+      const already = members.every((member) => current.some((item) => item.entity_id === member.entity_id));
+      if (already) return current.filter((item) => !members.some((member) => member.entity_id === item.entity_id));
+      return [
+        ...current,
+        ...members.filter((member) => !current.some((item) => item.entity_id === member.entity_id)),
+      ];
+    });
+  };
+
+  const clearMarked = () => {
+    setMarked([]);
+    setClusterOpen(false);
+  };
+
+  const afterMerge = () => {
+    clearMarked();
+    setOpenPair(null);
+    onMerged();
+  };
+
+  const markedRows = pairs.filter((pair) => isMarked(pair.id_1) || isMarked(pair.id_2)).length;
 
   return (
     <div className="grid gap-3">
@@ -456,8 +494,10 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
       </div>
 
       <p className="text-xs text-(--color-muted)">
-        O par é evidência, não decisão: similaridade de trigrama alta também acontece entre coisas
-        diferentes. Unificar aqui é a mesma operação irreversível da aba de relevância.
+        O par é evidência, não decisão: similaridade de trigrama alta também acontece entre nomes
+        diferentes. A canônica é escolha sua, e unificar aqui é a mesma operação irreversível da aba de
+        relevância — só as tags têm ledger. Para juntar mais de um par de uma vez, marque as linhas e use
+        a barra que aparece embaixo.
       </p>
 
       {pull.error ? <ErrorState error={pull.error} /> : null}
@@ -469,31 +509,18 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
         />
       ) : null}
 
-      {pending ? (
-        <Card className="ring-(--color-warn)/40">
-          <CardBody className="grid gap-2">
-            <p className="text-sm">
-              Unificar <strong>{pending.label}</strong>?
-            </p>
-            <p className="text-xs text-(--color-warn)">
-              A entidade absorvida deixa de existir e a grafia vira sinônimo. Não há desfazer.
-            </p>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="primary"
-                disabled={merge.isPending}
-                onClick={() => merge.mutate({ canonical: pending.canonical, absorbed: pending.absorbed })}
-              >
-                {merge.isPending ? "Unificando…" : "Confirmar"}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setPending(null)}>
-                cancelar
-              </Button>
-            </div>
-            {merge.error ? <ErrorState error={merge.error} /> : null}
-          </CardBody>
-        </Card>
+      {/*
+        More than one pair is a different operation from one pair, and it gets the panel where there is
+        no single row to belong under: the top.
+      */}
+      {clusterOpen && marked.length >= 2 ? (
+        <MergePanel
+          members={marked}
+          title={`Unificar ${formatCount(marked.length)} entidades marcadas`}
+          hint="Estas entidades vieram de linhas diferentes da lista: a canônica é escolhida abaixo. Não há desfazer — entidades não têm ledger como as tags."
+          onDone={afterMerge}
+          onCancel={clearMarked}
+        />
       ) : null}
 
       {!showAll && all.length > data.length ? (
@@ -515,18 +542,31 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
                       </Badge>
                       <Badge tone="neutral">{neighbour.similarity.toFixed(3)}</Badge>
                     </span>
+                    {/*
+                      A neighbour row carries no second id: the target is the term that was typed, and
+                      the answer does not include its id. Unifying needs both sides, so this list links
+                      to the one that has them instead of offering a button it cannot honour.
+                    */}
                     <span className="text-xs text-(--color-muted)">
-                      vizinho de “{target}” — a unificação teria de escolher a canônica noutra aba
+                      vizinho de “{target}” — para unificar, abra a lista de pares (esta resposta não traz o
+                      id do alvo)
                     </span>
                   </CardBody>
                 </Card>
               </li>
             ))
           : (data as EntityPairSimilarity[]).map((pair) => (
-              <li key={`${pair.id_1}-${pair.id_2}`}>
+              <li key={`${pair.id_1}-${pair.id_2}`} className="grid gap-2">
                 <Card>
                   <CardBody className="flex flex-wrap items-center justify-between gap-2">
                     <span className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={rowMarked(pair)}
+                        onChange={() => toggleRow(pair)}
+                        title="Marcar as duas entidades desta linha para unificar em conjunto"
+                        aria-label={`Marcar ${pair.name_1} e ${pair.name_2}`}
+                      />
                       <span className="font-medium">{pair.name_1}</span>
                       <span className="text-(--color-muted)">({pair.type_1})</span>
                       {/*
@@ -545,28 +585,60 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
                     <Button
                       size="sm"
                       variant="secondary"
-                      onClick={() =>
-                        setPending({
-                          canonical: pair.id_1,
-                          absorbed: pair.id_2,
-                          label: `${pair.name_2} #${pair.id_2} → ${pair.name_1} #${pair.id_1}`,
-                        })
-                      }
+                      onClick={() => setOpenPair(openPair === pair ? null : pair)}
                     >
-                      unificar ↦
+                      {openPair === pair ? "fechar" : "unificar ↦"}
                     </Button>
                   </CardBody>
                 </Card>
+                {/*
+                  In the row's own place, with the canonical choice the button never had — it used to
+                  merge ``id_1`` into ``id_1`` by default and say the canonical had to be chosen "noutra
+                  aba", which was the screen admitting the decision was not on it.
+                */}
+                {openPair === pair ? (
+                  <MergePanel
+                    members={[
+                      { entity_id: pair.id_1, name: pair.name_1 },
+                      { entity_id: pair.id_2, name: pair.name_2 },
+                    ]}
+                    title="Escolher a canônica e unificar"
+                    hint={
+                      pair.name_1 === pair.name_2
+                        ? "Os dois nomes são idênticos nesta linha: confira os identificadores antes de decidir."
+                        : undefined
+                    }
+                    onDone={afterMerge}
+                    onCancel={() => setOpenPair(null)}
+                  />
+                ) : null}
               </li>
             ))}
       </ul>
 
-      {pull.data && all.length === 0 ? null : (
+      {marked.length >= 2 && !clusterOpen ? (
+        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center">
+          <div className="pointer-events-auto flex flex-wrap items-center gap-3 rounded-full bg-(--color-ink) px-4 py-2 text-sm text-white shadow-lg">
+            <span>
+              {formatCount(marked.length)} entidades marcadas em {formatCount(markedRows)} linha(s)
+            </span>
+            <Button size="sm" variant="primary" onClick={() => setClusterOpen(true)}>
+              Mesclar entidades
+            </Button>
+            <button className="text-xs text-white/70 hover:text-white" onClick={clearMarked}>
+              limpar
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {all.length > 0 ? (
         <p className="text-xs text-(--color-muted)">
           Veja também os <Link to="/entidades/conflitos" className="underline">conflitos com o eixo de assunto</Link>{" "}
           e as <Link to="/entidades/excecoes" className="underline">exclusões de NER</Link>.
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
+
