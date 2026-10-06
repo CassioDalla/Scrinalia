@@ -29,7 +29,19 @@ const NAV: { section: string; items: NavItem[] }[] = [
     items: [
       { to: "/arranjo/plano", label: "Plano de arranjo", hint: "Decidir os níveis" },
       { to: "/arranjo/diagnostico", label: "Diagnóstico", hint: "Onde está incoerente" },
-      { to: "/arranjo/niveis", label: "Catálogo de níveis", hint: "A escada NOBRADE" },
+    ],
+  },
+  {
+    /*
+      The two closed catalogues the archivist maintains, together and apart from "Arranjo".
+      The arrangement is *work* — deciding where each description sits; a catalogue is the
+      vocabulary that work is written against. Typologies are not arrangement (and not subject
+      either), so filing them under Arranjo would put engine labels in the middle of the tree.
+    */
+    section: "Catálogos",
+    items: [
+      { to: "/arranjo/niveis", label: "Níveis de descrição", hint: "A escada NOBRADE" },
+      { to: "/arranjo/tipologias", label: "Tipologias", hint: "A forma diplomática" },
     ],
   },
   {

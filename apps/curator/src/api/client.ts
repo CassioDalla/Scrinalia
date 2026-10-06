@@ -66,6 +66,11 @@ export type DescriptionLevel = components["schemas"]["DescriptionLevelDTO"];
 export type ArchiveReviewStatus = components["schemas"]["ArchiveReviewStatus"];
 export type DocumentUpdateRequest = components["schemas"]["DocumentUpdateRequest"];
 
+// --- The documental typologies: the diplomatic form of a record --------------------------------
+export type Typology = components["schemas"]["TypologyDTO"];
+export type TypologyCreateRequest = components["schemas"]["TypologyCreateRequest"];
+export type TypologyUpdateRequest = components["schemas"]["TypologyUpdateRequest"];
+
 // --- The arrangement (Fase 2.5): the plan catalogue, the ledger and the diagnosis --------------
 export type HierarchyNodePlan = components["schemas"]["HierarchyNodePlanDTO"];
 export type HierarchyPlanList = components["schemas"]["HierarchyPlanListResponse"];
@@ -364,6 +369,47 @@ export async function fetchLevels(): Promise<DescriptionLevel[]> {
 export async function fetchLevelCatalog(): Promise<DescriptionLevel[]> {
   return unwrap<DescriptionLevel[]>(
     await client.GET("/api/v1/hierarchy/levels", { params: { query: { only_active: false } } }),
+  );
+}
+
+/**
+ * The typologies the classifier may propose, for the dossier's select.
+ *
+ * Active only: a retired typology is not a candidate anymore, so offering it in the description's
+ * editor would invite a classification the catalogue just decided against.
+ */
+export async function fetchTypologies(): Promise<Typology[]> {
+  return unwrap<Typology[]>(
+    await client.GET("/api/v1/typologies", { params: { query: { only_active: true } } }),
+  );
+}
+
+/**
+ * The whole typology catalogue, retired ones included.
+ *
+ * Deactivating never deletes and never unclassifies, so the catalogue screen has to read them: the
+ * descriptions carrying a retired typology are exactly the weight that makes retiring a trade.
+ */
+export async function fetchTypologyCatalog(): Promise<Typology[]> {
+  return unwrap<Typology[]>(
+    await client.GET("/api/v1/typologies", { params: { query: { only_active: false } } }),
+  );
+}
+
+export async function createTypology(body: TypologyCreateRequest): Promise<Typology> {
+  return unwrap<Typology>(await client.POST("/api/v1/typologies", { body }));
+}
+
+/** Partial edit. There is no delete: ``is_active=false`` is what retires a typology. */
+export async function updateTypology(
+  typologyId: number,
+  body: TypologyUpdateRequest,
+): Promise<Typology> {
+  return unwrap<Typology>(
+    await client.PATCH("/api/v1/typologies/{typology_id}", {
+      params: { path: { typology_id: typologyId } },
+      body,
+    }),
   );
 }
 

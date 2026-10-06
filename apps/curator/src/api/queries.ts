@@ -17,6 +17,8 @@ import {
   fetchLevelCatalog,
   fetchLevels,
   fetchMacroCategories,
+  fetchTypologies,
+  fetchTypologyCatalog,
   fetchMaterialisationLog,
   fetchMergeLog,
   fetchMergeProposals,
@@ -117,6 +119,34 @@ export const queries = {
       queryKey: ["hierarchy", "levels"],
       queryFn: fetchLevels,
       staleTime: 5 * 60_000,
+    }),
+
+  /**
+   * The typologies the dossier's select offers: the active ones, for the same reason as the levels.
+   *
+   * A retired typology is out of the classifier's candidate set, so it is out of the editor's too —
+   * otherwise the screen would invite the archivist to pick a spelling the catalogue decided
+   * against.
+   */
+  typologies: () =>
+    queryOptions({
+      queryKey: ["typologies", "active"],
+      queryFn: fetchTypologies,
+      staleTime: 5 * 60_000,
+    }),
+
+  /**
+   * The whole typology catalogue, retired ones included.
+   *
+   * The catalogue screen needs them: the FK is ``SET NULL``, so a deactivated typology still holds
+   * the descriptions classified with it, and hiding it would make the catalogue look lighter than
+   * it is.
+   */
+  typologyCatalog: () =>
+    queryOptions({
+      queryKey: ["typologies", "catalog"],
+      queryFn: fetchTypologyCatalog,
+      staleTime: 60_000,
     }),
 
   /**

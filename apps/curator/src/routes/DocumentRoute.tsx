@@ -133,15 +133,18 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
   const [changedBy, setChangedBy] = useState("");
   const [note, setNote] = useState("");
   const [levels, setLevels] = useState<number | undefined>(document.level_id ?? undefined);
+  const [typology, setTypology] = useState<number | undefined>(document.typology_id ?? undefined);
   const [published, setPublished] = useState(document.is_published);
 
   const levelOptions = useQuery(queries.levels());
+  const typologyOptions = useQuery(queries.typologies());
 
   const save = useMutation({
     mutationFn: () => {
       const body: DocumentUpdateRequest = {
         ...(draft as DocumentUpdateRequest),
         level_id: levels ?? null,
+        typology_id: typology ?? null,
         is_published: published,
         changed_by: changedBy || null,
         review_note: note || null,
@@ -217,6 +220,29 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
               {levelOptions.data?.map((level) => (
                 <option key={level.level_id} value={level.level_id}>
                   {level.name} ({formatCount(level.document_count)})
+                </option>
+              ))}
+            </Select>
+          </label>
+
+          {/*
+            The typology sits next to the level because it is the other closed catalogue a
+            description is classified against — and the archivist is the one who can overrule the
+            classifier. Only the active ones are offered: a retired typology is out of the
+            classifier's candidate set, so it must be out of the editor's too.
+          */}
+          <label>
+            <span className="mb-1 block text-xs font-medium text-(--color-muted)">
+              Tipologia documental
+            </span>
+            <Select
+              value={typology ?? ""}
+              onChange={(event) => setTypology(event.target.value ? Number(event.target.value) : undefined)}
+            >
+              <option value="">— não classificada —</option>
+              {typologyOptions.data?.map((option) => (
+                <option key={option.typology_id} value={option.typology_id}>
+                  {option.name} ({formatCount(option.document_count)})
                 </option>
               ))}
             </Select>

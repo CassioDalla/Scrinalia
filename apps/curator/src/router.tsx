@@ -23,6 +23,7 @@ import { SystemWorkersRoute } from "@/routes/SystemWorkersRoute";
 import { TagsRoute, validateTagsSearch } from "@/routes/TagsRoute";
 import { TextTemplatesRoute, validateTextTemplatesSearch } from "@/routes/TextTemplatesRoute";
 import { TreeRoute, validateTreeSearch } from "@/routes/TreeRoute";
+import { TypologiesRoute } from "@/routes/TypologiesRoute";
 
 /**
  * Routes are declared in code, not derived from the filesystem.
@@ -100,6 +101,18 @@ const levelsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/arranjo/niveis",
   component: LevelsRoute,
+});
+
+/**
+ * The typologies live beside the ladder and not under the subject vocabulary.
+ *
+ * The two are the closed catalogues the archivist maintains; the subjects are interpretative and
+ * written by the AI. A static path, so it can never resolve as a description id.
+ */
+const typologiesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/arranjo/tipologias",
+  component: TypologiesRoute,
 });
 
 const tagsRoute = createRoute({
@@ -203,6 +216,7 @@ export const router = createRouter({
     planRoute,
     diagnosticsRoute,
     levelsRoute,
+    typologiesRoute,
     tagsRoute,
     categoriesRoute,
     discoverRoute,
