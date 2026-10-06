@@ -83,17 +83,37 @@ bun run --cwd apps/curator typecheck && bun run --cwd apps/curator lint && bun r
 **Nunca** rode `alembic upgrade head` no banco de **teste**: o `create_all` do conftest pula o que já
 existe e a suíte passa a rodar contra o schema migrado (53 falhas + 42 erros que parecem regressão).
 
-### Estado medido do acervo (2026-10-05, fim do dia)
+### Estado do acervo — **re-meça antes de confiar**
 
-| Medida | Valor |
-| --- | ---: |
-| Descrições | **4.826** (0 com pai; 13 sem nível) |
-| Tags / vínculos | **8.257** / 59.388 |
-| Merges aplicados (ledger) | **133** |
-| Propostas: aplicadas / aprovadas / sugeridas | **95 / 2 / 784** |
-| Stopwords (TAG / ENTITY) | **96 / 88** |
-| Rungs decididos | **0 de 81** |
-| Carimbos de IA | **0** NER, **0** tipologia, **0** macro-categoria, **0** validador, **41** embedding |
+Este bloco envelhece em minutos: enquanto ele era escrito, a árvore foi materializada (00:15),
+entraram 15 merges novos e o worker de macro-categoria classificou 973 tags. **Números congelados
+são mentira com data de validade** — rode isto e leia o estado real:
+
+```bash
+docker exec memoria_curitibana_db psql -U admin -d memoriacuritibana -c "
+SELECT 'descrições' AS medida, count(*)::text AS valor FROM archive_documents
+UNION ALL SELECT 'com pai (árvore)', count(*)::text FROM archive_documents WHERE parent_id IS NOT NULL
+UNION ALL SELECT 'sem nível', count(*)::text FROM archive_documents WHERE level_id IS NULL
+UNION ALL SELECT 'tags', count(*)::text FROM archive_tags
+UNION ALL SELECT 'tags sem gaveta', count(*)::text FROM archive_tags WHERE macro_category_id IS NULL
+UNION ALL SELECT 'vínculos', count(*)::text FROM archive_document_tags
+UNION ALL SELECT 'merges no ledger', count(*)::text FROM archive_taxonomy_merge_log
+UNION ALL SELECT 'propostas aplicadas', count(*)::text FROM archive_tag_merge_proposals WHERE status='APPLIED'
+UNION ALL SELECT 'propostas aprovadas', count(*)::text FROM archive_tag_merge_proposals WHERE status='APPROVED'
+UNION ALL SELECT 'propostas sugeridas', count(*)::text FROM archive_tag_merge_proposals WHERE status='SUGGESTED'
+UNION ALL SELECT 'rungs decididos', count(*)::text FROM archive_hierarchy_node_plans WHERE status <> 'SUGGESTED'
+UNION ALL SELECT 'rungs no total', count(*)::text FROM archive_hierarchy_node_plans
+UNION ALL SELECT 'materializações', count(*)::text FROM archive_hierarchy_materialisation_log
+UNION ALL SELECT 'stopwords TAG/ENTITY', count(*) FILTER (WHERE word_scope='TAG')::text || '/' || count(*) FILTER (WHERE word_scope='ENTITY') FROM domain_stopwords
+UNION ALL SELECT 'carimbos IA (ner/tipo/macro/val/emb)', (SELECT count(*) FROM archive_documents WHERE execution_log ? 'worker_ner_v2')::text || '/' || (SELECT count(*) FROM archive_documents WHERE execution_log ? 'worker_typology_classifier_v2')::text || '/' || (SELECT count(*) FROM archive_tags WHERE execution_log ? 'worker_macro_category_v1')::text || '/' || (SELECT count(*) FROM archive_documents WHERE execution_log ? 'worker_quality_validator_v1')::text || '/' || (SELECT count(*) FROM archive_documents WHERE execution_log ? 'worker_embedding_v1')::text;"
+```
+
+Leitura de **2026-10-06 00:16 UTC** — ordem de grandeza, não verdade: enquanto este documento era escrito a
+curadoria andou (a árvore foi materializada às 00:15, as duas aprovadas órfãs foram arquivadas, os
+rungs passaram de 4 para 5 e os merges aplicados de 95 para 101). **O comando acima é a fonte**, este
+parágrafo é só o retrato de um instante: 4.830 descrições, 4.816 com pai, 13 sem nível, 8.242 tags
+com 695 em gaveta, 58.618 vínculos, 148 merges no ledger, propostas 101 aplicadas / 0 aprovadas / 780
+sugeridas, 5 de 81 rungs, 1 materialização, stopwords 96/88 e carimbos de IA `0 / 0 / 973 / 0 / 41`.
 
 ### Os passos, na ordem em que eu faria
 
@@ -102,8 +122,8 @@ existe e a suíte passa a rodar contra o schema migrado (53 falhas + 42 erros qu
 | 1 | **Arquivar as 2 aprovadas sem membros** | `/assuntos/tags?aba=propostas&status=APPROVED` → "arquivar as já cumpridas" | São clusters cuja canônica já não existe; não são trabalho, e a fila fica limpa |
 | 2 | **Triar os 784 clusters sugeridos** | mesma tela, `status=SUGGESTED` (mais pesados primeiro) | Decisão do arquivista; cada um tem "Conferir impacto" antes |
 | 3 | **Revisar 1 merge perigoso** | ledger em `/assuntos/tags?aba=propostas`, com **desfazer** | `residencial ← área residencial, casa residencial, região residencial` (65+6+6 docs) perde sentido; está aplicado e é reversível |
-| 4 | **Decidir os 81 rungs → preview → apply → conferir o ledger** | `/arranjo/plano` | É o que enche o sistema de valor e **destrava a onda 4** |
-| 5 | **Rodar os workers de IA** | `uv run python -m memoria_curitibana.domains.archive.workers.runner <nome>`, na ordem `ner → typology → conflict-judge → macro-category → quality-validator → embedding` | A janela fecha na **primeira ficha aprovada por humano**, e hoje as telas de assunto mostram pouco: 7.653 das 8.257 tags estão sem gaveta |
+| 4 | **Continuar os rungs: 4 de 81 decididos** — e **conferir a materialização que já rodou** | `/arranjo/plano` e `/arranjo/diagnostico`; o undo está em `archive_hierarchy_materialisation_log` | A árvore foi materializada em 2026-10-06 00:15 (4.816 descrições ganharam pai) com 4 rungs aprovados. O diagnóstico diz se o resultado ficou coerente — e a materialização é reversível |
+| 5 | **Rodar os workers de IA que faltam** — macro-categoria **já rodou** (973 tags, 695 com gaveta); faltam `ner`, `typology`, `conflict-judge`, `quality-validator` e `embedding` | `uv run python -m memoria_curitibana.domains.archive.workers.runner <nome>`, na ordem `ner → typology → conflict-judge → macro-category → quality-validator → embedding` | A janela fecha na **primeira ficha aprovada por humano**, e as 7.547 tags ainda sem gaveta são o que a tela de assuntos não mostra |
 | 6 | **Onda 4 do front** | `/arranjo/niveis` (não depende da árvore) e `/acervo/arvore` (depende do passo 4) | Fecha a seção Arranjo do sitemap |
 | 7 | **Ondas 5–6 do front** | `/entidades/*` e `/qualidade/*` | Últimas telas do sitemap antes do auth |
 
