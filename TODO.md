@@ -6,13 +6,16 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > **Como ler.** `✅` = feito **e verificado em execução real** (Postgres + engines reais), não
 > apenas lido no código. `[ ]` = pendente. `[~]` = parcial, com o que falta descrito.
 >
-> **Estado do gate (2026-10-06, ondas 4–6 e B8):** **933 testes** passando · `ruff` limpo ·
-> `basedpyright` **0 erros** · **23 migrações** aplicando sem drift (`alembic check` limpo) ·
-> contrato OpenAPI **66 paths / 78 operações / 128 schemas**, regenerado e verificado por CI ·
-> SPA do curador construindo (`tsc`, `eslint`, `vite build`) e servida pelo próprio Litestar ·
-> **Streamlit removido do repositório** (diretório, dependência, `uv.lock`, `Procfile`, docs).
-> O sitemap do curador está **completo**: as 17 telas existem. Falta só o site público, que ficou
-> fora deste ciclo por decisão.
+> **Estado do gate (2026-10-06, ondas 4–6, B8 e as lacunas fechadas):** **934 testes**
+> passando · `ruff` limpo · `basedpyright` **0 erros** · **23 migrações** aplicando sem drift
+> (`alembic check` limpo) · contrato OpenAPI **65 paths / 77 operações / 127 schemas**, regenerado e
+> verificado por CI · SPA do curador construindo (`tsc`, `eslint`, `vite build`) e servida pelo
+> próprio Litestar · **Streamlit removido do repositório** (diretório, dependência, `uv.lock`,
+> `Procfile`, docs). O sitemap do curador está **completo**: as 17 telas existem. Falta só o site
+> público, que ficou fora deste ciclo por decisão.
+>
+> **As duas últimas capacidades sem botão foram fechadas** (`POST /hierarchy/nodes` e
+> `POST /taxonomy/tags/merge`) e a rota legada de stopwords de entidade **foi removida**.
 > **Acervo real medido: 4.826 descrições**, não 3.608 — ver "Pendências operacionais".
 
 ---
@@ -23,7 +26,7 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 | --- | --- | --- |
 | 1 | Fundação, pipeline de IA e governança | ✅ **Fechada** |
 | 1.5 | Macro Categorias (eixo de Assuntos) | ✅ **Fechada** — vocabulário reprojetado e medido |
-| 2 | API + Curadoria humana (HITL) | ✅ **Fechada no backend**; falta ação local |
+| 2 | API + Curadoria humana (HITL) | ✅ **Fechada** — backend e as duas ações locais que faltavam (criar nó, unificar tags) |
 | 2.5 | Hierarquia das descrições | ✅ **H1–H8 fechadas sem UI** |
 | 3 | Descoberta, performance e observabilidade | 🟡 **Parcial** — busca fechada; falta operação |
 | 3.5 | Qualidade do dado de entrada | ✅ **A–E fechadas sem UI** |
@@ -257,9 +260,9 @@ sugeridas, 5 de 81 rungs, 1 materialização, stopwords 96/88 e carimbos de IA `
 | **A colisão tag × entidade não tem preview nem veredito do juiz na leitura** | em aberto: `POST /conflicts/resolve` é irreversível e a rota lista a colisão ao vivo, não o que o juiz decidiu | ⚠️ |
 | **Não há rota de sugestões de "não é assunto"** | em aberto: a tela oferece os exemplos medidos (`pessoas`, `vista aérea`, `capanema`) como atalho, não como sugestão calculada | ⚠️ |
 | **Anomalias não têm faceta por motivo** | em aberto: a tela agrupa pela página em mãos e diz isso, em vez de inventar um total | ⚠️ |
-| **Não há como criar um rung que o código não implica** | em aberto: `POST /hierarchy/nodes` existe ("cria um fundo, seção ou série que a origem nunca entregou") e **nenhuma tela o chama**. O `/arranjo/plano` só decide o que o fatiador propôs a partir dos códigos; um Fundo/Seção/Série **sem documentos** não tem por onde ser declarado | ⚠️ |
-| **Não há como unificar duas tags que o arquivista escolheu** | em aberto: `POST /taxonomy/tags/merge` (+ `/merge/preview`) existe e **nenhuma tela o chama**. A aba Similaridade mostra o par cru (`alameda cabral` ↔ `al. alameda cabral`, 1.000) e é **somente leitura**; para unir é preciso rodar `suggest`, achar o cluster e aprovar. **Assimetria com entidades**, que têm seleção + merge direto na própria tela | ⚠️ |
-| **Rota legada superseded** | `POST /entities/stopwords/purge_stopwords` foi substituída por `POST /entities/ner-exclusions` (catálogo durável com `reason`/`source`, reversível por `DELETE`, e que **também** purga e alimenta o blacklist do NER via `load_entity_blacklist`). A legada está **sem uso no front e sem teste** — candidata a remoção junto de `save_entity_stopwords` | ⚠️ |
+| **Não havia como criar um nó que o código não implica** | `POST /hierarchy/nodes` + formulário em `/acervo/arvore`: pai = raiz **ou** o nó selecionado, nível obrigatório e o impacto é validado pela rota | ✅ |
+| **Não havia como unificar duas tags que o arquivista escolheu** | `POST /taxonomy/tags/merge` (+ `/merge/preview` por `canonical_id`+`ids_to_merge`) chamado pelo botão `unificar ↦` da aba Similaridade, com canônica escolhível, dry-run obrigatório e o desfazer do ledger | ✅ |
+| **Rota legada superseded** | `POST /entities/stopwords/purge_stopwords` foi substituída por `POST /entities/ner-exclusions` (catálogo durável com `reason`/`source`, reversível por `DELETE`, e que **também** purga e alimenta o blacklist do NER via `load_entity_blacklist`). A legada estava **sem uso no front e sem teste** — removida junto de `save_entity_stopwords`, do `EntityService.purge_entity_stopwords` e do `EntityStopwordPurgeResponse`. `delete_entities_by_names` **ficou**: é o expurgo retroativo das exclusões de NER | ✅ |
 
 **Rotas do backend sem chamada no front que NÃO são lacuna** (auditadas em 2026-10-06, não
 reinvestigar):
@@ -546,6 +549,12 @@ Bancada de 44 tags rotuladas à mão (aprovadas pelo dono), 3 formatos × 3 arra
   **Removido do repositório em 2026-10-06** (B8), quando as 17 telas do curador o cobriram.
 - ✅ **Editar tags/entidades de um documento individual pela UI.** `/acervo/:id` aba Assuntos, com
   busca por nome (type-ahead) em vez do id.
+- ✅ **Criar um nó que a origem não entregou** (2026-10-06). `/acervo/arvore` → "Criar nó":
+  fundo, seção ou série **sem documentos** não sai de código de referência nenhum, e o plano só
+  decide o que o fatiador propôs; o nó nasce sob o selecionado ou na raiz, com nível obrigatório.
+- ✅ **Unificar duas tags escolhidas pelo arquivista** (2026-10-06). Aba Similaridade de
+  `/assuntos/tags`: `unificar ↦` no par, canônica escolhível, dry-run obrigatório antes do write e o
+  desfazer no ledger — a capacidade que só existia via `suggest` → aprovar → aplicar.
 - ✅ **Vitrine reflete os enriquecimentos.** `DocumentSummary` expõe tipologia, gaveta de assunto e
   contagem de filhos; a lista mostra o badge vencedor por votos com o contador das secundárias.
 
@@ -800,6 +809,29 @@ Diagnóstico estrutural do acervo real (pós-transfer):
 > escrita pela UI nas telas novas — as rotas de escrita estão cobertas por teste de integração e o
 > corpo é tipado contra o contrato, mas o clique ponta a ponta continua sendo a verificação que
 > falta (a do ciclo da etapa C usou o banco de teste, e é o caminho para repetir).
+
+### Ciclo das lacunas fechadas (2026-10-06, as duas capacidades sem botão)
+
+| Verificação | Resultado |
+| --- | --- |
+| `pytest` (unit + integração) | **934 passed** (+1: o preview do merge aceita o par escolhido à mão, não só a proposta) |
+| Gate | `ruff` limpo (265 arquivos) · `basedpyright` **0 erros** · `alembic check` **sem drift** · `tsc`/`eslint`/`vite build` limpos (553 kB, 159 kB gzip) |
+| Contrato OpenAPI | **65 paths / 77 operações / 127 schemas**: a rota legada e o `EntityStopwordPurgeResponse` saíram. Dois dumps seguidos saem **byte a byte iguais**, que é o que o CI compara |
+| **Criar nó (`/acervo/arvore`)** | o formulário escolhe a raiz **ou** o nó selecionado (o nome do pai vem da leitura do nó), e exige código, título **e nível** — a mesma decisão que aprovar uma rung exige. O botão fica desabilitado até os três existirem; a escada é validada pela rota, não por uma segunda cópia das regras na tela |
+| **Unificar par (`/assuntos/tags?aba=similaridade`)** | `unificar ↦` por par, canônica escolhível, dry-run **obrigatório** antes do botão (o mesmo planejador do write) e o aviso de gaveta perdida nomeando a gaveta |
+| **Dry-run exercitado no acervo real (só leitura)** | `avenida iguaçú esquina com rua brigadeiro franco` (#1328) ← `avenida iguassú esquina com brigadeiro franco` (#2686): **1 documento**, 1 vínculo, 1 tag absorvida, `CATEGORY_WOULD_BE_LOST`. A tela diz "apaga uma classificação de assunto: a tag absorvida está na gaveta **Mobilidade e Transporte** e a canônica não tem gaveta". Nada foi escrito |
+| Verificação visual | `.analysis/shots/tree-create-node-{1,2,3}*.png` e `.analysis/shots/tags-merge-{1,2,3}*.png`, com `chrome-headless-shell` + CDP contra o SPA servido pelo próprio Litestar (e o acervo real atrás, por isso **nenhum** clique de escrita foi dado) |
+
+> **O que a tela corrigiu neste ciclo.** O painel do merge imprimia `gaveta 618` — o id cru que o
+> `MergePreviewResponse` carrega em `macro_category_id`. A tela passou a resolver o nome pelo
+> catálogo que já tem em cache (`queries.macroCategories()`) e o aviso de perda diz **qual** gaveta
+> morre. É o mesmo modo de falha do `NEAR_DUPLICATE_NODE` da onda 2: um identificador de máquina
+> chegando ao arquivista porque ler o código parecia suficiente.
+>
+> **O que ficou de fora.** O `ProposalCard` da aba Propostas continua mostrando `gaveta {id}` no
+> "Conferir impacto": é anterior a este ciclo, não foi tocado, e é a mesma correção de uma linha
+> para quem encostar nele. E o clique de escrita das duas telas novas **não** foi exercitado ponta a
+> ponta no acervo real — o caminho para repetir é o banco de teste, como no ciclo da etapa C.
 
 ### Execuções anteriores (preservadas)
 
