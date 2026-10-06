@@ -11,7 +11,7 @@ import { queries } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
 import { descricoes, formatCount } from "@/lib/format";
@@ -72,13 +72,22 @@ export function LevelsRoute() {
           </div>
         ) : null}
 
+        {/*
+          The write comes first, the catalogue second.
+          
+          The card used to sit at the bottom: on a ladder of a dozen rungs the archivist had to scroll
+          past everything they were comparing against to find the button — and the ordinal rule ("um
+          nível só pode ser filho de outro de ordinal menor") is exactly the kind of decision that
+          needs the ladder visible while filling the form. Hence a disclosure and not a modal: a popup
+          would cover the very thing the form is about.
+        */}
+        <CreateLevelCard onCreated={invalidate} />
+
         <section className="grid gap-2">
           {rows.map((level) => (
             <LevelCard key={level.level_id} level={level} onChanged={invalidate} />
           ))}
         </section>
-
-        <CreateLevelCard onCreated={invalidate} />
       </div>
     </>
   );
@@ -111,30 +120,37 @@ function LevelCard({ level, onChanged }: { level: DescriptionLevel; onChanged: (
     allowsChildren !== level.allows_children;
 
   return (
-    <Card>
-      <CardBody className="grid gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <Badge tone="accent" title="Posição na escada; não é editável depois de criada">
-              {level.ordinal}
-            </Badge>
-            <span className="text-sm font-medium">{level.name}</span>
-            <code className="text-xs text-(--color-muted)">{level.code}</code>
-            {level.is_active ? <Badge tone="ok">ativo</Badge> : <Badge tone="neutral">desativado</Badge>}
-            <Badge tone="neutral" title="Descrições classificadas neste nível">
-              {descricoes(level.document_count ?? 0)}
-            </Badge>
-          </div>
-          <Button
-            size="sm"
-            variant={level.is_active ? "ghost" : "secondary"}
-            disabled={save.isPending}
-            onClick={() => save.mutate({ is_active: !level.is_active })}
-          >
-            {level.is_active ? "desativar" : "reativar"}
-          </Button>
+    <Disclosure
+      toggleLabel="Editar este nível"
+      className={level.is_active ? undefined : "opacity-80"}
+      header={
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone="accent" title="Posição na escada; não é editável depois de criada">
+            {level.ordinal}
+          </Badge>
+          <span className="text-sm font-medium">{level.name}</span>
+          <code className="text-xs text-(--color-muted)">{level.code}</code>
+          {level.is_active ? <Badge tone="ok">ativo</Badge> : <Badge tone="neutral">desativado</Badge>}
+          <Badge tone="neutral" title="Descrições classificadas neste nível">
+            {descricoes(level.document_count ?? 0)}
+          </Badge>
+          {level.description ? (
+            <span className="w-full text-xs text-(--color-muted)">{level.description}</span>
+          ) : null}
         </div>
-
+      }
+      actions={
+        <Button
+          size="sm"
+          variant={level.is_active ? "ghost" : "secondary"}
+          disabled={save.isPending}
+          onClick={() => save.mutate({ is_active: !level.is_active })}
+        >
+          {level.is_active ? "desativar" : "reativar"}
+        </Button>
+      }
+    >
+      <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-2">
           <label className="flex flex-col gap-1 text-xs">
             <span className="text-(--color-muted)">Nome</span>
@@ -197,8 +213,8 @@ function LevelCard({ level, onChanged }: { level: DescriptionLevel; onChanged: (
           {dirty ? <span className="text-xs text-(--color-muted)">alterações não salvas</span> : null}
         </div>
         {save.error ? <ErrorState error={save.error} /> : null}
-      </CardBody>
-    </Card>
+      </div>
+    </Disclosure>
   );
 }
 
@@ -227,9 +243,19 @@ function CreateLevelCard({ onCreated }: { onCreated: () => void }) {
   const valid = draft.code.trim().length > 0 && draft.name.trim().length > 0;
 
   return (
-    <Card>
-      <CardHeader className="text-sm font-semibold">Acrescentar um degrau</CardHeader>
-      <CardBody className="grid gap-2">
+    <Disclosure
+      triggerLabel="+ Novo degrau"
+      toggleLabel="Acrescentar um degrau"
+      header={
+        <div className="grid gap-1">
+          <span className="text-sm font-semibold">Acrescentar um degrau</span>
+          <span className="text-xs text-(--color-muted)">
+            Um ordinal novo e um código novo são uma rung nova; o ordinal não é editável depois.
+          </span>
+        </div>
+      }
+    >
+      <div className="grid gap-2">
         <p className="text-xs text-(--color-muted)">
           O ordinal é a posição na escada: um nível só pode ser filho de outro de ordinal menor. Ele
           não é editável depois — mudá-lo renumeraria a árvore, e a árvore passada foi decidida contra
@@ -299,7 +325,7 @@ function CreateLevelCard({ onCreated }: { onCreated: () => void }) {
           </Button>
         </div>
         {create.error ? <ErrorState error={create.error} /> : null}
-      </CardBody>
-    </Card>
+      </div>
+    </Disclosure>
   );
 }

@@ -14,7 +14,8 @@ import { queries } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { Card, CardBody } from "@/components/ui/Card";
+import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input, Select } from "@/components/ui/Input";
 import { formatCount } from "@/lib/format";
@@ -91,6 +92,14 @@ export function CleaningRulesRoute() {
           />
         ) : null}
 
+        {/*
+          The write first. Every rule on this screen is a statement about the whole collection, and the
+          archivist arrives having decided to write one; the catalogue is what they check afterwards.
+          The dry run stays inside this same card, which is where it already lived: a rule that
+          rewrites is only saved after the preview, and the two buttons belong together.
+        */}
+        <CreateRuleCard onCreated={invalidate} />
+
         <ul className="grid gap-2">
           {rows.map((rule) => (
             <li key={rule.rule_id}>
@@ -141,8 +150,6 @@ export function CleaningRulesRoute() {
             </li>
           ))}
         </ul>
-
-        <CreateRuleCard onCreated={invalidate} />
       </div>
     </>
   );
@@ -200,9 +207,19 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
   };
 
   return (
-    <Card>
-      <CardHeader className="text-sm font-semibold">Nova regra</CardHeader>
-      <CardBody className="grid gap-2">
+    <Disclosure
+      triggerLabel="+ Nova regra"
+      toggleLabel="Nova regra"
+      header={
+        <div className="grid gap-1">
+          <span className="text-sm font-semibold">Nova regra</span>
+          <span className="text-xs text-(--color-muted)">
+            <code>REWRITE</code> substitui no acervo inteiro e só é salva depois de conferir o impacto.
+          </span>
+        </div>
+      }
+    >
+      <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-2">
           <label className="flex flex-col gap-1 text-xs">
             <span className="text-(--color-muted)">Nome</span>
@@ -345,7 +362,7 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
         {create.data ? <p className="text-xs text-(--color-muted)">{create.data.message}</p> : null}
         {create.error ? <ErrorState error={create.error} /> : null}
         {dryRun.error ? <ErrorState error={dryRun.error} /> : null}
-      </CardBody>
-    </Card>
+      </div>
+    </Disclosure>
   );
 }

@@ -18,7 +18,8 @@ import { queries } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { Card, CardBody } from "@/components/ui/Card";
+import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input, Select } from "@/components/ui/Input";
 import { formatCount } from "@/lib/format";
@@ -100,9 +101,19 @@ export function TextTemplatesRoute() {
           título e prejudicava o vetor. Por isso não existe botão de aprovar todos aqui.
         </p>
 
-        <Card>
-          <CardHeader className="text-sm font-semibold">Procurar trechos repetidos</CardHeader>
-          <CardBody className="grid gap-2">
+        <Disclosure
+          triggerLabel="+ Procurar trechos"
+          toggleLabel="Procurar trechos repetidos"
+          header={
+            <div className="grid gap-1">
+              <span className="text-sm font-semibold">Procurar trechos repetidos</span>
+              <span className="text-xs text-(--color-muted)">
+                A varredura registra candidatos inativos: nada entra no texto da IA antes de você aprovar um escopo.
+              </span>
+            </div>
+          }
+        >
+          <div className="grid gap-2">
             <p className="text-xs text-(--color-muted)">
               A varredura registra os candidatos como <strong>sugestões inativas</strong>: nada entra no
               texto da IA antes de você aprovar um escopo.
@@ -141,8 +152,11 @@ export function TextTemplatesRoute() {
               </p>
             ) : null}
             {suggest.error ? <ErrorState error={suggest.error} /> : null}
-          </CardBody>
-        </Card>
+          </div>
+        </Disclosure>
+
+        {/* The two writes sit together at the top; the catalogue of excerpts comes after them. */}
+        <NewTemplateCard onCreated={invalidate} />
 
         <div className="flex flex-wrap items-center gap-2">
           {([undefined, "SUGGESTED", "APPROVED", "REJECTED"] as (TemplateStatus | undefined)[]).map((status) => (
@@ -171,8 +185,6 @@ export function TextTemplatesRoute() {
             <TemplateCard key={template.template_id} template={template} onChanged={invalidate} />
           ))}
         </ul>
-
-        <NewTemplateCard onCreated={invalidate} />
       </div>
     </>
   );
@@ -373,9 +385,19 @@ function NewTemplateCard({ onCreated }: { onCreated: () => void }) {
   });
 
   return (
-    <Card>
-      <CardHeader className="text-sm font-semibold">Escrever um trecho</CardHeader>
-      <CardBody className="grid gap-2">
+    <Disclosure
+      triggerLabel="+ Escrever trecho"
+      toggleLabel="Escrever um trecho"
+      header={
+        <div className="grid gap-1">
+          <span className="text-sm font-semibold">Escrever um trecho</span>
+          <span className="text-xs text-(--color-muted)">
+            O cadastro aplica o trecho e devolve os documentos afetados à fila da IA; só libera depois do impacto.
+          </span>
+        </div>
+      }
+    >
+      <div className="grid gap-2">
         <p className="text-xs text-(--color-muted)">
           O cadastro já aplica o trecho e devolve os documentos afetados à fila da IA. Por isso o
           botão de cadastrar só libera depois de conferir o impacto.
@@ -465,7 +487,7 @@ function NewTemplateCard({ onCreated }: { onCreated: () => void }) {
         ) : null}
         {create.error ? <ErrorState error={create.error} /> : null}
         {dryRun.error ? <ErrorState error={dryRun.error} /> : null}
-      </CardBody>
-    </Card>
+      </div>
+    </Disclosure>
   );
 }

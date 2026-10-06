@@ -14,7 +14,7 @@ import { MaterialisationPanel } from "@/components/hierarchy/MaterialisationPane
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card, CardBody } from "@/components/ui/Card";
+import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Input, Select } from "@/components/ui/Input";
 import { formatCount, formatDateTime } from "@/lib/format";
@@ -28,6 +28,15 @@ import {
 import { asEnum, asString } from "@/lib/search";
 
 const routeApi = getRouteApi("/arranjo/plano");
+
+/**
+ * How far a rung is indented before the indent stops growing.
+ *
+ * The indent is the hierarchy — a Dossiê under a Série under a Fundo used to render as three
+ * identical cards — but the real catalogue reaches a dozen levels and an uncapped indent would push
+ * the text off the screen. Past the cap the row keeps the depth in its metadata and says so on hover.
+ */
+const MAX_INDENT_DEPTH = 6;
 
 /**
  * The URL is the state, as in the collection list: the tab, the flag filter and the code search all
@@ -77,7 +86,16 @@ export function PlanRoute() {
   });
 
   const statusCounts = plans.data?.status_counts ?? {};
-  const total = plans.data?.total ?? 0;
+  /**
+   * The catalogue, not the page.
+   *
+   * ``status_counts`` covers the **whole** catalogue by contract — that is what lets "24 de 81
+   * decididos" be true on a screen that only reads one page — while ``total`` counts the rows the
+   * current filter matched. Feeding ``total`` to the progress panel made it say "0 de 57 decididos"
+   * the moment a status tab was opened, and made an empty *filter* announce that the catalogue was
+   * empty and invite the archivist to propose levels that already exist.
+   */
+  const catalogueTotal = Object.values(statusCounts).reduce((sum, count) => sum + count, 0);
   const flags = vocabulary.data?.plan_flags ?? [];
 
   return (
@@ -87,7 +105,7 @@ export function PlanRoute() {
         subtitle={
           plans.data ? (
             <>
-              {formatCount(visible.length)} de {formatCount(total)} rungs
+              {formatCount(visible.length)} de {formatCount(catalogueTotal)} rungs
               {search.status ? ` · ${labelOf(PLAN_STATUS_LABEL, search.status)}` : ""}
             </>
           ) : (
@@ -95,9 +113,22 @@ export function PlanRoute() {
           )
         }
         actions={
-          <Button onClick={() => suggest.mutate()} disabled={suggest.isPending}>
-            {suggest.isPending ? "Propondo…" : "Propor níveis"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/*
+              The plan only decides the rungs the slicer proposed out of the reference codes. A fund
+              or a series with no documents yet has no code to be sliced, so declaring it by hand is
+              the *other* write — it lives on the tree screen, and saying so here is the difference
+              between "the button is missing" and "the button is next door".
+            */}
+            <Link to="/acervo/arvore">
+              <Button size="sm" variant="secondary" title="Declarar um nó que a origem não entregou">
+                Criar nó na árvore ↗
+              </Button>
+            </Link>
+            <Button onClick={() => suggest.mutate()} disabled={suggest.isPending}>
+              {suggest.isPending ? "Propondo…" : "Propor níveis"}
+            </Button>
+          </div>
         }
       />
 
@@ -105,7 +136,8 @@ export function PlanRoute() {
         <div className="min-w-0 flex-1 px-6 py-5">
           <p className="mb-4 max-w-3xl text-sm text-(--color-muted)">
             A máquina lê os códigos de referência e propõe as rungs; a decisão é sua. Nada é criado no acervo até a
-            materialização — e uma decisão tomada nunca é sobrescrita por uma nova proposta.
+            materialização — e uma decisão tomada nunca é sobrescrita por uma nova proposta. Cada rung abre no clique:
+            recolhida, a lista mostra o que já foi decidido sem os formulários no meio.
           </p>
 
           {suggest.data ? (
@@ -119,7 +151,7 @@ export function PlanRoute() {
 
           <div className="flex flex-wrap items-center gap-2 pb-4">
             <Button size="sm" variant={search.status ? "secondary" : "primary"} onClick={() => patch({ status: undefined })}>
-              Todos {plans.data ? `(${formatCount(total)})` : ""}
+              Todos {plans.data ? `(${formatCount(catalogueTotal)})` : ""}
             </Button>
             {(vocabulary.data?.plan_statuses ?? STATUSES).map((status) => (
               <Button
@@ -160,7 +192,7 @@ export function PlanRoute() {
             </div>
           ) : null}
 
-          {plans.data && total === 0 ? (
+          {plans.data && catalogueTotal === 0 ? (
             <EmptyState
               title="O catálogo de decisões está vazio"
               hint="Nenhuma rung foi proposta ainda. A proposta lê os códigos de referência do acervo e escreve as perguntas — nenhum nó é criado na coleção."
@@ -172,7 +204,7 @@ export function PlanRoute() {
             />
           ) : null}
 
-          {plans.data && total > 0 && visible.length === 0 ? (
+          {plans.data && catalogueTotal > 0 && visible.length === 0 ? (
             <EmptyState
               title="Nenhuma rung com este filtro"
               hint="Há rungs no catálogo, mas nenhuma casa com o aviso ou o código que você digitou."
@@ -184,9 +216,19 @@ export function PlanRoute() {
             />
           ) : null}
 
+          {/*
+            The indentation is the hierarchy. A rung carries ``depth`` and ``parent_code``, and the
+            flat list used to render a Dossiê and the Fundo above it as two identical cards — the
+            archivist could not see which one contains which. The indent is capped so the deepest
+            rungs do not run off the page, and the cap is stated in the title rather than silent.
+          */}
           <ul className="flex flex-col gap-2">
             {visible.map((plan) => (
-              <li key={plan.plan_id}>
+              <li
+                key={plan.plan_id}
+                style={{ paddingLeft: `${Math.min(plan.depth, MAX_INDENT_DEPTH) * 18}px` }}
+                title={plan.depth > MAX_INDENT_DEPTH ? `profundidade ${plan.depth} (recuada no limite)` : undefined}
+              >
                 <PlanCard plan={plan} levels={levels.data ?? []} allCodes={all.map((item) => item.code)} />
               </li>
             ))}
@@ -194,7 +236,7 @@ export function PlanRoute() {
         </div>
 
         <aside className="w-[380px] shrink-0 overflow-y-auto border-l border-(--color-line) bg-(--color-surface) px-4 py-5">
-          <MaterialisationPanel totalPlans={total} statusCounts={statusCounts} />
+          <MaterialisationPanel totalPlans={catalogueTotal} statusCounts={statusCounts} />
         </aside>
       </div>
     </>
@@ -206,7 +248,12 @@ export function PlanRoute() {
  *
  * The evidence comes first and the buttons last: the sketch of the screen in the sitemap is explicit
  * that the decision must be taken while looking at `document_count`, the declared levels and the
- * samples, not after scrolling past them.
+ * samples, not after scrolling past them. That is why the samples **move into the open body** and the
+ * counts stay in the closed row: what closes is the *form*, never the evidence the decision rests on.
+ *
+ * A suggested rung is ringed, so "what still needs me" reads at a glance in a catalogue of fifty; the
+ * decided ones recede. Both collapse to the same shape — code, evidence, decision — because a screen
+ * where the undecided rows are the tall ones makes the archivist scroll through forms to find work.
  */
 function PlanCard({
   plan,
@@ -238,149 +285,164 @@ function PlanCard({
     },
   });
 
-  const open = plan.status === "SUGGESTED";
+  const isSuggested = plan.status === "SUGGESTED";
   const canApprove = levelId !== null;
   const flags = plan.flags ?? [];
   const declaredLevels = plan.declared_levels ?? [];
   const samples = plan.sample_description_ids ?? [];
 
   return (
-    <Card>
-      <CardBody className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <code className="rounded bg-black/[0.05] px-1.5 py-0.5 text-sm">{plan.code}</code>
-          <Badge tone={PLAN_STATUS_TONE[plan.status] ?? "neutral"}>{labelOf(PLAN_STATUS_LABEL, plan.status)}</Badge>
-          {flags.map((flag) => (
-            <Badge key={flag} tone="neutral" title={PLAN_FLAG_HINT[flag]}>
-              {labelOf(PLAN_FLAG_LABEL, flag)}
-            </Badge>
-          ))}
-          {plan.materialised_description_id ? <Badge tone="ok">materializado</Badge> : null}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-(--color-muted)">
-          <span>profundidade {plan.depth}</span>
-          <span>· pai: {plan.parent_code ?? "raiz"}</span>
-          <span>· {formatCount(plan.document_count ?? 0)} descrição(ões)</span>
-          <span>· níveis declarados: {declaredLevels.join(", ") || "nenhum"}</span>
-        </div>
-
-        {samples.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-(--color-muted)">amostras:</span>
-            {samples.map((id) => (
-              <Link
-                key={id}
-                to="/acervo/$descriptionId"
-                params={{ descriptionId: id }}
-                className="rounded bg-black/[0.05] px-1 hover:underline"
-              >
-                {id}
-              </Link>
+    <Disclosure
+      className={isSuggested ? "ring-(--color-accent)/40" : undefined}
+      toggleLabel={isSuggested ? "Decidir esta rung" : "Ver a decisão e as amostras"}
+      header={
+        <div className="flex flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <code className="rounded bg-black/[0.05] px-1.5 py-0.5 text-sm">{plan.code}</code>
+            <Badge tone={PLAN_STATUS_TONE[plan.status] ?? "neutral"}>{labelOf(PLAN_STATUS_LABEL, plan.status)}</Badge>
+            {flags.map((flag) => (
+              <Badge key={flag} tone="neutral" title={PLAN_FLAG_HINT[flag]}>
+                {labelOf(PLAN_FLAG_LABEL, flag)}
+              </Badge>
             ))}
-          </div>
-        ) : null}
-
-        {plan.collapse_into_code ? (
-          <p className="text-xs text-(--color-accent)">
-            Esta rung <strong>é</strong> <code>{plan.collapse_into_code}</code>: o apply segue o vínculo.
-          </p>
-        ) : null}
-
-        {open ? (
-          <div className="mt-1 flex flex-col gap-2 border-t border-(--color-line) pt-3">
-            <div className="grid gap-2 sm:grid-cols-2">
-              <label className="flex flex-col gap-1 text-xs">
-                <span className="text-(--color-muted)">
-                  Nível de descrição {flags.includes("ORDINAL_INFERRED") ? "(inferido, não declarado)" : ""}
-                </span>
-                <Select
-                  value={levelId ?? ""}
-                  onChange={(event) => setLevelId(event.target.value ? Number(event.target.value) : null)}
-                >
-                  <option value="">— escolher —</option>
-                  {levels.map((level) => (
-                    <option key={level.level_id} value={level.level_id}>
-                      {level.ordinal}. {level.name}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-              <label className="flex flex-col gap-1 text-xs">
-                <span className="text-(--color-muted)">Título do nó</span>
-                <Input
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                  placeholder={plan.code}
-                  maxLength={300}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-xs">
-                <span className="text-(--color-muted)">Fundir em (esta rung é o mesmo nível que…)</span>
-                <Input
-                  value={collapse}
-                  onChange={(event) => setCollapse(event.target.value)}
-                  placeholder="código de outra rung"
-                  list={`codes-${plan.plan_id}`}
-                  maxLength={500}
-                />
-                <datalist id={`codes-${plan.plan_id}`}>
-                  {allCodes
-                    .filter((code) => code !== plan.code)
-                    .map((code) => (
-                      <option key={code} value={code} />
-                    ))}
-                </datalist>
-              </label>
-              <label className="flex flex-col gap-1 text-xs">
-                <span className="text-(--color-muted)">Nota da decisão</span>
-                <Input value={note} onChange={(event) => setNote(event.target.value)} />
-              </label>
-            </div>
-
-            {!canApprove ? (
-              <p className="text-xs text-(--color-warn)">
-                Aprovar exige escolher o nível: é a decisão que o código não sabe tomar.
-              </p>
+            {plan.materialised_description_id ? <Badge tone="ok">materializado</Badge> : null}
+            {isSuggested ? (
+              <span className="text-xs font-medium text-(--color-accent)">aguardando decisão</span>
             ) : null}
-
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="primary"
-                disabled={!canApprove || decide.isPending}
-                onClick={() => decide.mutate("APPROVED")}
-              >
-                {decide.isPending ? "Salvando…" : "Aprovar"}
-              </Button>
-              <Button size="sm" variant="danger" disabled={decide.isPending} onClick={() => decide.mutate("REJECTED")}>
-                Rejeitar
-              </Button>
-            </div>
-            {decide.error ? <ErrorState error={decide.error} /> : null}
           </div>
-        ) : (
-          <div className="mt-1 flex flex-wrap items-center gap-3 border-t border-(--color-line) pt-3 text-xs">
-            <span className="text-(--color-muted)">
-              nível: {plan.level ?? "—"}
+
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-(--color-muted)">
+            <span>profundidade {plan.depth}</span>
+            <span>· pai: {plan.parent_code ?? "raiz"}</span>
+            <span>· {formatCount(plan.document_count ?? 0)} descrição(ões)</span>
+            <span>· níveis declarados: {declaredLevels.join(", ") || "nenhum"}</span>
+          </div>
+
+          {!isSuggested ? (
+            <p className="text-xs text-(--color-muted)">
+              nível: <strong className="text-(--color-ink)">{plan.level ?? "—"}</strong>
               {plan.title ? ` · título: ${plan.title}` : ""}
               {plan.decided_by ? ` · por ${plan.decided_by}` : ""}
               {plan.decided_at ? ` · ${formatDateTime(plan.decided_at)}` : ""}
-            </span>
-            {plan.decision_note ? <span className="text-(--color-muted)">nota: {plan.decision_note}</span> : null}
+              {plan.decision_note ? ` · nota: ${plan.decision_note}` : ""}
+            </p>
+          ) : null}
+
+          {plan.collapse_into_code ? (
+            <p className="text-xs text-(--color-accent)">
+              Esta rung <strong>é</strong> <code>{plan.collapse_into_code}</code>: o apply segue o vínculo.
+            </p>
+          ) : null}
+        </div>
+      }
+      actions={
+        isSuggested ? null : (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={decide.isPending}
+            title="Volta a rung para 'sugerido': a próxima proposta pode atualizar a evidência de novo."
+            onClick={() => decide.mutate("SUGGESTED")}
+          >
+            Reabrir decisão
+          </Button>
+        )
+      }
+    >
+      {samples.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 pb-3 text-xs">
+          <span className="text-(--color-muted)">amostras:</span>
+          {samples.map((id) => (
+            <Link
+              key={id}
+              to="/acervo/$descriptionId"
+              params={{ descriptionId: id }}
+              className="rounded bg-black/[0.05] px-1 hover:underline"
+            >
+              {id}
+            </Link>
+          ))}
+        </div>
+      ) : null}
+
+      {isSuggested ? (
+        <div className="flex flex-col gap-2">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="text-(--color-muted)">
+                Nível de descrição {flags.includes("ORDINAL_INFERRED") ? "(inferido, não declarado)" : ""}
+              </span>
+              <Select
+                value={levelId ?? ""}
+                onChange={(event) => setLevelId(event.target.value ? Number(event.target.value) : null)}
+              >
+                <option value="">— escolher —</option>
+                {levels.map((level) => (
+                  <option key={level.level_id} value={level.level_id}>
+                    {level.ordinal}. {level.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="text-(--color-muted)">Título do nó</span>
+              <Input
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder={plan.code}
+                maxLength={300}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="text-(--color-muted)">Fundir em (esta rung é o mesmo nível que…)</span>
+              <Input
+                value={collapse}
+                onChange={(event) => setCollapse(event.target.value)}
+                placeholder="código de outra rung"
+                list={`codes-${plan.plan_id}`}
+                maxLength={500}
+              />
+              <datalist id={`codes-${plan.plan_id}`}>
+                {allCodes
+                  .filter((code) => code !== plan.code)
+                  .map((code) => (
+                    <option key={code} value={code} />
+                  ))}
+              </datalist>
+            </label>
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="text-(--color-muted)">Nota da decisão</span>
+              <Input value={note} onChange={(event) => setNote(event.target.value)} />
+            </label>
+          </div>
+
+          {!canApprove ? (
+            <p className="text-xs text-(--color-warn)">
+              Aprovar exige escolher o nível: é a decisão que o código não sabe tomar.
+            </p>
+          ) : null}
+
+          <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
-              variant="ghost"
-              disabled={decide.isPending}
-              title="Volta a rung para 'sugerido': a próxima proposta pode atualizar a evidência de novo."
-              onClick={() => decide.mutate("SUGGESTED")}
+              variant="primary"
+              disabled={!canApprove || decide.isPending}
+              onClick={() => decide.mutate("APPROVED")}
             >
-              Reabrir decisão
+              {decide.isPending ? "Salvando…" : "Aprovar"}
             </Button>
-            {decide.error ? <ErrorState error={decide.error} /> : null}
+            <Button size="sm" variant="danger" disabled={decide.isPending} onClick={() => decide.mutate("REJECTED")}>
+              Rejeitar
+            </Button>
           </div>
-        )}
-      </CardBody>
-    </Card>
+        </div>
+      ) : (
+        <p className="text-xs text-(--color-muted)">
+          Reabrir devolve a rung para “sugerido”: a próxima proposta volta a atualizar a evidência dela.
+        </p>
+      )}
+
+      {decide.error ? <ErrorState error={decide.error} /> : null}
+    </Disclosure>
   );
 }

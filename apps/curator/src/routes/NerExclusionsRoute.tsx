@@ -7,7 +7,8 @@ import { queries } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { Card, CardBody } from "@/components/ui/Card";
+import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input, Textarea } from "@/components/ui/Input";
 import { EXCLUSION_SOURCE_HINT, EXCLUSION_SOURCE_LABEL } from "@/lib/entities";
@@ -89,6 +90,59 @@ export function NerExclusionsRoute() {
           entidades já extraídas dessa grafia são apagadas, junto com os vínculos.
         </p>
 
+        {/*
+          The write first. The card used to be the last thing on the page: on a screen whose single
+          job is "record that this spelling is not a name", the archivist had to scroll the whole
+          record to find the form. It stays collapsed so the list of decisions remains the first thing
+          read, and the labelled button is what makes it findable.
+        */}
+        <Disclosure
+          triggerLabel="+ Vetar termos"
+          toggleLabel="Vetar termos"
+          header={
+            <div className="grid gap-1">
+              <span className="text-sm font-semibold">Vetar termos</span>
+              <span className="text-xs text-(--color-muted)">
+                O veto vale para o termo inteiro e apaga as entidades já extraídas dessa grafia.
+              </span>
+            </div>
+          }
+        >
+          <div className="grid gap-2">
+            <p className="text-xs text-(--color-muted)">
+              Separe por vírgula ou quebra de linha. O motivo é guardado para auditoria — e ele é o que
+              explica a decisão para quem abrir a lista depois.
+            </p>
+            <Input
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="termos, separados por vírgula"
+            />
+            <Textarea
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="por que este termo é assunto e não nome próprio"
+              rows={2}
+            />
+            <div>
+              <Button
+                variant="primary"
+                disabled={draft.trim().length === 0 || ban.isPending}
+                onClick={() => ban.mutate()}
+              >
+                {ban.isPending ? "Vetando…" : "Vetar e expurgar do passado"}
+              </Button>
+            </div>
+            {ban.data ? (
+              <p className="text-xs text-(--color-muted)">
+                {ban.data.message} {formatCount(ban.data.entities_deleted)} entidades apagadas.
+              </p>
+            ) : null}
+            {ban.error ? <ErrorState error={ban.error} /> : null}
+            {unban.error ? <ErrorState error={unban.error} /> : null}
+          </div>
+        </Disclosure>
+
         {exclusions.error ? <ErrorState error={exclusions.error} /> : null}
         {exclusions.isPending ? <Spinner /> : null}
 
@@ -140,42 +194,6 @@ export function NerExclusionsRoute() {
           ))}
         </ul>
 
-        <Card>
-          <CardHeader className="text-sm font-semibold">Vetar termos</CardHeader>
-          <CardBody className="grid gap-2">
-            <p className="text-xs text-(--color-muted)">
-              Separe por vírgula ou quebra de linha. O motivo é guardado para auditoria — e ele é o que
-              explica a decisão para quem abrir a lista depois.
-            </p>
-            <Input
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="termos, separados por vírgula"
-            />
-            <Textarea
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              placeholder="por que este termo é assunto e não nome próprio"
-              rows={2}
-            />
-            <div>
-              <Button
-                variant="primary"
-                disabled={draft.trim().length === 0 || ban.isPending}
-                onClick={() => ban.mutate()}
-              >
-                {ban.isPending ? "Vetando…" : "Vetar e expurgar do passado"}
-              </Button>
-            </div>
-            {ban.data ? (
-              <p className="text-xs text-(--color-muted)">
-                {ban.data.message} {formatCount(ban.data.entities_deleted)} entidades apagadas.
-              </p>
-            ) : null}
-            {ban.error ? <ErrorState error={ban.error} /> : null}
-            {unban.error ? <ErrorState error={unban.error} /> : null}
-          </CardBody>
-        </Card>
       </div>
     </>
   );

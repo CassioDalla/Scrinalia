@@ -6,7 +6,7 @@ import { queries } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Input, Textarea } from "@/components/ui/Input";
 import { formatCount } from "@/lib/format";
@@ -80,31 +80,20 @@ export function CategoriesRoute() {
           </div>
         ) : null}
 
-        {active.length > 0 ? (
-          <section className="grid gap-2">
-            <h2 className="text-sm font-semibold">Ativas</h2>
-            {active.map((category) => (
-              <CategoryCard key={category.category_id} category={category} onChanged={invalidate} />
-            ))}
-          </section>
-        ) : null}
-
-        {retired.length > 0 ? (
-          <section className="grid gap-2">
-            <h2 className="text-sm font-semibold">Aposentadas</h2>
-            <p className="text-xs text-(--color-muted)">
-              Saíram do eixo de assunto porque são proveniência e geografia, não assunto. Nunca foram apagadas: a
-              chave estrangeira é <code>SET NULL</code>, e apagar uma gaveta apagaria o registro de que ela existiu.
-            </p>
-            {retired.map((category) => (
-              <CategoryCard key={category.category_id} category={category} onChanged={invalidate} />
-            ))}
-          </section>
-        ) : null}
-
-        <Card>
-          <CardHeader className="text-sm font-semibold">Cadastrar uma gaveta</CardHeader>
-          <CardBody className="grid gap-2">
+        {/* The write first, the catalogue after — and every drawer opens on demand. */}
+        <Disclosure
+          triggerLabel="+ Nova gaveta"
+          toggleLabel="Cadastrar uma gaveta"
+          header={
+            <div className="grid gap-1">
+              <span className="text-sm font-semibold">Cadastrar uma gaveta</span>
+              <span className="text-xs text-(--color-muted)">
+                Uma gaveta nova só passa a valer quando o classificador rodar de novo.
+              </span>
+            </div>
+          }
+        >
+          <div className="grid gap-2">
             <p className="text-xs text-(--color-muted)">
               Uma gaveta nova só passa a valer quando o classificador rodar de novo: o carimbo do worker é o
               <strong> hash do conjunto de rótulos</strong>, então mudar o vocabulário devolve as tags à fila sozinho.
@@ -131,8 +120,31 @@ export function CategoriesRoute() {
               </Button>
             </div>
             {create.error ? <ErrorState error={create.error} /> : null}
-          </CardBody>
-        </Card>
+          </div>
+        </Disclosure>
+
+        {active.length > 0 ? (
+          <section className="grid gap-2">
+            <h2 className="text-sm font-semibold">Ativas</h2>
+            {active.map((category) => (
+              <CategoryCard key={category.category_id} category={category} onChanged={invalidate} />
+            ))}
+          </section>
+        ) : null}
+
+        {retired.length > 0 ? (
+          <section className="grid gap-2">
+            <h2 className="text-sm font-semibold">Aposentadas</h2>
+            <p className="text-xs text-(--color-muted)">
+              Saíram do eixo de assunto porque são proveniência e geografia, não assunto. Nunca foram apagadas: a
+              chave estrangeira é <code>SET NULL</code>, e apagar uma gaveta apagaria o registro de que ela existiu.
+            </p>
+            {retired.map((category) => (
+              <CategoryCard key={category.category_id} category={category} onChanged={invalidate} />
+            ))}
+          </section>
+        ) : null}
+
       </div>
     </>
   );
@@ -162,26 +174,33 @@ function CategoryCard({ category, onChanged }: { category: MacroCategory; onChan
     label !== (category.classifier_label ?? "");
 
   return (
-    <Card>
-      <CardBody className="grid gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-sm font-medium">{category.name}</span>
-            {category.is_active ? <Badge tone="ok">ativa</Badge> : <Badge tone="neutral">aposentada</Badge>}
-            <Badge tone="accent" title="Descrições com pelo menos uma tag nesta gaveta">
-              {formatCount(category.document_count ?? 0)} descrições
-            </Badge>
-          </div>
-          <Button
-            size="sm"
-            variant={category.is_active ? "ghost" : "secondary"}
-            disabled={save.isPending}
-            onClick={() => save.mutate({ is_active: !category.is_active })}
-          >
-            {category.is_active ? "aposentar" : "reativar"}
-          </Button>
+    <Disclosure
+      toggleLabel="Editar esta gaveta"
+      className={category.is_active ? undefined : "opacity-80"}
+      header={
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="truncate text-sm font-medium">{category.name}</span>
+          {category.is_active ? <Badge tone="ok">ativa</Badge> : <Badge tone="neutral">aposentada</Badge>}
+          <Badge tone="accent" title="Descrições com pelo menos uma tag nesta gaveta">
+            {formatCount(category.document_count ?? 0)} descrições
+          </Badge>
+          {category.description ? (
+            <span className="w-full text-xs text-(--color-muted)">{category.description}</span>
+          ) : null}
         </div>
-
+      }
+      actions={
+        <Button
+          size="sm"
+          variant={category.is_active ? "ghost" : "secondary"}
+          disabled={save.isPending}
+          onClick={() => save.mutate({ is_active: !category.is_active })}
+        >
+          {category.is_active ? "aposentar" : "reativar"}
+        </Button>
+      }
+    >
+      <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-2">
           <label className="flex flex-col gap-1 text-xs">
             <span className="text-(--color-muted)">Nome</span>
@@ -220,7 +239,7 @@ function CategoryCard({ category, onChanged }: { category: MacroCategory; onChan
           {dirty ? <span className="text-xs text-(--color-muted)">alterações não salvas</span> : null}
         </div>
         {save.error ? <ErrorState error={save.error} /> : null}
-      </CardBody>
-    </Card>
+      </div>
+    </Disclosure>
   );
 }

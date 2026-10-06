@@ -7,6 +7,7 @@ import { queries } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
 import { formatCount } from "@/lib/format";
@@ -91,42 +92,24 @@ export function SubjectExclusionsRoute() {
         {exclusions.error ? <ErrorState error={exclusions.error} /> : null}
         {exclusions.isPending ? <Spinner /> : null}
 
-        {exclusions.data && words.length === 0 ? (
-          <EmptyState
-            title="Nenhum termo excluído do eixo de assunto"
-            hint="A lista nasce vazia: ela é feita de decisões humanas sobre casos que a regra não pega. Enquanto o classificador não rodar no acervo, também não há erro a corrigir."
-          />
-        ) : null}
-
-        {words.length > 0 ? (
-          <Card>
-            <CardHeader className="text-sm font-semibold">Termos vetados</CardHeader>
-            <CardBody className="flex flex-wrap gap-2">
-              {words.map((word) => (
-                <span
-                  key={word}
-                  className="inline-flex items-center gap-1 rounded-full bg-black/5 py-0.5 pr-1 pl-2 text-xs"
-                >
-                  {word}
-                  <button
-                    title="O classificador volta a considerar o termo"
-                    disabled={restore.isPending}
-                    onClick={() => restore.mutate(word)}
-                    className="grid size-5 place-items-center rounded-full text-(--color-muted) hover:bg-black/10 hover:text-(--color-ink)"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </CardBody>
-          </Card>
-        ) : null}
-
-        {restore.error ? <ErrorState error={restore.error} /> : null}
-
-        <Card>
-          <CardHeader className="text-sm font-semibold">Vetar termos</CardHeader>
-          <CardBody className="grid gap-2">
+        {/*
+          The write first, and the catalogue of decisions under it — the same order the tags screen
+          uses for its stopwords. Banning here deletes nothing, so the record below is the whole point
+          of the screen; the form stays collapsed and gets a labelled button to be findable.
+        */}
+        <Disclosure
+          triggerLabel="+ Vetar termos"
+          toggleLabel="Vetar termos"
+          header={
+            <div className="grid gap-1">
+              <span className="text-sm font-semibold">Vetar termos</span>
+              <span className="text-xs text-(--color-muted)">
+                Banir não apaga nada: a tag continua no acervo, só a classificação de assunto para de adivinhar.
+              </span>
+            </div>
+          }
+        >
+          <div className="grid gap-2">
             <div className="flex flex-wrap gap-1">
               {["pessoas", "vista aérea", "capanema"].map((example) => (
                 <button
@@ -164,8 +147,43 @@ export function SubjectExclusionsRoute() {
               </p>
             ) : null}
             {ban.error ? <ErrorState error={ban.error} /> : null}
-          </CardBody>
-        </Card>
+          </div>
+        </Disclosure>
+
+
+        {exclusions.data && words.length === 0 ? (
+          <EmptyState
+            title="Nenhum termo excluído do eixo de assunto"
+            hint="A lista nasce vazia: ela é feita de decisões humanas sobre casos que a regra não pega. Enquanto o classificador não rodar no acervo, também não há erro a corrigir."
+          />
+        ) : null}
+
+        {words.length > 0 ? (
+          <Card>
+            <CardHeader className="text-sm font-semibold">Termos vetados</CardHeader>
+            <CardBody className="flex flex-wrap gap-2">
+              {words.map((word) => (
+                <span
+                  key={word}
+                  className="inline-flex items-center gap-1 rounded-full bg-black/5 py-0.5 pr-1 pl-2 text-xs"
+                >
+                  {word}
+                  <button
+                    title="O classificador volta a considerar o termo"
+                    disabled={restore.isPending}
+                    onClick={() => restore.mutate(word)}
+                    className="grid size-5 place-items-center rounded-full text-(--color-muted) hover:bg-black/10 hover:text-(--color-ink)"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </CardBody>
+          </Card>
+        ) : null}
+
+        {restore.error ? <ErrorState error={restore.error} /> : null}
+
       </div>
     </>
   );

@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
 import { formatCount } from "@/lib/format";
@@ -130,18 +131,37 @@ function SuggestionCard({
   });
 
   return (
-    <Card>
-      <CardBody className="grid gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="accent">{formatCount(category.estimate_count)} estimativas</Badge>
-            <Badge tone="neutral">tema #{category.topic_id}</Badge>
-          </div>
+    /*
+      Each cluster collapses to its weight and its proposed name. The proposal is a *question* ("chamar
+      esta gaveta de X?"), and a screen of five open forms answers questions the archivist has not
+      asked yet; the samples that justify the name are one click away, next to the button.
+    */
+    <Disclosure
+      toggleLabel="Ver as amostras do cluster"
+      header={
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone="accent">{formatCount(category.estimate_count)} estimativas</Badge>
+          <Badge tone="neutral">tema #{category.topic_id}</Badge>
+          <span className="text-sm font-medium">{category.suggested_name}</span>
+        </div>
+      }
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={name.trim().length === 0 || create.isPending || create.isSuccess}
+            onClick={() => create.mutate()}
+          >
+            {create.isSuccess ? "cadastrada" : create.isPending ? "Cadastrando…" : "Cadastrar como gaveta"}
+          </Button>
           <Button size="sm" variant="ghost" onClick={onDismiss}>
             descartar
           </Button>
         </div>
-
+      }
+    >
+      <div className="grid gap-2">
         <label className="flex flex-col gap-1 text-xs">
           <span className="text-(--color-muted)">Nome da gaveta</span>
           <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={100} />
@@ -157,23 +177,13 @@ function SuggestionCard({
           </div>
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            variant="primary"
-            disabled={name.trim().length === 0 || create.isPending || create.isSuccess}
-            onClick={() => create.mutate()}
-          >
-            {create.isSuccess ? "cadastrada" : create.isPending ? "Cadastrando…" : "Cadastrar como gaveta"}
-          </Button>
-          <span className="text-xs text-(--color-muted)">
-            A gaveta só passa a valer quando o classificador rodar de novo: o carimbo do worker é o hash
-            do conjunto de rótulos.
-          </span>
-        </div>
+        <p className="text-xs text-(--color-muted)">
+          A gaveta só passa a valer quando o classificador rodar de novo: o carimbo do worker é o hash
+          do conjunto de rótulos.
+        </p>
 
         {create.error ? <ErrorState error={create.error} /> : null}
-      </CardBody>
-    </Card>
+      </div>
+    </Disclosure>
   );
 }

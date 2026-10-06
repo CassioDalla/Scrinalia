@@ -7,7 +7,7 @@ import { queries } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card, CardBody } from "@/components/ui/Card";
+import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
 import { CONFLICT_WINNER_HINT, CONFLICT_WINNER_LABEL, CONFLICT_WINNER_TONE, ENTITY_TYPE_LABEL } from "@/lib/entities";
@@ -106,19 +106,30 @@ export function ConflictsRoute() {
       />
 
       <div className="grid max-w-5xl gap-4 px-6 py-5">
-        <div className="grid gap-2 rounded-md bg-(--color-accent)/5 px-3 py-2 text-xs text-(--color-accent) ring-1 ring-(--color-accent)/20 sm:grid-cols-2">
-          <p>
-            <strong>tag vence:</strong> {CONFLICT_WINNER_HINT.TAG}
-          </p>
-          <p>
-            <strong>entidade vence:</strong> {CONFLICT_WINNER_HINT.ENTITY}
-          </p>
-          <p className="sm:col-span-2">
+        {/*
+          The explanation collapses; the queue does not.
+          
+          This block is read once and then permanent — every visit re-rendered four lines of governance
+          above the work. The consequence of each verdict is repeated on the button that takes it, which
+          is where it is actually needed; the paragraph stays here as the long version.
+        */}
+        <Disclosure
+          toggleLabel="Onde cada veredito é gravado"
+          header={
+            <div className="grid gap-1">
+              <span className="text-sm font-semibold">Onde cada veredito é gravado</span>
+              <span className="text-xs text-(--color-muted)">
+                tag vence: {CONFLICT_WINNER_HINT.TAG} · entidade vence: {CONFLICT_WINNER_HINT.ENTITY}
+              </span>
+            </div>
+          }
+        >
+          <p className="text-xs text-(--color-accent)">
             A decisão é guardada em <strong>dois lugares diferentes</strong>, de propósito: não são o
             mesmo mecanismo — e um veto de entidade não pode fazer a purga de assunto apagar uma tag
             que você manteve.
           </p>
-        </div>
+        </Disclosure>
 
         <div className="flex flex-wrap items-end justify-between gap-3">
           <label className="flex flex-col gap-1 text-xs">
@@ -163,9 +174,15 @@ export function ConflictsRoute() {
         <ul className="grid gap-2">
           {shown.map((row) => (
             <li key={`${row.tag_id}-${row.entity_id}`}>
-              <Card>
-                <CardBody className="grid gap-3">
-                  <div className="flex flex-wrap items-center gap-3">
+              {/*
+                The verdict sits on the collapsed row, next to the collision it decides: the archivist
+                reads "isto é a mesma grafia" and answers it in one click, without opening anything. The
+                body keeps the evidence — the ids and what each verdict writes.
+              */}
+              <Disclosure
+                toggleLabel="Ver a evidência e o que cada veredito grava"
+                header={
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span className="flex min-w-0 items-center gap-2">
                       <Badge tone="accent">assunto</Badge>
                       <span className="truncate text-sm font-medium">{row.tag_name}</span>
@@ -178,7 +195,8 @@ export function ConflictsRoute() {
                       <code className="text-[10px] text-(--color-muted)">#{row.entity_id}</code>
                     </span>
                   </div>
-
+                }
+                actions={
                   <div className="flex flex-wrap gap-2">
                     <Button
                       size="sm"
@@ -203,8 +221,24 @@ export function ConflictsRoute() {
                       <Badge tone={CONFLICT_WINNER_TONE.ENTITY}>{CONFLICT_WINNER_LABEL.ENTITY}</Badge> vence
                     </Button>
                   </div>
-                </CardBody>
-              </Card>
+                }
+              >
+                <ul className="grid gap-1 text-xs text-(--color-muted)">
+                  <li>
+                    <strong className="text-(--color-ink)">{CONFLICT_WINNER_LABEL.TAG} vence:</strong>{" "}
+                    {CONFLICT_WINNER_HINT.TAG}
+                  </li>
+                  <li>
+                    <strong className="text-(--color-ink)">{CONFLICT_WINNER_LABEL.ENTITY} vence:</strong>{" "}
+                    {CONFLICT_WINNER_HINT.ENTITY}
+                  </li>
+                  <li>
+                    par: <code>{row.tag_name}</code> (tag #{row.tag_id}) ≈ <code>{row.entity_name}</code> (
+                    {labelOf(ENTITY_TYPE_LABEL, row.entity_type)} #{row.entity_id}) — similaridade{" "}
+                    {row.similarity.toFixed(3)}
+                  </li>
+                </ul>
+              </Disclosure>
             </li>
           ))}
         </ul>
