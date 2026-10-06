@@ -6,17 +6,23 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > **Como ler.** `✅` = feito **e verificado em execução real** (Postgres + engines reais), não
 > apenas lido no código. `[ ]` = pendente. `[~]` = parcial, com o que falta descrito.
 >
-> **Estado do gate (2026-10-06, ondas 4–6, B8 e as lacunas fechadas):** **934 testes**
-> passando · `ruff` limpo · `basedpyright` **0 erros** · **23 migrações** aplicando sem drift
-> (`alembic check` limpo) · contrato OpenAPI **65 paths / 77 operações / 127 schemas**, regenerado e
+> **Estado do gate (2026-10-06, painel de operação entregue):** **1.041 testes**
+> passando · `ruff` limpo · `basedpyright` **0 erros** · **25 migrações** aplicando sem drift
+> (`alembic check` limpo) · contrato OpenAPI **72 paths / 86 operações / 148 schemas**, regenerado e
 > verificado por CI · SPA do curador construindo (`tsc`, `eslint`, `vite build`) e servida pelo
 > próprio Litestar · **Streamlit removido do repositório** (diretório, dependência, `uv.lock`,
-> `Procfile`, docs). O sitemap do curador está **completo**: as 17 telas existem. Falta só o site
+> `Procfile`, docs). O sitemap do curador está **completo**: as 17 telas existem, mais as **3 telas
+> de sistema** (`/sistema/workers`, `/sistema/execucoes`, `/sistema/diagnostico`). Falta só o site
 > público, que ficou fora deste ciclo por decisão.
 >
 > **As duas últimas capacidades sem botão foram fechadas** (`POST /hierarchy/nodes` e
 > `POST /taxonomy/tags/merge`) e a rota legada de stopwords de entidade **foi removida**.
 > **Acervo real medido: 4.826 descrições**, não 3.608 — ver "Pendências operacionais".
+>
+> **O painel de operação fechou a lacuna "não há como ver nem configurar o sistema"**: os 9 workers
+> aparecem com engine, preset e modelo resolvidos, fila, última execução, override persistido e
+> botão de executar; toda execução (CLI ou tela) deixa linha em `archive_worker_runs`. Decisão em
+> `docs/adr/0004-worker-execution-from-the-api.md`; limites conhecidos na seção do painel.
 
 ---
 
@@ -28,9 +34,9 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 | 1.5 | Macro Categorias (eixo de Assuntos) | ✅ **Fechada** — vocabulário reprojetado e medido |
 | 2 | API + Curadoria humana (HITL) | ✅ **Fechada** — backend e as duas ações locais que faltavam (criar nó, unificar tags) |
 | 2.5 | Hierarquia das descrições | ✅ **H1–H8 fechadas sem UI** |
-| 3 | Descoberta, performance e observabilidade | 🟡 **Parcial** — busca fechada; falta operação |
+| 3 | Descoberta, performance e observabilidade | 🟡 **Quase fechada** — busca fechada; operação entregue (painel, ledger, diagnóstico); faltam Sentry, agendamento e um `/health` de orquestrador |
 | 3.5 | Qualidade do dado de entrada | ✅ **A–E fechadas sem UI** |
-| 4 | **UI nova, BFF e publicação** | 🟡 **Em andamento** — contrato fechado e **ondas 1–6 entregues** (sitemap do curador completo); Streamlit desligado e removido; faltam o site público e o auth |
+| 4 | **UI nova, BFF e publicação** | 🟡 **Em andamento** — contrato fechado, **ondas 1–6 entregues** e **painel de operação** (sitemap do curador completo + 3 telas de sistema); Streamlit desligado e removido; faltam o site público e o auth |
 
 **O sistema está funcionalmente pronto.** Ingestão → staging → archive → enriquecimento por
 IA → curadoria humana → bloqueio de reprocessamento, tudo verificado ponta a ponta.
@@ -648,13 +654,72 @@ Bancada de 44 tags rotuladas à mão (aprovadas pelo dono), 3 formatos × 3 arra
 
 - ✅ **CI:** ruff + basedpyright + `alembic check` + pytest em Postgres.
 - ✅ **Logging** com loguru, interceptação de terceiros e `InterceptHandler`.
-- [ ] **Rastreamento de erros nos workers** (ex.: Sentry) para falhas silenciosas de IA.
-- [ ] **Health/readiness** (`/health`) verificando o banco.
-- [ ] **Retomada e agendamento** — não há scheduler nem retry policy; os workers rodam pelo
-  runner manualmente.
+- ✅ **Painel de operação** (`/sistema/*` no SPA, `/api/v1/system/*` na API): catálogo dos 9
+  workers com engine/preset/modelo resolvidos, filas pendentes/processadas/falhadas, overrides
+  persistidos com trilha, ledger de execuções, disparo pela tela e diagnóstico de infra. Detalhe
+  na seção "Painel de operação" abaixo; decisão em `docs/adr/0004`.
+- ✅ **Diagnóstico de infraestrutura** (`GET /api/v1/system/health`): banco (com os totais do
+  acervo), Ollama (modelos instalados × exigidos pelos presets), bucket de miniaturas e a
+  configuração efetiva do processo. Cada sonda responde sozinha e nunca devolve segredo.
+- 🟡 **Rastreamento de erros nos workers.** O ledger registra a exceção de cada execução
+  (`archive_worker_runs.error`) e o painel a mostra; **não há Sentry** nem agregação de falhas
+  por causa raiz.
+- 🟡 **Retomada e agendamento.** O disparo manual existe (linha de comando **e** tela, com guarda
+  de concorrência no banco), e uma execução interrompida pelo processo é marcada como
+  `INTERRUPTED` no próximo boot. **Não há scheduler, cron nem retry policy** — e o executor roda
+  dentro da API, o que pressupõe um único processo (ver ADR 0004).
+- [ ] **Health/readiness para orquestrador** (um `/health` mínimo para k8s/load balancer). O
+  `/system/health` é para humano: faz I/O de rede e devolve detalhe.
 - [ ] **Testes de pipeline com engines reais.** A suíte usa `mock_registry` (correto para
   isolamento), o que deixa invisível a classe de bug que quebrou o `suggest-macro`. Falta um
   teste de fumaça opcional marcado `slow`/`e2e`.
+
+### Painel de operação (2026-10-06)
+
+Entregue como `/sistema/workers`, `/sistema/execucoes` e `/sistema/diagnostico`, servido por
+`/api/v1/system/*`. O que ele resolve, e o que **não** promete:
+
+| Capacidade | Como funciona |
+| --- | --- |
+| Ver os workers | `workers/catalogue.py` é a definição única (ordem, eixo, governança, carimbo, contador); importa **nenhum** worker, resolvendo por caminho pontilhado com cache — subir a API não paga spaCy |
+| Ver preset e modelo | `describe_config` em cada registry é o gêmeo de leitura do `get_engine` (não instancia nada); um teste captura os kwargs do factory e compara os dois |
+| Ver a fila | Cada worker expõe `count_pending` com o **mesmo** predicado do `execute`; `thumbnail` lê a URI do storage, `conflict-judge` é explicitamente não mensurável (o scan trigram mediu 53 s) |
+| Configurar | `archive_worker_settings` (linha parcial: `NULL` segue o código) + revisões; precedência `argumento explícito > override > default do signature` |
+| Rodar | `POST /system/workers/{name}/runs`, com overrides só daquela execução; o executor roda **um worker por vez** |
+| Concorrência | Índice único parcial `uq_worker_run_active` em `(worker_name)` para `QUEUED`/`RUNNING` — a guarda é do banco, não de um lock de processo |
+| Histórico | `archive_worker_runs`, gravado pelo runner para CLI **e** tela, com a configuração resolvida, duração e resultado |
+| Recuperação | `api/lifespan.py` marca `INTERRUPTED` o que um processo morto deixou em voo (tolerante a banco fora) |
+| Diagnóstico | Banco, Ollama (modelos exigidos × instalados), bucket e config do processo; nenhum segredo é devolvido |
+
+Também corrigiu um defeito real: os presets de LLM **fixavam** `http://localhost:11434` e
+ignoravam `OLLAMA_HOST_URL` — o painel mostraria um host que não era o efetivo. O host saiu dos
+presets e passou a vir de `resolve_ollama_host()`; um `--option host=...` ainda vence.
+
+**Limites conhecidos:** sem auth (`changed_by`/`requested_by` são texto livre), sem agendamento,
+sem cancelamento de execução em andamento, e a recuperação de órfãos pressupõe **um** processo de
+API.
+
+---
+
+## 🧭 Backlog registrado (não planejado)
+
+### Ingestões — configuração por origem
+
+> Registrado em 2026-10-06 a pedido do dono do acervo. **Fora do plano do painel de operação.**
+
+Hoje a ingestão é uma só: o scraping do site público entra em `raw`/`staging` e o transfer leva
+para o archive. A ideia é uma feat **"Ingestões"** que trate a origem como um objeto de primeira
+classe:
+
+- **Origens plurais:** o scraper do PMC rodando continuamente, uma ingestão manual por CSV e um
+  scraper de outra instituição, cada uma com seu ciclo de vida e sua periodicidade.
+- **Configuração por origem:** o que hoje é regra global (colunas lidas pelos workers, limpeza,
+  limiares, talvez o próprio preset) poderia ser **sobrescrito no nível da origem** — uma coleção
+  doada com outra convenção de título não deveria herdar a mesma regra de limpeza.
+- **Consequência para o painel:** a tela de operação ganharia um eixo a mais ("de qual origem é
+  esta fila?"), e o ledger de execuções passaria a registrar a origem junto do worker.
+
+Nada disso foi desenhado nem medido; é só o registro da ideia para não se perder.
 
 ---
 

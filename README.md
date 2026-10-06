@@ -140,6 +140,9 @@ The screens that exist today, in the order the work happens:
 | `/qualidade/trechos` | repeated excerpts, the scope that drops them and the mandatory dry run |
 | `/qualidade/regras` | cleaning rules: `REWRITE` replaces, `VALIDATE`/`LLM_CHECK` only flag |
 | `/qualidade/anomalias` | what the quality validator marked, and why an empty queue is not proof |
+| `/sistema/workers` | the AI workers: engine, preset and model, the queue, the persisted default and a run button |
+| `/sistema/execucoes` | the execution ledger: what ran, with which configuration, and how it ended |
+| `/sistema/diagnostico` | database, Ollama models, thumbnail storage and the effective process configuration |
 
 The arrangement screens offer no silent correction: every write is a decision taken on a screen
 that showed its impact first, and the applied materialisations are reversible from the ledger.
@@ -154,13 +157,20 @@ Prefer the unified runner, which exposes every worker behind one interface:
 
 ```bash
 uv run python -m memoria_curitibana.domains.archive.workers.runner <name> \
-    [--engine X --preset Y --batch N --option key=value]
+    [--engine X --preset Y --batch N --option key=value --by "who"]
 ```
 
 Available names: `transfer`, `cleaning`, `ner`, `typology`, `thumbnail`, `conflict-judge`,
 `macro-category`, `quality-validator`, `embedding`.
 Each `worker_*.py` also carries an `execute(db, ...)` function and a `__main__` block, so a
 single worker can be run directly while developing.
+
+A worker runs with the **effective configuration**, which is `explicit argument > persisted
+override > signature default`; `/sistema/workers` in the curator UI shows it, changes it and runs
+the worker, and every run — from the CLI or from the screen — leaves a row in
+`archive_worker_runs` with the resolved configuration, the duration and the outcome. The screen's
+executor runs one worker at a time and is not a scheduler: there is no retry and no cron
+(`docs/adr/0004-worker-execution-from-the-api.md`).
 
 ## Development
 
