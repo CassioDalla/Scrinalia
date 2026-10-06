@@ -153,6 +153,9 @@ sugeridas, 5 de 81 rungs, 1 materialização, stopwords 96/88 e carimbos de IA `
 - Aprovar rungs e aplicar merges em massa — decisões de conteúdo, não de engenharia.
 - `POST /taxonomy/tags/stopwords/purge` — **apaga tags e não tem undo** (o merge tem ledger; a purga
   não). Tem preview obrigatório na tela.
+- `DELETE /documents/{id}` — **exclusão definitiva**, com duas guardas: recusa nó com filhos (o FK de
+  pai é `RESTRICT`) e exige o código de referência digitado na tela. Deixa o retrato ISAD(G) no ledger
+  `archive_document_deletions`, que **não restaura**: é trilha, não lixeira.
 - Os workers de IA — a janela de reprocessamento fecha na primeira ficha aprovada por humano.
 
 ### Dívidas técnicas registradas, ainda em aberto
@@ -225,6 +228,15 @@ sugeridas, 5 de 81 rungs, 1 materialização, stopwords 96/88 e carimbos de IA `
   starlette e cia.), o processo `web` do `Procfile`, a chave `API_BASE_URL` (que só ele lia) e as
   referências em `README.md`, `AGENTS.md`, `.env.example` e no skill de commit. O pacote perdeu o
   segundo root de import que o ADR 0002 registrava.
+- ✅ **B10 — Refino da UI do curador** (2026-10-06), em cinco ondas, com o relato do arquivista como
+  especificação: (1) as facetas e as paginações voltaram a funcionar (ver "Achados"); (2) as telas que
+  editam catálogo passaram a **colapsar** e a pôr a escrita **no topo** (`ui/Disclosure.tsx`), com o
+  plano de arranjo ganhando hierarquia visual por profundidade; (3) os merges passaram a abrir o painel
+  **na própria linha**, a aceitar **marcação de várias linhas** com barra flutuante, e a permitir
+  **editar uma proposta antes de aplicá-la** (tirar um membro do cluster e aplicar pelo mesmo
+  planejador, fechando a proposta da máquina como `REJECTED`); (4) a exclusão de descrição com trilha;
+  (5) busca e paginação em todos os ledgers. O que ficou de fora, por decisão: **criar rung manual no
+  plano** (a tela agora aponta para o "criar nó" da árvore, que é a outra escrita) e o app público (B7).
 - [ ] **B9 — Auth + auditoria + CORS + rate limit** no BFF do curador. **Última etapa.**
   (CORS continua desnecessário: o SPA é servido pelo próprio Litestar, mesma origem.)
 
@@ -262,6 +274,9 @@ sugeridas, 5 de 81 rungs, 1 materialização, stopwords 96/88 e carimbos de IA `
 | **Anomalias não têm faceta por motivo** | em aberto: a tela agrupa pela página em mãos e diz isso, em vez de inventar um total | ⚠️ |
 | **Não havia como criar um nó que o código não implica** | `POST /hierarchy/nodes` + formulário em `/acervo/arvore`: pai = raiz **ou** o nó selecionado, nível obrigatório e o impacto é validado pela rota | ✅ |
 | **Não havia como unificar duas tags que o arquivista escolheu** | `POST /taxonomy/tags/merge` (+ `/merge/preview` por `canonical_id`+`ids_to_merge`) chamado pelo botão `unificar ↦` da aba Similaridade, com canônica escolhível, dry-run obrigatório e o desfazer do ledger | ✅ |
+| **Não havia como excluir uma descrição do acervo** | `DELETE /api/v1/documents/{id}` com guarda de filhos (409 `DocumentHasChildrenError`) + ledger `archive_document_deletions` (retrato ISAD(G) completo, sem FK: o registro que ele nomeia não existe mais) + `GET /documents/deletions` e a tela `/acervo/excluidas`. O ledger de **revisões** não serviria: `description_id` é `ON DELETE CASCADE`, então a revisão morreria com o documento que ela registrava | ✅ |
+| **O ledger de merges não tinha busca** (194 linhas hoje, sem teto) | `q` no `GET /tags/merge-log`, casando **os dois lados** da entrada (grafia absorvida e canônica) e escapando curingas: medido, `q=%` responde 0 | ✅ |
+| **O ledger de materialização não tinha busca** | `q` no `GET /hierarchy/materialisation/log`, casando autor e nota — os dois campos que identificam uma execução | ✅ |
 | **Rota legada superseded** | `POST /entities/stopwords/purge_stopwords` foi substituída por `POST /entities/ner-exclusions` (catálogo durável com `reason`/`source`, reversível por `DELETE`, e que **também** purga e alimenta o blacklist do NER via `load_entity_blacklist`). A legada estava **sem uso no front e sem teste** — removida junto de `save_entity_stopwords`, do `EntityService.purge_entity_stopwords` e do `EntityStopwordPurgeResponse`. `delete_entities_by_names` **ficou**: é o expurgo retroativo das exclusões de NER | ✅ |
 
 **Rotas do backend sem chamada no front que NÃO são lacuna** (auditadas em 2026-10-06, não
@@ -285,6 +300,19 @@ reinvestigar):
   a tag para "Religião", removeu a tag, escolheu a unidade superior pelo nome e moveu a descrição —
   8 de 8 checagens contra a API. A coleção usada foi a do **banco de teste**, de propósito: escrever
   pela UI marca a ficha como revisada e fecha a janela de reprocessamento de IA.
+- ✅ **As facetas numéricas da lista não filtravam nada — e o defeito era um só.** Os validadores de
+  `search` do TanStack Router só aceitavam **string**, mas `navigate({ search })` entrega o objeto
+  **antes** de serializar: `asNumber(12)` respondia `undefined` e, como o resultado do validador é
+  espalhado sobre o destino, ele **sobrescrevia com `undefined`** o valor que acabara de receber.
+  Clicar em "Tipologia" não fazia nada; só `entity_type` sobrevivia, porque viaja como string — que é
+  exatamente a assimetria que o arquivista relatou ("só as de tipo de entidade funcionam"). A mesma
+  causa desligava a paginação de propostas, diagnóstico, anomalias, similaridades e conflitos. Duas
+  outras da mesma família apareceram ao ler o código: o `patch` do vocabulário forçava
+  `offset: undefined` **depois** do `...changes` (a página nunca avançava) e três filtros de proposta
+  viajavam com nomes que a rota não aceita (`motivo`/`min`/`flag` em vez de
+  `reason`/`min_documents`/`flagged_only`), então "só com avisos", "mín. docs" e "motivo" respondiam
+  "todos". As coerções passaram a viver em um lugar só (`lib/search.ts`) e um validador que
+  hand-rolle a checagem de novo volta a perder o filtro.
 - ✅ **A busca não escapava curingas.** `ILIKE '%termo%'` com um `%` digitado virava "todos os
   registros": o arquivista recebia o catálogo inteiro por um typo e a consulta abandonava o índice
   de trigrama. `escape_like()` + `LIKE_ESCAPE` (`domain/normalization.py`) resolveram, com teste que

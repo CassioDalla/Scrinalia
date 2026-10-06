@@ -126,6 +126,7 @@ The screens that exist today, in the order the work happens:
 | `/acervo/lista` | search and facets over the collection (lexical or semantic) |
 | `/acervo/arvore` | the arrangement as navigation: roots, branches and the descriptions inside them |
 | `/acervo/:id` | the dossier: description, subjects, arrangement and history |
+| `/acervo/excluidas` | the trail of the deleted descriptions: a snapshot of each, and no restore |
 | `/arranjo/plano` | the arrangement plan: decide the proposed levels, preview and materialise |
 | `/arranjo/diagnostico` | the structural diagnosis, one section per problem, with the evidence |
 | `/arranjo/niveis` | the NOBRADE ladder: weight per rung, editable, never deleted |
@@ -142,8 +143,10 @@ The screens that exist today, in the order the work happens:
 
 The arrangement screens offer no silent correction: every write is a decision taken on a screen
 that showed its impact first, and the applied materialisations are reversible from the ledger.
-Where a write has no undo — the stopword purge, an entity merge — the screen says so before the
-click instead of after it.
+Where a write has no undo — the stopword purge, an entity merge, and the deletion of a description —
+the screen says so before the click instead of after it. The deletion is the only write that removes a
+record: it refuses a node that still has children, asks for the reference code to be typed, and leaves
+the whole ISAD(G) snapshot in `archive_document_deletions`, which is a trail and not a recycle bin.
 
 ## Running the workers
 
