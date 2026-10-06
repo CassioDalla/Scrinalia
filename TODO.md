@@ -24,7 +24,7 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 | 2.5 | Hierarquia das descrições | ✅ **H1–H8 fechadas sem UI** |
 | 3 | Descoberta, performance e observabilidade | 🟡 **Parcial** — busca fechada; falta operação |
 | 3.5 | Qualidade do dado de entrada | ✅ **A–E fechadas sem UI** |
-| 4 | **UI nova, BFF e publicação** | 🟡 **Em andamento** — contrato fechado e onda 1 do front entregue |
+| 4 | **UI nova, BFF e publicação** | 🟡 **Em andamento** — contrato fechado e **ondas 1–3 + etapa C** entregues (faltam as ondas 4–6 e o auth) |
 
 **O sistema está funcionalmente pronto.** Ingestão → staging → archive → enriquecimento por
 IA → curadoria humana → bloqueio de reprocessamento, tudo verificado ponta a ponta.
@@ -52,6 +52,82 @@ substituído. O caminho agora é o front do curador.
 > separados, em monorepo. Planos em `.analysis/roadmap-bff-curador.md` (arquitetura) e
 > `.analysis/sitemap-front-curador.md` (telas). Decisão de stack registrada em
 > `docs/adr/0003-monorepo-and-curator-frontend-stack.md`.
+
+---
+
+## ▶️ Handoff — o que falta, em ordem, e como rodar
+
+> **Onde está o plano.** O detalhe (ondas do sitemap, arquitetura do BFF, o porquê de cada decisão)
+> vive em `.analysis/plano-proximas-etapas.md`, `.analysis/roadmap-bff-curador.md` e
+> `.analysis/sitemap-front-curador.md`. **`.analysis/` é gitignored** — os arquivos existem neste
+> checkout, mas não viajam num clone. O que precisa sobreviver a um clone está **aqui** e no
+> `AGENTS.md`; as notas de trabalho são descartáveis de propósito.
+
+### Subir o stack e rodar os gates
+
+```bash
+bun run dev            # docker compose up -d + API :8000 + SPA :5173 (proxy /api -> :8000)
+# peças soltas: bun run db:up | bun run api:dev | bun run curator:dev
+```
+
+Um **502 em `/api`** quer dizer que a API não está no ar — a SPA responde 200 e o sintoma parece
+bug de front. Se o Vite imprimir outra porta, a `:5173` estava ocupada.
+
+```bash
+# banco de teste deste checkout está na porta 5434
+TEST_DATABASE_URL=postgresql://test_user:test_password@localhost:5434/test_db .venv/bin/pytest -q
+.venv/bin/basedpyright && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/alembic check
+bun run --cwd apps/curator typecheck && bun run --cwd apps/curator lint && bun run --cwd apps/curator build
+```
+
+**Nunca** rode `alembic upgrade head` no banco de **teste**: o `create_all` do conftest pula o que já
+existe e a suíte passa a rodar contra o schema migrado (53 falhas + 42 erros que parecem regressão).
+
+### Estado medido do acervo (2026-10-05, fim do dia)
+
+| Medida | Valor |
+| --- | ---: |
+| Descrições | **4.826** (0 com pai; 13 sem nível) |
+| Tags / vínculos | **8.257** / 59.388 |
+| Merges aplicados (ledger) | **133** |
+| Propostas: aplicadas / aprovadas / sugeridas | **95 / 2 / 784** |
+| Stopwords (TAG / ENTITY) | **96 / 88** |
+| Rungs decididos | **0 de 81** |
+| Carimbos de IA | **0** NER, **0** tipologia, **0** macro-categoria, **0** validador, **41** embedding |
+
+### Os passos, na ordem em que eu faria
+
+| # | Passo | Onde / comando | Por que agora |
+| --- | --- | --- | --- |
+| 1 | **Arquivar as 2 aprovadas sem membros** | `/assuntos/tags?aba=propostas&status=APPROVED` → "arquivar as já cumpridas" | São clusters cuja canônica já não existe; não são trabalho, e a fila fica limpa |
+| 2 | **Triar os 784 clusters sugeridos** | mesma tela, `status=SUGGESTED` (mais pesados primeiro) | Decisão do arquivista; cada um tem "Conferir impacto" antes |
+| 3 | **Revisar 1 merge perigoso** | ledger em `/assuntos/tags?aba=propostas`, com **desfazer** | `residencial ← área residencial, casa residencial, região residencial` (65+6+6 docs) perde sentido; está aplicado e é reversível |
+| 4 | **Decidir os 81 rungs → preview → apply → conferir o ledger** | `/arranjo/plano` | É o que enche o sistema de valor e **destrava a onda 4** |
+| 5 | **Rodar os workers de IA** | `uv run python -m memoria_curitibana.domains.archive.workers.runner <nome>`, na ordem `ner → typology → conflict-judge → macro-category → quality-validator → embedding` | A janela fecha na **primeira ficha aprovada por humano**, e hoje as telas de assunto mostram pouco: 7.653 das 8.257 tags estão sem gaveta |
+| 6 | **Onda 4 do front** | `/arranjo/niveis` (não depende da árvore) e `/acervo/arvore` (depende do passo 4) | Fecha a seção Arranjo do sitemap |
+| 7 | **Ondas 5–6 do front** | `/entidades/*` e `/qualidade/*` | Últimas telas do sitemap antes do auth |
+
+> **Decisão de produto ainda aberta:** rodar a IA (passo 5) **antes ou depois** dos rungs (passo 4)?
+> Enquanto não rodar, a UI mostra menos do que o sistema sabe — mas decidir os rungs primeiro faz a
+> classificação trabalhar sobre uma árvore que já existe.
+
+### O que **não** pode ser rodado no acervo real sem decisão do dono
+
+- `POST /hierarchy/materialisation/apply` — **move 4.813 descrições**. Tem preview e undo.
+- Aprovar rungs e aplicar merges em massa — decisões de conteúdo, não de engenharia.
+- `POST /taxonomy/tags/stopwords/purge` — **apaga tags e não tem undo** (o merge tem ledger; a purga
+  não). Tem preview obrigatório na tela.
+- Os workers de IA — a janela de reprocessamento fecha na primeira ficha aprovada por humano.
+
+### Dívidas técnicas registradas, ainda em aberto
+
+- **Entidades não têm catálogo de propostas**: os defeitos de merge de entidade foram corrigidos
+  (upsert de sinônimo + `repoint_synonyms` antes do delete), mas não há proposta, ledger nem undo
+  como nas tags. A onda 5 vai encostar nisso.
+- **A purga de stopwords é a única escrita destrutiva sem undo** — hoje ela é anunciada e tem
+  preview; torná-la reversível (escrevendo no ledger, como o merge) é uma decisão em aberto.
+- **Busca híbrida (RRF)** e **qualidade semântica** (o MRR caiu 0.019 enquanto o Hit@10 subiu) —
+  ver "Fase 3".
 
 ---
 
@@ -228,7 +304,9 @@ os embeddings e degradava a busca.
 - [ ] **Busca híbrida (RRF)** — lexical + semântica combinadas.
 - [ ] **Qualidade semântica.** O gargalo medido era o texto (tratado na Fase B), mas o ranking
   ainda é fraco: o MRR **caiu 0.019** enquanto o Hit@10 subia. Registrado de propósito.
-- [ ] **Aplicar as decisões de merge** — 371 propostas ainda `SUGGESTED` no acervo.
+- [ ] **Aplicar as decisões de merge** — 784 propostas ainda `SUGGESTED` no acervo (95 já
+  aplicadas em 2026-10-05; o estado `APPLIED` e o `applicable` calculado na leitura existem para a
+  fila não voltar a oferecer trabalho já feito).
 
 ### Detalhes que não podem ser quebrados
 
@@ -492,9 +570,9 @@ Estado medido **depois** da execução:
 | 1 | ✅ **Regra de limpeza de teste desativada** | `rule_id=1` ("aaaaa") agora `is_active=false`; **0 regras ativas**. Ela nunca casou com nada — só carimbava |
 | 2 | ✅ **Re-parse forçado + transfer executados** | `run_staging_pipeline(force=True)`: 4.785 registros, 0 falhas. `transfer`: 4.785 sucessos, 0 falhas, **0 pais declarados** (a origem não os manda — é por isso que a árvore é **materializada**, não ligada) |
 | 3 | ⚠️ **Todo o enriquecimento de IA está pendente** | O re-parse mudou o `parsed_content_hash` de todas as linhas **por desenho**, então o transfer reescreveu o conteúdo e zerou os carimbos: **0** `worker_ner_v2`, **0** `worker_typology_classifier_v2`, **0** `worker_macro_category_v1`, **0** `worker_quality_validator_v1`, **41** `worker_embedding_v1`. Os **3.608** vetores antigos continuam na coluna (a busca semântica segue funcionando); as 1.218 descrições novas não têm vetor |
-| 4 | ⚠️ **7.653 tags sem gaveta de assunto** | de **8.349** (o acervo cresceu: eram 6.142). 59.388 vínculos documento↔tag |
+| 4 | ⚠️ **Tags sem gaveta de assunto** | de **8.257** (o acervo cresceu: eram 6.142, depois 8.349, e 92 foram absorvidas por merges em 2026-10-05). 59.388 vínculos documento↔tag |
 | 5 | **0 de 81 rungs decididos** | `POST /plans/suggest` rodou e propôs **81** rungs (o plano estimava ~52 com 3.608 documentos; com 4.826 são mais códigos). Decidir é do arquivista — a tela `/arranjo/plano` está pronta |
-| 6 | **371 propostas de merge pendentes** | 40 já aprovadas (aplicadas em lote) e 0 rejeitadas |
+| 6 | **784 propostas de merge sugeridas** | em 2026-10-05: **95 aplicadas** (92 num lote + as antigas), **2 aprovadas** sem membros para absorver e **4 rejeitadas**. O estado `APPLIED` existe desde a migração `a1b2c3d4e5f6` |
 | 7 | **0 revisões humanas** | relevante para a decisão B2 (predicado de publicação) |
 | 8 | **`domain_text_templates` e `domain_ner_exclusions` vazios** | as duas feats estão implementadas e sem uso no acervo |
 
@@ -606,6 +684,18 @@ Diagnóstico estrutural do acervo real (pós-transfer):
 > purga apaga tags, e não existe rota para ler as stopwords atuais nem preview do que seria apagado.
 > A tela diz isso no rodapé em vez de oferecer um botão destrutivo sem impacto — a regra do próprio
 > sitemap é que nenhuma tela escreve sem mostrar o antes.
+
+### Ciclo do estado aplicado (2026-10-05, o relato "dá erro e não sai de aprovadas")
+
+| Verificação | Resultado |
+| --- | --- |
+| **O apply tinha funcionado** | ledger **41 → 133** linhas, tags **8.349 → 8.257**, tudo às **23:55:25** — 92 clusters absorvidos de uma vez |
+| **O erro era a segunda tentativa** | os membros daqueles 20 já tinham sido absorvidos pela primeira; o status ficava `APPROVED` para sempre e a tela oferecia um apply impossível |
+| Migração `a1b2c3d4e5f6` | estado `APPLIED` + backfill: **95** propostas casadas pelo `fingerprint` (86) e pelo **nome absorvido** no ledger (9, das mesclagens por `POST /tags/merge`, que não têm fingerprint) |
+| Fila depois do backfill | **2 aprovadas** (ambas `applicable=false`, canônica morta), **95 aplicadas**, **784 sugeridas** com `applicable=true` |
+| `pytest` | **932 passed** (+2 de integração: o lote ignora o já aplicado em `skipped`; a proposta aplicada sai da fila de aprovadas) |
+| Gate | `ruff` limpo (281 arquivos) · `basedpyright` **0 erros** · `alembic check` sem drift · `tsc`/`eslint`/`vite build` limpos |
+| Verificação visual | `.analysis/shots/wave3-cumpridas.png` e `wave3-aplicadas.png` — a tela diz "já não têm o que absorver. Não são falhas" e oferece arquivar, em vez de 20 linhas vermelhas |
 
 ### Execuções anteriores (preservadas)
 
