@@ -217,6 +217,13 @@ class HierarchyRepository:
                     func.replace(ArchiveDocument.path, ".", "")
                 )
                 stmt = stmt.where(path_depth - root_depth <= max_depth)
+        elif max_depth is not None:
+            # The forest has no root to measure against, so the depth is absolute: ``max_depth=0``
+            # answers the roots alone. A navigation needs exactly that before it expands anything,
+            # and without it the only way to list the roots is to page the whole collection and
+            # filter in the application — which reads thousands of rows to draw a dozen.
+            path_depth = func.length(ArchiveDocument.path) - func.length(func.replace(ArchiveDocument.path, ".", ""))
+            stmt = stmt.where(path_depth <= max_depth)
 
         total = int(self.db.scalar(select(func.count()).select_from(stmt.subquery())) or 0)
         page = stmt.order_by(ArchiveDocument.path).limit(limit).offset(offset)

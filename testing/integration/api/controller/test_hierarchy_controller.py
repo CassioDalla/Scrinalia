@@ -381,6 +381,50 @@ class TestEndToEndWithTheDatabase:
         )
         assert refused.status_code == HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_the_forest_depth_is_absolute(self, client: TestClient, api_uses_test_db, db_session, seed_nobrade_levels):
+        """
+        ``max_depth`` without a ``root_id`` limits by absolute depth, so ``max_depth=0`` is the roots.
+
+        The tree screen asks for the roots before it expands anything. Paging the whole collection and
+        filtering in the application would read thousands of rows to draw a dozen, and the ordering by
+        ``path`` does not even guarantee the roots come first. The relative reading (with a
+        ``root_id``) is pinned by the test above and stays as it was.
+        """
+        nobrade = {level.code: level for level in seed_nobrade_levels()}
+
+        root = client.post(
+            "/api/v1/hierarchy/nodes",
+            json={"reference_code": "BR ROOT", "title": "Acervo", "level_id": nobrade["acervo"].level_id},
+        ).json()
+        fund = client.post(
+            "/api/v1/hierarchy/nodes",
+            json={
+                "reference_code": "BR ROOT F",
+                "title": "Fundo",
+                "level_id": nobrade["fundo"].level_id,
+                "parent_id": root["description_id"],
+            },
+        ).json()
+        client.post(
+            "/api/v1/hierarchy/nodes",
+            json={
+                "reference_code": "BR ROOT F S",
+                "title": "Seção",
+                "level_id": nobrade["secao"].level_id,
+                "parent_id": fund["description_id"],
+            },
+        )
+
+        roots = client.get("/api/v1/hierarchy/tree?max_depth=0").json()
+        assert [item["description_id"] for item in roots["items"]] == [root["description_id"]]
+        assert roots["total"] == 1
+
+        two_levels = client.get("/api/v1/hierarchy/tree?max_depth=1").json()
+        assert two_levels["total"] == 2
+
+        whole = client.get("/api/v1/hierarchy/tree").json()
+        assert whole["total"] == 3
+
 
 class TestThePlanCatalogueOverHttp:
     def test_suggesting_registers_the_rungs(self, client: TestClient, mocker):

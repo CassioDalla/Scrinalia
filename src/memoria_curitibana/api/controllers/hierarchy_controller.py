@@ -141,6 +141,10 @@ class HierarchyController(Controller):
 
         A subtree is one indexed ``path LIKE 'x.%'``: that is the query the navigation makes
         constantly, and the whole reason the path is materialised instead of walked per level.
+
+        ``max_depth`` is relative to ``root_id`` when there is one, and absolute otherwise — so
+        ``max_depth=0`` with no ``root_id`` answers the roots of the forest, which is what the
+        tree screen asks for before it expands a single branch.
         """
         return hierarchy_service.tree(root_id=root_id, max_depth=max_depth, limit=limit, offset=offset)
 
