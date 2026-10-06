@@ -289,6 +289,8 @@ export type DocumentSearch = {
   date_from?: string;
   date_to?: string;
   status?: ArchiveReviewStatus;
+  /** The facet key: a bare code, or ``RULE_MATCH:<rule name>``. */
+  anomaly_reason?: string;
   limit?: number;
   offset?: number;
 };

@@ -420,11 +420,16 @@ export const queries = {
    * ``NEEDS_REVIEW`` is the status the validator writes, so this is a view of an existing
    * predicate — there is no anomaly route, and there should not be one.
    */
-  anomalies: (offset: number) =>
+  anomalies: (offset: number, reason: string | undefined) =>
     queryOptions({
-      queryKey: ["quality", "anomalies", offset],
+      queryKey: ["quality", "anomalies", reason ?? "", offset],
       queryFn: () =>
-        fetchDocuments({ status: "NEEDS_REVIEW", limit: ANOMALIES_PAGE_SIZE, offset }),
+        fetchDocuments({
+          status: "NEEDS_REVIEW",
+          anomaly_reason: reason,
+          limit: ANOMALIES_PAGE_SIZE,
+          offset,
+        }),
       staleTime: 15_000,
       placeholderData: (previous) => previous,
     }),
