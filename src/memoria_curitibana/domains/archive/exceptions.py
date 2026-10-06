@@ -113,6 +113,32 @@ class InvalidDescriptionLevelError(DomainException):
     pass
 
 
+class TypologyNotFoundError(DomainException):
+    """Raised when a documental typology does not exist in the catalogue."""
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
+class DuplicateTypologyError(DomainException):
+    """Raised when the name of a typology is already taken (case-insensitively)."""
+
+    # Ideal translation in Litestar: HTTP 409 (Conflict)
+    pass
+
+
+class InvalidTypologyError(DomainException):
+    """Raised when a typology a human chose is not in the catalogue.
+
+    Only the *human* path raises: the classifier only ever writes a name the catalogue gave it, so
+    an unknown id can only come from a client, and storing ``NULL`` would turn a wrong id into
+    missing data.
+    """
+
+    # Ideal translation in Litestar: HTTP 422 (Unprocessable Entity)
+    pass
+
+
 class HierarchyNodeNotFoundError(DomainException):
     """Raised when a description referenced by the tree does not exist."""
 

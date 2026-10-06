@@ -15,6 +15,7 @@ from memoria_curitibana.api.controllers.public_controller import PublicControlle
 from memoria_curitibana.api.controllers.system_controller import SystemController
 from memoria_curitibana.api.controllers.taxonomy_controller import TaxonomyController
 from memoria_curitibana.api.controllers.text_quality_controller import TextQualityController
+from memoria_curitibana.api.controllers.typology_controller import TypologyController
 from memoria_curitibana.api.dependencies import provide_unit_of_work
 from memoria_curitibana.api.handlers import domain_exception_handler, integrity_error_handler
 from memoria_curitibana.api.lifespan import application_lifespan
@@ -52,6 +53,7 @@ def create_app() -> Litestar:
         PublicController,
         SystemController,
         TextQualityController,
+        TypologyController,
     ]
 
     if (spa := curator_spa_router()) is not None:

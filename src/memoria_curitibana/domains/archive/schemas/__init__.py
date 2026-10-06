@@ -117,6 +117,11 @@ from .text_quality_schema import (
     TextTemplateApplicationConfig,
     TextTemplateDTO,
 )
+from .typology_schema import (
+    CreateTypologyCommand,
+    TypologyDTO,
+    UpdateTypologyCommand,
+)
 
 __all__ = [
     "ArchiveDocumentDTO",
@@ -127,6 +132,7 @@ __all__ = [
     "CreateDescriptionLevelCommand",
     "CreateHierarchyNodeCommand",
     "CreateMacroCategoryCommand",
+    "CreateTypologyCommand",
     "DatabaseHealthDTO",
     "DescriptionLevelDTO",
     "DocumentAncestorSummary",
@@ -218,8 +224,10 @@ __all__ = [
     "TextTemplateApplicationConfig",
     "TextTemplateDTO",
     "TitleQualityDecision",
+    "TypologyDTO",
     "UpdateDescriptionLevelCommand",
     "UpdateMacroCategoryCommand",
+    "UpdateTypologyCommand",
     "WorkerEngineDTO",
     "WorkerPresetDTO",
     "WorkerRunDTO",

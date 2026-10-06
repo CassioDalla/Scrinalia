@@ -765,6 +765,18 @@ class DocumentRepository:
                 )
             )
 
+        # A changed foreign key leaves its relationship pointing at the row it was loaded with, and
+        # the summary is built from that same object further down: without expiring them the response
+        # would carry the *previous* level/typology name next to the new id. Expiring makes the
+        # property re-read through the new key, which is what keeps the derived name honest.
+        derived = [
+            attribute
+            for attribute, key in (("level_ref", "level_id"), ("typology_ref", "typology_id"))
+            if key in changes
+        ]
+        if derived:
+            self.db.expire(doc, derived)
+
         doc.review_status = ArchiveReviewStatus.HUMAN_APPROVED
         self.db.flush()
         return self._page_summaries([(doc, None)])[0]

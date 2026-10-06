@@ -17,6 +17,7 @@ from memoria_curitibana.domains.archive.repository.hierarchy_repo import Hierarc
 from memoria_curitibana.domains.archive.repository.level_catalog_repo import LevelCatalogRepository
 from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
 from memoria_curitibana.domains.archive.repository.text_quality_repo import TextQualityRepository
+from memoria_curitibana.domains.archive.repository.typology_repo import TypologyRepository
 from memoria_curitibana.domains.archive.services.cleaning_service import CleaningService
 from memoria_curitibana.domains.archive.services.curation_service import CurationService
 from memoria_curitibana.domains.archive.services.document_service import DocumentService
@@ -29,6 +30,7 @@ from memoria_curitibana.domains.archive.services.hierarchy_service import Hierar
 from memoria_curitibana.domains.archive.services.level_catalog_service import LevelCatalogService
 from memoria_curitibana.domains.archive.services.tag_service import TagService
 from memoria_curitibana.domains.archive.services.text_quality_service import TextQualityService
+from memoria_curitibana.domains.archive.services.typology_service import TypologyService
 from memoria_curitibana.domains.archive.services.worker_operations_service import WorkerOperationsService
 from memoria_curitibana.domains.archive.services.worker_run_service import WorkerRunService
 
@@ -103,12 +105,20 @@ def provide_document_service(unit_of_work: NamedDependency[UnitOfWork]) -> Docum
         # The human review resolves ``level_id`` through the catalogue, so a wrong rung is a named
         # business error instead of an integrity error surfacing as a conflict.
         levels=LevelCatalogService(LevelCatalogRepository(db)),
+        # Same asymmetry for the typology: only the human path refuses an unknown id, because the
+        # classifier can only ever write a name the catalogue itself gave it.
+        typologies=TypologyService(TypologyRepository(db)),
     )
 
 
 def provide_level_catalog_service(unit_of_work: NamedDependency[UnitOfWork]) -> LevelCatalogService:
     """Builds the level catalogue service over the request transaction."""
     return LevelCatalogService(LevelCatalogRepository(unit_of_work.db))
+
+
+def provide_typology_service(unit_of_work: NamedDependency[UnitOfWork]) -> TypologyService:
+    """Builds the typology catalogue service over the request transaction."""
+    return TypologyService(TypologyRepository(unit_of_work.db))
 
 
 def provide_hierarchy_service(unit_of_work: NamedDependency[UnitOfWork]) -> HierarchyService:

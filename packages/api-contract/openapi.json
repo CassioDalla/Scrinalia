@@ -1526,6 +1526,17 @@
                 "type": "null"
               }
             ]
+          },
+          "typology_id": {
+            "description": "Tipologia documental: id no catálogo (GET /api/v1/typologies). É a forma diplomática do registro — ata, ofício, planta — que o classificador propõe e o arquivista pode corrigir. Um id fora do catálogo é recusado com 422.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [],
@@ -4323,7 +4334,7 @@
       },
       "StopwordsScope": {
         "default": "TAG",
-        "description": "\n    Controls the scope of a domain stopword\n    ",
+        "description": "Eixo de onde o termo sai.",
         "enum": [
           "TAG",
           "ENTITY",
@@ -5270,6 +5281,105 @@
           "message"
         ],
         "title": "TextTemplateMutationResponse",
+        "type": "object"
+      },
+      "TypologyCreateRequest": {
+        "properties": {
+          "context_description": {
+            "description": "Documentação para o curador: exemplos do que cai nesta tipologia. Nunca vai para o modelo — concatená-lo ao rótulo faz o classificador colapsar o acervo.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "description": "O que o arquivista lê e o classificador usa como rótulo.",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "TypologyCreateRequest",
+        "type": "object"
+      },
+      "TypologyDTO": {
+        "properties": {
+          "context_description": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "typology_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "is_active",
+          "name",
+          "typology_id"
+        ],
+        "title": "TypologyDTO",
+        "type": "object"
+      },
+      "TypologyUpdateRequest": {
+        "properties": {
+          "context_description": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_active": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "title": "TypologyUpdateRequest",
         "type": "object"
       },
       "UpdateTextTemplateRequest": {
@@ -12917,6 +13027,235 @@
         "summary": "CurateTag",
         "tags": [
           "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/typologies": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1TypologiesListTypologies",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "only_active",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TypologyDTO"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListTypologies",
+        "tags": [
+          "Typologies"
+        ]
+      },
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1TypologiesCreateTypology",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TypologyCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TypologyDTO"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "CreateTypology",
+        "tags": [
+          "Typologies"
+        ]
+      }
+    },
+    "/api/v1/typologies/{typology_id}": {
+      "patch": {
+        "deprecated": false,
+        "operationId": "ApiV1TypologiesTypologyIdUpdateTypology",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "typology_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TypologyUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TypologyDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "UpdateTypology",
+        "tags": [
+          "Typologies"
         ]
       }
     }

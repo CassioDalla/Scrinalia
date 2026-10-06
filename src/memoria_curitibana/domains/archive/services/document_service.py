@@ -17,6 +17,7 @@ from memoria_curitibana.domains.archive.schemas.document_schema import (
 )
 from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
 from memoria_curitibana.domains.archive.services.level_catalog_service import LevelCatalogService
+from memoria_curitibana.domains.archive.services.typology_service import TypologyService
 
 
 class DocumentService:
@@ -36,11 +37,13 @@ class DocumentService:
         repo: DocumentRepositoryPort,
         embedder: Callable[[], EmbeddingEngine] | None = None,
         levels: LevelCatalogService | None = None,
+        typologies: TypologyService | None = None,
     ) -> None:
         self.repo = repo
         self._embedder = embedder
         self._engine: EmbeddingEngine | None = None
         self._levels = levels
+        self._typologies = typologies
 
     def _get_engine(self) -> EmbeddingEngine:
         """Builds (once per service) the embedding engine, on first semantic search."""
@@ -86,7 +89,7 @@ class DocumentService:
 
     def update_review(self, command: DocumentReviewCommand) -> DocumentSummary:
         """
-        Applies the archivist's edit, refusing a level the catalogue does not know.
+        Applies the archivist's edit, refusing a level or a typology the catalogue does not know.
 
         The asymmetry with the staging load is deliberate: a payload with an unknown level is
         recorded as unclassified and the transfer carries on, but an archivist choosing a rung is
@@ -95,6 +98,8 @@ class DocumentService:
         """
         if command.level_id is not None and self._levels is not None:
             self._levels.get_level(command.level_id)
+        if command.typology_id is not None and self._typologies is not None:
+            self._typologies.require(command.typology_id)
 
         doc = self.repo.update_review(command)
         if doc is None:

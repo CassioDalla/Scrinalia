@@ -126,6 +126,33 @@ def test_update_review_marks_the_document_human_approved(db_session, generate_ar
     assert summary.review_status == "HUMAN_APPROVED"
 
 
+def test_a_changed_catalogue_key_re_reads_the_derived_name(
+    db_session, generate_archive_doc, generate_description_level, generate_typology
+) -> None:
+    """
+    The response must carry the *new* level/typology name, not the one the row was loaded with.
+
+    The relationships are eager-loaded when the document is fetched, so assigning the foreign key
+    leaves the loaded object pointing at the previous row — and the summary is built in the same
+    transaction. Regression: the PATCH answered ``typology_id: 991`` next to ``typology: null``.
+    """
+    generate_archive_doc(description_id="edit-8", original_title="A")
+    level = generate_description_level(ordinal=5, code="item", name="Item Documental")
+    typology = generate_typology(id=991, name="Ata de Reunião")
+
+    summary = DocumentRepository(db_session).update_review(
+        DocumentReviewCommand(
+            description_id="edit-8",
+            level_id=level.level_id,
+            typology_id=typology.typology_id,
+            changed_by="ana",
+        )
+    )
+
+    assert summary.level == "Item Documental"
+    assert summary.typology == "Ata de Reunião"
+
+
 def test_revisions_cascade_with_the_document(db_session, generate_archive_doc) -> None:
     generate_archive_doc(description_id="edit-7", original_title="A")
     repository = DocumentRepository(db_session)

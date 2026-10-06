@@ -1,4 +1,4 @@
-from memoria_curitibana.domains.archive.models import ArchiveTypology
+from memoria_curitibana.domains.archive.models import ArchiveDocument, ArchiveTypology
 from memoria_curitibana.domains.archive.repository.typology_repo import TypologyRepository
 
 
@@ -46,3 +46,36 @@ def test_get_active_typologies_keeps_context_out_of_the_label(use_test_db, db_se
     assert labels == ["Planta"]
     assert all(":" not in label for label in labels)
     assert all("Projetos de expansão" not in label for label in labels)
+
+
+def test_retiring_a_typology_takes_it_out_of_the_labels_and_keeps_the_description(use_test_db, db_session):
+    """
+    ``is_active`` is the only lever that reaches the classifier without touching a description.
+
+    A retired typology stops being a candidate label — the model would otherwise keep proposing a
+    spelling the curator decided against — while every description already classified with it keeps
+    it, and the catalogue keeps showing its weight. That is why there is no delete.
+    """
+    repo = TypologyRepository(db_session)
+    retired = ArchiveTypology(name="Dossiê Funcional", is_active=False)
+    kept = ArchiveTypology(name="Fotografia")
+    db_session.add_all([retired, kept])
+    db_session.commit()
+
+    db_session.add(
+        ArchiveDocument(
+            description_id="retired-1",
+            original_title="Prontuário",
+            staging_content_hash="h",
+            typology_id=retired.typology_id,
+        )
+    )
+    db_session.commit()
+
+    assert repo.get_active_typologies() == {"Fotografia": kept.typology_id}
+    assert [row.name for row in repo.list_typologies(only_active=True)] == ["Fotografia"]
+    assert [row.name for row in repo.list_typologies()] == ["Dossiê Funcional", "Fotografia"]
+
+    # The weight of the retired one is still visible, which is what makes retiring a trade.
+    assert repo.document_counts() == {retired.typology_id: 1}
+    assert repo.get(retired.typology_id).name == "Dossiê Funcional"

@@ -22,6 +22,12 @@ class DocumentUpdateRequest(BaseModel):
         description="Nível de descrição: id no catálogo (GET /api/v1/hierarchy/levels). A grafia livre "
         "saiu do contrato quando a coluna de texto virou chave estrangeira.",
     )
+    typology_id: int | None = Field(
+        default=None,
+        description="Tipologia documental: id no catálogo (GET /api/v1/typologies). É a forma "
+        "diplomática do registro — ata, ofício, planta — que o classificador propõe e o arquivista "
+        "pode corrigir. Um id fora do catálogo é recusado com 422.",
+    )
     producers: str | None = Field(default=None, description="Produtor(es).")
     admin_bio_history: str | None = Field(default=None, description="História administrativa/biografia.")
     admin_archival_history: str | None = Field(default=None, description="História arquivística.")

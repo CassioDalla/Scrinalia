@@ -1242,6 +1242,41 @@ export interface paths {
         patch: operations["ApiV1TaxonomyTagsTagIdCurateTag"];
         trace?: never;
     };
+    "/api/v1/typologies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListTypologies */
+        get: operations["ApiV1TypologiesListTypologies"];
+        put?: never;
+        /** CreateTypology */
+        post: operations["ApiV1TypologiesCreateTypology"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/typologies/{typology_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** UpdateTypology */
+        patch: operations["ApiV1TypologiesTypologyIdUpdateTypology"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1605,6 +1640,8 @@ export interface components {
             review_note?: string | null;
             /** @description Âmbito e conteúdo revisado. */
             scope_content?: string | null;
+            /** @description Tipologia documental: id no catálogo (GET /api/v1/typologies). É a forma diplomática do registro — ata, ofício, planta — que o classificador propõe e o arquivista pode corrigir. Um id fora do catálogo é recusado com 422. */
+            typology_id?: number | null;
         };
         /** DryRunMatchDTO */
         DryRunMatchDTO: {
@@ -2295,7 +2332,7 @@ export interface components {
         };
         /**
          * StopwordsScope
-         * @description Controls the scope of a domain stopword
+         * @description Eixo de onde o termo sai.
          * @default TAG
          * @enum {string}
          */
@@ -2559,6 +2596,28 @@ export interface components {
             data: components["schemas"]["TextTemplateDTO"];
             documents_requeued: number;
             message: string;
+        };
+        /** TypologyCreateRequest */
+        TypologyCreateRequest: {
+            /** @description Documentação para o curador: exemplos do que cai nesta tipologia. Nunca vai para o modelo — concatená-lo ao rótulo faz o classificador colapsar o acervo. */
+            context_description?: string | null;
+            /** @description O que o arquivista lê e o classificador usa como rótulo. */
+            name: string;
+        };
+        /** TypologyDTO */
+        TypologyDTO: {
+            context_description?: string | null;
+            /** @default 0 */
+            document_count: number;
+            is_active: boolean;
+            name: string;
+            typology_id: number;
+        };
+        /** TypologyUpdateRequest */
+        TypologyUpdateRequest: {
+            context_description?: string | null;
+            is_active?: boolean | null;
+            name?: string | null;
         };
         /** UpdateTextTemplateRequest */
         UpdateTextTemplateRequest: {
@@ -5877,6 +5936,123 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TagCurationResult"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TypologiesListTypologies: {
+        parameters: {
+            query?: {
+                only_active?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TypologyDTO"][];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TypologiesCreateTypology: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TypologyCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TypologyDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TypologiesTypologyIdUpdateTypology: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                typology_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TypologyUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TypologyDTO"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

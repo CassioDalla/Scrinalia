@@ -67,6 +67,10 @@ class DocumentReviewCommand(BaseModel):
     #: The level is a foreign key now: the text of 3,608 descriptions was migrated into the
     #: catalogue and the free-text column was dropped. The client sends the rung it chose.
     level_id: int | None = None
+    #: Diplomatic form of the record, also a foreign key into its own catalogue. The classifier is
+    #: its usual author; the archivist is the one who can overrule it, which is why it travels here
+    #: rather than staying a machine-only column.
+    typology_id: int | None = None
     producers: str | None = None
     admin_bio_history: str | None = None
     admin_archival_history: str | None = None

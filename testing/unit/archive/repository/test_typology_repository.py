@@ -40,3 +40,22 @@ def test_get_active_typologies_does_not_select_the_context_column(mocker: Mocker
     compiled = str(mock_db.execute.call_args[0][0])
     assert "context_description" not in compiled
     assert "name" in compiled
+
+
+def test_get_active_typologies_filters_on_the_retirement_flag(mocker: MockerFixture) -> None:
+    """
+    ``is_active`` is the filter that reaches the classifier.
+
+    Without it in the query, retiring a typology would be a change the archivist sees on the screen
+    and the model never hears about — it would keep proposing the spelling the catalogue decided
+    against. The column is asserted in the compiled statement because the predicate is the whole
+    point of the flag.
+    """
+    mock_db = mocker.Mock(spec=Session)
+    repo = TypologyRepository(mock_db)
+    mock_db.execute.return_value.all.return_value = []
+
+    repo.get_active_typologies()
+
+    compiled = str(mock_db.execute.call_args[0][0])
+    assert "is_active" in compiled

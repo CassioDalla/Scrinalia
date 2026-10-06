@@ -257,11 +257,31 @@ class ArchiveTaxonomyMergeLog(Base):
 
 
 class ArchiveTypology(Base):
+    """
+    Catalogue of documental typologies, owned by the archivist.
+
+    The typology is the *diplomatic form* of the record (ata, ofício, planta, fotografia), and it is
+    a table and not an enum for the same reason the level ladder is: the seed is a starting point,
+    and the archivist adds a type the collection carries without waiting for a deploy.
+
+    ``context_description`` is what the zero-shot classifier is documented with — deliberately
+    *documentation* and not part of the prompt: appending the context to the label makes the
+    entailment collapse as the label grows (`TypologyRepository.get_active_typologies`).
+
+    There is no ``delete``: ``archive_documents.typology_id`` is ``SET NULL``, so removing a row
+    would unclassify every description pointing at it while destroying the record that the type ever
+    existed. ``is_active`` is the way out, and it is also what removes the type from the
+    classifier's candidate labels without touching a single classified description.
+    """
+
     __tablename__ = "archive_typologies"
 
     typology_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
-    context_description: Mapped[str] = mapped_column(Text, nullable=True)
+    context_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: A retired type stays readable and keeps its descriptions; it only leaves the classifier's
+    #: candidate set. The column is what makes "deactivate instead of delete" a real choice.
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     documents: Mapped[list["ArchiveDocument"]] = relationship(back_populates="typology_ref")
