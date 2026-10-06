@@ -1165,6 +1165,30 @@ export interface components {
             failed?: components["schemas"]["MergeBatchFailure"][];
             skipped?: components["schemas"]["MergeBatchFailure"][];
         };
+        /** CleaningRuleDTO */
+        CleaningRuleDTO: {
+            anomaly_reason?: string | null;
+            created_by?: string | null;
+            engine_name?: string | null;
+            is_active: boolean;
+            preset?: string | null;
+            regex_pattern: string;
+            replacement_string: string;
+            rule_id: number;
+            /**
+             * @default REWRITE
+             * @enum {string}
+             */
+            rule_kind: "REWRITE" | "VALIDATE" | "LLM_CHECK";
+            rule_name: string;
+            /** @enum {string} */
+            target_column: "original_title" | "scope_content" | "admin_bio_history" | "provenance" | "archivist_notes";
+        };
+        /** CleaningRuleMutationResponse */
+        CleaningRuleMutationResponse: {
+            data: components["schemas"]["CleaningRuleDTO"];
+            message: string;
+        };
         /** ConflictResolutionData */
         ConflictResolutionData: {
             documents_transferred: number;
@@ -1440,6 +1464,12 @@ export interface components {
             /** @description Âmbito e conteúdo revisado. */
             scope_content?: string | null;
         };
+        /** DryRunMatchDTO */
+        DryRunMatchDTO: {
+            description_id: string;
+            modified_text: string;
+            original_text: string;
+        };
         /** DryRunRequest */
         DryRunRequest: {
             regex_pattern: string;
@@ -1447,6 +1477,15 @@ export interface components {
             replacement_string: string;
             /** @enum {string} */
             target_column: "original_title" | "scope_content" | "admin_bio_history" | "provenance" | "archivist_notes";
+        };
+        /** DryRunResponseDTO */
+        DryRunResponseDTO: {
+            error_message?: string | null;
+            is_valid_regex: boolean;
+            /** @default 0 */
+            matches_found: number;
+            /** @default [] */
+            samples: components["schemas"]["DryRunMatchDTO"][];
         };
         /** DryRunTextTemplateRequest */
         DryRunTextTemplateRequest: {
@@ -1462,6 +1501,10 @@ export interface components {
             scope?: ("EMBEDDING" | "NER" | "TITLE")[];
             text: string;
             variants?: string[];
+        };
+        /** EntityDeleteResponse */
+        EntityDeleteResponse: {
+            message: string;
         };
         /** EntityLinkRequest */
         EntityLinkRequest: {
@@ -1487,6 +1530,12 @@ export interface components {
             type_1: string;
             type_2: string;
         };
+        /** EntityReclassifyResponse */
+        EntityReclassifyResponse: {
+            message: string;
+            /** @enum {string} */
+            new_type: "ORG" | "PER" | "LOC";
+        };
         /** EntityRelevance */
         EntityRelevance: {
             entity_id: number;
@@ -1510,6 +1559,11 @@ export interface components {
             data: (components["schemas"]["EntitySimilarity"] | components["schemas"]["EntityPairSimilarity"])[];
             /** @enum {string} */
             mode: "all" | "specific";
+        };
+        /** EntityStopwordPurgeResponse */
+        EntityStopwordPurgeResponse: {
+            entities_deleted: number;
+            message: string;
         };
         /** FacetCount */
         FacetCount: {
@@ -1933,12 +1987,27 @@ export interface components {
             tag_id: number | null;
             term: string;
         };
+        /** NerExclusionBanResponse */
+        NerExclusionBanResponse: {
+            entities_deleted: number;
+            message: string;
+        };
+        /** NerExclusionRemovalResponse */
+        NerExclusionRemovalResponse: {
+            message: string;
+            removed: number;
+        };
         /** NerExclusionRequest */
         NerExclusionRequest: {
             /** @description Why the decision was made; kept for auditing. */
             reason?: string | null;
             /** @description Terms to keep out of the NER extraction. */
             words: string[];
+        };
+        /** OrphanEntityPurgeResponse */
+        OrphanEntityPurgeResponse: {
+            entities_deleted: number;
+            message: string;
         };
         /** PublicAncestorSummary */
         PublicAncestorSummary: {
@@ -1996,6 +2065,11 @@ export interface components {
             /** @enum {string} */
             new_type: "ORG" | "PER" | "LOC";
         };
+        /** StopwordBanResponse */
+        StopwordBanResponse: {
+            created: number;
+            message: string;
+        };
         /** StopwordCreateRequest */
         StopwordCreateRequest: {
             scope?: components["schemas"]["StopwordsScope"];
@@ -2025,6 +2099,11 @@ export interface components {
             /** @default 0 */
             total_tags: number;
         };
+        /** StopwordPurgeResponse */
+        StopwordPurgeResponse: {
+            message: string;
+            tags_deleted: number;
+        };
         /** StopwordPurgeTag */
         StopwordPurgeTag: {
             /** @default 0 */
@@ -2039,6 +2118,11 @@ export interface components {
             scope?: components["schemas"]["StopwordsScope"] | null;
             words: string[];
         };
+        /** StopwordRemovalResponse */
+        StopwordRemovalResponse: {
+            message: string;
+            removed: number;
+        };
         /** StopwordsRequest */
         StopwordsRequest: {
             /** @description Words to register before purging; omit to purge with the list already stored. */
@@ -2046,11 +2130,21 @@ export interface components {
         };
         /**
          * StopwordsScope
-         * @description Controls the scope of a domain stopword
+         * @description Eixo de onde o termo sai.
          * @default TAG
          * @enum {string}
          */
         StopwordsScope: "TAG" | "ENTITY" | "ALL";
+        /** SubjectExclusionBanResponse */
+        SubjectExclusionBanResponse: {
+            created: number;
+            message: string;
+        };
+        /** SubjectExclusionRemovalResponse */
+        SubjectExclusionRemovalResponse: {
+            message: string;
+            removed: number;
+        };
         /** SubjectExclusionRequest */
         SubjectExclusionRequest: {
             /** @description Why the decision was made; kept for auditing. */
@@ -2153,12 +2247,22 @@ export interface components {
             status: "SUGGESTED" | "APPROVED" | "REJECTED" | "APPLIED";
             total_documents: number;
         };
+        /** TagMergeProposalDecisionResponse */
+        TagMergeProposalDecisionResponse: {
+            data: components["schemas"]["TagMergeProposalDTO"];
+            message: string;
+        };
         /** TagMergeProposalListResponse */
         TagMergeProposalListResponse: {
             items?: components["schemas"]["TagMergeProposalDTO"][];
             limit: number;
             offset: number;
             total: number;
+        };
+        /** TagMergeUndoResponse */
+        TagMergeUndoResponse: {
+            data: components["schemas"]["MergeLogEntryDTO"];
+            message: string;
         };
         /** TagPairSimilarity */
         TagPairSimilarity: {
@@ -2261,6 +2365,12 @@ export interface components {
             template_id: number;
             text: string;
             variants?: string[];
+        };
+        /** TextTemplateMutationResponse */
+        TextTemplateMutationResponse: {
+            data: components["schemas"]["TextTemplateDTO"];
+            documents_requeued: number;
+            message: string;
         };
         /** UpdateTextTemplateRequest */
         UpdateTextTemplateRequest: {
@@ -3454,7 +3564,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": components["schemas"]["CleaningRuleDTO"][];
                 };
             };
         };
@@ -3478,7 +3588,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["CleaningRuleMutationResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3517,7 +3627,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["DryRunResponseDTO"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3554,7 +3664,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["CleaningRuleMutationResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3631,7 +3741,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["TextTemplateMutationResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3746,7 +3856,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["TextTemplateMutationResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3787,7 +3897,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["TextTemplateMutationResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -3999,7 +4109,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["NerExclusionBanResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -4038,7 +4148,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["NerExclusionRemovalResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -4073,7 +4183,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["OrphanEntityPurgeResponse"];
                 };
             };
         };
@@ -4174,7 +4284,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["EntityStopwordPurgeResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -4211,7 +4321,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["EntityDeleteResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -4252,7 +4362,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["EntityReclassifyResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -4526,7 +4636,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["TagMergeUndoResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -4648,7 +4758,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["TagMergeProposalDecisionResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -4879,7 +4989,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["StopwordBanResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -4918,7 +5028,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["StopwordRemovalResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -4957,7 +5067,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["StopwordPurgeResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -5036,7 +5146,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["SubjectExclusionBanResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -5075,7 +5185,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["SubjectExclusionRemovalResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

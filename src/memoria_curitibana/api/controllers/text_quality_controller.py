@@ -16,6 +16,7 @@ from memoria_curitibana.domains.archive.schemas.text_quality_schema import (
     TemplateSuggestionResponse,
     TemplateUpdateCommand,
     TextTemplateDTO,
+    TextTemplateMutationResponse,
 )
 from memoria_curitibana.domains.archive.services.text_quality_service import TextQualityService
 
@@ -78,7 +79,7 @@ class TextQualityController(Controller):
         self,
         text_quality_service: NamedDependency[TextQualityService],
         data: CreateTextTemplateRequest,
-    ) -> dict:
+    ) -> TextTemplateMutationResponse:
         """Registers an excerpt by hand; it starts approved and applied."""
         template, requeued = text_quality_service.create_template(
             TemplateCreateCommand(
@@ -91,11 +92,11 @@ class TextQualityController(Controller):
                 created_by=data.changed_by,
             )
         )
-        return {
-            "message": "Trecho cadastrado e aplicado. Os documentos afetados voltaram para a fila da IA.",
-            "documents_requeued": requeued,
-            "data": template.model_dump(),
-        }
+        return TextTemplateMutationResponse(
+            message="Trecho cadastrado e aplicado. Os documentos afetados voltaram para a fila da IA.",
+            documents_requeued=requeued,
+            data=template,
+        )
 
     @patch("/{template_id:int}", sync_to_thread=True)
     def update_template(
@@ -103,28 +104,28 @@ class TextQualityController(Controller):
         text_quality_service: NamedDependency[TextQualityService],
         template_id: FromPath[int],
         data: UpdateTextTemplateRequest,
-    ) -> dict:
+    ) -> TextTemplateMutationResponse:
         """Approves, edits, deactivates or rejects an excerpt."""
         template, requeued = text_quality_service.update_template(
             template_id,
             TemplateUpdateCommand(**data.model_dump(exclude_unset=True)),
         )
-        return {
-            "message": "Trecho atualizado. Os documentos afetados voltaram para a fila da IA.",
-            "documents_requeued": requeued,
-            "data": template.model_dump(),
-        }
+        return TextTemplateMutationResponse(
+            message="Trecho atualizado. Os documentos afetados voltaram para a fila da IA.",
+            documents_requeued=requeued,
+            data=template,
+        )
 
     @delete("/{template_id:int}", status_code=200, sync_to_thread=True)
     def delete_template(
         self,
         text_quality_service: NamedDependency[TextQualityService],
         template_id: FromPath[int],
-    ) -> dict:
+    ) -> TextTemplateMutationResponse:
         """Undoes the decision and re-queues every document the excerpt affected."""
         removed, requeued = text_quality_service.delete_template(template_id)
-        return {
-            "message": "Trecho removido do catálogo e efeito desfeito nos documentos afetados.",
-            "documents_requeued": requeued,
-            "data": removed.model_dump(),
-        }
+        return TextTemplateMutationResponse(
+            message="Trecho removido do catálogo e efeito desfeito nos documentos afetados.",
+            documents_requeued=requeued,
+            data=removed,
+        )

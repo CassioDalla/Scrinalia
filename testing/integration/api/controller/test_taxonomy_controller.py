@@ -685,7 +685,7 @@ def test_stopword_purge_route_accepts_an_empty_body(client: TestClient, mocker):
 
 
 def test_stopword_purge_route_still_registers_the_words_it_receives(client: TestClient, mocker):
-    """The old dashboard flow keeps working: send words, get them registered and purged."""
+    """A client that bans and purges in one call keeps working: send words, get them registered and purged."""
     saved = mocker.patch.object(TagService, "save_new_stopwords", return_value=1)
     mocker.patch.object(TagService, "purge_stopwords", return_value=1)
 

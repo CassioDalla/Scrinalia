@@ -134,3 +134,58 @@ class NerExclusion(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ==========================================
+# ROUTE RESPONSES (the shape the API answers with)
+# ==========================================
+#
+# These routes returned a plain ``dict``, which the generated client cannot see: the curator front
+# would read them through a cast, and a renamed key would reach the screen as ``undefined``. The
+# keys are the ones those routes already sent.
+
+
+class NerExclusionBanResponse(BaseModel):
+    """Terms banned from NER, and how many already-extracted entities the ban purged."""
+
+    message: str
+    entities_deleted: int
+
+
+class NerExclusionRemovalResponse(BaseModel):
+    """The ban was lifted: the extractor will consider those spellings again."""
+
+    message: str
+    removed: int
+
+
+class OrphanEntityPurgeResponse(BaseModel):
+    """Delete of the entities no description carries."""
+
+    message: str
+    entities_deleted: int
+
+
+class EntityStopwordPurgeResponse(BaseModel):
+    """The banned spellings were registered and their entities purged in one step."""
+
+    message: str
+    entities_deleted: int
+
+
+class EntityReclassifyResponse(BaseModel):
+    """
+    The new type, and the promise that matters: reclassifying writes the anchoring synonym.
+
+    It is not a label change. The synonym makes the extractor obey the decision on every
+    future run, which is why the screen has to say so.
+    """
+
+    message: str
+    new_type: Literal["ORG", "PER", "LOC"]
+
+
+class EntityDeleteResponse(BaseModel):
+    """One entity removed from the vocabulary."""
+
+    message: str

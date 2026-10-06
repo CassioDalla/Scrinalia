@@ -494,3 +494,62 @@ class TagIdentity(BaseModel):
     name: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ==========================================
+# ROUTE RESPONSES (the shape the API answers with)
+# ==========================================
+#
+# Every route that writes answers ``message`` plus what actually changed. They were plain
+# ``dict`` returns until the curator front needed them: an untyped response is invisible to the
+# generated client, so the screen would read it through a cast and a renamed key would only show
+# up as ``undefined`` in the browser. The shape here is the one those routes already sent.
+
+
+class TagMergeProposalDecisionResponse(BaseModel):
+    """The verdict was recorded. Approval is intent — the batch is what merges."""
+
+    message: str
+    data: TagMergeProposalDTO
+
+
+class TagMergeUndoResponse(BaseModel):
+    """The absorbed tag came back, exactly as the ledger remembered it."""
+
+    message: str
+    data: MergeLogEntryDTO
+
+
+class StopwordBanResponse(BaseModel):
+    """Terms banned. Banning deletes nothing: the purge is a separate, explicit step."""
+
+    message: str
+    created: int
+
+
+class StopwordRemovalResponse(BaseModel):
+    """Terms un-banned — the only way back from a purge decision, which has no ledger."""
+
+    message: str
+    removed: int
+
+
+class StopwordPurgeResponse(BaseModel):
+    """What the purge deleted. There is no undo for this one, only the preview before it."""
+
+    message: str
+    tags_deleted: int
+
+
+class SubjectExclusionBanResponse(BaseModel):
+    """Terms declared not-a-subject: the classifier stops guessing at them."""
+
+    message: str
+    created: int
+
+
+class SubjectExclusionRemovalResponse(BaseModel):
+    """The decision was undone and the terms are back in the classification queue."""
+
+    message: str
+    removed: int

@@ -52,15 +52,28 @@ from memoria_curitibana.domains.archive.schemas import (
     UpdateMacroCategoryCommand,
 )
 from memoria_curitibana.domains.archive.schemas.entity_schema import (
+    EntityDeleteResponse,
     EntityMergeResponse,
+    EntityReclassifyResponse,
     EntityRelevance,
     EntityRelevanceResponse,
     EntitySimilarityResponse,
+    EntityStopwordPurgeResponse,
     NerExclusion,
+    NerExclusionBanResponse,
+    NerExclusionRemovalResponse,
+    OrphanEntityPurgeResponse,
 )
 from memoria_curitibana.domains.archive.schemas.tag_schema import (
     MacroCategoriesSuggestionResponse,
     MergeResponse,
+    StopwordBanResponse,
+    StopwordPurgeResponse,
+    StopwordRemovalResponse,
+    SubjectExclusionBanResponse,
+    SubjectExclusionRemovalResponse,
+    TagMergeProposalDecisionResponse,
+    TagMergeUndoResponse,
     TagPairSimilarity,
     TagRelevanceResponse,
     TagSimilarity,
@@ -219,16 +232,16 @@ class TaxonomyController(Controller):
         tag_service: NamedDependency[TagService],
         proposal_id: FromPath[int],
         data: MergeProposalDecisionRequest,
-    ) -> dict:
+    ) -> TagMergeProposalDecisionResponse:
         """Approves or rejects a proposed cluster. Approval records intent, it does not merge."""
         proposal = tag_service.decide_merge_proposal(
             proposal_id,
             TagMergeDecisionCommand(status=data.status, decided_by=data.decided_by, note=data.note),
         )
-        return {
-            "message": "Decisão registrada. A mesclagem só será aplicada quando o lote for executado.",
-            "data": proposal.model_dump(),
-        }
+        return TagMergeProposalDecisionResponse(
+            message="Decisão registrada. A mesclagem só será aplicada quando o lote for executado.",
+            data=proposal,
+        )
 
     @post("/tags/merge/batch", status_code=200, sync_to_thread=True)
     def apply_tag_merge_batch(
@@ -271,16 +284,16 @@ class TaxonomyController(Controller):
         tag_service: NamedDependency[TagService],
         merge_id: FromPath[int],
         undone_by: FromQuery[str | None] = None,
-    ) -> dict:
+    ) -> TagMergeUndoResponse:
         """
         Undoes one merge from the ledger: the tag, its links, its classification and its
         spellings come back exactly as they were.
         """
         entry = tag_service.undo_merge(merge_id, undone_by=undone_by)
-        return {
-            "message": f"Mesclagem desfeita: a tag '{entry.absorbed_name}' foi restaurada.",
-            "data": entry.model_dump(),
-        }
+        return TagMergeUndoResponse(
+            message=f"Mesclagem desfeita: a tag '{entry.absorbed_name}' foi restaurada.",
+            data=entry,
+        )
 
     @get("/tags/stopwords", sync_to_thread=True)
     def list_stopwords(
@@ -305,26 +318,23 @@ class TaxonomyController(Controller):
         self,
         tag_service: NamedDependency[TagService],
         data: StopwordCreateRequest,
-    ) -> dict:
+    ) -> StopwordBanResponse:
         """Bans terms. Banning does not delete anything: the purge is a separate, explicit step."""
         created = tag_service.save_new_stopwords(data.words, data.scope)
-        return {
-            "message": f"{created} stopword(s) registrada(s) no eixo {data.scope}.",
-            "created": created,
-        }
+        return StopwordBanResponse(
+            message=f"{created} stopword(s) registrada(s) no eixo {data.scope}.",
+            created=created,
+        )
 
     @delete("/tags/stopwords", status_code=200, sync_to_thread=True)
     def remove_stopwords(
         self,
         tag_service: NamedDependency[TagService],
         data: StopwordRemovalRequest,
-    ) -> dict:
+    ) -> StopwordRemovalResponse:
         """Un-bans terms — the only way back from a purge decision, since the purge has no undo."""
         removed = tag_service.remove_stopwords(data.words, data.scope)
-        return {
-            "message": f"{removed} stopword(s) removida(s).",
-            "removed": removed,
-        }
+        return StopwordRemovalResponse(message=f"{removed} stopword(s) removida(s).", removed=removed)
 
     @post("/tags/stopwords/purge/preview", status_code=200, sync_to_thread=True)
     def preview_stopword_purge(self, tag_service: NamedDependency[TagService]) -> StopwordPurgePreview:
@@ -337,19 +347,21 @@ class TaxonomyController(Controller):
         return tag_service.preview_stopword_purge()
 
     @post("/tags/stopwords/purge", status_code=200, sync_to_thread=True)
-    def purge_stopwords(self, tag_service: NamedDependency[TagService], data: StopwordsRequest) -> dict:
+    def purge_stopwords(
+        self, tag_service: NamedDependency[TagService], data: StopwordsRequest
+    ) -> StopwordPurgeResponse:
         """
         Deletes every tag whose name is a banned term. **There is no undo for this one.**
 
-        ``words`` is optional and, when sent, is registered before the purge — which is what the old
-        dashboard expects. The screen calls it with an empty body to purge with the list it already
+        ``words`` is optional and, when sent, is registered before the purge, so a client may ban and
+        purge in one call. The screen sends an **empty body**: it purges with the list it already
         showed in the preview, so the numbers the archivist approved are the numbers that die.
         """
         if data.words:
             tag_service.save_new_stopwords(data.words)
 
         deleted_count = tag_service.purge_stopwords()
-        return {"message": "Limpeza concluída com sucesso.", "tags_deleted": deleted_count}
+        return StopwordPurgeResponse(message="Limpeza concluída com sucesso.", tags_deleted=deleted_count)
 
     @post("/tags/suggest-macro")
     async def suggest_macro_categories(
@@ -394,7 +406,7 @@ class TaxonomyController(Controller):
     @post("/tags/subject-exclusions", status_code=201, sync_to_thread=True)
     def create_subject_exclusions(
         self, tag_service: NamedDependency[TagService], data: SubjectExclusionRequest
-    ) -> dict:
+    ) -> SubjectExclusionBanResponse:
         """
         Records that a term is not a subject, so the classifier stops guessing at it.
 
@@ -403,21 +415,21 @@ class TaxonomyController(Controller):
         answers confidently and wrongly" into "the curator decided".
         """
         created = tag_service.exclude_terms_from_subjects(data.words, reason=data.reason)
-        return {
-            "message": "Termos marcados como não-assunto: o classificador de assuntos vai ignorá-los.",
-            "created": created,
-        }
+        return SubjectExclusionBanResponse(
+            message="Termos marcados como não-assunto: o classificador de assuntos vai ignorá-los.",
+            created=created,
+        )
 
     @delete("/tags/subject-exclusions", status_code=200, sync_to_thread=True)
     def remove_subject_exclusions(
         self, tag_service: NamedDependency[TagService], data: SubjectExclusionRequest
-    ) -> dict:
+    ) -> SubjectExclusionRemovalResponse:
         """Undoes the decision and puts the terms back in the classification queue."""
         removed = tag_service.remove_subject_exclusions(data.words)
-        return {
-            "message": "Exclusões removidas: o classificador voltará a considerar esses termos.",
-            "removed": removed,
-        }
+        return SubjectExclusionRemovalResponse(
+            message="Exclusões removidas: o classificador voltará a considerar esses termos.",
+            removed=removed,
+        )
 
     @get("/macro-categories", sync_to_thread=True)
     def list_macro_categories(
@@ -503,18 +515,23 @@ class TaxonomyController(Controller):
         return EntityMergeResponse(documents_updated=res.documents_updated, entities_deleted=res.entities_deleted)
 
     @post("/entities/orphans/purge", sync_to_thread=True)
-    def purge_orphan_entities(self, entity_service: NamedDependency[EntityService]) -> dict:
+    def purge_orphan_entities(self, entity_service: NamedDependency[EntityService]) -> OrphanEntityPurgeResponse:
         deleted_count = entity_service.purge_orphan_entities()
-        return {"message": "Limpeza de entidades órfãs concluída com sucesso.", "entities_deleted": deleted_count}
+        return OrphanEntityPurgeResponse(
+            message="Limpeza de entidades órfãs concluída com sucesso.",
+            entities_deleted=deleted_count,
+        )
 
     @post("/entities/stopwords/purge_stopwords", sync_to_thread=True)
-    def purge_entity_stopwords(self, entity_service: NamedDependency[EntityService], data: StopwordsRequest) -> dict:
+    def purge_entity_stopwords(
+        self, entity_service: NamedDependency[EntityService], data: StopwordsRequest
+    ) -> EntityStopwordPurgeResponse:
         deleted_count = entity_service.purge_entity_stopwords(data.words)
 
-        return {
-            "message": "Falsos positivos adicionados à lista negra e expurgados com sucesso.",
-            "entities_deleted": deleted_count,
-        }
+        return EntityStopwordPurgeResponse(
+            message="Falsos positivos adicionados à lista negra e expurgados com sucesso.",
+            entities_deleted=deleted_count,
+        )
 
     @patch("/entities/{entity_id:int}/reclassify", sync_to_thread=True)
     def reclassify_entity(
@@ -522,19 +539,21 @@ class TaxonomyController(Controller):
         entity_service: NamedDependency[EntityService],
         entity_id: FromPath[int],
         data: ReclassifyEntityRequest,
-    ) -> dict:
+    ) -> EntityReclassifyResponse:
         entity_service.reclassify_entity(entity_id, data.new_type)
-        return {
-            "message": "Entidade reclassificada com sucesso e sinônimo de ancoragem gerado.",
-            "new_type": data.new_type,
-        }
+        return EntityReclassifyResponse(
+            message="Entidade reclassificada com sucesso e sinônimo de ancoragem gerado.",
+            new_type=data.new_type,
+        )
 
     @delete("/entities/{entity_id:int}", status_code=200, sync_to_thread=True)
-    def delete_entity(self, entity_service: NamedDependency[EntityService], entity_id: FromPath[int]) -> dict:
+    def delete_entity(
+        self, entity_service: NamedDependency[EntityService], entity_id: FromPath[int]
+    ) -> EntityDeleteResponse:
         # The transaction (commit/rollback) is still guaranteed by the db_session injection
         entity_service.delete_entity(entity_id)
 
-        return {"message": f"Entidade {entity_id} excluída com sucesso da base de dados."}
+        return EntityDeleteResponse(message=f"Entidade {entity_id} excluída com sucesso da base de dados.")
 
     # ==========================================
     # ROUTES: NER EXCLUSIONS (the subject axis owns the term)
@@ -546,21 +565,27 @@ class TaxonomyController(Controller):
         return list(entity_service.list_ner_exclusions())
 
     @post("/entities/ner-exclusions", status_code=201, sync_to_thread=True)
-    def create_ner_exclusions(self, entity_service: NamedDependency[EntityService], data: NerExclusionRequest) -> dict:
+    def create_ner_exclusions(
+        self, entity_service: NamedDependency[EntityService], data: NerExclusionRequest
+    ) -> NerExclusionBanResponse:
         """Bans terms from NER and purges the entities already extracted from them."""
         entities_deleted = entity_service.exclude_terms_from_ner(data.words, reason=data.reason)
 
-        return {
-            "message": "Termos marcados como assunto: o extrator não os tratará mais como entidade.",
-            "entities_deleted": entities_deleted,
-        }
+        return NerExclusionBanResponse(
+            message="Termos marcados como assunto: o extrator não os tratará mais como entidade.",
+            entities_deleted=entities_deleted,
+        )
 
     @delete("/entities/ner-exclusions", status_code=200, sync_to_thread=True)
-    def remove_ner_exclusions(self, entity_service: NamedDependency[EntityService], data: NerExclusionRequest) -> dict:
+    def remove_ner_exclusions(
+        self, entity_service: NamedDependency[EntityService], data: NerExclusionRequest
+    ) -> NerExclusionRemovalResponse:
         """Undoes the ban and re-opens the terms for the NER engine."""
         removed = entity_service.remove_ner_exclusions(data.words)
 
-        return {"message": "Exclusões removidas: o extrator voltará a considerar esses termos.", "removed": removed}
+        return NerExclusionRemovalResponse(
+            message="Exclusões removidas: o extrator voltará a considerar esses termos.", removed=removed
+        )
 
     # ==========================================
     # ROUTES: DOMAIN CLASH (Cross-Domain)

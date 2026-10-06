@@ -56,6 +56,19 @@ class DryRunResponseDTO(BaseModel):
     samples: list[DryRunMatchDTO] = []
 
 
+class CleaningRuleMutationResponse(BaseModel):
+    """
+    Result of a write on the rule catalog.
+
+    The route answered a plain ``dict`` until the curator front needed it; an untyped body is
+    invisible to the generated client, so the screen would read it through a cast. ``kind`` matters
+    to the reader: a ``VALIDATE``/``LLM_CHECK`` rule only flags, a ``REWRITE`` rule replaces text.
+    """
+
+    message: str
+    data: CleaningRuleDTO
+
+
 class CleanableDocumentDTO(BaseModel):
     """Read view of a document that a cleaning rule may rewrite."""
 

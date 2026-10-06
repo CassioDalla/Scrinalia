@@ -141,6 +141,20 @@ class TemplateDryRunResponse(BaseModel):
     samples: list[TemplateDryRunMatch] = Field(default_factory=list)
 
 
+class TextTemplateMutationResponse(BaseModel):
+    """
+    Result of a write on the excerpt catalog.
+
+    ``documents_requeued`` is the number the archivist needs to see: touching an excerpt puts the
+    documents it affected back in the AI queue, because the composed text — and the MD5 stamped on
+    the embedding — changed.
+    """
+
+    message: str
+    documents_requeued: int
+    data: TextTemplateDTO
+
+
 class TextTemplateApplicationConfig(BaseModel):
     """Immutable snapshot of the excerpts applied to the AI text during one run."""
 

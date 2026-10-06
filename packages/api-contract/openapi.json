@@ -83,6 +83,110 @@
         "title": "BatchMergeResponse",
         "type": "object"
       },
+      "CleaningRuleDTO": {
+        "properties": {
+          "anomaly_reason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "engine_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "preset": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "regex_pattern": {
+            "type": "string"
+          },
+          "replacement_string": {
+            "type": "string"
+          },
+          "rule_id": {
+            "type": "integer"
+          },
+          "rule_kind": {
+            "default": "REWRITE",
+            "enum": [
+              "REWRITE",
+              "VALIDATE",
+              "LLM_CHECK"
+            ],
+            "type": "string"
+          },
+          "rule_name": {
+            "type": "string"
+          },
+          "target_column": {
+            "enum": [
+              "original_title",
+              "scope_content",
+              "admin_bio_history",
+              "provenance",
+              "archivist_notes"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "is_active",
+          "regex_pattern",
+          "replacement_string",
+          "rule_id",
+          "rule_name",
+          "target_column"
+        ],
+        "title": "CleaningRuleDTO",
+        "type": "object"
+      },
+      "CleaningRuleMutationResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CleaningRuleDTO"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "message"
+        ],
+        "title": "CleaningRuleMutationResponse",
+        "type": "object"
+      },
       "ConflictResolutionData": {
         "properties": {
           "documents_transferred": {
@@ -1251,6 +1355,26 @@
         "title": "DocumentUpdateRequest",
         "type": "object"
       },
+      "DryRunMatchDTO": {
+        "properties": {
+          "description_id": {
+            "type": "string"
+          },
+          "modified_text": {
+            "type": "string"
+          },
+          "original_text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "description_id",
+          "modified_text",
+          "original_text"
+        ],
+        "title": "DryRunMatchDTO",
+        "type": "object"
+      },
       "DryRunRequest": {
         "properties": {
           "regex_pattern": {
@@ -1276,6 +1400,39 @@
           "target_column"
         ],
         "title": "DryRunRequest",
+        "type": "object"
+      },
+      "DryRunResponseDTO": {
+        "properties": {
+          "error_message": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_valid_regex": {
+            "type": "boolean"
+          },
+          "matches_found": {
+            "default": 0,
+            "type": "integer"
+          },
+          "samples": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DryRunMatchDTO"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "is_valid_regex"
+        ],
+        "title": "DryRunResponseDTO",
         "type": "object"
       },
       "DryRunTextTemplateRequest": {
@@ -1324,6 +1481,18 @@
           "text"
         ],
         "title": "DryRunTextTemplateRequest",
+        "type": "object"
+      },
+      "EntityDeleteResponse": {
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "EntityDeleteResponse",
         "type": "object"
       },
       "EntityLinkRequest": {
@@ -1411,6 +1580,27 @@
           "type_2"
         ],
         "title": "EntityPairSimilarity",
+        "type": "object"
+      },
+      "EntityReclassifyResponse": {
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "new_type": {
+            "enum": [
+              "ORG",
+              "PER",
+              "LOC"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "new_type"
+        ],
+        "title": "EntityReclassifyResponse",
         "type": "object"
       },
       "EntityRelevance": {
@@ -1504,6 +1694,22 @@
           "mode"
         ],
         "title": "EntitySimilarityResponse",
+        "type": "object"
+      },
+      "EntityStopwordPurgeResponse": {
+        "properties": {
+          "entities_deleted": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entities_deleted",
+          "message"
+        ],
+        "title": "EntityStopwordPurgeResponse",
         "type": "object"
       },
       "FacetCount": {
@@ -3300,6 +3506,38 @@
         "title": "NerExclusion",
         "type": "object"
       },
+      "NerExclusionBanResponse": {
+        "properties": {
+          "entities_deleted": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entities_deleted",
+          "message"
+        ],
+        "title": "NerExclusionBanResponse",
+        "type": "object"
+      },
+      "NerExclusionRemovalResponse": {
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "removed": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "message",
+          "removed"
+        ],
+        "title": "NerExclusionRemovalResponse",
+        "type": "object"
+      },
       "NerExclusionRequest": {
         "properties": {
           "reason": {
@@ -3326,6 +3564,22 @@
           "words"
         ],
         "title": "NerExclusionRequest",
+        "type": "object"
+      },
+      "OrphanEntityPurgeResponse": {
+        "properties": {
+          "entities_deleted": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entities_deleted",
+          "message"
+        ],
+        "title": "OrphanEntityPurgeResponse",
         "type": "object"
       },
       "PublicAncestorSummary": {
@@ -3598,6 +3852,22 @@
         "title": "ReclassifyEntityRequest",
         "type": "object"
       },
+      "StopwordBanResponse": {
+        "properties": {
+          "created": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "created",
+          "message"
+        ],
+        "title": "StopwordBanResponse",
+        "type": "object"
+      },
       "StopwordCreateRequest": {
         "properties": {
           "scope": {
@@ -3668,6 +3938,22 @@
         "title": "StopwordPurgePreview",
         "type": "object"
       },
+      "StopwordPurgeResponse": {
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "tags_deleted": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "message",
+          "tags_deleted"
+        ],
+        "title": "StopwordPurgeResponse",
+        "type": "object"
+      },
       "StopwordPurgeTag": {
         "properties": {
           "document_count": {
@@ -3725,6 +4011,22 @@
         "title": "StopwordRemovalRequest",
         "type": "object"
       },
+      "StopwordRemovalResponse": {
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "removed": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "message",
+          "removed"
+        ],
+        "title": "StopwordRemovalResponse",
+        "type": "object"
+      },
       "StopwordsRequest": {
         "properties": {
           "words": {
@@ -3741,7 +4043,7 @@
       },
       "StopwordsScope": {
         "default": "TAG",
-        "description": "\n    Controls the scope of a domain stopword\n    ",
+        "description": "Eixo de onde o termo sai.",
         "enum": [
           "TAG",
           "ENTITY",
@@ -3749,6 +4051,38 @@
         ],
         "title": "StopwordsScope",
         "type": "string"
+      },
+      "SubjectExclusionBanResponse": {
+        "properties": {
+          "created": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "created",
+          "message"
+        ],
+        "title": "SubjectExclusionBanResponse",
+        "type": "object"
+      },
+      "SubjectExclusionRemovalResponse": {
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "removed": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "message",
+          "removed"
+        ],
+        "title": "SubjectExclusionRemovalResponse",
+        "type": "object"
       },
       "SubjectExclusionRequest": {
         "properties": {
@@ -4110,6 +4444,22 @@
         "title": "TagMergeProposalDTO",
         "type": "object"
       },
+      "TagMergeProposalDecisionResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TagMergeProposalDTO"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "message"
+        ],
+        "title": "TagMergeProposalDecisionResponse",
+        "type": "object"
+      },
       "TagMergeProposalListResponse": {
         "properties": {
           "items": {
@@ -4134,6 +4484,22 @@
           "total"
         ],
         "title": "TagMergeProposalListResponse",
+        "type": "object"
+      },
+      "TagMergeUndoResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MergeLogEntryDTO"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "message"
+        ],
+        "title": "TagMergeUndoResponse",
         "type": "object"
       },
       "TagPairSimilarity": {
@@ -4510,6 +4876,26 @@
           "text"
         ],
         "title": "TextTemplateDTO",
+        "type": "object"
+      },
+      "TextTemplateMutationResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TextTemplateDTO"
+          },
+          "documents_requeued": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "documents_requeued",
+          "message"
+        ],
+        "title": "TextTemplateMutationResponse",
         "type": "object"
       },
       "UpdateTextTemplateRequest": {
@@ -7388,7 +7774,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "type": "object"
+                    "$ref": "#/components/schemas/CleaningRuleDTO"
                   },
                   "type": "array"
                 }
@@ -7421,7 +7807,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/CleaningRuleMutationResponse"
                 }
               }
             },
@@ -7492,7 +7878,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/DryRunResponseDTO"
                 }
               }
             },
@@ -7564,7 +7950,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/CleaningRuleMutationResponse"
                 }
               }
             },
@@ -7729,7 +8115,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/TextTemplateMutationResponse"
                 }
               }
             },
@@ -7943,7 +8329,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/TextTemplateMutationResponse"
                 }
               }
             },
@@ -8023,7 +8409,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/TextTemplateMutationResponse"
                 }
               }
             },
@@ -8400,7 +8786,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/NerExclusionRemovalResponse"
                 }
               }
             },
@@ -8493,7 +8879,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/NerExclusionBanResponse"
                 }
               }
             },
@@ -8554,7 +8940,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/OrphanEntityPurgeResponse"
                 }
               }
             },
@@ -8795,7 +9181,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/EntityStopwordPurgeResponse"
                 }
               }
             },
@@ -8867,7 +9253,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/EntityDeleteResponse"
                 }
               }
             },
@@ -8949,7 +9335,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/EntityReclassifyResponse"
                 }
               }
             },
@@ -9563,7 +9949,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/TagMergeUndoResponse"
                 }
               }
             },
@@ -9868,7 +10254,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/TagMergeProposalDecisionResponse"
                 }
               }
             },
@@ -10275,7 +10661,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/StopwordRemovalResponse"
                 }
               }
             },
@@ -10426,7 +10812,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/StopwordBanResponse"
                 }
               }
             },
@@ -10497,7 +10883,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/StopwordPurgeResponse"
                 }
               }
             },
@@ -10591,7 +10977,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/SubjectExclusionRemovalResponse"
                 }
               }
             },
@@ -10684,7 +11070,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/SubjectExclusionBanResponse"
                 }
               }
             },
