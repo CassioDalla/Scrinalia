@@ -192,7 +192,9 @@ class ArchiveTagMergeProposal(Base):
     )
 
     __table_args__ = (
-        CheckConstraint("status IN ('SUGGESTED', 'APPROVED', 'REJECTED')", name="chk_tag_merge_proposal_status"),
+        CheckConstraint(
+            "status IN ('SUGGESTED', 'APPROVED', 'REJECTED', 'APPLIED')", name="chk_tag_merge_proposal_status"
+        ),
         CheckConstraint("reason IN ('TRIGRAM', 'PLURAL', 'MIXED')", name="chk_tag_merge_proposal_reason"),
     )
 

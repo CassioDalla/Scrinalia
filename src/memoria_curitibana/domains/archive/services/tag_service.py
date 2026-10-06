@@ -382,6 +382,7 @@ class TagService:
 
         entries: list[MergeBatchEntry] = []
         failures: list[MergeBatchFailure] = []
+        skipped: list[MergeBatchFailure] = []
 
         for proposal_id in proposal_ids:
             proposal = self.repo.get_merge_proposal(proposal_id)
@@ -393,6 +394,17 @@ class TagService:
                 continue
             if proposal.canonical_id is None:
                 failures.append(MergeBatchFailure(proposal_id=proposal_id, error="A proposta não tem tag canônica."))
+                continue
+            if not proposal.applicable:
+                # Nothing to absorb: the members this cluster named are already gone, which means an
+                # earlier merge (or a purge) did the work. It is not a failure — and calling it one
+                # is what turned a finished batch into twenty red lines.
+                skipped.append(
+                    MergeBatchFailure(
+                        proposal_id=proposal_id,
+                        error="Os membros já foram absorvidos por uma mesclagem anterior — não há o que aplicar.",
+                    )
+                )
                 continue
 
             ids_to_merge = [member.tag_id for member in proposal.members if member.tag_id != proposal.canonical_id]
@@ -424,8 +436,10 @@ class TagService:
 
         if result.failed:
             logger.warning(f"⚠️ {len(result.failed)} clusters do lote não foram aplicados: {result.failed}")
+        if skipped:
+            logger.info(f"{len(skipped)} clusters do lote já estavam aplicados e foram ignorados.")
 
-        return BatchMergeResponse(applied=result.applied, failed=[*failures, *result.failed])
+        return BatchMergeResponse(applied=result.applied, failed=[*failures, *result.failed], skipped=skipped)
 
     def undo_merge(self, merge_id: int, undone_by: str | None = None) -> MergeLogEntryDTO:
         """

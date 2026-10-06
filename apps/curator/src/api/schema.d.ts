@@ -1163,6 +1163,7 @@ export interface components {
         BatchMergeResponse: {
             applied?: components["schemas"]["MergeBatchApplied"][];
             failed?: components["schemas"]["MergeBatchFailure"][];
+            skipped?: components["schemas"]["MergeBatchFailure"][];
         };
         /** ConflictResolutionData */
         ConflictResolutionData: {
@@ -2123,6 +2124,16 @@ export interface components {
         };
         /** TagMergeProposalDTO */
         TagMergeProposalDTO: {
+            /**
+             * @description Há tag para absorver: a canônica existe e sobrou ao menos um membro além dela.
+             * @default false
+             */
+            applicable: boolean;
+            /**
+             * @description Se a tag canônica ainda existe.
+             * @default true
+             */
+            canonical_alive: boolean;
             canonical_id?: number | null;
             canonical_name: string;
             decided_at?: string | null;
@@ -2130,11 +2141,16 @@ export interface components {
             decision_note?: string | null;
             fingerprint: string;
             members?: components["schemas"]["TagMergeMember"][];
+            /**
+             * @description Membros que ainda existem no acervo.
+             * @default 0
+             */
+            members_alive: number;
             proposal_id: number;
             reason: string;
             review_flags?: string[];
             /** @enum {string} */
-            status: "SUGGESTED" | "APPROVED" | "REJECTED";
+            status: "SUGGESTED" | "APPROVED" | "REJECTED" | "APPLIED";
             total_documents: number;
         };
         /** TagMergeProposalListResponse */
@@ -4533,7 +4549,7 @@ export interface operations {
     ApiV1TaxonomyTagsMergeProposalsListTagMergeProposals: {
         parameters: {
             query?: {
-                status?: "SUGGESTED" | "APPROVED" | "REJECTED" | null;
+                status?: "SUGGESTED" | "APPROVED" | "REJECTED" | "APPLIED" | null;
                 reason?: "TRIGRAM" | "PLURAL" | "MIXED" | null;
                 min_documents?: number;
                 flagged_only?: boolean;

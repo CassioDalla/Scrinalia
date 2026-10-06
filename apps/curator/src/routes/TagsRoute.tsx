@@ -56,7 +56,7 @@ const SCOPE_VALUES: StopwordsScope[] = ["TAG", "ENTITY", "ALL"];
 
 /** Mirrors ``MAX_MERGE_BATCH_CLUSTERS``: the API refuses a bigger batch, so the screen does not send one. */
 const MAX_BATCH = 200;
-const STATUSES: ProposalStatus[] = ["SUGGESTED", "APPROVED", "REJECTED"];
+const STATUSES: ProposalStatus[] = ["SUGGESTED", "APPROVED", "REJECTED", "APPLIED"];
 
 export type TagsSearch = {
   aba?: string;
@@ -380,6 +380,25 @@ function ProposalsTab({
    * tick a box in each. The selection is what the batch sends, so this only fills it — the write is
    * still the explicit "Aplicar em lote" below.
    */
+  /**
+   * Files away the clusters that have nothing left to absorb.
+   *
+   * Rejecting is the only verdict the catalogue has for "this is not work any more", and the note
+   * records why — the alternative is a queue that keeps offering an apply which cannot succeed.
+   */
+  const decideMany = useMutation({
+    mutationFn: async (proposalIds: number[]) => {
+      for (const proposalId of proposalIds) {
+        await decideMergeProposal(proposalId, {
+          status: "REJECTED",
+          decided_by: null,
+          note: "Arquivada: os membros já não existem no acervo.",
+        });
+      }
+    },
+    onSuccess: invalidate,
+  });
+
   const selectAllApproved = useMutation({
     mutationFn: () => fetchMergeProposals({ status: "APPROVED", limit: MAX_BATCH }),
     onSuccess: (data) =>
@@ -398,8 +417,10 @@ function ProposalsTab({
   const offset = search.offset ?? 0;
   // Approved and waiting for the write. "Aprovar" records the intent; only the apply absorbs, and
   // the ledger below stays put until it runs — which is exactly what looked like a stuck screen.
-  const approvedHere = items.filter((proposal) => proposal.status === "APPROVED");
+  const approvedHere = items.filter((proposal) => proposal.status === "APPROVED" && proposal.applicable);
   const approvedNotSelected = approvedHere.filter((proposal) => !selected.includes(proposal.proposal_id));
+  // Approved but with nothing left to absorb: the members are gone, so the apply can only fail.
+  const fulfilled = items.filter((proposal) => proposal.status === "APPROVED" && !proposal.applicable);
 
   return (
     <div className="grid gap-3">
@@ -488,6 +509,24 @@ function ProposalsTab({
         </div>
       ) : null}
 
+      {fulfilled.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-md bg-(--color-surface-2) px-3 py-2 ring-1 ring-(--color-line)">
+          <span className="text-xs text-(--color-muted)">
+            <strong>{formatCount(fulfilled.length)}</strong> cluster(s) aprovado(s) nesta página{" "}
+            <strong>já não têm o que absorver</strong>: os membros foram unificados por outra mesclagem (ou apagados por
+            uma purga). Não são falhas — não há nada a aplicar.
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={decideMany.isPending}
+            onClick={() => decideMany.mutate(fulfilled.map((proposal) => proposal.proposal_id))}
+          >
+            arquivar as já cumpridas
+          </Button>
+        </div>
+      ) : null}
+
       {selected.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2 rounded-md bg-(--color-accent)/5 px-3 py-2 ring-1 ring-(--color-accent)/25">
           <span className="text-xs">
@@ -517,12 +556,22 @@ function ProposalsTab({
       {batch ? (
         <div className="grid gap-1 rounded-md bg-(--color-ok)/5 px-3 py-2 text-xs ring-1 ring-(--color-ok)/25">
           <p className="font-medium text-(--color-ok)">
-            {formatCount((batch.applied ?? []).length)} cluster(s) aplicado(s), {formatCount((batch.failed ?? []).length)} falha(s).
+            {formatCount((batch.applied ?? []).length)} cluster(s) aplicado(s)
+            {(batch.skipped ?? []).length > 0
+              ? `, ${formatCount((batch.skipped ?? []).length)} já aplicado(s) antes (ignorados)`
+              : ""}
+            {", "}
+            {formatCount((batch.failed ?? []).length)} falha(s).
           </p>
           {(batch.applied ?? []).map((entry) => (
             <p key={entry.proposal_id} className="text-(--color-muted)">
               #{entry.proposal_id}: {formatCount(entry.documents_updated)} documento(s), {formatCount(entry.tags_deleted)}{" "}
               tag(s) absorvida(s) · ledger {(entry.merge_ids ?? []).join(", ")}
+            </p>
+          ))}
+          {(batch.skipped ?? []).map((entry) => (
+            <p key={entry.proposal_id} className="text-(--color-muted)">
+              #{entry.proposal_id} ignorado: {entry.error}
             </p>
           ))}
           {(batch.failed ?? []).map((entry) => (
@@ -713,11 +762,16 @@ function ProposalCard({
             </Badge>
             <span className="text-xs text-(--color-muted)">{formatCount(proposal.total_documents)} documento(s)</span>
           </span>
-          {proposal.status === "APPROVED" ? (
+          {proposal.status === "APPROVED" && proposal.applicable ? (
             <label className="flex items-center gap-2 text-xs">
               <input type="checkbox" checked={selected} onChange={(event) => onToggle(event.target.checked)} />
               incluir no lote de apply
             </label>
+          ) : null}
+          {proposal.status === "APPROVED" && !proposal.applicable ? (
+            <span className="text-xs text-(--color-muted)" title="Os membros já não existem no acervo.">
+              sem membros para absorver
+            </span>
           ) : null}
         </div>
 

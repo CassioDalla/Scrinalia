@@ -190,7 +190,7 @@ class TaxonomyController(Controller):
     def list_tag_merge_proposals(
         self,
         tag_service: NamedDependency[TagService],
-        status: FromQuery[Literal["SUGGESTED", "APPROVED", "REJECTED"] | None] = None,
+        status: FromQuery[Literal["SUGGESTED", "APPROVED", "REJECTED", "APPLIED"] | None] = None,
         reason: FromQuery[Literal["TRIGRAM", "PLURAL", "MIXED"] | None] = None,
         min_documents: FromQuery[int] = 0,
         flagged_only: FromQuery[bool] = False,

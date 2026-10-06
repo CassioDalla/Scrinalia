@@ -49,12 +49,15 @@ export const PROPOSAL_STATUS_LABEL: Record<string, string> = {
   SUGGESTED: "sugerida",
   APPROVED: "aprovada",
   REJECTED: "rejeitada",
+  // The write happened. Not a verdict the archivist has to revisit: a settled cluster.
+  APPLIED: "aplicada",
 };
 
 export const PROPOSAL_STATUS_TONE: Record<string, BadgeTone> = {
   SUGGESTED: "warn",
   APPROVED: "ok",
   REJECTED: "danger",
+  APPLIED: "neutral",
 };
 
 export function labelOf(labels: Record<string, string>, code: string): string {

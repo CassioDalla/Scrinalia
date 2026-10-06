@@ -442,6 +442,11 @@ def _proposal(
         total_documents=2,
         status=status,
         members=members,
+        # The aliveness is computed on read from the collection, so a fixture has to state it:
+        # the DTO defaults to "nothing left to absorb", which is the safe side for a screen.
+        members_alive=len(members),
+        canonical_alive=True,
+        applicable=len(members) > 1,
     )
 
 

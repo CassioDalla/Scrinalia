@@ -235,10 +235,21 @@ class TagMergeProposalDTO(BaseModel):
     total_documents: int
     review_flags: list[str] = Field(default_factory=list)
     members: list[TagMergeMember] = Field(default_factory=list)
-    status: Literal["SUGGESTED", "APPROVED", "REJECTED"]
+    status: Literal["SUGGESTED", "APPROVED", "REJECTED", "APPLIED"]
     decided_by: str | None = None
     decided_at: datetime | None = None
     decision_note: str | None = None
+
+    # --- Whether there is still anything to do -------------------------------------------------
+    # The members are a *snapshot* and carry no foreign key, so they outlive the tags they name.
+    # Without these two counts the catalogue keeps offering an apply that can only fail, which is
+    # what made a batch of 20 already-merged clusters look like 20 errors.
+    members_alive: int = Field(default=0, description="Membros que ainda existem no acervo.")
+    canonical_alive: bool = Field(default=True, description="Se a tag canônica ainda existe.")
+    applicable: bool = Field(
+        default=False,
+        description="Há tag para absorver: a canônica existe e sobrou ao menos um membro além dela.",
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -391,6 +402,9 @@ class BatchMergeResponse(BaseModel):
 
     applied: list[MergeBatchApplied] = Field(default_factory=list)
     failed: list[MergeBatchFailure] = Field(default_factory=list)
+    #: Clusters that needed no write because an earlier merge already absorbed their members.
+    #: Reported apart from ``failed``: nothing went wrong, there was simply nothing left to do.
+    skipped: list[MergeBatchFailure] = Field(default_factory=list)
 
 
 class MergeLogEntryDTO(BaseModel):

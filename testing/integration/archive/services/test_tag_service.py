@@ -441,9 +441,10 @@ def test_merge_batch_applies_the_clusters_and_records_the_decision(use_test_db, 
     assert all(entry.merge_ids for entry in result.applied)
     assert tag_repo.count_merge_log() == 2
 
-    # The batch call was the decision: the clusters are no longer pending and carry the author.
+    # The batch call was the decision **and** the write: the clusters are settled, carry the
+    # author, and left the pending queue for good.
     decided = service.list_merge_proposals().items
-    assert {proposal.status for proposal in decided} == {"APPROVED"}
+    assert {proposal.status for proposal in decided} == {"APPLIED"}
     assert {proposal.decided_by for proposal in decided} == {"arquivista"}
 
     # The merged-away spellings now redirect instead of existing as tags.
@@ -467,8 +468,13 @@ def test_merge_batch_never_applies_a_rejected_proposal(use_test_db, db_session):
     assert tag_repo.count_merge_log() == 0
 
 
-def test_merge_batch_reports_an_unknown_or_already_applied_proposal(use_test_db, db_session):
-    """The batch is per-cluster: the failures are named and the rest still applies."""
+def test_merge_batch_reports_an_unknown_proposal_and_skips_an_already_applied_one(use_test_db, db_session):
+    """
+    The batch is per-cluster, and "nothing left to do" is not the same as "it went wrong".
+
+    Applying a cluster a second time used to answer with the same red line as a real error, which is
+    how a finished batch of twenty clusters looked like twenty failures. It is now reported apart.
+    """
     tag_repo = TagRepository(db_session)
     service = TagService(tag_repo, DocumentRepository(db_session))
     proposal_ids = _clustered_proposals(service, db_session, [("obra", "obras")])
@@ -477,13 +483,54 @@ def test_merge_batch_reports_an_unknown_or_already_applied_proposal(use_test_db,
     db_session.commit()
     assert len(first.applied) == 1
     assert [failure.proposal_id for failure in first.failed] == [999_999]
+    assert first.skipped == []
 
-    # Applying the same cluster again must not silently write a second time.
+    # Applying the same cluster again must not silently write a second time — and must not accuse
+    # the archivist of a mistake either.
     second = service.merge_batch(MergeBatchCommand(proposal_ids=proposal_ids, changed_by="arquivista"))
     db_session.commit()
     assert second.applied == []
-    assert "já não existem" in second.failed[0].error
+    assert second.failed == []
+    assert [entry.proposal_id for entry in second.skipped] == proposal_ids
+    assert "absorvidos" in second.skipped[0].error
     assert tag_repo.count_merge_log() == 1
+
+
+def test_an_applied_cluster_leaves_the_approved_queue(use_test_db, db_session):
+    """The complaint this fixes: an applied proposal stayed ``APPROVED`` and could never be applied."""
+    tag_repo = TagRepository(db_session)
+    service = TagService(tag_repo, DocumentRepository(db_session))
+    proposal_ids = _clustered_proposals(service, db_session, [("ponte", "pontes")])
+
+    service.merge_batch(MergeBatchCommand(proposal_ids=proposal_ids, changed_by="arquivista"))
+    db_session.commit()
+
+    assert service.list_merge_proposals(status="APPROVED").items == []
+    applied = service.list_merge_proposals(status="APPLIED").items
+    assert [proposal.proposal_id for proposal in applied] == proposal_ids
+    # The verdict survives the write: applying does not erase who approved it.
+    assert applied[0].decided_by == "arquivista"
+    assert applied[0].decided_at is not None
+
+
+def test_a_proposal_says_whether_there_is_still_work(use_test_db, db_session):
+    """
+    The members are a snapshot without a foreign key, so the catalogue has to ask the collection.
+
+    Without this the screen offers an apply whose only possible outcome is the failure list.
+    """
+    tag_repo = TagRepository(db_session)
+    service = TagService(tag_repo, DocumentRepository(db_session))
+    proposal_ids = _clustered_proposals(service, db_session, [("muro", "muros")])
+
+    fresh = service.list_merge_proposals(status="SUGGESTED").items[0]
+    assert (fresh.members_alive, fresh.canonical_alive, fresh.applicable) == (2, True, True)
+
+    service.merge_batch(MergeBatchCommand(proposal_ids=proposal_ids, changed_by="arquivista"))
+    db_session.commit()
+
+    done = service.list_merge_proposals(status="APPLIED").items[0]
+    assert (done.members_alive, done.canonical_alive, done.applicable) == (1, True, False)
 
 
 def test_merge_then_undo_restores_the_tag_through_the_service(use_test_db, db_session, generate_archive_doc):

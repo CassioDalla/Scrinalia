@@ -71,6 +71,12 @@
               "$ref": "#/components/schemas/MergeBatchFailure"
             },
             "type": "array"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/MergeBatchFailure"
+            },
+            "type": "array"
           }
         },
         "required": [],
@@ -4000,6 +4006,16 @@
       },
       "TagMergeProposalDTO": {
         "properties": {
+          "applicable": {
+            "default": false,
+            "description": "Há tag para absorver: a canônica existe e sobrou ao menos um membro além dela.",
+            "type": "boolean"
+          },
+          "canonical_alive": {
+            "default": true,
+            "description": "Se a tag canônica ainda existe.",
+            "type": "boolean"
+          },
           "canonical_id": {
             "oneOf": [
               {
@@ -4053,6 +4069,11 @@
             },
             "type": "array"
           },
+          "members_alive": {
+            "default": 0,
+            "description": "Membros que ainda existem no acervo.",
+            "type": "integer"
+          },
           "proposal_id": {
             "type": "integer"
           },
@@ -4069,7 +4090,8 @@
             "enum": [
               "SUGGESTED",
               "APPROVED",
-              "REJECTED"
+              "REJECTED",
+              "APPLIED"
             ],
             "type": "string"
           },
@@ -9610,6 +9632,7 @@
                 "SUGGESTED",
                 "APPROVED",
                 "REJECTED",
+                "APPLIED",
                 null
               ],
               "type": [

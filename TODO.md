@@ -6,8 +6,8 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > **Como ler.** `✅` = feito **e verificado em execução real** (Postgres + engines reais), não
 > apenas lido no código. `[ ]` = pendente. `[~]` = parcial, com o que falta descrito.
 >
-> **Estado do gate (2026-10-05, ondas 2 e 3 e etapa C):** **930 testes** passando · `ruff`
-> limpo · `basedpyright` **0 erros** · **22 migrações** aplicando sem drift (`alembic check` limpo) ·
+> **Estado do gate (2026-10-05, ondas 2 e 3 e etapa C):** **932 testes** passando · `ruff`
+> limpo · `basedpyright` **0 erros** · **23 migrações** aplicando sem drift (`alembic check` limpo) ·
 > contrato OpenAPI **66 paths / 78 operações / 110 schemas**, regenerado e verificado por CI ·
 > SPA do curador construindo (`tsc`, `eslint`, `vite build`) e servida pelo próprio Litestar.
 > **Acervo real medido: 4.826 descrições**, não 3.608 — ver "Pendências operacionais".
@@ -674,7 +674,17 @@ Diagnóstico estrutural do acervo real (pós-transfer):
     reserva o nome `scope` para o ASGI scope: o handler `GET /tags/stopwords` recebia o dicionário do
     request em vez do valor da query, e o `basedpyright` não tinha como ver isso — **o teste de rota
     pegou**. A chave da query passou a ser `axis`, com o motivo escrito ao lado do parâmetro.
-13. ✅ **`ILIKE` sobre texto digitado não escapava curingas** — corrigido no ciclo da etapa C. Um `%`
+13. ✅ **Aplicar um cluster não tirava a proposta da fila** — corrigido no ciclo seguinte, com o
+    relato "dá erro e não sai de aprovadas". O ledger provou que o apply **funcionou**: 92 mesclagens
+    escritas às 23:55:25 (41 → 133 linhas, 8.349 → 8.257 tags). O erro era a *segunda* tentativa: os
+    membros daqueles 20 já tinham sido absorvidos pela primeira. Duas causas somadas: (a) o status
+    ficava `APPROVED` para sempre depois de aplicado, então a fila nunca esvaziava; (b) os membros são
+    um *snapshot* sem foreign key, e a tela oferecia um apply que só podia falhar. Agora existe o
+    estado `APPLIED` (migração `a1b2c3d4e5f6`, que também **repara** as linhas antigas: 95 propostas
+    casadas pelo fingerprint ou pelo nome absorvido no ledger), o DTO traz `members_alive`,
+    `canonical_alive` e `applicable` calculados na leitura, e o lote reporta "já aplicado" em
+    `skipped` em vez de `failed` — "não havia o que fazer" não é o mesmo que "deu errado".
+14. ✅ **`ILIKE` sobre texto digitado não escapava curingas** — corrigido no ciclo da etapa C. Um `%`
     na caixa de busca significava "todos os registros": o acervo respondia 8.349 tags a um typo e a
     consulta abandonava o índice de trigrama. `escape_like()`/`LIKE_ESCAPE` passaram a ser a única
     forma de montar o padrão, com teste que distingue `0%` de "começa com zero" e `a_b` de "a,

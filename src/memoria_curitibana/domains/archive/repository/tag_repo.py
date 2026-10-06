@@ -857,11 +857,53 @@ class TagRepository:
             .limit(limit)
             .offset(offset)
         )
-        return [TagMergeProposalDTO.model_validate(row) for row in self.db.scalars(stmt).all()]
+        rows = list(self.db.scalars(stmt).all())
+        alive = self._alive_tag_ids(rows)
+        return [self._to_merge_proposal_dto(row, alive) for row in rows]
 
     def get_merge_proposal(self, proposal_id: int) -> TagMergeProposalDTO | None:
         row = self.db.get(ArchiveTagMergeProposal, proposal_id)
-        return TagMergeProposalDTO.model_validate(row) if row else None
+        if row is None:
+            return None
+        return self._to_merge_proposal_dto(row, self._alive_tag_ids([row]))
+
+    def _alive_tag_ids(self, rows: Sequence[ArchiveTagMergeProposal]) -> set[int]:
+        """
+        Which of the ids these proposals name still exist, in **one** query.
+
+        The members are a snapshot without a foreign key, so a proposal survives the tags it
+        names — including the ones its own apply deleted. One query for the page instead of one
+        per row: the listing shows hundreds of clusters.
+        """
+        ids: set[int] = set()
+        for row in rows:
+            if row.canonical_id:
+                ids.add(row.canonical_id)
+            ids.update(member["tag_id"] for member in (row.members or []) if member.get("tag_id"))
+        if not ids:
+            return set()
+        return set(self.db.scalars(select(ArchiveTag.tag_id).where(ArchiveTag.tag_id.in_(ids))).all())
+
+    def _to_merge_proposal_dto(self, row: ArchiveTagMergeProposal, alive: set[int]) -> TagMergeProposalDTO:
+        """
+        Maps the row and answers the question the screen has to ask before offering an apply.
+
+        ``applicable`` is the whole rule in one place: the canonical must still exist (otherwise
+        ``plan_merge`` refuses) and at least one member besides it must survive. A cluster whose
+        members were already absorbed has nothing to absorb, and offering it again produces the
+        failure list that made a finished batch look broken.
+        """
+        dto = TagMergeProposalDTO.model_validate(row)
+        member_ids = [member["tag_id"] for member in (row.members or []) if member.get("tag_id")]
+        members_alive = sum(1 for tag_id in member_ids if tag_id in alive)
+        canonical_alive = bool(row.canonical_id) and row.canonical_id in alive
+        return dto.model_copy(
+            update={
+                "members_alive": members_alive,
+                "canonical_alive": canonical_alive,
+                "applicable": canonical_alive and members_alive > 1,
+            }
+        )
 
     def decide_merge_proposal(
         self,
@@ -1223,6 +1265,10 @@ class TagRepository:
             except Exception as exc:
                 failed.append(MergeBatchFailure(proposal_id=entry.proposal_id, error=str(exc)))
             else:
+                # The write settles the proposal: an applied cluster is no longer approved work
+                # waiting to be done, and leaving it as APPROVED is what kept a finished batch in
+                # the queue forever. The ledger keeps the *when*; ``decided_*`` keeps the verdict.
+                self._mark_proposal_applied(entry.proposal_id)
                 applied.append(
                     MergeBatchApplied(
                         proposal_id=entry.proposal_id,
@@ -1233,6 +1279,23 @@ class TagRepository:
                 )
 
         return BatchMergeResponse(applied=applied, failed=failed)
+
+    def _mark_proposal_applied(self, proposal_id: int) -> None:
+        """
+        Moves a proposal to ``APPLIED`` after its cluster was actually absorbed.
+
+        Only from a decided state: a ``REJECTED`` proposal is never applied (the service refuses
+        it), and a ``SUGGESTED`` one the batch approves in the same request becomes ``APPROVED``
+        first, so this only ever settles something the archivist accepted.
+        """
+        self.db.execute(
+            update(ArchiveTagMergeProposal)
+            .where(
+                ArchiveTagMergeProposal.proposal_id == proposal_id,
+                ArchiveTagMergeProposal.status.in_(["SUGGESTED", "APPROVED"]),
+            )
+            .values(status="APPLIED")
+        )
 
     def _tag_merge_log_filters(
         self, canonical_id: int | None, changed_by: str | None, include_undone: bool
