@@ -130,6 +130,7 @@ The screens that exist today, in the order the work happens:
 | `/arranjo/plano` | the arrangement plan: decide the proposed levels, preview and materialise |
 | `/arranjo/diagnostico` | the structural diagnosis, one section per problem, with the evidence |
 | `/arranjo/niveis` | the NOBRADE ladder: weight per rung, editable, never deleted |
+| `/arranjo/tipologias` | the documental typologies the classifier proposes: active ones are the labels, retired ones keep their weight |
 | `/assuntos/tags` | the tag catalog: weight, near-duplicates and the merge queue with undo |
 | `/assuntos/categorias` | the subject drawers the classifier reads, with their weight |
 | `/assuntos/descobrir` | cluster the vocabulary to discover a drawer it does not have |

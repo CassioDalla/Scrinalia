@@ -6,14 +6,15 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > **Como ler.** `✅` = feito **e verificado em execução real** (Postgres + engines reais), não
 > apenas lido no código. `[ ]` = pendente. `[~]` = parcial, com o que falta descrito.
 >
-> **Estado do gate (2026-10-06, painel de operação entregue):** **1.041 testes**
-> passando · `ruff` limpo · `basedpyright` **0 erros** · **25 migrações** aplicando sem drift
-> (`alembic check` limpo) · contrato OpenAPI **72 paths / 86 operações / 148 schemas**, regenerado e
+> **Estado do gate (2026-10-06, catálogo de tipologias entregue):** **1.055 testes**
+> passando · `ruff` limpo · `basedpyright` **0 erros** · **26 migrações** aplicando sem drift
+> (`alembic check` limpo) · contrato OpenAPI **74 paths / 89 operações / 151 schemas**, regenerado e
 > verificado por CI · SPA do curador construindo (`tsc`, `eslint`, `vite build`) e servida pelo
 > próprio Litestar · **Streamlit removido do repositório** (diretório, dependência, `uv.lock`,
 > `Procfile`, docs). O sitemap do curador está **completo**: as 17 telas existem, mais as **3 telas
-> de sistema** (`/sistema/workers`, `/sistema/execucoes`, `/sistema/diagnostico`). Falta só o site
-> público, que ficou fora deste ciclo por decisão.
+> de sistema** (`/sistema/workers`, `/sistema/execucoes`, `/sistema/diagnostico`) e o **catálogo de
+> tipologias** (`/arranjo/tipologias`). Falta só o site público, que ficou fora deste ciclo por
+> decisão.
 >
 > **As duas últimas capacidades sem botão foram fechadas** (`POST /hierarchy/nodes` e
 > `POST /taxonomy/tags/merge`) e a rota legada de stopwords de entidade **foi removida**.
@@ -23,6 +24,15 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > aparecem com engine, preset e modelo resolvidos, fila, última execução, override persistido e
 > botão de executar; toda execução (CLI ou tela) deixa linha em `archive_worker_runs`. Decisão em
 > `docs/adr/0004-worker-execution-from-the-api.md`; limites conhecidos na seção do painel.
+>
+> **A última lacuna de catálogo foi fechada.** As tipologias documentais **não eram hardcoded** — a
+> tabela `archive_typologies` existia desde a migração inicial e o worker de classificação a lia
+> como conjunto de rótulos — mas **não havia rota de escrita**: as 10 linhas do banco de dev foram
+> inseridas fora do código e nada as reproduzia. Agora `GET/POST /api/v1/typologies` e
+> `PATCH /api/v1/typologies/{id}` sustentam a tela, `is_active` substitui o delete (a FK é
+> `SET NULL`), a migração `d1bc15fb6beb` semeia o conjunto com `ON CONFLICT DO NOTHING` — sem
+> reescrever os ids de um catálogo já curado — e `typology_id` entrou no `PATCH /documents/{id}`,
+> porque até então o classificador era o **único** autor do campo.
 
 ---
 
@@ -340,6 +350,32 @@ reinvestigar):
   cada página: assim o cabeçalho da seção não pode discordar da lista que ele abre. **Sem total
   geral**, de propósito — `ORPHAN` e `DOSSIER_WITHOUT_PARENT` se sobrepõem (um Dossiê na raiz é os
   dois), e somar inflaria o acervo.
+- ✅ **As tipologias documentais nunca foram hardcoded — nunca tiveram escrita.** A tabela
+  `archive_typologies` nasceu na migração inicial e o worker de classificação sempre a leu como
+  conjunto de rótulos, mas **não havia serviço, schema nem rota**: as 10 linhas do banco de dev
+  foram inseridas fora do código e nada as reproduzia, e `typology_id` estava fora do
+  `PATCH /documents/{id}` — o classificador era o **único** autor do campo. Fechado com
+  `GET/POST /api/v1/typologies`, `PATCH /{id}`, a tela `/arranjo/tipologias` e o campo no dossiê.
+  A migração `d1bc15fb6beb` acrescenta `is_active` (a FK é `SET NULL`: desativar substitui o
+  delete, como na escada de níveis) e **semeia** o conjunto com `ON CONFLICT (name) DO NOTHING`,
+  testada contra um catálogo já curado: nome renomeado **não** é ressuscitado e os ids do banco de
+  dev (1,2,3,4,5,9,12,13,14,15) ficaram intactos, então nenhum `typology_id` foi reescrito.
+- ✅ **A resposta do `PATCH /documents/{id}` carregava o nome *antigo* ao lado do id novo.** O
+  documento é lido com `_eager_options()`, que já traz `level_ref`/`typology_ref`, e o
+  `DocumentSummary` é montado do **mesmo objeto** poucas linhas depois: atribuir a chave estrangeira
+  deixava a relação apontando para a linha anterior, e a resposta saía `typology_id: 991` com
+  `typology: null`. O defeito existia para o **nível** desde que a coluna virou FK e ninguém o viu
+  porque nenhum teste lia o nome derivado; `update_review` agora expira a relação quando a chave
+  está em `changes`, com teste de regressão nos dois eixos.
+- ✅ **A tela foi renderizada antes de ser dada como pronta.** `chrome-headless-shell` (o binário
+  que o Playwright já deixa em `~/.cache/ms-playwright`) tirou screenshot de
+  `/arranjo/tipologias` — os 10 rótulos com peso (Planta 284, Fotografia 64), o formulário de
+  cadastro aberto — e do dossiê, com o select de tipologia ao lado do de nível mostrando
+  "Fotografia (64)": `.analysis/shots/tipologias-catalogo.png` e
+  `.analysis/shots/tipologias-dossie.png`. Vale registrar o motivo: `tsc`/`eslint`/`vite build`
+  verdes **não** provam que a tela aparece — o modo de falha silencioso do Tailwind v4 (colchete em
+  vez de parêntese) passa pelos três. O `chrome` completo despeja núcleo sob o sandbox desta
+  sessão; o `chrome-headless-shell` funciona, com `HOME`/`TMPDIR` dentro do repositório.
 - **`GET /acervo/lista?term=…` não existe na UI como busca global**; a lista funciona, mas um campo
   de busca dedicado por eixo virá com as telas da onda 3.
 
