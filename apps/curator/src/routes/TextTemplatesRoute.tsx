@@ -32,6 +32,7 @@ import {
 } from "@/lib/quality";
 import { labelOf } from "@/lib/hierarchy";
 import { asEnum } from "@/lib/search";
+import { routeMessage } from "@/lib/messages";
 
 const routeApi = getRouteApi("/qualidade/trechos");
 
@@ -147,7 +148,7 @@ export function TextTemplatesRoute() {
             </div>
             {suggest.data ? (
               <p className="text-xs text-(--color-muted)">
-                {suggest.data.message} {formatCount(suggest.data.documents_scanned)} documentos lidos ·{" "}
+                {routeMessage(suggest.data)} {formatCount(suggest.data.documents_scanned)} documentos lidos ·{" "}
                 {formatCount(suggest.data.persisted)} candidatos registrados.
               </p>
             ) : null}
@@ -325,7 +326,7 @@ function TemplateCard({ template, onChanged }: { template: TextTemplate; onChang
 
         {save.data ? (
           <p className="text-xs text-(--color-muted)">
-            {save.data.message} {formatCount(save.data.documents_requeued)} documentos voltaram à fila.
+            {routeMessage(save.data)} {formatCount(save.data.documents_requeued)} documentos voltaram à fila.
           </p>
         ) : null}
         {preview ? (
@@ -482,7 +483,7 @@ function NewTemplateCard({ onCreated }: { onCreated: () => void }) {
         ) : null}
         {create.data ? (
           <p className="text-xs text-(--color-muted)">
-            {create.data.message} {formatCount(create.data.documents_requeued)} documentos na fila.
+            {routeMessage(create.data)} {formatCount(create.data.documents_requeued)} documentos na fila.
           </p>
         ) : null}
         {create.error ? <ErrorState error={create.error} /> : null}

@@ -22,6 +22,7 @@ import { CONFLICT_WINNER_HINT, CONFLICT_WINNER_LABEL, CONFLICT_WINNER_TONE, ENTI
 import { formatCount, formatDateTime } from "@/lib/format";
 import { labelOf } from "@/lib/hierarchy";
 import { asNumber } from "@/lib/search";
+import { routeMessage } from "@/lib/messages";
 
 const routeApi = getRouteApi("/entidades/conflitos");
 
@@ -137,7 +138,7 @@ export function ConflictsRoute() {
     mutationFn: (body: { tag_id: number; entity_id: number; winner: ConflictWinner }) =>
       resolveConflict({ ...body, decided_by: author || null, note: note || null }),
     onSuccess: (response) => {
-      setFeedback(response.message);
+      setFeedback(routeMessage(response));
       setPreview(null);
       setNote("");
       invalidate();
@@ -147,7 +148,7 @@ export function ConflictsRoute() {
   const undo = useMutation({
     mutationFn: (resolutionId: number) => undoConflictResolution(resolutionId, author || undefined),
     onSuccess: (response) => {
-      setFeedback(response.message);
+      setFeedback(routeMessage(response));
       invalidate();
     },
   });

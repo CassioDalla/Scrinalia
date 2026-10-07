@@ -25,6 +25,7 @@ import { ENTITY_TYPE_HINT, ENTITY_TYPE_LABEL, ENTITY_TYPE_TONE } from "@/lib/ent
 import { descricoes, formatCount } from "@/lib/format";
 import { asEnum, asNumber } from "@/lib/search";
 import { labelOf } from "@/lib/hierarchy";
+import { routeMessage } from "@/lib/messages";
 
 const routeApi = getRouteApi("/entidades/lista");
 
@@ -142,7 +143,7 @@ export function EntitiesRoute() {
 
         {purgeOrphans.data ? (
           <p className="text-xs text-(--color-muted)">
-            {purgeOrphans.data.message} {formatCount(purgeOrphans.data.entities_deleted)} removidas.
+            {routeMessage(purgeOrphans.data)} {formatCount(purgeOrphans.data.entities_deleted)} removidas.
           </p>
         ) : null}
         {purgeOrphans.error ? <ErrorState error={purgeOrphans.error} /> : null}

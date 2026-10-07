@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/Input";
 import { LedgerList } from "@/components/ui/LedgerList";
 import { descricoes, formatCount } from "@/lib/format";
 import { SIGNAL_HINT, SIGNAL_LABEL } from "@/lib/quality";
+import { routeMessage } from "@/lib/messages";
 
 /**
  * The curated half of ``NENHUMA``: "this is not a subject at all".
@@ -286,7 +287,7 @@ export function SubjectExclusionsRoute() {
             </div>
             {ban.data ? (
               <p className="text-xs text-(--color-muted)">
-                {ban.data.message} {formatCount(ban.data.created)} termo(s) registrado(s).
+                {routeMessage(ban.data)} {formatCount(ban.data.created)} termo(s) registrado(s).
               </p>
             ) : null}
             {ban.error ? <ErrorState error={ban.error} /> : null}

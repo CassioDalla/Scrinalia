@@ -21,6 +21,7 @@ import { Input, Select } from "@/components/ui/Input";
 import { formatCount } from "@/lib/format";
 import { labelOf } from "@/lib/hierarchy";
 import { RULE_KIND_HINT, RULE_KIND_LABEL, RULE_KIND_TONE, TARGET_COLUMN_LABEL } from "@/lib/quality";
+import { routeMessage } from "@/lib/messages";
 
 const TARGETS: CleaningTargetColumn[] = [
   "original_title",
@@ -359,7 +360,7 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
           </div>
         ) : null}
 
-        {create.data ? <p className="text-xs text-(--color-muted)">{create.data.message}</p> : null}
+        {create.data ? <p className="text-xs text-(--color-muted)">{routeMessage(create.data)}</p> : null}
         {create.error ? <ErrorState error={create.error} /> : null}
         {dryRun.error ? <ErrorState error={dryRun.error} /> : null}
       </div>

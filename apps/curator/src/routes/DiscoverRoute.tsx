@@ -11,6 +11,7 @@ import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
 import { formatCount } from "@/lib/format";
+import { routeMessage } from "@/lib/messages";
 
 /**
  * Discovering a drawer the vocabulary does not have yet.
@@ -89,13 +90,13 @@ export function DiscoverRoute() {
 
         {suggest.data ? (
           <>
-            {suggest.data.message ? (
+            {routeMessage(suggest.data) ? (
               <p className="rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
-                {suggest.data.message}
+                {routeMessage(suggest.data)}
               </p>
             ) : null}
 
-            {suggestions.length === 0 && !suggest.data.message ? (
+            {suggestions.length === 0 && !routeMessage(suggest.data) ? (
               <EmptyState
                 title="Nenhum cluster novo"
                 hint="O agrupamento não encontrou tema que já não esteja coberto pelas gavetas atuais."

@@ -15,6 +15,7 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { EXCLUSION_SOURCE_HINT, EXCLUSION_SOURCE_LABEL } from "@/lib/entities";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { labelOf } from "@/lib/hierarchy";
+import { routeMessage } from "@/lib/messages";
 
 /**
  * The NER veto: "this spelling is a subject, not a proper name".
@@ -136,7 +137,7 @@ export function NerExclusionsRoute() {
             </div>
             {ban.data ? (
               <p className="text-xs text-(--color-muted)">
-                {ban.data.message} {formatCount(ban.data.entities_deleted)} entidades apagadas.
+                {routeMessage(ban.data)} {formatCount(ban.data.entities_deleted)} entidades apagadas.
               </p>
             ) : null}
             {ban.error ? <ErrorState error={ban.error} /> : null}
@@ -246,7 +247,7 @@ export function NerExclusionsRoute() {
             </div>
             {ban.data ? (
               <p className="text-xs text-(--color-muted)">
-                {ban.data.message} {formatCount(ban.data.entities_deleted)} entidades apagadas.
+                {routeMessage(ban.data)} {formatCount(ban.data.entities_deleted)} entidades apagadas.
               </p>
             ) : null}
             {ban.error ? <ErrorState error={ban.error} /> : null}
