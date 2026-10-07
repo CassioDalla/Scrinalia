@@ -31,6 +31,7 @@ import {
   fetchStopwords,
   fetchSubjectExclusionSuggestions,
   fetchSubjectExclusions,
+  fetchSystemFailures,
   fetchSystemHealth,
   fetchSystemRuns,
   fetchSystemWorkers,
@@ -63,6 +64,10 @@ export const RELEVANCE_PAGE_SIZE = 50;
 export const ANOMALIES_PAGE_SIZE = 20;
 /** The execution ledger only grows, so it pages; the settings trail is short by nature. */
 export const RUNS_PAGE_SIZE = 20;
+/** The failures panel asks about the present: 30 days is the window the API defaults to. */
+export const FAILURES_WINDOW_DAYS = 30;
+/** The panel shows the worst offenders; the groups are few, but a long tail is not a home screen. */
+export const FAILURES_PAGE_SIZE = 10;
 export const SETTINGS_REVISIONS_PAGE_SIZE = 10;
 /** The guard's candidate list is long (1.489 terms on the real vocabulary), so it pages. */
 export const SUBJECT_SUGGESTIONS_PAGE_SIZE = 25;
@@ -472,12 +477,30 @@ export const queries = {
     }),
 
   /** The execution ledger, one page at a time; the filters are server-side like the collection's. */
-  systemRuns: (worker: string | undefined, status: WorkerRunStatus | undefined, offset: number) =>
+  systemRuns: (
+    worker: string | undefined,
+    status: WorkerRunStatus | undefined,
+    offset: number,
+    fingerprint?: string,
+  ) =>
     queryOptions({
-      queryKey: ["system", "runs", worker ?? "", status ?? "", offset],
-      queryFn: () => fetchSystemRuns({ worker, status, limit: RUNS_PAGE_SIZE, offset }),
+      queryKey: ["system", "runs", worker ?? "", status ?? "", fingerprint ?? "", offset],
+      queryFn: () => fetchSystemRuns({ worker, status, fingerprint, limit: RUNS_PAGE_SIZE, offset }),
       staleTime: 10_000,
       placeholderData: (previous) => previous,
+    }),
+
+  /**
+   * The grouped failures of the last 30 days.
+   *
+   * Kept fresh for 30 s, like the workers panel: the question is "what is breaking now", and a group
+   * that appeared a moment ago is exactly the one worth seeing.
+   */
+  systemFailures: (worker: string | undefined) =>
+    queryOptions({
+      queryKey: ["system", "failures", worker ?? ""],
+      queryFn: () => fetchSystemFailures({ worker, days: FAILURES_WINDOW_DAYS, limit: FAILURES_PAGE_SIZE }),
+      staleTime: 30_000,
     }),
 
   /**

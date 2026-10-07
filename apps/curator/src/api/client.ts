@@ -21,6 +21,12 @@ export class ApiError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /**
+     * The request id the API answered with. Every response carries one, so an archivist reporting
+     * "this screen broke" hands over the exact line to find in the server log; without it the
+     * report is a time range and an eyeball.
+     */
+    readonly ref?: string,
   ) {
     super(message);
     this.name = "ApiError";
@@ -43,6 +49,7 @@ async function unwrap<T>(result: ApiResult): Promise<T> {
       result.response.status,
       payload?.error_code ?? "UNKNOWN",
       payload?.message ?? payload?.detail ?? `Erro ${result.response.status}`,
+      result.response.headers.get("X-Request-ID") ?? undefined,
     );
   }
   return result.data as T;
@@ -260,6 +267,9 @@ export type WorkerEngine = components["schemas"]["WorkerEngineDTO"];
 export type WorkerPreset = components["schemas"]["WorkerPresetDTO"];
 export type WorkerRun = components["schemas"]["WorkerRunDTO"];
 export type WorkerRunList = components["schemas"]["WorkerRunListResponse"];
+export type FailureGroup = components["schemas"]["FailureGroupDTO"];
+export type FailureGroupList = components["schemas"]["FailureGroupListResponse"];
+export type FailureSource = components["schemas"]["FailureSource"];
 export type WorkerRunRequest = components["schemas"]["WorkerRunRequest"];
 export type SystemHealth = components["schemas"]["SystemHealthResponse"];
 export type DatabaseHealth = components["schemas"]["DatabaseHealthDTO"];
@@ -1240,10 +1250,25 @@ export async function fetchSystemWorkers(): Promise<SystemWorkers> {
 export async function fetchSystemRuns(params: {
   worker?: string;
   status?: WorkerRunStatus;
+  fingerprint?: string;
   limit?: number;
   offset?: number;
 }): Promise<WorkerRunList> {
   return unwrap<WorkerRunList>(await client.GET("/api/v1/system/runs", { params: { query: params } }));
+}
+
+/**
+ * What is breaking, grouped by root cause across the executions ledger and the API's own.
+ *
+ * The grouping key is computed by the database from the error text, so this is one row per cause and
+ * not one per execution — which is the whole point of the screen.
+ */
+export async function fetchSystemFailures(params: {
+  days?: number;
+  worker?: string;
+  limit?: number;
+}): Promise<FailureGroupList> {
+  return unwrap<FailureGroupList>(await client.GET("/api/v1/system/failures", { params: { query: params } }));
 }
 
 /**

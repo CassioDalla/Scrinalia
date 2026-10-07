@@ -1,30 +1,39 @@
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 
-import { queries, RUNS_PAGE_SIZE } from "@/api/queries";
-import type { WorkerRunStatus } from "@/api/client";
+import { queries, FAILURES_PAGE_SIZE, RUNS_PAGE_SIZE } from "@/api/queries";
+import type { FailureGroup, WorkerRunStatus } from "@/api/client";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card, CardBody } from "@/components/ui/Card";
+import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Select } from "@/components/ui/Input";
 import { formatCount, formatDateTime } from "@/lib/format";
+import { cn } from "@/lib/cn";
 import { asEnum, asNumber, asString } from "@/lib/search";
-import { describeConfig, formatDuration, isActiveRun, RUN_STATUS_LABEL, RUN_STATUS_TONE } from "@/lib/system";
+import {
+  describeConfig,
+  FAILURE_SOURCE_LABEL,
+  formatDuration,
+  isActiveRun,
+  RUN_STATUS_LABEL,
+  RUN_STATUS_TONE,
+} from "@/lib/system";
 
 const routeApi = getRouteApi("/sistema/execucoes");
 
 /** The closed vocabulary of the run lifecycle, read from the contract's enum. */
 const RUN_STATUSES: readonly WorkerRunStatus[] = ["QUEUED", "RUNNING", "SUCCESS", "FAILED", "INTERRUPTED"];
 
-export type SystemRunsSearch = { worker?: string; status?: WorkerRunStatus; offset?: number };
+export type SystemRunsSearch = { worker?: string; status?: WorkerRunStatus; fingerprint?: string; offset?: number };
 
 export function validateSystemRunsSearch(search: Record<string, unknown>): SystemRunsSearch {
   const offset = asNumber(search.offset);
   return {
     worker: asString(search.worker),
     status: asEnum(search.status, RUN_STATUSES),
+    fingerprint: asString(search.fingerprint),
     offset: offset !== undefined && offset > 0 ? offset : undefined,
   };
 }
@@ -35,6 +44,9 @@ export function validateSystemRunsSearch(search: Record<string, unknown>): Syste
  * The row keeps the **resolved** configuration the run used, so reading it later still means
  * something after a preset changed in the code. The filters are in the URL, like the collection's,
  * because "look at this failed run" is a link somebody sends.
+ *
+ * The grouped failures sit on top because they answer the question the ledger cannot: forty rows
+ * saying the same sentence are one cause, and the ledger alone makes them look like forty problems.
  */
 export function SystemRunsRoute() {
   const search = routeApi.useSearch();
@@ -42,10 +54,12 @@ export function SystemRunsRoute() {
 
   const offset = search.offset ?? 0;
   const page = useQuery({
-    ...queries.systemRuns(search.worker, search.status, offset),
+    ...queries.systemRuns(search.worker, search.status, offset, search.fingerprint),
     // A queued or running entry is the only reason the ledger changes by itself.
     refetchInterval: (query) => (query.state.data?.items?.some(isActiveRun) ? 5_000 : false),
   });
+
+  const failures = useQuery(queries.systemFailures(search.worker));
 
   // The catalogue supplies the labels and the filter options. It is read once and kept: this screen
   // does not show the queue counts, so there is no reason to pay for them repeatedly.
@@ -75,6 +89,18 @@ export function SystemRunsRoute() {
           resolvida (preset e modelo), então ele continua legível depois que um preset mudar no código.
         </p>
 
+        <FailuresPanel
+          groups={failures.data?.items ?? []}
+          total={failures.data?.total ?? 0}
+          pending={failures.isPending}
+          failed={failures.isError}
+          selected={search.fingerprint}
+          labelOf={labelOf}
+          onSelect={(group) =>
+            patch({ fingerprint: search.fingerprint === group.fingerprint ? undefined : group.fingerprint })
+          }
+        />
+
         <div className="flex flex-wrap items-center gap-2">
           <Select
             className="max-w-64"
@@ -102,12 +128,27 @@ export function SystemRunsRoute() {
             ))}
           </Select>
 
-          {search.worker || search.status ? (
-            <Button size="sm" variant="ghost" onClick={() => patch({ worker: undefined, status: undefined })}>
+          {search.worker || search.status || search.fingerprint ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => patch({ worker: undefined, status: undefined, fingerprint: undefined })}
+            >
               limpar filtros
             </Button>
           ) : null}
         </div>
+
+        {search.fingerprint ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-(--color-surface) px-4 py-2 ring-1 ring-(--color-line)">
+            <span className="text-xs">
+              Só as execuções da causa <span className="font-mono">{search.fingerprint}</span>
+            </span>
+            <Button size="sm" variant="ghost" onClick={() => patch({ fingerprint: undefined })}>
+              ver todas
+            </Button>
+          </div>
+        ) : null}
 
         {page.error ? <ErrorState error={page.error} /> : null}
 
@@ -184,5 +225,102 @@ export function SystemRunsRoute() {
         ) : null}
       </div>
     </>
+  );
+}
+
+/**
+ * The root causes of the window, grouped by the fingerprint PostgreSQL computes.
+ *
+ * Forty ledger rows saying the same sentence are one cause, and the ledger alone makes them look like
+ * forty problems. Clicking a group filters the ledger below instead of opening a second, competing
+ * list — the panel is a summary and the ledger is the detail, and they must not disagree.
+ *
+ * ``worker`` narrows the panel along with the page, which is why the worker filter is the page's.
+ */
+function FailuresPanel({
+  groups,
+  total,
+  pending,
+  failed,
+  selected,
+  labelOf,
+  onSelect,
+}: {
+  groups: FailureGroup[];
+  total: number;
+  pending: boolean;
+  failed: boolean;
+  selected?: string;
+  labelOf: (name: string) => string;
+  onSelect: (group: FailureGroup) => void;
+}) {
+  const shown = groups.slice(0, FAILURES_PAGE_SIZE);
+
+  return (
+    <Card>
+      <CardHeader className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium">Falhas agrupadas por causa</span>
+        <span className="text-xs text-(--color-muted)">
+          {pending ? "lendo…" : `${formatCount(total)} causa(s) nos últimos 30 dias`}
+        </span>
+      </CardHeader>
+      <CardBody className="grid gap-2">
+        {failed ? <p className="text-xs text-(--color-danger)">Não foi possível ler as falhas agrupadas.</p> : null}
+
+        {pending ? <Skeleton className="h-16" /> : null}
+
+        {!pending && !failed && shown.length === 0 ? (
+          <p className="text-xs text-(--color-muted)">
+            Nenhuma falha na janela. As execuções que falharam e os erros inesperados da API aparecem aqui
+            agrupados pela causa, e não linha a linha.
+          </p>
+        ) : null}
+
+        {shown.map((group) => (
+          <button
+            key={group.fingerprint}
+            type="button"
+            onClick={() => onSelect(group)}
+            title={group.fingerprint}
+            className={cn(
+              "grid w-full gap-1 rounded-lg px-3 py-2 text-left ring-1 transition",
+              selected === group.fingerprint
+                ? "bg-(--color-accent)/10 ring-(--color-accent)/40"
+                : "ring-(--color-line) hover:bg-black/[0.03]",
+            )}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="min-w-0 flex-1 truncate text-sm">{group.sample}</span>
+              <Badge tone={group.occurrences > 1 ? "danger" : "warn"}>{formatCount(group.occurrences)}×</Badge>
+            </div>
+
+            <p className="text-xs text-(--color-muted)">
+              {group.sources.map((source) => FAILURE_SOURCE_LABEL[source]).join(" · ")}
+              {(group.worker_names ?? []).length > 0
+                ? ` · ${(group.worker_names ?? []).map(labelOf).join(", ")}`
+                : ""}
+              {group.last_path ? ` · ${group.last_path}` : ""}
+              {` · última em ${formatDateTime(group.last_seen)}`}
+            </p>
+
+            {group.last_request_id ? (
+              <p className="font-mono text-[11px] text-(--color-muted)">referência: {group.last_request_id}</p>
+            ) : null}
+          </button>
+        ))}
+
+        {shown.length > 0 ? (
+          <p className="text-xs text-(--color-muted)">
+            Clique numa causa para ver só as execuções dela. A referência de uma falha de API é o que se procura no log.
+          </p>
+        ) : null}
+
+        {total > shown.length ? (
+          <p className="text-xs text-(--color-muted)">
+            Há mais {formatCount(total - shown.length)} causa(s) na janela; as mais recentes estão acima.
+          </p>
+        ) : null}
+      </CardBody>
+    </Card>
   );
 }

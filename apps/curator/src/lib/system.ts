@@ -1,4 +1,4 @@
-import type { WorkerRun, WorkerRunStatus, WorkerStatus } from "@/api/client";
+import type { FailureSource, WorkerRun, WorkerRunStatus, WorkerStatus } from "@/api/client";
 
 /**
  * Human labels for the run lifecycle.
@@ -23,6 +23,17 @@ export const RUN_STATUS_TONE: Record<
   SUCCESS: "ok",
   FAILED: "danger",
   INTERRUPTED: "warn",
+};
+
+/**
+ * Where a failure was seen, in the operator's words.
+ *
+ * A group can carry both: the same root cause may have broken a worker execution and an HTTP
+ * request, and that is one line on the failures panel, not two.
+ */
+export const FAILURE_SOURCE_LABEL: Record<FailureSource, string> = {
+  WORKER: "execução",
+  API: "requisição",
 };
 
 /** True while the run has not reached a terminal state — what makes the screen poll. */

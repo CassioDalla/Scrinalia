@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { ApiError } from "@/api/client";
 import { cn } from "@/lib/cn";
 
 export function Skeleton({ className }: { className?: string }) {
@@ -31,11 +32,20 @@ export function EmptyState({ title, hint, action }: { title: string; hint?: Reac
   );
 }
 
+/**
+ * The failure, plus the reference that makes it findable.
+ *
+ * Every response the API produces carries a request id, and the log line of the failing request
+ * carries the same one. Showing it turns "a tela quebrou" into something the archivist can copy and
+ * someone else can grep, without exposing anything about the internals.
+ */
 export function ErrorState({ error }: { error: unknown }) {
   const message = error instanceof Error ? error.message : "Erro inesperado.";
+  const ref = error instanceof ApiError ? error.ref : undefined;
   return (
     <div className="rounded-lg bg-(--color-danger)/5 px-4 py-3 text-sm text-(--color-danger) ring-1 ring-(--color-danger)/20">
       {message}
+      {ref ? <span className="mt-1 block text-xs opacity-70">referência: {ref}</span> : null}
     </div>
   );
 }
