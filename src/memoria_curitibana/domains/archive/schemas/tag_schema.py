@@ -150,14 +150,16 @@ class StopwordCreateCommand(BaseModel):
     """Terms to ban. ``TAG`` by default, because that is the axis this catalog governs."""
 
     words: list[str] = Field(min_length=1, description="Termos a banir (normalizados ao gravar).")
-    scope: StopwordsScope = Field(default=StopwordsScope.TAG, description="Eixo de onde o termo sai.")
+    # No ``description``: see ``StopwordCreateRequest`` — a field description leaks into the shared
+    # enum schema and makes the generated contract depend on the hash seed.
+    scope: StopwordsScope = Field(default=StopwordsScope.TAG)
 
 
 class StopwordRemovalCommand(BaseModel):
     """Terms to un-ban. With no scope, the word leaves every axis it was banned from."""
 
     words: list[str] = Field(min_length=1)
-    scope: StopwordsScope | None = Field(default=None, description="Restringe a remoção a um eixo.")
+    scope: StopwordsScope | None = Field(default=None)
 
 
 class StopwordPurgeTag(BaseModel):

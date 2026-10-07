@@ -4963,7 +4963,6 @@
       "StopwordRemovalRequest": {
         "properties": {
           "scope": {
-            "description": "Restringe a remoção a um eixo.",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/StopwordsScope"
@@ -5019,7 +5018,7 @@
       },
       "StopwordsScope": {
         "default": "TAG",
-        "description": "\n    Controls the scope of a domain stopword\n    ",
+        "description": "Which axis a banned term leaves: TAG (the subject axis), ENTITY (NER) or ALL (both).",
         "enum": [
           "TAG",
           "ENTITY",

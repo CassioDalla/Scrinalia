@@ -15,13 +15,15 @@ class ArchiveReviewStatus(enum.StrEnum):
 
 
 class StopwordsScope(enum.StrEnum):
-    """
-    Controls the scope of a domain stopword
-    """
+    """Which axis a banned term leaves: TAG (the subject axis), ENTITY (NER) or ALL (both)."""
 
+    # The scope is not decoration. ``domain_stopwords.word`` is unique, so a term lives on exactly
+    # one axis, and ``TagRepository.get_stopwords()`` reads only TAG/ALL: an ENTITY-scoped veto must
+    # never make the subject purge delete a tag the curator kept. The screen shows the scope because
+    # otherwise the two mechanisms look like one list and the archivist stops trusting it.
     TAG = "TAG"  # Applied as a stopword only to tags
-    ENTITY = "ENTITY"
-    ALL = "ALL"
+    ENTITY = "ENTITY"  # Vetoes the NER extraction only
+    ALL = "ALL"  # Both axes
 
 
 class AnomalyType(enum.StrEnum):

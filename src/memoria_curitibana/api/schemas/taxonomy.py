@@ -56,14 +56,18 @@ class StopwordCreateRequest(BaseModel):
     """Terms to ban from one axis. ``TAG`` by default: the axis this catalog governs."""
 
     words: list[str] = Field(min_length=1, description="Termos a banir (normalizados ao gravar).")
-    scope: StopwordsScope = Field(default=StopwordsScope.TAG, description="Eixo de onde o termo sai.")
+    # No ``description`` here on purpose: Litestar writes a field's description into the shared
+    # schema of the type it references, so a description on this field becomes the description of
+    # ``StopwordsScope`` for the whole contract — and which field is walked first depends on the
+    # hash seed. The axis is documented once, on the enum, and every field inherits it.
+    scope: StopwordsScope = Field(default=StopwordsScope.TAG)
 
 
 class StopwordRemovalRequest(BaseModel):
     """Terms to un-ban. With no scope, the word leaves every axis it was banned from."""
 
     words: list[str] = Field(min_length=1)
-    scope: StopwordsScope | None = Field(default=None, description="Restringe a remoção a um eixo.")
+    scope: StopwordsScope | None = Field(default=None)
 
 
 class StopwordsRequest(BaseModel):

@@ -2579,7 +2579,6 @@ export interface components {
         };
         /** StopwordRemovalRequest */
         StopwordRemovalRequest: {
-            /** @description Restringe a remoção a um eixo. */
             scope?: components["schemas"]["StopwordsScope"] | null;
             words: string[];
         };
@@ -2595,7 +2594,7 @@ export interface components {
         };
         /**
          * StopwordsScope
-         * @description Controls the scope of a domain stopword
+         * @description Which axis a banned term leaves: TAG (the subject axis), ENTITY (NER) or ALL (both).
          * @default TAG
          * @enum {string}
          */
