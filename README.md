@@ -134,13 +134,13 @@ The screens that exist today, in the order the work happens:
 | `/assuntos/tags` | the tag catalog: weight, near-duplicates and the merge queue with undo |
 | `/assuntos/categorias` | the subject drawers the classifier reads, with their weight |
 | `/assuntos/descobrir` | cluster the vocabulary to discover a drawer it does not have |
-| `/assuntos/excecoes` | the curated "this is not a subject at all" list |
+| `/assuntos/excecoes` | "this is not a subject at all": the terms the deterministic guard already refuses, with the evidence, plus the field for the judgements no rule reaches |
 | `/entidades/lista` | named entities: weight by type, merge and reclassification |
 | `/entidades/excecoes` | the NER veto: "this spelling is a subject, not a proper name" |
-| `/entidades/conflitos` | the tag x entity collision, and where each verdict is written |
+| `/entidades/conflitos` | the tag x entity collision in three reads — pending (filtered by population), what the judge decided, and the ledger with its undo — with the impact of both verdicts shown before the click |
 | `/qualidade/trechos` | repeated excerpts, the scope that drops them and the mandatory dry run |
 | `/qualidade/regras` | cleaning rules: `REWRITE` replaces, `VALIDATE`/`LLM_CHECK` only flag |
-| `/qualidade/anomalias` | what the quality validator marked, and why an empty queue is not proof |
+| `/qualidade/anomalias` | what the quality validator marked, with the reason counts over the whole filtered set and each reason as the filter |
 | `/sistema/workers` | the AI workers: engine, preset and model, the queue, the persisted default and a run button |
 | `/sistema/execucoes` | the execution ledger: what ran, with which configuration, and how it ended |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage and the effective process configuration |

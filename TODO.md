@@ -6,9 +6,9 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > **Como ler.** `✅` = feito **e verificado em execução real** (Postgres + engines reais), não
 > apenas lido no código. `[ ]` = pendente. `[~]` = parcial, com o que falta descrito.
 >
-> **Estado do gate (2026-10-06, catálogo de tipologias entregue):** **1.055 testes**
-> passando · `ruff` limpo · `basedpyright` **0 erros** · **26 migrações** aplicando sem drift
-> (`alembic check` limpo) · contrato OpenAPI **74 paths / 89 operações / 151 schemas**, regenerado e
+> **Estado do gate (2026-10-06, as três lacunas de curadoria fechadas):** **1.114 testes**
+> passando · `ruff` limpo · `basedpyright` **0 erros** · **27 migrações** aplicando sem drift
+> (`alembic check` limpo) · contrato OpenAPI **79 paths / 94 operações / 161 schemas**, regenerado e
 > verificado por CI · SPA do curador construindo (`tsc`, `eslint`, `vite build`) e servida pelo
 > próprio Litestar · **Streamlit removido do repositório** (diretório, dependência, `uv.lock`,
 > `Procfile`, docs). O sitemap do curador está **completo**: as 17 telas existem, mais as **3 telas
@@ -24,6 +24,12 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > aparecem com engine, preset e modelo resolvidos, fila, última execução, override persistido e
 > botão de executar; toda execução (CLI ou tela) deixa linha em `archive_worker_runs`. Decisão em
 > `docs/adr/0004-worker-execution-from-the-api.md`; limites conhecidos na seção do painel.
+>
+> **As três lacunas que o dono apontou no TODO foram fechadas** — a colisão tag × entidade
+> (preview, ledger reversível e o veredito do juiz na leitura), a faceta de anomalia por motivo
+> (com a projeção pública que impede o vazamento) e as sugestões de "não é assunto" (o guarda
+> determinístico, com evidência). Nada foi escrito no acervo real: as duas verificações que
+> precisavam de dado usaram uma **cópia** do banco, e a terceira é read-only por construção.
 >
 > **A última lacuna de catálogo foi fechada.** As tipologias documentais **não eram hardcoded** — a
 > tabela `archive_typologies` existia desde a migração inicial e o worker de classificação a lia
@@ -180,11 +186,18 @@ sugeridas, 5 de 81 rungs, 1 materialização, stopwords 96/88 e carimbos de IA `
   (upsert de sinônimo + `repoint_synonyms` antes do delete), mas não há proposta, ledger nem undo
   como nas tags. A onda 5 encostou nisso e a tela **avisa** que unificar não tem desfazer; criar o
   ledger é a decisão que falta.
-- **A colisão tag × entidade não tem preview**: `POST /conflicts/resolve` transfere documentos e
-  bane o termo no mesmo passo, sem dry-run e sem undo. A tela mostra o par e o efeito de cada
-  veredito antes do clique, mas não o número — é a lacuna mais próxima de virar defeito.
-- **Não há rota de sugestões de "não é assunto"**: o sitemap pedia famílias sugeridas; a tela
-  oferece os três exemplos medidos e explica que a lista é decisão humana.
+- ✅ **A colisão tag × entidade tem preview, ledger e veredito na leitura.** Fechada em
+  2026-10-06: plano único para os dois vereditos, ledger reversível (para o juiz e para o
+  arquivista), `GET /conflicts/judged` lendo a fila, e `pair_kind` separando as duas populações
+  que a varredura ao vivo misturava. O que **segue aberto** é outra coisa, e é grande: os 5.050
+  nomes idênticos são uma decisão *por categoria* ("logradouro é entidade", "nome de pessoa é
+  entidade") e a tela ainda pede uma por par — resolver em lote por regra é o próximo passo
+  natural, e não foi feito.
+- ✅ **As sugestões de "não é assunto" existem, e são o guarda.** Fechada em 2026-10-06: os
+  1.489 termos que o guarda já recusava aparecem com o sinal e o peso, e `source=RULE` passou a
+  ser escrito. A metade semântica continua sendo decisão humana, por medição — os sinais
+  estatísticos disponíveis propõem `igrejas` (2.474 documentos) e `madeira` (0,30 de confiança)
+  como não-assunto, e os dois são assuntos.
 - **A purga de stopwords é a única escrita destrutiva sem undo** — hoje ela é anunciada e tem
   preview; torná-la reversível (escrevendo no ledger, como o merge) é uma decisão em aberto.
 - **Busca híbrida (RRF)** e **qualidade semântica** (o MRR caiu 0.019 enquanto o Hit@10 subiu) —
@@ -285,9 +298,9 @@ sugeridas, 5 de 81 rungs, 1 materialização, stopwords 96/88 e carimbos de IA `
 | **Seis rotas de escrita devolviam `dict` cru** (quality, exclusões, entidades) | DTOs tipados: `CleaningRuleMutationResponse`, `DryRunResponseDTO`, `TextTemplateMutationResponse`, `Stopword*Response`, `SubjectExclusion*Response`, `NerExclusion*Response`, `EntityReclassifyResponse`, `EntityDeleteResponse`, `OrphanEntityPurgeResponse` | ✅ |
 | **A árvore não sabia pedir as raízes** (o `max_depth` era ignorado sem `root_id`) | `list_subtree` aplica profundidade **absoluta** quando não há raiz: `max_depth=0` devolve as raízes | ✅ |
 | **O dossiê mostrava a data em pt-BR num campo AAAA-MM-DD** | `type="date"` com o valor ISO; editar não manda mais "1 de jan. de 1994" para uma rota que parseia data | ✅ |
-| **A colisão tag × entidade não tem preview nem veredito do juiz na leitura** | em aberto: `POST /conflicts/resolve` é irreversível e a rota lista a colisão ao vivo, não o que o juiz decidiu | ⚠️ |
-| **Não há rota de sugestões de "não é assunto"** | em aberto: a tela oferece os exemplos medidos (`pessoas`, `vista aérea`, `capanema`) como atalho, não como sugestão calculada | ⚠️ |
-| **Anomalias não têm faceta por motivo** | em aberto: a tela agrupa pela página em mãos e diz isso, em vez de inventar um total | ⚠️ |
+| **A colisão tag × entidade não tem preview nem veredito do juiz na leitura** | `POST /conflicts/resolve/preview` devolve **os dois vereditos** (vínculos criados, linha que morre, bloqueio plantado), o ledger `archive_conflict_resolution_log` + `DELETE /conflicts/resolutions/{id}` tornam a escrita reversível, `GET /conflicts/judged` lê o **veredito do juiz** na fila (84 auto-resoluções que a varredura ao vivo não pode devolver, porque apagaram a linha perdedora), e `pair_kind` separa os 122 problemas de grafia dos 5.050 nomes idênticos | ✅ |
+| **Não há rota de sugestões de "não é assunto"** | `GET /tags/subject-exclusions/suggestions` publica o que o **guarda determinístico já recusa** — 1.489 das 8.155 tags, com o sinal, o peso e as duas evidências que mudam o significado da decisão — e `source=RULE` finalmente é escrito. **Nada é proposto para a metade semântica**, e a medição é a razão | ✅ |
+| **Anomalias não têm faceta por motivo** | `anomaly_reason` é dimensão e filtro, agrupando pelo **código** — com `RULE_MATCH:<regra>` nomeado e a prosa do `LLM_SUSPECT` colapsada — sobre o conjunto filtrado inteiro. `PublicDocumentFacets` impede a dimensão de vazar para a difusão | ✅ |
 | **Não havia como criar um nó que o código não implica** | `POST /hierarchy/nodes` + formulário em `/acervo/arvore`: pai = raiz **ou** o nó selecionado, nível obrigatório e o impacto é validado pela rota | ✅ |
 | **Não havia como unificar duas tags que o arquivista escolheu** | `POST /taxonomy/tags/merge` (+ `/merge/preview` por `canonical_id`+`ids_to_merge`) chamado pelo botão `unificar ↦` da aba Similaridade, com canônica escolhível, dry-run obrigatório e o desfazer do ledger | ✅ |
 | **Não havia como excluir uma descrição do acervo** | `DELETE /api/v1/documents/{id}` com guarda de filhos (409 `DocumentHasChildrenError`) + ledger `archive_document_deletions` (retrato ISAD(G) completo, sem FK: o registro que ele nomeia não existe mais) + `GET /documents/deletions` e a tela `/acervo/excluidas`. O ledger de **revisões** não serviria: `description_id` é `ON DELETE CASCADE`, então a revisão morreria com o documento que ela registrava | ✅ |
@@ -378,6 +391,53 @@ reinvestigar):
   sessão; o `chrome-headless-shell` funciona, com `HOME`/`TMPDIR` dentro do repositório.
 - **`GET /acervo/lista?term=…` não existe na UI como busca global**; a lista funciona, mas um campo
   de busca dedicado por eixo virá com as telas da onda 3.
+
+### Ciclo das três lacunas de curadoria (2026-10-06)
+
+- ✅ **A colisão tag × entidade: 5.408 cartões, e o juiz invisível.** A medição reorganizou o
+  problema: a ≥0,85 a varredura devolve **5.408 pares**, dos quais **5.050 são a mesma grafia nos
+  dois eixos** e **122 são a mesma palavra escrita de duas formas** (quase todos abreviação de
+  logradouro). São duas perguntas diferentes — estrutural e de grafia — e misturadas nenhuma das
+  duas se vê. Do outro lado, o juiz decidiu **88** pares e **84 eram auto-resoluções cuja linha
+  perdedora foi apagada**: a varredura ao vivo **não pode** devolvê-las. Nenhum par vivo estava
+  liquidado por um bloqueio existente (os bloqueios foram escritos para pares que depois sumiram),
+  então "filtrar o que já foi decidido" não reduz a lista — `pair_kind` é o filtro que a torna
+  utilizável, e `GET /conflicts/judged` é a leitura que faltava.
+- ✅ **O ledger da resolução: o `ban_created` é o detalhe que quase escapou.** O bloqueio é
+  plantado com `ON CONFLICT DO NOTHING`, então desfazer uma resolução posterior **não pode** levantar
+  um bloqueio que uma anterior escreveu. `created_link_ids` tem a mesma função para os vínculos: a
+  inserção também é `ON CONFLICT DO NOTHING`, e sem o subconjunto o desfazer apagaria vínculos que
+  existiam antes. Um teste prende cada um.
+- ✅ **Dois bugs de SQL que o `ruff` e o teste pegaram.** `typing.cast` foi usado onde era preciso um
+  cast **de SQL** (ele devolve o segundo argumento intacto, então o join comparava um objeto de tipo)
+  e `as_integer` é **método** no comparador JSONB, não atributo. O primeiro foi o `F821` do ruff
+  apontando uma string num subscrito dentro de `cast(...)`, que é onde o ruff lê anotação de tipo.
+- ✅ **O `scope` é do Litestar.** A rota da colisão nasceu com um parâmetro chamado `scope` e recebeu
+  o **ASGI scope** em vez da query string — exatamente a armadilha que a rota de stopwords já tinha
+  documentado. O nome passou a ser `pair_kind`.
+- ✅ **A faceta de anomalia, e a armadilha que o TODO não mencionava.** `anomaly_reasons` mistura
+  código com payload (`RULE_MATCH:<regra>`, `LLM_SUSPECT:<prosa do modelo>`), então o valor cru não é
+  dimensão: o balde é o **código**, com a regra nomeada e a prosa colapsada. E
+  `PublicDocumentListResponse` **reusava `DocumentFacets`**, de modo que a dimensão nova teria sido
+  publicada sozinha na difusão — "quantos registros estão sem data" é metadado de curadoria. Nasceu
+  `PublicDocumentFacets` campo a campo, com `NOT_PUBLIC_FACETS` como **partição exata** e teste.
+  Terceiro detalhe: `unnest` precisa estar no FROM (o PostgreSQL recusa `CASE` sobre função que
+  devolve conjunto: *"argument of CASE/WHEN must not return a set"*).
+- ✅ **O guarda de "não é assunto" recusa 1.489 tags e nada registrava isso.** Medido: 707 números
+  com unidade, 689 logradouros, 74 anos soltos, 16 nomes de pessoa, 3 placeholders — `local não
+  identificado` sozinho alcança **310 documentos**, e `1925` alcança **437**. `source='RULE'` existia
+  na constraint, na assinatura do repositório e em lugar nenhum mais. A tentação era propor a metade
+  semântica por estatística, e a medição proíbe: por contagem de documentos o topo dos órfãos é
+  `igrejas` (2.474, assunto real faltando gaveta) e por baixa confiança é `madeira` (0,30) e
+  `ecletismo` (0,38), também assuntos. O que a rota publica é o veredito que já existia, com a
+  evidência ao lado — inclusive `vai para a faceta Lugar` (689), porque "não é assunto" não é "vai
+  para o lixo".
+- ✅ **Verificação sem tocar no acervo.** As duas telas que precisavam de dado usaram uma **cópia**
+  do banco (`CREATE DATABASE ... TEMPLATE`): na da colisão o par foi resolvido, a entidade voltou com
+  o id, o bloqueio foi levantado e o par reapareceu na varredura; na das anomalias 34 fichas foram
+  marcadas e a faceta contou 20/8/7/7/7 sobre 34 enquanto a página tinha 20. A terceira rota é
+  read-only por construção e foi verificada direto no vocabulário real. O acervo real terminou o ciclo
+  com 0 anomalias, 0 exclusões de assunto, 0 resoluções e as mesmas 8.155 tags.
 
 ### Interoperabilidade (v2.0)
 
