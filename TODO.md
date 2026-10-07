@@ -439,6 +439,22 @@ reinvestigar):
   read-only por construção e foi verificada direto no vocabulário real. O acervo real terminou o ciclo
   com 0 anomalias, 0 exclusões de assunto, 0 resoluções e as mesmas 8.155 tags.
 
+### Correção do contrato não determinístico (2026-10-06)
+
+- ✅ **`bun run contract` gerava dois arquivos diferentes do mesmo código.** O `openapi.json` saía com
+  duas descrições para `StopwordsScope` conforme o `PYTHONHASHSEED`: a docstring em inglês do enum ou
+  a `description` em português de um campo que o referenciava. O mecanismo está no Litestar — ele
+  busca o **componente compartilhado** do tipo do campo e aplica os kwargs do campo *nesse componente*
+  (`process_schema_result`), só caindo para a docstring do tipo quando a descrição ainda é `None`.
+  Ou seja: a descrição de um campo não documenta o campo, ela reescreve o tipo para o documento
+  inteiro, e **qual campo vence depende da ordem de varredura**. Medido antes do conserto:
+  `PYTHONHASHSEED` 0 e 7 davam PT, os outros EN — 1 variante em 21 execuções aleatórias, e o commit
+  `c3f4830` ficou gravado com a variante errada. Conserto: as três descrições de campo saíram e o
+  eixo passou a ser documentado **uma vez, no enum** (docstring, que chega ao contrato). Verificado
+  com 12 seeds: documento **byte a byte idêntico**. `testing/unit/api/test_openapi_determinism.py`
+  prende as duas pontas — a causa (nenhum campo de componente descreve um tipo compartilhado) e o
+  sintoma (cada componente de enum no documento servido tem a descrição do próprio tipo).
+
 ### Interoperabilidade (v2.0)
 
 - [~] **Adapters de ingestão:** as ABCs existem e o `PMCScraperAdapter` as implementa. Falta
