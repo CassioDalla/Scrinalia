@@ -6,6 +6,7 @@ from sqlalchemy import engine_from_config, pool
 # Import every model package so Base.metadata is fully populated before
 # autogenerate compares it against the database.
 import scrinalia.domains.archive.models
+import scrinalia.domains.identity.models
 import scrinalia.domains.ingestion.models
 import scrinalia.domains.staging.models  # noqa: F401
 from scrinalia.core.base import Base

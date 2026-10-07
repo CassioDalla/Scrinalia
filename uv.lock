@@ -1565,6 +1565,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
+    { name = "argon2-cffi" },
     { name = "beautifulsoup4" },
     { name = "bertopic" },
     { name = "boto3" },

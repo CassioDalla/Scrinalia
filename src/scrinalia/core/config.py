@@ -56,6 +56,36 @@ class Settings(BaseSettings):
     # LLM hosts
     OLLAMA_HOST_URL: str | None = None
 
+    # Authentication. The session cookie is **first-party**: ``asgi.py`` mounts the curator SPA at
+    # ``/``, so the browser talks to the same origin and no token ever reaches JavaScript. See
+    # ``docs/adr/0009-authentication-and-authorization.md``.
+    AUTH_SESSION_COOKIE_NAME: str = "scrinalia_session"
+
+    #: How long a session lives. Sliding: a request that finds the session older than
+    #: ``AUTH_SESSION_TOUCH_MINUTES`` pushes the expiry forward, so an archivist working all day is
+    #: not logged out mid-task while an abandoned session still dies.
+    AUTH_SESSION_TTL_MINUTES: int = 720
+    AUTH_SESSION_TOUCH_MINUTES: int = 15
+
+    #: ``Secure`` on the session cookie. It must stay **false** for a plain-HTTP install on a LAN:
+    #: the browser silently drops a ``Secure`` cookie over ``http://``, so the login looks like it
+    #: worked while nothing is stored, and the next request is anonymous again. A deployment behind
+    #: HTTPS sets this to true.
+    AUTH_COOKIE_SECURE: bool = False
+
+    #: Password policy, checked in the domain and not only in the request schema, because the CLI
+    #: creates accounts without going through an HTTP body.
+    AUTH_PASSWORD_MIN_LENGTH: int = 12
+
+    #: argon2id cost, the parameters that live inside the hash string. The defaults are RFC 9106's
+    #: second recommendation (64 MiB, t=3, p=4). They are settings for two reasons: a test suite can
+    #: lower the memory cost instead of paying ~60 ms per login, and an institution can raise it
+    #: without touching code. Raising them does **not** invalidate existing hashes — they keep
+    #: verifying and are upgraded on the next successful login.
+    AUTH_PASSWORD_MEMORY_KIB: int = 65536
+    AUTH_PASSWORD_TIME_COST: int = 3
+    AUTH_PASSWORD_PARALLELISM: int = 4
+
     # Observability
     LOG_DIR: str = "logs"
     LOG_LEVEL: str = "INFO"

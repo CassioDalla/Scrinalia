@@ -28,6 +28,11 @@ from scrinalia.domains.archive.models import (
 )
 from scrinalia.domains.archive.schemas import ArchiveEntityDTO
 from scrinalia.domains.archive.schemas.document_schema import ArchiveDocumentDTO
+from scrinalia.domains.identity.domain.credentials import hash_password, normalize_email
+from scrinalia.domains.identity.domain.permissions import Role
+from scrinalia.domains.identity.models import AuthUser
+from scrinalia.domains.identity.repository import SessionRepository, UserRepository
+from scrinalia.domains.identity.services import AuthService
 from scrinalia.domains.ingestion import models as ingest_model
 
 # Dynamically discover the absolute path of the 'tests' folder
@@ -415,6 +420,52 @@ def mock_ner_engine():
 
     mock_engine.extract.side_effect = extraction_simulator
     return mock_engine
+
+
+@pytest.fixture
+def auth_service(db_session) -> AuthService:
+    """
+    The real service over the test session.
+
+    The real one and not a fake, on purpose: what these tests are about is the *policy* — the decoy
+    verification, the sliding session, the last-admin guard — and a double would test the double.
+    Hashing runs at the configured cost (``AUTH_PASSWORD_*``), so a test pays the ~45 ms of argon2
+    it would pay in production.
+    """
+    return AuthService(UserRepository(db_session), SessionRepository(db_session))
+
+
+@pytest.fixture
+def generate_user(db_session):
+    """
+    Factory for accounts.
+
+    It writes the row directly instead of going through ``AuthService.create_user`` so a test can set
+    the fields the service would never let it set — a deactivated account, an account that must change
+    its password — without a second call to undo the first.
+    """
+
+    def _create(
+        email: str = "maria@arquivo.org",
+        name: str = "Maria",
+        role: Role = Role.CURATOR,
+        password: str = "uma senha bem longa",
+        is_active: bool = True,
+        must_change_password: bool = False,
+    ) -> AuthUser:
+        user = AuthUser(
+            email=normalize_email(email),
+            name=name,
+            password_hash=hash_password(password),
+            role=role,
+            is_active=is_active,
+            must_change_password=must_change_password,
+        )
+        db_session.add(user)
+        db_session.flush()
+        return user
+
+    return _create
 
 
 def pytest_collection_modifyitems(config, items):

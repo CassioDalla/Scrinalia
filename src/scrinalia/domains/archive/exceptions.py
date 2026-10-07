@@ -1,8 +1,9 @@
 # domain/exceptions.py
 
-
-class DomainException(Exception):
-    pass
+# The base class lives in ``core`` (see ``core/exceptions.py``): the API registers one handler for
+# every domain's refusals, and a per-domain base class would escape it. Re-exported here with the
+# redundant alias so the imports across the codebase keep resolving and ruff sees the intent.
+from scrinalia.core.exceptions import DomainException as DomainException
 
 
 class TagNotFoundError(DomainException):
