@@ -24,15 +24,15 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 | 3 | Descoberta, performance e observabilidade | 🟡 **Quase** — falta o agendador; `/health` e o rastreamento de erros **fechados** (ADR 0005) |
 | 3.5 | Qualidade do dado de entrada | ✅ **Fechada** |
 | 4 | UI, BFF e publicação | 🟡 **Curador completo** (22 telas); faltam **auth** e **site público** |
-| **5** | **Release 1.0** | 🟡 **Iniciada** — licença fechada (ADR 0006); faltam nome, auth e docs |
+| **5** | **Release 1.0** | 🟡 **Iniciada** — licença (0006) e nome (0007) fechados; faltam auth e docs |
 
 **O sistema está funcionalmente pronto.** Ingestão → staging → archive → enriquecimento por IA →
 curadoria humana → bloqueio de reprocessamento, tudo verificado ponta a ponta. O **curador tem 22
 telas** cobrindo todo o sitemap mais o painel de operação, e o **Streamlit saiu do repositório**.
 
-**O que falta para uma 1.0 é de outra natureza:** não é feature, é *produto*. **Nome**,
-documentação, desacoplamento institucional e autenticação — a **licença**, que era o primeiro
-deles, foi fechada em 2026-10-07 (ADR 0006). Detalhe na seção seguinte.
+**O que falta para uma 1.0 é de outra natureza:** não é feature, é *produto*. Documentação,
+desacoplamento institucional e autenticação — a **licença** (ADR 0006) e o **nome** (ADR 0007),
+que eram os dois primeiros, foram fechados em 2026-10-07. Detalhe na seção seguinte.
 
 > **Ciclos entregues, em uma linha cada** (o detalhe está nas fases fechadas):
 > contrato + onda 1 (2026-10-05) · onda 2, o plano de arranjo (2026-10-05) · ondas 4–6 e a remoção
@@ -40,7 +40,8 @@ deles, foi fechada em 2026-10-07 (ADR 0006). Detalhe na seção seguinte.
 > lacunas de curadoria — colisão, faceta de anomalia, "não é assunto" (2026-10-06) · o catálogo de
 > tipologias e o contrato determinístico (2026-10-06) · **a observabilidade local — `/health` de
 > orquestrador, causa raiz agrupada e request id (2026-10-07)** · **a licença `AGPL-3.0-only` e a
-> atribuição do autor no rodapé (2026-10-07)**.
+> atribuição do autor no rodapé (2026-10-07)** · **o nome `Scrinalia` e o rename do pacote
+> (2026-10-07)**.
 
 ---
 
@@ -61,6 +62,8 @@ deles, foi fechada em 2026-10-07 (ADR 0006). Detalhe na seção seguinte.
 - **Determinismo do contrato** corrigido: o OpenAPI não depende mais do `PYTHONHASHSEED`.
 - **Licença fechada** (`AGPL-3.0-only` + termo de atribuição do §7(b), com rodapé na SPA e
   metadata no `pyproject.toml`/`package.json`) — ver ADR 0006.
+- **Nome definido:** o projeto é **`Scrinalia`**, cunhado de `scrinium` — livre em todos os
+  registries, em todos os domínios testados e no GitHub (ADR 0007).
 
 ### 🔴 Bloqueadores — sem isto não há 1.0
 
@@ -90,24 +93,35 @@ deles, foi fechada em 2026-10-07 (ADR 0006). Detalhe na seção seguinte.
         explícito de "não exponha" e auth na 1.1, mas isso é pior que fazer agora.
       - Escopo mínimo defensável: usuário+senha (ou OIDC) no BFF do curador, `changed_by` vindo do
         token, e a superfície pública continuando aberta **por design**.
-- [ ] **Renomear o projeto, o pacote e o repositório.** Medido em **2026-10-07**: `scrinalia`
-      está em **244 arquivos** (**223 `.py`**, 10 `.md`, 3 `.yml`, e `.toml`/`.json`/`.ini`), mais
-      5 artefatos de `logs/` que **não** entram; **22** arquivos carregam variantes de nome de
-      exibição (`Scrinalia`, `scrinalia`, `memoriacuritibana`). O número que
-      este TODO trazia (256/209) estava desatualizado.
-      - **Nome: em decisão.** Candidatos medidos (PyPI e npm livres, sem colisão relevante no
-        domínio): **`Tabularium`** (recomendado — o arquivo de estado de Roma), **`Repertorium`**
-        (o instrumento de pesquisa) e **`Arkheion`** (a etimologia de "arquivo"). Análise completa
-        em `.analysis/identidade-do-release.md`. **Não** pôr `AI`/`ETL`/`GPT` no nome: a IA é meio,
-        o registro é o assunto.
-      - **Fazer antes da 1.0, não depois:** o nome é a identidade do release. Renomear depois
-        significa que a 1.0 nasce com um nome que será descartado, e todo link/bookmark/documento
-        quebra duas vezes.
-      - É mecânico mas amplo: `src/scrinalia/` → `src/<novo>/`, todos os imports, o
-        `[project].name`, o `packages` do hatch, o `main.py`, os nomes nos `docker-compose`, o
-        `container_name`, os títulos da SPA e do `README`. Vale um commit **só** de movimentação.
-      - **Cuidado:** `archive_*`, `domain_*` e os nomes de tabela **não** entram no rename (são
-        schema, e renomeá-los é migração destrutiva sem ganho).
+- [x] **Renomear o projeto, o pacote e o repositório** — **feito em 2026-10-07**: o projeto agora é
+      **`Scrinalia`** (`refactor(pkg)!: rename memoria_curitibana to scrinalia`), com decisão e
+      etimologia no **ADR 0007**. Escopo medido antes de executar: **240 arquivos** com uma das
+      variantes (`memoria_curitibana` em 241, `memoria-curitibana` em 11, `Memória Curitibana` em
+      6) — os números que este TODO trazia (256/209) estavam desatualizados.
+      - **O que a primeira tentativa de escolha errou — e por que isso está registrado.** A busca
+        inicial olhou só PyPI e npm e recomendou `Tabularium`. A busca profunda (registries, Docker
+        Hub, DNS, **marca registrada** e produto vivo) desqualificou: **`Tabularium` é um sistema de
+        gestão documental do MPDFT em produção desde 2016**, com portarias e relatório de cinco anos;
+        **`Cimelia` tem marca registrada viva** (EUIPO 017967984 + equivalente britânica);
+        `Repertorium` é empresa de IA ativa; `Arkheion` tem app brasileiro no Docker Hub e o `kh`/`ch`
+        ambíguo; `Chartularius` tem o gêmeo **Cartularius**, produto comercial de gestão documental.
+        **Para este projeto a classe das palavras reais disponíveis estava vazia** — por isso o nome
+        é **cunhado**: de `scrinium` (o cofre dos rolos e os ofícios de registro imperiais) + `-alia`
+        (como *marginalia*, *memorabilia*), "as coisas do arquivo". Livre em **todos** os registries,
+        **todos** os domínios testados (inclui `.com` e `.com.br`) e como usuário do GitHub.
+      - **O que NÃO entrou, de propósito:** o banco `memoriacuritibana`, o banco legado, o bucket
+        MinIO `memoria-curitibana-bronze` e os objetos `archive_*`/`domain_*`. São identidade de
+        **dado**: renomear apontaria uma instalação em produção para dados vazios. Ganho: uma
+        instalação existente migra com `uv sync`, **sem migração de dados**.
+      - **Passos manuais que faltam** (automação não faz): renomear o diretório do checkout (o `.pth`
+        do editable aponta para `src/`, então `uv sync` depois), renomear o repositório no GitHub (o
+        `sourceUrl` do rodapé já aponta para `/scrinalia` e **precisa resolver** — é a oferta de fonte
+        do §13, hoje um 404), e recriar os containers (`docker compose down && up -d`, **nunca `-v`**).
+      - **Cuidado aprendido, que vale para o próximo rename:** o `sed` **não pode** passar por um
+        documento que *descreve* o rename. Ele reescreveu este bullet (que ficou dizendo
+        "`scrinalia` está em 244 arquivos") e o `ADR 0002` (que passou a dizer que se considerou
+        publicar como `scrinalia` — falso). O ADR 0002 foi restaurado no mesmo commit; este bullet,
+        aqui. Documentos que falam sobre o rename são a exceção à regra de substituir tudo.
 - [ ] **Base de documentação.** Hoje `docs/` tem só os 5 ADRs; o `README` é a porta de entrada e
       `AGENTS.md` é convenção interna. Falta o que um terceiro precisa para *instalar e operar*:
       - [ ] **Instalação e deploy** (Docker, variáveis de ambiente, migrations, build da SPA,

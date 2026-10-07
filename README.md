@@ -225,7 +225,26 @@ main.py                   deployable entrypoint (re-exports the ASGI app)
 - [`AGENTS.md`](AGENTS.md) — conventions and the architectural rules that are easy to get wrong
 - [`TODO.md`](TODO.md) — roadmap
 - [`docs/adr/`](docs/adr/) — architecture decision records, including
-  [`0006`](docs/adr/0006-license-and-author-attribution.md) on licensing
+  [`0006`](docs/adr/0006-license-and-author-attribution.md) on licensing and
+  [`0007`](docs/adr/0007-project-name-scrinalia.md) on the name
+
+## The name
+
+**Scrinalia** is coined from the Latin `scrinium`, the case that held scrolls — and, by extension,
+the record offices of the later Roman and Byzantine administration (`scrinium memoriae`,
+`scrinium epistularum`, `scrinium libellorum`), whose officials, the *scriniarii*, were archivists.
+Portuguese keeps the root in *escrínio*, a cabinet for papers.
+
+The `-alia` ending is the Latin neuter plural that gives *marginalia* and *memorabilia*, so the name
+reads as **"the things of the archive"** — a plural collective, which is what the system holds: a
+body of descriptions, kept together and made findable.
+
+It is not a dictionary word, and that is the point. Every real archival term tested was already in
+use somewhere that mattered — a government records system, a registered trademark, a live product —
+so the name takes a real root in a regular form that happens to be unclaimed: free on every package
+registry, on every domain tested, and as a username. It has exactly one spelling. The reasoning, the
+candidates that were rejected and the evidence against each are in
+[ADR 0007](docs/adr/0007-project-name-scrinalia.md).
 
 ## License and attribution
 
