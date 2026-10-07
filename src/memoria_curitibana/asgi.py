@@ -5,6 +5,7 @@ from typing import Any
 from litestar import Litestar
 from litestar.di import Provide
 from litestar.logging import LoggingConfig
+from litestar.status_codes import HTTP_500_INTERNAL_SERVER_ERROR
 from sqlalchemy.exc import IntegrityError
 
 from memoria_curitibana.api.controllers.cleaning_controller import CleaningController
@@ -18,7 +19,11 @@ from memoria_curitibana.api.controllers.taxonomy_controller import TaxonomyContr
 from memoria_curitibana.api.controllers.text_quality_controller import TextQualityController
 from memoria_curitibana.api.controllers.typology_controller import TypologyController
 from memoria_curitibana.api.dependencies import provide_unit_of_work
-from memoria_curitibana.api.handlers import domain_exception_handler, integrity_error_handler
+from memoria_curitibana.api.handlers import (
+    domain_exception_handler,
+    integrity_error_handler,
+    unhandled_exception_handler,
+)
 from memoria_curitibana.api.lifespan import application_lifespan
 from memoria_curitibana.api.middleware import RequestContextMiddleware
 from memoria_curitibana.api.spa import curator_spa_router
@@ -71,6 +76,13 @@ def create_app() -> Litestar:
         exception_handlers={
             DomainException: domain_exception_handler,
             IntegrityError: integrity_error_handler,
+            # Registered under the **status code**, not under ``Exception``. Litestar resolves a
+            # handler by walking the exception's MRO and only then falling back to the 500 key, and
+            # ``Exception`` is in the MRO of every ``HTTPException`` — registering it by class would
+            # shadow the framework's own 404/405 answer and turn "no such route" into a 500. The
+            # status key is consulted *only* for exceptions that are not ``HTTPException``, which is
+            # exactly the boundary between an answer and a defect.
+            HTTP_500_INTERNAL_SERVER_ERROR: unhandled_exception_handler,
         },
         lifespan=[application_lifespan],
         logging_config=_logging_config(),
