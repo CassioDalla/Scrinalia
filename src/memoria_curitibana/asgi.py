@@ -20,6 +20,7 @@ from memoria_curitibana.api.controllers.typology_controller import TypologyContr
 from memoria_curitibana.api.dependencies import provide_unit_of_work
 from memoria_curitibana.api.handlers import domain_exception_handler, integrity_error_handler
 from memoria_curitibana.api.lifespan import application_lifespan
+from memoria_curitibana.api.middleware import RequestContextMiddleware
 from memoria_curitibana.api.spa import curator_spa_router
 from memoria_curitibana.core.config import settings
 from memoria_curitibana.core.logger import InterceptHandler, intercept_stdlib_logging
@@ -65,6 +66,7 @@ def create_app() -> Litestar:
 
     return Litestar(
         route_handlers=route_handlers,
+        middleware=[RequestContextMiddleware()],
         dependencies={"unit_of_work": Provide(provide_unit_of_work)},
         exception_handlers={
             DomainException: domain_exception_handler,
