@@ -7,6 +7,8 @@ instead of the ``.strip().lower()`` call being repeated (and drifting) across
 services, repositories and workers.
 """
 
+from scrinalia.core.language import get_language
+
 
 def normalize_tag(name: str) -> str:
     """Canonical form of a tag / subject key (lowercase, trimmed)."""
@@ -50,27 +52,12 @@ def escape_like(term: str) -> str:
     return escaped.replace("%", f"{LIKE_ESCAPE}%").replace("_", f"{LIKE_ESCAPE}_")
 
 
-#: Regular Portuguese plural endings mapped to the singular they may come from. Applied
-#: only as *candidates*: a candidate becomes a merge suggestion when the singular already
-#: exists as a tag, so an irregular word simply never matches and no term is invented.
-_PLURAL_RULES: tuple[tuple[str, str], ...] = (
-    ("ões", "ão"),
-    ("ães", "ão"),
-    ("ais", "al"),
-    ("éis", "el"),
-    ("eis", "el"),
-    ("óis", "ol"),
-    ("ois", "ol"),
-    ("is", "il"),
-    ("ns", "m"),
-    ("es", "e"),
-    ("s", ""),
-)
-
-
 def singular_candidates(name: str) -> list[str]:
     """
     Possible singular forms of a tag, for a **suggestion** of merging.
+
+    The endings are a property of the language and come from the active profile
+    (:mod:`scrinalia.core.language.pt_br`); the folding below is the rule and is language-neutral.
 
     Measured on the collection: 746 tags end in "s" and 130 of them have a naive
     singular that is also a tag ("livros"/"livro", "edifícios"/"edifício"). Lemmatizing
@@ -79,7 +66,7 @@ def singular_candidates(name: str) -> list[str]:
     proposed and the archivist approves, exactly like the other curation flows.
     """
     candidates: list[str] = []
-    for ending, replacement in _PLURAL_RULES:
+    for ending, replacement in get_language().plural_rules:
         if name.endswith(ending) and len(name) > len(ending):
             candidates.append(name[: -len(ending)] + replacement)
     return list(dict.fromkeys(candidates))

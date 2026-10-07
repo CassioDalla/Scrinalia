@@ -1,5 +1,6 @@
 from typing import Any, Literal
 
+from scrinalia.core.language import get_language
 from scrinalia.domains.archive.engines.base import EntityExtractionEngine, describe_engine_config
 
 from .spacy_engine import SpacyEngine
@@ -11,9 +12,15 @@ AVAILABLE_ENGINES: dict[EngineName, type[EntityExtractionEngine]] = {
     "spacy_ner": SpacyEngine,
 }
 
+#: The preset is the *strategy* (the full pipeline, or lemmatization only); the model is a
+#: property of the language and comes from the active profile. Loading ``pt_core_news_lg`` on a
+#: collection in another language extracts nothing, and hardcoding it here made the language a
+#: hidden constant of the engine registry.
+_LANGUAGE_MODEL = get_language().ner_model
+
 PRESETS: dict[PresetName, dict[str, Any]] = {
-    "gpu": {"model": "pt_core_news_lg", "device": "gpu"},
-    "lemmatizer": {"model": "pt_core_news_lg", "device": "gpu", "disable": ["ner", "parser"]},
+    "gpu": {"model": _LANGUAGE_MODEL, "device": "gpu"},
+    "lemmatizer": {"model": _LANGUAGE_MODEL, "device": "gpu", "disable": ["ner", "parser"]},
 }
 
 

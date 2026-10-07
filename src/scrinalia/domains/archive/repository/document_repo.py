@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
+from scrinalia.core.language import get_language
 from scrinalia.core.types import Vector
 from scrinalia.domains.archive.domain.hierarchy_code import normalize_reference_code
 from scrinalia.domains.archive.domain.normalization import (
@@ -715,7 +716,7 @@ class DocumentRepository:
         tsquery = build_tsquery(tokens)
 
         if tsquery:
-            ts_query = func.to_tsquery("portuguese", func.immutable_unaccent(tsquery))
+            ts_query = func.to_tsquery(get_language().fts_dictionary, func.immutable_unaccent(tsquery))
             merged_term = " ".join(tokens)
             tag_match = self._taxonomy_match(
                 ArchiveDocumentTag,

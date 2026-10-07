@@ -1,7 +1,9 @@
+from collections.abc import Collection
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import spacy
 
+from scrinalia.core.language import get_language
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.schemas import ArchiveEntityDTO
 
@@ -22,13 +24,15 @@ class SpacyEngine:
 
     def __init__(
         self,
-        model: str = "pt_core_news_lg",
+        model: str | None = None,
         custom_rules: list[dict[str, Any]] | None = None,
         device: str = "gpu",
         **kwargs: Any,
     ) -> None:
 
-        self.model_name = model
+        # The model is a property of the language, not of the engine: the default comes from the
+        # active profile so a new language does not have to edit this engine or its presets.
+        self.model_name = model or get_language().ner_model
         self.device = device
         self.disable = kwargs.get("disable", [])
         if "cpu" in self.device:
@@ -93,7 +97,7 @@ class SpacyEngine:
 
         return results
 
-    def lemmatize(self, text: str, stopwords: list[str]) -> list[str]:
+    def lemmatize(self, text: str, stopwords: Collection[str]) -> list[str]:
         doc = self.nlp(text.lower())
         lemmas = []
 

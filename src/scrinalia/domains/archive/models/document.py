@@ -19,6 +19,7 @@ from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from scrinalia.core.base import Base
+from scrinalia.core.language import get_language
 from scrinalia.core.types import Vector
 
 from .enums import ArchiveReviewStatus
@@ -43,11 +44,19 @@ EMBEDDING_DIMENSIONS = 384
 # makes the search accent-insensitive: without it ``gaucho`` does not find ``Gaúcho``.
 # The expression must stay byte-identical to the migration that creates the column;
 # Alembic only warns crudely when a computed expression changes.
+#
+# The dictionary is the language's. Wiring it to the profile means ``ACERVO_LANGUAGE`` cannot be
+# changed by an environment variable alone: the column is stored, so a new language needs a
+# migration that rebuilds it — and ``alembic check`` reports exactly that drift instead of
+# letting the model and the stored expression disagree in silence. The migration keeps its own
+# literal on purpose (a migration must keep describing the state it produced).
+_FTS_DICTIONARY = get_language().fts_dictionary
+
 DOCUMENT_SEARCH_VECTOR_SQL = (
-    "setweight(to_tsvector('portuguese', public.immutable_unaccent("
+    f"setweight(to_tsvector('{_FTS_DICTIONARY}', public.immutable_unaccent("
     "coalesce(final_title, '') || ' ' || coalesce(original_title, ''))), 'A')"
     " || "
-    "setweight(to_tsvector('portuguese', public.immutable_unaccent("
+    f"setweight(to_tsvector('{_FTS_DICTIONARY}', public.immutable_unaccent("
     "coalesce(scope_content, '') || ' ' || coalesce(admin_bio_history, '') || ' ' || coalesce(provenance, ''))), 'B')"
 )
 

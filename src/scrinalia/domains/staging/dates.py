@@ -6,6 +6,11 @@ the literal ``"00/00/0000"``** — a source placeholder for "no date", not a los
 remaining ones are real expressions the old parser never understood ("Década de 1980",
 "1951-1953", "Após 1996", "Meados de 1970").
 
+The **grammar** of those expressions is Portuguese and lives in the language profile
+(:mod:`scrinalia.core.language.pt_br`): the placeholders, the decade and range expressions
+and the ``dd/mm/yyyy`` spelling are properties of the language. What stays here is the
+*order* of the attempts, which is the algorithm and is the same in every language.
+
 Two decisions are deliberate:
 
 * A placeholder is turned into ``None`` on purpose. ``\"00/00/0000\"`` used to reach
@@ -20,45 +25,18 @@ Two decisions are deliberate:
 import re
 from datetime import date
 
-#: Values the source uses to say "there is no date". Kept explicit and lowercase.
-EMPTY_DATE_VALUES = {
-    "",
-    "-",
-    "?",
-    "n/a",
-    "na",
-    "não informado",
-    "nao informado",
-    "sem data",
-    "s/ data definida",
-    "s/data",
-    "s/ data",
-    "data indefinida",
-    "00/00/0000",
-    "0000-00-00",
-    "00000000",
-}
-
-#: ``Década de 1980``, ``Anos 90``, ``Anos 1990``, ``final da década de 80``.
-_DECADE_RE = re.compile(r"(?:d[ée]cada|anos)\s+(?:de\s+)?(\d{2,4})\b", re.IGNORECASE)
-
-#: ``1951-1953``, ``1920 a 2006``, ``1929-1986``.
-_RANGE_RE = re.compile(r"\b(\d{4})\s*(?:-|\u2013|\u2014|a|at\u00e9|ate)\s*(\d{4})\b", re.IGNORECASE)
+from scrinalia.core.language import get_language
 
 #: Any isolated four-digit year: ``Após 1996``, ``Meados de 1970``, ``A partir de 1972``.
 _YEAR_RE = re.compile(r"\b(\d{4})\b")
 
+#: The ISO spelling is not a language choice: it is the interchange format.
 _ISO_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
-_BR_RE = re.compile(r"(\d{2})/(\d{2})/(\d{4})")
-
-#: A year outside this window is a code, not a date (the collection starts in 1850).
-MIN_YEAR = 1800
-MAX_YEAR = 2100
 
 
-def _two_digit_year(value: str) -> int:
+def _two_digit_year(value: str, base: int) -> int:
     """``90`` means 1990: the collection is historical, so two digits always look back."""
-    return 1900 + int(value)
+    return base + int(value)
 
 
 def _safe_date(year: int, month: int, day: int) -> date | None:
@@ -68,9 +46,15 @@ def _safe_date(year: int, month: int, day: int) -> date | None:
         return None
 
 
-def _year_from(value: str) -> int | None:
-    year = _two_digit_year(value) if len(value) == 2 else int(value)
-    return year if MIN_YEAR <= year <= MAX_YEAR else None
+def _year_from(value: str, *, base: int, min_year: int, max_year: int) -> int | None:
+    year = _two_digit_year(value, base) if len(value) == 2 else int(value)
+    return year if min_year <= year <= max_year else None
+
+
+def _ordered(groups: tuple[str, ...], order: str) -> tuple[int, int, int]:
+    """Reads ``(year, month, day)`` out of the local pattern's groups, per the profile's order."""
+    parsed = dict(zip(order, (int(part) for part in groups), strict=True))
+    return parsed["Y"], parsed["M"], parsed["D"]
 
 
 def parse_document_date(raw: object | None) -> date | None:
@@ -85,14 +69,14 @@ def parse_document_date(raw: object | None) -> date | None:
     if raw is None:
         return None
 
+    language = get_language()
     text = str(raw).strip()
-    if text.lower() in EMPTY_DATE_VALUES:
+    if text.lower() in language.empty_date_values:
         return None
 
-    brazilian = _BR_RE.search(text)
-    if brazilian:
-        day, month, year = (int(part) for part in brazilian.groups())
-        parsed = _safe_date(year, month, day)
+    local = language.local_date_pattern.search(text)
+    if local:
+        parsed = _safe_date(*_ordered(local.groups(), language.local_date_order))
         if parsed:
             return parsed
 
@@ -103,21 +87,23 @@ def parse_document_date(raw: object | None) -> date | None:
         if parsed:
             return parsed
 
-    decade = _DECADE_RE.search(text)
+    bounds = {"base": language.two_digit_year_base, "min_year": language.min_year, "max_year": language.max_year}
+
+    decade = language.decade_pattern.search(text)
     if decade:
-        year = _year_from(decade.group(1))
+        year = _year_from(decade.group(1), **bounds)
         if year:
             return date(year, 1, 1)
 
-    ranged = _RANGE_RE.search(text)
+    ranged = language.range_pattern.search(text)
     if ranged:
-        year = _year_from(ranged.group(1))
+        year = _year_from(ranged.group(1), **bounds)
         if year:
             return date(year, 1, 1)
 
     single = _YEAR_RE.search(text)
     if single:
-        year = _year_from(single.group(1))
+        year = _year_from(single.group(1), **bounds)
         if year:
             return date(year, 1, 1)
 

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any
 from pandas import DataFrame
 from sklearn.feature_extraction.text import CountVectorizer
 
-from scrinalia.domains.archive.engines.clustering.stopwords import STOPWORDS_BR
+from scrinalia.core.language import get_language
 
 if TYPE_CHECKING:
     pass
@@ -23,7 +23,9 @@ class BERTopicEngine:
         from bertopic import BERTopic
 
         analyzer = kwargs.pop("analyzer", "word")
-        vectorizer_model = CountVectorizer(analyzer=analyzer, stop_words=STOPWORDS_BR)
+        # The stopwords are the language's, not the clustering strategy's: the engine asks the
+        # active profile instead of importing a Portuguese list that was living inside it.
+        vectorizer_model = CountVectorizer(analyzer=analyzer, stop_words=list(get_language().stopwords))
 
         config: dict[str, Any] = {
             "language": "multilingual",

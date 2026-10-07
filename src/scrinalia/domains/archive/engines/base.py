@@ -1,4 +1,4 @@
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from typing import Any, Protocol
 
 from pandas import DataFrame
@@ -68,7 +68,7 @@ class EntityExtractionEngine(Protocol):
         """
         ...
 
-    def lemmatize(self, text: str, stopwords: list[str]) -> list[str]: ...
+    def lemmatize(self, text: str, stopwords: Collection[str]) -> list[str]: ...
 
 
 class TopicDiscoveryEngine(Protocol):

@@ -1,4 +1,19 @@
-STOPWORDS_BR = [
+"""
+Brazilian-Portuguese stopwords, as data.
+
+This list belonged to the clustering engine: 573 lines of a single module-level ``list``
+with no language tag, read directly by the BERTopic vectorizer and by the lemmatizer
+preset. It lives here because it is a property of the *language*, not of the clustering
+strategy or of the archive — both consumers read it through
+:data:`scrinalia.core.language.pt_br.PT_BR`, and a second language ships its own list
+without touching either.
+
+The entries keep the repetitions the original list carried: the profile reads them as a
+``frozenset``, where a repeated word costs nothing, and rewriting the file would make it
+differ from the list that was measured against the collection.
+"""
+
+PT_BR_STOPWORDS: tuple[str, ...] = (
     "n",
     "nº",
     "º",
@@ -570,4 +585,4 @@ STOPWORDS_BR = [
     "tu vamo",
     "tá suave",
     "tá de boaça",
-]
+)

@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     PUBLIC_SCRAPE_URL: str | None = None
     PUBLIC_SCRAPE_DETAIL_URL: str | None = None
 
+    # Language of the collection. Selects the profile in ``core/language`` that the date
+    # parser, the term guard, the plural rules and the clustering/NER presets read. The
+    # full-text dictionary is part of the profile and reaches a **generated column**: changing
+    # this value is a schema change, and ``alembic check`` reports the drift until a migration
+    # rebuilds ``search_vector``.
+    ACERVO_LANGUAGE: str = "pt-BR"
+
     # Object storage
     S3_ENDPOINT_URL: str | None = None
     S3_BUCKET_NAME: str | None = None

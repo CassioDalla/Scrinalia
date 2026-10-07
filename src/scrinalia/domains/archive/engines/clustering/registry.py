@@ -1,8 +1,8 @@
 from typing import Any, Literal
 
+from scrinalia.core.language import get_language
 from scrinalia.domains.archive.engines.base import TopicDiscoveryEngine
 from scrinalia.domains.archive.engines.clustering.bertopic_engine import BERTopicEngine
-from scrinalia.domains.archive.engines.clustering.stopwords import STOPWORDS_BR
 
 EngineName = Literal["bertopic"]
 PresetName = Literal["exploratory_fine", "exploratory_macro"]
@@ -56,7 +56,7 @@ def get_engine(engine_name: EngineName, preset: PresetName | None = None, **kwar
             # Scikit-Learn will call this function passing only the text.
             # We fill in the missing 'stopwords' argument and forward it to its engine!
             def analyzer_wrapper(text: str) -> list[str]:
-                return spacy_engine.lemmatize(text, stopwords=STOPWORDS_BR)
+                return spacy_engine.lemmatize(text, stopwords=get_language().stopwords)
 
             final_kwargs["analyzer"] = analyzer_wrapper
 
