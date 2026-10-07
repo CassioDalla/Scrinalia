@@ -3,8 +3,15 @@
 from collections.abc import Iterator
 from functools import lru_cache
 
+from litestar import Request
 from litestar.di import NamedDependency
+from litestar.exceptions import NotAuthorizedException
 
+from scrinalia.api.security import (
+    SESSION_REQUIRED_MESSAGE,
+    AuthenticatedUser,
+    authenticated_user_of,
+)
 from scrinalia.api.worker_runtime import provide_worker_runtime
 from scrinalia.core.database import create_session
 from scrinalia.core.unit_of_work import UnitOfWork
@@ -36,6 +43,9 @@ from scrinalia.domains.archive.services.text_quality_service import TextQualityS
 from scrinalia.domains.archive.services.typology_service import TypologyService
 from scrinalia.domains.archive.services.worker_operations_service import WorkerOperationsService
 from scrinalia.domains.archive.services.worker_run_service import WorkerRunService
+from scrinalia.domains.identity.repository.session_repo import SessionRepository
+from scrinalia.domains.identity.repository.user_repo import UserRepository
+from scrinalia.domains.identity.services.auth_service import AuthService
 
 
 @lru_cache(maxsize=1)
@@ -181,3 +191,25 @@ def provide_worker_run_service(unit_of_work: NamedDependency[UnitOfWork]) -> Wor
 def provide_failure_service(unit_of_work: NamedDependency[UnitOfWork]) -> FailureService:
     """Builds the grouped-failures read model over the request transaction; it only reads."""
     return FailureService(unit_of_work.db)
+
+
+def provide_auth_service(unit_of_work: NamedDependency[UnitOfWork]) -> AuthService:
+    """Builds the identity service over the request transaction."""
+    db = unit_of_work.db
+    return AuthService(UserRepository(db), SessionRepository(db))
+
+
+def provide_current_user(request: Request) -> AuthenticatedUser:
+    """
+    The account the session gate published for this request.
+
+    A dependency and not a direct read of ``request.user``: the handler declares what it needs, and
+    the annotation is what makes ``basedpyright`` check that the route uses an account instead of
+    assuming one.
+    """
+    user = authenticated_user_of(request.scope)
+    if user is None:
+        # The gate answers this before the handler runs; the branch exists so a route reached by a
+        # path that skipped the middleware fails closed instead of receiving ``None``.
+        raise NotAuthorizedException(SESSION_REQUIRED_MESSAGE)
+    return user

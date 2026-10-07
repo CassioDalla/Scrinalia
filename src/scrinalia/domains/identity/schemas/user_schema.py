@@ -39,7 +39,11 @@ class CreateUserCommand(BaseModel):
 
     email: str = Field(min_length=3, max_length=320, description="Identificador da conta; normalizado para minúsculas.")
     name: str = Field(min_length=1, max_length=120, description="Como o nome aparece nos ledgers e na tela.")
-    role: Role = Field(description="O que a conta pode fazer além de ler.")
+    #: No ``Field(description=...)`` here on purpose: ``Role`` is a shared enum, and Litestar applies
+    #: a field's kwargs to the enum's **component**, so the description would become the type's for
+    #: the whole document — and which field wins depends on the walk order, and therefore on
+    #: ``PYTHONHASHSEED``. The description of the type is its docstring; document it there.
+    role: Role
     password: str = Field(min_length=1, description="Senha inicial; a política é verificada no domínio.")
 
 

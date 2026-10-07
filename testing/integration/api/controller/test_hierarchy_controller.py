@@ -12,7 +12,6 @@ Two layers are pinned here on purpose:
 
 from typing import get_args
 
-import pytest
 from litestar.status_codes import (
     HTTP_200_OK,
     HTTP_201_CREATED,
@@ -24,7 +23,6 @@ from litestar.status_codes import (
 from litestar.testing import TestClient
 
 from scrinalia.api.controllers.hierarchy_controller import DiagnosticIssue, PlanStatusFilter
-from scrinalia.asgi import create_app
 from scrinalia.domains.archive.domain.hierarchy import (
     HierarchyIssue,
     HierarchyViolation,
@@ -60,12 +58,6 @@ from scrinalia.domains.archive.services.hierarchy_materialisation_service import
 from scrinalia.domains.archive.services.hierarchy_proposal_service import HierarchyProposalService
 from scrinalia.domains.archive.services.hierarchy_service import DIAGNOSTIC_ISSUES, HierarchyService
 from scrinalia.domains.archive.services.level_catalog_service import LevelCatalogService
-
-
-@pytest.fixture
-def client() -> TestClient:  # type: ignore
-    with TestClient(app=create_app()) as test_client:
-        yield test_client  # type: ignore
 
 
 def _level(level_id: int = 3, code: str = "serie", name: str = "Série") -> DescriptionLevelDTO:

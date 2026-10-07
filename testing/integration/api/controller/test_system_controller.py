@@ -7,10 +7,8 @@ answers 409 and a bad override answers 422, not a 500.
 
 from datetime import UTC, datetime
 
-import pytest
 from litestar.testing import TestClient
 
-from scrinalia.asgi import create_app
 from scrinalia.domains.archive.exceptions import (
     InvalidWorkerSettingsError,
     WorkerNotFoundError,
@@ -32,12 +30,6 @@ from scrinalia.domains.archive.schemas.system_schema import (
 )
 from scrinalia.domains.archive.services.worker_operations_service import WorkerOperationsService
 from scrinalia.domains.archive.services.worker_run_service import WorkerRunService
-
-
-@pytest.fixture
-def client() -> TestClient:
-    with TestClient(app=create_app()) as test_client:
-        yield test_client  # type: ignore[misc]
 
 
 def _settings() -> WorkerSettingsDTO:

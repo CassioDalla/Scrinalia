@@ -9,6 +9,7 @@ from scrinalia.api.schemas.text_quality_requests import (
     SuggestTextTemplatesRequest,
     UpdateTextTemplateRequest,
 )
+from scrinalia.api.security import Access
 from scrinalia.domains.archive.schemas import RouteMessageCode
 from scrinalia.domains.archive.schemas.text_quality_schema import (
     TemplateCreateCommand,
@@ -32,7 +33,7 @@ class TextQualityController(Controller):
         "text_quality_service": Provide(provide_text_quality_service, sync_to_thread=False),
     }
 
-    @get("/", sync_to_thread=True)
+    @get("/", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_templates(
         self,
         text_quality_service: NamedDependency[TextQualityService],
@@ -42,7 +43,7 @@ class TextQualityController(Controller):
         """Lists the catalog: pending suggestions, approved excerpts and rejected ones."""
         return text_quality_service.list_templates(status=status, only_active=only_active)
 
-    @post("/suggest", sync_to_thread=True)
+    @post("/suggest", opt={"access": Access.CATALOGUE}, sync_to_thread=True)
     def suggest_templates(
         self,
         text_quality_service: NamedDependency[TextQualityService],
@@ -57,7 +58,7 @@ class TextQualityController(Controller):
             min_documents=data.min_documents,
         )
 
-    @post("/preview", sync_to_thread=True)
+    @post("/preview", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def preview_template(
         self,
         text_quality_service: NamedDependency[TextQualityService],
@@ -75,7 +76,7 @@ class TextQualityController(Controller):
             )
         )
 
-    @post("/", status_code=201, sync_to_thread=True)
+    @post("/", opt={"access": Access.CATALOGUE}, status_code=201, sync_to_thread=True)
     def create_template(
         self,
         text_quality_service: NamedDependency[TextQualityService],
@@ -100,7 +101,7 @@ class TextQualityController(Controller):
             data=template,
         )
 
-    @patch("/{template_id:int}", sync_to_thread=True)
+    @patch("/{template_id:int}", opt={"access": Access.CATALOGUE}, sync_to_thread=True)
     def update_template(
         self,
         text_quality_service: NamedDependency[TextQualityService],
@@ -119,7 +120,7 @@ class TextQualityController(Controller):
             data=template,
         )
 
-    @delete("/{template_id:int}", status_code=200, sync_to_thread=True)
+    @delete("/{template_id:int}", opt={"access": Access.CATALOGUE}, status_code=200, sync_to_thread=True)
     def delete_template(
         self,
         text_quality_service: NamedDependency[TextQualityService],

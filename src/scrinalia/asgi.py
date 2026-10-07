@@ -4,10 +4,12 @@ from typing import Any
 
 from litestar import Litestar
 from litestar.di import Provide
+from litestar.exceptions import NotAuthorizedException, PermissionDeniedException
 from litestar.logging import LoggingConfig
 from litestar.status_codes import HTTP_500_INTERNAL_SERVER_ERROR
 from sqlalchemy.exc import IntegrityError
 
+from scrinalia.api.controllers.auth_controller import AuthController
 from scrinalia.api.controllers.cleaning_controller import CleaningController
 from scrinalia.api.controllers.collection_vocabulary_controller import CollectionVocabularyController
 from scrinalia.api.controllers.curation_controller import CurationController
@@ -23,10 +25,13 @@ from scrinalia.api.dependencies import provide_unit_of_work
 from scrinalia.api.handlers import (
     domain_exception_handler,
     integrity_error_handler,
+    not_authorized_handler,
+    permission_denied_handler,
     unhandled_exception_handler,
 )
 from scrinalia.api.lifespan import application_lifespan
 from scrinalia.api.middleware import RequestContextMiddleware
+from scrinalia.api.security import access_guard
 from scrinalia.api.spa import curator_spa_router
 from scrinalia.core.config import settings
 from scrinalia.core.logger import InterceptHandler, intercept_stdlib_logging
@@ -56,6 +61,10 @@ def create_app() -> Litestar:
         # First: ``/health/*`` is the one route that must never be reached through the SPA's
         # ``html_mode`` catch-all, and the static router is appended last precisely so it cannot be.
         HealthController,
+        # Second: the only routes reachable without a session are declared here, and ``/api/v1/auth``
+        # is where the session comes from. Registering it early keeps the login out of the reach of
+        # anything that might later be added in front of it.
+        AuthController,
         TaxonomyController,
         CleaningController,
         CollectionVocabularyController,
@@ -73,11 +82,23 @@ def create_app() -> Litestar:
 
     return Litestar(
         route_handlers=route_handlers,
+        # The request id is minted before anything else, so the access line of a refused request
+        # carries it too.
         middleware=[RequestContextMiddleware()],
+        # One guard for every route: it authenticates from the session cookie and then enforces the
+        # role each operation declares in its own ``opt``. Registered per controller it would leak
+        # into the reads a VIEWER must reach, because Litestar guards are cumulative and a route
+        # cannot relax what its controller declared.
+        guards=[access_guard],
         dependencies={"unit_of_work": Provide(provide_unit_of_work)},
         exception_handlers={
             DomainException: domain_exception_handler,
             IntegrityError: integrity_error_handler,
+            # Registered **by class**, which is safe here: neither is in the MRO of the framework's
+            # 404, so they cannot turn "no such route" into a recorded incident. They exist to answer
+            # 401/403 in the shape the front already reads (``error_code``/``message``).
+            NotAuthorizedException: not_authorized_handler,
+            PermissionDeniedException: permission_denied_handler,
             # Registered under the **status code**, not under ``Exception``. Litestar resolves a
             # handler by walking the exception's MRO and only then falling back to the 500 key, and
             # ``Exception`` is in the MRO of every ``HTTPException`` — registering it by class would

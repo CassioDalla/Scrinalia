@@ -30,6 +30,7 @@ from scrinalia.api.schemas.taxonomy import (
     SuggestMacroRequest,
     TagCurationRequest,
 )
+from scrinalia.api.security import Access
 from scrinalia.domains.archive.models.enums import StopwordsScope
 from scrinalia.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
@@ -97,7 +98,7 @@ class TaxonomyController(Controller):
         "entity_service": Provide(provide_entity_service, sync_to_thread=False),
     }
 
-    @get("/tags", sync_to_thread=True)
+    @get("/tags", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def search_tags(
         self,
         tag_service: NamedDependency[TagService],
@@ -113,7 +114,7 @@ class TaxonomyController(Controller):
         """
         return tag_service.search_tags(term, limit)
 
-    @patch("/tags/{tag_id:int}", sync_to_thread=True)
+    @patch("/tags/{tag_id:int}", opt={"access": Access.CURATE}, sync_to_thread=True)
     def curate_tag(
         self,
         tag_service: NamedDependency[TagService],
@@ -128,7 +129,7 @@ class TaxonomyController(Controller):
         """
         return tag_service.curate_tag_macro_category(tag_id, TagCurationCommand(**data.model_dump()))
 
-    @get("/tags/relevance/{method:str}", sync_to_thread=True)
+    @get("/tags/relevance/{method:str}", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def get_tag_relevance(
         self,
         tag_service: NamedDependency[TagService],
@@ -143,7 +144,7 @@ class TaxonomyController(Controller):
 
         return TagRelevanceResponse.from_payload(list(results))
 
-    @get("/tags/similar", sync_to_thread=True)
+    @get("/tags/similar", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def get_similar_tags(
         self,
         tag_service: NamedDependency[TagService],
@@ -158,7 +159,7 @@ class TaxonomyController(Controller):
         results = tag_service.find_similar_tags(target, threshold)
         return list(results)
 
-    @post("/tags/merge", sync_to_thread=True)
+    @post("/tags/merge", opt={"access": Access.CURATE}, sync_to_thread=True)
     def merge_tags(self, tag_service: NamedDependency[TagService], data: MergeRequest) -> MergeResponse:
         response = tag_service.merge(
             MergeTagsCommand(
@@ -170,7 +171,7 @@ class TaxonomyController(Controller):
 
         return response
 
-    @post("/tags/merge/preview", status_code=200, sync_to_thread=True)
+    @post("/tags/merge/preview", opt={"access": Access.AUTHENTICATED}, status_code=200, sync_to_thread=True)
     def preview_tag_merge(
         self,
         tag_service: NamedDependency[TagService],
@@ -191,7 +192,7 @@ class TaxonomyController(Controller):
             )
         )
 
-    @post("/tags/merge-proposals/suggest", status_code=200, sync_to_thread=True)
+    @post("/tags/merge-proposals/suggest", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def suggest_tag_merges(
         self,
         tag_service: NamedDependency[TagService],
@@ -205,7 +206,7 @@ class TaxonomyController(Controller):
         """
         return tag_service.suggest_merges(threshold=data.threshold, limit=data.limit)
 
-    @get("/tags/merge-proposals", sync_to_thread=True)
+    @get("/tags/merge-proposals", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_tag_merge_proposals(
         self,
         tag_service: NamedDependency[TagService],
@@ -232,7 +233,7 @@ class TaxonomyController(Controller):
             offset=offset,
         )
 
-    @patch("/tags/merge-proposals/{proposal_id:int}", sync_to_thread=True)
+    @patch("/tags/merge-proposals/{proposal_id:int}", opt={"access": Access.CURATE}, sync_to_thread=True)
     def decide_tag_merge_proposal(
         self,
         tag_service: NamedDependency[TagService],
@@ -250,7 +251,7 @@ class TaxonomyController(Controller):
             data=proposal,
         )
 
-    @post("/tags/merge/batch", status_code=200, sync_to_thread=True)
+    @post("/tags/merge/batch", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def apply_tag_merge_batch(
         self,
         tag_service: NamedDependency[TagService],
@@ -266,7 +267,7 @@ class TaxonomyController(Controller):
             MergeBatchCommand(proposal_ids=data.proposal_ids, changed_by=data.changed_by, note=data.note)
         )
 
-    @get("/tags/merge-log", sync_to_thread=True)
+    @get("/tags/merge-log", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_tag_merge_log(
         self,
         tag_service: NamedDependency[TagService],
@@ -294,7 +295,7 @@ class TaxonomyController(Controller):
             offset=offset,
         )
 
-    @delete("/tags/merge-log/{merge_id:int}", status_code=200, sync_to_thread=True)
+    @delete("/tags/merge-log/{merge_id:int}", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def undo_tag_merge(
         self,
         tag_service: NamedDependency[TagService],
@@ -312,7 +313,7 @@ class TaxonomyController(Controller):
             data=entry,
         )
 
-    @get("/tags/stopwords", sync_to_thread=True)
+    @get("/tags/stopwords", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_stopwords(
         self,
         tag_service: NamedDependency[TagService],
@@ -330,7 +331,7 @@ class TaxonomyController(Controller):
         """
         return tag_service.list_stopwords(axis)
 
-    @post("/tags/stopwords", status_code=201, sync_to_thread=True)
+    @post("/tags/stopwords", opt={"access": Access.CURATE}, status_code=201, sync_to_thread=True)
     def create_stopwords(
         self,
         tag_service: NamedDependency[TagService],
@@ -344,7 +345,7 @@ class TaxonomyController(Controller):
             created=created,
         )
 
-    @delete("/tags/stopwords", status_code=200, sync_to_thread=True)
+    @delete("/tags/stopwords", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def remove_stopwords(
         self,
         tag_service: NamedDependency[TagService],
@@ -358,7 +359,7 @@ class TaxonomyController(Controller):
             removed=removed,
         )
 
-    @post("/tags/stopwords/purge/preview", status_code=200, sync_to_thread=True)
+    @post("/tags/stopwords/purge/preview", opt={"access": Access.AUTHENTICATED}, status_code=200, sync_to_thread=True)
     def preview_stopword_purge(self, tag_service: NamedDependency[TagService]) -> StopwordPurgePreview:
         """
         The dry run of the only destructive operation in the taxonomy without an undo.
@@ -368,7 +369,7 @@ class TaxonomyController(Controller):
         """
         return tag_service.preview_stopword_purge()
 
-    @post("/tags/stopwords/purge", status_code=200, sync_to_thread=True)
+    @post("/tags/stopwords/purge", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def purge_stopwords(
         self, tag_service: NamedDependency[TagService], data: StopwordsRequest
     ) -> StopwordPurgeResponse:
@@ -389,7 +390,7 @@ class TaxonomyController(Controller):
             tags_deleted=deleted_count,
         )
 
-    @post("/tags/suggest-macro")
+    @post("/tags/suggest-macro", opt={"access": Access.CURATE})
     async def suggest_macro_categories(
         self, tag_service: NamedDependency[TagService], data: SuggestMacroRequest
     ) -> MacroCategoriesSuggestionResponse:
@@ -427,12 +428,12 @@ class TaxonomyController(Controller):
     # ROUTES: SUBJECT EXCLUSIONS (the term is not an "about")
     # ==========================================
 
-    @get("/tags/subject-exclusions", sync_to_thread=True)
+    @get("/tags/subject-exclusions", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_subject_exclusions(self, tag_service: NamedDependency[TagService]) -> list[str]:
         """Lists the terms the curation decided are not a subject."""
         return tag_service.list_subject_exclusions()
 
-    @get("/tags/subject-exclusions/suggestions", sync_to_thread=True)
+    @get("/tags/subject-exclusions/suggestions", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def suggest_subject_exclusions(
         self,
         tag_service: NamedDependency[TagService],
@@ -453,7 +454,7 @@ class TaxonomyController(Controller):
         """
         return tag_service.suggest_subject_exclusions(limit=limit, offset=offset, include_excluded=include_excluded)
 
-    @post("/tags/subject-exclusions", status_code=201, sync_to_thread=True)
+    @post("/tags/subject-exclusions", opt={"access": Access.CURATE}, status_code=201, sync_to_thread=True)
     def create_subject_exclusions(
         self, tag_service: NamedDependency[TagService], data: SubjectExclusionRequest
     ) -> SubjectExclusionBanResponse:
@@ -471,7 +472,7 @@ class TaxonomyController(Controller):
             created=created,
         )
 
-    @delete("/tags/subject-exclusions", status_code=200, sync_to_thread=True)
+    @delete("/tags/subject-exclusions", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def remove_subject_exclusions(
         self, tag_service: NamedDependency[TagService], data: SubjectExclusionRemovalRequest
     ) -> SubjectExclusionRemovalResponse:
@@ -483,7 +484,7 @@ class TaxonomyController(Controller):
             removed=removed,
         )
 
-    @get("/macro-categories", sync_to_thread=True)
+    @get("/macro-categories", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_macro_categories(
         self,
         tag_service: NamedDependency[TagService],
@@ -492,7 +493,7 @@ class TaxonomyController(Controller):
         """Lists the official macro categories (the subject axis of the collection)."""
         return tag_service.list_macro_categories(only_active=only_active)
 
-    @post("/macro-categories", sync_to_thread=True)
+    @post("/macro-categories", opt={"access": Access.CATALOGUE}, sync_to_thread=True)
     def create_macro_category(
         self,
         tag_service: NamedDependency[TagService],
@@ -505,7 +506,7 @@ class TaxonomyController(Controller):
             )
         )
 
-    @patch("/macro-categories/{category_id:int}", sync_to_thread=True)
+    @patch("/macro-categories/{category_id:int}", opt={"access": Access.CATALOGUE}, sync_to_thread=True)
     def update_macro_category(
         self,
         tag_service: NamedDependency[TagService],
@@ -516,7 +517,7 @@ class TaxonomyController(Controller):
         command = UpdateMacroCategoryCommand(**data.model_dump(exclude_unset=True))
         return tag_service.update_macro_category(category_id, command)
 
-    @get("/entities", sync_to_thread=True)
+    @get("/entities", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def search_entities(
         self,
         entity_service: NamedDependency[EntityService],
@@ -532,7 +533,7 @@ class TaxonomyController(Controller):
         """
         return entity_service.search_entities(term, limit)
 
-    @get("/entities/relevance", sync_to_thread=True)
+    @get("/entities/relevance", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def get_entity_relevance(
         self,
         entity_service: NamedDependency[EntityService],
@@ -542,7 +543,7 @@ class TaxonomyController(Controller):
         results = entity_service.get_entity_relevance_count(entity_type, limit)
         return EntityRelevanceResponse(data=list(results))
 
-    @get("/entities/similar", sync_to_thread=True)
+    @get("/entities/similar", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def get_similar_entities(
         self,
         entity_service: NamedDependency[EntityService],
@@ -558,7 +559,7 @@ class TaxonomyController(Controller):
         results = entity_service.find_similar(target_name, entity_type, threshold)
         return EntitySimilarityResponse.from_payload(list(results))
 
-    @post("/entities/merge", sync_to_thread=True)
+    @post("/entities/merge", opt={"access": Access.CURATE}, sync_to_thread=True)
     def merge_entities(self, entity_service: NamedDependency[EntityService], data: MergeRequest) -> EntityMergeResponse:
         """Merges entities into the canonical one, answering with the same shape the tag merge uses."""
         res = entity_service.merge(
@@ -566,7 +567,7 @@ class TaxonomyController(Controller):
         )
         return EntityMergeResponse(documents_updated=res.documents_updated, entities_deleted=res.entities_deleted)
 
-    @post("/entities/orphans/purge", sync_to_thread=True)
+    @post("/entities/orphans/purge", opt={"access": Access.CURATE}, sync_to_thread=True)
     def purge_orphan_entities(self, entity_service: NamedDependency[EntityService]) -> OrphanEntityPurgeResponse:
         deleted_count = entity_service.purge_orphan_entities()
         return OrphanEntityPurgeResponse(
@@ -575,7 +576,7 @@ class TaxonomyController(Controller):
             entities_deleted=deleted_count,
         )
 
-    @patch("/entities/{entity_id:int}/reclassify", sync_to_thread=True)
+    @patch("/entities/{entity_id:int}/reclassify", opt={"access": Access.CURATE}, sync_to_thread=True)
     def reclassify_entity(
         self,
         entity_service: NamedDependency[EntityService],
@@ -589,7 +590,7 @@ class TaxonomyController(Controller):
             new_type=data.new_type,
         )
 
-    @delete("/entities/{entity_id:int}", status_code=200, sync_to_thread=True)
+    @delete("/entities/{entity_id:int}", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def delete_entity(
         self, entity_service: NamedDependency[EntityService], entity_id: FromPath[int]
     ) -> EntityDeleteResponse:
@@ -605,12 +606,12 @@ class TaxonomyController(Controller):
     # ROUTES: NER EXCLUSIONS (the subject axis owns the term)
     # ==========================================
 
-    @get("/entities/ner-exclusions", sync_to_thread=True)
+    @get("/entities/ner-exclusions", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_ner_exclusions(self, entity_service: NamedDependency[EntityService]) -> list[NerExclusion]:
         """Lists the terms the curation keeps out of the NER extraction."""
         return list(entity_service.list_ner_exclusions())
 
-    @post("/entities/ner-exclusions", status_code=201, sync_to_thread=True)
+    @post("/entities/ner-exclusions", opt={"access": Access.CURATE}, status_code=201, sync_to_thread=True)
     def create_ner_exclusions(
         self, entity_service: NamedDependency[EntityService], data: NerExclusionRequest
     ) -> NerExclusionBanResponse:
@@ -623,7 +624,7 @@ class TaxonomyController(Controller):
             entities_deleted=entities_deleted,
         )
 
-    @delete("/entities/ner-exclusions", status_code=200, sync_to_thread=True)
+    @delete("/entities/ner-exclusions", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def remove_ner_exclusions(
         self, entity_service: NamedDependency[EntityService], data: NerExclusionRequest
     ) -> NerExclusionRemovalResponse:
@@ -640,7 +641,7 @@ class TaxonomyController(Controller):
     # ROUTES: DOMAIN CLASH (Cross-Domain)
     # ==========================================
 
-    @get("/conflicts/cross-domain", sync_to_thread=True)
+    @get("/conflicts/cross-domain", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def get_cross_domain_conflicts(
         self,
         entity_service: NamedDependency[EntityService],
@@ -662,7 +663,7 @@ class TaxonomyController(Controller):
             threshold=threshold, pair_kind=pair_kind, limit=limit, offset=offset
         )
 
-    @get("/conflicts/judged", sync_to_thread=True)
+    @get("/conflicts/judged", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_judged_conflicts(
         self,
         entity_service: NamedDependency[EntityService],
@@ -679,7 +680,7 @@ class TaxonomyController(Controller):
         """
         return entity_service.list_judged_conflicts(limit=limit, offset=offset)
 
-    @post("/conflicts/resolve/preview", status_code=200, sync_to_thread=True)
+    @post("/conflicts/resolve/preview", opt={"access": Access.AUTHENTICATED}, status_code=200, sync_to_thread=True)
     def preview_conflict_resolution(
         self, entity_service: NamedDependency[EntityService], data: ConflictPreviewRequest
     ) -> ConflictResolutionPlan:
@@ -691,7 +692,7 @@ class TaxonomyController(Controller):
         """
         return entity_service.plan_conflict_resolution(data.tag_id, data.entity_id)
 
-    @post("/conflicts/resolve", sync_to_thread=True)
+    @post("/conflicts/resolve", opt={"access": Access.CURATE}, sync_to_thread=True)
     def resolve_cross_domain_conflict(
         self, entity_service: NamedDependency[EntityService], data: ConflictResolutionRequest
     ) -> ConflictResolutionResponse:
@@ -719,7 +720,7 @@ class TaxonomyController(Controller):
             data=result,
         )
 
-    @get("/conflicts/resolutions", sync_to_thread=True)
+    @get("/conflicts/resolutions", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_conflict_resolutions(
         self,
         entity_service: NamedDependency[EntityService],
@@ -733,7 +734,12 @@ class TaxonomyController(Controller):
         )
         return ConflictResolutionLogListResponse(total=total, limit=limit, offset=offset, items=items)
 
-    @delete("/conflicts/resolutions/{resolution_id:int}", status_code=200, sync_to_thread=True)
+    @delete(
+        "/conflicts/resolutions/{resolution_id:int}",
+        opt={"access": Access.CURATE},
+        status_code=200,
+        sync_to_thread=True,
+    )
     def undo_conflict_resolution(
         self,
         entity_service: NamedDependency[EntityService],

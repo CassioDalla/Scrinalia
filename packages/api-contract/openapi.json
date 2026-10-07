@@ -133,6 +133,60 @@
         "title": "ArrangementTermUpdateRequest",
         "type": "object"
       },
+      "AuthUserDTO": {
+        "properties": {
+          "created_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "email": {
+            "type": "string"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "last_login_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "must_change_password": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "user_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "email",
+          "is_active",
+          "must_change_password",
+          "name",
+          "role",
+          "user_id"
+        ],
+        "title": "AuthUserDTO",
+        "type": "object"
+      },
       "BatchMergeResponse": {
         "properties": {
           "applied": {
@@ -156,6 +210,24 @@
         },
         "required": [],
         "title": "BatchMergeResponse",
+        "type": "object"
+      },
+      "ChangePasswordCommand": {
+        "properties": {
+          "current_password": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "new_password": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "title": "ChangePasswordCommand",
         "type": "object"
       },
       "CleaningRuleDTO": {
@@ -4012,6 +4084,25 @@
         "title": "JudgedConflictPage",
         "type": "object"
       },
+      "LoginCommand": {
+        "properties": {
+          "email": {
+            "maxLength": 320,
+            "minLength": 3,
+            "type": "string"
+          },
+          "password": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginCommand",
+        "type": "object"
+      },
       "MacroCategoriesSuggestionResponse": {
         "properties": {
           "categories": {
@@ -5165,6 +5256,16 @@
         "title": "ReclassifyEntityRequest",
         "type": "object"
       },
+      "Role": {
+        "description": "\n    The three answers an archive actually needs.\n\n    ``ADMIN`` is not \"a curator with more buttons\": it owns the two things that belong to the\n    *installation* rather than to the collection — the accounts and the AI workers. Triggering a\n    worker costs CPU for minutes, and changing its preset changes every future classification, so it\n    is deliberately not something a curation account does by accident. ``CURATOR`` is the archivist\n    who decides about descriptions, subjects and catalogues. ``VIEWER`` reads everything and writes\n    nothing: the colleague who needs to consult the collection without being able to alter it.\n    ",
+        "enum": [
+          "ADMIN",
+          "CURATOR",
+          "VIEWER"
+        ],
+        "title": "Role",
+        "type": "string"
+      },
       "RouteMessageCode": {
         "description": "\n    What a write route did, as an identifier rather than a sentence.\n\n    One member per outcome, shared by the routes that can produce it: creating and deactivating a\n    cleaning rule answer the same schema with different codes, because the screen says different\n    things and a translation catalogue needs to tell them apart.\n    ",
         "enum": [
@@ -5188,10 +5289,28 @@
           "ORPHAN_ENTITIES_PURGED",
           "ENTITY_RECLASSIFIED",
           "ENTITY_DELETED",
-          "CONFLICT_RESOLVED"
+          "CONFLICT_RESOLVED",
+          "SESSION_ENDED",
+          "PASSWORD_CHANGED"
         ],
         "title": "RouteMessageCode",
         "type": "string"
+      },
+      "RouteResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "RouteResponse",
+        "type": "object"
       },
       "StopwordBanResponse": {
         "properties": {
@@ -7280,6 +7399,194 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/auth/login": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1AuthLoginLogin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthUserDTO"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Login",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1AuthLogoutLogout",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "Logout",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1AuthMeMe",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthUserDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "Me",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/password": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1AuthPasswordChangePassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ChangePassword",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/curation/inbox": {
       "get": {
         "deprecated": false,

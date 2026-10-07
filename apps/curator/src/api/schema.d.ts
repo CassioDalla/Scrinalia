@@ -4,6 +4,74 @@
  */
 
 export interface paths {
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Login */
+        post: operations["ApiV1AuthLoginLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Logout */
+        post: operations["ApiV1AuthLogoutLogout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Me */
+        get: operations["ApiV1AuthMeMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ChangePassword */
+        post: operations["ApiV1AuthPasswordChangePassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/curation/inbox": {
         parameters: {
             query?: never;
@@ -1504,11 +1572,27 @@ export interface components {
             display_name?: string | null;
             is_active?: boolean | null;
         };
+        /** AuthUserDTO */
+        AuthUserDTO: {
+            created_at?: string | null;
+            email: string;
+            is_active: boolean;
+            last_login_at?: string | null;
+            must_change_password: boolean;
+            name: string;
+            role: components["schemas"]["Role"];
+            user_id: number;
+        };
         /** BatchMergeResponse */
         BatchMergeResponse: {
             applied?: components["schemas"]["MergeBatchApplied"][];
             failed?: components["schemas"]["MergeBatchFailure"][];
             skipped?: components["schemas"]["MergeBatchFailure"][];
+        };
+        /** ChangePasswordCommand */
+        ChangePasswordCommand: {
+            current_password: string;
+            new_password: string;
         };
         /** CleaningRuleDTO */
         CleaningRuleDTO: {
@@ -2469,6 +2553,11 @@ export interface components {
             tag_wins: number;
             total: number;
         };
+        /** LoginCommand */
+        LoginCommand: {
+            email: string;
+            password: string;
+        };
         /** MacroCategoriesSuggestionResponse */
         MacroCategoriesSuggestionResponse: {
             categories: components["schemas"]["MacroCategorySuggested"][];
@@ -2739,6 +2828,19 @@ export interface components {
             new_type: "ORG" | "PER" | "LOC";
         };
         /**
+         * Role
+         * @description The three answers an archive actually needs.
+         *
+         *         ``ADMIN`` is not "a curator with more buttons": it owns the two things that belong to the
+         *         *installation* rather than to the collection — the accounts and the AI workers. Triggering a
+         *         worker costs CPU for minutes, and changing its preset changes every future classification, so it
+         *         is deliberately not something a curation account does by accident. ``CURATOR`` is the archivist
+         *         who decides about descriptions, subjects and catalogues. ``VIEWER`` reads everything and writes
+         *         nothing: the colleague who needs to consult the collection without being able to alter it.
+         * @enum {string}
+         */
+        Role: "ADMIN" | "CURATOR" | "VIEWER";
+        /**
          * RouteMessageCode
          * @description What a write route did, as an identifier rather than a sentence.
          *
@@ -2747,7 +2849,12 @@ export interface components {
          *         things and a translation catalogue needs to tell them apart.
          * @enum {string}
          */
-        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORD_PURGE_DONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "CONFLICT_RESOLVED";
+        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORD_PURGE_DONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "CONFLICT_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED";
+        /** RouteResponse */
+        RouteResponse: {
+            code: components["schemas"]["RouteMessageCode"];
+            message: string;
+        };
         /** StopwordBanResponse */
         StopwordBanResponse: {
             code: components["schemas"]["RouteMessageCode"];
@@ -3318,6 +3425,124 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    ApiV1AuthLoginLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginCommand"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthUserDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1AuthLogoutLogout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RouteResponse"];
+                };
+            };
+        };
+    };
+    ApiV1AuthMeMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthUserDTO"];
+                };
+            };
+        };
+    };
+    ApiV1AuthPasswordChangePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordCommand"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RouteResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
     ApiV1CurationInboxGetInbox: {
         parameters: {
             query?: never;

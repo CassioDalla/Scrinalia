@@ -8,9 +8,11 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from litestar.testing import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
+from scrinalia.asgi import create_app
 from scrinalia.core.base import Base
 from scrinalia.domains.archive.domain.collection_vocabulary import (
     ARRANGEMENT_TERMS,
@@ -39,6 +41,11 @@ from scrinalia.domains.ingestion import models as ingest_model
 TESTS_FOLDER = Path(__file__).parent
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql://test_user:test_password@localhost:5433/test_db")
+
+#: The account the API integration tests sign in as, and the password they use. Constants and not
+#: literals repeated per file: one login path means one place to change when the policy moves.
+TEST_ADMIN_EMAIL = "admin@teste.local"
+TEST_ADMIN_PASSWORD = "senha de teste bem longa"
 
 # ``unaccent(regdictionary, text)`` is STABLE, so a generated column / index cannot
 # use it directly. This IMMUTABLE wrapper pins the fixed unaccent dictionary and is
@@ -213,14 +220,90 @@ def api_uses_test_db(db_session):
     without this patch a request would run on a different connection: it could neither see the rows
     a test just flushed nor be asserted on afterwards. ``use_test_db`` is not enough here because it
     patches ``get_db``, which the API composition root does not use.
+
+    The **session guard** opens its own short session through ``api.security.get_db`` (it runs before
+    dependency resolution, so it has no unit of work to borrow), and that one is patched too: without
+    it a login written by the request transaction would be looked up in the real database, and every
+    authenticated request in the suite would answer 401.
     """
 
     @contextmanager
     def _session():
         yield db_session
 
-    with patch("scrinalia.api.dependencies.create_session", _session):
+    with (
+        patch("scrinalia.api.dependencies.create_session", _session),
+        patch("scrinalia.api.security.get_db", _session),
+    ):
         yield
+
+
+@pytest.fixture()
+def api_client(api_uses_test_db) -> Generator[TestClient, None, None]:
+    """
+    The HTTP client of the integration tests, over the test database.
+
+    It is deliberately **anonymous**: a test that needs a session asks for ``authenticated_client``,
+    and a test about the open surface (the diffusion routes, the health probes, the login itself) gets
+    the honest thing — a client that has not signed in.
+    """
+    with TestClient(app=create_app()) as test_client:
+        yield test_client  # type: ignore[misc]
+
+
+@pytest.fixture()
+def authenticated_client(api_client, generate_user) -> TestClient:
+    """
+    An ``api_client`` with an administrator signed in.
+
+    An administrator and not a curator because the tests exercise routes of every permission, and the
+    point of most of them is the route's own behaviour, not who may call it. The role rules have their
+    own tests (``test_authorization``), which sign in as the role they are about.
+    """
+    generate_user(email=TEST_ADMIN_EMAIL, name="Administrador de teste", role=Role.ADMIN, password=TEST_ADMIN_PASSWORD)
+    response = api_client.post(
+        "/api/v1/auth/login",
+        json={"email": TEST_ADMIN_EMAIL, "password": TEST_ADMIN_PASSWORD},
+    )
+    assert response.status_code == 200, response.text
+    return api_client
+
+
+@pytest.fixture()
+def client(authenticated_client: TestClient) -> TestClient:
+    """
+    The default client of the API integration tests: signed in.
+
+    It carries the name every test already used, because the requirement changed for all of them at
+    once: since ADR 0009 an operation of ``/api/v1`` answers 401 to an anonymous client, so a test
+    that wants to exercise a curator route has to be somebody. The files that need to prove the
+    opposite — that the surface is open, or that a role is refused — ask for ``api_client`` or sign in
+    as the role under test.
+    """
+    return authenticated_client
+
+
+@pytest.fixture()
+def sign_in(api_client, generate_user):
+    """
+    Signs an account of a given role in and hands the client back.
+
+    The role is the argument and not the fixture name because the authorization tests are about the
+    *difference* between roles: reading them side by side in one test is the point, and a fixture per
+    role would hide the comparison behind three definitions.
+    """
+
+    def _sign_in(role: Role, email: str | None = None) -> TestClient:
+        address = email or f"{role.value.lower()}@teste.local"
+        generate_user(email=address, name=f"Conta {role.value}", role=role, password=TEST_ADMIN_PASSWORD)
+        response = api_client.post(
+            "/api/v1/auth/login",
+            json={"email": address, "password": TEST_ADMIN_PASSWORD},
+        )
+        assert response.status_code == 200, response.text
+        return api_client
+
+    return _sign_in
 
 
 @pytest.fixture

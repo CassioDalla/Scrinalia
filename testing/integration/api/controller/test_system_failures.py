@@ -5,19 +5,11 @@ the source vocabulary, and that ``/system/runs?fingerprint=`` really narrows the
 ignoring the parameter and answering everything.
 """
 
-import pytest
 from litestar.testing import TestClient
 
-from scrinalia.asgi import create_app
 from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
 from scrinalia.domains.archive.models.operations import ApiError
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
-
-
-@pytest.fixture
-def client(api_uses_test_db) -> TestClient:
-    with TestClient(app=create_app()) as test_client:
-        yield test_client  # type: ignore[misc]
 
 
 def _failed_run(db, *, worker: str = "ner", message: str = "boom") -> int:

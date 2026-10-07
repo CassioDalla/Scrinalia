@@ -1,6 +1,5 @@
 """HTTP contract of the cleaning-rules controller."""
 
-import pytest
 from litestar.status_codes import (
     HTTP_200_OK,
     HTTP_201_CREATED,
@@ -9,7 +8,6 @@ from litestar.status_codes import (
 )
 from litestar.testing import TestClient
 
-from scrinalia.asgi import create_app
 from scrinalia.domains.archive.exceptions import CleaningRuleNotFoundError, InvalidParam
 from scrinalia.domains.archive.schemas.cleaning_schema import (
     CleaningRuleDTO,
@@ -17,13 +15,6 @@ from scrinalia.domains.archive.schemas.cleaning_schema import (
     DryRunResponseDTO,
 )
 from scrinalia.domains.archive.services.cleaning_service import CleaningService
-
-
-@pytest.fixture
-def client() -> TestClient:  # type: ignore
-    """Provides a test HTTP client for Litestar."""
-    with TestClient(app=create_app()) as client:
-        yield client  # type: ignore
 
 
 def _rule(rule_id: int = 1) -> CleaningRuleDTO:

@@ -26,6 +26,7 @@ from scrinalia.api.schemas.public import (
     PublicDocumentListResponse,
     PublicDocumentSummary,
 )
+from scrinalia.api.security import Access
 from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery
 from scrinalia.domains.archive.services.document_service import DocumentService
 
@@ -38,7 +39,7 @@ class PublicController(Controller):
         "document_service": Provide(provide_document_service, sync_to_thread=False),
     }
 
-    @get("/documents", sync_to_thread=True)
+    @get("/documents", opt={"access": Access.PUBLIC}, sync_to_thread=True)
     def list_published(
         self,
         document_service: NamedDependency[DocumentService],
@@ -80,7 +81,7 @@ class PublicController(Controller):
             facets=PublicDocumentFacets.from_facets(page.facets),
         )
 
-    @get("/documents/{description_id:str}", sync_to_thread=True)
+    @get("/documents/{description_id:str}", opt={"access": Access.PUBLIC}, sync_to_thread=True)
     def get_published(
         self, document_service: NamedDependency[DocumentService], description_id: FromPath[str]
     ) -> PublicDocumentSummary:

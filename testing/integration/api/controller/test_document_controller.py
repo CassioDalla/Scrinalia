@@ -7,11 +7,9 @@ service and repository suites.
 
 from datetime import UTC, date, datetime
 
-import pytest
 from litestar.status_codes import HTTP_200_OK, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
 from litestar.testing import TestClient
 
-from scrinalia.asgi import create_app
 from scrinalia.domains.archive.exceptions import DocumentHasChildrenError, DocumentNotFoundError
 from scrinalia.domains.archive.models import ArchiveReviewStatus
 from scrinalia.domains.archive.schemas.document_schema import (
@@ -23,13 +21,6 @@ from scrinalia.domains.archive.schemas.document_schema import (
     DocumentTagSummary,
 )
 from scrinalia.domains.archive.services.document_service import DocumentService
-
-
-@pytest.fixture
-def client() -> TestClient:  # type: ignore
-    """Provides a test HTTP client for Litestar."""
-    with TestClient(app=create_app()) as client:
-        yield client  # type: ignore
 
 
 def _summary(description_id: str = "doc-1") -> DocumentSummary:

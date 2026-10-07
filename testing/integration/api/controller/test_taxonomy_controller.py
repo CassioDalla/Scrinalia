@@ -1,6 +1,5 @@
 from datetime import UTC, datetime
 
-import pytest
 from litestar.status_codes import (
     HTTP_200_OK,
     HTTP_201_CREATED,
@@ -12,7 +11,6 @@ from litestar.status_codes import (
 from litestar.testing import TestClient
 from sqlalchemy.exc import IntegrityError
 
-from scrinalia.asgi import create_app
 from scrinalia.domains.archive.exceptions import (
     InvalidMergeError,
     MacroCategoryNotFoundError,
@@ -31,15 +29,9 @@ from scrinalia.domains.archive.schemas.tag_schema import (  # <-- Import the DTO
 from scrinalia.domains.archive.services.entity_service import EntityService
 from scrinalia.domains.archive.services.tag_service import TagService
 
-
 # ==========================================
 # HTTP CLIENT FIXTURE
 # ==========================================
-@pytest.fixture
-def client() -> TestClient:  # type: ignore
-    """Provides a test HTTP client for Litestar."""
-    with TestClient(app=create_app()) as client:
-        yield client  # type: ignore
 
 
 # ==========================================

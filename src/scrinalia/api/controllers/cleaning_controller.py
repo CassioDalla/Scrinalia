@@ -4,6 +4,7 @@ from litestar.params import FromPath
 
 from scrinalia.api.dependencies import provide_cleaning_service
 from scrinalia.api.schemas.cleaning_requests import CreateCleaningRuleRequest, DryRunRequest
+from scrinalia.api.security import Access
 from scrinalia.domains.archive.schemas import RouteMessageCode
 from scrinalia.domains.archive.schemas.cleaning_schema import (
     CleaningRuleCreateDTO,
@@ -20,7 +21,7 @@ class CleaningController(Controller):
     tags = ["Data Quality"]  # noqa: RUF012
     dependencies = {"cleaning_service": Provide(provide_cleaning_service, sync_to_thread=False)}  # noqa: RUF012
 
-    @get("/", sync_to_thread=True)
+    @get("/", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_rules(self, cleaning_service: NamedDependency[CleaningService]) -> list[CleaningRuleDTO]:
         """
         Every active rule, with its ``rule_kind``.
@@ -31,7 +32,7 @@ class CleaningController(Controller):
         """
         return cleaning_service.get_active_rules()
 
-    @patch("/{rule_id:int}/deactivate", sync_to_thread=True)
+    @patch("/{rule_id:int}/deactivate", opt={"access": Access.CATALOGUE}, sync_to_thread=True)
     def deactivate_rule(
         self, rule_id: FromPath[int], cleaning_service: NamedDependency[CleaningService]
     ) -> CleaningRuleMutationResponse:
@@ -41,7 +42,7 @@ class CleaningController(Controller):
             code=RouteMessageCode.CLEANING_RULE_DEACTIVATED, message="Regra desativada com sucesso.", data=rule
         )
 
-    @post("/", sync_to_thread=True)
+    @post("/", opt={"access": Access.CATALOGUE}, sync_to_thread=True)
     def create_rule(
         self, cleaning_service: NamedDependency[CleaningService], data: CreateCleaningRuleRequest
     ) -> CleaningRuleMutationResponse:
@@ -67,7 +68,7 @@ class CleaningController(Controller):
             data=new_rule,
         )
 
-    @post("/preview", sync_to_thread=True)
+    @post("/preview", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def preview_dry_run(
         self, cleaning_service: NamedDependency[CleaningService], data: DryRunRequest
     ) -> DryRunResponseDTO:

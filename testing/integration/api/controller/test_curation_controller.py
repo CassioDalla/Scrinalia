@@ -1,24 +1,9 @@
 """HTTP contract of the curator's work list."""
 
-import pytest
 from litestar.testing import TestClient
 
-from scrinalia.asgi import create_app
 from scrinalia.domains.archive.schemas.curation_schema import CurationInbox, CurationQueue
 from scrinalia.domains.archive.services.curation_service import QUEUE_CATALOGUE, CurationService
-
-
-@pytest.fixture
-def client(mocker) -> TestClient:  # type: ignore
-    """
-    Client with the service mocked.
-
-    The counts themselves are covered against the database in
-    ``testing/integration/archive/repository/test_curation_repository.py``; here we pin the HTTP
-    envelope and, more importantly, that the catalogue and the repository cannot drift apart.
-    """
-    with TestClient(app=create_app()) as client:
-        yield client  # type: ignore
 
 
 def _inbox(*, count: int = 0) -> CurationInbox:

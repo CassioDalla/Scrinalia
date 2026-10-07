@@ -7,7 +7,6 @@ the preview shows is the number the write produces, and the write can be reverse
 meaningful through the router that writes.
 """
 
-import pytest
 from litestar.status_codes import (
     HTTP_200_OK,
     HTTP_201_CREATED,
@@ -18,7 +17,6 @@ from litestar.status_codes import (
 )
 from litestar.testing import TestClient
 
-from scrinalia.asgi import create_app
 from scrinalia.domains.archive.exceptions import (
     ConflictResolutionAlreadyUndoneError,
     ConflictResolutionNotFoundError,
@@ -34,12 +32,6 @@ from scrinalia.domains.archive.schemas.entity_schema import (
     JudgedConflictPage,
 )
 from scrinalia.domains.archive.services.entity_service import EntityService
-
-
-@pytest.fixture
-def client() -> TestClient:  # type: ignore
-    with TestClient(app=create_app()) as test_client:
-        yield test_client  # type: ignore
 
 
 def _conflict(tag_id: int = 1, similarity: float = 0.97) -> CrossDomainConflict:

@@ -21,9 +21,14 @@ from scrinalia.domains.archive.services.document_service import DocumentService
 
 
 @pytest.fixture
-def client() -> TestClient:  # type: ignore
-    with TestClient(app=create_app()) as client:
-        yield client  # type: ignore
+def client(api_client: TestClient) -> TestClient:
+    """
+    Anonymous on purpose.
+
+    This surface exists to answer without a session (ADR 0003), so a test that signed in first would
+    stop being able to notice the day a route here starts requiring one.
+    """
+    return api_client
 
 
 def _published_summary(description_id: str = "pub-1") -> DocumentSummary:

@@ -6,6 +6,7 @@ from litestar.params import FromPath, FromQuery
 
 from scrinalia.api.dependencies import provide_typology_service
 from scrinalia.api.schemas.typologies import TypologyCreateRequest, TypologyUpdateRequest
+from scrinalia.api.security import Access
 from scrinalia.domains.archive.schemas.typology_schema import (
     CreateTypologyCommand,
     TypologyDTO,
@@ -37,7 +38,7 @@ class TypologyController(Controller):
         "typology_service": Provide(provide_typology_service, sync_to_thread=False),
     }
 
-    @get("/", sync_to_thread=True)
+    @get("/", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_typologies(
         self,
         typology_service: NamedDependency[TypologyService],
@@ -52,7 +53,7 @@ class TypologyController(Controller):
         """
         return typology_service.list_typologies(only_active=only_active)
 
-    @post("/", status_code=201, sync_to_thread=True)
+    @post("/", opt={"access": Access.CATALOGUE}, status_code=201, sync_to_thread=True)
     def create_typology(
         self,
         typology_service: NamedDependency[TypologyService],
@@ -61,7 +62,7 @@ class TypologyController(Controller):
         """Registers a typology. A name already taken — even by a retired one — is rejected with 409."""
         return typology_service.create_typology(CreateTypologyCommand(**data.model_dump()))
 
-    @patch("/{typology_id:int}", sync_to_thread=True)
+    @patch("/{typology_id:int}", opt={"access": Access.CATALOGUE}, sync_to_thread=True)
     def update_typology(
         self,
         typology_service: NamedDependency[TypologyService],

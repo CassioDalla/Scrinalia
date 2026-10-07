@@ -14,6 +14,7 @@ from scrinalia.api.dependencies import (
     provide_worker_operations_service,
     provide_worker_run_service,
 )
+from scrinalia.api.security import Access
 from scrinalia.api.system_health import probe_infrastructure
 from scrinalia.domains.archive.models.enums import WorkerRunStatus
 from scrinalia.domains.archive.schemas.system_schema import (
@@ -42,7 +43,7 @@ class SystemController(Controller):
         "failure_service": Provide(provide_failure_service, sync_to_thread=False),
     }
 
-    @get("/workers", sync_to_thread=True)
+    @get("/workers", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_workers(self, operations_service: NamedDependency[WorkerOperationsService]) -> SystemWorkersResponse:
         """
         The whole panel in one request: nine workers with configuration, queues and last run.
@@ -52,7 +53,7 @@ class SystemController(Controller):
         """
         return operations_service.list_workers()
 
-    @get("/runs", sync_to_thread=True)
+    @get("/runs", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_runs(
         self,
         run_service: NamedDependency[WorkerRunService],
@@ -72,7 +73,7 @@ class SystemController(Controller):
             worker_name=worker, status=status, fingerprint=fingerprint, limit=limit, offset=offset
         )
 
-    @get("/failures", sync_to_thread=True)
+    @get("/failures", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_failures(
         self,
         failure_service: NamedDependency[FailureService],
@@ -88,7 +89,7 @@ class SystemController(Controller):
         """
         return failure_service.list_groups(days=days, worker=worker, limit=limit)
 
-    @post("/workers/{worker_name:str}/runs", status_code=201, sync_to_thread=True)
+    @post("/workers/{worker_name:str}/runs", opt={"access": Access.OPERATE}, status_code=201, sync_to_thread=True)
     def trigger_run(
         self,
         run_service: NamedDependency[WorkerRunService],
@@ -104,7 +105,7 @@ class SystemController(Controller):
         """
         return run_service.trigger(worker_name, data)
 
-    @put("/workers/{worker_name:str}/settings", status_code=200, sync_to_thread=True)
+    @put("/workers/{worker_name:str}/settings", opt={"access": Access.OPERATE}, status_code=200, sync_to_thread=True)
     def update_settings(
         self,
         operations_service: NamedDependency[WorkerOperationsService],
@@ -114,7 +115,7 @@ class SystemController(Controller):
         """Persists the default engine/preset/batch/options of one worker."""
         return operations_service.update_settings(worker_name, data)
 
-    @delete("/workers/{worker_name:str}/settings", status_code=200, sync_to_thread=True)
+    @delete("/workers/{worker_name:str}/settings", opt={"access": Access.OPERATE}, status_code=200, sync_to_thread=True)
     def clear_settings(
         self,
         operations_service: NamedDependency[WorkerOperationsService],
@@ -124,7 +125,7 @@ class SystemController(Controller):
         """Drops the override so the worker follows the code again; idempotent."""
         return operations_service.clear_settings(worker_name, changed_by=changed_by)
 
-    @get("/workers/{worker_name:str}/settings/revisions", sync_to_thread=True)
+    @get("/workers/{worker_name:str}/settings/revisions", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_settings_revisions(
         self,
         operations_service: NamedDependency[WorkerOperationsService],
@@ -135,7 +136,7 @@ class SystemController(Controller):
         """Who changed what, when — an audit trail nobody can read is half a feature."""
         return operations_service.list_revisions(worker_name, limit=limit, offset=offset)
 
-    @get("/health", sync_to_thread=True)
+    @get("/health", opt={"access": Access.OPERATE}, sync_to_thread=True)
     def health(self) -> SystemHealthResponse:
         """Database, Ollama (with the models the presets need), object storage and the process."""
         return probe_infrastructure()

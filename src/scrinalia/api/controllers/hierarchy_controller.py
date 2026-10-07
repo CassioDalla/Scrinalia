@@ -21,6 +21,7 @@ from scrinalia.api.schemas.hierarchy_requests import (
     HierarchyPlanDecisionRequest,
     HierarchyProposalRequest,
 )
+from scrinalia.api.security import Access
 from scrinalia.domains.archive.domain.hierarchy import (
     HierarchyViolation,
     PlanStatus,
@@ -94,7 +95,7 @@ class HierarchyController(Controller):
     # =========================================================================
     # H1 — Level catalogue
     # =========================================================================
-    @get("/levels", sync_to_thread=True)
+    @get("/levels", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_levels(
         self,
         level_service: NamedDependency[LevelCatalogService],
@@ -103,7 +104,7 @@ class HierarchyController(Controller):
         """Lists the ladder of description levels, with how many descriptions sit on each rung."""
         return level_service.list_levels(only_active=only_active)
 
-    @post("/levels", status_code=201, sync_to_thread=True)
+    @post("/levels", opt={"access": Access.CATALOGUE}, status_code=201, sync_to_thread=True)
     def create_level(
         self,
         level_service: NamedDependency[LevelCatalogService],
@@ -112,7 +113,7 @@ class HierarchyController(Controller):
         """Registers a rung. A taken ordinal, code or name is rejected with 409."""
         return level_service.create_level(CreateDescriptionLevelCommand(**data.model_dump()))
 
-    @patch("/levels/{level_id:int}", sync_to_thread=True)
+    @patch("/levels/{level_id:int}", opt={"access": Access.CATALOGUE}, sync_to_thread=True)
     def update_level(
         self,
         level_service: NamedDependency[LevelCatalogService],
@@ -127,7 +128,7 @@ class HierarchyController(Controller):
     # =========================================================================
     # H2 — The tree
     # =========================================================================
-    @get("/tree", sync_to_thread=True)
+    @get("/tree", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def get_tree(
         self,
         hierarchy_service: NamedDependency[HierarchyService],
@@ -148,7 +149,7 @@ class HierarchyController(Controller):
         """
         return hierarchy_service.tree(root_id=root_id, max_depth=max_depth, limit=limit, offset=offset)
 
-    @get("/nodes/{description_id:str}", sync_to_thread=True)
+    @get("/nodes/{description_id:str}", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def get_node(
         self,
         hierarchy_service: NamedDependency[HierarchyService],
@@ -162,7 +163,7 @@ class HierarchyController(Controller):
         """
         return hierarchy_service.node(description_id)
 
-    @get("/nodes/{description_id:str}/children", sync_to_thread=True)
+    @get("/nodes/{description_id:str}/children", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_children(
         self,
         hierarchy_service: NamedDependency[HierarchyService],
@@ -171,7 +172,7 @@ class HierarchyController(Controller):
         """Direct children of one description."""
         return hierarchy_service.children(description_id)
 
-    @get("/nodes/{description_id:str}/ancestors", sync_to_thread=True)
+    @get("/nodes/{description_id:str}/ancestors", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_ancestors(
         self,
         hierarchy_service: NamedDependency[HierarchyService],
@@ -180,7 +181,7 @@ class HierarchyController(Controller):
         """Ancestors of one description, root first, read from the materialised path."""
         return hierarchy_service.ancestors(description_id)
 
-    @post("/nodes", status_code=201, sync_to_thread=True)
+    @post("/nodes", opt={"access": Access.CURATE}, status_code=201, sync_to_thread=True)
     def create_node(
         self,
         hierarchy_service: NamedDependency[HierarchyService],
@@ -194,7 +195,7 @@ class HierarchyController(Controller):
         """
         return hierarchy_service.create_node(CreateHierarchyNodeCommand(**data.model_dump()))
 
-    @post("/nodes/{description_id:str}/move", status_code=200, sync_to_thread=True)
+    @post("/nodes/{description_id:str}/move", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def move_node(
         self,
         hierarchy_service: NamedDependency[HierarchyService],
@@ -220,7 +221,7 @@ class HierarchyController(Controller):
     # =========================================================================
     # Diagnostics
     # =========================================================================
-    @get("/diagnostics", sync_to_thread=True)
+    @get("/diagnostics", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_diagnostics(
         self,
         hierarchy_service: NamedDependency[HierarchyService],
@@ -237,7 +238,7 @@ class HierarchyController(Controller):
         """
         return hierarchy_service.diagnostics(issue=issue, limit=limit, offset=offset)
 
-    @get("/diagnostics/summary", sync_to_thread=True)
+    @get("/diagnostics/summary", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def summarise_diagnostics(
         self,
         hierarchy_service: NamedDependency[HierarchyService],
@@ -253,7 +254,7 @@ class HierarchyController(Controller):
     # =========================================================================
     # H3 — Proposal (read-only)
     # =========================================================================
-    @post("/proposal", status_code=200, sync_to_thread=True)
+    @post("/proposal", opt={"access": Access.AUTHENTICATED}, status_code=200, sync_to_thread=True)
     def propose_tree(
         self,
         proposal_service: NamedDependency[HierarchyProposalService],
@@ -269,7 +270,7 @@ class HierarchyController(Controller):
         """
         return proposal_service.propose(HierarchyProposalCommand(**data.model_dump()))
 
-    @get("/flags", sync_to_thread=True)
+    @get("/flags", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_flags(self) -> HierarchyVocabulary:
         """
         The vocabularies the arrangement screens group by, so a front never embeds the enums.
@@ -295,7 +296,7 @@ class HierarchyController(Controller):
     # =========================================================================
     # H4 — Materialising the tree, driven by a recorded decision
     # =========================================================================
-    @post("/plans/suggest", status_code=200, sync_to_thread=True)
+    @post("/plans/suggest", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def suggest_plans(
         self,
         materialisation_service: NamedDependency[HierarchyMaterialisationService],
@@ -309,7 +310,7 @@ class HierarchyController(Controller):
         """
         return materialisation_service.suggest()
 
-    @get("/plans", sync_to_thread=True)
+    @get("/plans", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_plans(
         self,
         materialisation_service: NamedDependency[HierarchyMaterialisationService],
@@ -320,7 +321,7 @@ class HierarchyController(Controller):
         """One page of the rungs, with the evidence and the decision about each."""
         return materialisation_service.list_plans(status=status, limit=limit, offset=offset)
 
-    @patch("/plans/{plan_id:int}", sync_to_thread=True)
+    @patch("/plans/{plan_id:int}", opt={"access": Access.CURATE}, sync_to_thread=True)
     def decide_plan(
         self,
         materialisation_service: NamedDependency[HierarchyMaterialisationService],
@@ -336,7 +337,7 @@ class HierarchyController(Controller):
         """
         return materialisation_service.decide(plan_id, HierarchyPlanDecisionCommand(**data.model_dump()))
 
-    @post("/materialisation/preview", status_code=200, sync_to_thread=True)
+    @post("/materialisation/preview", opt={"access": Access.AUTHENTICATED}, status_code=200, sync_to_thread=True)
     def preview_materialisation(
         self,
         materialisation_service: NamedDependency[HierarchyMaterialisationService],
@@ -350,7 +351,7 @@ class HierarchyController(Controller):
         """
         return materialisation_service.preview(MaterialisationCommand(**data.model_dump()))
 
-    @post("/materialisation/apply", status_code=200, sync_to_thread=True)
+    @post("/materialisation/apply", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def apply_materialisation(
         self,
         materialisation_service: NamedDependency[HierarchyMaterialisationService],
@@ -364,7 +365,7 @@ class HierarchyController(Controller):
         """
         return materialisation_service.apply(MaterialisationCommand(**data.model_dump()))
 
-    @get("/materialisation/log", sync_to_thread=True)
+    @get("/materialisation/log", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_materialisation_log(
         self,
         materialisation_service: NamedDependency[HierarchyMaterialisationService],
@@ -381,7 +382,12 @@ class HierarchyController(Controller):
         """
         return materialisation_service.list_log(include_undone=include_undone, term=q, limit=limit, offset=offset)
 
-    @delete("/materialisation/log/{materialisation_id:int}", status_code=200, sync_to_thread=True)
+    @delete(
+        "/materialisation/log/{materialisation_id:int}",
+        opt={"access": Access.CURATE},
+        status_code=200,
+        sync_to_thread=True,
+    )
     def undo_materialisation(
         self,
         materialisation_service: NamedDependency[HierarchyMaterialisationService],

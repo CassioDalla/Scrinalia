@@ -13,7 +13,6 @@ from litestar.testing import TestClient
 from sqlalchemy import select
 
 from scrinalia.api import handlers
-from scrinalia.asgi import create_app
 from scrinalia.domains.archive.exceptions import WorkerNotFoundError
 from scrinalia.domains.archive.models.operations import ApiError
 from scrinalia.domains.archive.repository.api_error_repo import ApiErrorRecorder
@@ -25,12 +24,6 @@ from scrinalia.domains.archive.services.worker_run_service import WorkerRunServi
 def _shared_session(db):
     """Hands the test's session to the recorder without closing it on the way out."""
     yield db
-
-
-@pytest.fixture
-def client() -> TestClient:
-    with TestClient(app=create_app()) as test_client:
-        yield test_client  # type: ignore[misc]
 
 
 @pytest.fixture

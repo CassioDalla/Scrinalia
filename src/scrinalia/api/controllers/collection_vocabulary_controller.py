@@ -11,6 +11,7 @@ from scrinalia.api.schemas.collection_vocabulary import (
     CollectionTermCreateRequest,
     CollectionTermUpdateRequest,
 )
+from scrinalia.api.security import Access
 from scrinalia.domains.archive.schemas.collection_vocabulary_schema import (
     ArrangementTermDTO,
     CollectionTermDTO,
@@ -46,7 +47,7 @@ class CollectionVocabularyController(Controller):
         "vocabulary_service": Provide(provide_collection_vocabulary_service, sync_to_thread=False),
     }
 
-    @get("/", sync_to_thread=True)
+    @get("/", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def read_vocabulary(
         self,
         vocabulary_service: NamedDependency[CollectionVocabularyService],
@@ -54,7 +55,7 @@ class CollectionVocabularyController(Controller):
         """Both catalogues, retired rows included, with the weight of each collection term."""
         return vocabulary_service.read()
 
-    @post("/arrangement-terms", status_code=201, sync_to_thread=True)
+    @post("/arrangement-terms", opt={"access": Access.CATALOGUE}, status_code=201, sync_to_thread=True)
     def create_arrangement_term(
         self,
         vocabulary_service: NamedDependency[CollectionVocabularyService],
@@ -63,7 +64,7 @@ class CollectionVocabularyController(Controller):
         """Registers a rung name. A token already taken — even by a retired row — is a 409."""
         return vocabulary_service.create_arrangement_term(CreateArrangementTermCommand(**data.model_dump()))
 
-    @patch("/arrangement-terms/{term_id:int}", sync_to_thread=True)
+    @patch("/arrangement-terms/{term_id:int}", opt={"access": Access.CATALOGUE}, sync_to_thread=True)
     def update_arrangement_term(
         self,
         vocabulary_service: NamedDependency[CollectionVocabularyService],
@@ -75,7 +76,7 @@ class CollectionVocabularyController(Controller):
             term_id, UpdateArrangementTermCommand(**data.model_dump(exclude_unset=True))
         )
 
-    @post("/collection-terms", status_code=201, sync_to_thread=True)
+    @post("/collection-terms", opt={"access": Access.CATALOGUE}, status_code=201, sync_to_thread=True)
     def create_collection_term(
         self,
         vocabulary_service: NamedDependency[CollectionVocabularyService],
@@ -84,7 +85,7 @@ class CollectionVocabularyController(Controller):
         """Registers a non-subject term. The same spelling under the same kind is a 409."""
         return vocabulary_service.create_collection_term(CreateCollectionTermCommand(**data.model_dump()))
 
-    @patch("/collection-terms/{term_id:int}", sync_to_thread=True)
+    @patch("/collection-terms/{term_id:int}", opt={"access": Access.CATALOGUE}, sync_to_thread=True)
     def update_collection_term(
         self,
         vocabulary_service: NamedDependency[CollectionVocabularyService],

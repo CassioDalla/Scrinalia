@@ -1,6 +1,5 @@
 """HTTP contract of the text-template curation controller."""
 
-import pytest
 from litestar.status_codes import (
     HTTP_200_OK,
     HTTP_201_CREATED,
@@ -9,7 +8,6 @@ from litestar.status_codes import (
 )
 from litestar.testing import TestClient
 
-from scrinalia.asgi import create_app
 from scrinalia.domains.archive.exceptions import TextTemplateNotFoundError
 from scrinalia.domains.archive.schemas import RouteMessageCode
 from scrinalia.domains.archive.schemas.text_quality_schema import (
@@ -20,12 +18,6 @@ from scrinalia.domains.archive.schemas.text_quality_schema import (
 from scrinalia.domains.archive.services.text_quality_service import TextQualityService
 
 BLOCK = "Acervo de 35.327 fotografias que retratam a cidade de Curitiba no âmbito do Planejamento"
-
-
-@pytest.fixture
-def client() -> TestClient:  # type: ignore
-    with TestClient(app=create_app()) as client:
-        yield client  # type: ignore
 
 
 def _template(template_id: int = 1, **overrides) -> TextTemplateDTO:

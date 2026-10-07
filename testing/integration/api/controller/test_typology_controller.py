@@ -8,7 +8,6 @@ of the classifier's candidate labels without unclassifying a single description"
 meaningful through the repository that would have done it.
 """
 
-import pytest
 from litestar.status_codes import (
     HTTP_200_OK,
     HTTP_201_CREATED,
@@ -19,19 +18,12 @@ from litestar.status_codes import (
 )
 from litestar.testing import TestClient
 
-from scrinalia.asgi import create_app
 from scrinalia.domains.archive.exceptions import (
     DuplicateTypologyError,
     TypologyNotFoundError,
 )
 from scrinalia.domains.archive.schemas.typology_schema import TypologyDTO
 from scrinalia.domains.archive.services.typology_service import TypologyService
-
-
-@pytest.fixture
-def client() -> TestClient:  # type: ignore
-    with TestClient(app=create_app()) as test_client:
-        yield test_client  # type: ignore
 
 
 def _typology(typology_id: int = 7, name: str = "Ata de Reunião", is_active: bool = True) -> TypologyDTO:

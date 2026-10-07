@@ -6,7 +6,6 @@ with the real repository, because "a term the archivist registers is a term the 
 refuses" only means anything through the database the guard actually reads.
 """
 
-import pytest
 from litestar.status_codes import (
     HTTP_201_CREATED,
     HTTP_400_BAD_REQUEST,
@@ -16,7 +15,6 @@ from litestar.status_codes import (
 )
 from litestar.testing import TestClient
 
-from scrinalia.asgi import create_app
 from scrinalia.domains.archive.exceptions import (
     ArrangementTermNotFoundError,
     DuplicateArrangementTermError,
@@ -28,12 +26,6 @@ from scrinalia.domains.archive.schemas.collection_vocabulary_schema import (
     CollectionVocabularyResponse,
 )
 from scrinalia.domains.archive.services.collection_vocabulary_service import CollectionVocabularyService
-
-
-@pytest.fixture
-def client() -> TestClient:  # type: ignore
-    with TestClient(app=create_app()) as test_client:
-        yield test_client  # type: ignore
 
 
 def _response() -> CollectionVocabularyResponse:

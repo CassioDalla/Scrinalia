@@ -25,8 +25,12 @@ from scrinalia.domains.archive.schemas import RouteMessageCode, RouteResponse
 #: than as namespaces: a model lives in a submodule and is only re-exported by ``__init__``, so
 #: reading the package namespace would compare ``obj.__module__`` against the package and match
 #: nothing — which is how this test first passed with the defect deliberately reintroduced.
+#:
+#: ``identity`` is in the list for the same reason it exists at all: the rule has to cover the domain
+#: that was added after it, or "a new route ships without a code" comes back through the new door.
 SCHEMA_PACKAGES: tuple[str, ...] = (
     "scrinalia.domains.archive.schemas",
+    "scrinalia.domains.identity.schemas",
     "scrinalia.api.schemas",
 )
 

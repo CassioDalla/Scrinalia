@@ -11,6 +11,7 @@ from scrinalia.api.schemas.documents import (
     EntityLinkRequest,
     TagLinkRequest,
 )
+from scrinalia.api.security import Access
 from scrinalia.domains.archive.models import ArchiveReviewStatus
 from scrinalia.domains.archive.schemas import RouteMessageCode
 from scrinalia.domains.archive.schemas.command_schema import (
@@ -37,7 +38,7 @@ class DocumentController(Controller):
         "document_service": Provide(provide_document_service, sync_to_thread=False),
     }
 
-    @get("/", sync_to_thread=True)
+    @get("/", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_documents(
         self,
         document_service: NamedDependency[DocumentService],
@@ -81,7 +82,7 @@ class DocumentController(Controller):
             )
         )
 
-    @get("/deletions", sync_to_thread=True)
+    @get("/deletions", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_deletions(
         self,
         document_service: NamedDependency[DocumentService],
@@ -97,21 +98,21 @@ class DocumentController(Controller):
         """
         return document_service.list_deletions(term=term, limit=limit, offset=offset)
 
-    @get("/{description_id:str}", sync_to_thread=True)
+    @get("/{description_id:str}", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def get_document(
         self, document_service: NamedDependency[DocumentService], description_id: FromPath[str]
     ) -> DocumentSummary:
         """Returns a specific document with its tags and entities."""
         return document_service.get(description_id)
 
-    @get("/{description_id:str}/revisions", sync_to_thread=True)
+    @get("/{description_id:str}/revisions", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_revisions(
         self, document_service: NamedDependency[DocumentService], description_id: FromPath[str]
     ) -> list[DocumentRevisionDTO]:
         """Human review audit trail: who changed what, and from which value to which."""
         return document_service.list_revisions(description_id)
 
-    @patch("/{description_id:str}", sync_to_thread=True)
+    @patch("/{description_id:str}", opt={"access": Access.CURATE}, sync_to_thread=True)
     def update_document(
         self,
         document_service: NamedDependency[DocumentService],
@@ -129,7 +130,7 @@ class DocumentController(Controller):
     # by re-running a worker. These four routes close that gap, and they follow the same rule as the
     # field edit: a human decision is recorded in the revision ledger and takes the record out of
     # the AI's reach.
-    @post("/{description_id:str}/tags", status_code=201, sync_to_thread=True)
+    @post("/{description_id:str}/tags", opt={"access": Access.CURATE}, status_code=201, sync_to_thread=True)
     def link_tag(
         self,
         document_service: NamedDependency[DocumentService],
@@ -141,7 +142,9 @@ class DocumentController(Controller):
             TagLinkCommand(description_id=description_id, tag_id=data.tag_id), data.changed_by, data.review_note
         )
 
-    @delete("/{description_id:str}/tags/{tag_id:int}", status_code=200, sync_to_thread=True)
+    @delete(
+        "/{description_id:str}/tags/{tag_id:int}", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True
+    )
     def unlink_tag(
         self,
         document_service: NamedDependency[DocumentService],
@@ -155,7 +158,7 @@ class DocumentController(Controller):
             TagLinkCommand(description_id=description_id, tag_id=tag_id), changed_by, review_note
         )
 
-    @post("/{description_id:str}/entities", status_code=201, sync_to_thread=True)
+    @post("/{description_id:str}/entities", opt={"access": Access.CURATE}, status_code=201, sync_to_thread=True)
     def link_entity(
         self,
         document_service: NamedDependency[DocumentService],
@@ -169,7 +172,12 @@ class DocumentController(Controller):
             data.review_note,
         )
 
-    @delete("/{description_id:str}/entities/{entity_id:int}", status_code=200, sync_to_thread=True)
+    @delete(
+        "/{description_id:str}/entities/{entity_id:int}",
+        opt={"access": Access.CURATE},
+        status_code=200,
+        sync_to_thread=True,
+    )
     def unlink_entity(
         self,
         document_service: NamedDependency[DocumentService],
@@ -188,7 +196,7 @@ class DocumentController(Controller):
     # The one write on this controller that removes a record. It refuses a node with children (the
     # arrangement's FK is RESTRICT on purpose) and records the snapshot before deleting, so the
     # decision can be explained afterwards.
-    @delete("/{description_id:str}", status_code=200, sync_to_thread=True)
+    @delete("/{description_id:str}", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def delete_document(
         self,
         document_service: NamedDependency[DocumentService],

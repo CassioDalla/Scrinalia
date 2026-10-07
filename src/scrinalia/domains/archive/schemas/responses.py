@@ -71,6 +71,14 @@ class RouteMessageCode(enum.StrEnum):
     # --- The tag x entity collision ---
     CONFLICT_RESOLVED = "CONFLICT_RESOLVED"
 
+    # --- The session and the account (identity) ---
+    # The codes of the identity routes live in the same enum because the enum is the shared
+    # vocabulary of "what a write route did", and the front reads every one of them through the same
+    # seam. The cross-domain import it implies is in the API layer, which is the composition point
+    # and already speaks both domains; the identity domain itself imports nothing from the archive.
+    SESSION_ENDED = "SESSION_ENDED"
+    PASSWORD_CHANGED = "PASSWORD_CHANGED"
+
 
 class RouteResponse(BaseModel):
     """
