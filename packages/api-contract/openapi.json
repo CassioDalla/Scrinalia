@@ -4597,9 +4597,6 @@
       },
       "ProcessHealthDTO": {
         "properties": {
-          "arqdoc_configured": {
-            "type": "boolean"
-          },
           "database": {
             "description": "host:porta/banco, sem credenciais.",
             "type": "string"
@@ -4655,7 +4652,6 @@
           }
         },
         "required": [
-          "arqdoc_configured",
           "database",
           "debug",
           "log_dir",

@@ -101,7 +101,7 @@ export function SystemHealthRoute() {
                   `banco ${health.data.process.database}`,
                   `ollama ${health.data.process.ollama_host_url ?? "não configurado"}`,
                   `s3 ${health.data.process.s3_endpoint_url ?? "não configurado"}`,
-                  `ArqDoc ${health.data.process.arqdoc_configured ? "configurado" : "não configurado"} · site público ${
+                  `site público ${
                     health.data.process.public_scrape_configured ? "configurado" : "não configurado"
                   }`,
                   `segredos presentes: ${Object.entries(health.data.process.secrets_present ?? {})

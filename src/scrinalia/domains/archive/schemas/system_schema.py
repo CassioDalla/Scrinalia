@@ -217,7 +217,6 @@ class ProcessHealthDTO(BaseModel):
     ollama_host_url: str | None = None
     s3_endpoint_url: str | None = None
     s3_bucket_name: str | None = None
-    arqdoc_configured: bool
     public_scrape_configured: bool
     secrets_present: dict[str, bool] = Field(
         default_factory=dict,

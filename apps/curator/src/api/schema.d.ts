@@ -2512,7 +2512,6 @@ export interface components {
         };
         /** ProcessHealthDTO */
         ProcessHealthDTO: {
-            arqdoc_configured: boolean;
             /** @description host:porta/banco, sem credenciais. */
             database: string;
             debug: boolean;

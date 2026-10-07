@@ -8,7 +8,7 @@ from scrinalia.domains.ingestion.adapters.pmc_scraper import PMCScraperAdapter
 from scrinalia.domains.ingestion.ports import AdapterFatalError, AdapterNetworkError, AdapterNotFoundError
 
 # ==========================================
-# ARQDOC ADAPTER TESTS (HTTP SCRAPER)
+# PMC SCRAPER ADAPTER TESTS (HTTP SCRAPER)
 # ==========================================
 
 

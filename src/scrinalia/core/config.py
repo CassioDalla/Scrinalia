@@ -27,11 +27,9 @@ class Settings(BaseSettings):
     DB_PORT: int = 5432
     DB_NAME: str = "memoriacuritibana"
 
-    # ArqDoc (source archival system)
-    ARQDOC_BASE_URL: str | None = None
-    ARQDOC_VIEW_ENDPOINT: str | None = None
-
-    # Public Arquivo site
+    # Public site that gets scraped. Read at the composition point and handed to the adapter,
+    # never by the adapter itself: an adapter that reads global settings cannot be pointed at
+    # another origin, which is what plural ingestion will need.
     PUBLIC_SCRAPE_URL: str | None = None
     PUBLIC_SCRAPE_DETAIL_URL: str | None = None
 

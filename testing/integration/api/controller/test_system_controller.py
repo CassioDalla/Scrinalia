@@ -171,7 +171,6 @@ def test_the_health_endpoint_answers_every_probe(client: TestClient, mocker) -> 
                 debug=False,
                 log_dir="logs",
                 database="localhost:5432/db",
-                arqdoc_configured=False,
                 public_scrape_configured=False,
             ),
         ),

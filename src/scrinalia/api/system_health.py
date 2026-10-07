@@ -143,7 +143,6 @@ def probe_process() -> ProcessHealthDTO:
         ollama_host_url=settings.OLLAMA_HOST_URL,
         s3_endpoint_url=settings.S3_ENDPOINT_URL,
         s3_bucket_name=settings.S3_BUCKET_NAME,
-        arqdoc_configured=bool(settings.ARQDOC_BASE_URL),
         public_scrape_configured=bool(settings.PUBLIC_SCRAPE_URL),
         secrets_present={
             "DB_PASS": bool(settings.DB_PASS.get_secret_value()),
