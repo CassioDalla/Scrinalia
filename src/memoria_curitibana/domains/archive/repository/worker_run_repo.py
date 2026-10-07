@@ -23,11 +23,8 @@ from memoria_curitibana.domains.archive.models.enums import (
     WorkerRunStatus,
     WorkerRunTrigger,
 )
-from memoria_curitibana.domains.archive.models.operations import WorkerRun
+from memoria_curitibana.domains.archive.models.operations import MAX_ERROR_LENGTH, WorkerRun
 from memoria_curitibana.domains.archive.schemas.system_schema import WorkerRunDTO
-
-#: How much of an exception is kept. Enough to act on, not a stack-trace store.
-MAX_ERROR_LENGTH = 2000
 
 
 def to_dto(run: WorkerRun) -> WorkerRunDTO:
@@ -46,6 +43,7 @@ def to_dto(run: WorkerRun) -> WorkerRunDTO:
         finished_at=run.finished_at,
         duration_ms=run.duration_ms,
         error=run.error,
+        error_fingerprint=run.error_fingerprint,
     )
 
 
@@ -116,16 +114,37 @@ class WorkerRunRepository:
         )
         self.db.flush()
 
-    def finish(self, run_id: int, *, status: WorkerRunStatus, error: str | None = None) -> None:
-        """Closes the run with its outcome and duration."""
+    def finish(
+        self,
+        run_id: int,
+        *,
+        status: WorkerRunStatus,
+        error: str | None = None,
+        error_kind: str | None = None,
+    ) -> None:
+        """
+        Closes the run with its outcome and duration.
+
+        ``error`` is stored with the exception's class in front of it. ``str(exc)`` alone loses it,
+        and the generated ``error_fingerprint`` column is computed from this text: without the class,
+        two different failures that happen to share a sentence would group as one root cause.
+
+        A bare ``raise RuntimeError()`` has a class and no message, and stores the class alone — the
+        alternative would be recording *no* failure at all, which is the one outcome a ledger must
+        not produce.
+        """
         run = self.db.get(WorkerRun, run_id)
         if run is None:
             return
 
         finished_at = datetime.now(UTC)
+        text = error or ""
+        if error_kind:
+            text = f"{error_kind}: {text}" if text else error_kind
+
         run.status = status
         run.finished_at = finished_at
-        run.error = (error or "")[:MAX_ERROR_LENGTH] or None
+        run.error = text[:MAX_ERROR_LENGTH] or None
         run.duration_ms = int((finished_at - run.started_at).total_seconds() * 1000) if run.started_at else None
         self.db.flush()
 
@@ -138,6 +157,7 @@ class WorkerRunRepository:
         *,
         worker_name: str | None = None,
         status: WorkerRunStatus | None = None,
+        fingerprint: str | None = None,
         limit: int,
         offset: int,
     ) -> tuple[list[WorkerRunDTO], int]:
@@ -146,6 +166,10 @@ class WorkerRunRepository:
             conditions.append(WorkerRun.worker_name == worker_name)
         if status is not None:
             conditions.append(WorkerRun.status == status)
+        if fingerprint is not None:
+            # The other half of the failures screen: a group is only actionable if the ledger can
+            # show the occurrences behind it.
+            conditions.append(WorkerRun.error_fingerprint == fingerprint)
 
         total = int(self.db.scalar(select(func.count()).select_from(WorkerRun).where(*conditions)) or 0)
         rows = self.db.scalars(

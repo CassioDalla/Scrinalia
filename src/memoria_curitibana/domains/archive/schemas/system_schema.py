@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from memoria_curitibana.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
+from memoria_curitibana.domains.archive.models.enums import FailureSource, WorkerRunStatus, WorkerRunTrigger
 
 #: Where a worker's engine/preset come from.
 #:
@@ -43,6 +43,10 @@ class WorkerRunDTO(BaseModel):
     finished_at: datetime | None = None
     duration_ms: int | None = None
     error: str | None = None
+    error_fingerprint: str | None = Field(
+        default=None,
+        description="A causa raiz da falha, derivada da mensagem pelo PostgreSQL. Duas execuções com a mesma causa compartilham este valor.",
+    )
 
 
 class WorkerRunListResponse(BaseModel):
@@ -50,6 +54,37 @@ class WorkerRunListResponse(BaseModel):
     total: int = Field(ge=0)
     limit: int = Field(ge=1)
     offset: int = Field(ge=0)
+
+
+class FailureGroupDTO(BaseModel):
+    """
+    One root cause, with everything that happened because of it.
+
+    ``fingerprint`` is the group's identity and the filter that leads back to the occurrences;
+    ``sample`` is the most recent occurrence, because the fingerprint itself is normalized for
+    grouping and reads like a key, not like a sentence. It is deliberately **not** called ``message``:
+    that name is reserved for the sentence a route answers with, and ``testing/unit/api`` fails the
+    build when a response carrying one forgets its ``code``. There is also deliberately **no grand
+    total** across groups: they do not overlap, but adding a worker execution to an HTTP request
+    would sum two different units and produce a number nobody can act on.
+    """
+
+    fingerprint: str
+    sample: str = Field(description="A ocorrência mais recente, sem normalização.")
+    occurrences: int = Field(ge=1)
+    first_seen: datetime
+    last_seen: datetime
+    sources: list[FailureSource]
+    worker_names: list[str] = Field(default_factory=list)
+    last_path: str | None = Field(default=None, description="Rota da última falha de API do grupo.")
+    last_request_id: str | None = Field(
+        default=None, description="Referência da última falha de API do grupo, para achar o log."
+    )
+
+
+class FailureGroupListResponse(BaseModel):
+    items: list[FailureGroupDTO] = Field(default_factory=list)
+    total: int = Field(ge=0, description="Quantos grupos existem na janela consultada.")
 
 
 class WorkerRunRequest(BaseModel):

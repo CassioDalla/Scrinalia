@@ -105,6 +105,20 @@ class WorkerRunTrigger(enum.StrEnum):
     API = "API"
 
 
+class FailureSource(enum.StrEnum):
+    """
+    Which ledger a failure came from.
+
+    ``WORKER`` is one execution in ``archive_worker_runs``; ``API`` is an unexpected HTTP failure in
+    ``archive_api_errors``. A group can carry **both**, because the fingerprint is the same function
+    over both messages — a cause that broke a worker and a request is one root cause, and splitting
+    it would send the reader to two screens to learn a single thing.
+    """
+
+    WORKER = "WORKER"
+    API = "API"
+
+
 #: Statuses that mean "this worker has a run in flight". The partial unique index on
 #: ``archive_worker_runs`` uses exactly this set, so a second run cannot be queued for the same
 #: worker — the guarantee is in the database, not in a process-local lock that a reload would drop.

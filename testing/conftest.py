@@ -38,6 +38,37 @@ STRICT
 AS $$ SELECT public.unaccent('public.unaccent'::regdictionary, txt) $$;
 """
 
+# ``archive_worker_runs.error_fingerprint`` and ``archive_api_errors.error_fingerprint`` are generated
+# columns that call this function, and ``create_all`` cannot build them without it. The definition is
+# the same one the ``fe7fcab37207`` migration creates; PostgreSQL refuses a generated column whose
+# expression is not IMMUTABLE, which is why the normalization lives in SQL and not in the writer.
+ARCHIVE_ERROR_FINGERPRINT_SQL = r"""
+CREATE OR REPLACE FUNCTION public.archive_error_fingerprint(message text)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+STRICT
+AS $$
+  SELECT left(
+    regexp_replace(
+      regexp_replace(
+        regexp_replace(
+          regexp_replace(
+            lower(btrim(regexp_replace(split_part(message, E'\n', 1), '\s+', ' ', 'g'))),
+            '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', '<uuid>', 'g'
+          ),
+          '[0-9a-f]{16,}', '<hash>', 'g'
+        ),
+        '[0-9]+', '<n>', 'g'
+      ),
+      '(/[^ /"'']+)+', '<path>', 'g'
+    ),
+    200
+  )
+$$;
+"""
+
 
 @pytest.fixture
 def mock_registry(monkeypatch):
@@ -98,12 +129,14 @@ def engine():
     engine = create_engine(TEST_DATABASE_URL)
 
     # pg_trgm must exist before create_all builds the fuzzy-search GIN indexes, the
-    # immutable unaccent wrapper before it builds the generated search_vector, and
-    # pgvector before it builds the embedding column and its HNSW index.
+    # immutable unaccent wrapper before it builds the generated search_vector, the
+    # error-fingerprint function before it builds the generated error_fingerprint
+    # columns, and pgvector before it builds the embedding column and its HNSW index.
     with engine.begin() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent"))
         conn.execute(text(IMMUTABLE_UNACCENT_SQL))
+        conn.execute(text(ARCHIVE_ERROR_FINGERPRINT_SQL))
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
     # Creates all tables based on your Models

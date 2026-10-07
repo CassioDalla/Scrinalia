@@ -6,6 +6,7 @@ from .enums import (
     AnomalyReason,
     AnomalyType,
     ArchiveReviewStatus,
+    FailureSource,
     StopwordsScope,
     TagFacetType,
     WorkerRunStatus,
@@ -22,7 +23,7 @@ from .governance import (
     DomainTextTemplate,
 )
 from .hierarchy import ArchiveDescriptionLevel, ArchiveHierarchyMaterialisationLog, ArchiveHierarchyNodePlan
-from .operations import WorkerRun, WorkerSetting, WorkerSettingRevision
+from .operations import ApiError, WorkerRun, WorkerSetting, WorkerSettingRevision
 from .taxonomy import (
     ArchiveMacroCategory,
     ArchiveTag,
@@ -36,6 +37,7 @@ __all__ = [
     "ACTIVE_WORKER_RUN_STATUSES",
     "AnomalyReason",
     "AnomalyType",
+    "ApiError",
     "ArchiveAIReviewQueue",
     "ArchiveCleaningRule",
     "ArchiveConflictResolutionLog",
@@ -60,6 +62,7 @@ __all__ = [
     "DomainSubjectExclusion",
     "DomainSynonyms",
     "DomainTextTemplate",
+    "FailureSource",
     "StopwordsScope",
     "TagFacetType",
     "WorkerRun",

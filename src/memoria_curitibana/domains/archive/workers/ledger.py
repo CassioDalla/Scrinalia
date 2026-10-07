@@ -15,29 +15,16 @@ The two failure modes are treated differently on purpose:
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any, Protocol
+from typing import Any
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
 
-from memoria_curitibana.core.database import create_session
+from memoria_curitibana.core.database import SessionFactory, create_session
 from memoria_curitibana.core.logger import logger
 from memoria_curitibana.domains.archive.exceptions import WorkerRunAlreadyActiveError
 from memoria_curitibana.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
 from memoria_curitibana.domains.archive.repository.worker_run_repo import WorkerRunRepository
 from memoria_curitibana.domains.archive.schemas.system_schema import WorkerRunDTO
-
-
-class SessionContext(Protocol):
-    """A session that can be opened with ``with`` — what ``create_session`` and a test double share."""
-
-    def __enter__(self) -> Session: ...
-
-    def __exit__(self, type_: Any, value: Any, traceback: Any) -> None: ...
-
-
-SessionFactory = Callable[[], SessionContext]
 
 
 class WorkerRunLedger:
@@ -119,11 +106,18 @@ class WorkerRunLedger:
         except Exception as exc:
             logger.error(f"⚠️ Não foi possível marcar a execução {run_id} como em andamento: {exc}")
 
-    def finish(self, run_id: int, *, status: WorkerRunStatus, error: str | None = None) -> None:
+    def finish(
+        self,
+        run_id: int,
+        *,
+        status: WorkerRunStatus,
+        error: str | None = None,
+        error_kind: str | None = None,
+    ) -> None:
         """Closes the run with its outcome; never raises."""
         try:
             with self._session_factory() as db:
-                WorkerRunRepository(db).finish(run_id, status=status, error=error)
+                WorkerRunRepository(db).finish(run_id, status=status, error=error, error_kind=error_kind)
                 db.commit()
         except Exception as exc:
             logger.error(f"⚠️ Não foi possível fechar o registro da execução {run_id}: {exc}")

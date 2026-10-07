@@ -55,7 +55,7 @@ class WorkerRuntime:
             logger.exception(f"❌ A execução de '{worker_name}' disparada pelo painel falhou: {exc}")
             # The runner records its own failures; this covers the ones before it takes over
             # (opening the session, resolving the configuration), which would leave the row queued.
-            self._ledger.finish(run_id, status=WorkerRunStatus.FAILED, error=str(exc))
+            self._ledger.finish(run_id, status=WorkerRunStatus.FAILED, error=str(exc), error_kind=type(exc).__name__)
 
     def shutdown(self, *, wait: bool = False) -> None:
         """Stops accepting work. A thread already running is not killed: the next boot marks it."""

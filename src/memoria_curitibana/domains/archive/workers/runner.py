@@ -189,7 +189,7 @@ def run_worker(
             fn(**kwargs)
         except BaseException as exc:
             if ledger is not None and run_id is not None:
-                ledger.finish(run_id, status=WorkerRunStatus.FAILED, error=str(exc))
+                ledger.finish(run_id, status=WorkerRunStatus.FAILED, error=str(exc), error_kind=type(exc).__name__)
             raise
         else:
             if ledger is not None and run_id is not None:

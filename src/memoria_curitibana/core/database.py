@@ -1,13 +1,27 @@
 """Database engine and session factories, built on first use."""
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from functools import lru_cache
+from typing import Any, Protocol
 
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from memoria_curitibana.core.config import settings
+
+
+class SessionContext(Protocol):
+    """A session that can be opened with ``with`` — the shape ``create_session`` returns."""
+
+    def __enter__(self) -> Session: ...
+
+    def __exit__(self, type_: Any, value: Any, traceback: Any) -> None: ...
+
+
+#: What a writer takes so a test can hand it the test's own session. Two ledgers share it — the
+#: worker execution ledger and the API failure ledger — which is why it lives here and not in either.
+SessionFactory = Callable[[], SessionContext]
 
 
 @lru_cache(maxsize=1)
