@@ -81,8 +81,11 @@ class WorkerRunService:
         *,
         worker_name: str | None,
         status: WorkerRunStatus | None,
+        fingerprint: str | None = None,
         limit: int,
         offset: int,
     ) -> WorkerRunListResponse:
-        items, total = self.runs.list(worker_name=worker_name, status=status, limit=limit, offset=offset)
+        items, total = self.runs.list(
+            worker_name=worker_name, status=status, fingerprint=fingerprint, limit=limit, offset=offset
+        )
         return WorkerRunListResponse(items=items, total=total, limit=limit, offset=offset)

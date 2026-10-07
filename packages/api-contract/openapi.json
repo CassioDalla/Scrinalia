@@ -2437,6 +2437,102 @@
         "title": "FacetCount",
         "type": "object"
       },
+      "FailureGroupDTO": {
+        "properties": {
+          "fingerprint": {
+            "type": "string"
+          },
+          "first_seen": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "last_path": {
+            "description": "Rota da última falha de API do grupo.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_request_id": {
+            "description": "Referência da última falha de API do grupo, para achar o log.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_seen": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "occurrences": {
+            "minimum": 1.0,
+            "type": "integer"
+          },
+          "sample": {
+            "description": "A ocorrência mais recente, sem normalização.",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/FailureSource"
+            },
+            "type": "array"
+          },
+          "worker_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "fingerprint",
+          "first_seen",
+          "last_seen",
+          "occurrences",
+          "sample",
+          "sources"
+        ],
+        "title": "FailureGroupDTO",
+        "type": "object"
+      },
+      "FailureGroupListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FailureGroupDTO"
+            },
+            "type": "array"
+          },
+          "total": {
+            "description": "Quantos grupos existem na janela consultada.",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "FailureGroupListResponse",
+        "type": "object"
+      },
+      "FailureSource": {
+        "description": "\n    Which ledger a failure came from.\n\n    ``WORKER`` is one execution in ``archive_worker_runs``; ``API`` is an unexpected HTTP failure in\n    ``archive_api_errors``. A group can carry **both**, because the fingerprint is the same function\n    over both messages — a cause that broke a worker and a request is one root cause, and splitting\n    it would send the reader to two screens to learn a single thing.\n    ",
+        "enum": [
+          "WORKER",
+          "API"
+        ],
+        "title": "FailureSource",
+        "type": "string"
+      },
       "HierarchyDiagnostic": {
         "properties": {
           "description_id": {
@@ -6450,6 +6546,17 @@
             ]
           },
           "error": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error_fingerprint": {
+            "description": "A causa raiz da falha, derivada da mensagem pelo PostgreSQL. Duas execuções com a mesma causa compartilham este valor.",
             "oneOf": [
               {
                 "type": "string"
@@ -10665,6 +10772,111 @@
         ]
       }
     },
+    "/api/v1/system/failures": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemFailuresListFailures",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "worker",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailureGroupListResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListFailures",
+        "tags": [
+          "System"
+        ]
+      }
+    },
     "/api/v1/system/health": {
       "get": {
         "deprecated": false,
@@ -10722,6 +10934,24 @@
               "oneOf": [
                 {
                   "$ref": "#/components/schemas/WorkerRunStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "fingerprint",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
                 },
                 {
                   "type": "null"

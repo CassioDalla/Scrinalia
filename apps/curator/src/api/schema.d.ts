@@ -639,6 +639,23 @@ export interface paths {
         patch: operations["ApiV1QualityTextTemplatesTemplateIdUpdateTemplate"];
         trace?: never;
     };
+    "/api/v1/system/failures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListFailures */
+        get: operations["ApiV1SystemFailuresListFailures"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/health": {
         parameters: {
             query?: never;
@@ -1961,6 +1978,40 @@ export interface components {
             key: string;
             label: string;
         };
+        /** FailureGroupDTO */
+        FailureGroupDTO: {
+            fingerprint: string;
+            /** Format: date-time */
+            first_seen: string;
+            /** @description Rota da última falha de API do grupo. */
+            last_path?: string | null;
+            /** @description Referência da última falha de API do grupo, para achar o log. */
+            last_request_id?: string | null;
+            /** Format: date-time */
+            last_seen: string;
+            occurrences: number;
+            /** @description A ocorrência mais recente, sem normalização. */
+            sample: string;
+            sources: components["schemas"]["FailureSource"][];
+            worker_names?: string[];
+        };
+        /** FailureGroupListResponse */
+        FailureGroupListResponse: {
+            items?: components["schemas"]["FailureGroupDTO"][];
+            /** @description Quantos grupos existem na janela consultada. */
+            total: number;
+        };
+        /**
+         * FailureSource
+         * @description Which ledger a failure came from.
+         *
+         *         ``WORKER`` is one execution in ``archive_worker_runs``; ``API`` is an unexpected HTTP failure in
+         *         ``archive_api_errors``. A group can carry **both**, because the fingerprint is the same function
+         *         over both messages — a cause that broke a worker and a request is one root cause, and splitting
+         *         it would send the reader to two screens to learn a single thing.
+         * @enum {string}
+         */
+        FailureSource: "WORKER" | "API";
         /** HierarchyDiagnostic */
         HierarchyDiagnostic: {
             description_id: string;
@@ -2989,6 +3040,8 @@ export interface components {
             duration_ms?: number | null;
             engine_name?: string | null;
             error?: string | null;
+            /** @description A causa raiz da falha, derivada da mensagem pelo PostgreSQL. Duas execuções com a mesma causa compartilham este valor. */
+            error_fingerprint?: string | null;
             finished_at?: string | null;
             preset?: string | null;
             /** Format: date-time */
@@ -4720,6 +4773,45 @@ export interface operations {
             };
         };
     };
+    ApiV1SystemFailuresListFailures: {
+        parameters: {
+            query?: {
+                days?: number;
+                worker?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FailureGroupListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
     ApiV1SystemHealthHealth: {
         parameters: {
             query?: never;
@@ -4745,6 +4837,7 @@ export interface operations {
             query?: {
                 worker?: string | null;
                 status?: components["schemas"]["WorkerRunStatus"] | null;
+                fingerprint?: string | null;
                 limit?: number;
                 offset?: number;
             };

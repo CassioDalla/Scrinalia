@@ -9,10 +9,15 @@ from litestar import Controller, delete, get, post, put
 from litestar.di import NamedDependency, Provide
 from litestar.params import FromPath, FromQuery
 
-from memoria_curitibana.api.dependencies import provide_worker_operations_service, provide_worker_run_service
+from memoria_curitibana.api.dependencies import (
+    provide_failure_service,
+    provide_worker_operations_service,
+    provide_worker_run_service,
+)
 from memoria_curitibana.api.system_health import probe_infrastructure
 from memoria_curitibana.domains.archive.models.enums import WorkerRunStatus
 from memoria_curitibana.domains.archive.schemas.system_schema import (
+    FailureGroupListResponse,
     SystemHealthResponse,
     SystemWorkersResponse,
     WorkerRunDTO,
@@ -22,6 +27,7 @@ from memoria_curitibana.domains.archive.schemas.system_schema import (
     WorkerSettingsRequest,
     WorkerSettingsRevisionListResponse,
 )
+from memoria_curitibana.domains.archive.services.failure_service import FailureService
 from memoria_curitibana.domains.archive.services.worker_operations_service import WorkerOperationsService
 from memoria_curitibana.domains.archive.services.worker_run_service import WorkerRunService
 
@@ -33,6 +39,7 @@ class SystemController(Controller):
     dependencies = {  # noqa: RUF012
         "operations_service": Provide(provide_worker_operations_service, sync_to_thread=False),
         "run_service": Provide(provide_worker_run_service, sync_to_thread=False),
+        "failure_service": Provide(provide_failure_service, sync_to_thread=False),
     }
 
     @get("/workers", sync_to_thread=True)
@@ -51,11 +58,35 @@ class SystemController(Controller):
         run_service: NamedDependency[WorkerRunService],
         worker: FromQuery[str | None] = None,
         status: FromQuery[WorkerRunStatus | None] = None,
+        fingerprint: FromQuery[str | None] = None,
         limit: FromQuery[int] = 20,
         offset: FromQuery[int] = 0,
     ) -> WorkerRunListResponse:
-        """The execution ledger, newest first; ``worker`` and ``status`` narrow it server-side."""
-        return run_service.list_runs(worker_name=worker, status=status, limit=limit, offset=offset)
+        """
+        The execution ledger, newest first; the filters narrow it server-side.
+
+        ``fingerprint`` is the other end of the failures screen: a group says *what* is breaking, and
+        this is how the archivist sees the executions behind it.
+        """
+        return run_service.list_runs(
+            worker_name=worker, status=status, fingerprint=fingerprint, limit=limit, offset=offset
+        )
+
+    @get("/failures", sync_to_thread=True)
+    def list_failures(
+        self,
+        failure_service: NamedDependency[FailureService],
+        days: FromQuery[int] = 30,
+        worker: FromQuery[str | None] = None,
+        limit: FromQuery[int] = 20,
+    ) -> FailureGroupListResponse:
+        """
+        What is breaking, grouped by root cause — across the executions ledger and the API's own.
+
+        The grouping key is the fingerprint PostgreSQL computes from the error text, so a cause that
+        broke a worker **and** a request appears once, with ``sources`` saying where it was seen.
+        """
+        return failure_service.list_groups(days=days, worker=worker, limit=limit)
 
     @post("/workers/{worker_name:str}/runs", status_code=201, sync_to_thread=True)
     def trigger_run(

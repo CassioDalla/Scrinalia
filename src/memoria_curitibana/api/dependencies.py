@@ -22,6 +22,7 @@ from memoria_curitibana.domains.archive.services.cleaning_service import Cleanin
 from memoria_curitibana.domains.archive.services.curation_service import CurationService
 from memoria_curitibana.domains.archive.services.document_service import DocumentService
 from memoria_curitibana.domains.archive.services.entity_service import EntityService
+from memoria_curitibana.domains.archive.services.failure_service import FailureService
 from memoria_curitibana.domains.archive.services.hierarchy_materialisation_service import (
     HierarchyMaterialisationService,
 )
@@ -156,3 +157,8 @@ def provide_worker_run_service(unit_of_work: NamedDependency[UnitOfWork]) -> Wor
     which is what lets the background thread see the queued row before the request transaction ends.
     """
     return WorkerRunService(unit_of_work.db, provide_worker_runtime())
+
+
+def provide_failure_service(unit_of_work: NamedDependency[UnitOfWork]) -> FailureService:
+    """Builds the grouped-failures read model over the request transaction; it only reads."""
+    return FailureService(unit_of_work.db)
