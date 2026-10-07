@@ -24,21 +24,23 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 | 3 | Descoberta, performance e observabilidade | 🟡 **Quase** — falta o agendador; `/health` e o rastreamento de erros **fechados** (ADR 0005) |
 | 3.5 | Qualidade do dado de entrada | ✅ **Fechada** |
 | 4 | UI, BFF e publicação | 🟡 **Curador completo** (22 telas); faltam **auth** e **site público** |
-| **5** | **Release 1.0** | 🔴 **Não iniciada** — ver "Caminho para a 1.0" |
+| **5** | **Release 1.0** | 🟡 **Iniciada** — licença fechada (ADR 0006); faltam nome, auth e docs |
 
 **O sistema está funcionalmente pronto.** Ingestão → staging → archive → enriquecimento por IA →
 curadoria humana → bloqueio de reprocessamento, tudo verificado ponta a ponta. O **curador tem 22
 telas** cobrindo todo o sitemap mais o painel de operação, e o **Streamlit saiu do repositório**.
 
-**O que falta para uma 1.0 é de outra natureza:** não é feature, é *produto*. Licença, nome,
-documentação, desacoplamento institucional e autenticação. Detalhe na seção seguinte.
+**O que falta para uma 1.0 é de outra natureza:** não é feature, é *produto*. **Nome**,
+documentação, desacoplamento institucional e autenticação — a **licença**, que era o primeiro
+deles, foi fechada em 2026-10-07 (ADR 0006). Detalhe na seção seguinte.
 
 > **Ciclos entregues, em uma linha cada** (o detalhe está nas fases fechadas):
 > contrato + onda 1 (2026-10-05) · onda 2, o plano de arranjo (2026-10-05) · ondas 4–6 e a remoção
 > do Streamlit (2026-10-06) · refino de curadoria e o painel de operação (2026-10-06) · as três
 > lacunas de curadoria — colisão, faceta de anomalia, "não é assunto" (2026-10-06) · o catálogo de
 > tipologias e o contrato determinístico (2026-10-06) · **a observabilidade local — `/health` de
-> orquestrador, causa raiz agrupada e request id (2026-10-07)**.
+> orquestrador, causa raiz agrupada e request id (2026-10-07)** · **a licença `AGPL-3.0-only` e a
+> atribuição do autor no rodapé (2026-10-07)**.
 
 ---
 
@@ -54,19 +56,33 @@ documentação, desacoplamento institucional e autenticação. Detalhe na seçã
 - 22 telas de curadoria + painel de operação; Streamlit removido.
 - Contrato OpenAPI gerado, commitado e com CI bloqueante; cliente TS gerado do contrato.
 - 1.175 testes, CI com 3 jobs (lint, testes+migrações+contrato, frontend).
-- Schema 100% sob Alembic, 27 migrações sem drift.
+- Schema 100% sob Alembic, 28 migrações sem drift.
 - Superfície pública **já projetada** (allowlist com partição exata e teste) — falta só o app.
 - **Determinismo do contrato** corrigido: o OpenAPI não depende mais do `PYTHONHASHSEED`.
+- **Licença fechada** (`AGPL-3.0-only` + termo de atribuição do §7(b), com rodapé na SPA e
+  metadata no `pyproject.toml`/`package.json`) — ver ADR 0006.
 
 ### 🔴 Bloqueadores — sem isto não há 1.0
 
-- [ ] **Licença.** Não existe `LICENSE` no repositório. É a decisão mais barata e a mais bloqueante:
-      sem licença explícita, ninguém pode usar, e "todos os direitos reservados" é o padrão legal.
-      - **Recomendação: Apache-2.0.** Tem concessão explícita de patente (importa para uso
-        institucional/público), permite adoção ampla por outras prefeituras e universidades, e é
-        compatível com o ecossistema Python. **AGPL-3.0** se a intenção for impedir que terceiros
-        ofereçam o sistema como serviço fechado; **MIT** se o objetivo for máxima simplicidade.
-      - Decidir **junto** com o nome (§ abaixo): os dois são a identidade do release.
+- [x] **Licença** — **decidida e aplicada em 2026-10-07**: **AGPL-3.0-only** + termo adicional de
+      atribuição do **§7(b)**. Entregue: `LICENSE` (texto verbatim da FSF, conferido por
+      `sha256 d8a6cc31…`), `LICENSE-ADDITIONAL-TERMS.md`, campos `license` no `pyproject.toml` e
+      nos dois `package.json`, e o **rodapé de atribuição** na SPA
+      (`lib/attribution.ts` → `AttributionFooter`, no `AppShell`). A decisão, o mapa dos cinco
+      requisitos e as alternativas rejeitadas estão no **ADR 0006**.
+      - **Por que não Apache-2.0** — que era a recomendação anterior deste TODO: ele não entrega
+        nem o rodapé preservado nem a proibição de fork fechado, e o dono quer os dois. O medo que
+        sustentava o Apache (instituição vetar AGPL) **não se confirmou no setor**, medido por SPDX:
+        **AtoM** — o comparable direto em ISAD(G) — e **Archivematica** são **AGPL-3.0**, e a
+        copyleft é a maioria (Tainacan/Omeka/CollectiveAccess em GPL-3.0). O risco real é estreito
+        (o **fornecedor terceirizado** com veto interno, não a instituição) e a saída é
+        **licenciamento duplo** — ver o gatilho de revisão do ADR 0006.
+      - **O que a licença não consegue entregar, e é preciso saber:** um deploy **não modificado**
+        pode ser oferecido como SaaS e cobrado (o §13 só dispara com modificação), e ninguém pode
+        ser obrigado a contribuir **de volta para este repositório** — o §13 obriga a oferecer a
+        fonte aos usuários daquela instalação. O pedido de retribuição está no `README`, como
+        pedido.
+      - **Nome:** ainda em aberto (§ abaixo) — o `attribution.ts` é o ponto único da troca.
 - [ ] **Auth (B9).** Hoje qualquer cliente que alcance a API aprova fichas, apaga descrições, funde
       taxonomia e **dispara workers**. `changed_by`/`requested_by` são texto livre.
       - Um 1.0 que outras instituições instalam **precisa** de autenticação, mesmo que mínima —
@@ -74,8 +90,16 @@ documentação, desacoplamento institucional e autenticação. Detalhe na seçã
         explícito de "não exponha" e auth na 1.1, mas isso é pior que fazer agora.
       - Escopo mínimo defensável: usuário+senha (ou OIDC) no BFF do curador, `changed_by` vindo do
         token, e a superfície pública continuando aberta **por design**.
-- [ ] **Renomear o projeto, o pacote e o repositório.** Hoje `memoria_curitibana` está em **256
-      arquivos** (209 `.py`, mais `pyproject.toml`, `uv.lock`, imports, docs, o nome do repo).
+- [ ] **Renomear o projeto, o pacote e o repositório.** Medido em **2026-10-07**: `memoria_curitibana`
+      está em **244 arquivos** (**223 `.py`**, 10 `.md`, 3 `.yml`, e `.toml`/`.json`/`.ini`), mais
+      5 artefatos de `logs/` que **não** entram; **22** arquivos carregam variantes de nome de
+      exibição (`Memória Curitibana`, `memoria-curitibana`, `memoriacuritibana`). O número que
+      este TODO trazia (256/209) estava desatualizado.
+      - **Nome: em decisão.** Candidatos medidos (PyPI e npm livres, sem colisão relevante no
+        domínio): **`Tabularium`** (recomendado — o arquivo de estado de Roma), **`Repertorium`**
+        (o instrumento de pesquisa) e **`Arkheion`** (a etimologia de "arquivo"). Análise completa
+        em `.analysis/identidade-do-release.md`. **Não** pôr `AI`/`ETL`/`GPT` no nome: a IA é meio,
+        o registro é o assunto.
       - **Fazer antes da 1.0, não depois:** o nome é a identidade do release. Renomear depois
         significa que a 1.0 nasce com um nome que será descartado, e todo link/bookmark/documento
         quebra duas vezes.

@@ -21,6 +21,14 @@ Three-layer pipeline, each layer a domain under `src/memoria_curitibana/domains/
 - `README.md` is the front door for newcomers (what the system is, how to run it); the roadmap
   lives in `TODO.md` and the accepted architecture decisions in `docs/adr/`. Keep all three in
   step with the code, and never state something in them that you have not verified.
+- **License: `AGPL-3.0-only` plus one additional term** under section 7(b) requiring the author
+  attribution to be preserved (`LICENSE`, `LICENSE-ADDITIONAL-TERMS.md`, ADR 0006). Two rules:
+  never inline the attribution text in a component — it is defined once in
+  `apps/curator/src/lib/attribution.ts` and rendered by `AttributionFooter` through `AppShell`, so
+  every screen shows it and a rename touches one line; and never add a term beyond attribution,
+  because the license declares any other non-permissive additional term to be a "further
+  restriction" that section 10 forbids imposing. "Modifications must be contributed back" is a
+  request in the `README`, not a condition — no license can require it.
 
 ## Commands
 Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).

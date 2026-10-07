@@ -224,4 +224,32 @@ main.py                   deployable entrypoint (re-exports the ASGI app)
 
 - [`AGENTS.md`](AGENTS.md) — conventions and the architectural rules that are easy to get wrong
 - [`TODO.md`](TODO.md) — roadmap
-- [`docs/adr/`](docs/adr/) — architecture decision records
+- [`docs/adr/`](docs/adr/) — architecture decision records, including
+  [`0006`](docs/adr/0006-license-and-author-attribution.md) on licensing
+
+## License and attribution
+
+**AGPL-3.0-only**, plus one additional term added under section 7(b) of that license requiring the
+author attribution to be preserved. [`LICENSE`](LICENSE) is the verbatim license text;
+[`LICENSE-ADDITIONAL-TERMS.md`](LICENSE-ADDITIONAL-TERMS.md) states the term; and
+[`docs/adr/0006`](docs/adr/0006-license-and-author-attribution.md) records the decision and the
+alternatives that were rejected.
+
+What that means in practice:
+
+- **Use it, study it, modify it, redistribute it, run it as a service.** Installing this for your
+  own archive obliges you to nothing at all, and no public body has to ask permission.
+- **You may charge for it.** The license says so explicitly (§4). What you may not do is take it
+  closed: if you modify it and let users reach it over a network, section 13 requires you to offer
+  those users the Corresponding Source of your version.
+- **Keep the attribution.** The footer carries the author, the license, a link to the license text
+  and a link to this repository. It has to stay there, and a modified version has to keep all four.
+  This is the only condition the project adds beyond the license itself.
+- **Changes should come back — but no license can require that.** Section 13 obliges offering
+  source to the users of your deployment, not filing a pull request here. If you fix something for
+  your archive, opening a pull request is how this project improves, and it is very welcome; it is
+  a request, not a condition.
+
+Never write the attribution text by hand in a component. It is defined once, in
+[`apps/curator/src/lib/attribution.ts`](apps/curator/src/lib/attribution.ts), and rendered by
+`AttributionFooter` through the application shell — so a rename changes one line, not every screen.

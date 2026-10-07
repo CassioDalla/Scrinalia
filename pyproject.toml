@@ -4,6 +4,13 @@ version = "0.1.0"
 description = "Archival description cataloguing and AI-driven enrichment system (ISAD(G))"
 readme = "README.md"
 requires-python = ">=3.12"
+# AGPL-3.0-only, plus the attribution term added under section 7(b) of that license and stated
+# in LICENSE-ADDITIONAL-TERMS.md. The code cannot be taken closed; a modified version offered
+# over a network must publish its source (section 13); and the author attribution in the page
+# footer must be preserved. See docs/adr/0006-license-and-author-attribution.md.
+license = "AGPL-3.0-only"
+license-files = ["LICENSE", "LICENSE-ADDITIONAL-TERMS.md"]
+authors = [{ name = "CassioDalla", email = "cassiodalla@hotmail.com" }]
 dependencies = [
     "alembic>=1.20.0",
     "beautifulsoup4>=4.14.3",

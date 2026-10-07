@@ -1,6 +1,9 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 
+import { ATTRIBUTION } from "@/lib/attribution";
 import { cn } from "@/lib/cn";
+
+import { AttributionFooter } from "./AttributionFooter";
 
 /**
  * Navigation mirrors the sitemap.
@@ -86,7 +89,7 @@ export function AppShell() {
     <div className="flex min-h-full">
       <aside className="flex w-64 shrink-0 flex-col border-r border-(--color-line) bg-(--color-surface)">
         <div className="border-b border-(--color-line) px-4 py-4">
-          <p className="text-sm font-semibold">Memória Curitibana</p>
+          <p className="text-sm font-semibold">{ATTRIBUTION.name}</p>
           <p className="text-xs text-(--color-muted)">Curadoria do acervo</p>
         </div>
         <nav className="flex-1 overflow-y-auto px-2 py-3">
@@ -121,8 +124,11 @@ export function AppShell() {
         </nav>
       </aside>
 
-      <main className="min-w-0 flex-1">
-        <Outlet />
+      <main className="flex min-w-0 flex-1 flex-col">
+        <div className="flex-1">
+          <Outlet />
+        </div>
+        <AttributionFooter />
       </main>
     </div>
   );
