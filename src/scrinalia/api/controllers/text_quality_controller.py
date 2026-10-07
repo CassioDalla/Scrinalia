@@ -2,14 +2,14 @@ from litestar import Controller, delete, get, patch, post
 from litestar.di import NamedDependency, Provide
 from litestar.params import FromPath, FromQuery
 
-from scrinalia.api.dependencies import provide_text_quality_service
+from scrinalia.api.dependencies import provide_current_user, provide_text_quality_service
 from scrinalia.api.schemas.text_quality_requests import (
     CreateTextTemplateRequest,
     DryRunTextTemplateRequest,
     SuggestTextTemplatesRequest,
     UpdateTextTemplateRequest,
 )
-from scrinalia.api.security import Access
+from scrinalia.api.security import Access, AuthenticatedUser
 from scrinalia.domains.archive.schemas import RouteMessageCode
 from scrinalia.domains.archive.schemas.text_quality_schema import (
     TemplateCreateCommand,
@@ -30,6 +30,7 @@ class TextQualityController(Controller):
     tags = ["Data Quality"]  # noqa: RUF012
 
     dependencies = {  # noqa: RUF012
+        "current_user": Provide(provide_current_user, sync_to_thread=False),
         "text_quality_service": Provide(provide_text_quality_service, sync_to_thread=False),
     }
 
@@ -81,6 +82,7 @@ class TextQualityController(Controller):
         self,
         text_quality_service: NamedDependency[TextQualityService],
         data: CreateTextTemplateRequest,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> TextTemplateMutationResponse:
         """Registers an excerpt by hand; it starts approved and applied."""
         template, requeued = text_quality_service.create_template(
@@ -91,7 +93,7 @@ class TextQualityController(Controller):
                 scope=data.scope,
                 reason=data.reason,
                 variants=data.variants,
-                created_by=data.changed_by,
+                created_by=current_user.author,
             )
         )
         return TextTemplateMutationResponse(
@@ -107,11 +109,12 @@ class TextQualityController(Controller):
         text_quality_service: NamedDependency[TextQualityService],
         template_id: FromPath[int],
         data: UpdateTextTemplateRequest,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> TextTemplateMutationResponse:
         """Approves, edits, deactivates or rejects an excerpt."""
         template, requeued = text_quality_service.update_template(
             template_id,
-            TemplateUpdateCommand(**data.model_dump(exclude_unset=True)),
+            TemplateUpdateCommand(**data.model_dump(exclude_unset=True), changed_by=current_user.author),
         )
         return TextTemplateMutationResponse(
             code=RouteMessageCode.TEXT_TEMPLATE_UPDATED,

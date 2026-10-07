@@ -286,7 +286,7 @@ class EntityService:
             plan,
             command.winner,
             source=source,
-            decided_by=command.decided_by or source,
+            decided_by=command.decided_by,
             note=command.note,
         )
 

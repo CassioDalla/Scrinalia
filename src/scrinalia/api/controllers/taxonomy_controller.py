@@ -8,7 +8,7 @@ from litestar import Controller, delete, get, patch, post
 from litestar.di import NamedDependency, Provide
 from litestar.params import FromPath, FromQuery
 
-from scrinalia.api.dependencies import provide_entity_service, provide_tag_service
+from scrinalia.api.dependencies import provide_current_user, provide_entity_service, provide_tag_service
 from scrinalia.api.schemas.taxonomy import (
     ConflictPreviewRequest,
     ConflictResolutionRequest,
@@ -30,7 +30,7 @@ from scrinalia.api.schemas.taxonomy import (
     SuggestMacroRequest,
     TagCurationRequest,
 )
-from scrinalia.api.security import Access
+from scrinalia.api.security import Access, AuthenticatedUser
 from scrinalia.domains.archive.models.enums import StopwordsScope
 from scrinalia.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
@@ -94,6 +94,7 @@ class TaxonomyController(Controller):
     tags = ["Taxonomy"]  # noqa: RUF012
 
     dependencies = {  # noqa: RUF012
+        "current_user": Provide(provide_current_user, sync_to_thread=False),
         "tag_service": Provide(provide_tag_service, sync_to_thread=False),
         "entity_service": Provide(provide_entity_service, sync_to_thread=False),
     }
@@ -120,6 +121,7 @@ class TaxonomyController(Controller):
         tag_service: NamedDependency[TagService],
         tag_id: FromPath[int],
         data: TagCurationRequest,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> TagCurationResult:
         """
         Moves one tag into a subject drawer, or declares that it is not a subject at all.
@@ -127,7 +129,9 @@ class TaxonomyController(Controller):
         A global decision about the vocabulary, not a local edit: it changes the badge of every
         description that carries the tag, and the response says as much by being the tag itself.
         """
-        return tag_service.curate_tag_macro_category(tag_id, TagCurationCommand(**data.model_dump()))
+        return tag_service.curate_tag_macro_category(
+            tag_id, TagCurationCommand(**data.model_dump(), changed_by=current_user.author)
+        )
 
     @get("/tags/relevance/{method:str}", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def get_tag_relevance(
@@ -160,12 +164,17 @@ class TaxonomyController(Controller):
         return list(results)
 
     @post("/tags/merge", opt={"access": Access.CURATE}, sync_to_thread=True)
-    def merge_tags(self, tag_service: NamedDependency[TagService], data: MergeRequest) -> MergeResponse:
+    def merge_tags(
+        self,
+        tag_service: NamedDependency[TagService],
+        data: MergeRequest,
+        current_user: NamedDependency[AuthenticatedUser],
+    ) -> MergeResponse:
         response = tag_service.merge(
             MergeTagsCommand(
                 canonical_id=data.canonical_id,
                 ids_to_merge=data.ids_to_merge,
-                changed_by=data.changed_by,
+                changed_by=current_user.author,
             )
         )
 
@@ -239,11 +248,12 @@ class TaxonomyController(Controller):
         tag_service: NamedDependency[TagService],
         proposal_id: FromPath[int],
         data: MergeProposalDecisionRequest,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> TagMergeProposalDecisionResponse:
         """Approves or rejects a proposed cluster. Approval records intent, it does not merge."""
         proposal = tag_service.decide_merge_proposal(
             proposal_id,
-            TagMergeDecisionCommand(status=data.status, decided_by=data.decided_by, note=data.note),
+            TagMergeDecisionCommand(status=data.status, decided_by=current_user.author, note=data.note),
         )
         return TagMergeProposalDecisionResponse(
             code=RouteMessageCode.TAG_MERGE_PROPOSAL_DECIDED,
@@ -256,6 +266,7 @@ class TaxonomyController(Controller):
         self,
         tag_service: NamedDependency[TagService],
         data: MergeBatchRequest,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> BatchMergeResponse:
         """
         Applies a batch of proposals, one savepoint per cluster, and reports each outcome.
@@ -264,7 +275,7 @@ class TaxonomyController(Controller):
         individually through ``DELETE /tags/merge-log/{merge_id}``.
         """
         return tag_service.merge_batch(
-            MergeBatchCommand(proposal_ids=data.proposal_ids, changed_by=data.changed_by, note=data.note)
+            MergeBatchCommand(proposal_ids=data.proposal_ids, changed_by=current_user.author, note=data.note)
         )
 
     @get("/tags/merge-log", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
@@ -288,7 +299,7 @@ class TaxonomyController(Controller):
         """
         return tag_service.list_merge_log(
             canonical_id=canonical_id,
-            changed_by=changed_by,
+            changed_by_name=changed_by,
             include_undone=include_undone,
             term=q,
             limit=limit,
@@ -694,7 +705,10 @@ class TaxonomyController(Controller):
 
     @post("/conflicts/resolve", opt={"access": Access.CURATE}, sync_to_thread=True)
     def resolve_cross_domain_conflict(
-        self, entity_service: NamedDependency[EntityService], data: ConflictResolutionRequest
+        self,
+        entity_service: NamedDependency[EntityService],
+        data: ConflictResolutionRequest,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> ConflictResolutionResponse:
         """
         Forces the victory of a Tag or an Entity, and records the write so it can be reversed.
@@ -707,7 +721,7 @@ class TaxonomyController(Controller):
                 winner=data.winner,
                 tag_id=data.tag_id,
                 entity_id=data.entity_id,
-                decided_by=data.decided_by,
+                decided_by=current_user.author,
                 note=data.note,
             )
         )

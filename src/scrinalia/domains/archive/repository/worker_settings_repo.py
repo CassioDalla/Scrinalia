@@ -14,6 +14,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from scrinalia.core.author import Author, author_columns
 from scrinalia.domains.archive.models.operations import WorkerSetting, WorkerSettingRevision
 
 
@@ -50,7 +51,7 @@ class WorkerSettingsRepository:
         preset: str | None,
         db_batch_size: int | None,
         options: dict[str, Any],
-        changed_by: str | None,
+        changed_by: Author | None,
     ) -> WorkerSetting:
         """
         Writes the override and its revision.
@@ -69,7 +70,7 @@ class WorkerSettingsRepository:
         setting.preset = preset
         setting.db_batch_size = db_batch_size
         setting.options = options or {}
-        setting.updated_by = changed_by
+        setting.updated_by = changed_by.name if changed_by else None
         setting.updated_at = datetime.now(UTC)
         self.db.flush()
 
@@ -78,13 +79,13 @@ class WorkerSettingsRepository:
                 worker_name=worker_name,
                 before=before,
                 after=snapshot(setting),
-                changed_by=changed_by,
+                **author_columns("changed_by", changed_by),
             )
         )
         self.db.flush()
         return setting
 
-    def clear(self, worker_name: str, *, changed_by: str | None) -> bool:
+    def clear(self, worker_name: str, *, changed_by: Author | None) -> bool:
         """Removes the override so the worker follows the code again. Returns whether it existed."""
         setting = self.db.get(WorkerSetting, worker_name)
         if setting is None:
@@ -92,7 +93,14 @@ class WorkerSettingsRepository:
 
         before = snapshot(setting)
         self.db.delete(setting)
-        self.db.add(WorkerSettingRevision(worker_name=worker_name, before=before, after=None, changed_by=changed_by))
+        self.db.add(
+            WorkerSettingRevision(
+                worker_name=worker_name,
+                before=before,
+                after=None,
+                **author_columns("changed_by", changed_by),
+            )
+        )
         self.db.flush()
         return True
 

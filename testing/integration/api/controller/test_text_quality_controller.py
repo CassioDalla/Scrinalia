@@ -16,6 +16,7 @@ from scrinalia.domains.archive.schemas.text_quality_schema import (
     TextTemplateDTO,
 )
 from scrinalia.domains.archive.services.text_quality_service import TextQualityService
+from testing.conftest import TEST_ADMIN_NAME
 
 BLOCK = "Acervo de 35.327 fotografias que retratam a cidade de Curitiba no âmbito do Planejamento"
 
@@ -128,7 +129,7 @@ def test_create_returns_the_row_and_the_requeued_count(client: TestClient, mocke
 
     response = client.post(
         "/api/v1/quality/text-templates/",
-        json={"text": BLOCK, "changed_by": "ana", "reason": "bloco do acervo"},
+        json={"text": BLOCK, "reason": "bloco do acervo"},
     )
 
     assert response.status_code == HTTP_201_CREATED
@@ -137,7 +138,8 @@ def test_create_returns_the_row_and_the_requeued_count(client: TestClient, mocke
     assert body["data"]["template_id"] == 7
     assert "Trecho cadastrado" in body["message"]
     command = mocked.call_args.args[0]
-    assert command.created_by == "ana"
+    assert command.created_by is not None, "o autor vem da sessão, não do payload"
+    assert command.created_by.name == TEST_ADMIN_NAME
     assert command.reason == "bloco do acervo"
 
 
@@ -157,14 +159,15 @@ def test_update_approves_and_reports_the_requeue(client: TestClient, mocker) -> 
         return_value=(_template(3, status="APPROVED", is_active=True), 4),
     )
 
-    response = client.patch("/api/v1/quality/text-templates/3", json={"status": "APPROVED", "changed_by": "ana"})
+    response = client.patch("/api/v1/quality/text-templates/3", json={"status": "APPROVED"})
 
     assert response.status_code == HTTP_200_OK
     assert response.json()["documents_requeued"] == 4
     assert response.json()["data"]["status"] == "APPROVED"
     command = mocked.call_args.args[1]
     assert command.status == "APPROVED"
-    assert command.changed_by == "ana"
+    assert command.changed_by is not None, "o autor vem da sessão, não do payload"
+    assert command.changed_by.name == TEST_ADMIN_NAME
 
 
 def test_update_missing_template_maps_to_404(client: TestClient, mocker) -> None:

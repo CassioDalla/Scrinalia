@@ -22,6 +22,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.orm.attributes import flag_modified
 
+from scrinalia.core.author import Author, assign_author, author_columns
 from scrinalia.domains.archive.domain.collection_vocabulary import CollectionVocabulary
 from scrinalia.domains.archive.domain.normalization import (
     LIKE_ESCAPE,
@@ -1001,7 +1002,7 @@ class TagRepository:
         self,
         proposal_id: int,
         status: str,
-        decided_by: str | None,
+        decided_by: Author | None,
         note: str | None,
     ) -> TagMergeProposalDTO | None:
         """
@@ -1015,7 +1016,7 @@ class TagRepository:
             return None
 
         row.status = status
-        row.decided_by = decided_by
+        assign_author(row, "decided_by", decided_by)
         row.decided_at = datetime.now(UTC)
         row.decision_note = note
         self.db.flush()
@@ -1087,7 +1088,7 @@ class TagRepository:
         self,
         plan: MergePlan,
         cluster_fingerprint: str | None = None,
-        changed_by: str | None = None,
+        changed_by: Author | None = None,
         note: str | None = None,
     ) -> MergeResponse:
         """
@@ -1130,7 +1131,7 @@ class TagRepository:
         self,
         plan: MergePlan,
         cluster_fingerprint: str | None = None,
-        changed_by: str | None = None,
+        changed_by: Author | None = None,
         note: str | None = None,
     ) -> list[int]:
         """
@@ -1182,7 +1183,7 @@ class TagRepository:
                     "synonym_created": previous_target is None,
                     "synonym_previous_tag_id": previous_target,
                     "repointed_synonym_names": spellings_of_dead.get(tag_id, []),
-                    "changed_by": changed_by,
+                    **author_columns("changed_by", changed_by),
                     "note": note,
                 }
             )
@@ -1332,7 +1333,7 @@ class TagRepository:
     def apply_merge_batch(
         self,
         entries: Sequence[MergeBatchEntry],
-        changed_by: str | None = None,
+        changed_by: Author | None = None,
         note: str | None = None,
     ) -> BatchMergeResponse:
         """
@@ -1392,7 +1393,7 @@ class TagRepository:
     def _tag_merge_log_filters(
         self,
         canonical_id: int | None,
-        changed_by: str | None,
+        changed_by_name: str | None,
         include_undone: bool,
         term: str | None = None,
     ) -> list[Any]:
@@ -1407,8 +1408,8 @@ class TagRepository:
         filters: list[Any] = []
         if canonical_id is not None:
             filters.append(ArchiveTaxonomyMergeLog.canonical_id == canonical_id)
-        if changed_by is not None:
-            filters.append(ArchiveTaxonomyMergeLog.changed_by == changed_by)
+        if changed_by_name is not None:
+            filters.append(ArchiveTaxonomyMergeLog.changed_by == changed_by_name)
         if not include_undone:
             filters.append(ArchiveTaxonomyMergeLog.undone_at.is_(None))
         if term:
@@ -1424,21 +1425,21 @@ class TagRepository:
     def count_merge_log(
         self,
         canonical_id: int | None = None,
-        changed_by: str | None = None,
+        changed_by_name: str | None = None,
         include_undone: bool = True,
         term: str | None = None,
     ) -> int:
         stmt = (
             select(func.count())
             .select_from(ArchiveTaxonomyMergeLog)
-            .where(*self._tag_merge_log_filters(canonical_id, changed_by, include_undone, term))
+            .where(*self._tag_merge_log_filters(canonical_id, changed_by_name, include_undone, term))
         )
         return self.db.scalar(stmt) or 0
 
     def list_merge_log(
         self,
         canonical_id: int | None = None,
-        changed_by: str | None = None,
+        changed_by_name: str | None = None,
         include_undone: bool = True,
         term: str | None = None,
         limit: int = 50,
@@ -1447,7 +1448,7 @@ class TagRepository:
         """The audit trail: most recent first, undone entries included unless filtered out."""
         stmt = (
             select(ArchiveTaxonomyMergeLog)
-            .where(*self._tag_merge_log_filters(canonical_id, changed_by, include_undone, term))
+            .where(*self._tag_merge_log_filters(canonical_id, changed_by_name, include_undone, term))
             .order_by(ArchiveTaxonomyMergeLog.merge_id.desc())
             .limit(limit)
             .offset(offset)

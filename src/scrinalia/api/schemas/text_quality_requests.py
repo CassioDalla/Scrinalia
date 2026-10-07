@@ -19,7 +19,6 @@ class CreateTextTemplateRequest(BaseModel):
     )
     reason: str | None = None
     variants: list[str] = Field(default_factory=list, description="Outras grafias do mesmo trecho.")
-    changed_by: str | None = Field(default=None, description="Quem decidiu (autoria, enquanto não há autenticação).")
 
     model_config = ConfigDict(extra="forbid")
 
@@ -35,7 +34,6 @@ class UpdateTextTemplateRequest(BaseModel):
     variants: list[str] | None = None
     status: TemplateStatus | None = None
     is_active: bool | None = None
-    changed_by: str | None = None
 
     model_config = ConfigDict(extra="forbid")
 

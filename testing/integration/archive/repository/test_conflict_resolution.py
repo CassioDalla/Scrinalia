@@ -14,6 +14,7 @@ Three promises are pinned here, and each one was broken before this ledger exist
 import pytest
 from sqlalchemy import delete, select
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.exceptions import (
     ConflictResolutionAlreadyUndoneError,
     ConflictResolutionNotFoundError,
@@ -100,7 +101,7 @@ def test_the_preview_number_is_the_written_number(use_test_db, db_session, gener
     db_session.flush()
 
     plan = repo.plan_conflict_resolution(tag.tag_id, entity.entity_id)
-    data = repo.apply_conflict_resolution(plan, "TAG", source="HUMAN", decided_by="ana")
+    data = repo.apply_conflict_resolution(plan, "TAG", source="HUMAN", decided_by=Author(name="ana"))
     db_session.flush()
 
     assert data.documents_transferred == plan.tag_wins_documents_transferred == 3
@@ -135,7 +136,7 @@ def test_undo_restores_the_loser_its_id_and_only_the_links_it_created(use_test_d
     db_session.flush()
 
     plan = repo.plan_conflict_resolution(tag.tag_id, entity.entity_id)
-    data = repo.apply_conflict_resolution(plan, "TAG", source="HUMAN", decided_by="ana")
+    data = repo.apply_conflict_resolution(plan, "TAG", source="HUMAN", decided_by=Author(name="ana"))
     db_session.flush()
 
     entry = repo.undo_conflict_resolution(data.resolution_id, undone_by="bruno")
@@ -208,7 +209,7 @@ def test_entity_winning_bans_the_tag_in_the_subject_axis(use_test_db, db_session
     db_session.flush()
 
     plan = repo.plan_conflict_resolution(tag.tag_id, entity.entity_id)
-    data = repo.apply_conflict_resolution(plan, "ENTITY", source="HUMAN", decided_by="ana")
+    data = repo.apply_conflict_resolution(plan, "ENTITY", source="HUMAN", decided_by=Author(name="ana"))
     db_session.flush()
 
     assert data.ban_kind == "STOPWORD"
@@ -467,7 +468,10 @@ def test_the_ledger_lists_what_was_written_and_can_filter_the_undone(use_test_db
     db_session.flush()
 
     data = repo.apply_conflict_resolution(
-        repo.plan_conflict_resolution(tag.tag_id, entity.entity_id), "TAG", source="JUDGE", decided_by="juiz"
+        repo.plan_conflict_resolution(tag.tag_id, entity.entity_id),
+        "TAG",
+        source="JUDGE",
+        decided_by=Author(name="juiz"),
     )
     db_session.flush()
 

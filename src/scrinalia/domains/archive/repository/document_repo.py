@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
+from scrinalia.core.author import Author, author_columns
 from scrinalia.core.language import get_language
 from scrinalia.core.types import Vector
 from scrinalia.domains.archive.domain.hierarchy_code import normalize_reference_code
@@ -832,7 +833,7 @@ class DocumentRepository:
             self.db.add(
                 ArchiveDocumentRevision(
                     description_id=doc.description_id,
-                    changed_by=command.changed_by,
+                    **author_columns("changed_by", command.changed_by),
                     changes=diff,
                     note=command.review_note,
                 )
@@ -882,7 +883,7 @@ class DocumentRepository:
         )
 
     def delete_document(
-        self, description_id: str, changed_by: str | None = None, note: str | None = None
+        self, description_id: str, changed_by: Author | None = None, note: str | None = None
     ) -> DocumentDeletionDTO | None:
         """
         Snapshots the description into the ledger and deletes the row.
@@ -910,7 +911,7 @@ class DocumentRepository:
             level_name=doc.level_ref.name if doc.level_ref else None,
             snapshot=snapshot,
             children_count=0,
-            deleted_by=changed_by,
+            **author_columns("deleted_by", changed_by),
             note=note,
         )
         self.db.add(entry)
@@ -965,7 +966,7 @@ class DocumentRepository:
         field: str,
         names_before: list[str],
         names_after: list[str],
-        changed_by: str | None,
+        changed_by: Author | None,
         note: str | None,
     ) -> None:
         """
@@ -979,7 +980,7 @@ class DocumentRepository:
             self.db.add(
                 ArchiveDocumentRevision(
                     description_id=doc.description_id,
-                    changed_by=changed_by,
+                    **author_columns("changed_by", changed_by),
                     changes={field: {"old": names_before, "new": names_after}},
                     note=note,
                 )
@@ -995,7 +996,7 @@ class DocumentRepository:
         return sorted(str(item.name) for item in collection)
 
     def link_tag(
-        self, command: TagLinkCommand, changed_by: str | None = None, note: str | None = None
+        self, command: TagLinkCommand, changed_by: Author | None = None, note: str | None = None
     ) -> DocumentSummary | None:
         """Attaches one tag to one document as a human decision, with an audit entry."""
         doc = self._get_orm_by_id(command.description_id)
@@ -1013,7 +1014,7 @@ class DocumentRepository:
         return self._page_summaries([(doc, None)])[0]
 
     def unlink_tag(
-        self, command: TagLinkCommand, changed_by: str | None = None, note: str | None = None
+        self, command: TagLinkCommand, changed_by: Author | None = None, note: str | None = None
     ) -> DocumentSummary | None:
         """Detaches one tag from one document as a human decision, with an audit entry."""
         doc = self._get_orm_by_id(command.description_id)
@@ -1030,7 +1031,7 @@ class DocumentRepository:
         return self._page_summaries([(doc, None)])[0]
 
     def link_entity(
-        self, command: EntityLinkCommand, changed_by: str | None = None, note: str | None = None
+        self, command: EntityLinkCommand, changed_by: Author | None = None, note: str | None = None
     ) -> DocumentSummary | None:
         """Attaches one named entity to one document as a human decision, with an audit entry."""
         doc = self._get_orm_by_id(command.description_id)
@@ -1048,7 +1049,7 @@ class DocumentRepository:
         return self._page_summaries([(doc, None)])[0]
 
     def unlink_entity(
-        self, command: EntityLinkCommand, changed_by: str | None = None, note: str | None = None
+        self, command: EntityLinkCommand, changed_by: Author | None = None, note: str | None = None
     ) -> DocumentSummary | None:
         """Detaches one named entity from one document as a human decision, with an audit entry."""
         doc = self._get_orm_by_id(command.description_id)

@@ -4,6 +4,7 @@ from contextlib import contextmanager
 
 import pytest
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.exceptions import WorkerRunAlreadyActiveError
 from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
@@ -46,7 +47,7 @@ def service(db_session, runtime, ledger) -> WorkerRunService:
 
 
 def test_trigger_queues_the_run_with_its_resolved_config(service, runtime, db_session) -> None:
-    run = service.trigger("ner", WorkerRunRequest(requested_by="teste"))
+    run = service.trigger("ner", WorkerRunRequest(), requested_by=Author(name="teste"))
 
     assert run.status == WorkerRunStatus.QUEUED
     assert run.trigger == WorkerRunTrigger.API
@@ -69,7 +70,7 @@ def test_trigger_honours_the_persisted_override(service, db_session) -> None:
         preset="lemmatizer",
         db_batch_size=8,
         options={},
-        changed_by="teste",
+        changed_by=Author(name="teste"),
     )
     db_session.flush()
 
@@ -157,7 +158,7 @@ def test_the_runner_precedence_is_explicit_then_override_then_default(db_session
 
     monkeypatch.setitem(runner.WORKERS, "ner", capturing)
     WorkerSettingsRepository(db_session).upsert(
-        "ner", engine_name=None, preset="lemmatizer", db_batch_size=8, options={}, changed_by="teste"
+        "ner", engine_name=None, preset="lemmatizer", db_batch_size=8, options={}, changed_by=Author(name="teste")
     )
     db_session.flush()
 

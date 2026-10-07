@@ -18,6 +18,7 @@ from typing import Any, cast
 from sqlalchemy import CursorResult, func, select, update
 from sqlalchemy.orm import Session
 
+from scrinalia.core.author import Author, author_columns
 from scrinalia.domains.archive.models.enums import (
     ACTIVE_WORKER_RUN_STATUSES,
     WorkerRunStatus,
@@ -58,7 +59,7 @@ class WorkerRunRepository:
         worker_name: str,
         *,
         trigger: WorkerRunTrigger,
-        requested_by: str | None,
+        requested_by: Author | None,
         engine_name: str | None,
         preset: str | None,
         config: dict[str, Any],
@@ -68,7 +69,7 @@ class WorkerRunRepository:
             worker_name=worker_name,
             status=WorkerRunStatus.QUEUED,
             trigger=trigger,
-            requested_by=requested_by,
+            **author_columns("requested_by", requested_by),
             engine_name=engine_name,
             preset=preset,
             config=config,
@@ -83,7 +84,7 @@ class WorkerRunRepository:
         worker_name: str,
         *,
         trigger: WorkerRunTrigger,
-        requested_by: str | None,
+        requested_by: Author | None,
         engine_name: str | None,
         preset: str | None,
         config: dict[str, Any],
@@ -94,7 +95,7 @@ class WorkerRunRepository:
             worker_name=worker_name,
             status=WorkerRunStatus.RUNNING,
             trigger=trigger,
-            requested_by=requested_by,
+            **author_columns("requested_by", requested_by),
             engine_name=engine_name,
             preset=preset,
             config=config,

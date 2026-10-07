@@ -2,6 +2,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.exceptions import InvalidParam
 from scrinalia.domains.archive.models import (
     ArchiveDocumentTag,
@@ -430,7 +431,7 @@ def test_upsert_merge_proposals_never_overwrites_a_human_decision(use_test_db, d
     assert repo.upsert_merge_proposals([suggestion]) == 1
     proposal_id = repo.list_merge_proposals()[0].proposal_id
 
-    decided = repo.decide_merge_proposal(proposal_id, "REJECTED", "arquivista", "são ruas diferentes")
+    decided = repo.decide_merge_proposal(proposal_id, "REJECTED", Author(name="arquivista"), "são ruas diferentes")
     assert decided is not None
     assert decided.status == "REJECTED"
     assert decided.decided_by == "arquivista"
@@ -505,7 +506,7 @@ def test_merge_proposals_put_pending_work_first(use_test_db, db_session):
     decided_id = next(
         proposal.proposal_id for proposal in repo.list_merge_proposals() if proposal.canonical_name == "igreja"
     )
-    repo.decide_merge_proposal(decided_id, "APPROVED", "arquivista", None)
+    repo.decide_merge_proposal(decided_id, "APPROVED", Author(name="arquivista"), None)
 
     first = repo.list_merge_proposals()[0]
     assert first.canonical_name == "lote"

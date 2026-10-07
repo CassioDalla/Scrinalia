@@ -10,11 +10,12 @@ from litestar.di import NamedDependency, Provide
 from litestar.params import FromPath, FromQuery
 
 from scrinalia.api.dependencies import (
+    provide_current_user,
     provide_failure_service,
     provide_worker_operations_service,
     provide_worker_run_service,
 )
-from scrinalia.api.security import Access
+from scrinalia.api.security import Access, AuthenticatedUser
 from scrinalia.api.system_health import probe_infrastructure
 from scrinalia.domains.archive.models.enums import WorkerRunStatus
 from scrinalia.domains.archive.schemas.system_schema import (
@@ -38,6 +39,7 @@ class SystemController(Controller):
     tags = ["System"]  # noqa: RUF012
 
     dependencies = {  # noqa: RUF012
+        "current_user": Provide(provide_current_user, sync_to_thread=False),
         "operations_service": Provide(provide_worker_operations_service, sync_to_thread=False),
         "run_service": Provide(provide_worker_run_service, sync_to_thread=False),
         "failure_service": Provide(provide_failure_service, sync_to_thread=False),
@@ -95,6 +97,7 @@ class SystemController(Controller):
         run_service: NamedDependency[WorkerRunService],
         worker_name: FromPath[str],
         data: WorkerRunRequest,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> WorkerRunDTO:
         """
         Queues one run and answers immediately.
@@ -103,7 +106,7 @@ class SystemController(Controller):
         route. A worker that already has a run in flight answers 409 — the guarantee comes from the
         partial unique index, not from a check the API could race.
         """
-        return run_service.trigger(worker_name, data)
+        return run_service.trigger(worker_name, data, requested_by=current_user.author)
 
     @put("/workers/{worker_name:str}/settings", opt={"access": Access.OPERATE}, status_code=200, sync_to_thread=True)
     def update_settings(
@@ -111,19 +114,20 @@ class SystemController(Controller):
         operations_service: NamedDependency[WorkerOperationsService],
         worker_name: FromPath[str],
         data: WorkerSettingsRequest,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> WorkerSettingsDTO:
         """Persists the default engine/preset/batch/options of one worker."""
-        return operations_service.update_settings(worker_name, data)
+        return operations_service.update_settings(worker_name, data, changed_by=current_user.author)
 
     @delete("/workers/{worker_name:str}/settings", opt={"access": Access.OPERATE}, status_code=200, sync_to_thread=True)
     def clear_settings(
         self,
         operations_service: NamedDependency[WorkerOperationsService],
         worker_name: FromPath[str],
-        changed_by: FromQuery[str | None] = None,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> WorkerSettingsDTO:
         """Drops the override so the worker follows the code again; idempotent."""
-        return operations_service.clear_settings(worker_name, changed_by=changed_by)
+        return operations_service.clear_settings(worker_name, changed_by=current_user.author)
 
     @get("/workers/{worker_name:str}/settings/revisions", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_settings_revisions(

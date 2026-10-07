@@ -5,6 +5,7 @@ from datetime import date
 import pytest
 from sqlalchemy import select
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.domain.text_quality import SuggestionCandidate, normalize_excerpt
 from scrinalia.domains.archive.models import ArchiveDocument, DomainTextTemplate
 from scrinalia.domains.archive.repository.text_quality_repo import (
@@ -216,7 +217,7 @@ def test_suggestion_never_overwrites_a_human_decision(repo: TextQualityRepositor
 
 def test_create_template_is_born_approved_and_normalized(repo: TextQualityRepository) -> None:
     template = repo.create_template(
-        TemplateCreateCommand(text="  Bloco   repetido ", variants=["  Variante  "], created_by="ana")
+        TemplateCreateCommand(text="  Bloco   repetido ", variants=["  Variante  "], created_by=Author(name="ana"))
     )
 
     assert template.status == "APPROVED"
@@ -231,7 +232,7 @@ def test_update_can_approve_and_correct(repo: TextQualityRepository, db_session)
 
     updated = repo.update_template(
         row.template_id,
-        TemplateUpdateCommand(status="APPROVED", is_active=True, replacement="", changed_by="ana"),
+        TemplateUpdateCommand(status="APPROVED", is_active=True, replacement="", changed_by=Author(name="ana")),
     )
 
     assert updated is not None

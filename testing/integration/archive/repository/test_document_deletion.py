@@ -15,6 +15,7 @@ from datetime import date
 import pytest
 from sqlalchemy import func, select
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.exceptions import DocumentHasChildrenError, DocumentNotFoundError
 from scrinalia.domains.archive.models import (
     ArchiveDocument,
@@ -67,7 +68,7 @@ def test_a_leaf_is_deleted(db_session, generate_archive_doc) -> None:
     )
 
     service = DocumentService(DocumentRepository(db_session))
-    entry = service.delete("leaf-1", changed_by="cassio", note="duplicata da 00574")
+    entry = service.delete("leaf-1", changed_by=Author(name="cassio"), note="duplicata da 00574")
 
     assert db_session.get(ArchiveDocument, "leaf-1") is None
     assert entry.description_id == "leaf-1"
@@ -122,15 +123,15 @@ def test_the_snapshot_survives_what_cascades(db_session, generate_archive_doc) -
     generate_archive_doc(description_id="leaf-3", original_title="Item")
     tag = _tag(db_session)
     repository = DocumentRepository(db_session)
-    repository.link_tag(TagLinkCommand(description_id="leaf-3", tag_id=tag.tag_id), changed_by="ana")
+    repository.link_tag(TagLinkCommand(description_id="leaf-3", tag_id=tag.tag_id), changed_by=Author(name="ana"))
     repository.update_review(
-        DocumentReviewCommand(description_id="leaf-3", archivist_notes="conferido", changed_by="ana")
+        DocumentReviewCommand(description_id="leaf-3", archivist_notes="conferido", changed_by=Author(name="ana"))
     )
     assert db_session.scalar(select(func.count()).select_from(ArchiveDocumentTag)) == 1
     # Two revisions: the tag link is itself a curated write, and so is the field edit.
     assert db_session.scalar(select(func.count()).select_from(ArchiveDocumentRevision)) == 2
 
-    entry = DocumentService(repository).delete("leaf-3", changed_by="ana")
+    entry = DocumentService(repository).delete("leaf-3", changed_by=Author(name="ana"))
 
     assert db_session.scalar(select(func.count()).select_from(ArchiveDocumentTag)) == 0
     assert db_session.scalar(select(func.count()).select_from(ArchiveDocumentRevision)) == 0

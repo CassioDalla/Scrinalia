@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.models.enums import StopwordsScope
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode, RouteResponse
 from scrinalia.domains.archive.schemas.types import TagName
@@ -111,7 +112,9 @@ class TagCurationCommand(BaseModel):
     """
 
     macro_category_id: int | None = Field(description="Drawer to move the tag into; ``null`` orphans it again.")
-    changed_by: str | None = Field(default=None, description="Who decided; free text until authentication exists.")
+    changed_by: Author | None = Field(
+        default=None, description="Who decided: the account when there is one, the name alone when there is not."
+    )
     note: str | None = Field(default=None, description="Why; kept in the tag's ledger.")
 
 
@@ -270,7 +273,9 @@ class TagMergeDecisionCommand(BaseModel):
     """The archivist's verdict on one proposal. Approval records intent, it does not merge."""
 
     status: Literal["APPROVED", "REJECTED"]
-    decided_by: str | None = Field(default=None, description="Who decided; free text until authentication exists.")
+    decided_by: Author | None = Field(
+        default=None, description="Who decided: the account when there is one, the name alone when there is not."
+    )
     note: str | None = Field(default=None, description="Why; kept for auditing.")
 
 
@@ -372,7 +377,7 @@ class MergeBatchCommand(BaseModel):
     """
 
     proposal_ids: list[int] = Field(min_length=1)
-    changed_by: str | None = None
+    changed_by: Author | None = None
     note: str | None = None
 
 

@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from typing import Literal, Protocol
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.schemas.command_schema import EntityLinkCommand, SynonymCommand
 from scrinalia.domains.archive.schemas.entity_schema import (
     ArchiveEntityDTO,
@@ -89,7 +90,7 @@ class EntityRepositoryPort(Protocol):
         plan: ConflictResolutionPlan,
         winner: Literal["TAG", "ENTITY"],
         source: NerExclusionSource = "HUMAN",
-        decided_by: str | None = None,
+        decided_by: Author | None = None,
         note: str | None = None,
     ) -> ConflictResolutionData: ...
     def resolve_cross_domain_conflict(

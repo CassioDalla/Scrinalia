@@ -4,6 +4,7 @@ from typing import Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.domain.text_quality import (
     AI_TEXT_COLUMNS,
     DEFAULT_TEMPLATE_SCOPE,
@@ -66,7 +67,7 @@ class TemplateCreateCommand(BaseModel):
     )
     reason: str | None = None
     variants: list[str] = Field(default_factory=list)
-    created_by: str | None = None
+    created_by: Author | None = None
 
     @field_validator("text")
     @classmethod
@@ -87,7 +88,7 @@ class TemplateUpdateCommand(BaseModel):
     variants: list[str] | None = None
     status: TemplateStatus | None = None
     is_active: bool | None = None
-    changed_by: str | None = None
+    changed_by: Author | None = None
 
 
 class TemplateSuggestion(BaseModel):

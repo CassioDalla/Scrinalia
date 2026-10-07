@@ -2,6 +2,7 @@
 
 import pytest
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.exceptions import InvalidWorkerSettingsError, WorkerNotFoundError
 from scrinalia.domains.archive.repository.cleaning_repo import CleaningRepository
 from scrinalia.domains.archive.schemas.cleaning_schema import CleaningRuleCreateDTO
@@ -67,7 +68,9 @@ def test_the_quality_validator_takes_its_engine_from_the_active_rule(db_session,
 
 def test_a_setting_round_trips_and_leaves_a_revision(db_session, service) -> None:
     updated = service.update_settings(
-        "ner", WorkerSettingsRequest(engine_name="spacy_ner", preset="lemmatizer", db_batch_size=16, changed_by="teste")
+        "ner",
+        WorkerSettingsRequest(engine_name="spacy_ner", preset="lemmatizer", db_batch_size=16),
+        changed_by=Author(name="teste"),
     )
     assert updated.overridden is True
     assert updated.preset == "lemmatizer"
@@ -80,7 +83,7 @@ def test_a_setting_round_trips_and_leaves_a_revision(db_session, service) -> Non
     assert revisions.items[0].after is not None
     assert revisions.items[0].after["preset"] == "lemmatizer"
 
-    cleared = service.clear_settings("ner", changed_by="teste")
+    cleared = service.clear_settings("ner", changed_by=Author(name="teste"))
     assert cleared.overridden is False
     assert cleared.preset == "gpu"
     assert service.list_revisions("ner", limit=10, offset=0).total == 2

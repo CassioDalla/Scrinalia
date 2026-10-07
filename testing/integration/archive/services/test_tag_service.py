@@ -1,6 +1,7 @@
 import pytest
 from sqlalchemy import select, text
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.exceptions import TagMergeProposalNotFoundError
 from scrinalia.domains.archive.models import (
     ArchiveDocumentTag,
@@ -391,7 +392,7 @@ def test_suggest_merges_registers_proposals_and_records_the_decision(use_test_db
 
     decided = service.decide_merge_proposal(
         proposal.proposal_id,
-        TagMergeDecisionCommand(status="APPROVED", decided_by="arquivista", note="mesmo conceito"),
+        TagMergeDecisionCommand(status="APPROVED", decided_by=Author(name="arquivista"), note="mesmo conceito"),
     )
 
     assert decided.status == "APPROVED"
@@ -432,7 +433,7 @@ def test_merge_batch_applies_the_clusters_and_records_the_decision(use_test_db, 
     proposal_ids = _clustered_proposals(service, db_session, [("casa", "casas"), ("rua", "ruas")])
 
     result = service.merge_batch(
-        MergeBatchCommand(proposal_ids=proposal_ids, changed_by="arquivista", note="mesmo conceito")
+        MergeBatchCommand(proposal_ids=proposal_ids, changed_by=Author(name="arquivista"), note="mesmo conceito")
     )
     db_session.commit()
 
@@ -457,8 +458,10 @@ def test_merge_batch_never_applies_a_rejected_proposal(use_test_db, db_session):
     service = TagService(tag_repo, DocumentRepository(db_session))
     proposal_ids = _clustered_proposals(service, db_session, [("lote", "lotes")])
 
-    service.decide_merge_proposal(proposal_ids[0], TagMergeDecisionCommand(status="REJECTED", decided_by="arquivista"))
-    result = service.merge_batch(MergeBatchCommand(proposal_ids=proposal_ids, changed_by="arquivista"))
+    service.decide_merge_proposal(
+        proposal_ids[0], TagMergeDecisionCommand(status="REJECTED", decided_by=Author(name="arquivista"))
+    )
+    result = service.merge_batch(MergeBatchCommand(proposal_ids=proposal_ids, changed_by=Author(name="arquivista")))
     db_session.commit()
 
     assert result.applied == []
@@ -479,7 +482,9 @@ def test_merge_batch_reports_an_unknown_proposal_and_skips_an_already_applied_on
     service = TagService(tag_repo, DocumentRepository(db_session))
     proposal_ids = _clustered_proposals(service, db_session, [("obra", "obras")])
 
-    first = service.merge_batch(MergeBatchCommand(proposal_ids=[*proposal_ids, 999_999], changed_by="arquivista"))
+    first = service.merge_batch(
+        MergeBatchCommand(proposal_ids=[*proposal_ids, 999_999], changed_by=Author(name="arquivista"))
+    )
     db_session.commit()
     assert len(first.applied) == 1
     assert [failure.proposal_id for failure in first.failed] == [999_999]
@@ -487,7 +492,7 @@ def test_merge_batch_reports_an_unknown_proposal_and_skips_an_already_applied_on
 
     # Applying the same cluster again must not silently write a second time — and must not accuse
     # the archivist of a mistake either.
-    second = service.merge_batch(MergeBatchCommand(proposal_ids=proposal_ids, changed_by="arquivista"))
+    second = service.merge_batch(MergeBatchCommand(proposal_ids=proposal_ids, changed_by=Author(name="arquivista")))
     db_session.commit()
     assert second.applied == []
     assert second.failed == []
@@ -502,7 +507,7 @@ def test_an_applied_cluster_leaves_the_approved_queue(use_test_db, db_session):
     service = TagService(tag_repo, DocumentRepository(db_session))
     proposal_ids = _clustered_proposals(service, db_session, [("ponte", "pontes")])
 
-    service.merge_batch(MergeBatchCommand(proposal_ids=proposal_ids, changed_by="arquivista"))
+    service.merge_batch(MergeBatchCommand(proposal_ids=proposal_ids, changed_by=Author(name="arquivista")))
     db_session.commit()
 
     assert service.list_merge_proposals(status="APPROVED").items == []
@@ -526,7 +531,7 @@ def test_a_proposal_says_whether_there_is_still_work(use_test_db, db_session):
     fresh = service.list_merge_proposals(status="SUGGESTED").items[0]
     assert (fresh.members_alive, fresh.canonical_alive, fresh.applicable) == (2, True, True)
 
-    service.merge_batch(MergeBatchCommand(proposal_ids=proposal_ids, changed_by="arquivista"))
+    service.merge_batch(MergeBatchCommand(proposal_ids=proposal_ids, changed_by=Author(name="arquivista")))
     db_session.commit()
 
     done = service.list_merge_proposals(status="APPLIED").items[0]
@@ -549,7 +554,9 @@ def test_merge_then_undo_restores_the_tag_through_the_service(use_test_db, db_se
     db_session.flush()
 
     response = service.merge(
-        MergeTagsCommand(canonical_id=canonical.tag_id, ids_to_merge=[variant.tag_id], changed_by="arquivista")
+        MergeTagsCommand(
+            canonical_id=canonical.tag_id, ids_to_merge=[variant.tag_id], changed_by=Author(name="arquivista")
+        )
     )
     db_session.flush()
     assert response.merge_ids

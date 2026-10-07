@@ -132,7 +132,7 @@ class TestTypologyLifecycle:
 
         response = client.patch(
             f"/api/v1/documents/{document.description_id}",
-            json={"typology_id": typology_id, "changed_by": "ana", "review_note": "Planta conferida"},
+            json={"typology_id": typology_id, "review_note": "Planta conferida"},
         )
 
         assert response.status_code == HTTP_200_OK

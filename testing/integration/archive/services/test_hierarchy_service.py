@@ -10,6 +10,7 @@ broken row.
 import pytest
 from sqlalchemy import select, text
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.domain.hierarchy import HierarchyIssue
 from scrinalia.domains.archive.exceptions import (
     HierarchyNodeNotFoundError,
@@ -122,7 +123,7 @@ class TestTheMaterialisedPath:
         old_prefix = leaf.path
         hierarchy.move(
             series.description_id,
-            MoveNodeCommand(new_parent_id=fund_b.description_id, changed_by="ana", note="Rearranjo"),
+            MoveNodeCommand(new_parent_id=fund_b.description_id, changed_by=Author(name="ana"), note="Rearranjo"),
         )
 
         _assert_invariant(db_session)
@@ -272,7 +273,9 @@ class TestTheMoveLeavesATrail:
         target = generate_archive_doc(description_id="target-1")
         moving = generate_archive_doc(description_id="moving-1")
 
-        hierarchy.move(moving.description_id, MoveNodeCommand(new_parent_id=target.description_id, changed_by="ana"))
+        hierarchy.move(
+            moving.description_id, MoveNodeCommand(new_parent_id=target.description_id, changed_by=Author(name="ana"))
+        )
 
         revisions = db_session.scalars(
             select(ArchiveDocumentRevision).where(ArchiveDocumentRevision.description_id == moving.description_id)

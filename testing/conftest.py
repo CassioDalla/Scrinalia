@@ -45,6 +45,7 @@ TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql://test_user:test_
 #: The account the API integration tests sign in as, and the password they use. Constants and not
 #: literals repeated per file: one login path means one place to change when the policy moves.
 TEST_ADMIN_EMAIL = "admin@teste.local"
+TEST_ADMIN_NAME = "Administrador de teste"
 TEST_ADMIN_PASSWORD = "senha de teste bem longa"
 
 # ``unaccent(regdictionary, text)`` is STABLE, so a generated column / index cannot
@@ -260,7 +261,7 @@ def authenticated_client(api_client, generate_user) -> TestClient:
     point of most of them is the route's own behaviour, not who may call it. The role rules have their
     own tests (``test_authorization``), which sign in as the role they are about.
     """
-    generate_user(email=TEST_ADMIN_EMAIL, name="Administrador de teste", role=Role.ADMIN, password=TEST_ADMIN_PASSWORD)
+    generate_user(email=TEST_ADMIN_EMAIL, name=TEST_ADMIN_NAME, role=Role.ADMIN, password=TEST_ADMIN_PASSWORD)
     response = api_client.post(
         "/api/v1/auth/login",
         json={"email": TEST_ADMIN_EMAIL, "password": TEST_ADMIN_PASSWORD},

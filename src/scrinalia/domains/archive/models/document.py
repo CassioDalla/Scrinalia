@@ -256,10 +256,12 @@ class ArchiveDocumentRevision(Base):
     """
     Audit trail of every human edit made to a document.
 
-    The archivist can now correct any ISAD(G) field, and authentication only arrives in
-    phase 4, so authorship travels in the request (``changed_by``) until there is a real
-    user. What matters already is the *what*: the before/after of every field that changed,
-    stored as JSONB, so a decision can be explained and reverted with evidence.
+    Authorship is two columns and not one: ``changed_by`` is the name the history prints, and
+    ``changed_by_user_id`` is the account behind it. The name is a snapshot — renaming somebody does
+    not rewrite what they decided — and the id is what makes "everything this account did" a query
+    instead of a text search. What the archivist actually decides is the *what*: the before/after of
+    every field that changed, stored as JSONB, so a decision can be explained and reverted with
+    evidence.
     """
 
     __tablename__ = "archive_document_revisions"
@@ -272,6 +274,11 @@ class ArchiveDocumentRevision(Base):
 
     # Free text until authentication exists; then it will carry the authenticated user.
     changed_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    #: The account behind the name above. ``SET NULL`` and not ``CASCADE``: an account is deactivated, never deleted,
+    #: and if one ever were, the decision it took must survive with its author's name.
+    changed_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
 
     # ``{"scope_content": {"old": "...", "new": "..."}}`` — only the fields that changed.
     changes: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
@@ -320,6 +327,11 @@ class ArchiveDocumentDeletion(Base):
 
     # Free text until authentication exists, as everywhere else in the curation writes.
     deleted_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    #: The account behind the name above. ``SET NULL`` and not ``CASCADE``: an account is deactivated, never deleted,
+    #: and if one ever were, the decision it took must survive with its author's name.
+    deleted_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     deleted_at: Mapped[datetime] = mapped_column(

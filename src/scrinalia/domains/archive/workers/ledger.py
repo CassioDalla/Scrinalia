@@ -19,6 +19,7 @@ from typing import Any
 
 from sqlalchemy.exc import IntegrityError
 
+from scrinalia.core.author import Author
 from scrinalia.core.database import SessionFactory, create_session
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.exceptions import WorkerRunAlreadyActiveError
@@ -37,7 +38,7 @@ class WorkerRunLedger:
         self,
         worker_name: str,
         *,
-        requested_by: str | None,
+        requested_by: Author | None,
         engine_name: str | None,
         preset: str | None,
         config: dict[str, Any],
@@ -71,7 +72,7 @@ class WorkerRunLedger:
         worker_name: str,
         *,
         trigger: WorkerRunTrigger,
-        requested_by: str | None,
+        requested_by: Author | None,
         engine_name: str | None,
         preset: str | None,
         config: dict[str, Any],

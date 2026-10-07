@@ -5,13 +5,13 @@ from litestar import Controller, delete, get, patch, post
 from litestar.di import NamedDependency, Provide
 from litestar.params import FromPath, FromQuery
 
-from scrinalia.api.dependencies import provide_document_service
+from scrinalia.api.dependencies import provide_current_user, provide_document_service
 from scrinalia.api.schemas.documents import (
     DocumentUpdateRequest,
     EntityLinkRequest,
     TagLinkRequest,
 )
-from scrinalia.api.security import Access
+from scrinalia.api.security import Access, AuthenticatedUser
 from scrinalia.domains.archive.models import ArchiveReviewStatus
 from scrinalia.domains.archive.schemas import RouteMessageCode
 from scrinalia.domains.archive.schemas.command_schema import (
@@ -35,6 +35,7 @@ class DocumentController(Controller):
     tags = ["Documents"]  # noqa: RUF012
 
     dependencies = {  # noqa: RUF012
+        "current_user": Provide(provide_current_user, sync_to_thread=False),
         "document_service": Provide(provide_document_service, sync_to_thread=False),
     }
 
@@ -118,10 +119,15 @@ class DocumentController(Controller):
         document_service: NamedDependency[DocumentService],
         description_id: FromPath[str],
         data: DocumentUpdateRequest,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> DocumentSummary:
         """Applies the human review, records the changes and marks the document HUMAN_APPROVED."""
         return document_service.update_review(
-            DocumentReviewCommand(description_id=description_id, **data.model_dump(exclude_unset=True))
+            DocumentReviewCommand(
+                description_id=description_id,
+                **data.model_dump(exclude_unset=True),
+                changed_by=current_user.author,
+            )
         )
 
     # --- Local subject curation ---------------------------------------------------------------
@@ -136,10 +142,11 @@ class DocumentController(Controller):
         document_service: NamedDependency[DocumentService],
         description_id: FromPath[str],
         data: TagLinkRequest,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> DocumentSummary:
         """Attaches one tag to this description, records the revision and marks it HUMAN_APPROVED."""
         return document_service.link_tag(
-            TagLinkCommand(description_id=description_id, tag_id=data.tag_id), data.changed_by, data.review_note
+            TagLinkCommand(description_id=description_id, tag_id=data.tag_id), current_user.author, data.review_note
         )
 
     @delete(
@@ -150,12 +157,12 @@ class DocumentController(Controller):
         document_service: NamedDependency[DocumentService],
         description_id: FromPath[str],
         tag_id: FromPath[int],
-        changed_by: FromQuery[str | None] = None,
+        current_user: NamedDependency[AuthenticatedUser],
         review_note: FromQuery[str | None] = None,
     ) -> DocumentSummary:
         """Detaches one tag from this description, records the revision and marks it HUMAN_APPROVED."""
         return document_service.unlink_tag(
-            TagLinkCommand(description_id=description_id, tag_id=tag_id), changed_by, review_note
+            TagLinkCommand(description_id=description_id, tag_id=tag_id), current_user.author, review_note
         )
 
     @post("/{description_id:str}/entities", opt={"access": Access.CURATE}, status_code=201, sync_to_thread=True)
@@ -164,11 +171,12 @@ class DocumentController(Controller):
         document_service: NamedDependency[DocumentService],
         description_id: FromPath[str],
         data: EntityLinkRequest,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> DocumentSummary:
         """Attaches one named entity to this description, records the revision and marks it HUMAN_APPROVED."""
         return document_service.link_entity(
             EntityLinkCommand(description_id=description_id, entity_id=data.entity_id),
-            data.changed_by,
+            current_user.author,
             data.review_note,
         )
 
@@ -183,12 +191,12 @@ class DocumentController(Controller):
         document_service: NamedDependency[DocumentService],
         description_id: FromPath[str],
         entity_id: FromPath[int],
-        changed_by: FromQuery[str | None] = None,
+        current_user: NamedDependency[AuthenticatedUser],
         review_note: FromQuery[str | None] = None,
     ) -> DocumentSummary:
         """Detaches one named entity from this description, records the revision and marks it HUMAN_APPROVED."""
         return document_service.unlink_entity(
-            EntityLinkCommand(description_id=description_id, entity_id=entity_id), changed_by, review_note
+            EntityLinkCommand(description_id=description_id, entity_id=entity_id), current_user.author, review_note
         )
 
     # --- Deletion ------------------------------------------------------------------------------
@@ -201,11 +209,11 @@ class DocumentController(Controller):
         self,
         document_service: NamedDependency[DocumentService],
         description_id: FromPath[str],
-        changed_by: FromQuery[str | None] = None,
+        current_user: NamedDependency[AuthenticatedUser],
         note: FromQuery[str | None] = None,
     ) -> DocumentDeletionResponse:
         """Deletes one description, refusing a node that still has children below it."""
-        entry = document_service.delete(description_id, changed_by=changed_by, note=note)
+        entry = document_service.delete(description_id, changed_by=current_user.author, note=note)
         return DocumentDeletionResponse(
             code=RouteMessageCode.DOCUMENT_DELETED,
             message=f"Descrição '{entry.title}' excluída do acervo.",

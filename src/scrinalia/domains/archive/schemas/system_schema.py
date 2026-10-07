@@ -31,7 +31,9 @@ class WorkerRunDTO(BaseModel):
     worker_name: str
     status: WorkerRunStatus
     trigger: WorkerRunTrigger
-    requested_by: str | None = Field(default=None, description="Quem pediu a execução; texto livre até haver auth.")
+    requested_by: str | None = Field(
+        default=None, description="Quem pediu a execução; nulo quando ela veio do host, sem --by."
+    )
     engine_name: str | None = None
     preset: str | None = None
     config: dict[str, Any] = Field(
@@ -94,7 +96,6 @@ class WorkerRunRequest(BaseModel):
     preset: str | None = None
     db_batch_size: int | None = Field(default=None, ge=1, le=10_000)
     options: dict[str, Any] = Field(default_factory=dict)
-    requested_by: str | None = None
 
 
 class WorkerPresetDTO(BaseModel):
@@ -165,7 +166,6 @@ class WorkerSettingsRequest(BaseModel):
     preset: str | None = None
     db_batch_size: int | None = Field(default=None, ge=1, le=10_000)
     options: dict[str, Any] = Field(default_factory=dict)
-    changed_by: str | None = None
 
 
 class WorkerSettingsRevisionDTO(BaseModel):

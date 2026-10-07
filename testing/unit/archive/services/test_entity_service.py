@@ -2,6 +2,7 @@ import pytest
 from pydantic import ValidationError
 from pytest_mock import MockerFixture
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.exceptions import InvalidParam
 from scrinalia.domains.archive.repository import EntityRepository
 from scrinalia.domains.archive.schemas import ResolveConflictCommand
@@ -66,12 +67,14 @@ def test_resolve_cross_domain_conflict_plans_then_applies(mocker: MockerFixture)
     )
 
     service = EntityService(mock_ent_repo)
-    command = ResolveConflictCommand(winner="ENTITY", tag_id=10, entity_id=20, decided_by="ana", note="bairro")
+    command = ResolveConflictCommand(
+        winner="ENTITY", tag_id=10, entity_id=20, decided_by=Author(name="ana"), note="bairro"
+    )
     result = service.resolve_cross_domain_conflict(command)
 
     mock_ent_repo.plan_conflict_resolution.assert_called_once_with(10, 20)
     mock_ent_repo.apply_conflict_resolution.assert_called_once_with(
-        plan, "ENTITY", source="HUMAN", decided_by="ana", note="bairro"
+        plan, "ENTITY", source="HUMAN", decided_by=Author(name="ana"), note="bairro"
     )
     assert result.winner == "ENTITY"
     assert result.documents_transferred == 5
@@ -89,9 +92,11 @@ def test_resolve_cross_domain_conflict_forwards_judge_source(mocker: MockerFixtu
     service = EntityService(mock_ent_repo)
     service.resolve_cross_domain_conflict(ResolveConflictCommand(winner="TAG", tag_id=1, entity_id=2), source="JUDGE")
 
-    # With no ``decided_by``, the source names the author: the judge decided, not a person.
+    # The judge has no account, and the ledger now says so: ``source`` records that the machine
+    # decided, ``decided_by`` stays empty. Before, the second column held the first one's value, so
+    # "who decided" answered "JUDGE" and no query could tell a person from the worker.
     assert mock_ent_repo.apply_conflict_resolution.call_args.kwargs["source"] == "JUDGE"
-    assert mock_ent_repo.apply_conflict_resolution.call_args.kwargs["decided_by"] == "JUDGE"
+    assert mock_ent_repo.apply_conflict_resolution.call_args.kwargs["decided_by"] is None
 
 
 def test_the_preview_refuses_a_threshold_out_of_range(mocker: MockerFixture) -> None:

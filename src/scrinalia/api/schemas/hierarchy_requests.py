@@ -40,7 +40,6 @@ class HierarchyNodeCreateRequest(BaseModel):
     level_id: int | None = None
     parent_id: str | None = Field(default=None, description="Descrição superior; omita para criar na raiz.")
     scope_content: str | None = None
-    changed_by: str | None = None
     note: str | None = None
 
     model_config = ConfigDict(extra="forbid")
@@ -56,7 +55,6 @@ class HierarchyNodeMoveRequest(BaseModel):
 
     new_parent_id: str | None = Field(default=None, description="Nova unidade superior; null promove à raiz.")
     level_id: int | None = None
-    changed_by: str | None = None
     note: str | None = None
 
     model_config = ConfigDict(extra="forbid")
@@ -85,7 +83,6 @@ class HierarchyPlanDecisionRequest(BaseModel):
     title: str | None = Field(default=None, max_length=300)
     reference_code: str | None = Field(default=None, max_length=500)
     collapse_into_code: str | None = Field(default=None, max_length=500)
-    decided_by: str | None = None
     note: str | None = None
 
     model_config = ConfigDict(extra="forbid")
@@ -94,7 +91,6 @@ class HierarchyPlanDecisionRequest(BaseModel):
 class HierarchyMaterialisationRequest(BaseModel):
     """Who authorised the run, and why. The decisions themselves live in the plan rows."""
 
-    changed_by: str | None = None
     note: str | None = None
     limit: int = Field(default=500, ge=1, le=5000, description="Teto de itens no preview.")
 

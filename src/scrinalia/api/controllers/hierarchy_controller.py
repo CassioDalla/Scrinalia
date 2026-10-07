@@ -7,6 +7,7 @@ from litestar.di import NamedDependency, Provide
 from litestar.params import FromPath, FromQuery
 
 from scrinalia.api.dependencies import (
+    provide_current_user,
     provide_hierarchy_materialisation_service,
     provide_hierarchy_proposal_service,
     provide_hierarchy_service,
@@ -21,7 +22,7 @@ from scrinalia.api.schemas.hierarchy_requests import (
     HierarchyPlanDecisionRequest,
     HierarchyProposalRequest,
 )
-from scrinalia.api.security import Access
+from scrinalia.api.security import Access, AuthenticatedUser
 from scrinalia.domains.archive.domain.hierarchy import (
     HierarchyViolation,
     PlanStatus,
@@ -86,6 +87,7 @@ class HierarchyController(Controller):
     tags = ["Hierarchy"]  # noqa: RUF012
 
     dependencies = {  # noqa: RUF012
+        "current_user": Provide(provide_current_user, sync_to_thread=False),
         "level_service": Provide(provide_level_catalog_service, sync_to_thread=False),
         "hierarchy_service": Provide(provide_hierarchy_service, sync_to_thread=False),
         "proposal_service": Provide(provide_hierarchy_proposal_service, sync_to_thread=False),
@@ -201,6 +203,7 @@ class HierarchyController(Controller):
         hierarchy_service: NamedDependency[HierarchyService],
         description_id: FromPath[str],
         data: HierarchyNodeMoveRequest,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> HierarchyNodeSummary:
         """
         Reparents and/or re-levels a description, rewriting the path of its whole subtree.
@@ -213,7 +216,7 @@ class HierarchyController(Controller):
             MoveNodeCommand(
                 new_parent_id=data.new_parent_id,
                 level_id=data.level_id,
-                changed_by=data.changed_by,
+                changed_by=current_user.author,
                 note=data.note,
             ),
         )
@@ -327,6 +330,7 @@ class HierarchyController(Controller):
         materialisation_service: NamedDependency[HierarchyMaterialisationService],
         plan_id: FromPath[int],
         data: HierarchyPlanDecisionRequest,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> HierarchyNodePlanDTO:
         """
         Records the verdict on one rung: its level, its title, or that it **is** another rung.
@@ -335,13 +339,16 @@ class HierarchyController(Controller):
         measured example: ``BR PRADAP SMU ED AL`` and ``BR PRADAP SMU ED AL CONSTR`` are one level
         of the arrangement ("Alvenaria - Construções") — nothing in the string says so.
         """
-        return materialisation_service.decide(plan_id, HierarchyPlanDecisionCommand(**data.model_dump()))
+        return materialisation_service.decide(
+            plan_id, HierarchyPlanDecisionCommand(**data.model_dump(), decided_by=current_user.author)
+        )
 
     @post("/materialisation/preview", opt={"access": Access.AUTHENTICATED}, status_code=200, sync_to_thread=True)
     def preview_materialisation(
         self,
         materialisation_service: NamedDependency[HierarchyMaterialisationService],
         data: HierarchyMaterialisationRequest,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> HierarchyMaterialisationPreview:
         """
         The dry run: what the approved decisions would create and move. **Nothing is written.**
@@ -349,13 +356,16 @@ class HierarchyController(Controller):
         Computed by the same planner the apply executes, so the number the archivist approves is
         the number the write produces.
         """
-        return materialisation_service.preview(MaterialisationCommand(**data.model_dump()))
+        return materialisation_service.preview(
+            MaterialisationCommand(**data.model_dump(), changed_by=current_user.author)
+        )
 
     @post("/materialisation/apply", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def apply_materialisation(
         self,
         materialisation_service: NamedDependency[HierarchyMaterialisationService],
         data: HierarchyMaterialisationRequest,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> HierarchyMaterialisationResult:
         """
         Creates the missing rungs, adopts the existing ones and hangs the descriptions under them.
@@ -363,7 +373,9 @@ class HierarchyController(Controller):
         Every run is logged with the exact previous state, so ``DELETE /materialisation/log/{id}``
         can reverse it: a decision a human took, a human can undo.
         """
-        return materialisation_service.apply(MaterialisationCommand(**data.model_dump()))
+        return materialisation_service.apply(
+            MaterialisationCommand(**data.model_dump(), changed_by=current_user.author)
+        )
 
     @get("/materialisation/log", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_materialisation_log(

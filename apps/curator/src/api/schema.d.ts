@@ -1762,8 +1762,6 @@ export interface components {
         };
         /** ConflictResolutionRequest */
         ConflictResolutionRequest: {
-            /** @description Quem decidiu; texto livre até haver autenticação. */
-            decided_by?: string | null;
             entity_id: number;
             /** @description Por que decidiu; fica no ledger da resolução. */
             note?: string | null;
@@ -1813,8 +1811,6 @@ export interface components {
              * @enum {string}
              */
             action: "IGNORE" | "REPLACE";
-            /** @description Quem decidiu (autoria, enquanto não há autenticação). */
-            changed_by?: string | null;
             reason?: string | null;
             /**
              * @description Texto que substitui o trecho quando action=REPLACE.
@@ -2080,8 +2076,6 @@ export interface components {
             admin_bio_history?: string | null;
             /** @description Notas do arquivista. */
             archivist_notes?: string | null;
-            /** @description Quem revisou (autoria, enquanto não há autenticação). */
-            changed_by?: string | null;
             /** @description Data do documento corrigida. */
             document_date?: string | null;
             /** @description Título final revisado pelo arquivista. */
@@ -2152,8 +2146,6 @@ export interface components {
         };
         /** EntityLinkRequest */
         EntityLinkRequest: {
-            /** @description Quem decidiu; texto livre até haver autenticação. */
-            changed_by?: string | null;
             /** @description Id da entidade nomeada. */
             entity_id: number;
             /** @description Por que decidiu; fica no histórico do documento. */
@@ -2325,7 +2317,6 @@ export interface components {
         };
         /** HierarchyMaterialisationRequest */
         HierarchyMaterialisationRequest: {
-            changed_by?: string | null;
             /**
              * @description Teto de itens no preview.
              * @default 500
@@ -2344,7 +2335,6 @@ export interface components {
         };
         /** HierarchyNodeCreateRequest */
         HierarchyNodeCreateRequest: {
-            changed_by?: string | null;
             level_id?: number | null;
             note?: string | null;
             /** @description Descrição superior; omita para criar na raiz. */
@@ -2364,7 +2354,6 @@ export interface components {
         };
         /** HierarchyNodeMoveRequest */
         HierarchyNodeMoveRequest: {
-            changed_by?: string | null;
             level_id?: number | null;
             /** @description Nova unidade superior; null promove à raiz. */
             new_parent_id?: string | null;
@@ -2414,7 +2403,6 @@ export interface components {
         /** HierarchyPlanDecisionRequest */
         HierarchyPlanDecisionRequest: {
             collapse_into_code?: string | null;
-            decided_by?: string | null;
             level_id?: number | null;
             note?: string | null;
             reference_code?: string | null;
@@ -2603,8 +2591,6 @@ export interface components {
         };
         /** MergeBatchRequest */
         MergeBatchRequest: {
-            /** @description Who decided; free text until authentication exists. */
-            changed_by?: string | null;
             /** @description Why; kept for auditing. */
             note?: string | null;
             /** @description Proposals to apply, in order. */
@@ -2657,8 +2643,6 @@ export interface components {
         };
         /** MergeProposalDecisionRequest */
         MergeProposalDecisionRequest: {
-            /** @description Who decided; free text until authentication exists. */
-            decided_by?: string | null;
             /** @description Why; kept for auditing. */
             note?: string | null;
             /** @enum {string} */
@@ -2667,8 +2651,6 @@ export interface components {
         /** MergeRequest */
         MergeRequest: {
             canonical_id: number;
-            /** @description Who merged; free text until authentication exists. */
-            changed_by?: string | null;
             /** @description List of IDs that will be merged and deleted. */
             ids_to_merge: number[];
             new_name?: string | null;
@@ -3039,8 +3021,6 @@ export interface components {
         };
         /** TagCurationRequest */
         TagCurationRequest: {
-            /** @description Who decided; free text until authentication exists. */
-            changed_by?: string | null;
             /** @description Drawer the tag moves into; ``null`` takes it out of the subject axis. */
             macro_category_id: number | null;
             /** @description Why; kept in the tag's ledger. */
@@ -3057,8 +3037,6 @@ export interface components {
         };
         /** TagLinkRequest */
         TagLinkRequest: {
-            /** @description Quem decidiu; texto livre até haver autenticação. */
-            changed_by?: string | null;
             /** @description Por que decidiu; fica no histórico do documento. */
             review_note?: string | null;
             /** @description Id da tag no vocabulário (GET /api/v1/taxonomy/tags). */
@@ -3264,7 +3242,6 @@ export interface components {
         UpdateTextTemplateRequest: {
             /** @enum {null|string} */
             action?: "IGNORE" | "REPLACE" | null;
-            changed_by?: string | null;
             is_active?: boolean | null;
             reason?: string | null;
             replacement?: string | null;
@@ -3301,7 +3278,7 @@ export interface components {
             preset?: string | null;
             /** Format: date-time */
             queued_at: string;
-            /** @description Quem pediu a execução; texto livre até haver auth. */
+            /** @description Quem pediu a execução; nulo quando ela veio do host, sem --by. */
             requested_by?: string | null;
             run_id: number;
             started_at?: string | null;
@@ -3324,7 +3301,6 @@ export interface components {
                 [key: string]: unknown;
             };
             preset?: string | null;
-            requested_by?: string | null;
         };
         /**
          * WorkerRunStatus
@@ -3366,7 +3342,6 @@ export interface components {
         };
         /** WorkerSettingsRequest */
         WorkerSettingsRequest: {
-            changed_by?: string | null;
             db_batch_size?: number | null;
             engine_name?: string | null;
             options?: {
@@ -3692,7 +3667,6 @@ export interface operations {
     ApiV1DocumentsDescriptionIdDeleteDocument: {
         parameters: {
             query?: {
-                changed_by?: string | null;
                 note?: string | null;
             };
             header?: never;
@@ -3814,7 +3788,6 @@ export interface operations {
     ApiV1DocumentsDescriptionIdEntitiesEntityIdUnlinkEntity: {
         parameters: {
             query?: {
-                changed_by?: string | null;
                 review_note?: string | null;
             };
             header?: never;
@@ -3933,7 +3906,6 @@ export interface operations {
     ApiV1DocumentsDescriptionIdTagsTagIdUnlinkTag: {
         parameters: {
             query?: {
-                changed_by?: string | null;
                 review_note?: string | null;
             };
             header?: never;
@@ -5350,9 +5322,7 @@ export interface operations {
     };
     ApiV1SystemWorkersWorkerNameSettingsClearSettings: {
         parameters: {
-            query?: {
-                changed_by?: string | null;
-            };
+            query?: never;
             header?: never;
             path: {
                 worker_name: string;

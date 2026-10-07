@@ -11,6 +11,7 @@ not.
 import pytest
 from sqlalchemy import delete, select
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.exceptions import (
     MergeAlreadyUndoneError,
     MergeLogNotFoundError,
@@ -48,7 +49,9 @@ def test_apply_merge_writes_one_ledger_row_per_absorbed_tag(use_test_db, db_sess
     db_session.flush()
 
     plan = repo.plan_merge(canonical.tag_id, [variant.tag_id])
-    response = repo.apply_merge(plan, cluster_fingerprint="fp-1", changed_by="arquivista", note="mesmo conceito")
+    response = repo.apply_merge(
+        plan, cluster_fingerprint="fp-1", changed_by=Author(name="arquivista"), note="mesmo conceito"
+    )
     db_session.flush()
 
     assert response.merge_ids == [entry.merge_id for entry in repo.list_merge_log()]
@@ -88,9 +91,9 @@ def test_undo_merge_restores_the_tag_the_links_and_the_classification(use_test_d
     _link(db_session, variant, doc.description_id)
     db_session.flush()
 
-    merge_id = repo.apply_merge(repo.plan_merge(canonical.tag_id, [variant.tag_id]), changed_by="arquivista").merge_ids[
-        0
-    ]
+    merge_id = repo.apply_merge(
+        repo.plan_merge(canonical.tag_id, [variant.tag_id]), changed_by=Author(name="arquivista")
+    ).merge_ids[0]
     db_session.flush()
     assert db_session.get(ArchiveTag, restored_id) is None  # the tag is really gone
 
@@ -295,7 +298,7 @@ def test_apply_merge_batch_isolates_a_failing_cluster(use_test_db, db_session, g
             MergeBatchEntry(proposal_id=1, cluster_fingerprint="fp-good", plan=good_plan),
             MergeBatchEntry(proposal_id=2, cluster_fingerprint="fp-bad", plan=broken_plan),
         ],
-        changed_by="arquivista",
+        changed_by=Author(name="arquivista"),
     )
 
     assert [entry.proposal_id for entry in result.applied] == [1]
@@ -323,12 +326,12 @@ def test_merge_log_is_paginated_and_filtered(use_test_db, db_session):
         db_session.add_all([canonical, variant])
         db_session.flush()
         author = "arquivista" if index < 2 else "outro"
-        response = repo.apply_merge(repo.plan_merge(canonical.tag_id, [variant.tag_id]), changed_by=author)
+        response = repo.apply_merge(repo.plan_merge(canonical.tag_id, [variant.tag_id]), changed_by=Author(name=author))
         merge_ids.append(response.merge_ids[0])
     db_session.flush()
 
     assert repo.count_merge_log() == 3
-    assert repo.count_merge_log(changed_by="arquivista") == 2
+    assert repo.count_merge_log(changed_by_name="arquivista") == 2
     assert repo.count_merge_log(canonical_id=999_999) == 0
 
     first_canonical = db_session.scalar(select(ArchiveTag).where(ArchiveTag.name == "casa"))

@@ -11,6 +11,7 @@ confidence and the mark in the ledger.
 import pytest
 from sqlalchemy import select
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.exceptions import MacroCategoryNotFoundError, TagNotFoundError
 from scrinalia.domains.archive.models import (
     ArchiveDocumentTag,
@@ -136,7 +137,9 @@ class TestTagCuration:
 
         result = tag_service.curate_tag_macro_category(
             tag.tag_id,
-            TagCurationCommand(macro_category_id=category.category_id, changed_by="ana", note="não é transporte"),
+            TagCurationCommand(
+                macro_category_id=category.category_id, changed_by=Author(name="ana"), note="não é transporte"
+            ),
         )
 
         stored = db_session.get(ArchiveTag, tag.tag_id)
@@ -154,7 +157,7 @@ class TestTagCuration:
         tag = _tag(db_session, generate_archive_doc, "igrejas", 1)
 
         tag_service.curate_tag_macro_category(
-            tag.tag_id, TagCurationCommand(macro_category_id=category.category_id, changed_by="ana")
+            tag.tag_id, TagCurationCommand(macro_category_id=category.category_id, changed_by=Author(name="ana"))
         )
 
         stored = db_session.get(ArchiveTag, tag.tag_id)

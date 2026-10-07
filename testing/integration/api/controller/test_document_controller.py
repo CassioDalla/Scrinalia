@@ -21,6 +21,7 @@ from scrinalia.domains.archive.schemas.document_schema import (
     DocumentTagSummary,
 )
 from scrinalia.domains.archive.services.document_service import DocumentService
+from testing.conftest import TEST_ADMIN_NAME
 
 
 def _summary(description_id: str = "doc-1") -> DocumentSummary:
@@ -208,7 +209,6 @@ def test_patch_accepts_any_isad_g_field_and_the_author(client: TestClient, mocke
             "reference_code": "BR PR IPPUC",
             "level_id": 5,
             "provenance": "IPPUC",
-            "changed_by": "ana",
             "review_note": "Data conferida no original",
         },
     )
@@ -218,7 +218,8 @@ def test_patch_accepts_any_isad_g_field_and_the_author(client: TestClient, mocke
     assert command.document_date == date(1954, 3, 15)
     assert command.reference_code == "BR PR IPPUC"
     assert command.level_id == 5
-    assert command.changed_by == "ana"
+    assert command.changed_by is not None, "o autor vem da sessão, não do payload"
+    assert command.changed_by.name == TEST_ADMIN_NAME
     assert command.review_note == "Data conferida no original"
     # Fields the client did not send stay unset, so the audit trail ignores them.
     assert command.original_title is None
@@ -279,7 +280,7 @@ def test_delete_document_answers_the_ledger_entry(client: TestClient, mocker) ->
     mock_delete = mocker.patch.object(DocumentService, "delete")
     mock_delete.return_value = entry
 
-    response = client.delete("/api/v1/documents/doc-9?changed_by=cassio&note=duplicata")
+    response = client.delete("/api/v1/documents/doc-9?note=duplicata")
 
     assert response.status_code == HTTP_200_OK
     body = response.json()
@@ -287,7 +288,10 @@ def test_delete_document_answers_the_ledger_entry(client: TestClient, mocker) ->
     assert body["data"]["snapshot"]["original_title"] == "Praça Castro Alves"
     assert "Praça Castro Alves" in body["message"]
     assert mock_delete.call_args.args[:1] == ("doc-9",)
-    assert mock_delete.call_args.kwargs == {"changed_by": "cassio", "note": "duplicata"}
+    kwargs = mock_delete.call_args.kwargs
+    assert kwargs["note"] == "duplicata"
+    assert kwargs["changed_by"].name == TEST_ADMIN_NAME
+    assert kwargs["changed_by"].user_id is not None
 
 
 def test_delete_document_refuses_a_node_with_children(client: TestClient, mocker) -> None:

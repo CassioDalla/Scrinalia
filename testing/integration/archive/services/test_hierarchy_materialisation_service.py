@@ -15,6 +15,7 @@ they are the whole reason the plan catalogue exists.
 import pytest
 from sqlalchemy import func, select, text
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.domain.hierarchy import PlanStatus, plan_flag_vocabulary
 from scrinalia.domains.archive.exceptions import (
     DescriptionLevelNotFoundError,
@@ -91,11 +92,13 @@ def _approve(service, nobrade, decisions: dict[str, tuple[str, str, str | None]]
                     level_id=nobrade[level_code].level_id,
                     title=title,
                     collapse_into_code=collapse,
-                    decided_by="ana",
+                    decided_by=Author(name="ana"),
                 ),
             )
         else:
-            service.decide(plan.plan_id, HierarchyPlanDecisionCommand(status=status_by_default, decided_by="ana"))
+            service.decide(
+                plan.plan_id, HierarchyPlanDecisionCommand(status=status_by_default, decided_by=Author(name="ana"))
+            )
 
 
 def _full_decisions() -> dict[str, tuple[str, str, str | None]]:
@@ -168,7 +171,7 @@ class TestTheCatalogueOfDecisions:
         assert total[str(PlanStatus.APPROVED)] == 0
 
         plan = next(p for p in service.list_plans(None, 200, 0).items if p.code == "BR PRADAP SMU")
-        service.decide(plan.plan_id, HierarchyPlanDecisionCommand(status="APPROVED", decided_by="ana"))
+        service.decide(plan.plan_id, HierarchyPlanDecisionCommand(status="APPROVED", decided_by=Author(name="ana")))
 
         after = service.list_plans(status="APPROVED", limit=1, offset=0).status_counts
         assert after[str(PlanStatus.APPROVED)] == 1
@@ -185,7 +188,7 @@ class TestTheCatalogueOfDecisions:
         service.decide(
             plan.plan_id,
             HierarchyPlanDecisionCommand(
-                status="APPROVED", level_id=nobrade["fundo"].level_id, title="Meu título", decided_by="ana"
+                status="APPROVED", level_id=nobrade["fundo"].level_id, title="Meu título", decided_by=Author(name="ana")
             ),
         )
 
@@ -203,7 +206,9 @@ class TestTheCatalogueOfDecisions:
         plan = next(p for p in service.list_plans(None, 200, 0).items if p.code == "BR PRADAP SMU")
         assert plan.level_id is not None  # the proposal already carries the inferred rung
 
-        decided = service.decide(plan.plan_id, HierarchyPlanDecisionCommand(status="APPROVED", decided_by="ana"))
+        decided = service.decide(
+            plan.plan_id, HierarchyPlanDecisionCommand(status="APPROVED", decided_by=Author(name="ana"))
+        )
 
         assert decided.status == "APPROVED"
         assert decided.level_id == plan.level_id
@@ -218,7 +223,7 @@ class TestTheCatalogueOfDecisions:
         db_session.flush()
 
         with pytest.raises(InvalidHierarchyPlanError, match="nível de descrição"):
-            service.decide(plan.plan_id, HierarchyPlanDecisionCommand(status="APPROVED", decided_by="ana"))
+            service.decide(plan.plan_id, HierarchyPlanDecisionCommand(status="APPROVED", decided_by=Author(name="ana")))
 
     def test_an_unknown_plan_is_a_not_found(self, service):
         with pytest.raises(HierarchyPlanNotFoundError):
@@ -229,7 +234,8 @@ class TestTheCatalogueOfDecisions:
         plan = service.list_plans(None, 200, 0).items[0]
         with pytest.raises(DescriptionLevelNotFoundError):
             service.decide(
-                plan.plan_id, HierarchyPlanDecisionCommand(status="APPROVED", level_id=99999, decided_by="ana")
+                plan.plan_id,
+                HierarchyPlanDecisionCommand(status="APPROVED", level_id=99999, decided_by=Author(name="ana")),
             )
 
     def test_collapsing_onto_an_unknown_code_is_refused(self, service, collection, nobrade):
@@ -323,7 +329,7 @@ class TestApply:
     def _materialise(self, service, collection, nobrade):
         service.suggest()
         _approve(service, nobrade, _full_decisions())
-        return service.apply(HierarchyMaterialisationRequest(changed_by="ana"))
+        return service.apply(HierarchyMaterialisationRequest(changed_by=Author(name="ana")))
 
     def test_the_tree_is_materialised_and_the_invariant_holds(self, service, collection, nobrade, db_session):
         result = self._materialise(service, collection, nobrade)
@@ -388,7 +394,7 @@ class TestApply:
         """A second apply finds everything already placed: nothing is created, nothing is moved."""
         self._materialise(service, collection, nobrade)
 
-        second = service.apply(HierarchyMaterialisationRequest(changed_by="ana"))
+        second = service.apply(HierarchyMaterialisationRequest(changed_by=Author(name="ana")))
 
         assert second.created_nodes == 0
         assert second.documents_attached == 0
@@ -402,7 +408,7 @@ class TestApply:
         _approve(service, nobrade, _full_decisions())
         preview = service.preview(HierarchyMaterialisationRequest())
 
-        result = service.apply(HierarchyMaterialisationRequest(changed_by="ana"))
+        result = service.apply(HierarchyMaterialisationRequest(changed_by=Author(name="ana")))
 
         assert preview.nodes_to_create == result.created_nodes
         assert preview.nodes_to_adopt == result.adopted_nodes
@@ -413,7 +419,7 @@ class TestUndo:
     def _materialise(self, service, collection, nobrade):
         service.suggest()
         _approve(service, nobrade, _full_decisions())
-        return service.apply(HierarchyMaterialisationRequest(changed_by="ana"))
+        return service.apply(HierarchyMaterialisationRequest(changed_by=Author(name="ana")))
 
     def test_the_collection_goes_back_exactly_where_it_was(self, service, collection, nobrade, db_session):
         before = db_session.execute(
@@ -479,7 +485,7 @@ class TestUndo:
         """The two fields that let someone find "the run Ana did when the microfilm was attached"."""
         service.suggest()
         _approve(service, nobrade, _full_decisions())
-        service.apply(HierarchyMaterialisationRequest(changed_by="ana", note="microfilmes anexados"))
+        service.apply(HierarchyMaterialisationRequest(changed_by=Author(name="ana"), note="microfilmes anexados"))
 
         assert service.list_log(include_undone=True, limit=10, offset=0, term="ana").total == 1
         assert service.list_log(include_undone=True, limit=10, offset=0, term="microfilme").total == 1
@@ -547,7 +553,7 @@ class TestUndo:
     def test_applying_again_after_an_undo_rebuilds_the_same_tree(self, service, collection, nobrade, db_session):
         first = self._materialise(service, collection, nobrade)
         service.undo(first.materialisation_id, undone_by="ana")
-        second = service.apply(HierarchyMaterialisationRequest(changed_by="ana"))
+        second = service.apply(HierarchyMaterialisationRequest(changed_by=Author(name="ana")))
 
         assert second.created_nodes == first.created_nodes
         assert second.documents_attached == first.documents_attached

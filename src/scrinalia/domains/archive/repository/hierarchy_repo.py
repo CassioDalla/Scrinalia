@@ -14,6 +14,7 @@ from sqlalchemy import and_, case, delete, func, or_, select, update
 from sqlalchemy.orm import Session, aliased, selectinload
 from sqlalchemy.sql.elements import ColumnElement
 
+from scrinalia.core.author import Author, author_columns
 from scrinalia.domains.archive.domain.hierarchy import (
     PATH_SEPARATOR,
     HierarchyIssue,
@@ -164,7 +165,7 @@ class HierarchyRepository:
         self,
         description_id: str,
         changes: dict,
-        changed_by: str | None,
+        changed_by: Author | None,
         note: str | None,
     ) -> None:
         """
@@ -177,7 +178,7 @@ class HierarchyRepository:
         self.db.add(
             ArchiveDocumentRevision(
                 description_id=description_id,
-                changed_by=changed_by,
+                **author_columns("changed_by", changed_by),
                 changes=changes,
                 note=note,
             )
@@ -611,14 +612,14 @@ class HierarchyRepository:
         created_nodes: list[dict[str, Any]],
         rung_map: dict[str, Any],
         previous_state: dict[str, Any],
-        changed_by: str | None,
+        changed_by: Author | None,
         note: str | None,
     ) -> ArchiveHierarchyMaterialisationLog:
         entry = ArchiveHierarchyMaterialisationLog(
             created_nodes=created_nodes,
             rung_map=rung_map,
             previous_state=previous_state,
-            changed_by=changed_by,
+            **author_columns("changed_by", changed_by),
             note=note,
         )
         self.db.add(entry)

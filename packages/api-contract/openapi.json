@@ -863,17 +863,6 @@
       },
       "ConflictResolutionRequest": {
         "properties": {
-          "decided_by": {
-            "description": "Quem decidiu; texto livre até haver autenticação.",
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "entity_id": {
             "type": "integer"
           },
@@ -1015,17 +1004,6 @@
               "REPLACE"
             ],
             "type": "string"
-          },
-          "changed_by": {
-            "description": "Quem decidiu (autoria, enquanto não há autenticação).",
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "reason": {
             "oneOf": [
@@ -2194,17 +2172,6 @@
               }
             ]
           },
-          "changed_by": {
-            "description": "Quem revisou (autoria, enquanto não há autenticação).",
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "document_date": {
             "description": "Data do documento corrigida.",
             "oneOf": [
@@ -2489,17 +2456,6 @@
       },
       "EntityLinkRequest": {
         "properties": {
-          "changed_by": {
-            "description": "Quem decidiu; texto livre até haver autenticação.",
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "entity_id": {
             "description": "Id da entidade nomeada.",
             "type": "integer"
@@ -3128,16 +3084,6 @@
       },
       "HierarchyMaterialisationRequest": {
         "properties": {
-          "changed_by": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "limit": {
             "default": 500,
             "description": "Teto de itens no preview.",
@@ -3196,16 +3142,6 @@
       },
       "HierarchyNodeCreateRequest": {
         "properties": {
-          "changed_by": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "level_id": {
             "oneOf": [
               {
@@ -3292,16 +3228,6 @@
       },
       "HierarchyNodeMoveRequest": {
         "properties": {
-          "changed_by": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "level_id": {
             "oneOf": [
               {
@@ -3574,16 +3500,6 @@
         "properties": {
           "collapse_into_code": {
             "maxLength": 500,
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "decided_by": {
             "oneOf": [
               {
                 "type": "string"
@@ -4297,17 +4213,6 @@
       },
       "MergeBatchRequest": {
         "properties": {
-          "changed_by": {
-            "description": "Who decided; free text until authentication exists.",
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "note": {
             "description": "Why; kept for auditing.",
             "oneOf": [
@@ -4557,17 +4462,6 @@
       },
       "MergeProposalDecisionRequest": {
         "properties": {
-          "decided_by": {
-            "description": "Who decided; free text until authentication exists.",
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "note": {
             "description": "Why; kept for auditing.",
             "oneOf": [
@@ -4597,17 +4491,6 @@
         "properties": {
           "canonical_id": {
             "type": "integer"
-          },
-          "changed_by": {
-            "description": "Who merged; free text until authentication exists.",
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "ids_to_merge": {
             "description": "List of IDs that will be merged and deleted.",
@@ -5841,17 +5724,6 @@
       },
       "TagCurationRequest": {
         "properties": {
-          "changed_by": {
-            "description": "Who decided; free text until authentication exists.",
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "macro_category_id": {
             "description": "Drawer the tag moves into; ``null`` takes it out of the subject axis.",
             "oneOf": [
@@ -5923,17 +5795,6 @@
       },
       "TagLinkRequest": {
         "properties": {
-          "changed_by": {
-            "description": "Quem decidiu; texto livre até haver autenticação.",
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "review_note": {
             "description": "Por que decidiu; fica no histórico do documento.",
             "oneOf": [
@@ -6704,16 +6565,6 @@
               "string"
             ]
           },
-          "changed_by": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "is_active": {
             "oneOf": [
               {
@@ -6910,7 +6761,7 @@
             "type": "string"
           },
           "requested_by": {
-            "description": "Quem pediu a execução; texto livre até haver auth.",
+            "description": "Quem pediu a execução; nulo quando ela veio do host, sem --by.",
             "oneOf": [
               {
                 "type": "string"
@@ -7012,16 +6863,6 @@
             "type": "object"
           },
           "preset": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "requested_by": {
             "oneOf": [
               {
                 "type": "string"
@@ -7159,16 +7000,6 @@
       },
       "WorkerSettingsRequest": {
         "properties": {
-          "changed_by": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "db_batch_size": {
             "maximum": 10000,
             "minimum": 1,
@@ -8037,24 +7868,6 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
-            "name": "changed_by",
-            "required": false,
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          {
-            "allowEmptyValue": false,
-            "allowReserved": false,
-            "deprecated": false,
-            "in": "query",
             "name": "note",
             "required": false,
             "schema": {
@@ -8386,24 +8199,6 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
-            "name": "changed_by",
-            "required": false,
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          {
-            "allowEmptyValue": false,
-            "allowReserved": false,
-            "deprecated": false,
-            "in": "query",
             "name": "review_note",
             "required": false,
             "schema": {
@@ -8653,24 +8448,6 @@
             "required": true,
             "schema": {
               "type": "integer"
-            }
-          },
-          {
-            "allowEmptyValue": false,
-            "allowReserved": false,
-            "deprecated": false,
-            "in": "query",
-            "name": "changed_by",
-            "required": false,
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
             }
           },
           {
@@ -11664,24 +11441,6 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "allowEmptyValue": false,
-            "allowReserved": false,
-            "deprecated": false,
-            "in": "query",
-            "name": "changed_by",
-            "required": false,
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
             }
           }
         ],

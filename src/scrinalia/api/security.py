@@ -31,6 +31,7 @@ from litestar.exceptions import NotAuthorizedException, PermissionDeniedExceptio
 from litestar.handlers.base import BaseRouteHandler
 from litestar.types import Scope
 
+from scrinalia.core.author import Author
 from scrinalia.core.config import get_settings
 from scrinalia.core.database import get_db
 from scrinalia.core.logger import logger
@@ -85,6 +86,16 @@ class AuthenticatedUser:
     name: str
     role: Role
     must_change_password: bool
+
+    @property
+    def author(self) -> Author:
+        """
+        This account as the ledgers record it.
+
+        The controller passes this and never a name it built itself: the pair (name, id) has one
+        source, so a handler cannot record an id next to somebody else's name.
+        """
+        return Author(name=self.name, user_id=self.user_id)
 
 
 def authenticated_user_of(scope: Scope) -> AuthenticatedUser | None:

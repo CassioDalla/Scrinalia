@@ -1,6 +1,7 @@
 import pytest
 from pytest_mock import MockerFixture
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.exceptions import (
     InvalidMergeError,
     InvalidParam,
@@ -206,10 +207,10 @@ def test_merge_passes_the_author_to_the_ledger(mocker: MockerFixture) -> None:
     mock_tag_repo.apply_merge.return_value = MergeResponse(documents_updated=0, tags_deleted=1, merge_ids=[9])
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    response = service.merge(MergeTagsCommand(canonical_id=1, ids_to_merge=[2], changed_by="arquivista"))
+    response = service.merge(MergeTagsCommand(canonical_id=1, ids_to_merge=[2], changed_by=Author(name="arquivista")))
 
     assert response.merge_ids == [9]
-    mock_tag_repo.apply_merge.assert_called_once_with(plan, changed_by="arquivista")
+    mock_tag_repo.apply_merge.assert_called_once_with(plan, changed_by=Author(name="arquivista"))
 
 
 def test_merge_tags_empty_list(mocker: MockerFixture) -> None:
@@ -331,12 +332,12 @@ def test_decide_merge_proposal_records_the_author(mocker: MockerFixture) -> None
 
     service = TagService(mock_tag_repo, mock_doc_repo)
     result = service.decide_merge_proposal(
-        7, TagMergeDecisionCommand(status="APPROVED", decided_by="arquivista", note="mesmo conceito")
+        7, TagMergeDecisionCommand(status="APPROVED", decided_by=Author(name="arquivista"), note="mesmo conceito")
     )
 
     assert result.status == "APPROVED"
     mock_tag_repo.decide_merge_proposal.assert_called_once_with(
-        7, status="APPROVED", decided_by="arquivista", note="mesmo conceito"
+        7, status="APPROVED", decided_by=Author(name="arquivista"), note="mesmo conceito"
     )
     # The decision is not the merge: nothing was applied.
     mock_tag_repo.apply_merge.assert_not_called()
@@ -485,7 +486,9 @@ def test_merge_batch_approves_pending_clusters_and_reports_the_rejected(mocker: 
     )
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    result = service.merge_batch(MergeBatchCommand(proposal_ids=[1, 2], changed_by="arquivista", note="lote"))
+    result = service.merge_batch(
+        MergeBatchCommand(proposal_ids=[1, 2], changed_by=Author(name="arquivista"), note="lote")
+    )
 
     assert [entry.proposal_id for entry in result.applied] == [1]
     assert len(result.failed) == 1
@@ -494,7 +497,7 @@ def test_merge_batch_approves_pending_clusters_and_reports_the_rejected(mocker: 
 
     # Including a pending cluster approves it, with the author of the batch.
     mock_tag_repo.decide_merge_proposal.assert_called_once_with(
-        1, status="APPROVED", decided_by="arquivista", note="lote"
+        1, status="APPROVED", decided_by=Author(name="arquivista"), note="lote"
     )
 
     entries = mock_tag_repo.apply_merge_batch.call_args[0][0]
@@ -551,7 +554,7 @@ def test_list_merge_log_reports_the_total_with_the_page(mocker: MockerFixture) -
 
     service = TagService(mock_tag_repo, mock_doc_repo)
     page = service.list_merge_log(
-        canonical_id=4, changed_by="arquivista", include_undone=False, term="alameda", limit=5, offset=5
+        canonical_id=4, changed_by_name="arquivista", include_undone=False, term="alameda", limit=5, offset=5
     )
 
     assert page.total == 12
@@ -559,10 +562,10 @@ def test_list_merge_log_reports_the_total_with_the_page(mocker: MockerFixture) -
     assert page.offset == 5
     # The search reaches both halves of the ledger — the count and the page — or the footer lies.
     mock_tag_repo.count_merge_log.assert_called_once_with(
-        canonical_id=4, changed_by="arquivista", include_undone=False, term="alameda"
+        canonical_id=4, changed_by_name="arquivista", include_undone=False, term="alameda"
     )
     mock_tag_repo.list_merge_log.assert_called_once_with(
-        canonical_id=4, changed_by="arquivista", include_undone=False, term="alameda", limit=5, offset=5
+        canonical_id=4, changed_by_name="arquivista", include_undone=False, term="alameda", limit=5, offset=5
     )
 
 

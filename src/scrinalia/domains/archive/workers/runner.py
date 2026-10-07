@@ -5,6 +5,7 @@ import inspect
 from collections.abc import Callable
 from typing import Any
 
+from scrinalia.core.author import Author
 from scrinalia.core.database import get_db
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
@@ -114,7 +115,7 @@ def run_worker(
     ledger: WorkerRunLedger | None = None,
     run_id: int | None = None,
     trigger: WorkerRunTrigger = WorkerRunTrigger.CLI,
-    requested_by: str | None = None,
+    requested_by: Author | None = None,
 ) -> None:
     """
     Resolves the configuration, opens a database session and dispatches to the requested worker.
@@ -202,7 +203,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--engine", dest="engine_name", help="Registered AI engine (e.g. spacy_ner).")
     parser.add_argument("--preset", dest="preset", help="Engine preset (e.g. gpu, cpu_local).")
     parser.add_argument("--batch", dest="db_batch_size", type=int, help="Batch size per transaction.")
-    parser.add_argument("--by", dest="requested_by", help="Quem está executando (texto livre, sem auth).")
+    parser.add_argument(
+        "--by",
+        dest="requested_by",
+        help="Quem está executando: texto livre, porque a CLI roda no host e não tem sessão.",
+    )
     parser.add_argument(
         "--option",
         action="append",
@@ -227,7 +232,7 @@ def main(argv: list[str] | None = None) -> int:
         extra=extra,
         ledger=WorkerRunLedger(),
         trigger=WorkerRunTrigger.CLI,
-        requested_by=args.requested_by,
+        requested_by=Author(name=args.requested_by) if args.requested_by else None,
     )
     return 0
 

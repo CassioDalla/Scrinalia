@@ -16,7 +16,7 @@ worker was later removed from the catalogue stays readable, which is what a ledg
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Computed, DateTime, Enum, Index, Integer, String, Text, func, text
+from sqlalchemy import Computed, DateTime, Enum, ForeignKey, Index, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -73,6 +73,11 @@ class WorkerSettingRevision(Base):
     before: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     after: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     changed_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    #: The account behind the name above. ``SET NULL`` and not ``CASCADE``: an account is deactivated, never deleted,
+    #: and if one ever were, the decision it took must survive with its author's name.
+    changed_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
@@ -96,6 +101,11 @@ class WorkerRun(Base):
     )
     trigger: Mapped[WorkerRunTrigger] = mapped_column(Enum(WorkerRunTrigger, name="worker_run_trigger"), nullable=False)
     requested_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    #: The account behind the name above. ``SET NULL`` and not ``CASCADE``: an account is deactivated, never deleted,
+    #: and if one ever were, the decision it took must survive with its author's name.
+    requested_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
     engine_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
     preset: Mapped[str | None] = mapped_column(String(50), nullable=True)
     config: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict, server_default=_EMPTY_JSON)

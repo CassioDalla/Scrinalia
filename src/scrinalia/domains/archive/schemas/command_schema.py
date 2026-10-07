@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.schemas.types import SynonymName
 
 
@@ -26,7 +27,9 @@ class MergeTagsCommand(BaseModel):
 
     canonical_id: int
     ids_to_merge: list[int]
-    changed_by: str | None = Field(default=None, description="Who merged; free text until authentication exists.")
+    changed_by: Author | None = Field(
+        default=None, description="Who merged: the account when there is one, the name alone when there is not."
+    )
 
 
 class MergeEntityCommand(BaseModel):
@@ -48,7 +51,7 @@ class ResolveConflictCommand(BaseModel):
     winner: Literal["TAG", "ENTITY"]
     tag_id: int
     entity_id: int
-    decided_by: str | None = None
+    decided_by: Author | None = None
     note: str | None = None
 
 
@@ -95,7 +98,9 @@ class DocumentReviewCommand(BaseModel):
     is_published: bool | None = None
 
     # Authorship and note of the review itself
-    changed_by: str | None = Field(default=None, description="Who reviewed; free text until authentication exists.")
+    changed_by: Author | None = Field(
+        default=None, description="Who reviewed: the account when there is one, the name alone when there is not."
+    )
     review_note: str | None = Field(default=None, description="Why the edit was made; stored in the audit trail.")
 
 

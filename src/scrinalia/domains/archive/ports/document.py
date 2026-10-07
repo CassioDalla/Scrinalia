@@ -1,5 +1,6 @@
 from typing import Protocol
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.schemas.command_schema import (
     DocumentReviewCommand,
     EntityLinkCommand,
@@ -37,17 +38,17 @@ class DocumentRepositoryPort(Protocol):
     def upsert_archive_document(self, doc_data: ArchiveDocumentDTO) -> bool: ...
     def update_review(self, command: DocumentReviewCommand) -> DocumentSummary | None: ...
     def link_tag(
-        self, command: TagLinkCommand, changed_by: str | None = None, note: str | None = None
+        self, command: TagLinkCommand, changed_by: Author | None = None, note: str | None = None
     ) -> DocumentSummary | None: ...
     def unlink_tag(
-        self, command: TagLinkCommand, changed_by: str | None = None, note: str | None = None
+        self, command: TagLinkCommand, changed_by: Author | None = None, note: str | None = None
     ) -> DocumentSummary | None: ...
     def link_entity(
-        self, command: EntityLinkCommand, changed_by: str | None = None, note: str | None = None
+        self, command: EntityLinkCommand, changed_by: Author | None = None, note: str | None = None
     ) -> DocumentSummary | None: ...
     def unlink_entity(
-        self, command: EntityLinkCommand, changed_by: str | None = None, note: str | None = None
+        self, command: EntityLinkCommand, changed_by: Author | None = None, note: str | None = None
     ) -> DocumentSummary | None: ...
     def delete_document(
-        self, description_id: str, changed_by: str | None = None, note: str | None = None
+        self, description_id: str, changed_by: Author | None = None, note: str | None = None
     ) -> DocumentDeletionDTO | None: ...

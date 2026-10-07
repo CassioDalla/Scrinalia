@@ -18,6 +18,7 @@ from sqlalchemy import ColumnElement, CursorResult, case, func, literal, or_, se
 from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.orm import Session
 
+from scrinalia.core.author import assign_author, author_columns
 from scrinalia.domains.archive.domain.text_quality import (
     AI_TEXT_COLUMNS,
     WHITESPACE_PATTERN,
@@ -188,7 +189,7 @@ class TextQualityRepository:
             source="HUMAN",
             status="APPROVED",
             is_active=True,
-            created_by=command.created_by,
+            **author_columns("created_by", command.created_by),
         )
         self.db.add(row)
         self.db.flush()
@@ -256,8 +257,8 @@ class TextQualityRepository:
             changes["fingerprint"] = excerpt_fingerprint(changes["text"])
         if "variants" in changes and changes["variants"] is not None:
             changes["variants"] = [normalize_excerpt(v) for v in changes["variants"] if normalize_excerpt(v)]
-        if command.changed_by:
-            row.created_by = row.created_by or command.changed_by
+        if command.changed_by and row.created_by is None:
+            assign_author(row, "created_by", command.changed_by)
 
         for field, value in changes.items():
             setattr(row, field, value)

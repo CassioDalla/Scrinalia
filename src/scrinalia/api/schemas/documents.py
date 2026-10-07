@@ -46,7 +46,6 @@ class DocumentUpdateRequest(BaseModel):
         "de continuar melhorando o registro; aprovar, sim.",
     )
 
-    changed_by: str | None = Field(default=None, description="Quem revisou (autoria, enquanto não há autenticação).")
     review_note: str | None = Field(default=None, description="Motivo da edição; fica no histórico.")
 
     model_config = ConfigDict(extra="forbid")
@@ -56,7 +55,6 @@ class TagLinkRequest(BaseModel):
     """Attaches or detaches one tag on one description, as a human decision."""
 
     tag_id: int = Field(description="Id da tag no vocabulário (GET /api/v1/taxonomy/tags).")
-    changed_by: str | None = Field(default=None, description="Quem decidiu; texto livre até haver autenticação.")
     review_note: str | None = Field(default=None, description="Por que decidiu; fica no histórico do documento.")
 
     model_config = ConfigDict(extra="forbid")
@@ -66,7 +64,6 @@ class EntityLinkRequest(BaseModel):
     """Attaches or detaches one named entity on one description, as a human decision."""
 
     entity_id: int = Field(description="Id da entidade nomeada.")
-    changed_by: str | None = Field(default=None, description="Quem decidiu; texto livre até haver autenticação.")
     review_note: str | None = Field(default=None, description="Por que decidiu; fica no histórico do documento.")
 
     model_config = ConfigDict(extra="forbid")

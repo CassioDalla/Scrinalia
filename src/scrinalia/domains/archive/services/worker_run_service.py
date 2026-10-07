@@ -12,6 +12,7 @@ from typing import Protocol
 
 from sqlalchemy.orm import Session
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.exceptions import WorkerNotFoundError
 from scrinalia.domains.archive.models.enums import WorkerRunStatus
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
@@ -47,7 +48,9 @@ class WorkerRunService:
         self.runs = WorkerRunRepository(db)
         self.settings = WorkerSettingsRepository(db)
 
-    def trigger(self, worker_name: str, request: WorkerRunRequest) -> WorkerRunDTO:
+    def trigger(
+        self, worker_name: str, request: WorkerRunRequest, *, requested_by: Author | None = None
+    ) -> WorkerRunDTO:
         spec = WORKER_CATALOGUE.get(worker_name)
         if spec is None:
             raise WorkerNotFoundError(f"Worker '{worker_name}' não existe. Opções: {sorted(WORKER_CATALOGUE)}.")
@@ -68,7 +71,7 @@ class WorkerRunService:
 
         run = self.ledger.enqueue(
             worker_name,
-            requested_by=request.requested_by,
+            requested_by=requested_by,
             engine_name=resolved.engine_name,
             preset=resolved.preset,
             config=resolved.config,

@@ -6,6 +6,7 @@ from sqlalchemy import CursorResult, delete, desc, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
+from scrinalia.core.author import Author, author_columns
 from scrinalia.domains.archive.domain.normalization import (
     LIKE_ESCAPE,
     escape_like,
@@ -503,7 +504,7 @@ class EntityRepository:
         plan: ConflictResolutionPlan,
         winner: ConflictWinner,
         source: ConflictDecider = "HUMAN",
-        decided_by: str | None = None,
+        decided_by: Author | None = None,
         note: str | None = None,
     ) -> ConflictResolutionData:
         """
@@ -554,7 +555,7 @@ class EntityRepository:
             ban_kind=ban_kind,
             ban_term=ban_term,
             ban_created=not ban_exists,
-            decided_by=decided_by,
+            **author_columns("decided_by", decided_by),
             note=note,
         )
         self.db.add(row)
@@ -811,6 +812,7 @@ class EntityRepository:
         tag_id: int,
         entity_id: int,
         source: NerExclusionSource = "HUMAN",
+        decided_by: Author | None = None,
     ) -> int:
         """
         Plan and apply in one call, through the ledger.
@@ -821,7 +823,7 @@ class EntityRepository:
         entitled to see the numbers before the write.
         """
         plan = self.plan_conflict_resolution(tag_id, entity_id)
-        data = self.apply_conflict_resolution(plan, winner, source=source, decided_by=source)
+        data = self.apply_conflict_resolution(plan, winner, source=source, decided_by=decided_by)
         return data.documents_transferred
 
     # --- Ingestion and NER Methods ---

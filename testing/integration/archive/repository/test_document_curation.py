@@ -5,6 +5,7 @@ from datetime import date
 import pytest
 from sqlalchemy import select
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.exceptions import EntityNotFoundError, TagNotFoundError
 from scrinalia.domains.archive.models import (
     ArchiveDocument,
@@ -52,7 +53,7 @@ def test_update_review_can_fix_any_isad_g_field(db_session, generate_archive_doc
             provenance="IPPUC",
             language_name="pt-BR",
             admin_archival_history="Transferido em 1999.",
-            changed_by="ana",
+            changed_by=Author(name="ana"),
         )
     )
 
@@ -69,7 +70,7 @@ def test_update_review_records_only_what_changed(db_session, generate_archive_do
             description_id="edit-2",
             original_title="Título corrigido",
             scope_content="Escopo",  # identical: must not appear in the trail
-            changed_by="ana",
+            changed_by=Author(name="ana"),
             review_note="Correção do título",
         )
     )
@@ -97,7 +98,7 @@ def test_update_review_records_a_date_as_text(db_session, generate_archive_doc) 
     generate_archive_doc(description_id="edit-4", document_date=date(1950, 1, 1))
 
     DocumentRepository(db_session).update_review(
-        DocumentReviewCommand(description_id="edit-4", document_date=date(1954, 3, 15), changed_by="ana")
+        DocumentReviewCommand(description_id="edit-4", document_date=date(1954, 3, 15), changed_by=Author(name="ana"))
     )
 
     revision = DocumentRepository(db_session).list_revisions("edit-4")[0]
@@ -108,8 +109,12 @@ def test_list_revisions_is_newest_first(db_session, generate_archive_doc) -> Non
     generate_archive_doc(description_id="edit-5", original_title="A")
     repository = DocumentRepository(db_session)
 
-    repository.update_review(DocumentReviewCommand(description_id="edit-5", original_title="B", changed_by="ana"))
-    repository.update_review(DocumentReviewCommand(description_id="edit-5", original_title="C", changed_by="bruno"))
+    repository.update_review(
+        DocumentReviewCommand(description_id="edit-5", original_title="B", changed_by=Author(name="ana"))
+    )
+    repository.update_review(
+        DocumentReviewCommand(description_id="edit-5", original_title="C", changed_by=Author(name="bruno"))
+    )
 
     revisions = repository.list_revisions("edit-5")
     assert [revision.changes["original_title"]["new"] for revision in revisions] == ["C", "B"]
@@ -120,7 +125,9 @@ def test_update_review_marks_the_document_human_approved(db_session, generate_ar
     generate_archive_doc(description_id="edit-6", original_title="A")
 
     summary = DocumentRepository(db_session).update_review(
-        DocumentReviewCommand(description_id="edit-6", final_title="Título do arquivista", changed_by="ana")
+        DocumentReviewCommand(
+            description_id="edit-6", final_title="Título do arquivista", changed_by=Author(name="ana")
+        )
     )
 
     assert summary.review_status == "HUMAN_APPROVED"
@@ -145,7 +152,7 @@ def test_a_changed_catalogue_key_re_reads_the_derived_name(
             description_id="edit-8",
             level_id=level.level_id,
             typology_id=typology.typology_id,
-            changed_by="ana",
+            changed_by=Author(name="ana"),
         )
     )
 
@@ -156,7 +163,9 @@ def test_a_changed_catalogue_key_re_reads_the_derived_name(
 def test_revisions_cascade_with_the_document(db_session, generate_archive_doc) -> None:
     generate_archive_doc(description_id="edit-7", original_title="A")
     repository = DocumentRepository(db_session)
-    repository.update_review(DocumentReviewCommand(description_id="edit-7", original_title="B", changed_by="ana"))
+    repository.update_review(
+        DocumentReviewCommand(description_id="edit-7", original_title="B", changed_by=Author(name="ana"))
+    )
 
     doc = db_session.get(ArchiveDocument, "edit-7")
     db_session.delete(doc)
@@ -201,7 +210,7 @@ def test_suggested_final_title_disappears_once_the_human_decides(db_session, gen
     _title_template(db_session)
 
     summary = DocumentRepository(db_session).update_review(
-        DocumentReviewCommand(description_id="title-4", final_title="Rua Izaac", changed_by="ana")
+        DocumentReviewCommand(description_id="title-4", final_title="Rua Izaac", changed_by=Author(name="ana"))
     )
 
     assert summary.final_title == "Rua Izaac"
@@ -268,7 +277,7 @@ def test_linking_a_tag_records_the_revision_and_approves_the_document(db_session
     generate_archive_doc(description_id="tag-1", original_title="Documento")
 
     summary = DocumentRepository(db_session).link_tag(
-        TagLinkCommand(description_id="tag-1", tag_id=tag.tag_id), changed_by="ana", note="assunto claro"
+        TagLinkCommand(description_id="tag-1", tag_id=tag.tag_id), changed_by=Author(name="ana"), note="assunto claro"
     )
 
     assert summary is not None
@@ -296,7 +305,7 @@ def test_unlinking_a_tag_records_the_names_on_both_sides(db_session, generate_ar
     repository.link_tag(TagLinkCommand(description_id="tag-2", tag_id=first.tag_id))
     repository.link_tag(TagLinkCommand(description_id="tag-2", tag_id=second.tag_id))
 
-    repository.unlink_tag(TagLinkCommand(description_id="tag-2", tag_id=first.tag_id), changed_by="bia")
+    repository.unlink_tag(TagLinkCommand(description_id="tag-2", tag_id=first.tag_id), changed_by=Author(name="bia"))
 
     revision = repository.list_revisions("tag-2")[0]
     assert revision.changes == {"tags": {"old": ["alvenaria", "urbanismo"], "new": ["alvenaria"]}}
@@ -459,3 +468,62 @@ def test_access_conditions_is_editable_as_an_isad_g_field(db_session, generate_a
 
     assert summary is not None
     assert summary.access_conditions == "Consulta mediante autorização"
+
+
+def test_the_revision_records_the_name_and_the_account(db_session, generate_archive_doc, generate_user) -> None:
+    """
+    The two halves of an authorship, written together.
+
+    The name is what the history prints and it is a snapshot; the id is the link that makes "everything
+    this account decided" a query. A revision with only the first is what the system had before
+    authentication, and with only the second it would print an id nobody recognises.
+    """
+    generate_archive_doc(description_id="auth-1", original_title="Antes")
+    account = generate_user(email="maria@arquivo.org", name="Maria")
+    repository = DocumentRepository(db_session)
+
+    repository.update_review(
+        DocumentReviewCommand(
+            description_id="auth-1",
+            original_title="Depois",
+            changed_by=Author(name=account.name, user_id=account.user_id),
+        )
+    )
+
+    revision = db_session.scalars(
+        select(ArchiveDocumentRevision).where(ArchiveDocumentRevision.description_id == "auth-1")
+    ).one()
+    assert revision.changed_by == "Maria"
+    assert revision.changed_by_user_id == account.user_id
+
+
+def test_deleting_the_account_keeps_the_name_and_drops_the_link(
+    db_session, generate_archive_doc, generate_user
+) -> None:
+    """
+    ``ON DELETE SET NULL``, which is the reason the foreign key is not ``CASCADE``.
+
+    An account is deactivated rather than deleted, so this fires only if somebody removes a row by
+    hand — and then the decision it took must survive with its author's name, which is the whole point
+    of keeping the text column beside the link.
+    """
+    generate_archive_doc(description_id="auth-2", original_title="Antes")
+    account = generate_user(email="joao@arquivo.org", name="João")
+    repository = DocumentRepository(db_session)
+    repository.update_review(
+        DocumentReviewCommand(
+            description_id="auth-2",
+            original_title="Depois",
+            changed_by=Author(name=account.name, user_id=account.user_id),
+        )
+    )
+
+    db_session.delete(account)
+    db_session.flush()
+    db_session.expire_all()
+
+    revision = db_session.scalars(
+        select(ArchiveDocumentRevision).where(ArchiveDocumentRevision.description_id == "auth-2")
+    ).one()
+    assert revision.changed_by == "João"
+    assert revision.changed_by_user_id is None

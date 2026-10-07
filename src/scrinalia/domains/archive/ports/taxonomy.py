@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from typing import Any, Literal, Protocol
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.models.enums import StopwordsScope
 from scrinalia.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
@@ -108,30 +109,30 @@ class TagRepositoryPort(Protocol):
     def delete_tags(self, tag_ids: list[int]) -> int: ...
     def upsert_merge_proposals(self, suggestions: Sequence[TagMergeSuggestion]) -> int: ...
     def decide_merge_proposal(
-        self, proposal_id: int, status: str, decided_by: str | None, note: str | None
+        self, proposal_id: int, status: str, decided_by: Author | None, note: str | None
     ) -> TagMergeProposalDTO | None: ...
     def apply_merge(
         self,
         plan: MergePlan,
         cluster_fingerprint: str | None = None,
-        changed_by: str | None = None,
+        changed_by: Author | None = None,
         note: str | None = None,
     ) -> MergeResponse: ...
     def apply_merge_batch(
-        self, entries: Sequence[MergeBatchEntry], changed_by: str | None = None, note: str | None = None
+        self, entries: Sequence[MergeBatchEntry], changed_by: Author | None = None, note: str | None = None
     ) -> BatchMergeResponse: ...
     def undo_merge(self, merge_id: int, undone_by: str | None = None) -> MergeLogEntryDTO: ...
     def count_merge_log(
         self,
         canonical_id: int | None = None,
-        changed_by: str | None = None,
+        changed_by_name: str | None = None,
         include_undone: bool = True,
         term: str | None = None,
     ) -> int: ...
     def list_merge_log(
         self,
         canonical_id: int | None = None,
-        changed_by: str | None = None,
+        changed_by_name: str | None = None,
         include_undone: bool = True,
         term: str | None = None,
         limit: int = 50,

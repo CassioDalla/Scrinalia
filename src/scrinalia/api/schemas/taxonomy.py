@@ -11,14 +11,12 @@ class MergeRequest(BaseModel):
     canonical_id: int
     ids_to_merge: list[int] = Field(min_length=1, description="List of IDs that will be merged and deleted.")
     new_name: str | None = None
-    changed_by: str | None = Field(default=None, description="Who merged; free text until authentication exists.")
 
 
 class MergeBatchRequest(BaseModel):
     """Applies a set of proposals. Including a pending one is the archivist's decision."""
 
     proposal_ids: list[int] = Field(min_length=1, description="Proposals to apply, in order.")
-    changed_by: str | None = Field(default=None, description="Who decided; free text until authentication exists.")
     note: str | None = Field(default=None, description="Why; kept for auditing.")
 
 
@@ -33,7 +31,6 @@ class MergeProposalDecisionRequest(BaseModel):
     """The archivist's verdict on one proposed cluster. It records intent; it does not merge."""
 
     status: Literal["APPROVED", "REJECTED"]
-    decided_by: str | None = Field(default=None, description="Who decided; free text until authentication exists.")
     note: str | None = Field(default=None, description="Why; kept for auditing.")
 
 
@@ -121,7 +118,6 @@ class TagCurationRequest(BaseModel):
     macro_category_id: int | None = Field(
         description="Drawer the tag moves into; ``null`` takes it out of the subject axis."
     )
-    changed_by: str | None = Field(default=None, description="Who decided; free text until authentication exists.")
     note: str | None = Field(default=None, description="Why; kept in the tag's ledger.")
 
 
@@ -196,7 +192,6 @@ class ConflictResolutionRequest(BaseModel):
     winner: Literal["TAG", "ENTITY"]
     tag_id: int
     entity_id: int
-    decided_by: str | None = Field(default=None, description="Quem decidiu; texto livre até haver autenticação.")
     note: str | None = Field(default=None, description="Por que decidiu; fica no ledger da resolução.")
 
     model_config = ConfigDict(extra="forbid")

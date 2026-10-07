@@ -246,6 +246,11 @@ class ArchiveConflictResolutionLog(Base):
     ban_created: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
 
     decided_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    #: The account behind the name above. ``SET NULL`` and not ``CASCADE``: an account is deactivated, never deleted,
+    #: and if one ever were, the decision it took must survive with its author's name.
+    decided_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
     decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -331,6 +336,11 @@ class DomainTextTemplate(Base):
     )
 
     created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    #: The account behind the name above. ``SET NULL`` and not ``CASCADE``: an account is deactivated, never deleted,
+    #: and if one ever were, the decision it took must survive with its author's name.
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -384,6 +394,11 @@ class ArchiveCleaningRule(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     # Tracks who created it
     created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    #: The account behind the name above. ``SET NULL`` and not ``CASCADE``: an account is deactivated, never deleted,
+    #: and if one ever were, the decision it took must survive with its author's name.
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (

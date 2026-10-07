@@ -129,6 +129,11 @@ class ArchiveTagFacet(Base):
     value: Mapped[str] = mapped_column(String(100), nullable=False)
 
     created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    #: The account behind the name above. ``SET NULL`` and not ``CASCADE``: an account is deactivated, never deleted,
+    #: and if one ever were, the decision it took must survive with its author's name.
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     tag: Mapped["ArchiveTag"] = relationship(back_populates="facets")
@@ -183,6 +188,11 @@ class ArchiveTagMergeProposal(Base):
         String(20), nullable=False, default="SUGGESTED", server_default="SUGGESTED", index=True
     )
     decided_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    #: The account behind the name above. ``SET NULL`` and not ``CASCADE``: an account is deactivated, never deleted,
+    #: and if one ever were, the decision it took must survive with its author's name.
+    decided_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     decision_note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -249,6 +259,11 @@ class ArchiveTaxonomyMergeLog(Base):
     repointed_synonym_names: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
 
     changed_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    #: The account behind the name above. ``SET NULL`` and not ``CASCADE``: an account is deactivated, never deleted,
+    #: and if one ever were, the decision it took must survive with its author's name.
+    changed_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 

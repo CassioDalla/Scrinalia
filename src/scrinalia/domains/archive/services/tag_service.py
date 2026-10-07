@@ -266,7 +266,7 @@ class TagService:
         if command.macro_category_id is not None and self.repo.get_macro_category(command.macro_category_id) is None:
             raise MacroCategoryNotFoundError(f"Categoria macro {command.macro_category_id} não existe no catálogo.")
 
-        stamp = f"{command.macro_category_id if command.macro_category_id is not None else 'NONE'}|{command.changed_by or ''}|{datetime.now(UTC).isoformat(timespec='seconds')}"
+        stamp = f"{command.macro_category_id if command.macro_category_id is not None else 'NONE'}|{command.changed_by.name if command.changed_by else ''}|{datetime.now(UTC).isoformat(timespec='seconds')}"
         updated = self.repo.update_tag_macro_category(tag_id, command.macro_category_id, stamp)
         if updated is None:
             raise TagNotFoundError(f"Tag {tag_id} não existe no vocabulário.")
@@ -456,7 +456,7 @@ class TagService:
     def list_merge_log(
         self,
         canonical_id: int | None = None,
-        changed_by: str | None = None,
+        changed_by_name: str | None = None,
         include_undone: bool = True,
         term: str | None = None,
         limit: int = 50,
@@ -469,11 +469,11 @@ class TagService:
             raise InvalidParam("O parâmetro 'offset' não pode ser negativo.")
 
         total = self.repo.count_merge_log(
-            canonical_id=canonical_id, changed_by=changed_by, include_undone=include_undone, term=term
+            canonical_id=canonical_id, changed_by_name=changed_by_name, include_undone=include_undone, term=term
         )
         items = self.repo.list_merge_log(
             canonical_id=canonical_id,
-            changed_by=changed_by,
+            changed_by_name=changed_by_name,
             include_undone=include_undone,
             term=term,
             limit=limit,

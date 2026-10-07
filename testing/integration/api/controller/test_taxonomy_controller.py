@@ -28,6 +28,7 @@ from scrinalia.domains.archive.schemas.tag_schema import (  # <-- Import the DTO
 )
 from scrinalia.domains.archive.services.entity_service import EntityService
 from scrinalia.domains.archive.services.tag_service import TagService
+from testing.conftest import TEST_ADMIN_NAME
 
 # ==========================================
 # HTTP CLIENT FIXTURE
@@ -331,7 +332,7 @@ def test_decide_tag_merge_proposal_route_returns_the_verdict(client: TestClient,
 
     response = client.patch(
         "/api/v1/taxonomy/tags/merge-proposals/7",
-        json={"status": "APPROVED", "decided_by": "arquivista", "note": "mesmo conceito"},
+        json={"status": "APPROVED", "note": "mesmo conceito"},
     )
 
     assert response.status_code == HTTP_200_OK
@@ -340,7 +341,8 @@ def test_decide_tag_merge_proposal_route_returns_the_verdict(client: TestClient,
     proposal_id, command = mocked.call_args[0]
     assert proposal_id == 7
     assert command.status == "APPROVED"
-    assert command.decided_by == "arquivista"
+    assert command.decided_by is not None, "o autor vem da sessão, não do payload"
+    assert command.decided_by.name == TEST_ADMIN_NAME
     assert command.note == "mesmo conceito"
 
 
@@ -434,7 +436,6 @@ def _log_entry(**overrides) -> "MergeLogEntryDTO":
         "absorbed_tag_id": 2,
         "absorbed_name": "ruas",
         "document_count": 3,
-        "changed_by": "arquivista",
     }
     data.update(overrides)
     return MergeLogEntryDTO(**data)
@@ -455,7 +456,7 @@ def test_apply_tag_merge_batch_route_reports_each_cluster(client: TestClient, mo
 
     response = client.post(
         "/api/v1/taxonomy/tags/merge/batch",
-        json={"proposal_ids": [1, 2], "changed_by": "arquivista", "note": "lote"},
+        json={"proposal_ids": [1, 2], "note": "lote"},
     )
 
     assert response.status_code == HTTP_200_OK
@@ -465,7 +466,8 @@ def test_apply_tag_merge_batch_route_reports_each_cluster(client: TestClient, mo
 
     command = mocked.call_args[0][0]
     assert command.proposal_ids == [1, 2]
-    assert command.changed_by == "arquivista"
+    assert command.changed_by is not None, "o autor vem da sessão, não do payload"
+    assert command.changed_by.name == TEST_ADMIN_NAME
 
 
 def test_list_tag_merge_log_route_paginates(client: TestClient, mocker):
@@ -482,7 +484,7 @@ def test_list_tag_merge_log_route_paginates(client: TestClient, mocker):
     assert body["items"][0]["absorbed_name"] == "ruas"
     assert mocked.call_args.kwargs == {
         "canonical_id": 1,
-        "changed_by": None,
+        "changed_by_name": None,
         "include_undone": False,
         "term": None,
         "limit": 5,
@@ -567,7 +569,7 @@ def test_tag_curation_route_builds_the_command_from_the_payload(client: TestClie
 
     response = client.patch(
         "/api/v1/taxonomy/tags/42",
-        json={"macro_category_id": 3, "changed_by": "ana", "note": "não é transporte"},
+        json={"macro_category_id": 3, "note": "não é transporte"},
     )
 
     assert response.status_code == HTTP_200_OK
@@ -575,7 +577,8 @@ def test_tag_curation_route_builds_the_command_from_the_payload(client: TestClie
     tag_id, command = mocked.call_args.args
     assert tag_id == 42
     assert command.macro_category_id == 3
-    assert command.changed_by == "ana"
+    assert command.changed_by is not None, "o autor vem da sessão, não do payload"
+    assert command.changed_by.name == TEST_ADMIN_NAME
     assert command.note == "não é transporte"
 
 

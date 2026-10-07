@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.domain.hierarchy import PlanStatus
 
 
@@ -178,7 +179,9 @@ class CreateHierarchyNodeCommand(BaseModel):
     level_id: int | None = None
     parent_id: str | None = Field(default=None, description="Parent code holder; omit for a root.")
     scope_content: str | None = None
-    changed_by: str | None = Field(default=None, description="Who created it; free text until auth exists.")
+    changed_by: Author | None = Field(
+        default=None, description="Who created it: the account when there is one, the name alone when there is not."
+    )
     note: str | None = None
 
 
@@ -192,7 +195,7 @@ class MoveNodeCommand(BaseModel):
 
     new_parent_id: str | None = Field(default=None, description="New parent; ``None`` promotes to root.")
     level_id: int | None = None
-    changed_by: str | None = None
+    changed_by: Author | None = None
     note: str | None = None
 
 
@@ -328,7 +331,7 @@ class HierarchyPlanDecisionCommand(BaseModel):
         default=None,
         description="This rung IS that rung. Send an empty string to undo a previous collapse.",
     )
-    decided_by: str | None = None
+    decided_by: Author | None = None
     note: str | None = None
 
 
@@ -371,7 +374,7 @@ class HierarchyMaterialisationPreview(BaseModel):
 class HierarchyMaterialisationRequest(BaseModel):
     """Who authorised the run, and why. The decision itself lives in the plan rows."""
 
-    changed_by: str | None = None
+    changed_by: Author | None = None
     note: str | None = None
     limit: int = Field(default=500, ge=1, le=5000, description="Cap on the items carried in the preview.")
 

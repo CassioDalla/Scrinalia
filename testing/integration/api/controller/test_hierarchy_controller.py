@@ -58,6 +58,7 @@ from scrinalia.domains.archive.services.hierarchy_materialisation_service import
 from scrinalia.domains.archive.services.hierarchy_proposal_service import HierarchyProposalService
 from scrinalia.domains.archive.services.hierarchy_service import DIAGNOSTIC_ISSUES, HierarchyService
 from scrinalia.domains.archive.services.level_catalog_service import LevelCatalogService
+from testing.conftest import TEST_ADMIN_NAME
 
 
 def _level(level_id: int = 3, code: str = "serie", name: str = "Série") -> DescriptionLevelDTO:
@@ -159,14 +160,15 @@ class TestMoves:
 
         response = client.post(
             "/api/v1/hierarchy/nodes/n1/move",
-            json={"new_parent_id": "p1", "level_id": 4, "changed_by": "ana", "note": "Rearranjo"},
+            json={"new_parent_id": "p1", "level_id": 4, "note": "Rearranjo"},
         )
 
         assert response.status_code == HTTP_200_OK
         command = mocked.call_args.args[1]
         assert command.new_parent_id == "p1"
         assert command.level_id == 4
-        assert command.changed_by == "ana"
+        assert command.changed_by is not None, "o autor vem da sessão, não do payload"
+        assert command.changed_by.name == TEST_ADMIN_NAME
 
     def test_promoting_to_the_root_is_an_explicit_null(self, client: TestClient, mocker):
         mocked = mocker.patch.object(HierarchyService, "move", return_value=_node())
@@ -498,7 +500,7 @@ class TestMaterialisationOverHttp:
                 rung_map_size=8,
             ),
         )
-        response = client.post("/api/v1/hierarchy/materialisation/apply", json={"changed_by": "ana"})
+        response = client.post("/api/v1/hierarchy/materialisation/apply", json={})
         assert response.status_code == HTTP_200_OK
         assert response.json()["materialisation_id"] == 3
 

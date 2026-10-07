@@ -114,6 +114,11 @@ class ArchiveHierarchyNodePlan(Base):
     collapse_into_code: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     decided_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    #: The account behind the name above. ``SET NULL`` and not ``CASCADE``: an account is deactivated, never deleted,
+    #: and if one ever were, the decision it took must survive with its author's name.
+    decided_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     decision_note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -157,6 +162,11 @@ class ArchiveHierarchyMaterialisationLog(Base):
     previous_state: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
 
     changed_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    #: The account behind the name above. ``SET NULL`` and not ``CASCADE``: an account is deactivated, never deleted,
+    #: and if one ever were, the decision it took must survive with its author's name.
+    changed_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 

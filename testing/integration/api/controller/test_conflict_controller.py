@@ -32,6 +32,7 @@ from scrinalia.domains.archive.schemas.entity_schema import (
     JudgedConflictPage,
 )
 from scrinalia.domains.archive.services.entity_service import EntityService
+from testing.conftest import TEST_ADMIN_NAME
 
 
 def _conflict(tag_id: int = 1, similarity: float = 0.97) -> CrossDomainConflict:
@@ -168,14 +169,15 @@ class TestConflictRoutes:
 
         response = client.post(
             "/api/v1/taxonomy/conflicts/resolve",
-            json={"winner": "TAG", "tag_id": 1, "entity_id": 2, "decided_by": "ana", "note": "bairro é local"},
+            json={"winner": "TAG", "tag_id": 1, "entity_id": 2, "note": "bairro é local"},
         )
 
         assert response.status_code == HTTP_201_CREATED
         body = response.json()
         assert body["data"]["resolution_id"] == 42
         command = mocked.call_args.args[0]
-        assert command.decided_by == "ana"
+        assert command.decided_by is not None, "o autor vem da sessão, não do payload"
+        assert command.decided_by.name == TEST_ADMIN_NAME
         assert command.note == "bairro é local"
 
     def test_an_unresolvable_pair_is_422(self, client: TestClient, mocker):
@@ -282,7 +284,6 @@ class TestConflictLifecycle:
                 "winner": "TAG",
                 "tag_id": tag.tag_id,
                 "entity_id": entity.entity_id,
-                "decided_by": "ana",
                 "note": "bairro é local, não assunto",
             },
         )
@@ -295,7 +296,7 @@ class TestConflictLifecycle:
         ledger = client.get("/api/v1/taxonomy/conflicts/resolutions").json()
         assert ledger["total"] == 1
         assert ledger["items"][0]["resolution_id"] == data["resolution_id"]
-        assert ledger["items"][0]["decided_by"] == "ana"
+        assert ledger["items"][0]["decided_by"] == TEST_ADMIN_NAME
         assert db_session.get(ArchiveEntity, entity.entity_id) is None
 
         undone = client.delete(f"/api/v1/taxonomy/conflicts/resolutions/{data['resolution_id']}?undone_by=bruno")

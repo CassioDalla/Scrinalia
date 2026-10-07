@@ -21,6 +21,7 @@ to be the number the write produces. A dry run that lies is worse than no dry ru
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
+from scrinalia.core.author import assign_author
 from scrinalia.domains.archive.domain.hierarchy import (
     collapse_chain,
     resolve_rung,
@@ -203,7 +204,7 @@ class HierarchyMaterialisationService:
             )
 
         plan.status = str(command.status)
-        plan.decided_by = command.decided_by
+        assign_author(plan, "decided_by", command.decided_by)
         plan.decision_note = command.note
         if command.status != "SUGGESTED":
             plan.decided_at = datetime.now(UTC)

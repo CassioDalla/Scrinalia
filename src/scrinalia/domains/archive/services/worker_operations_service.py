@@ -14,6 +14,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from scrinalia.core.author import Author
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.exceptions import WorkerNotFoundError
 from scrinalia.domains.archive.models.operations import WorkerSetting
@@ -114,7 +115,9 @@ class WorkerOperationsService:
 
     # --- writes ----------------------------------------------------------------------------------
 
-    def update_settings(self, worker_name: str, request: WorkerSettingsRequest) -> WorkerSettingsDTO:
+    def update_settings(
+        self, worker_name: str, request: WorkerSettingsRequest, *, changed_by: Author | None = None
+    ) -> WorkerSettingsDTO:
         spec = self._spec(worker_name)
         validate_engine_choice(spec, request.engine_name, request.preset)
         validate_options(spec, request.options)
@@ -125,11 +128,11 @@ class WorkerOperationsService:
             preset=request.preset,
             db_batch_size=request.db_batch_size,
             options=request.options,
-            changed_by=request.changed_by,
+            changed_by=changed_by,
         )
         return self.get_settings(worker_name)
 
-    def clear_settings(self, worker_name: str, *, changed_by: str | None) -> WorkerSettingsDTO:
+    def clear_settings(self, worker_name: str, *, changed_by: Author | None) -> WorkerSettingsDTO:
         spec = self._spec(worker_name)
         self.settings.clear(worker_name, changed_by=changed_by)
         setting = self.settings.get(worker_name)

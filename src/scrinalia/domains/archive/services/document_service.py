@@ -1,5 +1,6 @@
 from collections.abc import Callable
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.engines.base import EmbeddingEngine
 from scrinalia.domains.archive.exceptions import DocumentHasChildrenError, DocumentNotFoundError
 from scrinalia.domains.archive.ports.document import DocumentRepositoryPort
@@ -113,32 +114,32 @@ class DocumentService:
     # worker. Like every human write here, they take the record out of the AI's reach — which is
     # why they all funnel into the same revision ledger.
     def link_tag(
-        self, command: TagLinkCommand, changed_by: str | None = None, note: str | None = None
+        self, command: TagLinkCommand, changed_by: Author | None = None, note: str | None = None
     ) -> DocumentSummary:
         """Attaches a tag to one description as a human decision."""
         return self._require(self.repo.link_tag(command, changed_by, note), command.description_id)
 
     def unlink_tag(
-        self, command: TagLinkCommand, changed_by: str | None = None, note: str | None = None
+        self, command: TagLinkCommand, changed_by: Author | None = None, note: str | None = None
     ) -> DocumentSummary:
         """Detaches a tag from one description as a human decision."""
         return self._require(self.repo.unlink_tag(command, changed_by, note), command.description_id)
 
     def link_entity(
-        self, command: EntityLinkCommand, changed_by: str | None = None, note: str | None = None
+        self, command: EntityLinkCommand, changed_by: Author | None = None, note: str | None = None
     ) -> DocumentSummary:
         """Attaches a named entity to one description as a human decision."""
         return self._require(self.repo.link_entity(command, changed_by, note), command.description_id)
 
     def unlink_entity(
-        self, command: EntityLinkCommand, changed_by: str | None = None, note: str | None = None
+        self, command: EntityLinkCommand, changed_by: Author | None = None, note: str | None = None
     ) -> DocumentSummary:
         """Detaches a named entity from one description as a human decision."""
         return self._require(self.repo.unlink_entity(command, changed_by, note), command.description_id)
 
     # --- Deletion: the only write here that removes a record ------------------------------------
     def delete(
-        self, description_id: str, changed_by: str | None = None, note: str | None = None
+        self, description_id: str, changed_by: Author | None = None, note: str | None = None
     ) -> DocumentDeletionDTO:
         """
         Removes one description for good, after snapshotting it into the deletion ledger.
