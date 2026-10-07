@@ -1,3 +1,9 @@
+# Same project as ``docker-compose.yml``, on purpose: the two files describe one checkout's
+# infrastructure, and that is how they were already grouped when the name was implicit. The test
+# database is tmpfs, so nothing here can be lost — but the name is pinned for the same reason as
+# there: it must not depend on the directory the repository was cloned into.
+name: scrinalia
+
 services:
   postgres_test:
     # Same PostgreSQL major version and same pgvector extension as the official dev

@@ -1,3 +1,10 @@
+# The project name is pinned, and it must stay pinned. Compose derives it from the directory name
+# by default and prefixes the named volumes with it, so renaming the checkout silently created
+# **empty** ``pgdata``/``minio_data`` volumes: the collection was still on disk, in
+# ``<old-directory>_pgdata``, and the UI showed nothing. Pinning it makes the volume names depend
+# on this file instead of on where someone happened to clone the repository.
+name: scrinalia
+
 services:
   db:
     build:
