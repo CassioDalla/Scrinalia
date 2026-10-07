@@ -597,7 +597,6 @@ function TagMergePanel({
         canonical_id: canonicalId,
         ids_to_merge: absorbedIds,
         new_name: null,
-        changed_by: null,
       }),
     onSuccess: (data) => {
       setOutcome(data);
@@ -823,7 +822,7 @@ function ProposalsTab({
   });
 
   const apply = useMutation({
-    mutationFn: () => applyMergeBatch({ proposal_ids: selected, changed_by: null, note: null }),
+    mutationFn: () => applyMergeBatch({ proposal_ids: selected, note: null }),
     onSuccess: (data) => {
       setBatch(data);
       setSelected([]);
@@ -849,7 +848,6 @@ function ProposalsTab({
       for (const proposalId of proposalIds) {
         await decideMergeProposal(proposalId, {
           status: "REJECTED",
-          decided_by: null,
           note: "Arquivada: os membros já não existem no acervo.",
         });
       }
@@ -883,7 +881,6 @@ function ProposalsTab({
     mutationFn: (proposal: TagMergeProposal) =>
       decideMergeProposal(proposal.proposal_id, {
         status: "REJECTED",
-        decided_by: null,
         note: `Editada e aplicada à mão: a máquina propôs ${formatCount((proposal.members ?? []).length)} membros e a seleção revisada foi unificada pelo ledger.`,
       }),
     onSuccess: invalidate,
@@ -1271,7 +1268,7 @@ function ProposalCard({
 
   const decide = useMutation({
     mutationFn: (status: "APPROVED" | "REJECTED") =>
-      decideMergeProposal(proposal.proposal_id, { status, decided_by: null, note: null }),
+      decideMergeProposal(proposal.proposal_id, { status, note: null }),
     onSuccess: (_data, status) => {
       invalidate();
       if (status === "APPROVED") onApproved();

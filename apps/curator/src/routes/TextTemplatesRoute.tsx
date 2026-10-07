@@ -376,7 +376,7 @@ function NewTemplateCard({ onCreated }: { onCreated: () => void }) {
   });
 
   const create = useMutation({
-    mutationFn: () => createTextTemplate({ text, action, replacement, scope, variants: [], changed_by: null }),
+    mutationFn: () => createTextTemplate({ text, action, replacement, scope, variants: [] }),
     onSuccess: () => {
       setText("");
       setReplacement("");

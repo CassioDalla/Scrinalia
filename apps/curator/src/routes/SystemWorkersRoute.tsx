@@ -239,7 +239,6 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
   const [preset, setPreset] = useState(settings.preset ?? "");
   const [batch, setBatch] = useState(settings.db_batch_size ? String(settings.db_batch_size) : "");
   const [optionsText, setOptionsText] = useState(optionsToText(settings.options));
-  const [requestedBy, setRequestedBy] = useState("");
 
   const presets = (settings.available_engines ?? []).find((item) => item.name === engine)?.presets ?? [];
 
@@ -250,7 +249,6 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
       const body: WorkerRunRequest = {
         db_batch_size: batch ? Number(batch) : null,
         options: parsed.options ?? {},
-        requested_by: requestedBy || null,
       };
       if (settings.engine_source === "signature") {
         body.engine_name = engine || null;
@@ -320,10 +318,6 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
               placeholder={String(settings.db_batch_size ?? "")}
             />
           </label>
-          <label className="grid gap-1 text-xs">
-            Quem está executando (opcional)
-            <Input value={requestedBy} onChange={(event) => setRequestedBy(event.target.value)} />
-          </label>
         </div>
 
         <label className="grid gap-1 text-xs">
@@ -361,7 +355,6 @@ function SettingsPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (mess
   const [preset, setPreset] = useState(settings.preset ?? "");
   const [batch, setBatch] = useState(settings.db_batch_size ? String(settings.db_batch_size) : "");
   const [optionsText, setOptionsText] = useState(optionsToText(settings.options));
-  const [changedBy, setChangedBy] = useState("");
 
   const revisions = useQuery(queries.systemSettingsRevisions(worker.name));
 
@@ -376,7 +369,6 @@ function SettingsPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (mess
       const body: WorkerSettingsRequest = {
         db_batch_size: batch ? Number(batch) : null,
         options: parsed.options ?? {},
-        changed_by: changedBy || null,
       };
       if (settings.engine_source === "signature") {
         body.engine_name = engine || null;
@@ -391,7 +383,7 @@ function SettingsPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (mess
   });
 
   const clear = useMutation({
-    mutationFn: () => clearWorkerSettings(worker.name, changedBy || undefined),
+    mutationFn: () => clearWorkerSettings(worker.name),
     onSuccess: () => {
       invalidate();
       onDone("Padrão removido; o worker voltou a seguir o código.");
@@ -458,7 +450,7 @@ function SettingsPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (mess
           </label>
           <label className="grid gap-1 text-xs">
             Quem está alterando (opcional)
-            <Input value={changedBy} onChange={(event) => setChangedBy(event.target.value)} />
+            
           </label>
         </div>
 

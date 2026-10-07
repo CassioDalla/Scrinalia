@@ -39,7 +39,6 @@ export function MaterialisationPanel({
   const queryClient = useQueryClient();
   const [preview, setPreview] = useState<MaterialisationPreview | null>(null);
   const [result, setResult] = useState<MaterialisationResult | null>(null);
-  const [changedBy, setChangedBy] = useState("");
   const [note, setNote] = useState("");
   const [showAllItems, setShowAllItems] = useState(false);
   const [logLimit, setLogLimit] = useState(10);
@@ -59,7 +58,7 @@ export function MaterialisationPanel({
   };
 
   const dryRun = useMutation({
-    mutationFn: () => previewMaterialisation({ changed_by: changedBy || null, note: note || null, limit: 500 }),
+    mutationFn: () => previewMaterialisation({ note: note || null, limit: 500 }),
     onSuccess: (data) => {
       setPreview(data);
       setResult(null);
@@ -68,7 +67,7 @@ export function MaterialisationPanel({
   });
 
   const apply = useMutation({
-    mutationFn: () => applyMaterialisation({ changed_by: changedBy || null, note: note || null, limit: 500 }),
+    mutationFn: () => applyMaterialisation({ note: note || null, limit: 500 }),
     onSuccess: (data) => {
       setResult(data);
       setPreview(null);
@@ -77,7 +76,7 @@ export function MaterialisationPanel({
   });
 
   const undo = useMutation({
-    mutationFn: (materialisationId: number) => undoMaterialisation(materialisationId, changedBy || undefined),
+    mutationFn: (materialisationId: number) => undoMaterialisation(materialisationId),
     onSuccess: () => {
       setResult(null);
       invalidate();
@@ -128,11 +127,6 @@ export function MaterialisationPanel({
         </CardHeader>
         <CardBody className="flex flex-col gap-3">
           <div className="grid gap-2">
-            <Input
-              value={changedBy}
-              onChange={(event) => setChangedBy(event.target.value)}
-              placeholder="Quem autoriza (texto livre até existir auth)"
-            />
             <Input
               value={note}
               onChange={(event) => setNote(event.target.value)}

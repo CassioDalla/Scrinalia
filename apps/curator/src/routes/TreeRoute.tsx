@@ -226,7 +226,6 @@ function CreateNodePanel({
         level_id: levelId,
         parent_id: atRoot ? null : selectedId,
         scope_content: scopeContent.trim() || null,
-        changed_by: null,
         note: null,
       };
       return createHierarchyNode(body);

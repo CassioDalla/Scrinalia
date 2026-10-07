@@ -130,7 +130,6 @@ const ISAD_FIELDS: { name: keyof DocumentUpdateRequest; label: string; long?: bo
 function DescriptionTab({ document }: { document: DocumentSummary }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<Record<string, string>>({});
-  const [changedBy, setChangedBy] = useState("");
   const [note, setNote] = useState("");
   const [levels, setLevels] = useState<number | undefined>(document.level_id ?? undefined);
   const [typology, setTypology] = useState<number | undefined>(document.typology_id ?? undefined);
@@ -146,7 +145,6 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
         level_id: levels ?? null,
         typology_id: typology ?? null,
         is_published: published,
-        changed_by: changedBy || null,
         review_note: note || null,
       };
       return updateDocument(document.description_id, body);
@@ -264,7 +262,7 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
         <CardBody className="grid gap-3 sm:grid-cols-2">
           <label>
             <span className="mb-1 block text-xs font-medium text-(--color-muted)">Quem revisou</span>
-            <Input value={changedBy} onChange={(event) => setChangedBy(event.target.value)} placeholder="nome" />
+            
           </label>
           <label>
             <span className="mb-1 block text-xs font-medium text-(--color-muted)">Motivo da edição</span>
@@ -327,7 +325,7 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
 
   const reclassify = useMutation({
     mutationFn: ({ tagId, categoryId }: { tagId: number; categoryId: number | null }) =>
-      curateTag(tagId, { macro_category_id: categoryId, changed_by: null, note: null }),
+      curateTag(tagId, { macro_category_id: categoryId, note: null }),
     onSuccess: invalidate,
   });
 
@@ -511,7 +509,6 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
   const [parentId, setParentId] = useState<string | null>(document.parent_id ?? null);
   const [parentLabel, setParentLabel] = useState<string | null>(null);
   const [levelId, setLevelId] = useState<number | null>(document.level_id ?? null);
-  const [changedBy, setChangedBy] = useState("");
   const [note, setNote] = useState("");
 
   const move = useMutation({
@@ -519,7 +516,6 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
       moveHierarchyNode(document.description_id, {
         new_parent_id: newParentId,
         level_id: levelId,
-        changed_by: changedBy || null,
         note: note || null,
       }),
     onSuccess: (data) => {
@@ -622,7 +618,7 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
 
             <label className="flex flex-col gap-1 text-xs">
               <span className="text-(--color-muted)">Quem decide (texto livre até existir auth)</span>
-              <Input value={changedBy} onChange={(event) => setChangedBy(event.target.value)} />
+              
             </label>
 
             <label className="flex flex-col gap-1 text-xs">
@@ -766,7 +762,6 @@ function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [confirmation, setConfirmation] = useState("");
-  const [changedBy, setChangedBy] = useState("");
   const [note, setNote] = useState("");
   const [done, setDone] = useState<DocumentDeletion | null>(null);
 
@@ -777,7 +772,7 @@ function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
 
   const remove = useMutation({
     mutationFn: () =>
-      deleteDocument(document.description_id, { changed_by: changedBy || null, note: note || null }),
+      deleteDocument(document.description_id, { note: note || null }),
     onSuccess: (response) => {
       setDone(response.data);
       // The detail query is *removed*, not invalidated: invalidating it would refetch a document that
@@ -830,7 +825,7 @@ function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
             <div className="grid gap-2 sm:grid-cols-2">
               <label className="flex flex-col gap-1 text-xs">
                 <span className="text-(--color-muted)">Quem exclui (texto livre até existir auth)</span>
-                <Input value={changedBy} onChange={(event) => setChangedBy(event.target.value)} />
+                
               </label>
               <label className="flex flex-col gap-1 text-xs">
                 <span className="text-(--color-muted)">Motivo (guardado na trilha)</span>

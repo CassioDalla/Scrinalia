@@ -110,7 +110,6 @@ export function ConflictsRoute() {
 
   /** The pair whose impact is being shown. The write only happens after this panel is read. */
   const [preview, setPreview] = useState<ConflictResolutionPlan | null>(null);
-  const [author, setAuthor] = useState("");
   const [note, setNote] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -136,7 +135,7 @@ export function ConflictsRoute() {
 
   const resolve = useMutation({
     mutationFn: (body: { tag_id: number; entity_id: number; winner: ConflictWinner }) =>
-      resolveConflict({ ...body, decided_by: author || null, note: note || null }),
+      resolveConflict({ ...body, note: note || null }),
     onSuccess: (response) => {
       setFeedback(routeMessage(response));
       setPreview(null);
@@ -146,7 +145,7 @@ export function ConflictsRoute() {
   });
 
   const undo = useMutation({
-    mutationFn: (resolutionId: number) => undoConflictResolution(resolutionId, author || undefined),
+    mutationFn: (resolutionId: number) => undoConflictResolution(resolutionId),
     onSuccess: (response) => {
       setFeedback(routeMessage(response));
       invalidate();
@@ -288,10 +287,8 @@ export function ConflictsRoute() {
         {preview ? (
           <PreviewPanel
             plan={preview}
-            author={author}
             note={note}
             pending={resolve.isPending}
-            onAuthor={setAuthor}
             onNote={setNote}
             onCancel={() => setPreview(null)}
             onConfirm={(winner) => resolve.mutate({ tag_id: preview.tag_id, entity_id: preview.entity_id, winner })}
@@ -516,19 +513,15 @@ export function ConflictsRoute() {
  */
 function PreviewPanel({
   plan,
-  author,
   note,
   pending,
-  onAuthor,
   onNote,
   onCancel,
   onConfirm,
 }: {
   plan: ConflictResolutionPlan;
-  author: string;
   note: string;
   pending: boolean;
-  onAuthor: (value: string) => void;
   onNote: (value: string) => void;
   onCancel: () => void;
   onConfirm: (winner: ConflictWinner) => void;
@@ -592,10 +585,6 @@ function PreviewPanel({
         )}
 
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Quem decide (texto livre até existir auth)</span>
-            <Input value={author} onChange={(event) => onAuthor(event.target.value)} placeholder="nome" />
-          </label>
           <label className="flex flex-col gap-1 text-xs">
             <span className="text-(--color-muted)">Nota da decisão</span>
             <Input value={note} onChange={(event) => onNote(event.target.value)} />

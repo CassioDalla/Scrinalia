@@ -341,7 +341,6 @@ function MergePanel({
         canonical_id: canonicalId,
         ids_to_merge: members.map((member) => member.entity_id).filter((id) => id !== canonicalId),
         new_name: newName.trim() || null,
-        changed_by: null,
       }),
     onSuccess: onDone,
   });

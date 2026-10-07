@@ -55,6 +55,9 @@ async function unwrap<T>(result: ApiResult): Promise<T> {
   return result.data as T;
 }
 
+export type AuthUser = components["schemas"]["AuthUserDTO"];
+export type RouteResponse = components["schemas"]["RouteResponse"];
+
 // --- Types the screens use, taken from the contract itself -------------------------------------
 
 export type DocumentSummary = components["schemas"]["DocumentSummary"];
@@ -347,13 +350,13 @@ export async function fetchDocument(descriptionId: string): Promise<DocumentSumm
  */
 export async function deleteDocument(
   descriptionId: string,
-  params: { changed_by?: string | null; note?: string | null } = {},
+  params: { note?: string | null } = {},
 ): Promise<DocumentDeletionResponse> {
   return unwrap<DocumentDeletionResponse>(
     await client.DELETE("/api/v1/documents/{description_id}", {
       params: {
         path: { description_id: descriptionId },
-        query: { changed_by: params.changed_by ?? null, note: params.note ?? null },
+        query: { note: params.note ?? null },
       },
     }),
   );
@@ -501,58 +504,42 @@ export async function updateCollectionTerm(
   );
 }
 
-export async function linkTag(
-  descriptionId: string,
-  tagId: number,
-  changedBy?: string,
-): Promise<DocumentSummary> {
+export async function linkTag(descriptionId: string, tagId: number): Promise<DocumentSummary> {
   return unwrap<DocumentSummary>(
     await client.POST("/api/v1/documents/{description_id}/tags", {
       params: { path: { description_id: descriptionId } },
-      body: { tag_id: tagId, changed_by: changedBy ?? null, review_note: null },
+      body: { tag_id: tagId, review_note: null },
     }),
   );
 }
 
-export async function unlinkTag(
-  descriptionId: string,
-  tagId: number,
-  changedBy?: string,
-): Promise<DocumentSummary> {
+export async function unlinkTag(descriptionId: string, tagId: number): Promise<DocumentSummary> {
   return unwrap<DocumentSummary>(
     await client.DELETE("/api/v1/documents/{description_id}/tags/{tag_id}", {
       params: {
         path: { description_id: descriptionId, tag_id: tagId },
-        query: { changed_by: changedBy ?? null, review_note: null },
+        query: { review_note: null },
       },
     }),
   );
 }
 
-export async function unlinkEntity(
-  descriptionId: string,
-  entityId: number,
-  changedBy?: string,
-): Promise<DocumentSummary> {
+export async function unlinkEntity(descriptionId: string, entityId: number): Promise<DocumentSummary> {
   return unwrap<DocumentSummary>(
     await client.DELETE("/api/v1/documents/{description_id}/entities/{entity_id}", {
       params: {
         path: { description_id: descriptionId, entity_id: entityId },
-        query: { changed_by: changedBy ?? null, review_note: null },
+        query: { review_note: null },
       },
     }),
   );
 }
 
-export async function linkEntity(
-  descriptionId: string,
-  entityId: number,
-  changedBy?: string,
-): Promise<DocumentSummary> {
+export async function linkEntity(descriptionId: string, entityId: number): Promise<DocumentSummary> {
   return unwrap<DocumentSummary>(
     await client.POST("/api/v1/documents/{description_id}/entities", {
       params: { path: { description_id: descriptionId } },
-      body: { entity_id: entityId, changed_by: changedBy ?? null, review_note: null },
+      body: { entity_id: entityId, review_note: null },
     }),
   );
 }
@@ -705,7 +692,6 @@ export async function previewMerge(proposalId: number): Promise<MergePreview> {
 /** Applies the approved clusters, each in its own savepoint: one failure does not roll back the rest. */
 export async function applyMergeBatch(body: {
   proposal_ids: number[];
-  changed_by?: string | null;
   note?: string | null;
 }): Promise<BatchMergeResponse> {
   return unwrap<BatchMergeResponse>(await client.POST("/api/v1/taxonomy/tags/merge/batch", { body }));
@@ -728,10 +714,10 @@ export async function fetchMergeLog(params: {
 }
 
 /** Reverses one absorbed tag: the row, its links, its classification and its spellings. */
-export async function undoMerge(mergeId: number, undoneBy?: string): Promise<TagMergeUndoResponse> {
+export async function undoMerge(mergeId: number): Promise<TagMergeUndoResponse> {
   return unwrap<TagMergeUndoResponse>(
     await client.DELETE("/api/v1/taxonomy/tags/merge-log/{merge_id}", {
-      params: { path: { merge_id: mergeId }, query: { undone_by: undoneBy ?? null } },
+      params: { path: { merge_id: mergeId } },
     }),
   );
 }
@@ -830,13 +816,10 @@ export async function fetchMaterialisationLog(params: {
 }
 
 /** Reverses one run from the ledger. The ledger entry survives, with ``undone_at`` set. */
-export async function undoMaterialisation(materialisationId: number, undoneBy?: string): Promise<void> {
+export async function undoMaterialisation(materialisationId: number): Promise<void> {
   await unwrap<unknown>(
     await client.DELETE("/api/v1/hierarchy/materialisation/log/{materialisation_id}", {
-      params: {
-        path: { materialisation_id: materialisationId },
-        query: { undone_by: undoneBy ?? null },
-      },
+      params: { path: { materialisation_id: materialisationId } },
     }),
   );
 }
@@ -1130,13 +1113,10 @@ export async function fetchConflictResolutions(params: {
  * The second attempt answers 409 and an unknown id 404 — the ledger entry is never deleted, so
  * "resolved, then reversed" survives the reversal.
  */
-export async function undoConflictResolution(
-  resolutionId: number,
-  undoneBy?: string,
-): Promise<{ message: string; data: ConflictResolutionLogEntry }> {
+export async function undoConflictResolution(resolutionId: number): Promise<{ message: string; data: ConflictResolutionLogEntry }> {
   return unwrap<{ message: string; data: ConflictResolutionLogEntry }>(
     await client.DELETE("/api/v1/taxonomy/conflicts/resolutions/{resolution_id}", {
-      params: { path: { resolution_id: resolutionId }, query: { undone_by: undoneBy ?? null } },
+      params: { path: { resolution_id: resolutionId } },
     }),
   );
 }
@@ -1357,10 +1337,10 @@ export async function saveWorkerSettings(
 }
 
 /** Drops the override so the worker follows the code again; idempotent. */
-export async function clearWorkerSettings(worker: string, changedBy?: string): Promise<WorkerSettings> {
+export async function clearWorkerSettings(worker: string): Promise<WorkerSettings> {
   return unwrap<WorkerSettings>(
     await client.DELETE("/api/v1/system/workers/{worker_name}/settings", {
-      params: { path: { worker_name: worker }, query: { changed_by: changedBy ?? null } },
+      params: { path: { worker_name: worker } },
     }),
   );
 }
@@ -1384,4 +1364,36 @@ export async function fetchWorkerSettingsRevisions(params: {
 /** Database, Ollama (with the models the presets need), object storage and the process. */
 export async function fetchSystemHealth(): Promise<SystemHealth> {
   return unwrap<SystemHealth>(await client.GET("/api/v1/system/health"));
+}
+
+// --- The session -------------------------------------------------------------------------------
+
+/** The account behind the cookie, or a rejection the shell turns into the sign-in screen. */
+export async function fetchCurrentUser(): Promise<AuthUser> {
+  return unwrap<AuthUser>(await client.GET("/api/v1/auth/me"));
+}
+
+/**
+ * Opens a session. The cookie is ``HttpOnly`` and first-party, so nothing here stores a token: the
+ * browser keeps it and ``openapi-fetch`` sends it with every later request on its own.
+ */
+export async function login(email: string, password: string): Promise<AuthUser> {
+  return unwrap<AuthUser>(await client.POST("/api/v1/auth/login", { body: { email, password } }));
+}
+
+/** Ends the session and clears the cookie. */
+export async function logout(): Promise<RouteResponse> {
+  return unwrap<RouteResponse>(await client.POST("/api/v1/auth/logout"));
+}
+
+/** Replaces the signed-in account's own password, proving the current one. */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<RouteResponse> {
+  return unwrap<RouteResponse>(
+    await client.POST("/api/v1/auth/password", {
+      body: { current_password: currentPassword, new_password: newPassword },
+    }),
+  );
 }
