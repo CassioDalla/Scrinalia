@@ -87,14 +87,78 @@ documentação**. Detalhe na seção seguinte.
         ser obrigado a contribuir **de volta para este repositório** — o §13 obriga a oferecer a
         fonte aos usuários daquela instalação. O pedido de retribuição está no `README`, como
         pedido.
-      - **Nome:** ainda em aberto (§ abaixo) — o `attribution.ts` é o ponto único da troca.
-- [ ] **Auth (B9).** Hoje qualquer cliente que alcance a API aprova fichas, apaga descrições, funde
-      taxonomia e **dispara workers**. `changed_by`/`requested_by` são texto livre.
-      - Um 1.0 que outras instituições instalam **precisa** de autenticação, mesmo que mínima —
-        porque o primeiro deploy exposto fica aberto. Alternativa honesta: shippar 1.0 com aviso
-        explícito de "não exponha" e auth na 1.1, mas isso é pior que fazer agora.
-      - Escopo mínimo defensável: usuário+senha (ou OIDC) no BFF do curador, `changed_by` vindo do
-        token, e a superfície pública continuando aberta **por design**.
+      - **Nome:** **decidido e aplicado em 2026-10-07** — o projeto é **`Scrinalia`** (ADR 0007, §
+        abaixo). O `attribution.ts` continua sendo o ponto único da troca: renomear de novo é uma
+        linha, não uma tela.
+- [ ] **Auth (B9) — planejado em 2026-10-07, em três ciclos.** Hoje qualquer cliente que alcance a
+      API aprova fichas, apaga descrições, funde taxonomia e **dispara workers**: são **85 paths /
+      100 operações**, 58 delas de mutação, e **12 colunas de autoria em 12 tabelas** guardam texto
+      livre (`changed_by`, `requested_by`, `decided_by`, `deleted_by`, `created_by`). Um 1.0 que
+      outra instituição instala precisa de autenticação; shippar com aviso de "não exponha" está
+      descartado.
+      - **Decisões tomadas com o dono (2026-10-07).** (1) **Três ciclos**, não um: o mínimo
+        defensável é o B9.1, e o que incha não é o login. (2) Cookie `HttpOnly` + sessão **no banco**,
+        revogável — não cookie assinado stateless, não JWT no SPA. (3) Três papéis
+        (`ADMIN`/`CURADOR`/`LEITOR`) com o **mapa de permissões em código**, não em tabela editável.
+        (4) `changed_by` **sai** dos requests; o autor vem da sessão. (5) Primeiro admin e reset de
+        senha por **CLI no pacote**. (6) O `--by` da CLI de workers continua texto livre — é operação
+        de host, fora do modelo de ameaça HTTP. **OIDC/SSO descartado:** varia por instituição, e é
+        exatamente o acoplamento que o ADR 0008 removeu.
+      - **Correção de premissa:** não existe "BFF do curador" separado. `asgi.py` monta
+        `apps/curator/dist` em `/` — mesma origem, sem CORS —, então o login são dois endpoints no
+        próprio Litestar, cookie first-party e nenhum token em JS. O `apps/public`, quando existir,
+        será o segundo processo, e ele só toca `/api/v1/public`, que continua aberto **por design**.
+      - **B9.1 — Identidade e trava (fecha o buraco).** Novo domínio `domains/identity/` — e não
+        `core/`, que não tem nenhuma tabela hoje: usuário e sessão são contexto com ciclo de vida,
+        não infraestrutura. `auth_users` + `auth_sessions` (só o **sha256** do token no banco, nunca
+        o token), argon2id via `argon2-cffi` com parâmetros explícitos e rehash no login, e
+        **hash-isca** para e-mail inexistente, para o tempo de resposta não enumerar quem existe.
+        A trava é **uma policy**: tudo sob `/api/v1` exige sessão, exceto
+        `POST /api/v1/auth/login` e `/api/v1/public/*` — `/health/*`, `/schema*` e os estáticos
+        ficam fora por construção, então os dois probes do orquestrador não precisam de exceção.
+        Autorização fina: cada handler declara `opt={"access": Permission.X}`, **um guard global**
+        decide, e um teste de **partição exata** sobre o route map falha se alguma operação de
+        `/api/v1` não estiver classificada — o mesmo padrão de `NOT_PUBLIC_FIELDS` e do
+        `RouteMessageCode`, e o que impede "esqueci de proteger a rota nova" de virar processo.
+        Endpoints: `login`, `logout`, `me` e `POST /auth/password` (a troca da própria senha entra
+        **aqui**, não no B9.2: o CLI cria o admin com senha temporária e `must_change_password`, e sem
+        essa rota ele fica preso num beco sem saída). **O ADR 0009 nasce neste ciclo**, não no B9.3: o
+        registro pertence a quem toma a decisão.
+      - **B9.2 — Papéis e a página Configurações.** `/api/v1/users` (CRUD, papel, ativar/desativar,
+        reset, sessões ativas e revogação) e o grupo **"Configurações"** no fim da sidebar, com
+        `Usuários` primeiro. Depois é o lugar natural para o que é *configuração* e não *operação*
+        (settings de worker), deixando "Sistema" com execuções e diagnóstico. A UI passa a esconder e
+        desabilitar o que o papel não pode.
+      - **B9.3 — Endurecimento.** `failed_attempts`/`locked_until` com backoff, rate-limit no login,
+        checagem de `Origin` nas mutações, `last_login_at` e auditoria de sessões. Pode colar no B9.2
+        se o ciclo precisar encurtar.
+      - **O que custa mais que o login (medido).** (a) **11 campos `changed_by` em schemas de
+        request** (mais o `requested_by` do runner): se a autenticação chega e o cliente continua
+        podendo mandar o nome, o curador logado escreve o nome de outro e a auditoria fica **pior**
+        que antes, porque passa a *parecer* confiável. O campo sai do request, o servidor preenche da
+        sessão, e as 12 tabelas ganham `changed_by_user_id` (FK `SET NULL`) **preservando o texto
+        antigo** — histórico não se reescreve. (b) **14 arquivos de teste de integração da API**
+        sobem `create_app()` com `TestClient` e passam a precisar de sessão: uma fixture
+        `logged_in_client` no `conftest.py` é o grosso mecânico do ciclo. (c) Contrato regerado no
+        mesmo commit (`openapi.json` + `schema.d.ts`), com o teste de determinismo verde.
+      - **Armadilhas já identificadas.** `Secure` no cookie **quebra o login em HTTP de LAN** →
+        `AUTH_COOKIE_SECURE` condicional e documentado. **Guards do Litestar são cumulativos e não se
+        removem por rota** (`resolve_guards` faz `extend` de controller para handler), então um guard
+        de controller vazaria para os GETs que o LEITOR precisa alcançar — é por isso que a
+        classificação é por handler com um guard global, e não por controller. 401/403 saem como
+        `HTTPException` do Litestar, **nunca** `DomainException`: o handler de domínio mapearia para
+        400 e — pior — faria uma **resposta devida ao cliente** entrar no ledger de falhas, que é
+        para defeito. E 403, não 404: o 404-que-esconde é a regra da **superfície pública** para
+        registro não publicado, não de recurso administrativo. `conftest.py` (que constrói o schema
+        por `create_all`) e `migrations/env.py` precisam importar o pacote novo, senão as tabelas não
+        existem no teste e o erro parece regressão. `last_seen_at` por request é um UPDATE por
+        request → só atualizar se estiver velho.
+      - **Fora do 1.0, com aviso:** OIDC/SSO, 2FA, e-mail e reset self-service. O `/schema` continua
+        aberto.
+      - **Ordem dos commits:** (1) `feat(identity)!` modelos, sessões, argon2id, CLI e migração;
+        (2) `feat(api)!` sessão obrigatória, classificação de acesso e contrato (+ ADR 0009);
+        (3) `refactor(api)!` autoria vinda da sessão + `changed_by_user_id`; (4) `feat(curator)`
+        portão de login e remoção do autor livre; (5) `chore(todo)` fechar o bullet do B9.1.
 - [x] **Renomear o projeto, o pacote e o repositório** — **feito em 2026-10-07**: o projeto agora é
       **`Scrinalia`** (`refactor(pkg)!: rename memoria_curitibana to scrinalia`), com decisão e
       etimologia no **ADR 0007**. Escopo medido antes de executar: **240 arquivos** com uma das
