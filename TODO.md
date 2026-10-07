@@ -6,7 +6,7 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > **Como ler.** `✅` = feito **e verificado em execução real** (Postgres + engines reais), não
 > apenas lido no código. `[ ]` = pendente. `[~]` = parcial.
 >
-> **Estado do gate (2026-10-06):** **1.119 testes** passando · `ruff` limpo (301 arquivos) ·
+> **Estado do gate (2026-10-06):** **1.143 testes** passando · `ruff` limpo (303 arquivos) ·
 > `basedpyright` **0 erros** · **27 migrações** sem drift · contrato OpenAPI **79 paths /
 > 94 operações / 161 schemas**, gerado, commitado e sem drift · SPA (`tsc`, `eslint`, `vite build`)
 > limpa e servida pelo próprio Litestar · **4 ADRs**.
@@ -91,10 +91,9 @@ documentação, desacoplamento institucional e autenticação. Detalhe na seçã
             cada fila significa, como reprocessar).
       - [ ] **Guia de curadoria** (o que o arquivista decide em cada tela, e por quê).
       - [ ] **Modelo de dados** (as camadas, o `execution_log`, a governança, o ledger).
-      - **Decisão: wiki ou repositório?** Recomendação: **`docs/` versionado** (MkDocs ou
-            Docusaurus publicando a partir do repo). Uma wiki externa **não versiona com o código**
-            e diverge — foi exatamente o que aconteceu com afirmações do `TODO`/ADR que ficaram
-            falsas. A wiki pode ser um espelho publicado, nunca a fonte.
+      - **Decidido: versionada no repositório**, publicada a partir dele (ferramenta em aberto —
+            ver "Decisão de documentação"). Uma wiki externa **não versiona com o código** e
+            diverge; pode ser espelho, nunca a fonte.
 - [ ] **Desacoplar o que é específico de uma instituição.** Três níveis de gravidade, medidos:
   - [ ] **Config morta:** `ARQDOC_BASE_URL`/`ARQDOC_VIEW_ENDPOINT` existem no `config.py` e
         **nenhum adapter os lê** — só o `system_health` reporta se estão preenchidos. É sobra do
@@ -126,26 +125,45 @@ documentação, desacoplamento institucional e autenticação. Detalhe na seçã
       invisível.
 - [ ] **`.env.example` revisado** depois do desacoplamento: hoje ainda lista `ARQDOC_*`.
 
-### ⚠️ A decisão que interage com versionamento — **mensagens da API**
+### ✅ A decisão que interagia com versionamento — **fechada**
 
-**Esta é a única do backlog que eu faria antes da 1.0 por motivo de contrato.** O resto pode ir
-para depois sem quebrar semântica de versão.
+**Era a única do backlog que precisava vir antes da 1.0 por motivo de contrato.** Fechada em
+2026-10-06 com a saída aditiva.
 
-- [ ] **Decidir se a API devolve prosa ou código.** Hoje **18 schemas de resposta** carregam um
-      campo `message` com **texto em português** (`"Limpeza concluída com sucesso."`,
-      `"Termos marcados como assunto: o extrator não os tratará mais como entidade."`), e a SPA
-      **renderiza esse texto direto** (13 pontos). As `DomainException` também têm prosa PT.
-      - **Se a tradução vier depois**, traduzir só a SPA deixa a interface meio em português: as
-        mensagens de erro e confirmação continuariam no idioma do servidor.
-      - Trocar `message: str` (prosa) por `code: str` (identificador estável) **é uma mudança
-        incompatível** — mitigada pelo prefixo `/api/v1` (poderia ir para v2), mas ainda é a
-        decisão mais cara de reverter das três.
-      - **Duas saídas honestas:** (a) **manter a prosa PT como contrato da 1.0** e traduzir no
-        cliente por um mapa `code→texto` — exige adicionar o `code` ao lado do `message` (aditivo,
-        não quebra nada); ou (b) **trocar para códigos agora** e deixar a SPA compor o texto.
-      - **Recomendação: (a).** Adicionar `code` ao lado de `message` é aditivo, mantém a 1.0
-        compatível e preserva a liberdade de traduzir depois. Fazer isso **antes** da 1.0 evita a
-        migração de contrato depois.
+- ✅ **A API responde `code` **e** `message`.** Todo schema de resposta que carrega uma frase
+  herda `RouteResponse` (`domains/archive/schemas/responses.py`), que pareia um
+  `RouteMessageCode` com a sentença em português. São **21 códigos** cobrindo os 18 schemas.
+  - **`code` é a identidade do desfecho** — estável, em inglês, e é por ele que um catálogo de
+    tradução vai ser indexado. `message` **fica**: um cliente que não conhece códigos continua
+    funcionando, e um código ainda sem tradução tem o que mostrar em vez de uma linha vazia.
+  - **Aditivo, não incompatível:** um código novo é um membro novo no enum, e o cliente antigo
+    cai no `message`. Era exatamente o que se queria evitar — trocar prosa por código depois da
+    1.0 seria mudança de contrato.
+  - **O front lê por uma costura única:** `routeMessage()` (`apps/curator/src/lib/messages.ts`).
+    Os 13 pontos que imprimiam `.message` direto passaram a chamar a função; o mapa de traduções
+    está **vazio de propósito** (o produto é em português hoje), então nada do que o arquivista lê
+    mudou. Encher esse mapa é o que torna a interface multilíngue, sem tocar em tela nenhuma.
+  - **Convenção presa por teste:** `testing/unit/api/test_route_message_codes.py` varre os dois
+    pacotes de schema e falha se uma resposta com `message` ficar sem `code`. **Verificado
+    reintroduzindo o defeito de propósito** — e a primeira versão do teste passou com o defeito,
+    porque filtrava `obj.__module__` contra o **pacote** enquanto os modelos vivem nos
+    submódulos; a correção foi varrer os submódulos, e o motivo está no docstring.
+  - Registrado no `AGENTS.md` para as rotas que vierem.
+
+### 🟡 Decisão de documentação — **encaminhada**
+
+- ✅ **Documentação versionada, não wiki.** Decisão do dono em 2026-10-06: o conteúdo vive no
+  repositório e é publicado a partir dele. Motivo registrado: uma wiki externa **não versiona com
+  o código** e diverge — foi o que aconteceu com afirmações deste `TODO` e dos ADRs que ficaram
+  falsas sem ninguém notar.
+- [ ] **Escolher a ferramenta:** GitHub Docs (renderiza Markdown do próprio repo, zero build) ou
+      **MkDocs Material** (build estático, versionamento por release, busca própria, `mkdocstrings`
+      para puxar docstrings do Python).
+      - **Recomendação: MkDocs Material**, se a documentação for crescer além de uns poucos guias:
+        dá versionamento por release (`mike`), busca e referência de API gerada do código. GitHub
+        Docs basta se o objetivo for só publicar os guias que já existem.
+- [ ] **Escrever os quatro guias** (instalação/deploy, operação, curadoria, modelo de dados) —
+      ver o bloqueador de documentação acima.
 
 ---
 
@@ -397,8 +415,8 @@ antigos para 3.608 documentos e **nenhum** para os ~1.218 que entraram no re-par
 
 | Verificação | Resultado |
 | --- | --- |
-| `pytest` (unit + integração) | **1.119 passed** |
-| `ruff check` / `ruff format --check` | limpos (301 arquivos) |
+| `pytest` (unit + integração) | **1.143 passed** |
+| `ruff check` / `ruff format --check` | limpos (303 arquivos) |
 | `basedpyright` | **0 errors, 0 warnings** |
 | `alembic check` | **sem drift** (27 migrações) |
 | `tsc` / `eslint` / `vite build` | limpos |
