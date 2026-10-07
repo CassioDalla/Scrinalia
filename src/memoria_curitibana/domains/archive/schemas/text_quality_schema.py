@@ -9,6 +9,7 @@ from memoria_curitibana.domains.archive.domain.text_quality import (
     DEFAULT_TEMPLATE_SCOPE,
     normalize_excerpt,
 )
+from memoria_curitibana.domains.archive.schemas.responses import RouteResponse
 
 TemplateAction = Literal["IGNORE", "REPLACE"]
 TemplateScope = Literal["EMBEDDING", "NER", "TITLE"]
@@ -102,13 +103,12 @@ class TemplateSuggestion(BaseModel):
     columns: list[str] = Field(default_factory=list)
 
 
-class TemplateSuggestionResponse(BaseModel):
+class TemplateSuggestionResponse(RouteResponse):
     """Result of a suggestion run over the collection."""
 
     documents_scanned: int
     candidates: list[TemplateSuggestion]
     persisted: int
-    message: str
 
 
 class TemplateDryRunRequest(BaseModel):
@@ -141,7 +141,7 @@ class TemplateDryRunResponse(BaseModel):
     samples: list[TemplateDryRunMatch] = Field(default_factory=list)
 
 
-class TextTemplateMutationResponse(BaseModel):
+class TextTemplateMutationResponse(RouteResponse):
     """
     Result of a write on the excerpt catalog.
 
@@ -150,7 +150,6 @@ class TextTemplateMutationResponse(BaseModel):
     the embedding — changed.
     """
 
-    message: str
     documents_requeued: int
     data: TextTemplateDTO
 

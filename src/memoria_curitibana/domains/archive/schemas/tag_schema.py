@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from memoria_curitibana.domains.archive.models.enums import StopwordsScope
+from memoria_curitibana.domains.archive.schemas.responses import RouteMessageCode, RouteResponse
 from memoria_curitibana.domains.archive.schemas.types import TagName
 
 
@@ -449,8 +450,17 @@ class MacroCategorySuggested(BaseModel):
 
 
 class MacroCategoriesSuggestionResponse(BaseModel):
+    """
+    What the clustering run found, and the warning when there was too little text to cluster.
+
+    Not a :class:`RouteResponse`: this route succeeds with an empty answer, so the sentence is
+    optional. The code is optional for the same reason — absent means "it ran and found something",
+    present means "it could not", and a translation catalogue needs to tell those apart.
+    """
+
     total_suggestions: int
     categories: list[MacroCategorySuggested]
+    code: RouteMessageCode | None = None
     message: str | None = None
 
 
@@ -556,50 +566,43 @@ class TagIdentity(BaseModel):
 # up as ``undefined`` in the browser. The shape here is the one those routes already sent.
 
 
-class TagMergeProposalDecisionResponse(BaseModel):
+class TagMergeProposalDecisionResponse(RouteResponse):
     """The verdict was recorded. Approval is intent — the batch is what merges."""
 
-    message: str
     data: TagMergeProposalDTO
 
 
-class TagMergeUndoResponse(BaseModel):
+class TagMergeUndoResponse(RouteResponse):
     """The absorbed tag came back, exactly as the ledger remembered it."""
 
-    message: str
     data: MergeLogEntryDTO
 
 
-class StopwordBanResponse(BaseModel):
+class StopwordBanResponse(RouteResponse):
     """Terms banned. Banning deletes nothing: the purge is a separate, explicit step."""
 
-    message: str
     created: int
 
 
-class StopwordRemovalResponse(BaseModel):
+class StopwordRemovalResponse(RouteResponse):
     """Terms un-banned — the only way back from a purge decision, which has no ledger."""
 
-    message: str
     removed: int
 
 
-class StopwordPurgeResponse(BaseModel):
+class StopwordPurgeResponse(RouteResponse):
     """What the purge deleted. There is no undo for this one, only the preview before it."""
 
-    message: str
     tags_deleted: int
 
 
-class SubjectExclusionBanResponse(BaseModel):
+class SubjectExclusionBanResponse(RouteResponse):
     """Terms declared not-a-subject: the classifier stops guessing at them."""
 
-    message: str
     created: int
 
 
-class SubjectExclusionRemovalResponse(BaseModel):
+class SubjectExclusionRemovalResponse(RouteResponse):
     """The decision was undone and the terms are back in the classification queue."""
 
-    message: str
     removed: int

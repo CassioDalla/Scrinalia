@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from memoria_curitibana.domains.archive.schemas.responses import RouteResponse
+
 AllowedColumns = Literal["original_title", "scope_content", "admin_bio_history", "provenance", "archivist_notes"]
 
 #: What a registered rule does. ``REWRITE`` is the original behaviour (the worker replaces
@@ -56,7 +58,7 @@ class DryRunResponseDTO(BaseModel):
     samples: list[DryRunMatchDTO] = []
 
 
-class CleaningRuleMutationResponse(BaseModel):
+class CleaningRuleMutationResponse(RouteResponse):
     """
     Result of a write on the rule catalog.
 
@@ -65,7 +67,6 @@ class CleaningRuleMutationResponse(BaseModel):
     to the reader: a ``VALIDATE``/``LLM_CHECK`` rule only flags, a ``REWRITE`` rule replaces text.
     """
 
-    message: str
     data: CleaningRuleDTO
 
 

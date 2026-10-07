@@ -9,6 +9,7 @@ from memoria_curitibana.api.schemas.text_quality_requests import (
     SuggestTextTemplatesRequest,
     UpdateTextTemplateRequest,
 )
+from memoria_curitibana.domains.archive.schemas import RouteMessageCode
 from memoria_curitibana.domains.archive.schemas.text_quality_schema import (
     TemplateCreateCommand,
     TemplateDryRunRequest,
@@ -93,6 +94,7 @@ class TextQualityController(Controller):
             )
         )
         return TextTemplateMutationResponse(
+            code=RouteMessageCode.TEXT_TEMPLATE_CREATED,
             message="Trecho cadastrado e aplicado. Os documentos afetados voltaram para a fila da IA.",
             documents_requeued=requeued,
             data=template,
@@ -111,6 +113,7 @@ class TextQualityController(Controller):
             TemplateUpdateCommand(**data.model_dump(exclude_unset=True)),
         )
         return TextTemplateMutationResponse(
+            code=RouteMessageCode.TEXT_TEMPLATE_UPDATED,
             message="Trecho atualizado. Os documentos afetados voltaram para a fila da IA.",
             documents_requeued=requeued,
             data=template,
@@ -125,6 +128,7 @@ class TextQualityController(Controller):
         """Undoes the decision and re-queues every document the excerpt affected."""
         removed, requeued = text_quality_service.delete_template(template_id)
         return TextTemplateMutationResponse(
+            code=RouteMessageCode.TEXT_TEMPLATE_DELETED,
             message="Trecho removido do catálogo e efeito desfeito nos documentos afetados.",
             documents_requeued=requeued,
             data=removed,

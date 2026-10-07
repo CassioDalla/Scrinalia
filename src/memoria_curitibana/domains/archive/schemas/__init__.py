@@ -60,6 +60,7 @@ from .hierarchy_schema import (
     UpdateDescriptionLevelCommand,
 )
 from .query_schema import DocumentSearchQuery
+from .responses import RouteMessageCode, RouteResponse
 from .system_schema import (
     DatabaseHealthDTO,
     EngineSource,
@@ -210,6 +211,8 @@ __all__ = [
     "OllamaHealthDTO",
     "ProcessHealthDTO",
     "ResolveConflictCommand",
+    "RouteMessageCode",
+    "RouteResponse",
     "StopwordCreateCommand",
     "StopwordDTO",
     "StopwordPurgePreview",

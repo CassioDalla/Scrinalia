@@ -11,6 +11,7 @@ from litestar.testing import TestClient
 
 from memoria_curitibana.asgi import create_app
 from memoria_curitibana.domains.archive.exceptions import TextTemplateNotFoundError
+from memoria_curitibana.domains.archive.schemas import RouteMessageCode
 from memoria_curitibana.domains.archive.schemas.text_quality_schema import (
     TemplateDryRunResponse,
     TemplateSuggestionResponse,
@@ -76,7 +77,11 @@ def test_suggest_returns_the_candidates(client: TestClient, mocker) -> None:
         TextQualityService,
         "suggest_templates",
         return_value=TemplateSuggestionResponse(
-            documents_scanned=3608, candidates=[], persisted=0, message="nada aplicado"
+            documents_scanned=3608,
+            candidates=[],
+            persisted=0,
+            code=RouteMessageCode.TEXT_TEMPLATE_SUGGESTED,
+            message="nada aplicado",
         ),
     )
 

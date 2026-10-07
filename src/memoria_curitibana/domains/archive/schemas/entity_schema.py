@@ -3,6 +3,7 @@ from typing import Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from memoria_curitibana.domains.archive.schemas.responses import RouteResponse
 from memoria_curitibana.domains.archive.schemas.types import EntityName
 
 # Who recorded a NER exclusion: a human curator or the LLM conflict judge.
@@ -360,28 +361,25 @@ class NerExclusion(BaseModel):
 # keys are the ones those routes already sent.
 
 
-class NerExclusionBanResponse(BaseModel):
+class NerExclusionBanResponse(RouteResponse):
     """Terms banned from NER, and how many already-extracted entities the ban purged."""
 
-    message: str
     entities_deleted: int
 
 
-class NerExclusionRemovalResponse(BaseModel):
+class NerExclusionRemovalResponse(RouteResponse):
     """The ban was lifted: the extractor will consider those spellings again."""
 
-    message: str
     removed: int
 
 
-class OrphanEntityPurgeResponse(BaseModel):
+class OrphanEntityPurgeResponse(RouteResponse):
     """Delete of the entities no description carries."""
 
-    message: str
     entities_deleted: int
 
 
-class EntityReclassifyResponse(BaseModel):
+class EntityReclassifyResponse(RouteResponse):
     """
     The new type, and the promise that matters: reclassifying writes the anchoring synonym.
 
@@ -389,11 +387,8 @@ class EntityReclassifyResponse(BaseModel):
     future run, which is why the screen has to say so.
     """
 
-    message: str
     new_type: Literal["ORG", "PER", "LOC"]
 
 
-class EntityDeleteResponse(BaseModel):
+class EntityDeleteResponse(RouteResponse):
     """One entity removed from the vocabulary."""
-
-    message: str

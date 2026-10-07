@@ -1410,6 +1410,7 @@ export interface components {
         };
         /** CleaningRuleMutationResponse */
         CleaningRuleMutationResponse: {
+            code: components["schemas"]["RouteMessageCode"];
             data: components["schemas"]["CleaningRuleDTO"];
             message: string;
         };
@@ -1522,6 +1523,7 @@ export interface components {
         };
         /** ConflictResolutionResponse */
         ConflictResolutionResponse: {
+            code: components["schemas"]["RouteMessageCode"];
             data: components["schemas"]["ConflictResolutionData"];
             message: string;
         };
@@ -1726,6 +1728,7 @@ export interface components {
         };
         /** DocumentDeletionResponse */
         DocumentDeletionResponse: {
+            code: components["schemas"]["RouteMessageCode"];
             data: components["schemas"]["DocumentDeletionDTO"];
             message: string;
         };
@@ -1894,6 +1897,7 @@ export interface components {
         };
         /** EntityDeleteResponse */
         EntityDeleteResponse: {
+            code: components["schemas"]["RouteMessageCode"];
             message: string;
         };
         /** EntityLinkRequest */
@@ -1922,6 +1926,7 @@ export interface components {
         };
         /** EntityReclassifyResponse */
         EntityReclassifyResponse: {
+            code: components["schemas"]["RouteMessageCode"];
             message: string;
             /** @enum {string} */
             new_type: "ORG" | "PER" | "LOC";
@@ -2267,6 +2272,7 @@ export interface components {
         /** MacroCategoriesSuggestionResponse */
         MacroCategoriesSuggestionResponse: {
             categories: components["schemas"]["MacroCategorySuggested"][];
+            code?: components["schemas"]["RouteMessageCode"] | null;
             message?: string | null;
             total_suggestions: number;
         };
@@ -2419,11 +2425,13 @@ export interface components {
         };
         /** NerExclusionBanResponse */
         NerExclusionBanResponse: {
+            code: components["schemas"]["RouteMessageCode"];
             entities_deleted: number;
             message: string;
         };
         /** NerExclusionRemovalResponse */
         NerExclusionRemovalResponse: {
+            code: components["schemas"]["RouteMessageCode"];
             message: string;
             removed: number;
         };
@@ -2447,6 +2455,7 @@ export interface components {
         };
         /** OrphanEntityPurgeResponse */
         OrphanEntityPurgeResponse: {
+            code: components["schemas"]["RouteMessageCode"];
             entities_deleted: number;
             message: string;
         };
@@ -2530,8 +2539,19 @@ export interface components {
             /** @enum {string} */
             new_type: "ORG" | "PER" | "LOC";
         };
+        /**
+         * RouteMessageCode
+         * @description What a write route did, as an identifier rather than a sentence.
+         *
+         *         One member per outcome, shared by the routes that can produce it: creating and deactivating a
+         *         cleaning rule answer the same schema with different codes, because the screen says different
+         *         things and a translation catalogue needs to tell them apart.
+         * @enum {string}
+         */
+        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORD_PURGE_DONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "CONFLICT_RESOLVED";
         /** StopwordBanResponse */
         StopwordBanResponse: {
+            code: components["schemas"]["RouteMessageCode"];
             created: number;
             message: string;
         };
@@ -2566,6 +2586,7 @@ export interface components {
         };
         /** StopwordPurgeResponse */
         StopwordPurgeResponse: {
+            code: components["schemas"]["RouteMessageCode"];
             message: string;
             tags_deleted: number;
         };
@@ -2584,6 +2605,7 @@ export interface components {
         };
         /** StopwordRemovalResponse */
         StopwordRemovalResponse: {
+            code: components["schemas"]["RouteMessageCode"];
             message: string;
             removed: number;
         };
@@ -2609,6 +2631,7 @@ export interface components {
         };
         /** SubjectExclusionBanResponse */
         SubjectExclusionBanResponse: {
+            code: components["schemas"]["RouteMessageCode"];
             created: number;
             message: string;
         };
@@ -2619,6 +2642,7 @@ export interface components {
         };
         /** SubjectExclusionRemovalResponse */
         SubjectExclusionRemovalResponse: {
+            code: components["schemas"]["RouteMessageCode"];
             message: string;
             removed: number;
         };
@@ -2781,6 +2805,7 @@ export interface components {
         };
         /** TagMergeProposalDecisionResponse */
         TagMergeProposalDecisionResponse: {
+            code: components["schemas"]["RouteMessageCode"];
             data: components["schemas"]["TagMergeProposalDTO"];
             message: string;
         };
@@ -2793,6 +2818,7 @@ export interface components {
         };
         /** TagMergeUndoResponse */
         TagMergeUndoResponse: {
+            code: components["schemas"]["RouteMessageCode"];
             data: components["schemas"]["MergeLogEntryDTO"];
             message: string;
         };
@@ -2862,6 +2888,7 @@ export interface components {
         /** TemplateSuggestionResponse */
         TemplateSuggestionResponse: {
             candidates: components["schemas"]["TemplateSuggestion"][];
+            code: components["schemas"]["RouteMessageCode"];
             documents_scanned: number;
             message: string;
             persisted: number;
@@ -2900,6 +2927,7 @@ export interface components {
         };
         /** TextTemplateMutationResponse */
         TextTemplateMutationResponse: {
+            code: components["schemas"]["RouteMessageCode"];
             data: components["schemas"]["TextTemplateDTO"];
             documents_requeued: number;
             message: string;

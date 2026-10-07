@@ -47,6 +47,7 @@ from memoria_curitibana.domains.archive.schemas import (
     MergeSuggestionRunResponse,
     MergeTagsCommand,
     ResolveConflictCommand,
+    RouteMessageCode,
     StopwordDTO,
     StopwordPurgePreview,
     SubjectExclusionSuggestionResponse,
@@ -244,6 +245,7 @@ class TaxonomyController(Controller):
             TagMergeDecisionCommand(status=data.status, decided_by=data.decided_by, note=data.note),
         )
         return TagMergeProposalDecisionResponse(
+            code=RouteMessageCode.TAG_MERGE_PROPOSAL_DECIDED,
             message="Decisão registrada. A mesclagem só será aplicada quando o lote for executado.",
             data=proposal,
         )
@@ -305,6 +307,7 @@ class TaxonomyController(Controller):
         """
         entry = tag_service.undo_merge(merge_id, undone_by=undone_by)
         return TagMergeUndoResponse(
+            code=RouteMessageCode.TAG_MERGE_UNDONE,
             message=f"Mesclagem desfeita: a tag '{entry.absorbed_name}' foi restaurada.",
             data=entry,
         )
@@ -336,6 +339,7 @@ class TaxonomyController(Controller):
         """Bans terms. Banning does not delete anything: the purge is a separate, explicit step."""
         created = tag_service.save_new_stopwords(data.words, data.scope)
         return StopwordBanResponse(
+            code=RouteMessageCode.TAG_STOPWORDS_BANNED,
             message=f"{created} stopword(s) registrada(s) no eixo {data.scope}.",
             created=created,
         )
@@ -348,7 +352,11 @@ class TaxonomyController(Controller):
     ) -> StopwordRemovalResponse:
         """Un-bans terms — the only way back from a purge decision, since the purge has no undo."""
         removed = tag_service.remove_stopwords(data.words, data.scope)
-        return StopwordRemovalResponse(message=f"{removed} stopword(s) removida(s).", removed=removed)
+        return StopwordRemovalResponse(
+            code=RouteMessageCode.TAG_STOPWORDS_REMOVED,
+            message=f"{removed} stopword(s) removida(s).",
+            removed=removed,
+        )
 
     @post("/tags/stopwords/purge/preview", status_code=200, sync_to_thread=True)
     def preview_stopword_purge(self, tag_service: NamedDependency[TagService]) -> StopwordPurgePreview:
@@ -375,7 +383,11 @@ class TaxonomyController(Controller):
             tag_service.save_new_stopwords(data.words)
 
         deleted_count = tag_service.purge_stopwords()
-        return StopwordPurgeResponse(message="Limpeza concluída com sucesso.", tags_deleted=deleted_count)
+        return StopwordPurgeResponse(
+            code=RouteMessageCode.TAG_STOPWORD_PURGE_DONE,
+            message="Limpeza concluída com sucesso.",
+            tags_deleted=deleted_count,
+        )
 
     @post("/tags/suggest-macro")
     async def suggest_macro_categories(
@@ -397,7 +409,10 @@ class TaxonomyController(Controller):
 
         if not texts_to_analyze or len(texts_to_analyze) < MIN_TEXTS_TO_CLUSTER:
             return MacroCategoriesSuggestionResponse(
-                total_suggestions=0, categories=[], message="⚠️ Textos insuficientes para formar clusters semânticos."
+                total_suggestions=0,
+                categories=[],
+                code=RouteMessageCode.MACRO_CLUSTERING_INSUFFICIENT_TEXTS,
+                message="⚠️ Textos insuficientes para formar clusters semânticos.",
             )
 
         # anyio.to_process.run_sync receives the function and then its positional arguments.
@@ -451,6 +466,7 @@ class TaxonomyController(Controller):
         """
         created = tag_service.exclude_terms_from_subjects(data.words, reason=data.reason, source=data.source)
         return SubjectExclusionBanResponse(
+            code=RouteMessageCode.SUBJECT_EXCLUSIONS_ADDED,
             message="Termos marcados como não-assunto: o classificador de assuntos vai ignorá-los.",
             created=created,
         )
@@ -462,6 +478,7 @@ class TaxonomyController(Controller):
         """Undoes the decision and puts the terms back in the classification queue."""
         removed = tag_service.remove_subject_exclusions(data.words)
         return SubjectExclusionRemovalResponse(
+            code=RouteMessageCode.SUBJECT_EXCLUSIONS_REMOVED,
             message="Exclusões removidas: o classificador voltará a considerar esses termos.",
             removed=removed,
         )
@@ -553,6 +570,7 @@ class TaxonomyController(Controller):
     def purge_orphan_entities(self, entity_service: NamedDependency[EntityService]) -> OrphanEntityPurgeResponse:
         deleted_count = entity_service.purge_orphan_entities()
         return OrphanEntityPurgeResponse(
+            code=RouteMessageCode.ORPHAN_ENTITIES_PURGED,
             message="Limpeza de entidades órfãs concluída com sucesso.",
             entities_deleted=deleted_count,
         )
@@ -566,6 +584,7 @@ class TaxonomyController(Controller):
     ) -> EntityReclassifyResponse:
         entity_service.reclassify_entity(entity_id, data.new_type)
         return EntityReclassifyResponse(
+            code=RouteMessageCode.ENTITY_RECLASSIFIED,
             message="Entidade reclassificada com sucesso e sinônimo de ancoragem gerado.",
             new_type=data.new_type,
         )
@@ -577,7 +596,10 @@ class TaxonomyController(Controller):
         # The transaction (commit/rollback) is still guaranteed by the db_session injection
         entity_service.delete_entity(entity_id)
 
-        return EntityDeleteResponse(message=f"Entidade {entity_id} excluída com sucesso da base de dados.")
+        return EntityDeleteResponse(
+            code=RouteMessageCode.ENTITY_DELETED,
+            message=f"Entidade {entity_id} excluída com sucesso da base de dados.",
+        )
 
     # ==========================================
     # ROUTES: NER EXCLUSIONS (the subject axis owns the term)
@@ -596,6 +618,7 @@ class TaxonomyController(Controller):
         entities_deleted = entity_service.exclude_terms_from_ner(data.words, reason=data.reason)
 
         return NerExclusionBanResponse(
+            code=RouteMessageCode.NER_EXCLUSIONS_ADDED,
             message="Termos marcados como assunto: o extrator não os tratará mais como entidade.",
             entities_deleted=entities_deleted,
         )
@@ -608,7 +631,9 @@ class TaxonomyController(Controller):
         removed = entity_service.remove_ner_exclusions(data.words)
 
         return NerExclusionRemovalResponse(
-            message="Exclusões removidas: o extrator voltará a considerar esses termos.", removed=removed
+            code=RouteMessageCode.NER_EXCLUSIONS_REMOVED,
+            message="Exclusões removidas: o extrator voltará a considerar esses termos.",
+            removed=removed,
         )
 
     # ==========================================
@@ -686,6 +711,7 @@ class TaxonomyController(Controller):
             )
         )
         return ConflictResolutionResponse(
+            code=RouteMessageCode.CONFLICT_RESOLVED,
             message=(
                 f"Conflito resolvido a favor de {data.winner}: "
                 f"{result.documents_transferred} vínculo(s) transferido(s). A resolução pode ser desfeita."

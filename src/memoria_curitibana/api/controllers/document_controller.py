@@ -12,6 +12,7 @@ from memoria_curitibana.api.schemas.documents import (
     TagLinkRequest,
 )
 from memoria_curitibana.domains.archive.models import ArchiveReviewStatus
+from memoria_curitibana.domains.archive.schemas import RouteMessageCode
 from memoria_curitibana.domains.archive.schemas.command_schema import (
     DocumentReviewCommand,
     EntityLinkCommand,
@@ -198,6 +199,7 @@ class DocumentController(Controller):
         """Deletes one description, refusing a node that still has children below it."""
         entry = document_service.delete(description_id, changed_by=changed_by, note=note)
         return DocumentDeletionResponse(
+            code=RouteMessageCode.DOCUMENT_DELETED,
             message=f"Descrição '{entry.title}' excluída do acervo.",
             data=entry,
         )

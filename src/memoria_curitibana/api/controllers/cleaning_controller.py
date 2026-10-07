@@ -4,6 +4,7 @@ from litestar.params import FromPath
 
 from memoria_curitibana.api.dependencies import provide_cleaning_service
 from memoria_curitibana.api.schemas.cleaning_requests import CreateCleaningRuleRequest, DryRunRequest
+from memoria_curitibana.domains.archive.schemas import RouteMessageCode
 from memoria_curitibana.domains.archive.schemas.cleaning_schema import (
     CleaningRuleCreateDTO,
     CleaningRuleDTO,
@@ -36,7 +37,9 @@ class CleaningController(Controller):
     ) -> CleaningRuleMutationResponse:
         """Deactivates a rule so the Worker stops processing it. Rules are never deleted."""
         rule = cleaning_service.deactivate_rule(rule_id)
-        return CleaningRuleMutationResponse(message="Regra desativada com sucesso.", data=rule)
+        return CleaningRuleMutationResponse(
+            code=RouteMessageCode.CLEANING_RULE_DEACTIVATED, message="Regra desativada com sucesso.", data=rule
+        )
 
     @post("/", sync_to_thread=True)
     def create_rule(
@@ -59,7 +62,9 @@ class CleaningController(Controller):
 
         new_rule = cleaning_service.create_cleaning_rule(dto)
         return CleaningRuleMutationResponse(
-            message="Regra salva e ativada. O Worker iniciará a varredura.", data=new_rule
+            code=RouteMessageCode.CLEANING_RULE_CREATED,
+            message="Regra salva e ativada. O Worker iniciará a varredura.",
+            data=new_rule,
         )
 
     @post("/preview", sync_to_thread=True)

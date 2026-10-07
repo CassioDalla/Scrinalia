@@ -4,6 +4,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from memoria_curitibana.domains.archive.models import ArchiveReviewStatus
+from memoria_curitibana.domains.archive.schemas.responses import RouteResponse
 
 
 class ArchiveDocumentDTO(BaseModel):
@@ -283,7 +284,7 @@ class DocumentDeletionListResponse(BaseModel):
     items: list[DocumentDeletionDTO] = Field(default_factory=list)
 
 
-class DocumentDeletionResponse(BaseModel):
+class DocumentDeletionResponse(RouteResponse):
     """
     The answer to a deletion.
 
@@ -291,7 +292,6 @@ class DocumentDeletionResponse(BaseModel):
     the snapshot, and returning it here saves the screen a second request to show what was lost.
     """
 
-    message: str
     data: DocumentDeletionDTO
 
 

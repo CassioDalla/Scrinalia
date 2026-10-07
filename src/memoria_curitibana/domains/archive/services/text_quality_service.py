@@ -18,6 +18,7 @@ from memoria_curitibana.domains.archive.domain.text_quality import (
 from memoria_curitibana.domains.archive.exceptions import InvalidParam, TextTemplateNotFoundError
 from memoria_curitibana.domains.archive.ports.text_quality import TextQualityRepositoryPort
 from memoria_curitibana.domains.archive.repository.text_quality_repo import ExcerptRule
+from memoria_curitibana.domains.archive.schemas.responses import RouteMessageCode
 from memoria_curitibana.domains.archive.schemas.text_quality_schema import (
     TemplateCreateCommand,
     TemplateDryRunRequest,
@@ -150,6 +151,7 @@ class TextQualityService:
                 for candidate in candidates
             ],
             persisted=persisted,
+            code=RouteMessageCode.TEXT_TEMPLATE_SUGGESTED,
             message=(
                 f"{len(candidates)} trecho(s) repetido(s) encontrado(s) em {documents} documento(s). "
                 "Nada foi aplicado: aprove, edite ou rejeite cada candidato."

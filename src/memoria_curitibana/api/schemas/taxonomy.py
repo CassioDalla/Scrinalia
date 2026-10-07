@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from memoria_curitibana.domains.archive.models.enums import StopwordsScope
 from memoria_curitibana.domains.archive.schemas.entity_schema import ConflictResolutionData
+from memoria_curitibana.domains.archive.schemas.responses import RouteResponse
 
 
 class MergeRequest(BaseModel):
@@ -165,8 +166,7 @@ class SubjectExclusionRemovalRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class ConflictResolutionResponse(BaseModel):
-    message: str
+class ConflictResolutionResponse(RouteResponse):
     data: ConflictResolutionData
 
 
