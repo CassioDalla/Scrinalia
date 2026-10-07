@@ -6,10 +6,10 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > **Como ler.** `✅` = feito **e verificado em execução real** (Postgres + engines reais), não
 > apenas lido no código. `[ ]` = pendente. `[~]` = parcial.
 >
-> **Estado do gate (2026-10-07):** **1.175 testes** passando · `ruff` limpo (318 arquivos) ·
-> `basedpyright` **0 erros** · **28 migrações** sem drift · contrato OpenAPI **80 paths /
-> 95 operações / 165 schemas**, gerado, commitado e sem drift · SPA (`tsc`, `eslint`, `vite build`)
-> limpa e servida pelo próprio Litestar · **5 ADRs**.
+> **Estado do gate (2026-10-07, após o desacoplamento):** **1.202 testes** passando · `ruff` limpo
+> (335 arquivos) · `basedpyright` **0 erros** · **29 migrações** sem drift · contrato OpenAPI
+> **85 paths / 100 operações / 173 schemas**, gerado, commitado e sem drift · SPA (`tsc`, `eslint`,
+> `vite build`) limpa e servida pelo próprio Litestar · **8 ADRs**.
 
 ---
 
@@ -24,15 +24,16 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 | 3 | Descoberta, performance e observabilidade | 🟡 **Quase** — falta o agendador; `/health` e o rastreamento de erros **fechados** (ADR 0005) |
 | 3.5 | Qualidade do dado de entrada | ✅ **Fechada** |
 | 4 | UI, BFF e publicação | 🟡 **Curador completo** (22 telas); faltam **auth** e **site público** |
-| **5** | **Release 1.0** | 🟡 **Iniciada** — licença (0006) e nome (0007) fechados; faltam auth e docs |
+| **5** | **Release 1.0** | 🟡 **Iniciada** — licença (0006), nome (0007) e desacoplamento (0008) fechados; faltam auth e docs |
 
 **O sistema está funcionalmente pronto.** Ingestão → staging → archive → enriquecimento por IA →
 curadoria humana → bloqueio de reprocessamento, tudo verificado ponta a ponta. O **curador tem 22
 telas** cobrindo todo o sitemap mais o painel de operação, e o **Streamlit saiu do repositório**.
 
 **O que falta para uma 1.0 é de outra natureza:** não é feature, é *produto*. Documentação,
-desacoplamento institucional e autenticação — a **licença** (ADR 0006) e o **nome** (ADR 0007),
-que eram os dois primeiros, foram fechados em 2026-10-07. Detalhe na seção seguinte.
+desacoplamento institucional e autenticação — a **licença** (ADR 0006), o **nome** (ADR 0007) e o
+**desacoplamento** (ADR 0008) foram fechados em 2026-10-07. Restam a **autenticação** e a **base de
+documentação**. Detalhe na seção seguinte.
 
 > **Ciclos entregues, em uma linha cada** (o detalhe está nas fases fechadas):
 > contrato + onda 1 (2026-10-05) · onda 2, o plano de arranjo (2026-10-05) · ondas 4–6 e a remoção
@@ -41,7 +42,8 @@ que eram os dois primeiros, foram fechados em 2026-10-07. Detalhe na seção seg
 > tipologias e o contrato determinístico (2026-10-06) · **a observabilidade local — `/health` de
 > orquestrador, causa raiz agrupada e request id (2026-10-07)** · **a licença `AGPL-3.0-only` e a
 > atribuição do autor no rodapé (2026-10-07)** · **o nome `Scrinalia` e o rename do pacote
-> (2026-10-07)**.
+> (2026-10-07)** · **o desacoplamento institucional — o perfil de língua `pt-BR`, os dois catálogos
+> do acervo com tela, e a configuração da origem (2026-10-07)**.
 
 ---
 
@@ -133,19 +135,32 @@ que eram os dois primeiros, foram fechados em 2026-10-07. Detalhe na seção seg
       - **Decidido: versionada no repositório**, publicada a partir dele (ferramenta em aberto —
             ver "Decisão de documentação"). Uma wiki externa **não versiona com o código** e
             diverge; pode ser espelho, nunca a fonte.
-- [ ] **Desacoplar o que é específico de uma instituição.** Três níveis de gravidade, medidos:
-  - [ ] **Config morta:** `ARQDOC_BASE_URL`/`ARQDOC_VIEW_ENDPOINT` existem no `config.py` e
-        **nenhum adapter os lê** — só o `system_health` reporta se estão preenchidos. É sobra do
-        plano original de raspar o ArqDoc. **Remover.**
-  - [ ] **Vocabulário hardcoded:** `VOCABULARY_BY_TOKEN` (`hierarchy_proposal_service.py`) é um
-        mapa literal de **IPPUC, SMU, SMMA, SEPLAD, CMC, FAS, SGM, SMCS, SMDS** e das siglas de
-        arranjo (`ED`, `AL`, `CONSTR`). Para outra instituição o fatiador propõe nomes errados.
-        Deve virar **seed/configuração por acervo**, não constante de código.
-  - [ ] **`_PLACE_NAME`** (`vocabulary.py`) tem os **bairros de Curitiba** numa regex, para a
-        faceta PLACE. Mesma questão: é dado do acervo, não regra do sistema.
-  - [ ] **`PUBLIC_SCRAPE_*`** é institution-specific mas **já é configuração** — o caminho certo.
-        O que falta é o adapter **declarar o que precisa**, em vez de ler `settings` global
-        (ver "Ingestões" no backlog).
+- [x] **Desacoplar o que é específico de uma instituição** — **fechado em 2026-10-07** (ADR 0008),
+      com a divisão por **natureza** em vez de por "onde guardar": a **língua** virou código
+      (`core/language`, um perfil por idioma, `ACERVO_LANGUAGE` seleciona) e o **acervo** virou dado
+      (duas tabelas + rotas + tela). O que foi entregue, medido:
+  - [x] **Config morta removida.** `ARQDOC_BASE_URL`/`ARQDOC_VIEW_ENDPOINT` e o campo
+        `arqdoc_configured` do `ProcessHealthDTO` saíram — com o contrato e o cliente TS regerados.
+  - [x] **Vocabulário hardcoded virou catálogo.** `VOCABULARY_BY_CODE`/`VOCABULARY_BY_TOKEN`
+        (38 entradas: IPPUC, SMU, SMMA, SEPLAD, CMC, FAS, SGM, SMCS, SMDS, OUVIDORIA e as siglas de
+        arranjo) agora são linhas de `archive_arrangement_vocabulary`, semeadas pela migração
+        `b3d6f1a2c4e7` e editáveis em `/vocabulario`. O serviço de proposta recebe o catálogo por
+        repositório; o código inteiro continua tendo precedência sobre o último token.
+  - [x] **`_PLACE_NAME` e `_PERSON_SUFFIX` viraram gazetteer tipado.** 71 termos
+        (`archive_collection_terms`, `CollectionTermKind`: bairro, município, estado, região, país,
+        pessoa) substituem as duas regex de Curitiba. O guarda continua **puro**: recebe um
+        `CollectionVocabulary`, e um catálogo vazio não recusa nada — **sem fallback** para o acervo
+        de referência, senão toda outra instituição seria Curitiba em silêncio.
+  - [x] **`PUBLIC_SCRAPE_*` é declarado pelo adapter.** `SourceConfig` (`ingestion/ports.py`) é o
+        que o adapter precisa para alcançar a origem; `build_scraper_adapter()` é o único ponto que
+        lê o ambiente e falha rápido quando falta a URL. Os **seletores e os nomes de campo em
+        português ficam dentro do adapter** de propósito: são o contrato com *aquele* site.
+  - [x] **A língua inteira saiu do meio do código.** As 573 linhas de stopwords (que estavam no
+        motor de clustering e **não tinham teste nenhum**), a gramática de datas do staging, os
+        prefixos de logradouro e as unidades do guarda, e as regras de plural do normalizador agora
+        vêm de `PT_BR`. Dois acoplamentos que o TODO não listava entraram no mesmo passe: o
+        dicionário `'portuguese'` do full-text (numa **coluna gerada**, então trocar de idioma é
+        migração, não reboot) e o modelo `pt_core_news_lg` dos presets de NER.
 - [x] **`/health` de orquestrador** — **fechado em 2026-10-07** por `/health/live` +
       `/health/ready` (fora de `/api/v1` e do contrato), cada um com seu timeout e engine próprio.
       O `/system/health` continua sendo o painel humano: um responde *qual peça caiu*, o outro
@@ -163,7 +178,8 @@ que eram os dois primeiros, foram fechados em 2026-10-07. Detalhe na seção seg
 - [ ] **Teste de fumaça `e2e`** (marcado `slow`) que exercite um pipeline com engines reais. A
       suíte usa `mock_registry` (correto) e por isso a classe de bug do `suggest-macro` fica
       invisível.
-- [ ] **`.env.example` revisado** depois do desacoplamento: hoje ainda lista `ARQDOC_*`.
+- [x] **`.env.example` revisado** — o bloco `ARQDOC_*` saiu e o `ACERVO_LANGUAGE` entrou, com a
+      nota de que trocar de idioma é migração (o dicionário do full-text alimenta uma coluna gerada).
 
 ### ✅ A decisão que interagia com versionamento — **fechada**
 
@@ -243,28 +259,33 @@ Extrair todas as strings das páginas para um arquivo de idioma.
 - **Bloqueio real, e é de produto:** o predicado é `is_published` e **0 de 4.844** estão
   publicados. O site nasce vazio; o trabalho é de curadoria, não de código.
 
-### 4. Desacoplamento institucional completo (continuação da 1.0)
+### 4. Desacoplamento institucional completo — ✅ **antecipado para a 1.0 e fechado**
 
-Progresso na retirada de regras, lógicas e validações específicas de **português** e de
-**Curitiba**, com configuração por instituição no banco, rotas de configuração e uma tela no
-curador.
+Estava aqui como continuação pós-1.0; o dono decidiu fazer **tudo antes do release**, e o ciclo foi
+fechado em 2026-10-07 pelo **ADR 0008**. O que a medição do backlog registrava, e o destino de cada
+artefato:
 
-- **Interage com versionamento?** **Não**, se feito como "default + override" (aditivo). Mas há um
-  efeito de **dado**: mudar os *defaults* depois altera o resultado da classificação em instalações
-  existentes. Não quebra a API; quebra a reprodutibilidade. Motivo a mais para os defaults serem
-  dado desde cedo.
-- **O que é PT-específico hoje** (medido):
-  | Artefato | Tamanho | Natureza |
-  | --- | ---: | --- |
-  | `engines/clustering/stopwords.py` | 573 linhas | Stopwords PT — **dado**, deveria ser catálogo |
-  | `domains/staging/dates.py` | 124 linhas | Parsing de datas PT ("Década de 1980", "Anos 90") |
-  | `domain/vocabulary.py` | 235 linhas | Guarda determinística: prefixos de logradouro PT, nomes próprios, bairros de Curitiba |
-  | `domains/staging/schemas.py` | — | Chaves ISAD(G) em PT: **têm** de casar com o payload externo |
-- **A pergunta de desenho em aberto:** vale colocar no banco (tabela + rotas + tela) ou manter em
-  arquivo de configuração versionado? O banco dá autonomia ao curador e casa com o padrão dos três
-  catálogos já existentes (níveis, gavetas, tipologias); o arquivo é mais simples de versionar e
-  auditar. **Decidir por ADR** quando chegar a hora — e notar que os três catálogos **já** são
-  banco, então a consistência puxa para o banco.
+| Artefato | Tamanho | Destino |
+| --- | ---: | --- |
+| `engines/clustering/stopwords.py` | 573 linhas | **Língua** → `core/language/pt_br_stopwords.py`, no perfil `pt-BR` |
+| `domains/staging/dates.py` | 124 linhas | **Língua** (a gramática) → perfil; o algoritmo (a ordem das tentativas) ficou |
+| `domain/vocabulary.py` | 235 linhas | **Partido:** as regras de PT foram para o perfil; os bairros e nomes de pessoa viraram `archive_collection_terms` |
+| `hierarchy_proposal_service.py` | 42 linhas de mapa | **Acervo** → `archive_arrangement_vocabulary` |
+| `domains/staging/schemas.py` | — | **Não se toca:** as chaves ISAD(G) casam com o payload externo |
+| `models/document.py` + `document_repo.py` | — | **Língua** (não estava na lista): o dicionário `'portuguese'` do full-text |
+| `engines/NER/registry.py` | — | **Língua** (não estava na lista): o modelo `pt_core_news_lg` dos presets |
+
+- **A pergunta de desenho ("banco ou arquivo?") foi respondida por natureza, não por conveniência:**
+  língua é código (um perfil por idioma, testável, sem bootstrap) e acervo é banco (o curador edita
+  sem deploy). O ADR 0008 registra as alternativas rejeitadas — inclusive "tudo no banco", que
+  esbarraria na coluna **gerada** do full-text.
+- **Não há tenant, e o ADR diz isso em vez de inventar um.** Medido nas 30 tabelas: nenhum
+  `institution_id`/`collection_id`. A instalação **é** a instituição, então os catálogos são globais
+  — e o gatilho de revisão do ADR é exatamente o dia em que isso deixar de valer.
+- **O que continua fora, de propósito:** os prompts de LLM em português (raciocinam sobre texto em
+  português), as chaves ISAD(G) do staging (payload externo) e as ~334 strings PT da SPA (item 2,
+  i18n, com `routeMessage()` como costura). O nome do banco `memoriacuritibana` também fica: é
+  identidade de dado, decidido no ADR 0007.
 
 ### 5. Ingestões plurais — configuração por origem
 
@@ -481,14 +502,16 @@ antigos para 3.608 documentos e **nenhum** para os ~1.218 que entraram no re-par
 
 | Verificação | Resultado |
 | --- | --- |
-| `pytest` (unit + integração) | **1.175 passed** |
-| `ruff check` / `ruff format --check` | limpos (318 arquivos) |
+| `pytest` (unit + integração) | **1.202 passed** |
+| `ruff check` / `ruff format --check` | limpos (336 arquivos) |
 | `basedpyright` | **0 errors, 0 warnings** |
-| `alembic check` | **sem drift** (28 migrações) |
-| `alembic downgrade -1` + `upgrade head` | coluna e tabela voltam; `check` segue sem drift |
+| `alembic check` | **sem drift** (29 migrações) |
+| `alembic downgrade -1` + `upgrade head` | as duas tabelas e o enum voltam, o seed reaplica (38 + 71 linhas) e `check` segue sem drift |
 | `tsc` / `eslint` / `vite build` | limpos |
-| Contrato OpenAPI | **80 paths / 95 operações / 165 schemas**, sem drift |
+| Contrato OpenAPI | **85 paths / 100 operações / 173 schemas**, sem drift (cliente TS incluído) |
 | `/health/live` e `/health/ready` em execução real | 200 com o banco de pé, **503** com o banco parado |
+| `/api/v1/vocabulary` em execução real | 38 nomes de arranjo e 71 termos semeados, com `tag_count` por grafia |
+| Tela `/vocabulario` renderizada no browser | duas seções, tema aplicado, **zero erro de console** |
 
 ### Ciclos anteriores (preservados)
 

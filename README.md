@@ -45,13 +45,18 @@ validator grades the record (missing date, suspicious title, scope that was only
 and sends it to human review, and the embedding runs last because every text mutation has to
 happen before it.
 
-The subject axis reads a **vocabulary** (`domains/archive/domain/vocabulary.py`), not the raw
-tag list: eight drawers derived from the collection, plus two kinds of "this is not a subject"
-— a deterministic guard for what has a recognisable form (a bare year, a placeholder, a street)
-and the curated `domain_subject_exclusions` catalogue for the judgements no rule reaches.
-Below 0.55 confidence a tag is left without a drawer **and** queued for review rather than
-guessed at. A tag whose axis is provenance or geography (`ippuc`, `curitiba`) carries an
-`archive_tag_facets` row instead of competing for a subject drawer.
+The subject axis reads a **vocabulary**, not the raw tag list: eight drawers derived from the
+collection, plus two kinds of "this is not a subject". The split follows the owner of each piece.
+What is a property of **Portuguese** — `rua`, `não identificado`, a bare year, `303 anos` — lives in
+a language profile (`core/language`, selected by `ACERVO_LANGUAGE`): it is not a curation decision,
+and a second language is a module rather than a second parser. What is a property of **this
+collection** — the bairros it names, the people it depicts, the tokens its reference codes carry —
+is a catalogue the archivist edits at `/vocabulario` (`archive_collection_terms` and
+`archive_arrangement_vocabulary`), seeded with the reference collection and replaceable without a
+deploy. On top of the deterministic guard sits the curated `domain_subject_exclusions` catalogue,
+for the judgements no rule reaches. Below 0.55 confidence a tag is left without a drawer **and**
+queued for review rather than guessed at. A tag whose axis is provenance or geography (`ippuc`,
+`curitiba`) carries an `archive_tag_facets` row instead of competing for a subject drawer.
 
 ## Requirements
 
@@ -225,8 +230,10 @@ main.py                   deployable entrypoint (re-exports the ASGI app)
 - [`AGENTS.md`](AGENTS.md) — conventions and the architectural rules that are easy to get wrong
 - [`TODO.md`](TODO.md) — roadmap
 - [`docs/adr/`](docs/adr/) — architecture decision records, including
-  [`0006`](docs/adr/0006-license-and-author-attribution.md) on licensing and
-  [`0007`](docs/adr/0007-project-name-scrinalia.md) on the name
+  [`0006`](docs/adr/0006-license-and-author-attribution.md) on licensing,
+  [`0007`](docs/adr/0007-project-name-scrinalia.md) on the name and
+  [`0008`](docs/adr/0008-language-in-code-and-collection-vocabulary-in-the-database.md) on what is
+  language, what is collection data and what is configuration
 
 ## The name
 
