@@ -6,10 +6,10 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > **Como ler.** `✅` = feito **e verificado em execução real** (Postgres + engines reais), não
 > apenas lido no código. `[ ]` = pendente. `[~]` = parcial.
 >
-> **Estado do gate (2026-10-06):** **1.143 testes** passando · `ruff` limpo (303 arquivos) ·
-> `basedpyright` **0 erros** · **27 migrações** sem drift · contrato OpenAPI **79 paths /
-> 94 operações / 161 schemas**, gerado, commitado e sem drift · SPA (`tsc`, `eslint`, `vite build`)
-> limpa e servida pelo próprio Litestar · **4 ADRs**.
+> **Estado do gate (2026-10-07):** **1.175 testes** passando · `ruff` limpo (318 arquivos) ·
+> `basedpyright` **0 erros** · **28 migrações** sem drift · contrato OpenAPI **80 paths /
+> 95 operações / 165 schemas**, gerado, commitado e sem drift · SPA (`tsc`, `eslint`, `vite build`)
+> limpa e servida pelo próprio Litestar · **5 ADRs**.
 
 ---
 
@@ -21,7 +21,7 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 | 1.5 | Macro Categorias (eixo de Assuntos) | ✅ **Fechada** — vocabulário reprojetado e medido |
 | 2 | API + Curadoria humana (HITL) | ✅ **Fechada** — backend e ações locais |
 | 2.5 | Hierarquia das descrições | ✅ **Fechada** (H1–H8, com tela) |
-| 3 | Descoberta, performance e observabilidade | 🟡 **Quase** — falta Sentry, agendador e `/health` de orquestrador |
+| 3 | Descoberta, performance e observabilidade | 🟡 **Quase** — falta o agendador; `/health` e o rastreamento de erros **fechados** (ADR 0005) |
 | 3.5 | Qualidade do dado de entrada | ✅ **Fechada** |
 | 4 | UI, BFF e publicação | 🟡 **Curador completo** (22 telas); faltam **auth** e **site público** |
 | **5** | **Release 1.0** | 🔴 **Não iniciada** — ver "Caminho para a 1.0" |
@@ -37,7 +37,8 @@ documentação, desacoplamento institucional e autenticação. Detalhe na seçã
 > contrato + onda 1 (2026-10-05) · onda 2, o plano de arranjo (2026-10-05) · ondas 4–6 e a remoção
 > do Streamlit (2026-10-06) · refino de curadoria e o painel de operação (2026-10-06) · as três
 > lacunas de curadoria — colisão, faceta de anomalia, "não é assunto" (2026-10-06) · o catálogo de
-> tipologias e o contrato determinístico (2026-10-06).
+> tipologias e o contrato determinístico (2026-10-06) · **a observabilidade local — `/health` de
+> orquestrador, causa raiz agrupada e request id (2026-10-07)**.
 
 ---
 
@@ -52,7 +53,7 @@ documentação, desacoplamento institucional e autenticação. Detalhe na seçã
 - Pipeline completo e verificado ponta a ponta, com governança (`HUMAN_APPROVED` bloqueia IA).
 - 22 telas de curadoria + painel de operação; Streamlit removido.
 - Contrato OpenAPI gerado, commitado e com CI bloqueante; cliente TS gerado do contrato.
-- 1.119 testes, CI com 3 jobs (lint, testes+migrações+contrato, frontend).
+- 1.175 testes, CI com 3 jobs (lint, testes+migrações+contrato, frontend).
 - Schema 100% sob Alembic, 27 migrações sem drift.
 - Superfície pública **já projetada** (allowlist com partição exata e teste) — falta só o app.
 - **Determinismo do contrato** corrigido: o OpenAPI não depende mais do `PYTHONHASHSEED`.
@@ -83,7 +84,7 @@ documentação, desacoplamento institucional e autenticação. Detalhe na seçã
         `container_name`, os títulos da SPA e do `README`. Vale um commit **só** de movimentação.
       - **Cuidado:** `archive_*`, `domain_*` e os nomes de tabela **não** entram no rename (são
         schema, e renomeá-los é migração destrutiva sem ganho).
-- [ ] **Base de documentação.** Hoje `docs/` tem só os 4 ADRs; o `README` é a porta de entrada e
+- [ ] **Base de documentação.** Hoje `docs/` tem só os 5 ADRs; o `README` é a porta de entrada e
       `AGENTS.md` é convenção interna. Falta o que um terceiro precisa para *instalar e operar*:
       - [ ] **Instalação e deploy** (Docker, variáveis de ambiente, migrations, build da SPA,
             CPU × GPU, requisitos de disco para os modelos).
@@ -107,9 +108,10 @@ documentação, desacoplamento institucional e autenticação. Detalhe na seçã
   - [ ] **`PUBLIC_SCRAPE_*`** é institution-specific mas **já é configuração** — o caminho certo.
         O que falta é o adapter **declarar o que precisa**, em vez de ler `settings` global
         (ver "Ingestões" no backlog).
-- [ ] **`/health` de orquestrador** (k8s/load balancer). O `/system/health` é para humano: faz I/O
-      de rede e devolve detalhe. Falta um endpoint mínimo que só diga "estou de pé e o banco
-      responde" — é o que qualquer deploy real precisa para não reiniciar o container à toa.
+- [x] **`/health` de orquestrador** — **fechado em 2026-10-07** por `/health/live` +
+      `/health/ready` (fora de `/api/v1` e do contrato), cada um com seu timeout e engine próprio.
+      O `/system/health` continua sendo o painel humano: um responde *qual peça caiu*, o outro
+      *esta instância recebe tráfego*. Ver ADR 0005.
 
 ### 🟡 Recomendados antes da 1.0
 
@@ -246,8 +248,10 @@ mais ("de qual origem é esta fila?") e a origem no ledger de execuções.
 - **Purga de stopwords é a única escrita destrutiva sem undo** — tem preview; torná-la reversível
   (ledger, como o merge) é decisão em aberto.
 - **Busca híbrida (RRF)** e **qualidade semântica** (o MRR caiu 0.019 enquanto o Hit@10 subiu).
-- **Sentry / agregação de falhas** — o ledger já grava a exceção de cada execução; falta agrupar
-  por causa raiz.
+- **Sentry / agregação de falhas** — ✅ **resolvido em 2026-10-07 pela metade local**: a causa raiz
+  é uma coluna gerada, compartilhada pelos dois ledgers, e a tela agrupa. O encaminhamento para um
+  serviço hospedado continua possível **sem tocar no caminho de escrita** — o gatilho e o custo
+  aceito (sem alerta nem paging) estão no ADR 0005.
 - **`path` desnormalizado** — `PATH_DIVERGENCE` = 0 hoje, mas a invariante ainda não é verificada
   automaticamente no CI.
 
@@ -347,11 +351,35 @@ mais ("de qual origem é esta fila?") e a origem no ledger de execuções.
 
 - [ ] **Busca híbrida (RRF)** — combinar lexical + semântica. A semântica funciona (pgvector,
   `vector(384)`, HNSW cosseno) mas o ranking é fraco: o MRR caiu 0.019 enquanto o Hit@10 subiu.
-- [ ] **Rastreamento de erros** (Sentry ou agregação por causa raiz) — o ledger já grava a exceção.
+- [x] **Rastreamento de erros** — **fechado em 2026-10-07** por agregação local, não por Sentry: a
+  causa raiz é uma coluna **gerada** em `archive_worker_runs` e em `archive_api_errors`, calculada
+  pela **mesma** função SQL `archive_error_fingerprint`, e `GET /api/v1/system/failures` agrupa os
+  dois ledgers. Motivo da escolha local (e o custo aceito: **sem alerta nem paging**) no ADR 0005.
 - [ ] **Agendamento e retry** — o disparo manual existe (CLI e tela, com guarda de concorrência no
   banco) e uma execução interrompida vira `INTERRUPTED` no próximo boot. **Não há cron nem retry.**
-- [ ] **`/health` de orquestrador** (ver bloqueadores da 1.0).
+- [x] **`/health` de orquestrador** — **fechado em 2026-10-07**: `/health/live` (sem I/O) e
+  `/health/ready` (`SELECT 1` com timeout curto → 200/503), fora do versionamento e do contrato.
 - [ ] **Teste de fumaça `e2e`** com engines reais.
+
+### Observabilidade (entregue 2026-10-07)
+
+Decisão em `docs/adr/0005-observability-without-an-external-service.md`. Duas superfícies, dois
+públicos: o **orquestrador** recebe um status code e nada mais; o **curador** lê a causa agrupada.
+
+| Capacidade | Como funciona |
+| --- | --- |
+| Vivo ou morto | `GET /health/live` não toca em nada — um probe que consulta o banco reinicia a API quando o banco reinicia |
+| Pronto para tráfego | `GET /health/ready` roda `SELECT 1` em engine próprio (`NullPool`, `connect_timeout`, `statement_timeout`) e responde **503** |
+| Fora do contrato | As duas rotas ficam **fora** de `/api/v1` e do OpenAPI (`include_in_schema=False`), como o `/schema` do Litestar |
+| Agrupar falhas | `GET /api/v1/system/failures` une os dois ledgers pelo **mesmo** fingerprint, com ocorrências, primeira/última vez e as fontes |
+| A causa raiz | Coluna **gerada** por `archive_error_fingerprint`, `IMMUTABLE`: o `ALTER TABLE` preencheu o passado com a expressão que o futuro usa — uma definição só |
+| Separar causas | O texto gravado passa a levar a classe (`KeyError: 'nome'`); sem ela, duas falhas com a mesma frase viram uma causa só |
+| 500 da API | Handler próprio registrado pela **chave de status 500** (não por `Exception`, que sombrearia o 404) grava em `archive_api_errors` com sessão própria |
+| Correlacionar | `X-Request-ID` aceito ou gerado, no header, no `scope` e no contexto do loguru; a tela mostra a referência, o log tem a linha |
+| Não inundar o log | Os dois probes ficam fora do log de acesso — um orquestrador pergunta a cada poucos segundos |
+
+**O que ficou de fora, de propósito:** alerta e paging. Sem um serviço externo ninguém é avisado de
+uma causa nova; é o preço da decisão local e está registrado como gatilho de revisão no ADR 0005.
 
 ### Painel de operação (entregue 2026-10-06)
 
@@ -411,16 +439,18 @@ antigos para 3.608 documentos e **nenhum** para os ~1.218 que entraram no re-par
 
 ## ✅ Verificação executada (evidências)
 
-### Gate no estado atual (2026-10-06)
+### Gate no estado atual (2026-10-07)
 
 | Verificação | Resultado |
 | --- | --- |
-| `pytest` (unit + integração) | **1.143 passed** |
-| `ruff check` / `ruff format --check` | limpos (303 arquivos) |
+| `pytest` (unit + integração) | **1.175 passed** |
+| `ruff check` / `ruff format --check` | limpos (318 arquivos) |
 | `basedpyright` | **0 errors, 0 warnings** |
-| `alembic check` | **sem drift** (27 migrações) |
+| `alembic check` | **sem drift** (28 migrações) |
+| `alembic downgrade -1` + `upgrade head` | coluna e tabela voltam; `check` segue sem drift |
 | `tsc` / `eslint` / `vite build` | limpos |
-| Contrato OpenAPI | **79 paths / 94 operações / 161 schemas**, sem drift |
+| Contrato OpenAPI | **80 paths / 95 operações / 165 schemas**, sem drift |
+| `/health/live` e `/health/ready` em execução real | 200 com o banco de pé, **503** com o banco parado |
 
 ### Ciclos anteriores (preservados)
 
@@ -453,6 +483,9 @@ antigos para 3.608 documentos e **nenhum** para os ~1.218 que entraram no re-par
    `uvicorn --workers 1`. Documentado no ADR 0004; **precisa estar no guia de deploy**.
 8. **Entidades sem ledger de merge** — unificar entidade não tem desfazer; a tela avisa.
 9. **Purga de stopwords sem undo** — é a única escrita destrutiva que não é reversível.
+10. **Observabilidade sem alerta** — o agrupamento por causa raiz é local e ninguém é avisado de uma
+    causa nova: alguém precisa abrir a tela. É o custo aceito da decisão local (ADR 0005), e o
+    gatilho de revisão está lá.
 
 ### Modos de falha a vigiar (aprendidos, valem para código novo)
 
@@ -516,6 +549,6 @@ UNION ALL SELECT 'publicados', count(*)::text FROM archive_documents WHERE is_pu
 - `AGENTS.md` — convenções e as regras arquiteturais fáceis de errar (**leia antes de mexer**).
 - `README.md` — porta de entrada (o que é, como rodar).
 - `docs/adr/` — decisões aceitas: Litestar (0001), layout `src/` (0002), monorepo e stack do
-  curador (0003), execução de workers pela API (0004).
+  curador (0003), execução de workers pela API (0004), observabilidade sem serviço externo (0005).
 - `.analysis/` — **gitignored**, notas de trabalho deste checkout (planos, sitemap, refino de UI).
   O que precisa sobreviver a um clone está **aqui** e no `AGENTS.md`.

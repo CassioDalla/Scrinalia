@@ -83,6 +83,14 @@ uv run uvicorn main:app --reload
 The API is then available at `http://localhost:8000/`, with the OpenAPI schema at
 `/schema/swagger`.
 
+`GET /health/live` and `GET /health/ready` are the orchestrator's probes, and they sit outside
+`/api/v1` and outside the schema on purpose. Liveness touches nothing and answers 200 while the
+process answers; readiness runs `SELECT 1` and answers **503** when the database does not, so a
+database restart takes the instance out of rotation without restarting the process. The human
+diagnosis is a different question and a different route: `GET /api/v1/system/health` reports *which*
+piece is down — database, Ollama models, bucket, effective process configuration — and answers 200
+either way.
+
 ### Curator UI
 
 The archivist's interface is a React SPA in `apps/curator/`. It has no server of its own: Vite
@@ -142,7 +150,7 @@ The screens that exist today, in the order the work happens:
 | `/qualidade/regras` | cleaning rules: `REWRITE` replaces, `VALIDATE`/`LLM_CHECK` only flag |
 | `/qualidade/anomalias` | what the quality validator marked, with the reason counts over the whole filtered set and each reason as the filter |
 | `/sistema/workers` | the AI workers: engine, preset and model, the queue, the persisted default and a run button |
-| `/sistema/execucoes` | the execution ledger: what ran, with which configuration, and how it ended |
+| `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage and the effective process configuration |
 
 The arrangement screens offer no silent correction: every write is a decision taken on a screen
