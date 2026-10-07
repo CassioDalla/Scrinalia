@@ -28,7 +28,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 # Keep in sync with ``EMBEDDING_DIMENSIONS`` in
-# ``memoria_curitibana/domains/archive/models/document.py``.
+# ``scrinalia/domains/archive/models/document.py``.
 EMBEDDING_DIMENSIONS = 384
 
 

@@ -1,4 +1,4 @@
-from memoria_curitibana.core.content_hash import ContentHash
+from scrinalia.core.content_hash import ContentHash
 
 
 def test_is_a_64_char_hex_string() -> None:

@@ -30,14 +30,14 @@ from pathlib import Path
 import numpy as np
 from sqlalchemy import ColumnElement, func, select
 
-from memoria_curitibana.core.database import get_db
-from memoria_curitibana.core.logger import logger
-from memoria_curitibana.domains.archive.domain.text_quality import (
+from scrinalia.core.database import get_db
+from scrinalia.core.logger import logger
+from scrinalia.domains.archive.domain.text_quality import (
     AI_TEXT_COLUMNS,
     ExcerptSuggestionAggregator,
 )
-from memoria_curitibana.domains.archive.models import ArchiveDocument
-from memoria_curitibana.domains.archive.repository.text_quality_repo import (
+from scrinalia.domains.archive.models import ArchiveDocument
+from scrinalia.domains.archive.repository.text_quality_repo import (
     ExcerptRule,
     TextQualityRepository,
     embedding_text_sql,
@@ -182,7 +182,7 @@ def run(
 ) -> dict:
     pairs = json.loads(PAIRS_PATH.read_text(encoding="utf-8"))["pairs"]
 
-    from memoria_curitibana.domains.archive.engines.embeddings.registry import get_engine
+    from scrinalia.domains.archive.engines.embeddings.registry import get_engine
 
     logger.info("Loading the real embedding model...")
     engine = get_engine("sentence_transformer", preset="multilingual_minilm")

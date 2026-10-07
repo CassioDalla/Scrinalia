@@ -9,15 +9,15 @@ from litestar.status_codes import (
 )
 from litestar.testing import TestClient
 
-from memoria_curitibana.asgi import create_app
-from memoria_curitibana.domains.archive.exceptions import TextTemplateNotFoundError
-from memoria_curitibana.domains.archive.schemas import RouteMessageCode
-from memoria_curitibana.domains.archive.schemas.text_quality_schema import (
+from scrinalia.asgi import create_app
+from scrinalia.domains.archive.exceptions import TextTemplateNotFoundError
+from scrinalia.domains.archive.schemas import RouteMessageCode
+from scrinalia.domains.archive.schemas.text_quality_schema import (
     TemplateDryRunResponse,
     TemplateSuggestionResponse,
     TextTemplateDTO,
 )
-from memoria_curitibana.domains.archive.services.text_quality_service import TextQualityService
+from scrinalia.domains.archive.services.text_quality_service import TextQualityService
 
 BLOCK = "Acervo de 35.327 fotografias que retratam a cidade de Curitiba no âmbito do Planejamento"
 

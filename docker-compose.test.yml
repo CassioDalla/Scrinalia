@@ -5,7 +5,7 @@ services:
     # generated/vector columns depend on. PostGIS is deliberately absent here: no
     # migration enables it yet, and CI uses this same image.
     image: pgvector/pgvector:pg15
-    container_name: memoria_curitibana_db_test
+    container_name: scrinalia_db_test
     environment:
       POSTGRES_USER: test_user
       POSTGRES_PASSWORD: test_password

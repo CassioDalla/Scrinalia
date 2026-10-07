@@ -10,14 +10,14 @@ from datetime import UTC, datetime
 import pytest
 from litestar.testing import TestClient
 
-from memoria_curitibana.asgi import create_app
-from memoria_curitibana.domains.archive.exceptions import (
+from scrinalia.asgi import create_app
+from scrinalia.domains.archive.exceptions import (
     InvalidWorkerSettingsError,
     WorkerNotFoundError,
     WorkerRunAlreadyActiveError,
 )
-from memoria_curitibana.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
-from memoria_curitibana.domains.archive.schemas.system_schema import (
+from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
+from scrinalia.domains.archive.schemas.system_schema import (
     DatabaseHealthDTO,
     OllamaHealthDTO,
     ProcessHealthDTO,
@@ -30,8 +30,8 @@ from memoria_curitibana.domains.archive.schemas.system_schema import (
     WorkerSettingsRevisionListResponse,
     WorkerStatusDTO,
 )
-from memoria_curitibana.domains.archive.services.worker_operations_service import WorkerOperationsService
-from memoria_curitibana.domains.archive.services.worker_run_service import WorkerRunService
+from scrinalia.domains.archive.services.worker_operations_service import WorkerOperationsService
+from scrinalia.domains.archive.services.worker_run_service import WorkerRunService
 
 
 @pytest.fixture
@@ -160,7 +160,7 @@ def test_the_settings_round_trip_through_the_http_layer(client: TestClient, mock
 
 def test_the_health_endpoint_answers_every_probe(client: TestClient, mocker) -> None:
     mocker.patch(
-        "memoria_curitibana.api.controllers.system_controller.probe_infrastructure",
+        "scrinalia.api.controllers.system_controller.probe_infrastructure",
         return_value=SystemHealthResponse(
             generated_at=datetime.now(UTC),
             database=DatabaseHealthDTO(ok=True, documents=10),

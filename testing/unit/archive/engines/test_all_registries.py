@@ -1,10 +1,10 @@
 import pytest
 
-from memoria_curitibana.domains.archive.engines.classification import registry as typology_registry
-from memoria_curitibana.domains.archive.engines.clustering import registry as cluster_registry
-from memoria_curitibana.domains.archive.engines.embeddings import registry as embeddings_registry
-from memoria_curitibana.domains.archive.engines.NER import registry as ner_registry
-from memoria_curitibana.domains.archive.models.document import EMBEDDING_DIMENSIONS
+from scrinalia.domains.archive.engines.classification import registry as typology_registry
+from scrinalia.domains.archive.engines.clustering import registry as cluster_registry
+from scrinalia.domains.archive.engines.embeddings import registry as embeddings_registry
+from scrinalia.domains.archive.engines.NER import registry as ner_registry
+from scrinalia.domains.archive.models.document import EMBEDDING_DIMENSIONS
 
 # Put them all in a list
 ALL_REGISTRIES = [typology_registry, ner_registry, cluster_registry, embeddings_registry]

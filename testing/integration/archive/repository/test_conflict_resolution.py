@@ -14,12 +14,12 @@ Three promises are pinned here, and each one was broken before this ledger exist
 import pytest
 from sqlalchemy import delete, select
 
-from memoria_curitibana.domains.archive.exceptions import (
+from scrinalia.domains.archive.exceptions import (
     ConflictResolutionAlreadyUndoneError,
     ConflictResolutionNotFoundError,
     UnresolvableConflictError,
 )
-from memoria_curitibana.domains.archive.models import (
+from scrinalia.domains.archive.models import (
     AnomalyType,
     ArchiveAIReviewQueue,
     ArchiveDocumentEntity,
@@ -31,7 +31,7 @@ from memoria_curitibana.domains.archive.models import (
     DomainStopwords,
     StopwordsScope,
 )
-from memoria_curitibana.domains.archive.repository.entity_repo import EntityRepository
+from scrinalia.domains.archive.repository.entity_repo import EntityRepository
 
 
 def _link_tag(db_session, tag: ArchiveTag, document_id: str) -> None:

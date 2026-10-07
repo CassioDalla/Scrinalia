@@ -1,7 +1,7 @@
 from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
-from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+from scrinalia.domains.archive.repository.tag_repo import TagRepository
 
 
 def test_save_stopwords_ignores_empty_or_dirty_list(mocker: MockerFixture) -> None:

@@ -1,9 +1,9 @@
 from sqlalchemy import select
 
-from memoria_curitibana.domains.ingestion.models import RawData
-from memoria_curitibana.domains.staging.models import StagingDocument
-from memoria_curitibana.domains.staging.repository import SqlRawRecordSource, upsert_staging_document
-from memoria_curitibana.domains.staging.schemas import StagingDocumentDTO
+from scrinalia.domains.ingestion.models import RawData
+from scrinalia.domains.staging.models import StagingDocument
+from scrinalia.domains.staging.repository import SqlRawRecordSource, upsert_staging_document
+from scrinalia.domains.staging.schemas import StagingDocumentDTO
 
 # ==========================================
 # STAGING REPOSITORY TESTS

@@ -1,7 +1,7 @@
 from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
-from memoria_curitibana.domains.archive.repository.typology_repo import TypologyRepository
+from scrinalia.domains.archive.repository.typology_repo import TypologyRepository
 
 
 def test_get_active_typologies_uses_bare_names_as_labels(mocker: MockerFixture) -> None:

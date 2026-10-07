@@ -1,6 +1,6 @@
 """Unit tests of the pure text-quality rules (no database, no model)."""
 
-from memoria_curitibana.domains.archive.domain.text_quality import (
+from scrinalia.domains.archive.domain.text_quality import (
     EXCERPT_MIN_LENGTH,
     ExcerptSuggestionAggregator,
     excerpt_fingerprint,

@@ -1,9 +1,9 @@
 import pytest
 
-from memoria_curitibana.domains.archive.domain.vocabulary import label_set_fingerprint
-from memoria_curitibana.domains.archive.engines.classification import registry as typology_registry
-from memoria_curitibana.domains.archive.models import ArchiveMacroCategory, ArchiveTag
-from memoria_curitibana.domains.archive.workers.worker_macro_category import execute
+from scrinalia.domains.archive.domain.vocabulary import label_set_fingerprint
+from scrinalia.domains.archive.engines.classification import registry as typology_registry
+from scrinalia.domains.archive.models import ArchiveMacroCategory, ArchiveTag
+from scrinalia.domains.archive.workers.worker_macro_category import execute
 
 
 def _fingerprint(*categories) -> str:
@@ -338,7 +338,7 @@ def test_a_guess_below_the_floor_goes_to_the_review_queue(use_test_db, db_sessio
     the floor is what separates them. A silent orphan would read as "nothing to see here",
     which is the opposite of the truth.
     """
-    from memoria_curitibana.domains.archive.models import AnomalyType, ArchiveAIReviewQueue, ArchiveReviewStatus
+    from scrinalia.domains.archive.models import AnomalyType, ArchiveAIReviewQueue, ArchiveReviewStatus
 
     category = ArchiveMacroCategory(name="Urbanismo")
     db_session.add(category)
@@ -368,7 +368,7 @@ def test_a_guess_below_the_floor_goes_to_the_review_queue(use_test_db, db_sessio
 
 def test_a_confident_answer_is_linked_and_never_queued(use_test_db, db_session, mock_registry):
     """The queue is for doubts; a settled tag must not add noise to it."""
-    from memoria_curitibana.domains.archive.models import AnomalyType, ArchiveAIReviewQueue
+    from scrinalia.domains.archive.models import AnomalyType, ArchiveAIReviewQueue
 
     category = ArchiveMacroCategory(name="Religião")
     db_session.add(category)
@@ -397,7 +397,7 @@ def test_the_floor_is_higher_than_the_measured_average_of_a_wrong_answer(use_tes
     This is the number the measurement changed, so it is pinned: 0.45 is above the old
     threshold and below the measured mean of a wrong answer.
     """
-    from memoria_curitibana.domains.archive.models import AnomalyType, ArchiveAIReviewQueue
+    from scrinalia.domains.archive.models import AnomalyType, ArchiveAIReviewQueue
 
     db_session.add(ArchiveMacroCategory(name="Urbanismo"))
     db_session.add(ArchiveTag(name="alvenaria"))
@@ -424,7 +424,7 @@ def test_a_curated_exclusion_never_reaches_the_model(use_test_db, db_session, mo
     The deterministic guard matches a form; these three were the ones it could not reach in
     the labelled set, which is why the catalogue exists next to it.
     """
-    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+    from scrinalia.domains.archive.repository.tag_repo import TagRepository
 
     db_session.add(ArchiveMacroCategory(name="Urbanismo"))
     not_subjects = ["pessoas", "vista aérea", "capanema"]
@@ -456,7 +456,7 @@ def test_an_excluded_term_stays_a_reachable_tag(use_test_db, db_session, mock_re
     ``pessoas`` reaches 166 documents and a search for it must still work: the decision is
     "this is not a subject", never "this is not in the collection".
     """
-    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+    from scrinalia.domains.archive.repository.tag_repo import TagRepository
 
     db_session.add(ArchiveTag(name="vista aérea"))
     db_session.commit()
@@ -469,7 +469,7 @@ def test_an_excluded_term_stays_a_reachable_tag(use_test_db, db_session, mock_re
 
 def test_the_exclusion_catalogue_is_idempotent(use_test_db, db_session):
     """A re-run of the curation must not duplicate the row or raise."""
-    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+    from scrinalia.domains.archive.repository.tag_repo import TagRepository
 
     repository = TagRepository(db_session)
     assert repository.add_subject_exclusions(["pessoas"]) == 1
@@ -481,7 +481,7 @@ def test_the_exclusion_catalogue_is_idempotent(use_test_db, db_session):
 
 def test_undoing_an_exclusion_reopens_the_classifier(use_test_db, db_session, mock_registry):
     """The catalogue is reversible: removing the row puts the tag back in the queue."""
-    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+    from scrinalia.domains.archive.repository.tag_repo import TagRepository
 
     category = ArchiveMacroCategory(name="Assistência e Questões Sociais")
     db_session.add(category)

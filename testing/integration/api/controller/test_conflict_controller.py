@@ -18,13 +18,13 @@ from litestar.status_codes import (
 )
 from litestar.testing import TestClient
 
-from memoria_curitibana.asgi import create_app
-from memoria_curitibana.domains.archive.exceptions import (
+from scrinalia.asgi import create_app
+from scrinalia.domains.archive.exceptions import (
     ConflictResolutionAlreadyUndoneError,
     ConflictResolutionNotFoundError,
     UnresolvableConflictError,
 )
-from memoria_curitibana.domains.archive.schemas.entity_schema import (
+from scrinalia.domains.archive.schemas.entity_schema import (
     ConflictResolutionData,
     ConflictResolutionLogEntry,
     ConflictResolutionPlan,
@@ -33,7 +33,7 @@ from memoria_curitibana.domains.archive.schemas.entity_schema import (
     JudgedConflict,
     JudgedConflictPage,
 )
-from memoria_curitibana.domains.archive.services.entity_service import EntityService
+from scrinalia.domains.archive.services.entity_service import EntityService
 
 
 @pytest.fixture
@@ -249,7 +249,7 @@ class TestConflictLifecycle:
         This is the promise the route could not make before: ``POST /conflicts/resolve`` transferred
         the documents and deleted the losing row with no dry run and no way back.
         """
-        from memoria_curitibana.domains.archive.models import (
+        from scrinalia.domains.archive.models import (
             ArchiveDocumentEntity,
             ArchiveDocumentTag,
             ArchiveEntity,

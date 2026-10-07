@@ -5,11 +5,11 @@ from sqlalchemy import engine_from_config, pool
 
 # Import every model package so Base.metadata is fully populated before
 # autogenerate compares it against the database.
-import memoria_curitibana.domains.archive.models
-import memoria_curitibana.domains.ingestion.models
-import memoria_curitibana.domains.staging.models  # noqa: F401
-from memoria_curitibana.core.base import Base
-from memoria_curitibana.core.config import settings
+import scrinalia.domains.archive.models
+import scrinalia.domains.ingestion.models
+import scrinalia.domains.staging.models  # noqa: F401
+from scrinalia.core.base import Base
+from scrinalia.core.config import settings
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

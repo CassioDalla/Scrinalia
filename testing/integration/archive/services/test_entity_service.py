@@ -1,7 +1,7 @@
 from sqlalchemy import select, text
 
-from memoria_curitibana.domains.archive.models import ArchiveEntity, ArchiveTag
-from memoria_curitibana.domains.archive.repository import EntityRepository
+from scrinalia.domains.archive.models import ArchiveEntity, ArchiveTag
+from scrinalia.domains.archive.repository import EntityRepository
 
 # ==========================================
 # CROSS-DOMAIN CLASH TESTS
@@ -37,7 +37,7 @@ def test_get_cross_domain_conflicts(use_test_db, db_session):
 
 def test_resolve_cross_domain_conflict_tag_wins(use_test_db, db_session, generate_archive_doc):
     """Guarantees that the Tag absorbs the Entity's documents and the Entity is destroyed."""
-    from memoria_curitibana.domains.archive.models import ArchiveDocumentEntity, ArchiveDocumentTag, ArchiveEntity
+    from scrinalia.domains.archive.models import ArchiveDocumentEntity, ArchiveDocumentTag, ArchiveEntity
 
     repo = EntityRepository(db_session)
 
@@ -74,8 +74,8 @@ def test_resolve_cross_domain_conflict_tag_wins(use_test_db, db_session, generat
 
 
 def _merge(repo: EntityRepository, canonical_id: int, ids_to_merge: list[int]) -> None:
-    from memoria_curitibana.domains.archive.schemas import MergeEntityCommand
-    from memoria_curitibana.domains.archive.services.entity_service import EntityService
+    from scrinalia.domains.archive.schemas import MergeEntityCommand
+    from scrinalia.domains.archive.services.entity_service import EntityService
 
     EntityService(repo).merge(MergeEntityCommand(canonical_id=canonical_id, ids_to_merge=ids_to_merge))
 
@@ -88,7 +88,7 @@ def test_chained_entity_merge_keeps_the_mapping_of_the_surviving_canonical(use_t
     take the synonym of the first merge with it and the extraction recreated the term. Same
     defect and same fix as the tag path.
     """
-    from memoria_curitibana.domains.archive.models import DomainSynonyms
+    from scrinalia.domains.archive.models import DomainSynonyms
 
     repo = EntityRepository(db_session)
     first = ArchiveEntity(name="prefeiruta", entity_type="ORG")
@@ -145,7 +145,7 @@ def test_no_entity_synonym_points_to_a_deleted_entity_after_a_merge_chain(use_te
 
 def test_create_synonyms_repoints_an_existing_entity_mapping(use_test_db, db_session):
     """Re-pointing an entity spelling must move it, not be silently ignored."""
-    from memoria_curitibana.domains.archive.schemas import SynonymCommand
+    from scrinalia.domains.archive.schemas import SynonymCommand
 
     repo = EntityRepository(db_session)
     first = ArchiveEntity(name="ippuc", entity_type="ORG")

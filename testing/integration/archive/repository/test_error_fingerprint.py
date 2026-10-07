@@ -8,9 +8,9 @@ same sentence is *not* the same cause, and a run that never failed has no cause 
 
 from sqlalchemy import select, text
 
-from memoria_curitibana.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
-from memoria_curitibana.domains.archive.models.operations import ApiError, WorkerRun
-from memoria_curitibana.domains.archive.repository.worker_run_repo import WorkerRunRepository
+from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
+from scrinalia.domains.archive.models.operations import ApiError, WorkerRun
+from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
 
 
 def fingerprint(db, message: str | None) -> str | None:

@@ -2,9 +2,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from memoria_curitibana.domains.archive.models.governance import ArchiveCleaningRule
-from memoria_curitibana.domains.archive.schemas.cleaning_schema import CleanableDocumentDTO, CleaningUpdateCommand
-from memoria_curitibana.domains.archive.workers.worker_cleaning_regex import execute
+from scrinalia.domains.archive.models.governance import ArchiveCleaningRule
+from scrinalia.domains.archive.schemas.cleaning_schema import CleanableDocumentDTO, CleaningUpdateCommand
+from scrinalia.domains.archive.workers.worker_cleaning_regex import execute
 
 # ==========================================
 # FIXTURES AND MOCKS
@@ -20,7 +20,7 @@ def mock_db():
 @pytest.fixture
 def mock_repo():
     """Mock of the Repository injected into the Worker."""
-    with patch("memoria_curitibana.domains.archive.workers.worker_cleaning_regex.CleaningRepository") as MockRepoClass:
+    with patch("scrinalia.domains.archive.workers.worker_cleaning_regex.CleaningRepository") as MockRepoClass:
         yield MockRepoClass.return_value
 
 

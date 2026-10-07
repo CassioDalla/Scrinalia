@@ -13,7 +13,7 @@ from types import ModuleType
 
 import pytest
 
-from memoria_curitibana.domains.archive.domain.vocabulary import (
+from scrinalia.domains.archive.domain.vocabulary import (
     RETIRED_CATEGORIES,
     SUBJECT_CATEGORIES,
     SUBJECT_EXCLUSION_SIGNALS,

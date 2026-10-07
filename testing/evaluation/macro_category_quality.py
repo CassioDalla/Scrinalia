@@ -43,8 +43,8 @@ from pathlib import Path
 
 import numpy as np
 
-from memoria_curitibana.core.logger import logger
-from memoria_curitibana.domains.archive.domain.vocabulary import SUBJECT_CATEGORIES
+from scrinalia.core.logger import logger
+from scrinalia.domains.archive.domain.vocabulary import SUBJECT_CATEGORIES
 
 PAIRS_PATH = Path(__file__).parent / "macro_category_pairs.json"
 
@@ -294,7 +294,7 @@ def to_markdown(results: list[BenchResult]) -> str:
 def run(
     models: list[str], formats: list[str], arrangements: list[str], device: str, limit: int | None
 ) -> tuple[dict, list[BenchResult]]:
-    from memoria_curitibana.domains.archive.domain.vocabulary import is_subject_candidate
+    from scrinalia.domains.archive.domain.vocabulary import is_subject_candidate
 
     pairs, _vocabulary = load_pairs(PAIRS_PATH)
     if limit:

@@ -1,10 +1,10 @@
 from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
-from memoria_curitibana.domains.archive.ports.staging_source import StagingRecord
-from memoria_curitibana.domains.archive.schemas.command_schema import TagLinkCommand
-from memoria_curitibana.domains.archive.schemas.document_schema import ArchiveDocumentDTO
-from memoria_curitibana.domains.archive.workers import worker_archive_transfer
+from scrinalia.domains.archive.ports.staging_source import StagingRecord
+from scrinalia.domains.archive.schemas.command_schema import TagLinkCommand
+from scrinalia.domains.archive.schemas.document_schema import ArchiveDocumentDTO
+from scrinalia.domains.archive.workers import worker_archive_transfer
 
 # ==========================================
 # ORCHESTRATION AND TRANSACTION TESTS (ETL Worker)
@@ -20,9 +20,7 @@ def _patch_level_catalog(mocker: MockerFixture, index: dict[str, int] | None = N
     ``Mock``. An empty index is a catalogue that knows nothing, which is the honest default here —
     the spelling itself is covered by the unit tests of ``domain.level_catalog``.
     """
-    repo_class = mocker.patch(
-        "memoria_curitibana.domains.archive.workers.worker_archive_transfer.LevelCatalogRepository"
-    )
+    repo_class = mocker.patch("scrinalia.domains.archive.workers.worker_archive_transfer.LevelCatalogRepository")
     repo_class.return_value.level_index.return_value = index or {}
     return repo_class
 
@@ -45,15 +43,9 @@ def test_run_archive_transfer_full_flow(mocker: MockerFixture, mock_staging_doc)
     mock_query.yield_per.return_value = [staging_doc]
 
     # 1. MOCK OF THE CLASSES THE WORKER INSTANTIATES INSIDE
-    mock_doc_repo_class = mocker.patch(
-        "memoria_curitibana.domains.archive.workers.worker_archive_transfer.DocumentRepository"
-    )
-    mock_tag_repo_class = mocker.patch(
-        "memoria_curitibana.domains.archive.workers.worker_archive_transfer.TagRepository"
-    )
-    mock_tag_service_class = mocker.patch(
-        "memoria_curitibana.domains.archive.workers.worker_archive_transfer.TagService"
-    )
+    mock_doc_repo_class = mocker.patch("scrinalia.domains.archive.workers.worker_archive_transfer.DocumentRepository")
+    mock_tag_repo_class = mocker.patch("scrinalia.domains.archive.workers.worker_archive_transfer.TagRepository")
+    mock_tag_service_class = mocker.patch("scrinalia.domains.archive.workers.worker_archive_transfer.TagService")
 
     # 2. CONFIGURING THE INSTANCE RESPONSES
     mock_doc_repo = mock_doc_repo_class.return_value
@@ -99,7 +91,7 @@ def test_run_archive_transfer_full_flow(mocker: MockerFixture, mock_staging_doc)
 
 def test_run_archive_transfer_consumes_ports_without_staging_orm(mocker: MockerFixture) -> None:
     """The transfer use case must read staging through the port, not the staging ORM."""
-    from memoria_curitibana.domains.archive.ports.staging_source import StagingRecord
+    from scrinalia.domains.archive.ports.staging_source import StagingRecord
 
     _patch_level_catalog(mocker, {"dossie": 5})
     mock_db = mocker.Mock(spec=Session)
@@ -114,13 +106,9 @@ def test_run_archive_transfer_consumes_ports_without_staging_orm(mocker: MockerF
     source = mocker.Mock()
     source.stream.return_value = iter([record])
 
-    mock_doc_repo_class = mocker.patch(
-        "memoria_curitibana.domains.archive.workers.worker_archive_transfer.DocumentRepository"
-    )
-    mocker.patch("memoria_curitibana.domains.archive.workers.worker_archive_transfer.TagRepository")
-    mock_tag_service_class = mocker.patch(
-        "memoria_curitibana.domains.archive.workers.worker_archive_transfer.TagService"
-    )
+    mock_doc_repo_class = mocker.patch("scrinalia.domains.archive.workers.worker_archive_transfer.DocumentRepository")
+    mocker.patch("scrinalia.domains.archive.workers.worker_archive_transfer.TagRepository")
+    mock_tag_service_class = mocker.patch("scrinalia.domains.archive.workers.worker_archive_transfer.TagService")
 
     mock_doc_repo = mock_doc_repo_class.return_value
     mock_doc_repo.upsert_archive_document.return_value = True
@@ -154,15 +142,9 @@ def test_run_archive_transfer_idempotency(mocker: MockerFixture, mock_staging_do
     mock_query.yield_per.return_value = [staging_doc]
 
     # Mocks
-    mock_doc_repo_class = mocker.patch(
-        "memoria_curitibana.domains.archive.workers.worker_archive_transfer.DocumentRepository"
-    )
-    mock_tag_repo_class = mocker.patch(
-        "memoria_curitibana.domains.archive.workers.worker_archive_transfer.TagRepository"
-    )
-    mock_tag_service_class = mocker.patch(
-        "memoria_curitibana.domains.archive.workers.worker_archive_transfer.TagService"
-    )
+    mock_doc_repo_class = mocker.patch("scrinalia.domains.archive.workers.worker_archive_transfer.DocumentRepository")
+    mock_tag_repo_class = mocker.patch("scrinalia.domains.archive.workers.worker_archive_transfer.TagRepository")
+    mock_tag_service_class = mocker.patch("scrinalia.domains.archive.workers.worker_archive_transfer.TagService")
 
     mock_doc_repo = mock_doc_repo_class.return_value
     mock_tag_repo = mock_tag_repo_class.return_value
@@ -203,15 +185,9 @@ def test_run_archive_transfer_batch_resilience(mocker: MockerFixture, mock_stagi
     mock_query.yield_per.return_value = [failing_doc, success_doc]
 
     # Mocks
-    mock_doc_repo_class = mocker.patch(
-        "memoria_curitibana.domains.archive.workers.worker_archive_transfer.DocumentRepository"
-    )
-    mock_tag_repo_class = mocker.patch(
-        "memoria_curitibana.domains.archive.workers.worker_archive_transfer.TagRepository"
-    )
-    mock_tag_service_class = mocker.patch(
-        "memoria_curitibana.domains.archive.workers.worker_archive_transfer.TagService"
-    )
+    mock_doc_repo_class = mocker.patch("scrinalia.domains.archive.workers.worker_archive_transfer.DocumentRepository")
+    mock_tag_repo_class = mocker.patch("scrinalia.domains.archive.workers.worker_archive_transfer.TagRepository")
+    mock_tag_service_class = mocker.patch("scrinalia.domains.archive.workers.worker_archive_transfer.TagService")
 
     mock_doc_repo = mock_doc_repo_class.return_value
     mock_tag_repo = mock_tag_repo_class.return_value

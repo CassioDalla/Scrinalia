@@ -1,24 +1,24 @@
 import pytest
 from sqlalchemy import select, text
 
-from memoria_curitibana.domains.archive.exceptions import TagMergeProposalNotFoundError
-from memoria_curitibana.domains.archive.models import (
+from scrinalia.domains.archive.exceptions import TagMergeProposalNotFoundError
+from scrinalia.domains.archive.models import (
     ArchiveDocumentTag,
     ArchiveMacroCategory,
     ArchiveTag,
     DomainSynonyms,
 )
-from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
-from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
-from memoria_curitibana.domains.archive.schemas import (
+from scrinalia.domains.archive.repository.document_repo import DocumentRepository
+from scrinalia.domains.archive.repository.tag_repo import TagRepository
+from scrinalia.domains.archive.schemas import (
     ArchiveTagDTO,
     MergeBatchCommand,
     MergePreviewCommand,
     MergeTagsCommand,
     TagMergeDecisionCommand,
 )
-from memoria_curitibana.domains.archive.schemas.tag_schema import TagRelevanceCount
-from memoria_curitibana.domains.archive.services.tag_service import TagService
+from scrinalia.domains.archive.schemas.tag_schema import TagRelevanceCount
+from scrinalia.domains.archive.services.tag_service import TagService
 
 # ==========================================
 # 1. PURGE TESTS (STOPWORDS)
@@ -343,7 +343,7 @@ def test_preview_merge_is_read_only_and_matches_the_applied_merge(use_test_db, d
     """
     from sqlalchemy import func
 
-    from memoria_curitibana.domains.archive.models import ArchiveTag
+    from scrinalia.domains.archive.models import ArchiveTag
 
     tag_repo = TagRepository(db_session)
     service = TagService(tag_repo, DocumentRepository(db_session))

@@ -30,12 +30,12 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from memoria_curitibana.core.database import get_db
-from memoria_curitibana.core.logger import logger
-from memoria_curitibana.domains.archive.repository.hierarchy_repo import HierarchyRepository
-from memoria_curitibana.domains.archive.repository.level_catalog_repo import LevelCatalogRepository
-from memoria_curitibana.domains.archive.schemas.hierarchy_schema import HierarchyProposalCommand
-from memoria_curitibana.domains.archive.services.hierarchy_proposal_service import HierarchyProposalService
+from scrinalia.core.database import get_db
+from scrinalia.core.logger import logger
+from scrinalia.domains.archive.repository.hierarchy_repo import HierarchyRepository
+from scrinalia.domains.archive.repository.level_catalog_repo import LevelCatalogRepository
+from scrinalia.domains.archive.schemas.hierarchy_schema import HierarchyProposalCommand
+from scrinalia.domains.archive.services.hierarchy_proposal_service import HierarchyProposalService
 
 DEFAULT_OUTPUT = Path(".analysis") / "hierarchy_proposal.json"
 

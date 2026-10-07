@@ -1,14 +1,14 @@
 """The counts behind the curator's work list, against real PostgreSQL."""
 
-from memoria_curitibana.domains.archive.models import (
+from scrinalia.domains.archive.models import (
     ArchiveHierarchyNodePlan,
     ArchiveReviewStatus,
     ArchiveTag,
     ArchiveTagMergeProposal,
 )
-from memoria_curitibana.domains.archive.models.governance import AnomalyType, ArchiveAIReviewQueue
-from memoria_curitibana.domains.archive.repository.curation_repo import CurationRepository
-from memoria_curitibana.domains.archive.services.curation_service import QUEUE_CATALOGUE
+from scrinalia.domains.archive.models.governance import AnomalyType, ArchiveAIReviewQueue
+from scrinalia.domains.archive.repository.curation_repo import CurationRepository
+from scrinalia.domains.archive.services.curation_service import QUEUE_CATALOGUE
 
 
 def test_an_empty_collection_reports_every_queue_at_zero(db_session) -> None:
@@ -108,7 +108,7 @@ def test_only_the_human_queue_of_a_conflict_is_counted(db_session) -> None:
 
 def test_the_inbox_serialises_every_queue_with_a_label_and_a_route(db_session) -> None:
     """The contract the front consumes: a key, a label, a number and where to go."""
-    from memoria_curitibana.domains.archive.services.curation_service import CurationService
+    from scrinalia.domains.archive.services.curation_service import CurationService
 
     inbox = CurationService(CurationRepository(db_session)).inbox()
 

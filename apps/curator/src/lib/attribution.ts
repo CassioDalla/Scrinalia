@@ -15,7 +15,7 @@
  */
 export const ATTRIBUTION = {
   /** The display name of the project. */
-  name: "Memória Curitibana",
+  name: "Scrinalia",
   /** The original author, as named in the copyright notice the license requires be preserved. */
   author: "CassioDalla",
   /** Year of first publication, for the copyright notice. */
@@ -28,5 +28,5 @@ export const ATTRIBUTION = {
   /** Where the license text can be read. */
   licenseUrl: "https://www.gnu.org/licenses/agpl-3.0.html",
   /** The public repository: the Corresponding Source this work offers. */
-  sourceUrl: "https://github.com/CassioDalla/memoria-curitibana-etl",
+  sourceUrl: "https://github.com/CassioDalla/scrinalia",
 } as const;

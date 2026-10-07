@@ -2,8 +2,8 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
-from memoria_curitibana.domains.ingestion.models import ScrapeStatus, ScrapingQueue
-from memoria_curitibana.domains.ingestion.repository import add, add_in_bulk, get_from_queue, update_queue_status
+from scrinalia.domains.ingestion.models import ScrapeStatus, ScrapingQueue
+from scrinalia.domains.ingestion.repository import add, add_in_bulk, get_from_queue, update_queue_status
 
 # ==========================================
 # 1. SIMPLE INSERT TESTS (ADD)

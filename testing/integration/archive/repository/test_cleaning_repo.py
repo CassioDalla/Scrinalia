@@ -1,11 +1,11 @@
 import pytest
 from sqlalchemy import select
 
-from memoria_curitibana.domains.archive.exceptions import CleaningRuleNotFoundError
-from memoria_curitibana.domains.archive.models import ArchiveCleaningRule, ArchiveDocument, ArchiveReviewStatus
-from memoria_curitibana.domains.archive.repository.cleaning_repo import CleaningRepository
-from memoria_curitibana.domains.archive.schemas.cleaning_schema import CleaningUpdateCommand
-from memoria_curitibana.domains.archive.services.cleaning_service import CleaningService
+from scrinalia.domains.archive.exceptions import CleaningRuleNotFoundError
+from scrinalia.domains.archive.models import ArchiveCleaningRule, ArchiveDocument, ArchiveReviewStatus
+from scrinalia.domains.archive.repository.cleaning_repo import CleaningRepository
+from scrinalia.domains.archive.schemas.cleaning_schema import CleaningUpdateCommand
+from scrinalia.domains.archive.services.cleaning_service import CleaningService
 
 
 def _make_rule(db_session, target_column: str = "original_title") -> ArchiveCleaningRule:

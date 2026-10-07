@@ -1,8 +1,8 @@
 from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
-from memoria_curitibana.domains.archive.schemas import ArchiveEntityDTO, EntityLinkCommand
-from memoria_curitibana.domains.archive.workers import worker_ner
+from scrinalia.domains.archive.schemas import ArchiveEntityDTO, EntityLinkCommand
+from scrinalia.domains.archive.workers import worker_ner
 
 
 class MockArchiveDocument:
@@ -68,7 +68,7 @@ def test_is_blocked_entity_name_ignores_empty_blacklist():
 # ==========================================
 
 # The blacklist is loaded from the database; we isolate it to avoid depending on a real session.
-BLACKLIST_PATH = "memoria_curitibana.domains.archive.workers.worker_ner.load_entity_blacklist"
+BLACKLIST_PATH = "scrinalia.domains.archive.workers.worker_ner.load_entity_blacklist"
 
 
 def _mock_session(mocker: MockerFixture):
@@ -77,7 +77,7 @@ def _mock_session(mocker: MockerFixture):
     # The approved-excerpt catalogue is read from the same session: the unit test owns an
     # empty one, so the composed text arrives exactly as the query returned it.
     mocker.patch(
-        "memoria_curitibana.domains.archive.workers.worker_ner.TextQualityRepository"
+        "scrinalia.domains.archive.workers.worker_ner.TextQualityRepository"
     ).return_value.get_active_rules.return_value = []
     return mock_db
 
@@ -86,9 +86,9 @@ def test_worker_ner_unit_ideal_flow(mocker: MockerFixture) -> None:
     """Good Scenario: Texts are concatenated, the AI extracts and the repository saves."""
     mock_db = _mock_session(mocker)
 
-    mock_repo_class = mocker.patch("memoria_curitibana.domains.archive.workers.worker_ner.EntityRepository")
-    mock_get_engine = mocker.patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
-    mock_flag_modified = mocker.patch("memoria_curitibana.domains.archive.workers.worker_ner.flag_modified")
+    mock_repo_class = mocker.patch("scrinalia.domains.archive.workers.worker_ner.EntityRepository")
+    mock_get_engine = mocker.patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
+    mock_flag_modified = mocker.patch("scrinalia.domains.archive.workers.worker_ner.flag_modified")
     mocker.patch(BLACKLIST_PATH, return_value=set())
 
     mock_repo = mock_repo_class.return_value
@@ -123,9 +123,9 @@ def test_worker_ner_ignores_empty_texts(mocker: MockerFixture) -> None:
     """Good Scenario: If the document only has whitespace or URLs, it stamps it as DONE and skips the AI."""
     mock_db = _mock_session(mocker)
 
-    mocker.patch("memoria_curitibana.domains.archive.workers.worker_ner.EntityRepository")
-    mock_get_engine = mocker.patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
-    mock_flag_modified = mocker.patch("memoria_curitibana.domains.archive.workers.worker_ner.flag_modified")
+    mocker.patch("scrinalia.domains.archive.workers.worker_ner.EntityRepository")
+    mock_get_engine = mocker.patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
+    mock_flag_modified = mocker.patch("scrinalia.domains.archive.workers.worker_ner.flag_modified")
     mocker.patch(BLACKLIST_PATH, return_value=set())
 
     # Document that, after removing the email, becomes empty
@@ -146,8 +146,8 @@ def test_worker_ner_ai_failure_rolls_back(mocker: MockerFixture) -> None:
     """Bad Scenario: If spaCy runs out of memory (Exception), the transaction aborts and the loop breaks."""
     mock_db = _mock_session(mocker)
 
-    mocker.patch("memoria_curitibana.domains.archive.workers.worker_ner.EntityRepository")
-    mock_get_engine = mocker.patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
+    mocker.patch("scrinalia.domains.archive.workers.worker_ner.EntityRepository")
+    mock_get_engine = mocker.patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
     mocker.patch(BLACKLIST_PATH, return_value=set())
 
     test_doc = MockArchiveDocument("doc-3", "Texto válido para forçar a IA a rodar")
@@ -169,9 +169,9 @@ def test_worker_ner_repository_failure_stamps_error(mocker: MockerFixture) -> No
     """Bad Scenario (Resilience): The AI works, but the database refuses the insert. Stamps with ERROR and moves on."""
     mock_db = _mock_session(mocker)
 
-    mock_repo_class = mocker.patch("memoria_curitibana.domains.archive.workers.worker_ner.EntityRepository")
-    mock_get_engine = mocker.patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
-    mock_flag_modified = mocker.patch("memoria_curitibana.domains.archive.workers.worker_ner.flag_modified")
+    mock_repo_class = mocker.patch("scrinalia.domains.archive.workers.worker_ner.EntityRepository")
+    mock_get_engine = mocker.patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
+    mock_flag_modified = mocker.patch("scrinalia.domains.archive.workers.worker_ner.flag_modified")
     mocker.patch(BLACKLIST_PATH, return_value=set())
 
     # Simulate that the AI found 1 entity

@@ -6,7 +6,7 @@
 ## Context
 
 The nine AI workers were only reachable from the command line
-(`python -m memoria_curitibana.domains.archive.workers.runner <name>`). Nothing in the
+(`python -m scrinalia.domains.archive.workers.runner <name>`). Nothing in the
 system could answer, without reading the code:
 
 - which workers exist, in which order they run, and which engine/preset each one uses;

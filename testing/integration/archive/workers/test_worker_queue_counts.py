@@ -5,18 +5,18 @@ counter through the same function the operations screen calls. The refactor that
 predicate from every ``execute`` is only worth it if these numbers keep matching the worker.
 """
 
-from memoria_curitibana.domains.archive.domain.vocabulary import label_set_fingerprint
-from memoria_curitibana.domains.archive.models import (
+from scrinalia.domains.archive.domain.vocabulary import label_set_fingerprint
+from scrinalia.domains.archive.models import (
     ArchiveMacroCategory,
     ArchiveReviewStatus,
     ArchiveTag,
 )
-from memoria_curitibana.domains.archive.models.governance import AnomalyType, ArchiveAIReviewQueue
-from memoria_curitibana.domains.archive.ports.staging_source import StagingRecord
-from memoria_curitibana.domains.archive.repository.cleaning_repo import CleaningRepository
-from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
-from memoria_curitibana.domains.archive.schemas.cleaning_schema import CleaningRuleCreateDTO
-from memoria_curitibana.domains.archive.worker_stamp import (
+from scrinalia.domains.archive.models.governance import AnomalyType, ArchiveAIReviewQueue
+from scrinalia.domains.archive.ports.staging_source import StagingRecord
+from scrinalia.domains.archive.repository.cleaning_repo import CleaningRepository
+from scrinalia.domains.archive.repository.tag_repo import TagRepository
+from scrinalia.domains.archive.schemas.cleaning_schema import CleaningRuleCreateDTO
+from scrinalia.domains.archive.worker_stamp import (
     EMBEDDING,
     MACRO_CATEGORY,
     NER,
@@ -24,7 +24,7 @@ from memoria_curitibana.domains.archive.worker_stamp import (
     THUMBNAIL_FAILED,
     TYPOLOGY,
 )
-from memoria_curitibana.domains.archive.workers import (
+from scrinalia.domains.archive.workers import (
     worker_archive_transfer,
     worker_cleaning_regex,
     worker_embedding,
@@ -35,7 +35,7 @@ from memoria_curitibana.domains.archive.workers import (
     worker_thumbnail,
     worker_typology,
 )
-from memoria_curitibana.domains.staging.models import StagingDocument
+from scrinalia.domains.staging.models import StagingDocument
 
 
 def test_ner_counts_unstamped_writable_documents(db_session, generate_archive_doc) -> None:

@@ -11,23 +11,23 @@ confidence and the mark in the ledger.
 import pytest
 from sqlalchemy import select
 
-from memoria_curitibana.domains.archive.exceptions import MacroCategoryNotFoundError, TagNotFoundError
-from memoria_curitibana.domains.archive.models import (
+from scrinalia.domains.archive.exceptions import MacroCategoryNotFoundError, TagNotFoundError
+from scrinalia.domains.archive.models import (
     ArchiveDocumentTag,
     ArchiveEntity,
     ArchiveMacroCategory,
     ArchiveTag,
     ArchiveTaxonomyMergeLog,
 )
-from memoria_curitibana.domains.archive.models.associations import ArchiveDocumentEntity
-from memoria_curitibana.domains.archive.models.enums import StopwordsScope
-from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
-from memoria_curitibana.domains.archive.repository.entity_repo import EntityRepository
-from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
-from memoria_curitibana.domains.archive.schemas import TagCurationCommand
-from memoria_curitibana.domains.archive.services.entity_service import EntityService
-from memoria_curitibana.domains.archive.services.tag_service import MIN_SEARCH_TERM, TagService
-from memoria_curitibana.domains.archive.worker_stamp import CURATED_MACRO_CATEGORY
+from scrinalia.domains.archive.models.associations import ArchiveDocumentEntity
+from scrinalia.domains.archive.models.enums import StopwordsScope
+from scrinalia.domains.archive.repository.document_repo import DocumentRepository
+from scrinalia.domains.archive.repository.entity_repo import EntityRepository
+from scrinalia.domains.archive.repository.tag_repo import TagRepository
+from scrinalia.domains.archive.schemas import TagCurationCommand
+from scrinalia.domains.archive.services.entity_service import EntityService
+from scrinalia.domains.archive.services.tag_service import MIN_SEARCH_TERM, TagService
+from scrinalia.domains.archive.worker_stamp import CURATED_MACRO_CATEGORY
 
 
 @pytest.fixture
@@ -233,7 +233,7 @@ class TestDrawerWeight:
         db_session.flush()
         _tag(db_session, generate_archive_doc, "igrejas", 4, category_id=category.category_id)
 
-        from memoria_curitibana.domains.archive.schemas import UpdateMacroCategoryCommand
+        from scrinalia.domains.archive.schemas import UpdateMacroCategoryCommand
 
         updated = tag_service.update_macro_category(
             category.category_id, UpdateMacroCategoryCommand(classifier_label="religião, fé")

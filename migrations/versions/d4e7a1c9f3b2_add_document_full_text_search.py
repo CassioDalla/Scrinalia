@@ -43,7 +43,7 @@ AS $$ SELECT public.unaccent('public.unaccent'::regdictionary, txt) $$;
 """
 
 # Keep byte-identical to ``DOCUMENT_SEARCH_VECTOR_SQL`` in
-# ``memoria_curitibana/domains/archive/models/document.py``.
+# ``scrinalia/domains/archive/models/document.py``.
 SEARCH_VECTOR_SQL = (
     "setweight(to_tsvector('portuguese', public.immutable_unaccent("
     "coalesce(final_title, '') || ' ' || coalesce(original_title, ''))), 'A')"

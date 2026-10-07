@@ -11,12 +11,12 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
-from memoria_curitibana.core.base import Base
-from memoria_curitibana.domains.archive.domain.level_catalog import NOBRADE_LEVELS
-from memoria_curitibana.domains.archive.models import ArchiveDescriptionLevel, ArchiveDocument, ArchiveTypology
-from memoria_curitibana.domains.archive.schemas import ArchiveEntityDTO
-from memoria_curitibana.domains.archive.schemas.document_schema import ArchiveDocumentDTO
-from memoria_curitibana.domains.ingestion import models as ingest_model
+from scrinalia.core.base import Base
+from scrinalia.domains.archive.domain.level_catalog import NOBRADE_LEVELS
+from scrinalia.domains.archive.models import ArchiveDescriptionLevel, ArchiveDocument, ArchiveTypology
+from scrinalia.domains.archive.schemas import ArchiveEntityDTO
+from scrinalia.domains.archive.schemas.document_schema import ArchiveDocumentDTO
+from scrinalia.domains.ingestion import models as ingest_model
 
 # Dynamically discover the absolute path of the 'tests' folder
 TESTS_FOLDER = Path(__file__).parent
@@ -183,7 +183,7 @@ def use_test_db(db_session):
     def _mock_get_db():
         yield db_session
 
-    with patch("memoria_curitibana.core.database.get_db", _mock_get_db):
+    with patch("scrinalia.core.database.get_db", _mock_get_db):
         yield
 
 
@@ -202,7 +202,7 @@ def api_uses_test_db(db_session):
     def _session():
         yield db_session
 
-    with patch("memoria_curitibana.api.dependencies.create_session", _session):
+    with patch("scrinalia.api.dependencies.create_session", _session):
         yield
 
 

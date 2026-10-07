@@ -2,7 +2,7 @@ from contextlib import contextmanager
 
 import pytest
 
-from memoria_curitibana.domains.archive.workers import runner
+from scrinalia.domains.archive.workers import runner
 
 
 @contextmanager

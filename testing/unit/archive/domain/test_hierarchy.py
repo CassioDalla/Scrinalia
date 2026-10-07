@@ -13,7 +13,7 @@ from typing import ClassVar
 
 import pytest
 
-from memoria_curitibana.domains.archive.domain.hierarchy import (
+from scrinalia.domains.archive.domain.hierarchy import (
     HierarchyViolation,
     LevelRules,
     NodeShape,

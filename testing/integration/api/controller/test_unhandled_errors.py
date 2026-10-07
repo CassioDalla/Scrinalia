@@ -12,13 +12,13 @@ import pytest
 from litestar.testing import TestClient
 from sqlalchemy import select
 
-from memoria_curitibana.api import handlers
-from memoria_curitibana.asgi import create_app
-from memoria_curitibana.domains.archive.exceptions import WorkerNotFoundError
-from memoria_curitibana.domains.archive.models.operations import ApiError
-from memoria_curitibana.domains.archive.repository.api_error_repo import ApiErrorRecorder
-from memoria_curitibana.domains.archive.services.worker_operations_service import WorkerOperationsService
-from memoria_curitibana.domains.archive.services.worker_run_service import WorkerRunService
+from scrinalia.api import handlers
+from scrinalia.asgi import create_app
+from scrinalia.domains.archive.exceptions import WorkerNotFoundError
+from scrinalia.domains.archive.models.operations import ApiError
+from scrinalia.domains.archive.repository.api_error_repo import ApiErrorRecorder
+from scrinalia.domains.archive.services.worker_operations_service import WorkerOperationsService
+from scrinalia.domains.archive.services.worker_run_service import WorkerRunService
 
 
 @contextmanager

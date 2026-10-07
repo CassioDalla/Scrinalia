@@ -1,5 +1,5 @@
 {
-  "name": "memoria-curitibana",
+  "name": "scrinalia",
   "private": true,
   "license": "AGPL-3.0-only",
   "workspaces": [
@@ -13,6 +13,6 @@
     "curator:dev": "bun run --cwd apps/curator dev",
     "curator:build": "bun run --cwd apps/curator build",
     "curator:codegen": "bun run --cwd apps/curator codegen",
-    "contract": "uv run python -m memoria_curitibana.api.dump_openapi > packages/api-contract/openapi.json && bun run --cwd apps/curator codegen"
+    "contract": "uv run python -m scrinalia.api.dump_openapi > packages/api-contract/openapi.json && bun run --cwd apps/curator codegen"
   }
 }

@@ -9,14 +9,14 @@ from litestar.status_codes import (
 )
 from litestar.testing import TestClient
 
-from memoria_curitibana.asgi import create_app
-from memoria_curitibana.domains.archive.exceptions import CleaningRuleNotFoundError, InvalidParam
-from memoria_curitibana.domains.archive.schemas.cleaning_schema import (
+from scrinalia.asgi import create_app
+from scrinalia.domains.archive.exceptions import CleaningRuleNotFoundError, InvalidParam
+from scrinalia.domains.archive.schemas.cleaning_schema import (
     CleaningRuleDTO,
     DryRunMatchDTO,
     DryRunResponseDTO,
 )
-from memoria_curitibana.domains.archive.services.cleaning_service import CleaningService
+from scrinalia.domains.archive.services.cleaning_service import CleaningService
 
 
 @pytest.fixture

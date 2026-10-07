@@ -3,15 +3,15 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import ValidationError
 
-from memoria_curitibana.domains.archive.exceptions import CleaningRuleNotFoundError, InvalidParam
-from memoria_curitibana.domains.archive.models.governance import ArchiveCleaningRule
-from memoria_curitibana.domains.archive.schemas.cleaning_schema import (
+from scrinalia.domains.archive.exceptions import CleaningRuleNotFoundError, InvalidParam
+from scrinalia.domains.archive.models.governance import ArchiveCleaningRule
+from scrinalia.domains.archive.schemas.cleaning_schema import (
     CleanableDocumentDTO,
     CleaningRuleCreateDTO,
     CleaningRuleDTO,
     DryRunRequestDTO,
 )
-from memoria_curitibana.domains.archive.services.cleaning_service import CleaningService
+from scrinalia.domains.archive.services.cleaning_service import CleaningService
 
 # ==========================================
 # FIXTURES (Test environment preparation)

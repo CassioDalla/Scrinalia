@@ -56,9 +56,9 @@ jobs:
         # schema change that does not regenerate the contract would only fail in the browser. This
         # turns it into a build failure, which is the entire reason the contract is committed.
         run: |
-          uv run python -m memoria_curitibana.api.dump_openapi > /tmp/openapi.json
+          uv run python -m scrinalia.api.dump_openapi > /tmp/openapi.json
           if ! diff -u packages/api-contract/openapi.json /tmp/openapi.json; then
-            echo "::error::packages/api-contract/openapi.json está desatualizado. Rode: uv run python -m memoria_curitibana.api.dump_openapi > packages/api-contract/openapi.json && bun run --cwd apps/curator codegen"
+            echo "::error::packages/api-contract/openapi.json está desatualizado. Rode: uv run python -m scrinalia.api.dump_openapi > packages/api-contract/openapi.json && bun run --cwd apps/curator codegen"
             exit 1
           fi
       - name: Type check

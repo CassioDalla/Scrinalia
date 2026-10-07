@@ -34,9 +34,9 @@ from pathlib import Path
 
 from sqlalchemy import func, select
 
-from memoria_curitibana.core.database import get_db
-from memoria_curitibana.core.logger import logger
-from memoria_curitibana.domains.archive.models import ArchiveDocumentTag, ArchiveTag
+from scrinalia.core.database import get_db
+from scrinalia.core.logger import logger
+from scrinalia.domains.archive.models import ArchiveDocumentTag, ArchiveTag
 
 DEFAULT_OUTPUT = Path(".analysis") / "macro_category_vocabulary.json"
 

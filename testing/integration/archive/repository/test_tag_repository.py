@@ -2,15 +2,15 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from memoria_curitibana.domains.archive.exceptions import InvalidParam
-from memoria_curitibana.domains.archive.models import (
+from scrinalia.domains.archive.exceptions import InvalidParam
+from scrinalia.domains.archive.models import (
     ArchiveDocumentTag,
     ArchiveMacroCategory,
     ArchiveTag,
 )
-from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
-from memoria_curitibana.domains.archive.schemas.command_schema import TagLinkCommand
-from memoria_curitibana.domains.archive.schemas.tag_schema import ArchiveTagDTO
+from scrinalia.domains.archive.repository.tag_repo import TagRepository
+from scrinalia.domains.archive.schemas.command_schema import TagLinkCommand
+from scrinalia.domains.archive.schemas.tag_schema import ArchiveTagDTO
 
 
 def test_get_or_create_tags_new_and_lowercased(use_test_db, db_session):
@@ -265,7 +265,7 @@ def test_get_active_macro_categories_builds_classifier_labels(use_test_db, db_se
 
 
 def test_merge_suggestions_group_plural_and_singular(db_session, generate_archive_doc):
-    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+    from scrinalia.domains.archive.repository.tag_repo import TagRepository
 
     plural = ArchiveTag(name="livros")
     singular = ArchiveTag(name="livro")
@@ -291,7 +291,7 @@ def test_merge_suggestions_group_plural_and_singular(db_session, generate_archiv
 
 
 def test_merge_suggestions_canonical_is_the_most_used_spelling(db_session, generate_archive_doc):
-    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+    from scrinalia.domains.archive.repository.tag_repo import TagRepository
 
     popular = ArchiveTag(name="casas")
     rare = ArchiveTag(name="casa")
@@ -314,7 +314,7 @@ def test_merge_suggestions_canonical_is_the_most_used_spelling(db_session, gener
 def test_merge_suggestions_never_merge_anything(db_session, generate_archive_doc):
     from sqlalchemy import func, select
 
-    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+    from scrinalia.domains.archive.repository.tag_repo import TagRepository
 
     db_session.add_all([ArchiveTag(name="obras"), ArchiveTag(name="obra")])
     db_session.flush()
@@ -325,7 +325,7 @@ def test_merge_suggestions_never_merge_anything(db_session, generate_archive_doc
 
 
 def test_merge_suggestions_respect_the_limit(db_session):
-    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+    from scrinalia.domains.archive.repository.tag_repo import TagRepository
 
     for singular, plural in (("livro", "livros"), ("casa", "casas"), ("carro", "carros")):
         db_session.add_all([ArchiveTag(name=singular), ArchiveTag(name=plural)])
@@ -335,7 +335,7 @@ def test_merge_suggestions_respect_the_limit(db_session):
 
 
 def test_merge_suggestions_of_an_empty_catalog_are_empty(db_session):
-    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+    from scrinalia.domains.archive.repository.tag_repo import TagRepository
 
     assert TagRepository(db_session).find_merge_suggestions() == []
 
@@ -353,7 +353,7 @@ def test_create_synonyms_repoints_an_existing_mapping(use_test_db, db_session):
     an already-absorbed spelling was impossible — the write looked successful and changed
     nothing.
     """
-    from memoria_curitibana.domains.archive.schemas import SynonymCommand
+    from scrinalia.domains.archive.schemas import SynonymCommand
 
     repo = TagRepository(db_session)
     first = ArchiveTag(name="foto")
@@ -378,7 +378,7 @@ def test_create_synonyms_repoints_an_existing_mapping(use_test_db, db_session):
 
 
 def _suggestion(canonical: ArchiveTag, members: list[ArchiveTag], reason: str = "PLURAL"):
-    from memoria_curitibana.domains.archive.schemas import TagMergeMember, TagMergeSuggestion
+    from scrinalia.domains.archive.schemas import TagMergeMember, TagMergeSuggestion
 
     ordered = [canonical, *members]
     return TagMergeSuggestion(
@@ -521,7 +521,7 @@ def test_plan_merge_describes_the_impact_without_writing(use_test_db, db_session
     """The dry-run is read-only: no tag, link or synonym changes."""
     from sqlalchemy import func
 
-    from memoria_curitibana.domains.archive.models import DomainSynonyms
+    from scrinalia.domains.archive.models import DomainSynonyms
 
     repo = TagRepository(db_session)
     canonical = ArchiveTag(name="rua")

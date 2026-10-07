@@ -12,8 +12,8 @@ from litestar.status_codes import (
 from litestar.testing import TestClient
 from sqlalchemy.exc import IntegrityError
 
-from memoria_curitibana.asgi import create_app
-from memoria_curitibana.domains.archive.exceptions import (
+from scrinalia.asgi import create_app
+from scrinalia.domains.archive.exceptions import (
     InvalidMergeError,
     MacroCategoryNotFoundError,
     MergeAlreadyUndoneError,
@@ -21,15 +21,15 @@ from memoria_curitibana.domains.archive.exceptions import (
     TagMergeProposalNotFoundError,
     TagNotFoundError,
 )
-from memoria_curitibana.domains.archive.schemas import ArchiveMacroCategoryEntityDTO
-from memoria_curitibana.domains.archive.schemas.entity_schema import NerExclusion
-from memoria_curitibana.domains.archive.schemas.tag_schema import (  # <-- Import the DTO
+from scrinalia.domains.archive.schemas import ArchiveMacroCategoryEntityDTO
+from scrinalia.domains.archive.schemas.entity_schema import NerExclusion
+from scrinalia.domains.archive.schemas.tag_schema import (  # <-- Import the DTO
     MergeLogEntryDTO,
     TagMergeProposalDTO,
     TagRelevanceIdf,
 )
-from memoria_curitibana.domains.archive.services.entity_service import EntityService
-from memoria_curitibana.domains.archive.services.tag_service import TagService
+from scrinalia.domains.archive.services.entity_service import EntityService
+from scrinalia.domains.archive.services.tag_service import TagService
 
 
 # ==========================================
@@ -274,7 +274,7 @@ def test_remove_ner_exclusions_returns_200(client: TestClient, mocker):
 
 
 def _stored_proposal(**overrides) -> "TagMergeProposalDTO":
-    from memoria_curitibana.domains.archive.schemas.tag_schema import TagMergeMember, TagMergeProposalDTO
+    from scrinalia.domains.archive.schemas.tag_schema import TagMergeMember, TagMergeProposalDTO
 
     data = {
         "proposal_id": 7,
@@ -295,7 +295,7 @@ def _stored_proposal(**overrides) -> "TagMergeProposalDTO":
 
 
 def test_suggest_tag_merges_route_registers_the_proposals(client: TestClient, mocker):
-    from memoria_curitibana.domains.archive.schemas.tag_schema import MergeSuggestionRunResponse
+    from scrinalia.domains.archive.schemas.tag_schema import MergeSuggestionRunResponse
 
     mocked = mocker.patch.object(TagService, "suggest_merges")
     mocked.return_value = MergeSuggestionRunResponse(clusters_found=411, persisted=411, pending=411, flagged=60)
@@ -311,7 +311,7 @@ def test_suggest_tag_merges_route_registers_the_proposals(client: TestClient, mo
 
 
 def test_list_tag_merge_proposals_route_paginates_with_a_total(client: TestClient, mocker):
-    from memoria_curitibana.domains.archive.schemas.tag_schema import TagMergeProposalListResponse
+    from scrinalia.domains.archive.schemas.tag_schema import TagMergeProposalListResponse
 
     mocked = mocker.patch.object(TagService, "list_merge_proposals")
     mocked.return_value = TagMergeProposalListResponse(total=411, limit=50, offset=0, items=[_stored_proposal()])
@@ -364,7 +364,7 @@ def test_decide_tag_merge_proposal_route_maps_a_missing_proposal_to_404(client: 
 
 
 def test_preview_tag_merge_route_returns_the_impact(client: TestClient, mocker):
-    from memoria_curitibana.domains.archive.schemas.tag_schema import MergePreviewResponse, TagMergeImpact
+    from scrinalia.domains.archive.schemas.tag_schema import MergePreviewResponse, TagMergeImpact
 
     mocked = mocker.patch.object(TagService, "preview_merge")
     mocked.return_value = MergePreviewResponse(
@@ -395,7 +395,7 @@ def test_preview_tag_merge_route_accepts_the_pair_the_archivist_picked(client: T
     route has to forward both to the same planner instead of demanding a persisted proposal — the
     dry run it answers is the same one the batch apply uses.
     """
-    from memoria_curitibana.domains.archive.schemas.tag_schema import MergePreviewResponse
+    from scrinalia.domains.archive.schemas.tag_schema import MergePreviewResponse
 
     mocked = mocker.patch.object(TagService, "preview_merge")
     mocked.return_value = MergePreviewResponse(
@@ -432,7 +432,7 @@ def test_preview_tag_merge_route_rejects_two_sources(client: TestClient):
 
 
 def _log_entry(**overrides) -> "MergeLogEntryDTO":
-    from memoria_curitibana.domains.archive.schemas.tag_schema import MergeLogEntryDTO
+    from scrinalia.domains.archive.schemas.tag_schema import MergeLogEntryDTO
 
     data = {
         "merge_id": 5,
@@ -449,7 +449,7 @@ def _log_entry(**overrides) -> "MergeLogEntryDTO":
 
 
 def test_apply_tag_merge_batch_route_reports_each_cluster(client: TestClient, mocker):
-    from memoria_curitibana.domains.archive.schemas.tag_schema import (
+    from scrinalia.domains.archive.schemas.tag_schema import (
         BatchMergeResponse,
         MergeBatchApplied,
         MergeBatchFailure,
@@ -477,7 +477,7 @@ def test_apply_tag_merge_batch_route_reports_each_cluster(client: TestClient, mo
 
 
 def test_list_tag_merge_log_route_paginates(client: TestClient, mocker):
-    from memoria_curitibana.domains.archive.schemas.tag_schema import MergeLogListResponse
+    from scrinalia.domains.archive.schemas.tag_schema import MergeLogListResponse
 
     mocked = mocker.patch.object(TagService, "list_merge_log")
     mocked.return_value = MergeLogListResponse(total=12, limit=5, offset=0, items=[_log_entry()])
@@ -500,7 +500,7 @@ def test_list_tag_merge_log_route_paginates(client: TestClient, mocker):
 
 def test_the_merge_ledger_forwards_its_search_term(client: TestClient, mocker):
     """``q`` reaches the service as ``term``: a ledger that ignores its search box is a lie."""
-    from memoria_curitibana.domains.archive.schemas.tag_schema import MergeLogListResponse
+    from scrinalia.domains.archive.schemas.tag_schema import MergeLogListResponse
 
     mocked = mocker.patch.object(TagService, "list_merge_log")
     mocked.return_value = MergeLogListResponse(total=1, limit=50, offset=0, items=[_log_entry()])
@@ -548,7 +548,7 @@ def test_undo_tag_merge_route_maps_an_unknown_merge_to_404(client: TestClient, m
 
 
 def test_tag_search_route_reaches_the_service_with_the_term(client: TestClient, mocker):
-    from memoria_curitibana.domains.archive.schemas.tag_schema import TagSearchResult
+    from scrinalia.domains.archive.schemas.tag_schema import TagSearchResult
 
     mocked = mocker.patch.object(TagService, "search_tags")
     mocked.return_value = [TagSearchResult(tag_id=42, name="igrejas", document_count=9, macro_category_name="Religião")]
@@ -566,7 +566,7 @@ def test_tag_search_route_requires_the_term(client: TestClient):
 
 
 def test_tag_curation_route_builds_the_command_from_the_payload(client: TestClient, mocker):
-    from memoria_curitibana.domains.archive.schemas.tag_schema import TagCurationResult
+    from scrinalia.domains.archive.schemas.tag_schema import TagCurationResult
 
     mocked = mocker.patch.object(TagService, "curate_tag_macro_category")
     mocked.return_value = TagCurationResult(
@@ -594,7 +594,7 @@ def test_tag_curation_route_accepts_null_as_the_decision_not_a_subject(client: T
     The field is required and nullable on purpose: "this tag is not a subject" is a verdict, and a
     default would let a client send nothing and have it read as one.
     """
-    from memoria_curitibana.domains.archive.schemas.tag_schema import TagCurationResult
+    from scrinalia.domains.archive.schemas.tag_schema import TagCurationResult
 
     mocked = mocker.patch.object(TagService, "curate_tag_macro_category")
     mocked.return_value = TagCurationResult(tag_id=42, name="igrejas", human_classified=True)
@@ -622,7 +622,7 @@ def test_tag_curation_route_maps_an_unknown_tag_to_404(client: TestClient, mocke
 
 
 def test_entity_search_route_reaches_the_service_with_the_term(client: TestClient, mocker):
-    from memoria_curitibana.domains.archive.schemas.entity_schema import EntityRelevance
+    from scrinalia.domains.archive.schemas.entity_schema import EntityRelevance
 
     mocked = mocker.patch.object(EntityService, "search_entities")
     mocked.return_value = [EntityRelevance(entity_id=7, name="Igreja Matriz", entity_type="LOC", total_usage=9)]
@@ -640,8 +640,8 @@ def test_entity_search_route_reaches_the_service_with_the_term(client: TestClien
 
 
 def test_stopword_list_route_carries_the_axis(client: TestClient, mocker):
-    from memoria_curitibana.domains.archive.models.enums import StopwordsScope
-    from memoria_curitibana.domains.archive.schemas.tag_schema import StopwordDTO
+    from scrinalia.domains.archive.models.enums import StopwordsScope
+    from scrinalia.domains.archive.schemas.tag_schema import StopwordDTO
 
     mocked = mocker.patch.object(TagService, "list_stopwords")
     mocked.return_value = [StopwordDTO(word="pessoas", scope=StopwordsScope.TAG)]
@@ -654,7 +654,7 @@ def test_stopword_list_route_carries_the_axis(client: TestClient, mocker):
 
 
 def test_stopword_list_route_filters_by_scope(client: TestClient, mocker):
-    from memoria_curitibana.domains.archive.models.enums import StopwordsScope
+    from scrinalia.domains.archive.models.enums import StopwordsScope
 
     mocked = mocker.patch.object(TagService, "list_stopwords", return_value=[])
 
@@ -690,7 +690,7 @@ def test_stopword_removal_route_un_bans(client: TestClient, mocker):
 
 
 def test_stopword_purge_preview_route_returns_the_impact(client: TestClient, mocker):
-    from memoria_curitibana.domains.archive.schemas.tag_schema import StopwordPurgePreview, StopwordPurgeTag
+    from scrinalia.domains.archive.schemas.tag_schema import StopwordPurgePreview, StopwordPurgeTag
 
     mocked = mocker.patch.object(TagService, "preview_stopword_purge")
     mocked.return_value = StopwordPurgePreview(

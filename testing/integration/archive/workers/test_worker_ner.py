@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 from sqlalchemy import select
 
-from memoria_curitibana.domains.archive.models import (
+from scrinalia.domains.archive.models import (
     ArchiveDocument,
     ArchiveDocumentEntity,
     ArchiveEntity,
@@ -11,13 +11,13 @@ from memoria_curitibana.domains.archive.models import (
     DomainNerExclusion,
     DomainStopwords,
 )
-from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
-from memoria_curitibana.domains.archive.repository.entity_repo import EntityRepository
-from memoria_curitibana.domains.archive.schemas.entity_schema import ArchiveEntityDTO
-from memoria_curitibana.domains.archive.workers.worker_ner import execute, load_entity_blacklist
+from scrinalia.domains.archive.repository.document_repo import DocumentRepository
+from scrinalia.domains.archive.repository.entity_repo import EntityRepository
+from scrinalia.domains.archive.schemas.entity_schema import ArchiveEntityDTO
+from scrinalia.domains.archive.workers.worker_ner import execute, load_entity_blacklist
 
 
-@patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
+@patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
 def test_worker_ner_integration_skips_human_approved(
     mock_get_engine,
     db_session,
@@ -40,7 +40,7 @@ def test_worker_ner_integration_skips_human_approved(
     assert approved.execution_log is None or "worker_ner_v2" not in approved.execution_log
 
 
-@patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
+@patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
 def test_worker_ner_integration_real_database(
     mock_get_engine,
     db_session,  # Your injected PostgreSQL session!
@@ -95,7 +95,7 @@ def test_worker_ner_integration_real_database(
     assert len(links) == 2
 
 
-@patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
+@patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
 def test_worker_ner_integration_ignores_already_processed_documents(mock_get_engine, db_session, generate_archive_doc):
     """Integration: Validates whether the SQLAlchemy WHERE query respects the JSONB negation in PostgreSQL."""
     # We insert a document into the real database that ALREADY HAS the stamp
@@ -112,7 +112,7 @@ def test_worker_ner_integration_ignores_already_processed_documents(mock_get_eng
     mock_get_engine.return_value.extract.assert_not_called()
 
 
-@patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
+@patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
 def test_worker_ner_integration_processes_multiple_batches(mock_get_engine, db_session, generate_archive_doc):
     """Integration: Validates whether the 'while True' advances correctly through the limit pages in the DB."""
     ner_engine_mock = mock_get_engine.return_value
@@ -145,7 +145,7 @@ def test_worker_ner_integration_processes_multiple_batches(mock_get_engine, db_s
     assert ner_engine_mock.extract.call_count == 2
 
 
-@patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
+@patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
 def test_worker_ner_integration_ignores_fully_null_rows(mock_get_engine, db_session, generate_archive_doc):
     """Integration: Validates the assembly of the dynamic or_() in SQLAlchemy. Docs without texts do not enter the queue."""
     # Document where the fields we asked to extract are explicitly None
@@ -193,7 +193,7 @@ def test_load_entity_blacklist_merges_stopwords_and_exclusions(use_test_db, db_s
     assert blacklist == {"lixo", "generico", "iptu"}
 
 
-@patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
+@patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
 def test_worker_ner_does_not_recreate_an_excluded_entity(mock_get_engine, db_session, generate_archive_doc):
     """THE NEGATIVE CYCLE, end to end.
 
@@ -234,7 +234,7 @@ def test_worker_ner_does_not_recreate_an_excluded_entity(mock_get_engine, db_ses
     assert db_session.get(ArchiveDocument, "doc_excluded").execution_log["worker_ner_v2"] == "DONE"
 
 
-@patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
+@patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
 def test_worker_ner_blocks_an_excluded_term_merged_into_a_longer_entity(
     mock_get_engine, db_session, generate_archive_doc
 ):
@@ -271,7 +271,7 @@ def test_worker_ner_blocks_an_excluded_term_merged_into_a_longer_entity(
     assert "iptuana" in stored_names
 
 
-@patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
+@patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
 def test_worker_ner_recreates_the_entity_after_the_exclusion_is_removed(
     mock_get_engine, db_session, generate_archive_doc
 ):
@@ -304,7 +304,7 @@ def test_worker_ner_recreates_the_entity_after_the_exclusion_is_removed(
 def test_excluded_entity_never_comes_back_through_a_synonym_rule(use_test_db, db_session):
     """The exclusion also closes the positive door: the EntityRuler must not receive
     a pattern for a vetoed spelling, otherwise spaCy would re-create it with ``ent_id_``."""
-    from memoria_curitibana.domains.archive.models import DomainSynonyms
+    from scrinalia.domains.archive.models import DomainSynonyms
 
     entity = ArchiveEntity(name="Iptu", entity_type="ORG")
     db_session.add(entity)
@@ -328,8 +328,8 @@ def test_purging_tag_stopwords_spares_the_winning_tag(use_test_db, db_session):
     ``TagRepository.get_stopwords`` used to read every scope, so an ENTITY-scoped ban
     on "iptu" made the subject-axis purge delete the tag the curator had just kept.
     """
-    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
-    from memoria_curitibana.domains.archive.services.tag_service import TagService
+    from scrinalia.domains.archive.repository.tag_repo import TagRepository
+    from scrinalia.domains.archive.services.tag_service import TagService
 
     tag = ArchiveTag(name="iptu")
     db_session.add(tag)
@@ -354,7 +354,7 @@ def test_purging_tag_stopwords_spares_the_winning_tag(use_test_db, db_session):
 
 def test_entity_scoped_stopword_is_still_honoured_by_the_purge_of_tags(use_test_db, db_session):
     """The scope filter must not break the legitimate TAG/ALL behaviour."""
-    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+    from scrinalia.domains.archive.repository.tag_repo import TagRepository
 
     db_session.add_all([ArchiveTag(name="lixo"), DomainStopwords(word="lixo", word_scope="ALL")])
     db_session.commit()
@@ -365,7 +365,7 @@ def test_entity_scoped_stopword_is_still_honoured_by_the_purge_of_tags(use_test_
 BLOCK = "Acervo de 35.327 fotografias que retratam a cidade de Curitiba no âmbito do Planejamento"
 
 
-@patch("memoria_curitibana.domains.archive.workers.worker_ner.get_engine")
+@patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
 def test_worker_ner_extracts_from_the_text_without_the_approved_excerpt(
     mock_get_engine,
     use_test_db,
@@ -373,8 +373,8 @@ def test_worker_ner_extracts_from_the_text_without_the_approved_excerpt(
     generate_archive_doc,
 ):
     """Fase 3.5-B: the boilerplate the archivist discarded stops feeding the extractor."""
-    from memoria_curitibana.domains.archive.repository.text_quality_repo import TextQualityRepository
-    from memoria_curitibana.domains.archive.schemas.text_quality_schema import TemplateCreateCommand
+    from scrinalia.domains.archive.repository.text_quality_repo import TextQualityRepository
+    from scrinalia.domains.archive.schemas.text_quality_schema import TemplateCreateCommand
 
     generate_archive_doc(description_id="doc_cut", original_title="Rua Izaac", scope_content=BLOCK)
     TextQualityRepository(db_session).create_template(TemplateCreateCommand(text=BLOCK))

@@ -2,17 +2,17 @@
 
 import pytest
 
-from memoria_curitibana.domains.archive.exceptions import (
+from scrinalia.domains.archive.exceptions import (
     DescriptionLevelNotFoundError,
     DuplicateDescriptionLevelError,
     InvalidDescriptionLevelError,
 )
-from memoria_curitibana.domains.archive.repository.level_catalog_repo import LevelCatalogRepository
-from memoria_curitibana.domains.archive.schemas.hierarchy_schema import (
+from scrinalia.domains.archive.repository.level_catalog_repo import LevelCatalogRepository
+from scrinalia.domains.archive.schemas.hierarchy_schema import (
     CreateDescriptionLevelCommand,
     UpdateDescriptionLevelCommand,
 )
-from memoria_curitibana.domains.archive.services.level_catalog_service import LevelCatalogService
+from scrinalia.domains.archive.services.level_catalog_service import LevelCatalogService
 
 
 def _service(db_session) -> LevelCatalogService:

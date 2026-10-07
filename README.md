@@ -1,4 +1,4 @@
-# Memória Curitibana
+# Scrinalia
 
 A system for archivists to catalogue and manage archival descriptions (ISAD(G) metadata),
 with AI-driven enrichment and Human-in-the-Loop governance.
@@ -15,7 +15,7 @@ documents are locked against further automatic rewrites.
 
 ## How it works
 
-Three layers, each one a domain under `src/memoria_curitibana/domains/`:
+Three layers, each one a domain under `src/scrinalia/domains/`:
 
 ```
 ingestion  ──►  staging  ──►  archive
@@ -165,7 +165,7 @@ the whole ISAD(G) snapshot in `archive_document_deletions`, which is a trail and
 Prefer the unified runner, which exposes every worker behind one interface:
 
 ```bash
-uv run python -m memoria_curitibana.domains.archive.workers.runner <name> \
+uv run python -m scrinalia.domains.archive.workers.runner <name> \
     [--engine X --preset Y --batch N --option key=value --by "who"]
 ```
 
@@ -208,7 +208,7 @@ docker compose -f docker-compose.test.yml up -d
 ## Project layout
 
 ```
-src/memoria_curitibana/   the application (installed package)
+src/scrinalia/   the application (installed package)
   api/                    Litestar controllers, request schemas, composition root
   core/                   settings, logging, database, unit of work
   domains/                ingestion, staging, archive (models/repository/services/workers)

@@ -10,7 +10,7 @@ two are told apart, and the assertions below are what stops the naive slicing fr
 
 import pytest
 
-from memoria_curitibana.domains.archive.domain.hierarchy_code import (
+from scrinalia.domains.archive.domain.hierarchy_code import (
     CodeFlag,
     is_structural_token,
     normalize_reference_code,

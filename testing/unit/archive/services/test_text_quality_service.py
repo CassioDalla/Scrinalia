@@ -4,15 +4,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from memoria_curitibana.domains.archive.exceptions import InvalidParam, TextTemplateNotFoundError
-from memoria_curitibana.domains.archive.schemas.text_quality_schema import (
+from scrinalia.domains.archive.exceptions import InvalidParam, TextTemplateNotFoundError
+from scrinalia.domains.archive.schemas.text_quality_schema import (
     TemplateCreateCommand,
     TemplateDryRunRequest,
     TemplateUpdateCommand,
     TextTemplateDTO,
 )
-from memoria_curitibana.domains.archive.services.text_quality_service import TextQualityService
-from memoria_curitibana.domains.archive.worker_stamp import QUALITY_VALIDATOR, TEXT_DEPENDENT_STAMPS
+from scrinalia.domains.archive.services.text_quality_service import TextQualityService
+from scrinalia.domains.archive.worker_stamp import QUALITY_VALIDATOR, TEXT_DEPENDENT_STAMPS
 
 BLOCK = (
     "Acervo de 35.327 fotografias que retratam a cidade de Curitiba no âmbito do Planejamento, "

@@ -2,8 +2,8 @@ services:
   db:
     build:
       context: ./docker/postgres
-    image: memoria-curitibana-postgres:15
-    container_name: memoria_curitibana_db
+    image: scrinalia-postgres:15
+    container_name: scrinalia_db
     restart: always
     environment:
       POSTGRES_USER: ${DB_USER:-admin}

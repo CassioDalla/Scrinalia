@@ -15,7 +15,7 @@ root, basedpyright through `include = [...]`. Streamlit additionally creates a s
 imports `dashboard.services.*`.
 
 This ADR also settles what the project *is*, because that determines how much packaging it
-needs: Memória Curitibana is **a system to be deployed and used**, in the spirit of AtoM, not a
+needs: Scrinalia is **a system to be deployed and used**, in the spirit of AtoM, not a
 library to be `pip install`ed by third parties. The code must be internally well-packaged, but
 there is no public distribution to design for.
 
@@ -27,7 +27,7 @@ The name `memoria` is taken on PyPI by an unrelated memory-management package
 1. **Adopt a `src/` layout with one internal namespace package:**
 
    ```
-   src/memoria_curitibana/
+   src/scrinalia/
      api/  core/  domains/  dashboard/
    ```
 
@@ -35,12 +35,12 @@ The name `memoria` is taken on PyPI by an unrelated memory-management package
    `uvicorn main:app` command, the `Procfile` and the CI are unaffected.
 
 2. **Do not publish to PyPI.** The distribution is built and installed locally as an editable
-   internal package; `memoria_curitibana` is an import namespace, not a public artifact. This
+   internal package; `scrinalia` is an import namespace, not a public artifact. This
    avoids the `memoria` collision entirely and sidesteps the naming question until the project
    actually has an institutional identity to publish under.
 
 3. **`testing/` and `scripts/` stay outside the package** (as `testing/`, `scripts/`), together
-   with `migrations/`. Tests import `memoria_curitibana.*` like any other consumer; that is what
+   with `migrations/`. Tests import `scrinalia.*` like any other consumer; that is what
    makes the packaging boundary real rather than cosmetic.
 
 4. **`dashboard/` stays inside the namespace for now.** It is scheduled for replacement by a
@@ -73,6 +73,9 @@ Costs, measured before committing to it:
 - **Publishing as `memoria-curitibana` with import `memoria`.** Rejected: the project is a
   system, not a library, so claiming a public name now buys nothing and commits us to the
   name before the project has an institutional identity.
+  *(This is the alternative as it was written at the time. The project was later renamed to
+  `scrinalia`; the old name is kept here, and only here, so the record of the decision stays
+  true — a rename is not a reason to rewrite what was decided.)*
 - **Monorepo (`apps/` + `packages/`) now.** Rejected: there is exactly one deployable Python
   application today; the structure would be ceremony. Revisit when the React front arrives.
 

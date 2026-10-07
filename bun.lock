@@ -3,10 +3,10 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "memoria-curitibana",
+      "name": "scrinalia",
     },
     "apps/curator": {
-      "name": "@memoria-curitibana/curator",
+      "name": "@scrinalia/curator",
       "version": "0.0.0",
       "dependencies": {
         "@tanstack/react-query": "^5.104.1",
@@ -113,7 +113,7 @@
 
     "@keyv/serialize": ["@keyv/serialize@1.1.1", "", {}, "sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA=="],
 
-    "@memoria-curitibana/curator": ["@memoria-curitibana/curator@workspace:apps/curator"],
+    "@scrinalia/curator": ["@scrinalia/curator@workspace:apps/curator"],
 
     "@oxc-project/types": ["@oxc-project/types@0.152.0", "", {}, "sha512-oM/5rLBm2tPkg0iBgkH/FOeR3PCDpY19GTgAZjMFM8h9WI9VW7cLgzp6nwtarYKmovavIQZ+Fe/RKX/8C8O/Rw=="],
 

@@ -1,8 +1,8 @@
 from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
-from memoria_curitibana.domains.archive.repository import EntityRepository
-from memoria_curitibana.domains.archive.schemas import ArchiveEntityDTO
+from scrinalia.domains.archive.repository import EntityRepository
+from scrinalia.domains.archive.schemas import ArchiveEntityDTO
 
 
 def test_get_or_create_entities_ignores_empty_list(mocker: MockerFixture) -> None:

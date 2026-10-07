@@ -1,4 +1,4 @@
-from memoria_curitibana.domains.archive.domain.tag_merge import (
+from scrinalia.domains.archive.domain.tag_merge import (
     REVIEW_MEMBER_WITH_DIGITS,
     cluster_fingerprint,
     has_digits,

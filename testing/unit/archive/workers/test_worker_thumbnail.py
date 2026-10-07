@@ -1,7 +1,7 @@
 from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
-from memoria_curitibana.domains.archive.workers import worker_thumbnail
+from scrinalia.domains.archive.workers import worker_thumbnail
 
 # ==========================================
 # 1. NETWORK AND MEMORY TESTS
@@ -75,7 +75,7 @@ def test_execute_worker_thumbnails_success(mocker: MockerFixture) -> None:
     # Mocks of external integrations (Network and MinIO)
     mocker.patch.object(worker_thumbnail, "download_image_to_memory", return_value=b"bytes")
 
-    mock_storage = mocker.patch("memoria_curitibana.domains.archive.workers.worker_thumbnail.S3Storage")
+    mock_storage = mocker.patch("scrinalia.domains.archive.workers.worker_thumbnail.S3Storage")
     mock_storage.return_value.upload_file.return_value = "s3://bucket/thumb_doc-1.jpg"
 
     # Prevents the sleep from slowing down the tests
@@ -107,7 +107,7 @@ def test_execute_worker_thumbnails_marks_failure_in_json(mocker: MockerFixture) 
 
     # Forces the download to fail
     mocker.patch.object(worker_thumbnail, "download_image_to_memory", return_value=None)
-    mock_flag = mocker.patch("memoria_curitibana.domains.archive.workers.worker_thumbnail.flag_modified")
+    mock_flag = mocker.patch("scrinalia.domains.archive.workers.worker_thumbnail.flag_modified")
     mocker.patch("time.sleep")
 
     worker_thumbnail.execute(mock_db)
@@ -136,7 +136,7 @@ def test_execute_worker_thumbnails_stamps_unexpected_exceptions(mocker: MockerFi
 
     # The download helper itself explodes (not returns None), forcing the outer except.
     mocker.patch.object(worker_thumbnail, "download_image_to_memory", side_effect=Exception("boom"))
-    mock_flag = mocker.patch("memoria_curitibana.domains.archive.workers.worker_thumbnail.flag_modified")
+    mock_flag = mocker.patch("scrinalia.domains.archive.workers.worker_thumbnail.flag_modified")
     mocker.patch("time.sleep")
 
     worker_thumbnail.execute(mock_db)
@@ -158,7 +158,7 @@ def test_execute_worker_uses_injected_storage_port(mocker: MockerFixture) -> Non
     mock_db.scalars.return_value.yield_per.return_value = [fake_doc]
 
     mocker.patch.object(worker_thumbnail, "download_image_to_memory", return_value=b"bytes")
-    mock_s3_cls = mocker.patch("memoria_curitibana.domains.archive.workers.worker_thumbnail.S3Storage")
+    mock_s3_cls = mocker.patch("scrinalia.domains.archive.workers.worker_thumbnail.S3Storage")
     mocker.patch("time.sleep")
 
     fake_storage = mocker.Mock()

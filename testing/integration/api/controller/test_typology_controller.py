@@ -19,13 +19,13 @@ from litestar.status_codes import (
 )
 from litestar.testing import TestClient
 
-from memoria_curitibana.asgi import create_app
-from memoria_curitibana.domains.archive.exceptions import (
+from scrinalia.asgi import create_app
+from scrinalia.domains.archive.exceptions import (
     DuplicateTypologyError,
     TypologyNotFoundError,
 )
-from memoria_curitibana.domains.archive.schemas.typology_schema import TypologyDTO
-from memoria_curitibana.domains.archive.services.typology_service import TypologyService
+from scrinalia.domains.archive.schemas.typology_schema import TypologyDTO
+from scrinalia.domains.archive.services.typology_service import TypologyService
 
 
 @pytest.fixture

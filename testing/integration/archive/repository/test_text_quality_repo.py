@@ -5,9 +5,9 @@ from datetime import date
 import pytest
 from sqlalchemy import select
 
-from memoria_curitibana.domains.archive.domain.text_quality import SuggestionCandidate, normalize_excerpt
-from memoria_curitibana.domains.archive.models import ArchiveDocument, DomainTextTemplate
-from memoria_curitibana.domains.archive.repository.text_quality_repo import (
+from scrinalia.domains.archive.domain.text_quality import SuggestionCandidate, normalize_excerpt
+from scrinalia.domains.archive.models import ArchiveDocument, DomainTextTemplate
+from scrinalia.domains.archive.repository.text_quality_repo import (
     ExcerptRule,
     TextQualityRepository,
     effective_column_sql,
@@ -16,7 +16,7 @@ from memoria_curitibana.domains.archive.repository.text_quality_repo import (
     embedding_text_sql,
     normalized_column_sql,
 )
-from memoria_curitibana.domains.archive.schemas.text_quality_schema import (
+from scrinalia.domains.archive.schemas.text_quality_schema import (
     TemplateCreateCommand,
     TemplateUpdateCommand,
 )

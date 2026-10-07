@@ -4,11 +4,11 @@ from datetime import date
 
 from sqlalchemy import select
 
-from memoria_curitibana.domains.archive.models import ArchiveDocument
-from memoria_curitibana.domains.archive.workers.worker_archive_transfer import execute as run_transfer
-from memoria_curitibana.domains.ingestion.models import RawData
-from memoria_curitibana.domains.staging.models import StagingDocument
-from memoria_curitibana.domains.staging.worker import run_staging_pipeline
+from scrinalia.domains.archive.models import ArchiveDocument
+from scrinalia.domains.archive.workers.worker_archive_transfer import execute as run_transfer
+from scrinalia.domains.ingestion.models import RawData
+from scrinalia.domains.staging.models import StagingDocument
+from scrinalia.domains.staging.worker import run_staging_pipeline
 
 
 def _raw(description_id: str = "date-1", raw_date: str = "Década de 1980", content_hash: str = "raw-hash-1") -> RawData:
@@ -93,7 +93,7 @@ def test_a_parser_change_reaches_the_archive(db_session) -> None:
 
 
 def test_the_transfer_does_not_touch_a_human_approved_document(db_session) -> None:
-    from memoria_curitibana.domains.archive.models import ArchiveReviewStatus
+    from scrinalia.domains.archive.models import ArchiveReviewStatus
 
     db_session.add(_raw(description_id="date-10", raw_date="00/00/0000"))
     db_session.flush()
@@ -155,7 +155,7 @@ def test_declaring_the_field_moves_the_cdc_key(db_session) -> None:
     without the field, so the next transfer has to re-read the collection for the value to arrive.
     The test states it so nobody "optimises" it away as a redundant re-sync.
     """
-    from memoria_curitibana.domains.archive.ports.staging_source import StagingRecord
+    from scrinalia.domains.archive.ports.staging_source import StagingRecord
 
     db_session.add(_raw(description_id="access-2"))
     db_session.flush()

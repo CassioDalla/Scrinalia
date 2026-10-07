@@ -23,15 +23,15 @@ from litestar.status_codes import (
 )
 from litestar.testing import TestClient
 
-from memoria_curitibana.api.controllers.hierarchy_controller import DiagnosticIssue, PlanStatusFilter
-from memoria_curitibana.asgi import create_app
-from memoria_curitibana.domains.archive.domain.hierarchy import (
+from scrinalia.api.controllers.hierarchy_controller import DiagnosticIssue, PlanStatusFilter
+from scrinalia.asgi import create_app
+from scrinalia.domains.archive.domain.hierarchy import (
     HierarchyIssue,
     HierarchyViolation,
     PlanStatus,
     ProposalFlag,
 )
-from memoria_curitibana.domains.archive.exceptions import (
+from scrinalia.domains.archive.exceptions import (
     DescriptionLevelNotFoundError,
     DuplicateDescriptionLevelError,
     HierarchyNodeNotFoundError,
@@ -41,8 +41,8 @@ from memoria_curitibana.domains.archive.exceptions import (
     MaterialisationAlreadyUndoneError,
     MaterialisationNotFoundError,
 )
-from memoria_curitibana.domains.archive.models import ArchiveDocument
-from memoria_curitibana.domains.archive.schemas.hierarchy_schema import (
+from scrinalia.domains.archive.models import ArchiveDocument
+from scrinalia.domains.archive.schemas.hierarchy_schema import (
     DescriptionLevelDTO,
     HierarchyMaterialisationLogListResponse,
     HierarchyMaterialisationPreview,
@@ -54,12 +54,12 @@ from memoria_curitibana.domains.archive.schemas.hierarchy_schema import (
     HierarchyProposalResponse,
     HierarchyTreeResponse,
 )
-from memoria_curitibana.domains.archive.services.hierarchy_materialisation_service import (
+from scrinalia.domains.archive.services.hierarchy_materialisation_service import (
     HierarchyMaterialisationService,
 )
-from memoria_curitibana.domains.archive.services.hierarchy_proposal_service import HierarchyProposalService
-from memoria_curitibana.domains.archive.services.hierarchy_service import DIAGNOSTIC_ISSUES, HierarchyService
-from memoria_curitibana.domains.archive.services.level_catalog_service import LevelCatalogService
+from scrinalia.domains.archive.services.hierarchy_proposal_service import HierarchyProposalService
+from scrinalia.domains.archive.services.hierarchy_service import DIAGNOSTIC_ISSUES, HierarchyService
+from scrinalia.domains.archive.services.level_catalog_service import LevelCatalogService
 
 
 @pytest.fixture
@@ -190,7 +190,7 @@ class TestMoves:
 
 class TestDiagnostics:
     def test_the_issue_reaches_the_service(self, client: TestClient, mocker):
-        from memoria_curitibana.domains.archive.schemas.hierarchy_schema import HierarchyDiagnosticListResponse
+        from scrinalia.domains.archive.schemas.hierarchy_schema import HierarchyDiagnosticListResponse
 
         mocked = mocker.patch.object(
             HierarchyService,
@@ -209,7 +209,7 @@ class TestDiagnostics:
 
     def test_the_summary_is_served_without_a_page(self, client: TestClient, mocker):
         """The section counts come from the service in one request, not from five pages."""
-        from memoria_curitibana.domains.archive.schemas.hierarchy_schema import HierarchyDiagnosticSummary
+        from scrinalia.domains.archive.schemas.hierarchy_schema import HierarchyDiagnosticSummary
 
         mocked = mocker.patch.object(
             HierarchyService,
@@ -294,7 +294,7 @@ class TestProposalRoute:
         Pinning the union here means a vocabulary added to the proposal and forgotten in the route
         fails the suite instead of reaching the archivist as an untranslated string.
         """
-        from memoria_curitibana.domains.archive.domain.hierarchy_code import CodeFlag
+        from scrinalia.domains.archive.domain.hierarchy_code import CodeFlag
 
         body = client.get("/api/v1/hierarchy/flags").json()
         assert set(body["plan_flags"]) == (

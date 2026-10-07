@@ -3,13 +3,13 @@ from unittest.mock import Mock
 
 import pytest
 
-from memoria_curitibana.domains.archive.exceptions import DocumentNotFoundError
-from memoria_curitibana.domains.archive.models import ArchiveReviewStatus
-from memoria_curitibana.domains.archive.repository import DocumentRepository
-from memoria_curitibana.domains.archive.schemas.command_schema import DocumentReviewCommand
-from memoria_curitibana.domains.archive.schemas.document_schema import DocumentFacets, DocumentListResponse
-from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
-from memoria_curitibana.domains.archive.services.document_service import DocumentService
+from scrinalia.domains.archive.exceptions import DocumentNotFoundError
+from scrinalia.domains.archive.models import ArchiveReviewStatus
+from scrinalia.domains.archive.repository import DocumentRepository
+from scrinalia.domains.archive.schemas.command_schema import DocumentReviewCommand
+from scrinalia.domains.archive.schemas.document_schema import DocumentFacets, DocumentListResponse
+from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery
+from scrinalia.domains.archive.services.document_service import DocumentService
 
 
 def _fake_doc(description_id: str = "doc-1", **overrides) -> SimpleNamespace:

@@ -4,14 +4,14 @@ from contextlib import contextmanager
 
 import pytest
 
-from memoria_curitibana.domains.archive.exceptions import WorkerRunAlreadyActiveError
-from memoria_curitibana.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
-from memoria_curitibana.domains.archive.repository.worker_run_repo import WorkerRunRepository
-from memoria_curitibana.domains.archive.repository.worker_settings_repo import WorkerSettingsRepository
-from memoria_curitibana.domains.archive.schemas.system_schema import WorkerRunRequest
-from memoria_curitibana.domains.archive.services.worker_run_service import WorkerRunService
-from memoria_curitibana.domains.archive.workers import runner
-from memoria_curitibana.domains.archive.workers.ledger import WorkerRunLedger
+from scrinalia.domains.archive.exceptions import WorkerRunAlreadyActiveError
+from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
+from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
+from scrinalia.domains.archive.repository.worker_settings_repo import WorkerSettingsRepository
+from scrinalia.domains.archive.schemas.system_schema import WorkerRunRequest
+from scrinalia.domains.archive.services.worker_run_service import WorkerRunService
+from scrinalia.domains.archive.workers import runner
+from scrinalia.domains.archive.workers.ledger import WorkerRunLedger
 
 
 @contextmanager

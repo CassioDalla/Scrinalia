@@ -8,16 +8,16 @@ import pytest
 from litestar.status_codes import HTTP_200_OK, HTTP_404_NOT_FOUND
 from litestar.testing import TestClient
 
-from memoria_curitibana.asgi import create_app
-from memoria_curitibana.domains.archive.exceptions import DocumentNotFoundError
-from memoria_curitibana.domains.archive.models import ArchiveReviewStatus
-from memoria_curitibana.domains.archive.schemas.document_schema import (
+from scrinalia.asgi import create_app
+from scrinalia.domains.archive.exceptions import DocumentNotFoundError
+from scrinalia.domains.archive.models import ArchiveReviewStatus
+from scrinalia.domains.archive.schemas.document_schema import (
     DocumentListResponse,
     DocumentMacroCategorySummary,
     DocumentSummary,
     DocumentTagSummary,
 )
-from memoria_curitibana.domains.archive.services.document_service import DocumentService
+from scrinalia.domains.archive.services.document_service import DocumentService
 
 
 @pytest.fixture

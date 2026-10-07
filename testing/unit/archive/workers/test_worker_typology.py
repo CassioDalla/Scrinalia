@@ -1,7 +1,7 @@
 from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
-from memoria_curitibana.domains.archive.workers import worker_typology
+from scrinalia.domains.archive.workers import worker_typology
 
 
 class MockArchiveDocument:
@@ -24,13 +24,13 @@ def test_worker_typology_unit_ideal_flow(mocker: MockerFixture) -> None:
     """Good Scenario: The composed text is classified and the document is updated."""
     mock_db = mocker.Mock(spec=Session)
     mocker.patch(
-        "memoria_curitibana.domains.archive.workers.worker_typology.TextQualityRepository"
+        "scrinalia.domains.archive.workers.worker_typology.TextQualityRepository"
     ).return_value.get_active_rules.return_value = []
 
     # 1. Mocks of the External Classes/Functions in the Worker scope
-    mock_repo_class = mocker.patch("memoria_curitibana.domains.archive.workers.worker_typology.TypologyRepository")
-    mock_get_engine = mocker.patch("memoria_curitibana.domains.archive.workers.worker_typology.get_engine")
-    mock_flag_modified = mocker.patch("memoria_curitibana.domains.archive.workers.worker_typology.flag_modified")
+    mock_repo_class = mocker.patch("scrinalia.domains.archive.workers.worker_typology.TypologyRepository")
+    mock_get_engine = mocker.patch("scrinalia.domains.archive.workers.worker_typology.get_engine")
+    mock_flag_modified = mocker.patch("scrinalia.domains.archive.workers.worker_typology.flag_modified")
 
     # 2. Return Configurations (Faking the DB and the AI)
     mock_repo = mock_repo_class.return_value
@@ -70,12 +70,12 @@ def test_worker_typology_ignores_empty_texts(mocker: MockerFixture) -> None:
     """Edge Scenario: Documents with no useful text must be skipped by the AI, but stamped in the DB."""
     mock_db = mocker.Mock(spec=Session)
     mocker.patch(
-        "memoria_curitibana.domains.archive.workers.worker_typology.TextQualityRepository"
+        "scrinalia.domains.archive.workers.worker_typology.TextQualityRepository"
     ).return_value.get_active_rules.return_value = []
 
-    mocker.patch("memoria_curitibana.domains.archive.workers.worker_typology.TypologyRepository")
-    mock_get_engine = mocker.patch("memoria_curitibana.domains.archive.workers.worker_typology.get_engine")
-    mock_flag_modified = mocker.patch("memoria_curitibana.domains.archive.workers.worker_typology.flag_modified")
+    mocker.patch("scrinalia.domains.archive.workers.worker_typology.TypologyRepository")
+    mock_get_engine = mocker.patch("scrinalia.domains.archive.workers.worker_typology.get_engine")
+    mock_flag_modified = mocker.patch("scrinalia.domains.archive.workers.worker_typology.flag_modified")
 
     # Document where everything is empty
     empty_doc = MockArchiveDocument("doc-2", "   ", None)
@@ -95,11 +95,11 @@ def test_worker_typology_ai_failure_rolls_back(mocker: MockerFixture) -> None:
     """Bad Scenario: If the Zero-Shot engine throws a memory error, the transaction aborts and rolls back."""
     mock_db = mocker.Mock(spec=Session)
     mocker.patch(
-        "memoria_curitibana.domains.archive.workers.worker_typology.TextQualityRepository"
+        "scrinalia.domains.archive.workers.worker_typology.TextQualityRepository"
     ).return_value.get_active_rules.return_value = []
 
-    mocker.patch("memoria_curitibana.domains.archive.workers.worker_typology.TypologyRepository")
-    mock_get_engine = mocker.patch("memoria_curitibana.domains.archive.workers.worker_typology.get_engine")
+    mocker.patch("scrinalia.domains.archive.workers.worker_typology.TypologyRepository")
+    mock_get_engine = mocker.patch("scrinalia.domains.archive.workers.worker_typology.get_engine")
 
     test_doc = MockArchiveDocument("doc-3", "Texto super complexo", "Muitas palavras")
     mock_db.execute.return_value.all.side_effect = [[(test_doc, "Texto super complexo. Muitas palavras")], []]

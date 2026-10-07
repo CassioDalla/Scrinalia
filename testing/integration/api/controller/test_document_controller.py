@@ -11,10 +11,10 @@ import pytest
 from litestar.status_codes import HTTP_200_OK, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
 from litestar.testing import TestClient
 
-from memoria_curitibana.asgi import create_app
-from memoria_curitibana.domains.archive.exceptions import DocumentHasChildrenError, DocumentNotFoundError
-from memoria_curitibana.domains.archive.models import ArchiveReviewStatus
-from memoria_curitibana.domains.archive.schemas.document_schema import (
+from scrinalia.asgi import create_app
+from scrinalia.domains.archive.exceptions import DocumentHasChildrenError, DocumentNotFoundError
+from scrinalia.domains.archive.models import ArchiveReviewStatus
+from scrinalia.domains.archive.schemas.document_schema import (
     DocumentDeletionDTO,
     DocumentDeletionListResponse,
     DocumentEntitySummary,
@@ -22,7 +22,7 @@ from memoria_curitibana.domains.archive.schemas.document_schema import (
     DocumentSummary,
     DocumentTagSummary,
 )
-from memoria_curitibana.domains.archive.services.document_service import DocumentService
+from scrinalia.domains.archive.services.document_service import DocumentService
 
 
 @pytest.fixture
@@ -245,7 +245,7 @@ def test_patch_rejects_an_unknown_field(client: TestClient, mocker):
 def test_list_revisions_serialises_the_trail(client: TestClient, mocker):
     from datetime import UTC, datetime
 
-    from memoria_curitibana.domains.archive.schemas.document_schema import DocumentRevisionDTO
+    from scrinalia.domains.archive.schemas.document_schema import DocumentRevisionDTO
 
     mocked = mocker.patch.object(DocumentService, "list_revisions")
     mocked.return_value = [

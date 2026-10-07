@@ -1,8 +1,8 @@
 from unittest.mock import patch
 
-from memoria_curitibana.domains.archive.engines.classification import registry as typology_registry
-from memoria_curitibana.domains.archive.models import ArchiveDocument, ArchiveReviewStatus
-from memoria_curitibana.domains.archive.workers.worker_typology import execute
+from scrinalia.domains.archive.engines.classification import registry as typology_registry
+from scrinalia.domains.archive.models import ArchiveDocument, ArchiveReviewStatus
+from scrinalia.domains.archive.workers.worker_typology import execute
 
 
 def test_worker_typology_integration_skips_human_approved(
@@ -246,8 +246,8 @@ def test_worker_typology_classifies_the_text_without_the_approved_excerpt(
     mock_registry,
 ):
     """Fase 3.5-B: the shared boilerplate is what pulled every document to the same label."""
-    from memoria_curitibana.domains.archive.repository.text_quality_repo import TextQualityRepository
-    from memoria_curitibana.domains.archive.schemas.text_quality_schema import TemplateCreateCommand
+    from scrinalia.domains.archive.repository.text_quality_repo import TextQualityRepository
+    from scrinalia.domains.archive.schemas.text_quality_schema import TemplateCreateCommand
 
     real_typology = generate_typology(id=97, name="dossiê")
     generate_archive_doc(description_id="typ_cut", original_title="Rua Izaac", scope_content=BLOCK)

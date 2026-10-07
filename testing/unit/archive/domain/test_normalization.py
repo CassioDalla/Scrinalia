@@ -1,4 +1,4 @@
-from memoria_curitibana.domains.archive.domain.normalization import (
+from scrinalia.domains.archive.domain.normalization import (
     is_blank,
     normalize_entity,
     normalize_stopword,
@@ -32,7 +32,7 @@ def test_is_blank() -> None:
 
 
 def test_singular_candidates_cover_the_regular_endings() -> None:
-    from memoria_curitibana.domains.archive.domain.normalization import singular_candidates
+    from scrinalia.domains.archive.domain.normalization import singular_candidates
 
     assert "livro" in singular_candidates("livros")
     assert "cidade" in singular_candidates("cidades")
@@ -49,13 +49,13 @@ def test_singular_candidates_are_hypotheses_validated_by_the_catalog() -> None:
     candidate only becomes a merge suggestion when it already exists as a tag, so an
     irregular word is simply never matched.
     """
-    from memoria_curitibana.domains.archive.domain.normalization import singular_candidates
+    from scrinalia.domains.archive.domain.normalization import singular_candidates
 
     assert "ônibus" not in singular_candidates("ônibus")
     assert all(candidate != "ônibus" for candidate in singular_candidates("ônibus"))
 
 
 def test_singular_candidates_of_a_word_without_s_is_empty() -> None:
-    from memoria_curitibana.domains.archive.domain.normalization import singular_candidates
+    from scrinalia.domains.archive.domain.normalization import singular_candidates
 
     assert singular_candidates("livro") == []

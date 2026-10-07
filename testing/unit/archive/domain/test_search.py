@@ -1,4 +1,4 @@
-from memoria_curitibana.domains.archive.domain.search import build_tsquery, tokenize
+from scrinalia.domains.archive.domain.search import build_tsquery, tokenize
 
 
 def test_tokenize_keeps_accents_and_digits() -> None:

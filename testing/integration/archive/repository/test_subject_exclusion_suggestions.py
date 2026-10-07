@@ -14,13 +14,13 @@ proposes nothing else.
 
 from sqlalchemy import select
 
-from memoria_curitibana.domains.archive.models import (
+from scrinalia.domains.archive.models import (
     ArchiveDocumentTag,
     ArchiveEntity,
     ArchiveTag,
     DomainSubjectExclusion,
 )
-from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+from scrinalia.domains.archive.repository.tag_repo import TagRepository
 
 
 def _tag_with_documents(db_session, name: str, documents: list[str]) -> ArchiveTag:

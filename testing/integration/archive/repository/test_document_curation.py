@@ -5,27 +5,27 @@ from datetime import date
 import pytest
 from sqlalchemy import select
 
-from memoria_curitibana.domains.archive.exceptions import EntityNotFoundError, TagNotFoundError
-from memoria_curitibana.domains.archive.models import (
+from scrinalia.domains.archive.exceptions import EntityNotFoundError, TagNotFoundError
+from scrinalia.domains.archive.models import (
     ArchiveDocument,
     ArchiveDocumentRevision,
     ArchiveEntity,
     ArchiveReviewStatus,
     ArchiveTag,
 )
-from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
-from memoria_curitibana.domains.archive.repository.text_quality_repo import (
+from scrinalia.domains.archive.repository.document_repo import DocumentRepository
+from scrinalia.domains.archive.repository.text_quality_repo import (
     TextQualityRepository,
     apply_excerpts_in_python,
     effective_column_sql,
 )
-from memoria_curitibana.domains.archive.schemas.command_schema import (
+from scrinalia.domains.archive.schemas.command_schema import (
     DocumentReviewCommand,
     EntityLinkCommand,
     TagLinkCommand,
 )
-from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
-from memoria_curitibana.domains.archive.schemas.text_quality_schema import TemplateCreateCommand, TemplateUpdateCommand
+from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery
+from scrinalia.domains.archive.schemas.text_quality_schema import TemplateCreateCommand, TemplateUpdateCommand
 
 
 def _title_template(db_session, text: str = "Registros Fotográficos -") -> None:

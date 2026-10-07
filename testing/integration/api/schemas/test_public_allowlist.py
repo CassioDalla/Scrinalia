@@ -9,14 +9,14 @@ from datetime import date
 
 import pytest
 
-from memoria_curitibana.api.schemas.public import (
+from scrinalia.api.schemas.public import (
     NOT_PUBLIC_FACETS,
     NOT_PUBLIC_FIELDS,
     PublicDocumentFacets,
     PublicDocumentSummary,
 )
-from memoria_curitibana.domains.archive.models import ArchiveReviewStatus
-from memoria_curitibana.domains.archive.schemas.document_schema import (
+from scrinalia.domains.archive.models import ArchiveReviewStatus
+from scrinalia.domains.archive.schemas.document_schema import (
     DocumentAncestorSummary,
     DocumentEntitySummary,
     DocumentFacets,

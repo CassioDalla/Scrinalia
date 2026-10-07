@@ -1,9 +1,9 @@
 from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
-from memoria_curitibana.domains.ingestion import repository, worker
-from memoria_curitibana.domains.ingestion.models import ScrapeStatus, ScrapingQueue
-from memoria_curitibana.domains.ingestion.ports import (
+from scrinalia.domains.ingestion import repository, worker
+from scrinalia.domains.ingestion.models import ScrapeStatus, ScrapingQueue
+from scrinalia.domains.ingestion.ports import (
     AdapterFatalError,
     AdapterNetworkError,
     AdapterNotFoundError,

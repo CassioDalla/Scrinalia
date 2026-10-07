@@ -9,10 +9,10 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import update
 
-from memoria_curitibana.domains.archive.models.enums import FailureSource, WorkerRunStatus, WorkerRunTrigger
-from memoria_curitibana.domains.archive.models.operations import ApiError, WorkerRun
-from memoria_curitibana.domains.archive.repository.worker_run_repo import WorkerRunRepository
-from memoria_curitibana.domains.archive.services.failure_service import FailureService
+from scrinalia.domains.archive.models.enums import FailureSource, WorkerRunStatus, WorkerRunTrigger
+from scrinalia.domains.archive.models.operations import ApiError, WorkerRun
+from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
+from scrinalia.domains.archive.services.failure_service import FailureService
 
 
 def failed_run(

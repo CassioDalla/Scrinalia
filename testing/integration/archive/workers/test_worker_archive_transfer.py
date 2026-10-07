@@ -1,9 +1,9 @@
 from sqlalchemy import select
 
-from memoria_curitibana.domains.archive.models import ArchiveDocument, ArchiveDocumentTag, ArchiveTag
-from memoria_curitibana.domains.archive.ports.staging_source import StagingRecord
-from memoria_curitibana.domains.archive.workers import worker_archive_transfer
-from memoria_curitibana.domains.staging.models import StagingDocument
+from scrinalia.domains.archive.models import ArchiveDocument, ArchiveDocumentTag, ArchiveTag
+from scrinalia.domains.archive.ports.staging_source import StagingRecord
+from scrinalia.domains.archive.workers import worker_archive_transfer
+from scrinalia.domains.staging.models import StagingDocument
 
 
 def test_integration_worker_etl_end_to_end(use_test_db, db_session):
@@ -31,7 +31,7 @@ def test_integration_worker_etl_end_to_end(use_test_db, db_session):
     db_session.add_all([doc1, doc2])
 
     # Let's take the opportunity to register 'Lixo' as a stopword to see the magic happen
-    from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+    from scrinalia.domains.archive.repository.tag_repo import TagRepository
 
     TagRepository(db_session).save_stopwords(["lixo"])
     db_session.commit()
@@ -108,7 +108,7 @@ def test_the_declared_parent_is_linked_and_the_path_follows(db_session, use_test
     This is the whole point of the ingestion contract: the tree stops being derived and starts being
     declared — when the origin declares it.
     """
-    from memoria_curitibana.domains.archive.worker_stamp import HIERARCHY_PARENT, HIERARCHY_PARENT_RESOLVED
+    from scrinalia.domains.archive.worker_stamp import HIERARCHY_PARENT, HIERARCHY_PARENT_RESOLVED
 
     db_session.add_all(
         [
@@ -145,7 +145,7 @@ def test_a_parent_that_has_not_arrived_does_not_fail_the_load(db_session, use_te
     The child enters as a root and **marked**, so the retry can find it instead of it silently
     becoming a permanent orphan.
     """
-    from memoria_curitibana.domains.archive.worker_stamp import HIERARCHY_PARENT, HIERARCHY_PARENT_PENDING
+    from scrinalia.domains.archive.worker_stamp import HIERARCHY_PARENT, HIERARCHY_PARENT_PENDING
 
     db_session.add(
         StagingDocument(
@@ -174,7 +174,7 @@ def test_the_late_parent_links_the_child_that_was_waiting(db_session, use_test_d
     The parent arrives in a **later** run — which the CDC guard would otherwise never re-process —
     and the retry pass at the end of that run links the child that was already waiting.
     """
-    from memoria_curitibana.domains.archive.worker_stamp import HIERARCHY_PARENT, HIERARCHY_PARENT_RESOLVED
+    from scrinalia.domains.archive.worker_stamp import HIERARCHY_PARENT, HIERARCHY_PARENT_RESOLVED
 
     db_session.add(
         StagingDocument(

@@ -37,11 +37,11 @@ today". That is no longer true.
      public/             diffusion site (Fase 4 / B7)
    packages/
      api-contract/       openapi.json + schema.d.ts, both committed
-   src/memoria_curitibana/   unchanged
+   src/scrinalia/   unchanged
    testing/ migrations/ docs/  unchanged
    ```
 
-   `apps/api` is deliberately **not** created yet. Moving `src/memoria_curitibana/api/` is
+   `apps/api` is deliberately **not** created yet. Moving `src/scrinalia/api/` is
    cosmetic, and mixing it with the arrival of the UI multiplies the diff for no functional gain.
    It stays a separate, later, movement-only commit.
 
@@ -128,7 +128,7 @@ Negative, accepted:
 
 ## Revisit trigger
 
-- Reconsider the separate `apps/api` when `src/memoria_curitibana/api/` needs its own deploy cycle,
+- Reconsider the separate `apps/api` when `src/scrinalia/api/` needs its own deploy cycle,
   or when the public surface justifies an independent service.
 - Reconsider SSR for `apps/public` if the diffusion site is expected to be crawled and the SPA's
   first paint is measured as a problem.

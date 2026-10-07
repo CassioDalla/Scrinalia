@@ -10,19 +10,19 @@ broken row.
 import pytest
 from sqlalchemy import select, text
 
-from memoria_curitibana.domains.archive.domain.hierarchy import HierarchyIssue
-from memoria_curitibana.domains.archive.exceptions import (
+from scrinalia.domains.archive.domain.hierarchy import HierarchyIssue
+from scrinalia.domains.archive.exceptions import (
     HierarchyNodeNotFoundError,
     InvalidHierarchyMoveError,
 )
-from memoria_curitibana.domains.archive.models import ArchiveDocument, ArchiveDocumentRevision
-from memoria_curitibana.domains.archive.repository.hierarchy_repo import HierarchyRepository
-from memoria_curitibana.domains.archive.repository.level_catalog_repo import LevelCatalogRepository
-from memoria_curitibana.domains.archive.schemas.hierarchy_schema import (
+from scrinalia.domains.archive.models import ArchiveDocument, ArchiveDocumentRevision
+from scrinalia.domains.archive.repository.hierarchy_repo import HierarchyRepository
+from scrinalia.domains.archive.repository.level_catalog_repo import LevelCatalogRepository
+from scrinalia.domains.archive.schemas.hierarchy_schema import (
     CreateHierarchyNodeCommand,
     MoveNodeCommand,
 )
-from memoria_curitibana.domains.archive.services.hierarchy_service import DIAGNOSTIC_ISSUES, HierarchyService
+from scrinalia.domains.archive.services.hierarchy_service import DIAGNOSTIC_ISSUES, HierarchyService
 
 
 @pytest.fixture

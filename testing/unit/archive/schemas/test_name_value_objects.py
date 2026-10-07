@@ -1,6 +1,6 @@
-from memoria_curitibana.domains.archive.schemas.command_schema import SynonymCommand
-from memoria_curitibana.domains.archive.schemas.entity_schema import ArchiveEntityDTO
-from memoria_curitibana.domains.archive.schemas.tag_schema import ArchiveTagDTO
+from scrinalia.domains.archive.schemas.command_schema import SynonymCommand
+from scrinalia.domains.archive.schemas.entity_schema import ArchiveEntityDTO
+from scrinalia.domains.archive.schemas.tag_schema import ArchiveTagDTO
 
 
 def test_tag_name_is_normalized_on_construction() -> None:

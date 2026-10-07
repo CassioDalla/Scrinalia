@@ -9,16 +9,16 @@ from unittest.mock import MagicMock
 
 from sqlalchemy import select
 
-from memoria_curitibana.domains.archive.engines.LLMs import registry as llm_registry
-from memoria_curitibana.domains.archive.models import ArchiveReviewStatus
-from memoria_curitibana.domains.archive.models.governance import AnomalyType, ArchiveAIReviewQueue
-from memoria_curitibana.domains.archive.repository.entity_repo import EntityRepository
-from memoria_curitibana.domains.archive.schemas.ai_schemas import EntityTagDecisionSchema
+from scrinalia.domains.archive.engines.LLMs import registry as llm_registry
+from scrinalia.domains.archive.models import ArchiveReviewStatus
+from scrinalia.domains.archive.models.governance import AnomalyType, ArchiveAIReviewQueue
+from scrinalia.domains.archive.repository.entity_repo import EntityRepository
+from scrinalia.domains.archive.schemas.ai_schemas import EntityTagDecisionSchema
 
 # The repository is what talks to Postgres; the conflicts it returns are faked so the
 # test exercises the worker's decisions, not pg_trgm.
-from memoria_curitibana.domains.archive.schemas.entity_schema import CrossDomainConflict
-from memoria_curitibana.domains.archive.workers import worker_resolve_tag_entity_conflict as worker
+from scrinalia.domains.archive.schemas.entity_schema import CrossDomainConflict
+from scrinalia.domains.archive.workers import worker_resolve_tag_entity_conflict as worker
 
 
 def _conflict(tag_id: int = 1, entity_id: int = 10) -> CrossDomainConflict:

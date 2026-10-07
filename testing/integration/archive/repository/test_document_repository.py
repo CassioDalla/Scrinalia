@@ -3,7 +3,7 @@ from datetime import date
 import pytest
 from sqlalchemy import select
 
-from memoria_curitibana.domains.archive.models import (
+from scrinalia.domains.archive.models import (
     ArchiveDocument,
     ArchiveDocumentEntity,
     ArchiveDocumentTag,
@@ -14,9 +14,9 @@ from memoria_curitibana.domains.archive.models import (
     ArchiveTypology,
     DomainSynonyms,
 )
-from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
-from memoria_curitibana.domains.archive.schemas.command_schema import DocumentReviewCommand
-from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
+from scrinalia.domains.archive.repository.document_repo import DocumentRepository
+from scrinalia.domains.archive.schemas.command_schema import DocumentReviewCommand
+from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery
 
 # ==========================================
 # UPSERT AND DATA PIPELINE (ETL) TESTS
@@ -645,7 +645,7 @@ def test_search_inside_a_branch_returns_the_whole_subtree(db_session, generate_a
     It is one indexed prefix match on the materialised path, so it costs the same for a branch with
     two descendants and for one with three thousand — which is the reason the path exists.
     """
-    from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
+    from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery
 
     level = generate_description_level(ordinal=3, code="serie", name="Série")
     generate_archive_doc(description_id="fundo", original_title="Fundo", path="fundo")
@@ -668,7 +668,7 @@ def test_search_inside_a_branch_returns_the_whole_subtree(db_session, generate_a
 
 
 def test_search_by_level_is_a_real_facet(db_session, generate_archive_doc, generate_description_level):
-    from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
+    from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery
 
     item = generate_description_level(ordinal=5, code="item", name="Item Documental")
     serie = generate_description_level(ordinal=3, code="serie", name="Série")
@@ -689,15 +689,15 @@ def test_a_branch_that_does_not_exist_is_a_not_found_not_an_empty_page(db_sessio
     Answering "nothing here" for a typo would be a wrong statement about the collection: an empty
     fonds and a misspelled id are different things.
     """
-    from memoria_curitibana.domains.archive.exceptions import HierarchyNodeNotFoundError
-    from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
+    from scrinalia.domains.archive.exceptions import HierarchyNodeNotFoundError
+    from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery
 
     with pytest.raises(HierarchyNodeNotFoundError):
         DocumentRepository(db_session).search(DocumentSearchQuery(ancestor_id="nao-existe", limit=10))
 
 
 def test_the_hierarchical_facets_combine_with_the_others(db_session, generate_archive_doc, generate_description_level):
-    from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
+    from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery
 
     item = generate_description_level(ordinal=5, code="item", name="Item Documental")
     generate_archive_doc(description_id="fundo", original_title="Fundo", path="fundo")
@@ -737,7 +737,7 @@ def test_a_page_carries_the_branch_and_the_children_count(db_session, generate_a
     Both come from data the tree already maintains: the ancestors out of the materialised path, the
     count out of a grouped count on the self-reference.
     """
-    from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
+    from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery
 
     serie = generate_description_level(ordinal=3, code="serie", name="Série")
     generate_archive_doc(description_id="acervo", original_title="Acervo", path="acervo")

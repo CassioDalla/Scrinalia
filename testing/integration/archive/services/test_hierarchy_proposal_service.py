@@ -9,12 +9,12 @@ proposal, and the proposal has no side effect to review.
 
 from sqlalchemy import func, select, text
 
-from memoria_curitibana.domains.archive.domain.hierarchy import HierarchyIssue, ProposalFlag
-from memoria_curitibana.domains.archive.models import ArchiveDocument
-from memoria_curitibana.domains.archive.repository.hierarchy_repo import HierarchyRepository
-from memoria_curitibana.domains.archive.repository.level_catalog_repo import LevelCatalogRepository
-from memoria_curitibana.domains.archive.schemas.hierarchy_schema import HierarchyProposalCommand
-from memoria_curitibana.domains.archive.services.hierarchy_proposal_service import HierarchyProposalService
+from scrinalia.domains.archive.domain.hierarchy import HierarchyIssue, ProposalFlag
+from scrinalia.domains.archive.models import ArchiveDocument
+from scrinalia.domains.archive.repository.hierarchy_repo import HierarchyRepository
+from scrinalia.domains.archive.repository.level_catalog_repo import LevelCatalogRepository
+from scrinalia.domains.archive.schemas.hierarchy_schema import HierarchyProposalCommand
+from scrinalia.domains.archive.services.hierarchy_proposal_service import HierarchyProposalService
 
 
 def _service(db_session) -> HierarchyProposalService:

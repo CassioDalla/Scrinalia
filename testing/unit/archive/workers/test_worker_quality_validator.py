@@ -3,9 +3,9 @@
 from datetime import date
 from types import SimpleNamespace
 
-from memoria_curitibana.domains.archive.models import AnomalyReason
-from memoria_curitibana.domains.archive.schemas.ai_schemas import TitleQualityDecision
-from memoria_curitibana.domains.archive.workers.worker_quality_validator import evaluate_document
+from scrinalia.domains.archive.models import AnomalyReason
+from scrinalia.domains.archive.schemas.ai_schemas import TitleQualityDecision
+from scrinalia.domains.archive.workers.worker_quality_validator import evaluate_document
 
 TODAY = date(2026, 10, 4)
 
@@ -92,7 +92,7 @@ def test_pipeline_gaps_are_reported() -> None:
 def test_a_registered_validate_rule_is_applied() -> None:
     import re
 
-    from memoria_curitibana.domains.archive.schemas.cleaning_schema import CleaningRuleDTO
+    from scrinalia.domains.archive.schemas.cleaning_schema import CleaningRuleDTO
 
     rule = CleaningRuleDTO(
         rule_id=7,
@@ -115,7 +115,7 @@ def test_a_registered_validate_rule_is_applied() -> None:
 def test_a_rule_reason_falls_back_to_the_rule_name() -> None:
     import re
 
-    from memoria_curitibana.domains.archive.schemas.cleaning_schema import CleaningRuleDTO
+    from scrinalia.domains.archive.schemas.cleaning_schema import CleaningRuleDTO
 
     rule = CleaningRuleDTO(
         rule_id=8,

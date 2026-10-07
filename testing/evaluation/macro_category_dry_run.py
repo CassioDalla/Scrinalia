@@ -27,17 +27,17 @@ from pathlib import Path
 
 from sqlalchemy import func, select
 
-from memoria_curitibana.core.database import get_db
-from memoria_curitibana.core.logger import logger
-from memoria_curitibana.core.runner_config import MacroCategoryRunnerConfig
-from memoria_curitibana.domains.archive.domain.normalization import normalize_tag
-from memoria_curitibana.domains.archive.domain.vocabulary import (
+from scrinalia.core.database import get_db
+from scrinalia.core.logger import logger
+from scrinalia.core.runner_config import MacroCategoryRunnerConfig
+from scrinalia.domains.archive.domain.normalization import normalize_tag
+from scrinalia.domains.archive.domain.vocabulary import (
     is_place_term,
     is_subject_candidate,
     label_set_fingerprint,
 )
-from memoria_curitibana.domains.archive.models import ArchiveTag
-from memoria_curitibana.domains.archive.repository import TagRepository
+from scrinalia.domains.archive.models import ArchiveTag
+from scrinalia.domains.archive.repository import TagRepository
 
 DEFAULT_OUTPUT = Path(".analysis") / "macro_category_dry_run.json"
 
@@ -55,7 +55,7 @@ def _bucket(name: str, excluded: set[str]) -> str:
 
 def build_report(limit: int | None, device: str) -> dict:
     """Reads the collection and projects the outcome. Writes nothing, rollback at the end."""
-    from memoria_curitibana.domains.archive.engines.classification.registry import get_engine
+    from scrinalia.domains.archive.engines.classification.registry import get_engine
 
     config = MacroCategoryRunnerConfig()
 

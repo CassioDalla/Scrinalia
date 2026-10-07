@@ -15,8 +15,8 @@ from datetime import date
 import pytest
 from sqlalchemy import func, select
 
-from memoria_curitibana.domains.archive.exceptions import DocumentHasChildrenError, DocumentNotFoundError
-from memoria_curitibana.domains.archive.models import (
+from scrinalia.domains.archive.exceptions import DocumentHasChildrenError, DocumentNotFoundError
+from scrinalia.domains.archive.models import (
     ArchiveDocument,
     ArchiveDocumentDeletion,
     ArchiveDocumentRevision,
@@ -24,9 +24,9 @@ from memoria_curitibana.domains.archive.models import (
     ArchiveReviewStatus,
     ArchiveTag,
 )
-from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
-from memoria_curitibana.domains.archive.schemas.command_schema import DocumentReviewCommand, TagLinkCommand
-from memoria_curitibana.domains.archive.services.document_service import DocumentService
+from scrinalia.domains.archive.repository.document_repo import DocumentRepository
+from scrinalia.domains.archive.schemas.command_schema import DocumentReviewCommand, TagLinkCommand
+from scrinalia.domains.archive.services.document_service import DocumentService
 
 
 def _tag(db_session, name: str = "urbanismo") -> ArchiveTag:

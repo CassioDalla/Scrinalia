@@ -19,15 +19,15 @@ import pkgutil
 import pydantic
 import pytest
 
-from memoria_curitibana.domains.archive.schemas import RouteMessageCode, RouteResponse
+from scrinalia.domains.archive.schemas import RouteMessageCode, RouteResponse
 
 #: The packages that declare the shapes the API answers with. Both are walked as packages rather
 #: than as namespaces: a model lives in a submodule and is only re-exported by ``__init__``, so
 #: reading the package namespace would compare ``obj.__module__`` against the package and match
 #: nothing — which is how this test first passed with the defect deliberately reintroduced.
 SCHEMA_PACKAGES: tuple[str, ...] = (
-    "memoria_curitibana.domains.archive.schemas",
-    "memoria_curitibana.api.schemas",
+    "scrinalia.domains.archive.schemas",
+    "scrinalia.api.schemas",
 )
 
 

@@ -27,8 +27,8 @@ import pytest
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo
 
-from memoria_curitibana.asgi import create_app
-from memoria_curitibana.domains.archive.models.enums import (
+from scrinalia.asgi import create_app
+from scrinalia.domains.archive.models.enums import (
     ArchiveReviewStatus,
     StopwordsScope,
     WorkerRunStatus,

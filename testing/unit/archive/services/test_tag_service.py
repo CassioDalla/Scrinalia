@@ -1,15 +1,15 @@
 import pytest
 from pytest_mock import MockerFixture
 
-from memoria_curitibana.domains.archive.exceptions import (
+from scrinalia.domains.archive.exceptions import (
     InvalidMergeError,
     InvalidParam,
     MacroCategoryNotFoundError,
     TagMergeProposalNotFoundError,
 )
-from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
-from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
-from memoria_curitibana.domains.archive.schemas import (
+from scrinalia.domains.archive.repository.document_repo import DocumentRepository
+from scrinalia.domains.archive.repository.tag_repo import TagRepository
+from scrinalia.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
     BatchMergeResponse,
@@ -25,12 +25,12 @@ from memoria_curitibana.domains.archive.schemas import (
     TagMergeSuggestion,
     UpdateMacroCategoryCommand,
 )
-from memoria_curitibana.domains.archive.schemas.tag_schema import (
+from scrinalia.domains.archive.schemas.tag_schema import (
     MergeResponse,
     TagIdentity,
     TagMergeProposalDTO,
 )
-from memoria_curitibana.domains.archive.services.tag_service import TagService
+from scrinalia.domains.archive.services.tag_service import TagService
 
 # ==========================================
 # TESTS: extract_and_clean_tags

@@ -1,6 +1,6 @@
 from sqlalchemy import select, text
 
-from memoria_curitibana.domains.archive.models import (
+from scrinalia.domains.archive.models import (
     ArchiveDocument,
     ArchiveEntity,
     ArchiveTag,
@@ -8,8 +8,8 @@ from memoria_curitibana.domains.archive.models import (
     DomainStopwords,
     DomainSynonyms,
 )
-from memoria_curitibana.domains.archive.repository.entity_repo import EntityRepository
-from memoria_curitibana.domains.archive.schemas.entity_schema import ArchiveEntityDTO
+from scrinalia.domains.archive.repository.entity_repo import EntityRepository
+from scrinalia.domains.archive.schemas.entity_schema import ArchiveEntityDTO
 
 
 def test_get_or_create_entities_new_and_existing(use_test_db, db_session):

@@ -11,18 +11,18 @@ not.
 import pytest
 from sqlalchemy import delete, select
 
-from memoria_curitibana.domains.archive.exceptions import (
+from scrinalia.domains.archive.exceptions import (
     MergeAlreadyUndoneError,
     MergeLogNotFoundError,
 )
-from memoria_curitibana.domains.archive.models import (
+from scrinalia.domains.archive.models import (
     ArchiveDocument,
     ArchiveDocumentTag,
     ArchiveMacroCategory,
     ArchiveTag,
 )
-from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
-from memoria_curitibana.domains.archive.schemas import (
+from scrinalia.domains.archive.repository.tag_repo import TagRepository
+from scrinalia.domains.archive.schemas import (
     ArchiveTagDTO,
     MergeBatchEntry,
     MergePlan,

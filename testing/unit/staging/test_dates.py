@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from memoria_curitibana.domains.staging.dates import parse_document_date
+from scrinalia.domains.staging.dates import parse_document_date
 
 
 @pytest.mark.parametrize(

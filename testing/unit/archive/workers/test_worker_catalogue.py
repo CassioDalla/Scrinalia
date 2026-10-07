@@ -9,7 +9,7 @@ import inspect
 
 import pytest
 
-from memoria_curitibana.domains.archive.workers import catalogue, runner
+from scrinalia.domains.archive.workers import catalogue, runner
 
 SIGNATURE_DRIVEN = [spec for spec in catalogue.WORKER_CATALOGUE.values() if spec.engine_source == "signature"]
 ALL_SPECS = list(catalogue.WORKER_CATALOGUE.values())

@@ -10,14 +10,14 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from memoria_curitibana.domains.archive.domain.vocabulary import label_set_fingerprint
-from memoria_curitibana.domains.archive.models import (
+from scrinalia.domains.archive.domain.vocabulary import label_set_fingerprint
+from scrinalia.domains.archive.models import (
     ArchiveMacroCategory,
     ArchiveTag,
     ArchiveTagFacet,
     TagFacetType,
 )
-from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+from scrinalia.domains.archive.repository.tag_repo import TagRepository
 
 
 class TestFacetPersistence:
@@ -162,8 +162,8 @@ class TestClassifierLabelsFromTheRepository:
         An empty string would be sent to the model as an empty hypothesis, which is worse than
         the drawer name it replaced — the entailment would have nothing to reason about.
         """
-        from memoria_curitibana.domains.archive.schemas.command_schema import UpdateMacroCategoryCommand
-        from memoria_curitibana.domains.archive.services.tag_service import TagService
+        from scrinalia.domains.archive.schemas.command_schema import UpdateMacroCategoryCommand
+        from scrinalia.domains.archive.services.tag_service import TagService
 
         category = ArchiveMacroCategory(name="Religião", classifier_label="um assunto sobre religião")
         db_session.add(category)

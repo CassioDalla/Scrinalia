@@ -1,5 +1,5 @@
-from memoria_curitibana.domains.archive.models import ArchiveDocument, ArchiveTypology
-from memoria_curitibana.domains.archive.repository.typology_repo import TypologyRepository
+from scrinalia.domains.archive.models import ArchiveDocument, ArchiveTypology
+from scrinalia.domains.archive.repository.typology_repo import TypologyRepository
 
 
 def test_get_active_typologies_from_db(use_test_db, db_session):

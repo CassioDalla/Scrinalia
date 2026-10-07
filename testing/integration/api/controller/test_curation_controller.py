@@ -3,9 +3,9 @@
 import pytest
 from litestar.testing import TestClient
 
-from memoria_curitibana.asgi import create_app
-from memoria_curitibana.domains.archive.schemas.curation_schema import CurationInbox, CurationQueue
-from memoria_curitibana.domains.archive.services.curation_service import QUEUE_CATALOGUE, CurationService
+from scrinalia.asgi import create_app
+from scrinalia.domains.archive.schemas.curation_schema import CurationInbox, CurationQueue
+from scrinalia.domains.archive.services.curation_service import QUEUE_CATALOGUE, CurationService
 
 
 @pytest.fixture

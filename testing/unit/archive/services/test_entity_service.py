@@ -2,16 +2,16 @@ import pytest
 from pydantic import ValidationError
 from pytest_mock import MockerFixture
 
-from memoria_curitibana.domains.archive.exceptions import InvalidParam
-from memoria_curitibana.domains.archive.repository import EntityRepository
-from memoria_curitibana.domains.archive.schemas import ResolveConflictCommand
-from memoria_curitibana.domains.archive.schemas.entity_schema import (
+from scrinalia.domains.archive.exceptions import InvalidParam
+from scrinalia.domains.archive.repository import EntityRepository
+from scrinalia.domains.archive.schemas import ResolveConflictCommand
+from scrinalia.domains.archive.schemas.entity_schema import (
     ConflictResolutionData,
     ConflictResolutionPlan,
     CrossDomainConflict,
     CrossDomainConflictPage,
 )
-from memoria_curitibana.domains.archive.services import EntityService
+from scrinalia.domains.archive.services import EntityService
 
 # ==========================================
 # TESTS: CROSS DOMAIN

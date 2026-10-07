@@ -1,4 +1,4 @@
-from memoria_curitibana.domains.archive.worker_stamp import NER, WorkerStamp, cleaning_rule_stamp
+from scrinalia.domains.archive.worker_stamp import NER, WorkerStamp, cleaning_rule_stamp
 
 
 def test_stamp_applies_to_only_when_key_is_absent() -> None:

@@ -3,17 +3,17 @@
 ## About the project
 A system for archivists to catalog and manage archival descriptions (ISAD(G) metadata), with AI enrichment (NER, zero-shot classification, clustering) and Human-in-the-Loop governance.
 
-Three-layer pipeline, each layer a domain under `src/memoria_curitibana/domains/`:
+Three-layer pipeline, each layer a domain under `src/scrinalia/domains/`:
 `ingestion` (scraping queue) -> `staging` (structured, cleaned data) -> `archive` (final enriched document + human review).
 
-- Layout: `src/memoria_curitibana/` is the installed namespace (`api/`, `core/`,
-  `domains/`). `main.py` at the root only re-exports `memoria_curitibana.asgi.app` so
+- Layout: `src/scrinalia/` is the installed namespace (`api/`, `core/`,
+  `domains/`). `main.py` at the root only re-exports `scrinalia.asgi.app` so
   `uvicorn main:app` keeps working; put application code in the package, never in `main.py`.
   `testing/`, `migrations/` and `docs/` live **outside** the package on purpose. There is no
   `scripts/`: one-off tooling is deleted once it has served its purpose instead of being kept
   at the root, where it rots with stale imports.
   See `docs/adr/0002-src-layout-and-internal-namespace.md`.
-- API: Litestar, assembled in `src/memoria_curitibana/asgi.py` (`create_app()`), NOT FastAPI.
+- API: Litestar, assembled in `src/scrinalia/asgi.py` (`create_app()`), NOT FastAPI.
   Decision recorded in `docs/adr/0001-litestar-as-http-framework.md`.
 - Front: the curator UI is the React SPA in `apps/curator/` (ADR 0003). It is the only front end:
   the temporary Streamlit dashboard was removed in B8. Treat the API as the stable interface.
@@ -39,7 +39,7 @@ Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).
 - Curator UI (`apps/curator/`): `bun install` once at the repo root, then `bun run curator:dev` (`http://localhost:5173`, Vite proxies `/api` to `:8000`) or `bun run curator:build`. **Bun manages packages and scripts; Vite is the bundler** — do not replace it with `bun build` (ADR 0003). `bun run --cwd apps/curator typecheck|lint`.
 - API contract: **generated and committed**. `bun run contract` dumps `packages/api-contract/openapi.json` and regenerates `apps/curator/src/api/schema.d.ts`; CI fails when either is stale. Never hand-write a request in the front — `src/api/client.ts` (openapi-fetch) is the only client, and ESLint bans the `fetch` global.
 - Local infra: `docker compose up -d` (PostgreSQL 15 on 5432 + MinIO on 9000/9001). The database image is built from `docker/postgres/Dockerfile`: the pgvector base image plus PostGIS. The stock `postgis/postgis` images are still Debian 11 (bullseye), whose PGDG repository was retired, so pgvector cannot be installed there; starting from the pgvector image and adding PostGIS keeps both extensions available. PostGIS is installed but **not enabled by any migration** yet — the geospatial work is still ahead, and enabling it is a one-line migration.
-- Workers: prefer the unified runner — `uv run python -m memoria_curitibana.domains.archive.workers.runner <name> [--engine X --preset Y --batch N --option key=value --by "quem"]`, where names are `transfer`, `cleaning`, `ner`, `typology`, `thumbnail`, `conflict-judge`, `macro-category`, `quality-validator`, `embedding`. Pipeline order: `transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-category -> quality-validator -> embedding`. Each `worker_*.py` also has an `execute(db, ...)` + `__main__` block runnable directly. `--option` coerces `true`/`false` to booleans. Every run through the runner leaves a row in `archive_worker_runs` (see "Operations panel" below); the effective configuration follows `explicit argument > persisted override > signature default`, so a worker may run with a different preset than the one in its signature — `GET /api/v1/system/workers` is the way to see it.
+- Workers: prefer the unified runner — `uv run python -m scrinalia.domains.archive.workers.runner <name> [--engine X --preset Y --batch N --option key=value --by "quem"]`, where names are `transfer`, `cleaning`, `ner`, `typology`, `thumbnail`, `conflict-judge`, `macro-category`, `quality-validator`, `embedding`. Pipeline order: `transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-category -> quality-validator -> embedding`. Each `worker_*.py` also has an `execute(db, ...)` + `__main__` block runnable directly. `--option` coerces `true`/`false` to booleans. Every run through the runner leaves a row in `archive_worker_runs` (see "Operations panel" below); the effective configuration follows `explicit argument > persisted override > signature default`, so a worker may run with a different preset than the one in its signature — `GET /api/v1/system/workers` is the way to see it.
 - Database migrations: `uv run alembic upgrade head`; new revision: `uv run alembic revision --autogenerate -m "..."`; drift check: `uv run alembic check`.
 - Tests live in `testing/` (renamed from `tests/`), not in the package. Run them from the
   root; `pythonpath` is **not** configured, because the app is imported as the installed
@@ -48,7 +48,7 @@ Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).
 - Lint/format: `uv run ruff check .` and `uv run ruff format .` (ruff is a dev dependency; line-length 120, double quotes). CI enforces `ruff format --check .`.
 - `Procfile` defines the `api` process (`uvicorn` with `CUDA_VISIBLE_DEVICES=""`, i.e. CPU). The curator SPA has no process of its own: `create_app()` mounts `apps/curator/dist` at `/` when the build exists, which is why a deploy must build it (`bun run curator:build`).
 - Type check: `uv run basedpyright` (scope and strictness in `[tool.basedpyright]`;
-  it checks `src/memoria_curitibana` and `main.py`).
+  it checks `src/scrinalia` and `main.py`).
 - Pre-commit hooks (ruff lint/format + basedpyright): `uv run pre-commit install` once per clone; run manually with `uv run pre-commit run --all-files`.
 
 ## Language
@@ -58,9 +58,9 @@ Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).
 - `ValueError` is no longer translated to a client error: a global `ValueError` handler would turn programming mistakes into 400 responses. Use a `DomainException` subclass when the API must return a business status.
 
 ## Logging and configuration
-- `src/memoria_curitibana/core/config.py` exposes typed settings (`pydantic-settings`) as the module-level `settings`; `get_settings()` is `lru_cache`d and `get_settings.cache_clear()` resets it in tests. Env vars win over `.env`. `DB_PASS`/`S3_*` are `SecretStr` — unwrap with `.get_secret_value()`. `DATABASE_URL` is a property and percent-encodes the credentials.
-- `src/memoria_curitibana/core/logger.py` owns the loguru sinks (`LOG_DIR`/`LOG_LEVEL` from settings). `configure_logging()` is idempotent and only calls `logger.remove()` on first run, so importing it never tears down sinks another host already added. Third-party logs (uvicorn, Litestar) reach the sinks through `InterceptHandler`; `asgi.py` wires the same handler into Litestar's `LoggingConfig` because Litestar and uvicorn both apply a `dictConfig` at startup.
-- `src/memoria_curitibana/core/database.py` builds the engine lazily (`get_engine()`/`get_session_factory()`/`create_session()`), so importing it never needs a live database. `get_db()` yields a session and leaves the transaction to the caller; the API owns its transaction through `provide_unit_of_work` in `api/dependencies.py`.
+- `src/scrinalia/core/config.py` exposes typed settings (`pydantic-settings`) as the module-level `settings`; `get_settings()` is `lru_cache`d and `get_settings.cache_clear()` resets it in tests. Env vars win over `.env`. `DB_PASS`/`S3_*` are `SecretStr` — unwrap with `.get_secret_value()`. `DATABASE_URL` is a property and percent-encodes the credentials.
+- `src/scrinalia/core/logger.py` owns the loguru sinks (`LOG_DIR`/`LOG_LEVEL` from settings). `configure_logging()` is idempotent and only calls `logger.remove()` on first run, so importing it never tears down sinks another host already added. Third-party logs (uvicorn, Litestar) reach the sinks through `InterceptHandler`; `asgi.py` wires the same handler into Litestar's `LoggingConfig` because Litestar and uvicorn both apply a `dictConfig` at startup.
+- `src/scrinalia/core/database.py` builds the engine lazily (`get_engine()`/`get_session_factory()`/`create_session()`), so importing it never needs a live database. `get_db()` yields a session and leaves the transaction to the caller; the API owns its transaction through `provide_unit_of_work` in `api/dependencies.py`.
 
 ## Observability
 - **Two health endpoints, two questions, and they are not interchangeable.** `GET /health/live` and `GET /health/ready` (`api/controllers/health_controller.py`) are for an orchestrator: `live` touches nothing and answers 200 while the process answers, `ready` runs `SELECT 1` and answers 503 when the database does not. Both are **outside `/api/v1` and outside the contract** (`include_in_schema=False`), like Litestar's own `/schema`; an orchestrator must not have to know the API version. The human panel — `GET /api/v1/system/health` — is untouched and still answers *which piece is down*, paying for the Ollama and S3 calls that make that answer useful. Do not merge them: a liveness probe that consults the database restarts the API whenever the database restarts.
@@ -74,11 +74,11 @@ Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).
 - **Sentry is not used, on purpose.** The decision and its cost (no alerting, no paging) are in `docs/adr/0005-observability-without-an-external-service.md`. Do not add a hosted tracker without revisiting that ADR: the system is meant to be installed by another institution, offline.
 
 ## Database and infra
-- Schema is owned by **Alembic** (`migrations/`, config in `alembic.ini`, connection URL from `core.config.settings`; `prepend_sys_path` is intentionally empty). Apply with `uv run alembic upgrade head`. The models in `src/memoria_curitibana/domains/*/models/` are the single source of truth; `uv run alembic check` must report no drift.
+- Schema is owned by **Alembic** (`migrations/`, config in `alembic.ini`, connection URL from `core.config.settings`; `prepend_sys_path` is intentionally empty). Apply with `uv run alembic upgrade head`. The models in `src/scrinalia/domains/*/models/` are the single source of truth; `uv run alembic check` must report no drift.
 - There is no `db-init` anymore. The schema **and** the extensions it needs are owned by Alembic: `pg_trgm` (fuzzy-search GIN indexes), `unaccent` (accent-insensitive full-text search) and `vector` (embeddings). Fresh volume -> `docker compose up -d` -> `uv run alembic upgrade head`. Recreate a clean volume with `docker compose down -v`.
 - `testing/conftest.py` creates `pg_trgm`, `unaccent` + its `immutable_unaccent` wrapper and `vector` before `create_all` for the test database, because the test schema is built from the models and those columns/indexes depend on the extensions. Because the suite **drops the schema on teardown**, never run a server against the test database in parallel with pytest, and re-run `alembic upgrade head` before starting one again.
 - The dev database is Alembic-managed. An older volume was found without `alembic_version` (schema created by `create_all`, drifting from the models in 43 places, which made every ORM read of a tag fail); it was rebuilt by copying the model tables into a database created with `alembic upgrade head` and renamed to `memoriacuritibana_legacy`. If a database ever drifts again, do **not** point pytest at it (the conftest drops the schema): build a clean database, copy the data and verify with `alembic check`.
-- `.env` is gitignored. Keys in `src/memoria_curitibana/core/config.py`: `DB_*`, `ARQDOC_*`, `PUBLIC_SCRAPE_*`, `S3_*`, `OLLAMA_HOST_URL`, plus `LOG_DIR`/`LOG_LEVEL`/`DEBUG`. `docker-compose.yml` reads `DB_USER`/`DB_PASS`/`DB_NAME` (defaults admin/admin123/memoriacuritibana).
+- `.env` is gitignored. Keys in `src/scrinalia/core/config.py`: `DB_*`, `ARQDOC_*`, `PUBLIC_SCRAPE_*`, `S3_*`, `OLLAMA_HOST_URL`, plus `LOG_DIR`/`LOG_LEVEL`/`DEBUG`. `docker-compose.yml` reads `DB_USER`/`DB_PASS`/`DB_NAME` (defaults admin/admin123/memoriacuritibana).
 - Models are Postgres-specific (JSONB, ARRAY, native enums, GIN indexes) — they do not port to SQLite.
 
 ## Architecture conventions (easy to get wrong)
@@ -125,8 +125,8 @@ Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).
 - Unit tests never load real models. The `mock_registry` fixture monkeypatches `AVAILABLE_ENGINES`/`PRESETS` to shield any registry; do not call Ollama/MinIO in tests.
 - Integration tests require the Postgres test database: `docker compose -f docker-compose.test.yml up -d` (port 5433, tmpfs in RAM, `pgvector/pgvector:pg15` — the same image CI uses). `testing/conftest.py` defaults to `postgresql://test_user:test_password@localhost:5433/test_db`; override with the `TEST_DATABASE_URL` env var. The compose file publishes `${TEST_DB_PORT:-5433}`, because 5433 is a popular host port: when another project already holds it the container starts **without publishing anything** and the suite silently talks to the wrong PostgreSQL, which looks like a test failure rather than a port conflict.
 - The test schema is built by `Base.metadata.create_all`, **not** by Alembic. So `alembic upgrade head` against the test database is a trap: `create_all` then skips the tables it finds, the suite runs against the migrated schema instead of the models, and the result is hundreds of failures that read as regressions (measured: 53 failed + 42 errors, all gone after the tables were dropped). If you migrate the test database to run a server against it, drop the schema before running pytest again.
-- Key fixtures in `testing/conftest.py`: `db_session` (SAVEPOINT + rollback per test), `use_test_db` (patches `memoria_curitibana.core.database.get_db`, opt-in), `generate_archive_doc`, `generate_typology`, `mock_ner_engine`, `mock_staging_doc`.
-- Tests import the installed package (`memoria_curitibana.*`), never a bare `core`/`domains`
+- Key fixtures in `testing/conftest.py`: `db_session` (SAVEPOINT + rollback per test), `use_test_db` (patches `scrinalia.core.database.get_db`, opt-in), `generate_archive_doc`, `generate_typology`, `mock_ner_engine`, `mock_staging_doc`.
+- Tests import the installed package (`scrinalia.*`), never a bare `core`/`domains`
   root, so the suite exercises the same boundary a consumer does. Because the source lives in
   `src/`, `uv sync` must have run at least once before pytest can import anything.
 - CI (`.github/workflows/ci.yml`) has three jobs: a fast `uvx ruff` lint/format job; a test job that checks the committed `openapi.json` is current, then runs `alembic upgrade head` + `alembic check` and `uv run pytest` against a Postgres service on 5432; and a `frontend` job (Bun) that regenerates the TypeScript client and fails on drift, then type-checks, lints and builds `apps/curator`. Run the same checks locally before finishing.

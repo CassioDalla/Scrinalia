@@ -2,8 +2,8 @@ import pytest
 from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
-from memoria_curitibana.domains.archive.domain.vocabulary import label_set_fingerprint
-from memoria_curitibana.domains.archive.workers import worker_macro_category
+from scrinalia.domains.archive.domain.vocabulary import label_set_fingerprint
+from scrinalia.domains.archive.workers import worker_macro_category
 
 #: The stamp value a tag gets after being classified against a given label set. The worker
 #: stores the *identity of the vocabulary*, not a status, so this changes whenever a drawer
@@ -32,9 +32,9 @@ class MockArchiveTag:
 def _prepare(mocker: MockerFixture, categories: dict[str, int]):
     """Patches the repository and the engine, returning (db, engine, repo)."""
     mock_db = mocker.Mock(spec=Session)
-    mock_repo_class = mocker.patch("memoria_curitibana.domains.archive.workers.worker_macro_category.TagRepository")
-    mock_get_engine = mocker.patch("memoria_curitibana.domains.archive.workers.worker_macro_category.get_engine")
-    mocker.patch("memoria_curitibana.domains.archive.workers.worker_macro_category.flag_modified")
+    mock_repo_class = mocker.patch("scrinalia.domains.archive.workers.worker_macro_category.TagRepository")
+    mock_get_engine = mocker.patch("scrinalia.domains.archive.workers.worker_macro_category.get_engine")
+    mocker.patch("scrinalia.domains.archive.workers.worker_macro_category.flag_modified")
 
     mock_repo_class.return_value.get_active_macro_categories.return_value = categories
 

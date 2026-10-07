@@ -28,10 +28,10 @@ from pathlib import Path
 
 from sqlalchemy import func, select
 
-from memoria_curitibana.core.database import get_db
-from memoria_curitibana.core.logger import logger
-from memoria_curitibana.domains.archive.models import ArchiveTag
-from memoria_curitibana.domains.archive.repository.tag_repo import TagRepository
+from scrinalia.core.database import get_db
+from scrinalia.core.logger import logger
+from scrinalia.domains.archive.models import ArchiveTag
+from scrinalia.domains.archive.repository.tag_repo import TagRepository
 
 DEFAULT_OUTPUT = Path(".analysis") / "tag_merge_report.json"
 
@@ -93,7 +93,7 @@ def build_report(threshold: float, limit: int) -> dict:
 def _tag_count():
     from sqlalchemy import func, select
 
-    from memoria_curitibana.domains.archive.models import ArchiveTag
+    from scrinalia.domains.archive.models import ArchiveTag
 
     return select(func.count()).select_from(ArchiveTag)
 

@@ -13,7 +13,7 @@ from types import ModuleType
 
 import pytest
 
-from memoria_curitibana.domains.archive.domain.level_catalog import (
+from scrinalia.domains.archive.domain.level_catalog import (
     NOBRADE_LEVELS,
     build_level_index,
     normalize_level_name,

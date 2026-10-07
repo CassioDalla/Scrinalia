@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from memoria_curitibana.core.llm_clients.ollama_client import OllamaClient
+from scrinalia.core.llm_clients.ollama_client import OllamaClient
 
 
 def test_ollama_client_empty_prompt_raises_error():
@@ -16,7 +16,7 @@ def test_ollama_client_empty_prompt_raises_error():
         client.generate_json("   \n  ")  # Tests whitespace only
 
 
-@patch("memoria_curitibana.core.llm_clients.ollama_client.requests.post")
+@patch("scrinalia.core.llm_clients.ollama_client.requests.post")
 def test_ollama_client_success_returns_json_string(mock_post):
     # Prepare the requests "stub" to return a fake success response
     mock_response = MagicMock()
@@ -35,7 +35,7 @@ def test_ollama_client_success_returns_json_string(mock_post):
     assert kwargs["json"]["prompt"] == "Classifique o documento XPTO"
 
 
-@patch("memoria_curitibana.core.llm_clients.ollama_client.requests.post")
+@patch("scrinalia.core.llm_clients.ollama_client.requests.post")
 def test_ollama_client_network_failure_returns_empty_dict(mock_post):
     # Simulates a Timeout error
     mock_post.side_effect = Exception("Timeout na rede")

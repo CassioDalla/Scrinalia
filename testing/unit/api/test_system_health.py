@@ -9,7 +9,7 @@ import sys
 
 from pydantic import SecretStr
 
-from memoria_curitibana.api import system_health
+from scrinalia.api import system_health
 
 
 class _Response:

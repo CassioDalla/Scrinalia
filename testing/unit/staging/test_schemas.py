@@ -1,6 +1,6 @@
 from datetime import date
 
-from memoria_curitibana.domains.staging.schemas import StagingDocumentDTO
+from scrinalia.domains.staging.schemas import StagingDocumentDTO
 
 
 def test_silver_indexing_points_validator_replaces_semicolons() -> None:

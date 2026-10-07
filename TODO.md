@@ -90,10 +90,10 @@ deles, foi fechada em 2026-10-07 (ADR 0006). Detalhe na seção seguinte.
         explícito de "não exponha" e auth na 1.1, mas isso é pior que fazer agora.
       - Escopo mínimo defensável: usuário+senha (ou OIDC) no BFF do curador, `changed_by` vindo do
         token, e a superfície pública continuando aberta **por design**.
-- [ ] **Renomear o projeto, o pacote e o repositório.** Medido em **2026-10-07**: `memoria_curitibana`
+- [ ] **Renomear o projeto, o pacote e o repositório.** Medido em **2026-10-07**: `scrinalia`
       está em **244 arquivos** (**223 `.py`**, 10 `.md`, 3 `.yml`, e `.toml`/`.json`/`.ini`), mais
       5 artefatos de `logs/` que **não** entram; **22** arquivos carregam variantes de nome de
-      exibição (`Memória Curitibana`, `memoria-curitibana`, `memoriacuritibana`). O número que
+      exibição (`Scrinalia`, `scrinalia`, `memoriacuritibana`). O número que
       este TODO trazia (256/209) estava desatualizado.
       - **Nome: em decisão.** Candidatos medidos (PyPI e npm livres, sem colisão relevante no
         domínio): **`Tabularium`** (recomendado — o arquivo de estado de Roma), **`Repertorium`**
@@ -103,7 +103,7 @@ deles, foi fechada em 2026-10-07 (ADR 0006). Detalhe na seção seguinte.
       - **Fazer antes da 1.0, não depois:** o nome é a identidade do release. Renomear depois
         significa que a 1.0 nasce com um nome que será descartado, e todo link/bookmark/documento
         quebra duas vezes.
-      - É mecânico mas amplo: `src/memoria_curitibana/` → `src/<novo>/`, todos os imports, o
+      - É mecânico mas amplo: `src/scrinalia/` → `src/<novo>/`, todos os imports, o
         `[project].name`, o `packages` do hatch, o `main.py`, os nomes nos `docker-compose`, o
         `container_name`, os títulos da SPA e do `README`. Vale um commit **só** de movimentação.
       - **Cuidado:** `archive_*`, `domain_*` e os nomes de tabela **não** entram no rename (são
@@ -552,7 +552,7 @@ regressão).
 ### Medir o acervo (não confie em número congelado)
 
 ```bash
-docker exec memoria_curitibana_db psql -U admin -d memoriacuritibana -c "
+docker exec scrinalia_db psql -U admin -d memoriacuritibana -c "
 SELECT 'descrições' AS medida, count(*)::text AS valor FROM archive_documents
 UNION ALL SELECT 'com pai', count(*)::text FROM archive_documents WHERE parent_id IS NOT NULL
 UNION ALL SELECT 'sem nível', count(*)::text FROM archive_documents WHERE level_id IS NULL

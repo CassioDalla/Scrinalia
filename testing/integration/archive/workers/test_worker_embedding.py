@@ -1,8 +1,8 @@
-from memoria_curitibana.domains.archive.engines.embeddings import registry as embeddings_registry
-from memoria_curitibana.domains.archive.models import ArchiveDocument, ArchiveReviewStatus
-from memoria_curitibana.domains.archive.repository.text_quality_repo import TextQualityRepository
-from memoria_curitibana.domains.archive.schemas.text_quality_schema import TemplateCreateCommand, TemplateUpdateCommand
-from memoria_curitibana.domains.archive.workers.worker_embedding import execute
+from scrinalia.domains.archive.engines.embeddings import registry as embeddings_registry
+from scrinalia.domains.archive.models import ArchiveDocument, ArchiveReviewStatus
+from scrinalia.domains.archive.repository.text_quality_repo import TextQualityRepository
+from scrinalia.domains.archive.schemas.text_quality_schema import TemplateCreateCommand, TemplateUpdateCommand
+from scrinalia.domains.archive.workers.worker_embedding import execute
 
 # The fake engine must answer with the column dimension, or PostgreSQL rejects the insert.
 VECTOR = [0.0] * 383 + [1.0]

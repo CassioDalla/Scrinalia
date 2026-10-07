@@ -10,8 +10,8 @@ import pytest
 import requests
 from litestar.testing import TestClient
 
-from memoria_curitibana.api import health_probe
-from memoria_curitibana.asgi import create_app
+from scrinalia.api import health_probe
+from scrinalia.asgi import create_app
 
 
 class _Connection:

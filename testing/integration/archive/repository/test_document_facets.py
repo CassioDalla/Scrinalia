@@ -5,7 +5,7 @@ The property under test is the one that is easy to get wrong and invisible until
 zeroes every other option, so the archivist can neither widen the search nor switch rung.
 """
 
-from memoria_curitibana.domains.archive.models import (
+from scrinalia.domains.archive.models import (
     ArchiveDocumentEntity,
     ArchiveDocumentTag,
     ArchiveEntity,
@@ -13,8 +13,8 @@ from memoria_curitibana.domains.archive.models import (
     ArchiveTag,
     ArchiveTypology,
 )
-from memoria_curitibana.domains.archive.repository.document_repo import DocumentRepository
-from memoria_curitibana.domains.archive.schemas.query_schema import DocumentSearchQuery
+from scrinalia.domains.archive.repository.document_repo import DocumentRepository
+from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery
 
 # ==========================================
 # SEARCH FACETS

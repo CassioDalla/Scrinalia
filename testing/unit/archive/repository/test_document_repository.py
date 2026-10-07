@@ -1,7 +1,7 @@
 from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
-from memoria_curitibana.domains.archive.repository import DocumentRepository
+from scrinalia.domains.archive.repository import DocumentRepository
 
 
 def test_fetch_documents_for_clustering_happy_path(mocker: MockerFixture) -> None:

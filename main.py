@@ -5,6 +5,6 @@ unchanged. The application itself lives in the installed package; this module on
 re-exports it, and exists so a deploy does not need to know the package layout.
 """
 
-from memoria_curitibana.asgi import app, create_app
+from scrinalia.asgi import app, create_app
 
 __all__ = ["app", "create_app"]

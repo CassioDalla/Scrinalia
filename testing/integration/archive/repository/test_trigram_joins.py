@@ -15,8 +15,8 @@ assertion is useless at fixture scale, where the planner correctly prefers a seq
 
 from sqlalchemy import event, text
 
-from memoria_curitibana.domains.archive.models import ArchiveEntity, ArchiveTag
-from memoria_curitibana.domains.archive.repository import EntityRepository, TagRepository
+from scrinalia.domains.archive.models import ArchiveEntity, ArchiveTag
+from scrinalia.domains.archive.repository import EntityRepository, TagRepository
 
 
 def _capture_sql(db_session, callback) -> list[str]:

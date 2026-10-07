@@ -1,9 +1,9 @@
 import pandas as pd
 import pytest
 
-from memoria_curitibana.domains.archive.engines.clustering import registry
-from memoria_curitibana.domains.archive.exceptions import EngineExecutionError, InvalidParam
-from memoria_curitibana.domains.archive.workers.worker_suggest_macro_category import (
+from scrinalia.domains.archive.engines.clustering import registry
+from scrinalia.domains.archive.exceptions import EngineExecutionError, InvalidParam
+from scrinalia.domains.archive.workers.worker_suggest_macro_category import (
     resolve_min_topic_size,
     run_suggestion_engine,
 )

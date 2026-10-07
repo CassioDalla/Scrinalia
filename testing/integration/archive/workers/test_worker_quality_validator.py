@@ -2,7 +2,7 @@
 
 from sqlalchemy import select
 
-from memoria_curitibana.domains.archive.models import (
+from scrinalia.domains.archive.models import (
     AnomalyReason,
     ArchiveDocument,
     ArchiveDocumentEntity,
@@ -12,11 +12,11 @@ from memoria_curitibana.domains.archive.models import (
     ArchiveTag,
     ArchiveTypology,
 )
-from memoria_curitibana.domains.archive.schemas.ai_schemas import TitleQualityDecision
-from memoria_curitibana.domains.archive.schemas.cleaning_schema import CleaningRuleCreateDTO
-from memoria_curitibana.domains.archive.workers.worker_quality_validator import execute
+from scrinalia.domains.archive.schemas.ai_schemas import TitleQualityDecision
+from scrinalia.domains.archive.schemas.cleaning_schema import CleaningRuleCreateDTO
+from scrinalia.domains.archive.workers.worker_quality_validator import execute
 
-LLM_REGISTRY = "memoria_curitibana.domains.archive.engines.title_quality.registry.get_engine"
+LLM_REGISTRY = "scrinalia.domains.archive.engines.title_quality.registry.get_engine"
 
 
 def _complete_document(db_session, **overrides):
@@ -109,7 +109,7 @@ def test_worker_does_not_reprocess_a_stamped_document(db_session, generate_archi
 
 
 def test_worker_applies_an_archivist_validate_rule(db_session, generate_archive_doc) -> None:
-    from memoria_curitibana.domains.archive.repository.cleaning_repo import CleaningRepository
+    from scrinalia.domains.archive.repository.cleaning_repo import CleaningRepository
 
     repository = CleaningRepository(db_session)
     repository.create_rule(
@@ -144,7 +144,7 @@ def test_worker_does_not_build_a_model_without_an_llm_rule(db_session, generate_
 
 
 def test_worker_uses_the_llm_when_a_rule_is_active(db_session, generate_archive_doc, mocker) -> None:
-    from memoria_curitibana.domains.archive.repository.cleaning_repo import CleaningRepository
+    from scrinalia.domains.archive.repository.cleaning_repo import CleaningRepository
 
     mocked_get_engine = mocker.patch(LLM_REGISTRY)
     mocked_get_engine.return_value.check_title.return_value = TitleQualityDecision(
@@ -176,8 +176,8 @@ def test_worker_uses_the_llm_when_a_rule_is_active(db_session, generate_archive_
 
 def test_the_cleaning_worker_ignores_validation_rules(db_session, generate_archive_doc) -> None:
     """Safety: a VALIDATE rule must never substitute text the way a REWRITE rule does."""
-    from memoria_curitibana.domains.archive.repository.cleaning_repo import CleaningRepository
-    from memoria_curitibana.domains.archive.workers.worker_cleaning_regex import execute as run_cleaning
+    from scrinalia.domains.archive.repository.cleaning_repo import CleaningRepository
+    from scrinalia.domains.archive.workers.worker_cleaning_regex import execute as run_cleaning
 
     CleaningRepository(db_session).create_rule(
         CleaningRuleCreateDTO(

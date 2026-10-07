@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from memoria_curitibana.core.unit_of_work import UnitOfWork
+from scrinalia.core.unit_of_work import UnitOfWork
 
 
 def test_unit_of_work_delegates_to_session(mocker) -> None:

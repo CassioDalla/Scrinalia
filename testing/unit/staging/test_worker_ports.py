@@ -1,8 +1,8 @@
 from collections.abc import Sequence
 from unittest.mock import MagicMock
 
-from memoria_curitibana.domains.staging.schemas import RawRecord, StagingDocumentDTO
-from memoria_curitibana.domains.staging.worker import run_staging_pipeline
+from scrinalia.domains.staging.schemas import RawRecord, StagingDocumentDTO
+from scrinalia.domains.staging.worker import run_staging_pipeline
 
 
 class InMemoryRawSource:

@@ -1,6 +1,6 @@
-from memoria_curitibana.domains.archive.domain.governance import AI_LOCKED_REVIEW_STATUSES, DocumentWritePolicy
-from memoria_curitibana.domains.archive.models.enums import ArchiveReviewStatus
-from memoria_curitibana.domains.archive.repository.governance import ai_writable_documents
+from scrinalia.domains.archive.domain.governance import AI_LOCKED_REVIEW_STATUSES, DocumentWritePolicy
+from scrinalia.domains.archive.models.enums import ArchiveReviewStatus
+from scrinalia.domains.archive.repository.governance import ai_writable_documents
 
 
 def test_human_approved_is_the_only_locked_status() -> None:

@@ -8,12 +8,12 @@ the registry *describes* must be the same dictionary, and describing must instan
 
 import pytest
 
-from memoria_curitibana.core import config as core_config
-from memoria_curitibana.domains.archive.engines.classification import registry as classification_registry
-from memoria_curitibana.domains.archive.engines.embeddings import registry as embeddings_registry
-from memoria_curitibana.domains.archive.engines.LLMs import registry as llm_registry
-from memoria_curitibana.domains.archive.engines.NER import registry as ner_registry
-from memoria_curitibana.domains.archive.engines.title_quality import registry as title_registry
+from scrinalia.core import config as core_config
+from scrinalia.domains.archive.engines.classification import registry as classification_registry
+from scrinalia.domains.archive.engines.embeddings import registry as embeddings_registry
+from scrinalia.domains.archive.engines.LLMs import registry as llm_registry
+from scrinalia.domains.archive.engines.NER import registry as ner_registry
+from scrinalia.domains.archive.engines.title_quality import registry as title_registry
 
 #: ``(registry, engine, preset)`` for every axis a worker actually runs on. Clustering is absent on
 #: purpose: no worker in the runner uses it, and its factory injects a callable analyzer that has no

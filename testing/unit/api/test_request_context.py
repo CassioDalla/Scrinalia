@@ -11,9 +11,9 @@ import pytest
 from litestar import Litestar, get
 from litestar.testing import TestClient
 
-from memoria_curitibana.api.middleware import MAX_REQUEST_ID_LENGTH, RequestContextMiddleware
-from memoria_curitibana.asgi import create_app
-from memoria_curitibana.core.logger import logger
+from scrinalia.api.middleware import MAX_REQUEST_ID_LENGTH, RequestContextMiddleware
+from scrinalia.asgi import create_app
+from scrinalia.core.logger import logger
 
 
 @get("/work", sync_to_thread=True)

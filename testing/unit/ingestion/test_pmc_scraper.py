@@ -4,8 +4,8 @@ import pytest
 import requests
 from pytest_mock import MockerFixture
 
-from memoria_curitibana.domains.ingestion.adapters.pmc_scraper import PMCScraperAdapter
-from memoria_curitibana.domains.ingestion.ports import AdapterFatalError, AdapterNetworkError, AdapterNotFoundError
+from scrinalia.domains.ingestion.adapters.pmc_scraper import PMCScraperAdapter
+from scrinalia.domains.ingestion.ports import AdapterFatalError, AdapterNetworkError, AdapterNotFoundError
 
 # ==========================================
 # ARQDOC ADAPTER TESTS (HTTP SCRAPER)
@@ -20,7 +20,7 @@ def test_fetch_details_success(mocker: MockerFixture, html_mock_valid: str) -> N
     mock_response.raise_for_status = Mock()
 
     # Intercepts 'requests' directly inside the adapter file
-    mocker.patch("memoria_curitibana.domains.ingestion.adapters.pmc_scraper.requests.get", return_value=mock_response)
+    mocker.patch("scrinalia.domains.ingestion.adapters.pmc_scraper.requests.get", return_value=mock_response)
 
     adapter = PMCScraperAdapter()
     result = adapter.fetch_details("doc-123")
@@ -40,7 +40,7 @@ def test_fetch_details_ignores_empty(mocker: MockerFixture, html_mock_empty: str
     mock_response.status_code = 200
     mock_response.raise_for_status = Mock()
 
-    mocker.patch("memoria_curitibana.domains.ingestion.adapters.pmc_scraper.requests.get", return_value=mock_response)
+    mocker.patch("scrinalia.domains.ingestion.adapters.pmc_scraper.requests.get", return_value=mock_response)
 
     adapter = PMCScraperAdapter()
     result = adapter.fetch_details("doc-404-fake")
@@ -57,7 +57,7 @@ def test_fetch_details_404_raises_domain_exception(mocker: MockerFixture) -> Non
 
     http_error = requests.exceptions.HTTPError("404 Not Found", response=mock_response)
 
-    mocker.patch("memoria_curitibana.domains.ingestion.adapters.pmc_scraper.requests.get", side_effect=http_error)
+    mocker.patch("scrinalia.domains.ingestion.adapters.pmc_scraper.requests.get", side_effect=http_error)
 
     adapter = PMCScraperAdapter()
 
@@ -72,7 +72,7 @@ def test_fetch_details_network_error_raises_domain_exception(mocker: MockerFixtu
     """Guarantees that Timeouts or internet drops become AdapterNetworkError."""
     timeout_error = requests.exceptions.Timeout("Read timeout")
 
-    mocker.patch("memoria_curitibana.domains.ingestion.adapters.pmc_scraper.requests.get", side_effect=timeout_error)
+    mocker.patch("scrinalia.domains.ingestion.adapters.pmc_scraper.requests.get", side_effect=timeout_error)
 
     adapter = PMCScraperAdapter()
 
@@ -90,7 +90,7 @@ def test_fetch_details_fatal_error_raises_domain_exception(mocker: MockerFixture
     # This goes straight to your adapter's 'except Exception' block
     type(mock_response).text = mocker.PropertyMock(side_effect=ValueError("HTML layout changed completely"))
 
-    mocker.patch("memoria_curitibana.domains.ingestion.adapters.pmc_scraper.requests.get", return_value=mock_response)
+    mocker.patch("scrinalia.domains.ingestion.adapters.pmc_scraper.requests.get", return_value=mock_response)
 
     adapter = PMCScraperAdapter()
 

@@ -2,12 +2,12 @@
 
 import pytest
 
-from memoria_curitibana.domains.archive.exceptions import InvalidWorkerSettingsError, WorkerNotFoundError
-from memoria_curitibana.domains.archive.repository.cleaning_repo import CleaningRepository
-from memoria_curitibana.domains.archive.schemas.cleaning_schema import CleaningRuleCreateDTO
-from memoria_curitibana.domains.archive.schemas.system_schema import WorkerSettingsRequest
-from memoria_curitibana.domains.archive.services.worker_operations_service import WorkerOperationsService
-from memoria_curitibana.domains.archive.workers import runner
+from scrinalia.domains.archive.exceptions import InvalidWorkerSettingsError, WorkerNotFoundError
+from scrinalia.domains.archive.repository.cleaning_repo import CleaningRepository
+from scrinalia.domains.archive.schemas.cleaning_schema import CleaningRuleCreateDTO
+from scrinalia.domains.archive.schemas.system_schema import WorkerSettingsRequest
+from scrinalia.domains.archive.services.worker_operations_service import WorkerOperationsService
+from scrinalia.domains.archive.workers import runner
 
 
 @pytest.fixture
