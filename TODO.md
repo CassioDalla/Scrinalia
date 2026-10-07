@@ -6,10 +6,11 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > **Como ler.** `✅` = feito **e verificado em execução real** (Postgres + engines reais), não
 > apenas lido no código. `[ ]` = pendente. `[~]` = parcial.
 >
-> **Estado do gate (2026-10-07, após o desacoplamento):** **1.219 testes** passando · `ruff` limpo
-> (338 arquivos) · `basedpyright` **0 erros** · **29 migrações** sem drift · contrato OpenAPI
-> **85 paths / 100 operações / 173 schemas**, gerado, commitado e sem drift · SPA (`tsc`, `eslint`,
-> `vite build`) limpa e servida pelo próprio Litestar · **8 ADRs**.
+> **Estado do gate (2026-10-07, após a autenticação — B9.1):** **1.317 testes** passando · `ruff`
+> limpo · `basedpyright` **0 erros** · **32 migrações** sem drift · contrato OpenAPI
+> **89 paths / 104 operações / 178 schemas**, gerado, commitado e sem drift · SPA (`tsc`, `eslint`,
+> `vite build`) limpa e servida pelo próprio Litestar · **9 ADRs**. As **104 operações** estão todas
+> classificadas por permissão, e a superfície aberta são três.
 
 ---
 
@@ -23,17 +24,18 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 | 2.5 | Hierarquia das descrições | ✅ **Fechada** (H1–H8, com tela) |
 | 3 | Descoberta, performance e observabilidade | 🟡 **Quase** — falta o agendador; `/health` e o rastreamento de erros **fechados** (ADR 0005) |
 | 3.5 | Qualidade do dado de entrada | ✅ **Fechada** |
-| 4 | UI, BFF e publicação | 🟡 **Curador completo** (22 telas); faltam **auth** e **site público** |
-| **5** | **Release 1.0** | 🟡 **Iniciada** — licença (0006), nome (0007) e desacoplamento (0008) fechados; faltam auth e docs |
+| 4 | UI, BFF e publicação | 🟡 **Curador completo** (22 telas) e **auth entregue (B9.1)**; faltam a tela de contas (B9.2) e o **site público** |
+| **5** | **Release 1.0** | 🟡 **Iniciada** — licença (0006), nome (0007), desacoplamento (0008) e auth (0009) fechados; faltam a gestão de contas e docs |
 
 **O sistema está funcionalmente pronto.** Ingestão → staging → archive → enriquecimento por IA →
 curadoria humana → bloqueio de reprocessamento, tudo verificado ponta a ponta. O **curador tem 22
 telas** cobrindo todo o sitemap mais o painel de operação, e o **Streamlit saiu do repositório**.
 
 **O que falta para uma 1.0 é de outra natureza:** não é feature, é *produto*. Documentação,
-desacoplamento institucional e autenticação — a **licença** (ADR 0006), o **nome** (ADR 0007) e o
-**desacoplamento** (ADR 0008) foram fechados em 2026-10-07. Restam a **autenticação** e a **base de
-documentação**. Detalhe na seção seguinte.
+desacoplamento institucional e autenticação — a **licença** (ADR 0006), o **nome** (ADR 0007), o
+**desacoplamento** (ADR 0008) e a **autenticação** (ADR 0009, ciclo B9.1) foram fechados em
+2026-10-07. Restam a **gestão de contas na tela** (B9.2) e a **base de documentação**. Detalhe na
+seção seguinte.
 
 > **Ciclos entregues, em uma linha cada** (o detalhe está nas fases fechadas):
 > contrato + onda 1 (2026-10-05) · onda 2, o plano de arranjo (2026-10-05) · ondas 4–6 e a remoção
@@ -43,7 +45,9 @@ documentação**. Detalhe na seção seguinte.
 > orquestrador, causa raiz agrupada e request id (2026-10-07)** · **a licença `AGPL-3.0-only` e a
 > atribuição do autor no rodapé (2026-10-07)** · **o nome `Scrinalia` e o rename do pacote
 > (2026-10-07)** · **o desacoplamento institucional — o perfil de língua `pt-BR`, os dois catálogos
-> do acervo com tela, e a configuração da origem (2026-10-07)**.
+> do acervo com tela, e a configuração da origem (2026-10-07)** · **a autenticação — sessão por
+> cookie no banco, argon2id, três papéis e as 104 operações classificadas, com a autoria vindo da
+> sessão em vez do request (2026-10-07)**.
 
 ---
 
@@ -58,8 +62,12 @@ documentação**. Detalhe na seção seguinte.
 - Pipeline completo e verificado ponta a ponta, com governança (`HUMAN_APPROVED` bloqueia IA).
 - 22 telas de curadoria + painel de operação; Streamlit removido.
 - Contrato OpenAPI gerado, commitado e com CI bloqueante; cliente TS gerado do contrato.
-- 1.175 testes, CI com 3 jobs (lint, testes+migrações+contrato, frontend).
-- Schema 100% sob Alembic, 28 migrações sem drift.
+- 1.317 testes, CI com 3 jobs (lint, testes+migrações+contrato, frontend).
+- Schema 100% sob Alembic, 32 migrações sem drift.
+- **Autenticação entregue (B9.1):** sessão por cookie com a linha no banco (só o sha256 do token),
+  argon2id, três papéis e **cada operação de `/api/v1` declarando a sua permissão** — com um teste que
+  falha se alguma ficar sem classificação. A superfície aberta são três operações, e a difusão
+  continua aberta por design.
 - Superfície pública **já projetada** (allowlist com partição exata e teste) — falta só o app.
 - **Determinismo do contrato** corrigido: o OpenAPI não depende mais do `PYTHONHASHSEED`.
 - **Licença fechada** (`AGPL-3.0-only` + termo de atribuição do §7(b), com rodapé na SPA e
@@ -90,12 +98,39 @@ documentação**. Detalhe na seção seguinte.
       - **Nome:** **decidido e aplicado em 2026-10-07** — o projeto é **`Scrinalia`** (ADR 0007, §
         abaixo). O `attribution.ts` continua sendo o ponto único da troca: renomear de novo é uma
         linha, não uma tela.
-- [ ] **Auth (B9) — planejado em 2026-10-07, em três ciclos.** Hoje qualquer cliente que alcance a
-      API aprova fichas, apaga descrições, funde taxonomia e **dispara workers**: são **85 paths /
-      100 operações**, 58 delas de mutação, e **12 colunas de autoria em 12 tabelas** guardam texto
-      livre (`changed_by`, `requested_by`, `decided_by`, `deleted_by`, `created_by`). Um 1.0 que
-      outra instituição instala precisa de autenticação; shippar com aviso de "não exponha" está
-      descartado.
+- [~] **Auth (B9) — B9.1 entregue em 2026-10-07; B9.2 e B9.3 pendentes.** Antes disso qualquer
+      cliente que alcançasse a API aprovava fichas, apagava descrições, fundia taxonomia e **disparava
+      workers**: eram **85 paths / 100 operações**, 58 delas de mutação, e **15 colunas de autoria em
+      15 tabelas** guardavam texto livre (`changed_by`, `requested_by`, `decided_by`, `deleted_by`,
+      `created_by`, `undone_by`). Hoje são **89 paths / 104 operações**, todas classificadas, e a
+      superfície aberta são **três** operações: o login e as duas rotas de difusão.
+      - **O que a execução corrigiu no plano, e vale para o próximo ciclo.** (1) O guard faz a
+        **autenticação junto** com a autorização, e não um middleware: um middleware roda fora do
+        `ExceptionHandlerMiddleware`, então o 401 saía **depois** da linha de acesso — a resposta que a
+        frente mais vê era a única sem status e sem `X-Request-ID` ecoado. (2) O inventário de autoria
+        do primeiro commit procurou cinco nomes e **esqueceu `undone_by`**: as três rotas de undo
+        ficaram abertas por um commit a mais, e a migração que as corrige registra que existiu porque a
+        lista era curta. (3) Duas rotas (`PATCH /documents/{id}`, `PATCH /taxonomy/tags/{id}`)
+        **descartavam o autor em silêncio**, porque o campo sempre tivera default `None` e nenhum teste
+        podia notar. (4) O autogerador do Alembic criou as FKs **sem nome** e o downgrade não passava —
+        as migrações foram reescritas com `fk_<tabela>_<coluna>` e o round-trip downgrade/upgrade passou
+        a ser verificado. (5) `EntityRepository.resolve_cross_domain_conflict` gravava
+        `decided_by=source`, então "quem decidiu" respondia `JUDGE`/`HUMAN`; o teste **afirmava o
+        defeito** e agora afirma a correção.
+      - **Pendente no B9.2 — papéis na tela.** `/api/v1/users` (CRUD, papel, ativar/desativar, reset,
+        sessões ativas e revogação) e o grupo **"Configurações"** no fim da sidebar, com `Usuários`
+        primeiro. O menu é o mesmo para todos os papéis **de propósito** até lá: esconder o que a conta
+        não pode fazer é o trabalho desta tela, e uma negação hoje é um 403 com frase — visível e
+        honesto, em vez de um menu que mente sobre o que existe.
+      - **Pendente no B9.3 — endurecimento, e uma armadilha já medida.** `failed_attempts`/
+        `locked_until` existem na tabela e **nada os escreve**: o contador **não pode** viver na
+        transação do request, porque um login que falha levanta e o `provide_unit_of_work` faz rollback
+        — o contador seria apagado pela falha que ele conta. Precisa da própria sessão commitada, como
+        `archive_worker_runs`. Junto: rate-limit no login, checagem de `Origin` nas mutações e auditoria
+        de sessões.
+      - **Lacuna conhecida e registrada:** o `openapi.json` **não declara** o esquema de segurança do
+        cookie. Um `security` global marcaria também as rotas de difusão e os probes como protegidos, o
+        que seria pior que subdeclarar; declarar por rota é uma mudança maior que este ciclo.
       - **Decisões tomadas com o dono (2026-10-07).** (1) **Três ciclos**, não um: o mínimo
         defensável é o B9.1, e o que incha não é o login. (2) Cookie `HttpOnly` + sessão **no banco**,
         revogável — não cookie assinado stateless, não JWT no SPA. (3) Três papéis
@@ -108,7 +143,8 @@ documentação**. Detalhe na seção seguinte.
         `apps/curator/dist` em `/` — mesma origem, sem CORS —, então o login são dois endpoints no
         próprio Litestar, cookie first-party e nenhum token em JS. O `apps/public`, quando existir,
         será o segundo processo, e ele só toca `/api/v1/public`, que continua aberto **por design**.
-      - **B9.1 — Identidade e trava (fecha o buraco).** Novo domínio `domains/identity/` — e não
+      - **B9.1 — entregue (o que segue é o desenho, verificado em execução).** Novo domínio
+        `domains/identity/` — e não
         `core/`, que não tem nenhuma tabela hoje: usuário e sessão são contexto com ciclo de vida,
         não infraestrutura. `auth_users` + `auth_sessions` (só o **sha256** do token no banco, nunca
         o token), argon2id via `argon2-cffi` com parâmetros explícitos e rehash no login, e
@@ -124,12 +160,12 @@ documentação**. Detalhe na seção seguinte.
         **aqui**, não no B9.2: o CLI cria o admin com senha temporária e `must_change_password`, e sem
         essa rota ele fica preso num beco sem saída). **O ADR 0009 nasce neste ciclo**, não no B9.3: o
         registro pertence a quem toma a decisão.
-      - **B9.2 — Papéis e a página Configurações.** `/api/v1/users` (CRUD, papel, ativar/desativar,
+      - **B9.2 — pendente. Papéis e a página Configurações.** `/api/v1/users` (CRUD, papel, ativar/desativar,
         reset, sessões ativas e revogação) e o grupo **"Configurações"** no fim da sidebar, com
         `Usuários` primeiro. Depois é o lugar natural para o que é *configuração* e não *operação*
         (settings de worker), deixando "Sistema" com execuções e diagnóstico. A UI passa a esconder e
         desabilitar o que o papel não pode.
-      - **B9.3 — Endurecimento.** `failed_attempts`/`locked_until` com backoff, rate-limit no login,
+      - **B9.3 — pendente. Endurecimento.** `failed_attempts`/`locked_until` com backoff, rate-limit no login,
         checagem de `Origin` nas mutações, `last_login_at` e auditoria de sessões. Pode colar no B9.2
         se o ciclo precisar encurtar.
       - **O que custa mais que o login (medido).** (a) **11 campos `changed_by` em schemas de

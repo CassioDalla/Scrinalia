@@ -81,7 +81,11 @@ docker compose up -d
 # 4. Create the schema
 uv run alembic upgrade head
 
-# 5. Run the API
+# 5. Create the first administrator (prints a temporary password, to be changed at first sign-in)
+uv run python -m scrinalia.domains.identity.cli create \
+  --email voce@instituicao.org --name "Seu Nome" --role ADMIN
+
+# 6. Run the API
 uv run uvicorn main:app --reload
 ```
 
@@ -95,6 +99,33 @@ database restart takes the instance out of rotation without restarting the proce
 diagnosis is a different question and a different route: `GET /api/v1/system/health` reports *which*
 piece is down — database, Ollama models, bucket, effective process configuration — and answers 200
 either way.
+
+### Authentication
+
+Every operation of `/api/v1` requires a session, and the **only** things reachable without one are the
+login, the diffusion routes (`/api/v1/public/*`), the health probes and the OpenAPI document. The
+decision and its alternatives are in [ADR 0009](docs/adr/0009-authentication-and-authorization.md).
+
+Accounts live in the database (`auth_users`), passwords are hashed with **argon2id**, and the session
+is a first-party cookie whose row lives in `auth_sessions` — only the SHA-256 of the token is stored,
+which is what makes "sign out everywhere" and "this person no longer works here" take effect at once
+instead of at expiry.
+
+Accounts are administered from the host:
+
+```bash
+uv run python -m scrinalia.domains.identity.cli list
+uv run python -m scrinalia.domains.identity.cli create --email a@b.org --name "Ana" --role CURATOR
+uv run python -m scrinalia.domains.identity.cli reset-password --email a@b.org
+uv run python -m scrinalia.domains.identity.cli deactivate --email a@b.org
+```
+
+Three roles: `ADMIN` (accounts and the AI workers), `CURATOR` (the record, its subjects and the closed
+catalogues) and `VIEWER` (reads). There is no self-service password recovery by e-mail — the CLI on the
+host is the way back in, which is deliberate for an installation with no mail server.
+
+**One setting to change before exposing the instance:** `AUTH_COOKIE_SECURE=true` behind HTTPS. Left
+false over the open internet, the session token travels in clear text.
 
 ### Curator UI
 
@@ -231,9 +262,10 @@ main.py                   deployable entrypoint (re-exports the ASGI app)
 - [`TODO.md`](TODO.md) — roadmap
 - [`docs/adr/`](docs/adr/) — architecture decision records, including
   [`0006`](docs/adr/0006-license-and-author-attribution.md) on licensing,
-  [`0007`](docs/adr/0007-project-name-scrinalia.md) on the name and
+  [`0007`](docs/adr/0007-project-name-scrinalia.md) on the name,
   [`0008`](docs/adr/0008-language-in-code-and-collection-vocabulary-in-the-database.md) on what is
-  language, what is collection data and what is configuration
+  language, what is collection data and what is configuration, and
+  [`0009`](docs/adr/0009-authentication-and-authorization.md) on authentication and authorization
 
 ## The name
 
