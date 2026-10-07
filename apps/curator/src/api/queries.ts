@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 
 import {
   fetchCleaningRules,
+  fetchCollectionVocabulary,
   fetchDeletions,
   fetchConflictResolutions,
   fetchCrossDomainConflicts,
@@ -159,6 +160,20 @@ export const queries = {
     queryOptions({
       queryKey: ["typologies", "catalog"],
       queryFn: fetchTypologyCatalog,
+      staleTime: 60_000,
+    }),
+
+  /**
+   * The collection vocabulary: the arrangement names and the terms the subject guard reads.
+   *
+   * Read once and kept, like the other catalogues: it is a statement about *this* collection, and
+   * the worker only sees a change after its next run — so it does not go stale while the archivist
+   * works. The screen invalidates it after its own writes.
+   */
+  collectionVocabulary: () =>
+    queryOptions({
+      queryKey: ["vocabulary"],
+      queryFn: fetchCollectionVocabulary,
       staleTime: 60_000,
     }),
 

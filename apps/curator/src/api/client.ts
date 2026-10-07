@@ -78,6 +78,16 @@ export type Typology = components["schemas"]["TypologyDTO"];
 export type TypologyCreateRequest = components["schemas"]["TypologyCreateRequest"];
 export type TypologyUpdateRequest = components["schemas"]["TypologyUpdateRequest"];
 
+// --- The collection vocabulary: what this archive declares, as opposed to the language ----------
+export type CollectionVocabulary = components["schemas"]["CollectionVocabularyResponse"];
+export type ArrangementTerm = components["schemas"]["ArrangementTermDTO"];
+export type CollectionTerm = components["schemas"]["CollectionTermDTO"];
+export type CollectionTermKind = components["schemas"]["CollectionTermKind"];
+export type ArrangementTermCreateRequest = components["schemas"]["ArrangementTermCreateRequest"];
+export type ArrangementTermUpdateRequest = components["schemas"]["ArrangementTermUpdateRequest"];
+export type CollectionTermCreateRequest = components["schemas"]["CollectionTermCreateRequest"];
+export type CollectionTermUpdateRequest = components["schemas"]["CollectionTermUpdateRequest"];
+
 // --- The arrangement (Fase 2.5): the plan catalogue, the ledger and the diagnosis --------------
 export type HierarchyNodePlan = components["schemas"]["HierarchyNodePlanDTO"];
 export type HierarchyPlanList = components["schemas"]["HierarchyPlanListResponse"];
@@ -439,6 +449,53 @@ export async function updateTypology(
   return unwrap<Typology>(
     await client.PATCH("/api/v1/typologies/{typology_id}", {
       params: { path: { typology_id: typologyId } },
+      body,
+    }),
+  );
+}
+
+// --- The collection vocabulary -----------------------------------------------------------------
+
+/** Both catalogues in one read: the screen shows them together. */
+export async function fetchCollectionVocabulary(): Promise<CollectionVocabulary> {
+  return unwrap<CollectionVocabulary>(await client.GET("/api/v1/vocabulary"));
+}
+
+export async function createArrangementTerm(
+  body: ArrangementTermCreateRequest,
+): Promise<ArrangementTerm> {
+  return unwrap<ArrangementTerm>(
+    await client.POST("/api/v1/vocabulary/arrangement-terms", { body }),
+  );
+}
+
+/** Partial edit. There is no delete: ``is_active=false`` retires the suggestion. */
+export async function updateArrangementTerm(
+  termId: number,
+  body: ArrangementTermUpdateRequest,
+): Promise<ArrangementTerm> {
+  return unwrap<ArrangementTerm>(
+    await client.PATCH("/api/v1/vocabulary/arrangement-terms/{term_id}", {
+      params: { path: { term_id: termId } },
+      body,
+    }),
+  );
+}
+
+export async function createCollectionTerm(
+  body: CollectionTermCreateRequest,
+): Promise<CollectionTerm> {
+  return unwrap<CollectionTerm>(await client.POST("/api/v1/vocabulary/collection-terms", { body }));
+}
+
+/** Partial edit. There is no delete: ``is_active=false`` retires the term. */
+export async function updateCollectionTerm(
+  termId: number,
+  body: CollectionTermUpdateRequest,
+): Promise<CollectionTerm> {
+  return unwrap<CollectionTerm>(
+    await client.PATCH("/api/v1/vocabulary/collection-terms/{term_id}", {
+      params: { path: { term_id: termId } },
       body,
     }),
   );

@@ -24,6 +24,7 @@ import { TagsRoute, validateTagsSearch } from "@/routes/TagsRoute";
 import { TextTemplatesRoute, validateTextTemplatesSearch } from "@/routes/TextTemplatesRoute";
 import { TreeRoute, validateTreeSearch } from "@/routes/TreeRoute";
 import { TypologiesRoute } from "@/routes/TypologiesRoute";
+import { VocabularyRoute } from "@/routes/VocabularyRoute";
 
 /**
  * Routes are declared in code, not derived from the filesystem.
@@ -113,6 +114,19 @@ const typologiesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/arranjo/tipologias",
   component: TypologiesRoute,
+});
+
+/**
+ * The collection vocabulary: the one catalogue that is neither arrangement nor subject.
+ *
+ * It names the rungs the arrangement proposal suggests *and* the terms the subject guard refuses,
+ * so filing it under either would put half of it in the wrong place. It is a top-level route for the
+ * same reason the concept is: it is a statement about the collection, and both axes read it.
+ */
+const vocabularyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/vocabulario",
+  component: VocabularyRoute,
 });
 
 const tagsRoute = createRoute({
@@ -217,6 +231,7 @@ export const router = createRouter({
     diagnosticsRoute,
     levelsRoute,
     typologiesRoute,
+    vocabularyRoute,
     tagsRoute,
     categoriesRoute,
     discoverRoute,

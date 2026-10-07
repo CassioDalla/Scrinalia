@@ -45,6 +45,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     items: [
       { to: "/arranjo/niveis", label: "Níveis de descrição", hint: "A escada NOBRADE" },
       { to: "/arranjo/tipologias", label: "Tipologias", hint: "A forma diplomática" },
+      { to: "/vocabulario", label: "Vocabulário do acervo", hint: "Nomes e lugares deste acervo" },
     ],
   },
   {
