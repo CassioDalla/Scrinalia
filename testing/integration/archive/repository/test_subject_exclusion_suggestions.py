@@ -60,7 +60,9 @@ def test_it_proposes_what_the_guard_refuses_with_the_weight_beside_it(use_test_d
     assert by_term["local não identificado"].signal == "PLACEHOLDER"
 
 
-def test_the_evidence_says_where_the_term_goes_and_what_else_it_is(use_test_db, db_session, generate_archive_doc):
+def test_the_evidence_says_where_the_term_goes_and_what_else_it_is(
+    use_test_db, db_session, generate_archive_doc, reference_vocabulary
+):
     """
     "Not a subject" is not "goes nowhere", and the screen has to be able to say so.
 
@@ -68,6 +70,9 @@ def test_the_evidence_says_where_the_term_goes_and_what_else_it_is(use_test_db, 
     subject axis does not discard it. And a spelling that also exists as a named entity is the
     collision screen's business, not this one's.
     """
+    # The person name is a row of the collection vocabulary, not a constant of the guard: the test
+    # schema never runs a migration, so the reference catalogue has to be declared here.
+    reference_vocabulary()
     repo = TagRepository(db_session)
     document = generate_archive_doc(description_id="s2", original_title="A")
     _tag_with_documents(db_session, "rua xv de novembro", [document.description_id])

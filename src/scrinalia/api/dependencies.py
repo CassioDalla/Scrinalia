@@ -10,6 +10,7 @@ from scrinalia.core.database import create_session
 from scrinalia.core.unit_of_work import UnitOfWork
 from scrinalia.domains.archive.engines.base import EmbeddingEngine
 from scrinalia.domains.archive.repository.cleaning_repo import CleaningRepository
+from scrinalia.domains.archive.repository.collection_vocabulary_repo import CollectionVocabularyRepository
 from scrinalia.domains.archive.repository.curation_repo import CurationRepository
 from scrinalia.domains.archive.repository.document_repo import DocumentRepository
 from scrinalia.domains.archive.repository.entity_repo import EntityRepository
@@ -19,6 +20,7 @@ from scrinalia.domains.archive.repository.tag_repo import TagRepository
 from scrinalia.domains.archive.repository.text_quality_repo import TextQualityRepository
 from scrinalia.domains.archive.repository.typology_repo import TypologyRepository
 from scrinalia.domains.archive.services.cleaning_service import CleaningService
+from scrinalia.domains.archive.services.collection_vocabulary_service import CollectionVocabularyService
 from scrinalia.domains.archive.services.curation_service import CurationService
 from scrinalia.domains.archive.services.document_service import DocumentService
 from scrinalia.domains.archive.services.entity_service import EntityService
@@ -122,6 +124,13 @@ def provide_typology_service(unit_of_work: NamedDependency[UnitOfWork]) -> Typol
     return TypologyService(TypologyRepository(unit_of_work.db))
 
 
+def provide_collection_vocabulary_service(
+    unit_of_work: NamedDependency[UnitOfWork],
+) -> CollectionVocabularyService:
+    """Builds the collection vocabulary catalogue service over the request transaction."""
+    return CollectionVocabularyService(CollectionVocabularyRepository(unit_of_work.db))
+
+
 def provide_hierarchy_service(unit_of_work: NamedDependency[UnitOfWork]) -> HierarchyService:
     """Builds the tree service with both repositories bound to the request transaction."""
     db = unit_of_work.db
@@ -129,9 +138,15 @@ def provide_hierarchy_service(unit_of_work: NamedDependency[UnitOfWork]) -> Hier
 
 
 def provide_hierarchy_proposal_service(unit_of_work: NamedDependency[UnitOfWork]) -> HierarchyProposalService:
-    """Builds the read-only proposal service; it shares the transaction and never writes."""
+    """Builds the read-only proposal service; it shares the transaction and never writes.
+
+    The collection vocabulary is injected because the *names* the proposal suggests are a property
+    of the collection: the algorithm infers the rungs, the catalogue says what they are called.
+    """
     db = unit_of_work.db
-    return HierarchyProposalService(HierarchyRepository(db), LevelCatalogRepository(db))
+    return HierarchyProposalService(
+        HierarchyRepository(db), LevelCatalogRepository(db), CollectionVocabularyRepository(db)
+    )
 
 
 def provide_hierarchy_materialisation_service(
@@ -141,7 +156,11 @@ def provide_hierarchy_materialisation_service(
     db = unit_of_work.db
     repo = HierarchyRepository(db)
     catalog = LevelCatalogRepository(db)
-    return HierarchyMaterialisationService(repo, catalog, HierarchyProposalService(repo, catalog))
+    return HierarchyMaterialisationService(
+        repo,
+        catalog,
+        HierarchyProposalService(repo, catalog, CollectionVocabularyRepository(db)),
+    )
 
 
 def provide_worker_operations_service(unit_of_work: NamedDependency[UnitOfWork]) -> WorkerOperationsService:

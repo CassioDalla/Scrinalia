@@ -13,6 +13,7 @@ from types import ModuleType
 
 import pytest
 
+from scrinalia.domains.archive.domain.collection_vocabulary import COLLECTION_TERMS, vocabulary_from_rows
 from scrinalia.domains.archive.domain.vocabulary import (
     RETIRED_CATEGORIES,
     SUBJECT_CATEGORIES,
@@ -26,6 +27,11 @@ from scrinalia.domains.archive.domain.vocabulary import (
     is_year,
     subject_exclusion_signal,
 )
+
+#: The vocabulary of the reference collection, built from the seed mirror. The two families the
+#: *collection* owns — the toponyms and the person names — are rows now, so the guard has to be
+#: handed them; the three the *language* owns it reads from the profile on its own.
+REFERENCE = vocabulary_from_rows(list(COLLECTION_TERMS))
 
 #: The repository root, derived from this file (testing/unit/archive/domain/) so the test
 #: does not depend on where pytest was invoked from.
@@ -76,8 +82,8 @@ class TestNonSubjectsMeasuredOnTheCollection:
     )
     def test_a_person_name_is_not_a_subject(self, term: str, documents: int) -> None:
         """A name is the producer, the same reasoning that retired the ``Instituição`` drawer."""
-        assert is_person_name(term), f"{term} reaches {documents} documents and names a person"
-        assert not is_subject_candidate(term)
+        assert is_person_name(term, REFERENCE), f"{term} reaches {documents} documents and names a person"
+        assert not is_subject_candidate(term, REFERENCE)
 
 
 class TestStreetsGoToTheFacetAndNotEmpty:
@@ -118,9 +124,20 @@ class TestStreetsGoToTheFacetAndNotEmpty:
         assert not is_street("ruído")
 
     def test_a_toponym_is_a_place_without_being_a_street(self) -> None:
-        assert is_place_term("curitiba")
-        assert is_place_term("centro")
+        assert is_place_term("curitiba", REFERENCE)
+        assert is_place_term("centro", REFERENCE)
         assert not is_street("curitiba")
+
+    def test_a_collection_that_declares_nothing_refuses_nothing_of_its_own(self) -> None:
+        """
+        The empty catalogue is the honest default, not a fallback to the reference collection.
+
+        ``curitiba`` is a place *because the reference collection says so*; an installation that has
+        not described its own collection must not silently inherit Curitiba's bairros and names.
+        """
+        assert not is_place_term("curitiba")
+        assert not is_person_name("jaime lerner")
+        assert is_subject_candidate("curitiba")
 
 
 class TestTheGuardDoesNotSwallowRealSubjects:
@@ -221,7 +238,7 @@ class TestSubjectExclusionSignal:
         ],
     )
     def test_it_names_the_shape(self, term: str, expected: str) -> None:
-        assert subject_exclusion_signal(term) == expected
+        assert subject_exclusion_signal(term, REFERENCE) == expected
 
     @pytest.mark.parametrize(
         "term",
@@ -259,11 +276,11 @@ class TestSubjectExclusionSignal:
             "madeira",
         ]
         for term in probes:
-            signal = subject_exclusion_signal(term)
+            signal = subject_exclusion_signal(term, REFERENCE)
             if signal is not None:
                 assert signal in SUBJECT_EXCLUSION_SIGNALS
-                assert not is_subject_candidate(term), f"{term} tem sinal {signal} e passaria no guarda"
+                assert not is_subject_candidate(term, REFERENCE), f"{term} tem sinal {signal} e passaria no guarda"
             else:
-                assert is_subject_candidate(term) or is_place_term(term), (
+                assert is_subject_candidate(term, REFERENCE) or is_place_term(term, REFERENCE), (
                     f"{term} não tem sinal e mesmo assim o guarda o recusaria sem explicação"
                 )

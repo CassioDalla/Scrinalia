@@ -13,8 +13,10 @@ and a pair such as ``FOTOGRAFIA`` / ``FOTOGRAFIAS`` is surfaced as ``NEAR_DUPLIC
 archivist instead of being resolved by a similarity score.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from scrinalia.domains.archive.domain.collection_vocabulary import suggest_name
 from scrinalia.domains.archive.domain.hierarchy import (
     HierarchyIssue,
     HierarchyViolation,
@@ -28,6 +30,7 @@ from scrinalia.domains.archive.domain.hierarchy_code import (
     slice_reference_code,
 )
 from scrinalia.domains.archive.models import ArchiveDescriptionLevel
+from scrinalia.domains.archive.repository.collection_vocabulary_repo import CollectionVocabularyRepository
 from scrinalia.domains.archive.repository.hierarchy_repo import CodeObservation, HierarchyRepository
 from scrinalia.domains.archive.repository.level_catalog_repo import LevelCatalogRepository
 from scrinalia.domains.archive.schemas.hierarchy_schema import (
@@ -39,58 +42,14 @@ from scrinalia.domains.archive.schemas.hierarchy_schema import (
 #: Reference codes whose shape is not a clean "arrangement + serial" are listed, not dropped.
 UNPARSED_CODES_LIMIT = 100
 
-#: The two depths the product decision already fixed: ``BR PRADAP`` is the single root and the
-#: eight third-token nodes are the funds. Everything deeper is inferred relative to its children.
+#: The two depths the product decision already fixed: the root is the first rung and the funds the
+#: second. The *names* those rungs carry are not fixed by the software — they come from the
+#: collection vocabulary catalogue — only the shape of the ladder is.
 ROOT_DEPTH = 2
 FUND_DEPTH = 3
 ROOT_ORDINAL = 0
 FUND_ORDINAL = 1
 MAX_ORDINAL = 5
-
-#: Names the proposal suggests per rung. Suggestions only: a proposal that renamed things would be
-#: a write, and the whole surface exists because a human confirms the vocabulary.
-VOCABULARY_BY_CODE: dict[str, str] = {
-    "BR PRADAP": "Acervo da entidade custodiadora",
-}
-VOCABULARY_BY_TOKEN: dict[str, str] = {
-    "IPPUC": "IPPUC - Instituto de Pesquisa e Planejamento Urbano de Curitiba",
-    "SMU": "SMU - Secretaria Municipal de Urbanismo",
-    "SMMA": "SMMA - Secretaria Municipal do Meio Ambiente",
-    "SEPLAD": "SEPLAD - Secretaria Municipal do Planejamento",
-    "CMC": "CMC - Câmara Municipal de Curitiba",
-    "FAS": "FAS - Fundação de Ação Social",
-    "SGM": "SGM - Secretaria Municipal de Governo",
-    "SMCS": "SMCS - Secretaria Municipal da Comunicação Social",
-    "SMDS": "SMDS - Secretaria Municipal da Defesa Social",
-    "FOTOGRAFIA": "Registros Fotográficos",
-    "FOTOGRAFIAS": "Registros Fotográficos",
-    "ED": "Edificações",
-    "AL": "Alvenaria",
-    "CONSTR": "Construções",
-    "CVCO": "Certificados de Vistoria e Conclusão de Obras",
-    "OUVIDORIA": "Ouvidoria Municipal de Curitiba",
-    "LEGISLAÇÃO": "Referência Legislativa",
-    "MICROFILME": "Microfilme",
-    "PROC": "Processos",
-    "MATADOURO": "Matadouro Municipal",
-    "DIAPOSITIVO": "Diapositivos",
-    "JORN": "Jornais",
-    "REQUERIMENTOS": "Requerimentos",
-    "REQ": "Requerimentos",
-    "OF": "Ofícios",
-    "HIST": "Histórico",
-    "PP": "Pareceres e Projetos",
-    "DUP": "Duplicatas",
-    "GAZ": "Gazeta",
-    "MERC": "Mercado",
-    "ATUBA": "Atuba",
-    "INVENT": "Inventário",
-    "MODELO": "Modelo",
-    "BOMBAS": "Bombas",
-    "INFLAMAVEIS": "Inflamáveis",
-    "DEPOSITO": "Depósito",
-    "PEQ": "Pequenos",
-}
 
 
 @dataclass
@@ -108,14 +67,23 @@ class _NodeAccumulator:
 
 
 class HierarchyProposalService:
-    def __init__(self, repo: HierarchyRepository, catalog: LevelCatalogRepository) -> None:
+    def __init__(
+        self,
+        repo: HierarchyRepository,
+        catalog: LevelCatalogRepository,
+        vocabulary: CollectionVocabularyRepository,
+    ) -> None:
         self.repo = repo
         self.catalog = catalog
+        self.vocabulary = vocabulary
 
     def propose(self, command: HierarchyProposalCommand) -> HierarchyProposalResponse:
         observations = self.repo.stream_code_observations()
         levels = self.catalog.list_levels()
         ordinal_to_level = {level.ordinal: level for level in levels}
+        # The names are a property of the collection, not of the algorithm: one read per proposal,
+        # so the suggestion the archivist reads is whatever the catalogue currently declares.
+        names = self.vocabulary.arrangement_names()
 
         sliced = [(obs, slice_reference_code(obs.reference_code)) for obs in observations]
         records_by_code = self._records_by_code(observations)
@@ -133,6 +101,7 @@ class HierarchyProposalService:
                 records_by_code=records_by_code,
                 ordinal_to_level=ordinal_to_level,
                 near_duplicates=near_duplicates,
+                names=names,
             )
             for node in sorted(nodes.values(), key=lambda item: item.code)
         ]
@@ -356,6 +325,7 @@ class HierarchyProposalService:
         records_by_code: dict[str, list[CodeObservation]],
         ordinal_to_level: dict[int, ArchiveDescriptionLevel],
         near_duplicates: set[str],
+        names: Mapping[str, str],
     ) -> HierarchyProposalNode:
         records = records_by_code.get(node.code, [])
         level = ordinal_to_level.get(node.ordinal) if node.ordinal is not None else None
@@ -382,16 +352,10 @@ class HierarchyProposalService:
             document_count=len(node.subtree_ids),
             declared_levels=sorted({obs.level_name for obs in node.own if obs.level_name}),
             flags=sorted(node.flags),
-            suggested_name=HierarchyProposalService._suggest_name(node.code),
+            suggested_name=suggest_name(node.code, names),
             existing_description_id=records[0].description_id if records else None,
             sample_description_ids=sorted(node.subtree_ids)[:5],
         )
-
-    @staticmethod
-    def _suggest_name(code: str) -> str | None:
-        if code in VOCABULARY_BY_CODE:
-            return VOCABULARY_BY_CODE[code]
-        return VOCABULARY_BY_TOKEN.get(code.split(" ")[-1])
 
     @staticmethod
     def _unparsed_codes(sliced: list[tuple[CodeObservation, SlicedReferenceCode]]) -> list[str]:

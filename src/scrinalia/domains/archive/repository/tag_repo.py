@@ -22,6 +22,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.orm.attributes import flag_modified
 
+from scrinalia.domains.archive.domain.collection_vocabulary import CollectionVocabulary
 from scrinalia.domains.archive.domain.normalization import (
     LIKE_ESCAPE,
     escape_like,
@@ -63,6 +64,7 @@ from scrinalia.domains.archive.models import (
     StopwordsScope,
 )
 from scrinalia.domains.archive.ports.taxonomy import SubjectExclusionSource
+from scrinalia.domains.archive.repository.collection_vocabulary_repo import CollectionVocabularyRepository
 from scrinalia.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
@@ -460,6 +462,17 @@ class TagRepository:
         stmt = select(DomainSubjectExclusion.term)
         return set(self.db.scalars(stmt).all())
 
+    def collection_vocabulary(self) -> CollectionVocabulary:
+        """
+        The collection's own non-subject families: the toponyms and the person names.
+
+        The guard is a pure function of the term, but two of its five shapes are properties of the
+        *collection* and therefore rows (``archive_collection_terms``). This is the read that hands
+        them over, used by the suggestion route and by ``worker_macro_category`` — one definition,
+        so a term the worker skips is a term the catalogue explains.
+        """
+        return CollectionVocabularyRepository(self.db).collection_vocabulary()
+
     def find_subject_exclusion_candidates(
         self, limit: int = 50, offset: int = 0, include_excluded: bool = False
     ) -> SubjectExclusionSuggestionResponse:
@@ -472,8 +485,8 @@ class TagRepository:
         suggestions need.
 
         ``is_subject_candidate`` is what the classifier obeys and ``subject_exclusion_signal`` is what
-        this route publishes; both read the same three predicates, so a term the worker skips is a
-        term the catalogue shows.
+        this route publishes; both read the same predicates — the language's three and the
+        collection's two, loaded here once — so a term the worker skips is a term the catalogue shows.
 
         Deliberately **no verdict for the semantic half**: ``pessoas``, ``vista aérea`` and
         ``capanema`` have no shape to match, and the measurement on the labelled set says the
@@ -484,13 +497,16 @@ class TagRepository:
         """
         excluded = self.get_subject_exclusions()
         entity_names = set(self.db.scalars(select(func.lower(ArchiveEntity.name))).all())
+        # The collection's own families — the toponyms and the person names — come from the
+        # catalogue, not from a regex: the guard is still pure, it is just handed the data.
+        vocabulary = self.collection_vocabulary()
 
         candidates: list[SubjectExclusionSuggestion] = []
         already: list[SubjectExclusionSuggestion] = []
 
         for row in self.get_all_tags_with_counts():
             normalized = normalize_tag(row.name)
-            signal = subject_exclusion_signal(normalized)
+            signal = subject_exclusion_signal(normalized, vocabulary)
             is_excluded = normalized in excluded
 
             # A recorded decision is not a candidate; it is shown apart so the screen can explain
@@ -502,7 +518,7 @@ class TagRepository:
                 term=normalized,
                 signal=signal or "RECORDED",
                 document_count=row.document_count,
-                is_place_term=is_place_term(normalized),
+                is_place_term=is_place_term(normalized, vocabulary),
                 also_an_entity=normalized in entity_names,
                 word_count=len(normalized.split()),
                 already_excluded=is_excluded,

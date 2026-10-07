@@ -1379,6 +1379,91 @@ export interface paths {
         patch: operations["ApiV1TypologiesTypologyIdUpdateTypology"];
         trace?: never;
     };
+    "/api/v1/vocabulary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ReadVocabulary */
+        get: operations["ApiV1VocabularyReadVocabulary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vocabulary/arrangement-terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CreateArrangementTerm */
+        post: operations["ApiV1VocabularyArrangementTermsCreateArrangementTerm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vocabulary/arrangement-terms/{term_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** UpdateArrangementTerm */
+        patch: operations["ApiV1VocabularyArrangementTermsTermIdUpdateArrangementTerm"];
+        trace?: never;
+    };
+    "/api/v1/vocabulary/collection-terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CreateCollectionTerm */
+        post: operations["ApiV1VocabularyCollectionTermsCreateCollectionTerm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vocabulary/collection-terms/{term_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** UpdateCollectionTerm */
+        patch: operations["ApiV1VocabularyCollectionTermsTermIdUpdateCollectionTerm"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1400,6 +1485,25 @@ export interface components {
          * @enum {string}
          */
         ArchiveReviewStatus: "PENDING_AI" | "AI_APPROVED" | "NEEDS_REVIEW" | "HUMAN_APPROVED" | "REJECTED";
+        /** ArrangementTermCreateRequest */
+        ArrangementTermCreateRequest: {
+            /** @description O nome que o arquivista lê na proposta. */
+            display_name: string;
+            /** @description Token do código de referência (ex.: 'SMU'), ou o código inteiro (ex.: 'BR PRADAP'). */
+            token: string;
+        };
+        /** ArrangementTermDTO */
+        ArrangementTermDTO: {
+            display_name: string;
+            is_active: boolean;
+            term_id: number;
+            token: string;
+        };
+        /** ArrangementTermUpdateRequest */
+        ArrangementTermUpdateRequest: {
+            display_name?: string | null;
+            is_active?: boolean | null;
+        };
         /** BatchMergeResponse */
         BatchMergeResponse: {
             applied?: components["schemas"]["MergeBatchApplied"][];
@@ -1430,6 +1534,51 @@ export interface components {
             code: components["schemas"]["RouteMessageCode"];
             data: components["schemas"]["CleaningRuleDTO"];
             message: string;
+        };
+        /** CollectionTermCreateRequest */
+        CollectionTermCreateRequest: {
+            kind: components["schemas"]["CollectionTermKind"];
+            /** @description A grafia como ela aparece no acervo. */
+            term: string;
+        };
+        /** CollectionTermDTO */
+        CollectionTermDTO: {
+            is_active: boolean;
+            kind: components["schemas"]["CollectionTermKind"];
+            /** @default 0 */
+            tag_count: number;
+            term: string;
+            term_id: number;
+        };
+        /**
+         * CollectionTermKind
+         * @description What a term of the collection is, when it is not a subject.
+         *
+         *         The subject guard refuses a term for one of five shapes. Three of them are properties of
+         *         the *language* (a placeholder, a bare year, a measure) and two are properties of the
+         *         *collection*: a toponym it carries as a place and a person name it carries as a name. The
+         *         second family used to be a regex inside ``domain/vocabulary.py`` holding the bairros of
+         *         Curitiba and fifteen names; they are rows now because another institution's collection
+         *         carries other names, and a regex cannot be edited by the archivist.
+         *
+         *         The kind is stored instead of a boolean "is a place" because the finest rung is the one
+         *         the facet is asked about — a bairro and a country are both places, and only one of them is
+         *         "where in the city". ``PERSON`` is deliberately not a place: the name goes nowhere, it is
+         *         the producer.
+         * @enum {string}
+         */
+        CollectionTermKind: "DISTRICT" | "MUNICIPALITY" | "STATE" | "REGION" | "COUNTRY" | "PERSON";
+        /** CollectionTermUpdateRequest */
+        CollectionTermUpdateRequest: {
+            is_active?: boolean | null;
+            kind?: components["schemas"]["CollectionTermKind"] | null;
+            term?: string | null;
+        };
+        /** CollectionVocabularyResponse */
+        CollectionVocabularyResponse: {
+            arrangement_terms: components["schemas"]["ArrangementTermDTO"][];
+            collection_terms: components["schemas"]["CollectionTermDTO"][];
+            kinds: components["schemas"]["CollectionTermKind"][];
         };
         /** ConflictPreviewRequest */
         ConflictPreviewRequest: {
@@ -6678,6 +6827,186 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TypologyDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1VocabularyReadVocabulary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionVocabularyResponse"];
+                };
+            };
+        };
+    };
+    ApiV1VocabularyArrangementTermsCreateArrangementTerm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArrangementTermCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArrangementTermDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1VocabularyArrangementTermsTermIdUpdateArrangementTerm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                term_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArrangementTermUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArrangementTermDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1VocabularyCollectionTermsCreateCollectionTerm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionTermCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionTermDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1VocabularyCollectionTermsTermIdUpdateCollectionTerm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                term_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionTermUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionTermDTO"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

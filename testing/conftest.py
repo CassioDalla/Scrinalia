@@ -12,8 +12,20 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from scrinalia.core.base import Base
+from scrinalia.domains.archive.domain.collection_vocabulary import (
+    ARRANGEMENT_TERMS,
+    COLLECTION_TERMS,
+    vocabulary_from_rows,
+)
 from scrinalia.domains.archive.domain.level_catalog import NOBRADE_LEVELS
-from scrinalia.domains.archive.models import ArchiveDescriptionLevel, ArchiveDocument, ArchiveTypology
+from scrinalia.domains.archive.models import (
+    ArchiveArrangementTerm,
+    ArchiveCollectionTerm,
+    ArchiveDescriptionLevel,
+    ArchiveDocument,
+    ArchiveTypology,
+    CollectionTermKind,
+)
 from scrinalia.domains.archive.schemas import ArchiveEntityDTO
 from scrinalia.domains.archive.schemas.document_schema import ArchiveDocumentDTO
 from scrinalia.domains.ingestion import models as ingest_model
@@ -361,6 +373,32 @@ def seed_nobrade_levels(db_session):
             levels.append(level)
         db_session.flush()
         return levels
+
+    return _seed
+
+
+@pytest.fixture
+def reference_vocabulary(db_session):
+    """
+    Sows the collection vocabulary the migration seeds, from the seed mirror in the domain.
+
+    The test schema is built by ``create_all``, which never runs a migration, so the catalogue is
+    empty unless a test puts rows in it. That is the honest behaviour and it is worth being explicit
+    about: an installation with no vocabulary refuses nothing, so a test that asserts the guard
+    refuses ``jaime lerner`` has to declare that the collection carries the name — exactly like the
+    migration does for the reference collection.
+
+    Returns the value object the guard consumes, so a unit test can hand it over directly without a
+    round trip through the repository.
+    """
+
+    def _seed():
+        for token, display_name in ARRANGEMENT_TERMS:
+            db_session.add(ArchiveArrangementTerm(token=token, display_name=display_name))
+        for term, kind in COLLECTION_TERMS:
+            db_session.add(ArchiveCollectionTerm(term=term, kind=CollectionTermKind(kind)))
+        db_session.flush()
+        return vocabulary_from_rows(list(COLLECTION_TERMS))
 
     return _seed
 

@@ -1,4 +1,13 @@
 from .ai_schemas import EntityTagDecisionSchema, TitleQualityDecision
+from .collection_vocabulary_schema import (
+    ArrangementTermDTO,
+    CollectionTermDTO,
+    CollectionVocabularyResponse,
+    CreateArrangementTermCommand,
+    CreateCollectionTermCommand,
+    UpdateArrangementTermCommand,
+    UpdateCollectionTermCommand,
+)
 from .command_schema import (
     CreateMacroCategoryCommand,
     DocumentReviewCommand,
@@ -252,6 +261,8 @@ __all__ = [
     "TextTemplateDTO",
     "TitleQualityDecision",
     "TypologyDTO",
+    "UpdateArrangementTermCommand",
+    "UpdateCollectionTermCommand",
     "UpdateDescriptionLevelCommand",
     "UpdateMacroCategoryCommand",
     "UpdateTypologyCommand",

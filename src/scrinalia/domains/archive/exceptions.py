@@ -170,6 +170,34 @@ class InvalidTypologyError(DomainException):
     pass
 
 
+class ArrangementTermNotFoundError(DomainException):
+    """Raised when an arrangement vocabulary row does not exist."""
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
+class DuplicateArrangementTermError(DomainException):
+    """Raised when two rows would carry the same arrangement token."""
+
+    # Ideal translation in Litestar: HTTP 409 (Conflict)
+    pass
+
+
+class CollectionTermNotFoundError(DomainException):
+    """Raised when a collection term row does not exist."""
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
+class DuplicateCollectionTermError(DomainException):
+    """Raised when the same term would be registered twice under the same kind."""
+
+    # Ideal translation in Litestar: HTTP 409 (Conflict)
+    pass
+
+
 class HierarchyNodeNotFoundError(DomainException):
     """Raised when a description referenced by the tree does not exist."""
 

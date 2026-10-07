@@ -41,6 +41,7 @@ from scrinalia.domains.archive.models import (
     ArchiveHierarchyMaterialisationLog,
     ArchiveHierarchyNodePlan,
 )
+from scrinalia.domains.archive.repository.collection_vocabulary_repo import CollectionVocabularyRepository
 from scrinalia.domains.archive.repository.hierarchy_repo import CodeObservation, HierarchyRepository
 from scrinalia.domains.archive.repository.level_catalog_repo import LevelCatalogRepository
 from scrinalia.domains.archive.schemas.hierarchy_schema import (
@@ -537,7 +538,12 @@ class HierarchyMaterialisationService:
     # =========================================================================
     def _proposal_service(self) -> HierarchyProposalService:
         if self._proposal is None:
-            self._proposal = HierarchyProposalService(self.repo, self.catalog)
+            # The proposal needs the collection vocabulary to name the rungs it infers. The
+            # composition root already passes a fully-built proposal; this branch serves the direct
+            # constructions (tests), where the transaction is the one the repositories share.
+            self._proposal = HierarchyProposalService(
+                self.repo, self.catalog, CollectionVocabularyRepository(self.repo.db)
+            )
         return self._proposal
 
     @staticmethod

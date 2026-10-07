@@ -135,6 +135,9 @@ def execute(
     # recognisable form; these are the judgements no rule reaches (``pessoas``, ``vista
     # aérea``, ``capanema``), where the model cannot abstain and answers confidently wrong.
     excluded_terms = repository.get_subject_exclusions()
+    # The collection's own families — the toponyms and the person names — are rows, so the worker
+    # hands them to the guard instead of the guard carrying Curitiba's names in a regex.
+    vocabulary = repository.collection_vocabulary()
 
     label_fingerprint = label_set_fingerprint(categories_map)
     logger.info(f"📂 {len(candidate_labels)} macro categories loaded (labels {label_fingerprint[:12]}).")
@@ -179,7 +182,7 @@ def execute(
             classifiable = [
                 tag
                 for tag in batch_tags
-                if is_subject_candidate(tag.name) and normalize_tag(tag.name) not in excluded_terms
+                if is_subject_candidate(tag.name, vocabulary) and normalize_tag(tag.name) not in excluded_terms
             ]
             skipped = len(batch_tags) - len(classifiable)
 

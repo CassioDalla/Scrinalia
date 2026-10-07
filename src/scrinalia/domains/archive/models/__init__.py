@@ -1,11 +1,14 @@
 from .associations import ArchiveDocumentEntity, ArchiveDocumentTag
+from .collection_vocabulary import ArchiveArrangementTerm, ArchiveCollectionTerm
 from .document import ArchiveDocument, ArchiveDocumentDeletion, ArchiveDocumentRevision
 from .entity import ArchiveEntity
 from .enums import (
     ACTIVE_WORKER_RUN_STATUSES,
+    PLACE_TERM_KINDS,
     AnomalyReason,
     AnomalyType,
     ArchiveReviewStatus,
+    CollectionTermKind,
     FailureSource,
     StopwordsScope,
     TagFacetType,
@@ -35,11 +38,14 @@ from .taxonomy import (
 
 __all__ = [
     "ACTIVE_WORKER_RUN_STATUSES",
+    "PLACE_TERM_KINDS",
     "AnomalyReason",
     "AnomalyType",
     "ApiError",
     "ArchiveAIReviewQueue",
+    "ArchiveArrangementTerm",
     "ArchiveCleaningRule",
+    "ArchiveCollectionTerm",
     "ArchiveConflictResolutionLog",
     "ArchiveDescriptionLevel",
     "ArchiveDocument",
@@ -57,6 +63,7 @@ __all__ = [
     "ArchiveTagMergeProposal",
     "ArchiveTaxonomyMergeLog",
     "ArchiveTypology",
+    "CollectionTermKind",
     "DomainNerExclusion",
     "DomainStopwords",
     "DomainSubjectExclusion",

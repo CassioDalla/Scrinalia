@@ -58,6 +58,81 @@
         "title": "ArchiveReviewStatus",
         "type": "string"
       },
+      "ArrangementTermCreateRequest": {
+        "properties": {
+          "display_name": {
+            "description": "O nome que o arquivista lê na proposta.",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "token": {
+            "description": "Token do código de referência (ex.: 'SMU'), ou o código inteiro (ex.: 'BR PRADAP').",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "display_name",
+          "token"
+        ],
+        "title": "ArrangementTermCreateRequest",
+        "type": "object"
+      },
+      "ArrangementTermDTO": {
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "term_id": {
+            "type": "integer"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "display_name",
+          "is_active",
+          "term_id",
+          "token"
+        ],
+        "title": "ArrangementTermDTO",
+        "type": "object"
+      },
+      "ArrangementTermUpdateRequest": {
+        "properties": {
+          "display_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_active": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "title": "ArrangementTermUpdateRequest",
+        "type": "object"
+      },
       "BatchMergeResponse": {
         "properties": {
           "applied": {
@@ -189,6 +264,134 @@
           "message"
         ],
         "title": "CleaningRuleMutationResponse",
+        "type": "object"
+      },
+      "CollectionTermCreateRequest": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/CollectionTermKind"
+          },
+          "term": {
+            "description": "A grafia como ela aparece no acervo.",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "term"
+        ],
+        "title": "CollectionTermCreateRequest",
+        "type": "object"
+      },
+      "CollectionTermDTO": {
+        "properties": {
+          "is_active": {
+            "type": "boolean"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CollectionTermKind"
+          },
+          "tag_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "term": {
+            "type": "string"
+          },
+          "term_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "is_active",
+          "kind",
+          "term",
+          "term_id"
+        ],
+        "title": "CollectionTermDTO",
+        "type": "object"
+      },
+      "CollectionTermKind": {
+        "description": "\n    What a term of the collection is, when it is not a subject.\n\n    The subject guard refuses a term for one of five shapes. Three of them are properties of\n    the *language* (a placeholder, a bare year, a measure) and two are properties of the\n    *collection*: a toponym it carries as a place and a person name it carries as a name. The\n    second family used to be a regex inside ``domain/vocabulary.py`` holding the bairros of\n    Curitiba and fifteen names; they are rows now because another institution's collection\n    carries other names, and a regex cannot be edited by the archivist.\n\n    The kind is stored instead of a boolean \"is a place\" because the finest rung is the one\n    the facet is asked about — a bairro and a country are both places, and only one of them is\n    \"where in the city\". ``PERSON`` is deliberately not a place: the name goes nowhere, it is\n    the producer.\n    ",
+        "enum": [
+          "DISTRICT",
+          "MUNICIPALITY",
+          "STATE",
+          "REGION",
+          "COUNTRY",
+          "PERSON"
+        ],
+        "title": "CollectionTermKind",
+        "type": "string"
+      },
+      "CollectionTermUpdateRequest": {
+        "properties": {
+          "is_active": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CollectionTermKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "term": {
+            "maxLength": 200,
+            "minLength": 1,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "title": "CollectionTermUpdateRequest",
+        "type": "object"
+      },
+      "CollectionVocabularyResponse": {
+        "properties": {
+          "arrangement_terms": {
+            "items": {
+              "$ref": "#/components/schemas/ArrangementTermDTO"
+            },
+            "type": "array"
+          },
+          "collection_terms": {
+            "items": {
+              "$ref": "#/components/schemas/CollectionTermDTO"
+            },
+            "type": "array"
+          },
+          "kinds": {
+            "items": {
+              "$ref": "#/components/schemas/CollectionTermKind"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "arrangement_terms",
+          "collection_terms",
+          "kinds"
+        ],
+        "title": "CollectionVocabularyResponse",
         "type": "object"
       },
       "ConflictPreviewRequest": {
@@ -14882,6 +15085,335 @@
         "summary": "UpdateTypology",
         "tags": [
           "Typologies"
+        ]
+      }
+    },
+    "/api/v1/vocabulary": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1VocabularyReadVocabulary",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionVocabularyResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ReadVocabulary",
+        "tags": [
+          "Vocabulary"
+        ]
+      }
+    },
+    "/api/v1/vocabulary/arrangement-terms": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1VocabularyArrangementTermsCreateArrangementTerm",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArrangementTermCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArrangementTermDTO"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "CreateArrangementTerm",
+        "tags": [
+          "Vocabulary"
+        ]
+      }
+    },
+    "/api/v1/vocabulary/arrangement-terms/{term_id}": {
+      "patch": {
+        "deprecated": false,
+        "operationId": "ApiV1VocabularyArrangementTermsTermIdUpdateArrangementTerm",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "term_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArrangementTermUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArrangementTermDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "UpdateArrangementTerm",
+        "tags": [
+          "Vocabulary"
+        ]
+      }
+    },
+    "/api/v1/vocabulary/collection-terms": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1VocabularyCollectionTermsCreateCollectionTerm",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionTermCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionTermDTO"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "CreateCollectionTerm",
+        "tags": [
+          "Vocabulary"
+        ]
+      }
+    },
+    "/api/v1/vocabulary/collection-terms/{term_id}": {
+      "patch": {
+        "deprecated": false,
+        "operationId": "ApiV1VocabularyCollectionTermsTermIdUpdateCollectionTerm",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "term_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionTermUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionTermDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "UpdateCollectionTerm",
+        "tags": [
+          "Vocabulary"
         ]
       }
     }

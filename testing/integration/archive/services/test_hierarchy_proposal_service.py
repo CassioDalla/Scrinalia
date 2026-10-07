@@ -7,18 +7,30 @@ collision. The read-only assertion is the one the phase promises: the archivist 
 proposal, and the proposal has no side effect to review.
 """
 
+import pytest
 from sqlalchemy import func, select, text
 
 from scrinalia.domains.archive.domain.hierarchy import HierarchyIssue, ProposalFlag
 from scrinalia.domains.archive.models import ArchiveDocument
+from scrinalia.domains.archive.repository.collection_vocabulary_repo import CollectionVocabularyRepository
 from scrinalia.domains.archive.repository.hierarchy_repo import HierarchyRepository
 from scrinalia.domains.archive.repository.level_catalog_repo import LevelCatalogRepository
 from scrinalia.domains.archive.schemas.hierarchy_schema import HierarchyProposalCommand
 from scrinalia.domains.archive.services.hierarchy_proposal_service import HierarchyProposalService
 
 
+@pytest.fixture(autouse=True)
+def _reference_vocabulary(reference_vocabulary):
+    """The suggested names are rows: the test schema is built by ``create_all``, which never seeds."""
+    reference_vocabulary()
+
+
 def _service(db_session) -> HierarchyProposalService:
-    return HierarchyProposalService(HierarchyRepository(db_session), LevelCatalogRepository(db_session))
+    return HierarchyProposalService(
+        HierarchyRepository(db_session),
+        LevelCatalogRepository(db_session),
+        CollectionVocabularyRepository(db_session),
+    )
 
 
 def _seed_collection(db_session, nobrade, generate_archive_doc) -> None:

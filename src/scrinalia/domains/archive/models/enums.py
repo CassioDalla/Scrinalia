@@ -56,6 +56,48 @@ class TagFacetType(enum.StrEnum):
     PLACE = "PLACE"
 
 
+class CollectionTermKind(enum.StrEnum):
+    """
+    What a term of the collection is, when it is not a subject.
+
+    The subject guard refuses a term for one of five shapes. Three of them are properties of
+    the *language* (a placeholder, a bare year, a measure) and two are properties of the
+    *collection*: a toponym it carries as a place and a person name it carries as a name. The
+    second family used to be a regex inside ``domain/vocabulary.py`` holding the bairros of
+    Curitiba and fifteen names; they are rows now because another institution's collection
+    carries other names, and a regex cannot be edited by the archivist.
+
+    The kind is stored instead of a boolean "is a place" because the finest rung is the one
+    the facet is asked about — a bairro and a country are both places, and only one of them is
+    "where in the city". ``PERSON`` is deliberately not a place: the name goes nowhere, it is
+    the producer.
+    """
+
+    #: A bairro: the finest place the collection declares.
+    DISTRICT = "DISTRICT"
+    #: A municipality (``curitiba``, ``pinhais``, ``araucária``), including a foreign city.
+    MUNICIPALITY = "MUNICIPALITY"
+    #: A state or province (``paraná``, ``santa catarina``, ``bahia``).
+    STATE = "STATE"
+    #: A region broader than a municipality (``região metropolitana de curitiba``).
+    REGION = "REGION"
+    #: A country the collection's records reach (``frança``, ``alemanha``).
+    COUNTRY = "COUNTRY"
+    #: A person's name: a producer or the person depicted, never a subject.
+    PERSON = "PERSON"
+
+
+#: The kinds that claim the PLACE facet. ``PERSON`` is excluded on purpose: ``is_place_term``
+#: answers "where does this go", and a name goes nowhere as a place.
+PLACE_TERM_KINDS: tuple[CollectionTermKind, ...] = (
+    CollectionTermKind.DISTRICT,
+    CollectionTermKind.MUNICIPALITY,
+    CollectionTermKind.STATE,
+    CollectionTermKind.REGION,
+    CollectionTermKind.COUNTRY,
+)
+
+
 class AnomalyReason(enum.StrEnum):
     """
     Why the structural validator marked a document.

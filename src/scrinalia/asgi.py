@@ -9,6 +9,7 @@ from litestar.status_codes import HTTP_500_INTERNAL_SERVER_ERROR
 from sqlalchemy.exc import IntegrityError
 
 from scrinalia.api.controllers.cleaning_controller import CleaningController
+from scrinalia.api.controllers.collection_vocabulary_controller import CollectionVocabularyController
 from scrinalia.api.controllers.curation_controller import CurationController
 from scrinalia.api.controllers.document_controller import DocumentController
 from scrinalia.api.controllers.health_controller import HealthController
@@ -57,6 +58,7 @@ def create_app() -> Litestar:
         HealthController,
         TaxonomyController,
         CleaningController,
+        CollectionVocabularyController,
         CurationController,
         DocumentController,
         HierarchyController,

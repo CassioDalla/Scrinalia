@@ -24,6 +24,7 @@ from scrinalia.domains.archive.exceptions import (
     MaterialisationNotFoundError,
 )
 from scrinalia.domains.archive.models import ArchiveDocument
+from scrinalia.domains.archive.repository.collection_vocabulary_repo import CollectionVocabularyRepository
 from scrinalia.domains.archive.repository.hierarchy_repo import HierarchyRepository
 from scrinalia.domains.archive.repository.level_catalog_repo import LevelCatalogRepository
 from scrinalia.domains.archive.schemas.hierarchy_schema import (
@@ -42,10 +43,17 @@ def nobrade(seed_nobrade_levels):
 
 
 @pytest.fixture
-def service(db_session):
+def service(db_session, reference_vocabulary):
+    # The suggestion needs the collection vocabulary, and the test schema is built by
+    # ``create_all``: without seeding the catalogue the proposal would suggest no name at all.
+    reference_vocabulary()
     repo = HierarchyRepository(db_session)
     catalog = LevelCatalogRepository(db_session)
-    return HierarchyMaterialisationService(repo, catalog, HierarchyProposalService(repo, catalog))
+    return HierarchyMaterialisationService(
+        repo,
+        catalog,
+        HierarchyProposalService(repo, catalog, CollectionVocabularyRepository(db_session)),
+    )
 
 
 @pytest.fixture

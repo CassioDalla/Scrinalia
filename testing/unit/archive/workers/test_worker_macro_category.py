@@ -2,6 +2,7 @@ import pytest
 from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
+from scrinalia.domains.archive.domain.collection_vocabulary import CollectionVocabulary
 from scrinalia.domains.archive.domain.vocabulary import label_set_fingerprint
 from scrinalia.domains.archive.workers import worker_macro_category
 
@@ -29,7 +30,7 @@ class MockArchiveTag:
         self.execution_log = execution_log
 
 
-def _prepare(mocker: MockerFixture, categories: dict[str, int]):
+def _prepare(mocker: MockerFixture, categories: dict[str, int], vocabulary: CollectionVocabulary | None = None):
     """Patches the repository and the engine, returning (db, engine, repo)."""
     mock_db = mocker.Mock(spec=Session)
     mock_repo_class = mocker.patch("scrinalia.domains.archive.workers.worker_macro_category.TagRepository")
@@ -37,6 +38,10 @@ def _prepare(mocker: MockerFixture, categories: dict[str, int]):
     mocker.patch("scrinalia.domains.archive.workers.worker_macro_category.flag_modified")
 
     mock_repo_class.return_value.get_active_macro_categories.return_value = categories
+    # The collection's own two families are rows now, so the worker reads them from the repository.
+    # Default empty: the piece under test is the *language* guard, and the collection catalogue has
+    # its own test below.
+    mock_repo_class.return_value.collection_vocabulary.return_value = vocabulary or CollectionVocabulary()
 
     return mock_db, mock_get_engine.return_value
 
@@ -170,6 +175,27 @@ def test_worker_skips_a_placeholder_and_a_street(mocker: MockerFixture) -> None:
     assert tags[0].macro_category_id is None
     assert tags[1].macro_category_id is None
     assert tags[2].macro_category_id == 7
+
+
+def test_worker_refuses_a_person_name_the_collection_declared(mocker: MockerFixture) -> None:
+    """
+    The name family is the *collection's*, so it reaches the guard as a row, not as a constant.
+
+    ``jaime lerner`` is a producer, not a subject — but only because this archive said so. With an
+    empty catalogue the same spelling goes to the classifier, which is the honest behaviour for a
+    collection nobody has described.
+    """
+    declared = CollectionVocabulary(person_terms=frozenset({"jaime lerner"}))
+    mock_db, engine = _prepare(mocker, {"Urbanismo": 7}, vocabulary=declared)
+    tags = [MockArchiveTag(1, "jaime lerner"), MockArchiveTag(2, "parque")]
+    engine.classify.return_value = [{"labels": ["Urbanismo"], "scores": [0.93]}]
+    mock_db.scalars.return_value.all.side_effect = [tags, []]
+
+    worker_macro_category.execute(db=mock_db, engine_name="motor_fake", preset="preset_teste")  # type: ignore
+
+    engine.classify.assert_called_once_with(["parque"], ["Urbanismo"], batch_size=1)
+    assert tags[0].macro_category_id is None
+    assert tags[1].macro_category_id == 7
 
 
 def test_worker_does_not_instantiate_the_engine_for_an_all_guarded_batch(mocker: MockerFixture) -> None:
