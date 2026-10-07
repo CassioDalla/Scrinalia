@@ -5,11 +5,22 @@ import requests
 from pytest_mock import MockerFixture
 
 from scrinalia.domains.ingestion.adapters.pmc_scraper import PMCScraperAdapter
-from scrinalia.domains.ingestion.ports import AdapterFatalError, AdapterNetworkError, AdapterNotFoundError
+from scrinalia.domains.ingestion.ports import AdapterFatalError, AdapterNetworkError, AdapterNotFoundError, SourceConfig
 
 # ==========================================
 # PMC SCRAPER ADAPTER TESTS (HTTP SCRAPER)
 # ==========================================
+
+#: The origin the adapter is pointed at. It arrives as configuration now, so the test states it
+#: instead of relying on the environment — and the adapter never reads ``settings``.
+SOURCE = SourceConfig(
+    base_url="https://arquivos.curitiba.pr.gov.br/resultado?pagina=",
+    detail_url="https://arquivos.curitiba.pr.gov.br/detalhe?id=",
+)
+
+
+def _adapter() -> PMCScraperAdapter:
+    return PMCScraperAdapter(SOURCE)
 
 
 def test_fetch_details_success(mocker: MockerFixture, html_mock_valid: str) -> None:
@@ -22,7 +33,7 @@ def test_fetch_details_success(mocker: MockerFixture, html_mock_valid: str) -> N
     # Intercepts 'requests' directly inside the adapter file
     mocker.patch("scrinalia.domains.ingestion.adapters.pmc_scraper.requests.get", return_value=mock_response)
 
-    adapter = PMCScraperAdapter()
+    adapter = _adapter()
     result = adapter.fetch_details("doc-123")
 
     assert result["title"] == "Inventario e Avaliações do Matadouro Modelo Atuba"
@@ -42,7 +53,7 @@ def test_fetch_details_ignores_empty(mocker: MockerFixture, html_mock_empty: str
 
     mocker.patch("scrinalia.domains.ingestion.adapters.pmc_scraper.requests.get", return_value=mock_response)
 
-    adapter = PMCScraperAdapter()
+    adapter = _adapter()
     result = adapter.fetch_details("doc-404-fake")
 
     assert len(result) == 1
@@ -59,7 +70,7 @@ def test_fetch_details_404_raises_domain_exception(mocker: MockerFixture) -> Non
 
     mocker.patch("scrinalia.domains.ingestion.adapters.pmc_scraper.requests.get", side_effect=http_error)
 
-    adapter = PMCScraperAdapter()
+    adapter = _adapter()
 
     # Validates whether the adapter converted the error correctly
     with pytest.raises(AdapterNotFoundError) as exc_info:
@@ -74,7 +85,7 @@ def test_fetch_details_network_error_raises_domain_exception(mocker: MockerFixtu
 
     mocker.patch("scrinalia.domains.ingestion.adapters.pmc_scraper.requests.get", side_effect=timeout_error)
 
-    adapter = PMCScraperAdapter()
+    adapter = _adapter()
 
     with pytest.raises(AdapterNetworkError):
         adapter.fetch_details("doc-123")
@@ -92,7 +103,7 @@ def test_fetch_details_fatal_error_raises_domain_exception(mocker: MockerFixture
 
     mocker.patch("scrinalia.domains.ingestion.adapters.pmc_scraper.requests.get", return_value=mock_response)
 
-    adapter = PMCScraperAdapter()
+    adapter = _adapter()
 
     with pytest.raises(AdapterFatalError) as exc_info:
         adapter.fetch_details("doc-123")

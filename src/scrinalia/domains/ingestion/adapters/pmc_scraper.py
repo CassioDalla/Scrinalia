@@ -4,7 +4,6 @@ import time
 import requests
 from bs4 import BeautifulSoup, Tag
 
-from scrinalia.core.config import settings
 from scrinalia.core.logger import logger
 from scrinalia.domains.ingestion.ports import (
     AdapterFatalError,
@@ -12,6 +11,7 @@ from scrinalia.domains.ingestion.ports import (
     AdapterNotFoundError,
     IDetailAdapter,
     IDiscoveryAdapter,
+    SourceConfig,
 )
 
 
@@ -23,12 +23,17 @@ class PMCScraperAdapter(IDiscoveryAdapter, IDetailAdapter):
     It implements the discovery (IDiscoveryAdapter) and detailed extraction
     (IDetailAdapter) interfaces, translating messy HTML and HTTP library
     errors into clean dictionaries and predictable domain exceptions.
+
+    The URLs arrive as a :class:`SourceConfig` instead of being read from ``settings``: this class
+    is the institution-specific piece, and an adapter that reads the global configuration cannot be
+    pointed at another origin. The selectors and the Portuguese field names below stay here on
+    purpose — they *are* the contract with this site.
     """
 
-    def __init__(self, delay_requests: float = 0.5):
-        self.delay_requests = delay_requests
-        self.base_url = str(settings.PUBLIC_SCRAPE_URL)
-        self.detail_url = str(settings.PUBLIC_SCRAPE_DETAIL_URL)
+    def __init__(self, config: SourceConfig):
+        self.delay_requests = config.delay_requests
+        self.base_url = config.base_url
+        self.detail_url = config.detail_url
         self.headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
     def fetch_new_ids(self, initial_page: int = 1, max_pages: int | None = None):

@@ -14,6 +14,7 @@ from scrinalia.domains.ingestion.ports import (
     AdapterNotFoundError,
     IDetailAdapter,
     IDiscoveryAdapter,
+    SourceConfig,
 )
 
 
@@ -149,11 +150,30 @@ def run_detail_scraping_job(
             uow.rollback()
 
 
-if __name__ == "__main__":
+def build_scraper_adapter():
+    """
+    Composition point of the ingestion adapter: the environment says *where*, the adapter only says
+    *how*.
+
+    This is where ``PUBLIC_SCRAPE_*`` is read, and the only place. The adapter receives a
+    :class:`SourceConfig`, which is what makes a second origin a second configuration instead of a
+    second adapter class. Failing fast on a missing URL is deliberate: the adapter used to build
+    ``str(None)`` into the URL and the scrape broke much later with a confusing network error.
+    """
+    from scrinalia.core.config import settings
     from scrinalia.domains.ingestion.adapters.pmc_scraper import PMCScraperAdapter
 
+    if not settings.PUBLIC_SCRAPE_URL or not settings.PUBLIC_SCRAPE_DETAIL_URL:
+        raise ValueError("PUBLIC_SCRAPE_URL and PUBLIC_SCRAPE_DETAIL_URL must be set to scrape the source site.")
+
+    return PMCScraperAdapter(
+        SourceConfig(base_url=settings.PUBLIC_SCRAPE_URL, detail_url=settings.PUBLIC_SCRAPE_DETAIL_URL)
+    )
+
+
+if __name__ == "__main__":
     with get_db() as db:
-        adapter = PMCScraperAdapter(delay_requests=0.5)
+        adapter = build_scraper_adapter()
 
         # run_discovery_job(db, adapter=adapter)
         run_detail_scraping_job(db, adapter=adapter, ignore_sliding_window=True)
