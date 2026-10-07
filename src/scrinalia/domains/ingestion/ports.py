@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
-from dataclasses import dataclass
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -23,6 +23,43 @@ class SourceConfig:
     detail_url: str
     #: Politeness delay between requests, in seconds.
     delay_requests: float = 0.5
+
+
+@dataclass(frozen=True)
+class SourceSchema:
+    """
+    The vocabulary of one origin: which of its fields becomes which staging attribute.
+
+    Declared next to :class:`SourceConfig` because both are the origin's contract — one says *where*
+    it is, the other says *what its fields are called*. The labels on the left are the site's own
+    (they are scraped from the page), so they are **never translated**: translating one would make it
+    stop matching the payload. What changed is where they live — out of the staging transform, which
+    is domain logic, and into the origin's declaration, which is deployment data.
+
+    ``title_key``/``url_key``/``attachment_key`` are the keys the **adapter** writes, not the site's
+    labels. They belong to the same contract: an adapter that emits different names declares them
+    here instead of forcing the transform to know about one site. ``field_map`` maps a source key to
+    the staging attribute it fills, so an adapter whose thumbnail key is ``thumb_url`` still lands on
+    the ``thumb_down_link`` column by declaring it.
+
+    The mapping is read-only by convention: the dataclass is frozen, and nothing may rewrite the
+    dictionary after construction.
+    """
+
+    code: str
+    #: Source label -> staging attribute. Two labels for the same attribute collapse into one value.
+    field_map: Mapping[str, str]
+    #: The key the adapter writes the title under.
+    title_key: str = "title"
+    #: The key the adapter writes the page URL under.
+    url_key: str = "_url_origem"
+    #: The key the adapter writes the attachment link under.
+    attachment_key: str = "attch_down_link"
+    #: Source fields that may carry the date, most specific first.
+    date_keys: tuple[str, ...] = field(default_factory=tuple)
+    #: How two values of the same attribute collapse into one (``a | b``). Some origins name the
+    #: same thing twice (four spellings of the superior unit), and losing one would lose evidence.
+    join_separator: str = " | "
 
 
 class AdapterNotFoundError(Exception):

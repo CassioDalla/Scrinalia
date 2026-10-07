@@ -98,6 +98,12 @@ They are the contract with *that* site; no configuration value abstracts an HTML
 the line between "the adapter declares what it needs" and "the adapter is generic", and only the
 first was the goal.
 
+`SourceSchema` (same module) carries the other half of the origin's contract: which of the site's
+labels fills which staging column, the keys the adapter itself writes, and which fields carry the
+date. It reaches the transform as **validation context** (`StagingDocumentDTO.model_validate(data,
+context={...})`) and `ACERVO_SOURCE` names it. There is **no default** — see the addendum below,
+which corrects the first version of this ADR.
+
 ### 4. Dead configuration is removed, not deprecated
 
 `ARQDOC_BASE_URL` and `ARQDOC_VIEW_ENDPOINT` existed in `config.py`, were read by nothing but the
@@ -145,9 +151,10 @@ Negative, and accepted:
   is the same trade the three existing catalogues made, and the alternative — importing application
   code into a migration — would make replaying history depend on the current constants.
 - **The language pack does not make the product multilingual.** Prompts written to reason about
-  Portuguese text, the ISAD(G) keys that must match the external payload, and the ~334 Portuguese
-  strings in the SPA are untouched. The first two are deliberate (`AGENTS.md`); the third is the
-  i18n item in the post-1.0 backlog, and `routeMessage()` remains the seam where it lands.
+  Portuguese text and the ~334 Portuguese strings in the SPA are untouched: the first is deliberate
+  (`AGENTS.md`), the second is the i18n item in the post-1.0 backlog and `routeMessage()` remains
+  the seam where it lands. The origin's field labels were the third item in this list and moved —
+  see the addendum.
 - **`domain_stopwords` is not the language's stopword list and must never become it.**
   `domain_stopwords` is a curator's decision about the *subject axis*, scoped by `word_scope`;
   `PT_BR.stopwords` is what the clustering engines discard before vectorising. Collapsing them would
@@ -173,6 +180,44 @@ Negative, and accepted:
 - **A `SourceConfig` that also carries the selectors**, so the adapter becomes fully generic.
   Rejected as a fiction: an HTML layout is not configuration, and a config file that pretends to
   describe one would break on the first redesign of the site.
+
+## Addendum (2026-10-07): the origin's *field vocabulary* moves with the origin
+
+The first version of this ADR listed "the ISAD(G) keys that must match the external payload" among
+the things that stay untouched. That was **half right, and the wrong half was load-bearing**: the
+keys stay *untranslated*, but they were living in the wrong place.
+
+`StagingDocumentDTO.map_raw_to_staging` carried a 28-entry map of the site's Portuguese labels
+(`Código de Referência`, `Âmbito e Conteúdo`, …) to the ISAD(G) attributes, plus the keys the PMC
+adapter writes (`_url_origem`, `attch_down_link`, `title`, `thumb_down_link`) and the two date
+fields. The staging domain — which is domain logic, and belongs to no institution — knew one site's
+vocabulary, and a second origin would have had to edit the transform.
+
+The map is now a `SourceSchema` declared next to the adapter that reads the page, selected by
+`ACERVO_SOURCE`, and handed to the transform as validation context. Three consequences worth
+recording:
+
+1. **The labels are still never translated.** They are the keys of the payload; translating one
+   would make it stop matching. The move is about *where they live*, not about the language.
+2. **The transform is now source-agnostic**, including the adapter's private keys: a source whose
+   thumbnail key is `thumb_url` declares it and lands on the `thumb_down_link` column.
+3. **There is no default origin.** A fallback would make an installation that never declared its
+   origin read the reference site's labels — the same defect this ADR removed from the collection
+   vocabulary, repeated one layer down. `get_source_schema()` raises instead.
+
+The same pass unified a defect the review surfaced: **"the origin wrote nothing" was declared four
+times** (the date parser, the subject guard's regex, the staging text cleaner and the title
+validator), and `não informado` alone was in three of them. The spellings now live in the language
+profile as `false_null_values`, with the date set and the subject pattern as declared views of it.
+The subject view is deliberately a **subset**: the guard's verdicts are a measured behaviour (1.489
+of the 8.155 real tags) and widening them would change which tags reach the classifier, which is a
+classification decision and not a cleanup.
+
+**One behaviour changed, and it is a fix.** A record whose payload title was a placeholder
+(`não informado`) was **rejected by staging**, because `title` is required and the false-null
+cleaning turned it into `None` — the whole document was lost to a placeholder. The title now falls
+back to the profile's `untitled_title` (`SEM TÍTULO`), which is what the quality validator already
+recognises as an empty title.
 
 ## Revisit trigger
 

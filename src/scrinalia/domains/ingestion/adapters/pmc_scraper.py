@@ -12,6 +12,59 @@ from scrinalia.domains.ingestion.ports import (
     IDetailAdapter,
     IDiscoveryAdapter,
     SourceConfig,
+    SourceSchema,
+)
+
+#: The vocabulary of the PMC site, declared next to the adapter that reads it.
+#:
+#: The labels on the left are scraped from the page (``span.quick-info-label`` /
+#: ``span.field-label``), which is why they are Portuguese and why they are **never translated**:
+#: translating one would make it stop matching the payload. They used to live inside
+#: ``StagingDocumentDTO.map_raw_to_staging``, which made the staging domain know one site's
+#: vocabulary — another origin would have had to edit the transform.
+#:
+#: Four labels point at ``parent_reference_code``: the source names the superior unit in four
+#: spellings, and all four land on the same column. The separator joins them instead of losing one.
+PMC_SOURCE_SCHEMA = SourceSchema(
+    code="pmc",
+    field_map={
+        "Código de Referência": "reference_code",
+        "Nível de Descrição": "level",
+        "Unidade de Descrição Superior": "parent_reference_code",
+        "Unidade de Descrição Pai": "parent_reference_code",
+        "Nível Superior": "parent_reference_code",
+        "Código da Unidade Superior": "parent_reference_code",
+        "Caminho Hierárquico": "hierarchy_path",
+        "Dimensão e Suporte": "dimension_support",
+        "Produtor": "producers",
+        "História Administrativa": "admin_bio_history",
+        "História Arquivística": "admin_archival_history",
+        "Procedência": "provenance",
+        "Âmbito e Conteúdo": "scope_content",
+        "Avaliação e Temporalidade": "appraisal_destruction",
+        "Incorporações": "accruals",
+        "Sistema de Arranjo": "arrangement",
+        "Acesso Público": "access_conditions",
+        "Condições de Acesso": "access_conditions",
+        "Condições de Reprodução": "reproduction_conditions",
+        "Idioma": "language_name",
+        "Características Físicas": "physical_characteristics",
+        "Instrumentos de Pesquisa": "finding_aids",
+        "Localização dos Originais": "originals_location",
+        "Localização das Cópias": "copies_location",
+        "Unidades de Descrição Relacionadas": "related_units",
+        "Notas de Publicação": "publication_notes",
+        "Notas de Conservação": "conservation_notes",
+        "Notas Gerais": "general_notes",
+        "Notas do Arquivista": "archivist_notes",
+        "Regras ou Convenções": "rules_conventions",
+        "Datas da Descrição": "description_dates",
+        "Pontos de Acesso": "indexing_points",
+        # The adapter's own key, mapped to the column of the same name. It stays in the map so a
+        # source that names it differently (``thumb_url``) still lands on this column.
+        "thumb_down_link": "thumb_down_link",
+    },
+    date_keys=("Data de Produção", "Data"),
 )
 
 

@@ -26,10 +26,71 @@ _RANGE_RE = re.compile(r"\b(\d{4})\s*(?:-|\u2013|\u2014|a|at\u00e9|ate)\s*(\d{4}
 #: The Brazilian ``dd/mm/yyyy`` spelling; ``local_date_order`` says the groups are day-month-year.
 _BR_DATE_RE = re.compile(r"(\d{2})/(\d{2})/(\d{4})")
 
-#: A placeholder the origin wrote where no value existed (``local não identificado``).
+#: The spellings the origin used where a *text* field carried no information.
+#:
+#: This is the one definition of "the origin wrote nothing". Before it existed the fact was declared
+#: four times — in the date parser, in the subject guard's regex, in the staging text cleaner and in
+#: the title validator — and ``não informado`` alone lived in three of them. A fifth spelling added
+#: in one place was silently not a false null in the others.
+_FALSE_NULL_VALUES: frozenset[str] = frozenset(
+    {
+        "",
+        "-",
+        "?",
+        "n/a",
+        "na",
+        "não informado",
+        "nao informado",
+        "nenhum",
+        "sem título",
+        "sem titulo",
+        "não identificado",
+        "não identificada",
+        "local não identificado",
+        "local não identificada",
+        "localização não identificado",
+        "localização não identificada",
+        "sem identificação",
+        "ilegível",
+        "não possui",
+        "sem data",
+        "s/ data definida",
+        "s/data",
+        "s/ data",
+        "data indefinida",
+    }
+)
+
+#: The date-shaped placeholders. They extend the set for the **date parser only**: the origin wrote
+#: them where a date was missing, and ``00/00/0000`` is a syntax error rather than a value.
+_DATE_SHAPED_NULLS: frozenset[str] = frozenset({"00/00/0000", "0000-00-00", "00000000"})
+
+#: The spellings the subject guard refuses as "the origin wrote nothing".
+#:
+#: A **declared subset** of the false nulls, and deliberately not the whole set: the guard's verdicts
+#: are a measured behaviour (1.489 of the 8.155 real tags), so widening them would change which tags
+#: reach the classifier. That is a classification decision, not a cleanup, and it does not belong in
+#: a refactor.
+_SUBJECT_PLACEHOLDERS: frozenset[str] = frozenset(
+    {
+        "não identificado",
+        "não identificada",
+        "local não identificado",
+        "local não identificada",
+        "localização não identificado",
+        "localização não identificada",
+        "sem identificação",
+        "ilegível",
+        "não possui",
+        "não informado",
+    }
+)
+
+#: Built from the spellings above, so the pattern cannot drift from the set it claims to implement.
+#: The regex used to spell the variants out (``não identificad[oa]``); enumerating them is what makes
+#: one definition possible.
 _PLACEHOLDER_RE = re.compile(
-    r"^(não identificad[oa]|local não identificad[oa]|localização não identificad[oa]|"
-    r"sem identificação|ilegível|não possui|não informado)$",
+    r"^(" + "|".join(re.escape(value) for value in sorted(_SUBJECT_PLACEHOLDERS)) + r")$",
     re.IGNORECASE,
 )
 
@@ -64,25 +125,10 @@ PT_BR = LanguageProfile(
     code="pt-BR",
     name="Português (Brasil)",
     stopwords=frozenset(PT_BR_STOPWORDS),
-    empty_date_values=frozenset(
-        {
-            "",
-            "-",
-            "?",
-            "n/a",
-            "na",
-            "não informado",
-            "nao informado",
-            "sem data",
-            "s/ data definida",
-            "s/data",
-            "s/ data",
-            "data indefinida",
-            "00/00/0000",
-            "0000-00-00",
-            "00000000",
-        }
-    ),
+    # The date parser accepts everything a text field refuses, plus the date-shaped placeholders.
+    empty_date_values=_FALSE_NULL_VALUES | _DATE_SHAPED_NULLS,
+    false_null_values=_FALSE_NULL_VALUES,
+    untitled_title="SEM TÍTULO",
     decade_pattern=_DECADE_RE,
     range_pattern=_RANGE_RE,
     local_date_pattern=_BR_DATE_RE,

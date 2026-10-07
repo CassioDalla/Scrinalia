@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from unittest.mock import MagicMock
 
+from scrinalia.domains.ingestion.adapters.pmc_scraper import PMC_SOURCE_SCHEMA
 from scrinalia.domains.staging.schemas import RawRecord, StagingDocumentDTO
 from scrinalia.domains.staging.worker import run_staging_pipeline
 
@@ -42,7 +43,7 @@ def test_run_staging_pipeline_uses_ports_without_database() -> None:
     # A plain MagicMock stands in for the ORM session: the ports never touch it here.
     db_session = MagicMock()
 
-    run_staging_pipeline(db_session, source=source, writer=writer)
+    run_staging_pipeline(db_session, PMC_SOURCE_SCHEMA, source=source, writer=writer)
 
     assert [record.description_id for record in writer.saved] == ["doc-1", "doc-2"]
     assert writer.saved[0].title == "Ofício do Prefeito"
@@ -56,7 +57,9 @@ def test_run_staging_pipeline_commits_through_unit_of_work() -> None:
     db_session = MagicMock()
     uow = MagicMock()
 
-    run_staging_pipeline(db_session, source=InMemoryRawSource(raw_records), writer=RecordingWriter(), uow=uow)
+    run_staging_pipeline(
+        db_session, PMC_SOURCE_SCHEMA, source=InMemoryRawSource(raw_records), writer=RecordingWriter(), uow=uow
+    )
 
     uow.commit.assert_called_once()
     uow.rollback.assert_not_called()
@@ -73,7 +76,7 @@ def test_run_staging_pipeline_skips_invalid_records() -> None:
     writer = RecordingWriter()
     db_session = MagicMock()
 
-    run_staging_pipeline(db_session, source=InMemoryRawSource(raw_records), writer=writer)
+    run_staging_pipeline(db_session, PMC_SOURCE_SCHEMA, source=InMemoryRawSource(raw_records), writer=writer)
 
     saved_ids = [record.description_id for record in writer.saved]
     assert "good" in saved_ids

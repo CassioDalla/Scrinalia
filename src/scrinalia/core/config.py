@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     PUBLIC_SCRAPE_URL: str | None = None
     PUBLIC_SCRAPE_DETAIL_URL: str | None = None
 
+    # Which origin the staging transform reads. Names the ``SourceSchema`` in
+    # ``domains/ingestion/sources.py`` — the site's field labels and where each one lands. It has
+    # **no default on purpose**: a fallback would make an installation that never declared its
+    # origin read the reference site's vocabulary, which is the defect ADR 0008 removed from the
+    # collection catalogue. Required by the staging pipeline, not by boot.
+    ACERVO_SOURCE: str | None = None
+
     # Language of the collection. Selects the profile in ``core/language`` that the date
     # parser, the term guard, the plural rules and the clustering/NER presets read. The
     # full-text dictionary is part of the profile and reaches a **generated column**: changing

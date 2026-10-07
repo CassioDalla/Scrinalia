@@ -14,7 +14,7 @@ from dataclasses import replace
 import pytest
 
 from scrinalia.core.language import DEFAULT_LANGUAGE, LANGUAGES, get_language
-from scrinalia.core.language.pt_br import PT_BR
+from scrinalia.core.language.pt_br import _SUBJECT_PLACEHOLDERS, PT_BR
 from scrinalia.domains.archive.domain.normalization import singular_candidates
 from scrinalia.domains.staging.dates import parse_document_date
 
@@ -87,3 +87,68 @@ def test_the_plural_rules_come_from_the_profile(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr("scrinalia.domains.archive.domain.normalization.get_language", lambda: fake)
 
     assert singular_candidates("livroz") == ["livro"]
+
+
+class TestOneDefinitionOfTheOriginWroteNothing:
+    """
+    "The origin wrote nothing" used to be declared four times, and ``não informado`` was in three.
+
+    The profile now owns the spellings; the date set and the subject guard's pattern are views of
+    them. These tests pin the relations, so a spelling added to one view and not the other fails
+    here instead of silently changing what one layer considers empty.
+    """
+
+    def test_the_measured_spellings_are_all_false_nulls(self) -> None:
+        for spelling in (
+            "não informado",
+            "nao informado",
+            "n/a",
+            "-",
+            "nenhum",
+            "sem título",
+            "ilegível",
+            "sem identificação",
+            "não possui",
+            "não identificado",
+            "local não identificado",
+            "localização não identificada",
+            "sem data",
+        ):
+            assert spelling in PT_BR.false_null_values, f"{spelling!r} é um nulo falso"
+
+    def test_the_date_parser_accepts_everything_a_text_field_refuses(self) -> None:
+        """The date set is the text set plus the date-shaped placeholders — not a parallel list."""
+        assert PT_BR.false_null_values <= PT_BR.empty_date_values
+        assert "00/00/0000" in PT_BR.empty_date_values
+        assert "00/00/0000" not in PT_BR.false_null_values
+
+    def test_the_subject_pattern_matches_exactly_its_declared_spellings(self) -> None:
+        """
+        The pattern is built from the set, so the two cannot drift.
+
+        The guard's verdicts are a measured behaviour (1.489 of the 8.155 real tags), which is why
+        the subject spellings are a **declared subset** and not the whole false-null set: widening
+        them would change which tags reach the classifier.
+        """
+        assert PT_BR.false_null_values >= _SUBJECT_PLACEHOLDERS
+        for spelling in _SUBJECT_PLACEHOLDERS:
+            assert PT_BR.placeholder_pattern.match(spelling), f"{spelling!r} tem de casar"
+            assert PT_BR.placeholder_pattern.match(spelling.upper()), "o padrão ignora a caixa"
+
+        # The variants the old regex spelled as ``[oa]`` are enumerated, not lost.
+        assert PT_BR.placeholder_pattern.match("não identificada")
+        assert PT_BR.placeholder_pattern.match("localização não identificado")
+
+        # And a spelling outside the subset does not match: the guard's verdict is unchanged.
+        assert not PT_BR.placeholder_pattern.match("nenhum")
+        assert not PT_BR.placeholder_pattern.match("n/a")
+
+    def test_the_untitled_placeholder_is_itself_a_false_null(self) -> None:
+        """
+        The title staging writes for a missing title must be recognised as missing downstream.
+
+        The quality validator flags ``EMPTY_TITLE`` by comparing the title against this family; if
+        the placeholder were not in it, every untitled record would look like a real title.
+        """
+        assert PT_BR.untitled_title == "SEM TÍTULO"
+        assert PT_BR.untitled_title.lower() in PT_BR.false_null_values

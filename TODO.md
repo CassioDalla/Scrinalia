@@ -6,8 +6,8 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > **Como ler.** `✅` = feito **e verificado em execução real** (Postgres + engines reais), não
 > apenas lido no código. `[ ]` = pendente. `[~]` = parcial.
 >
-> **Estado do gate (2026-10-07, após o desacoplamento):** **1.202 testes** passando · `ruff` limpo
-> (335 arquivos) · `basedpyright` **0 erros** · **29 migrações** sem drift · contrato OpenAPI
+> **Estado do gate (2026-10-07, após o desacoplamento):** **1.219 testes** passando · `ruff` limpo
+> (338 arquivos) · `basedpyright` **0 erros** · **29 migrações** sem drift · contrato OpenAPI
 > **85 paths / 100 operações / 173 schemas**, gerado, commitado e sem drift · SPA (`tsc`, `eslint`,
 > `vite build`) limpa e servida pelo próprio Litestar · **8 ADRs**.
 
@@ -153,14 +153,36 @@ documentação**. Detalhe na seção seguinte.
         de referência, senão toda outra instituição seria Curitiba em silêncio.
   - [x] **`PUBLIC_SCRAPE_*` é declarado pelo adapter.** `SourceConfig` (`ingestion/ports.py`) é o
         que o adapter precisa para alcançar a origem; `build_scraper_adapter()` é o único ponto que
-        lê o ambiente e falha rápido quando falta a URL. Os **seletores e os nomes de campo em
-        português ficam dentro do adapter** de propósito: são o contrato com *aquele* site.
+        lê o ambiente e falha rápido quando falta a URL.
+  - [x] **O vocabulário de campos da origem saiu do domínio de staging.** Achado depois do resto, e
+        era o último acoplamento: `map_raw_to_staging` carregava um mapa de **28 rótulos do site**
+        (`Código de Referência`, `Âmbito e Conteúdo`…) para as colunas ISAD(G), mais as chaves
+        privadas do adapter e os dois campos de data — o domínio de staging, que não pertence a
+        instituição nenhuma, conhecia o vocabulário de um site. Virou `SourceSchema`, declarado ao
+        lado do adapter (`PMC_SOURCE_SCHEMA`), selecionado por `ACERVO_SOURCE` e entregue ao
+        transform como **contexto de validação do Pydantic**. Os rótulos continuam **não
+        traduzidos** — são chaves do payload, e traduzir uma esvazia a coluna em silêncio. Sem
+        default de origem: `get_source_schema()` levanta em vez de assumir o site de referência.
+  - [x] **"O originário escreveu nada" tinha quatro definições.** Estava no parser de datas, na
+        regex do guarda de assunto, no limpador de texto do staging e no validador de título —
+        `não informado` sozinho vivia em três. Agora as grafias são `PT_BR.false_null_values` e os
+        outros três são **views declaradas**: o conjunto de datas é o núcleo + os placeholders com
+        forma de data, e o padrão do guarda é construído a partir de um **subconjunto declarado**
+        (o veredito do guarda é comportamento medido — 1.489 de 8.155 tags — e alargá-lo mudaria
+        quais tags chegam ao classificador, que é decisão de classificação, não limpeza).
+  - [x] **Defeito corrigido de tabela:** um documento cujo título era um placeholder (`não
+        informado`) era **rejeitado** pelo staging, porque `title` é obrigatório e a limpeza de
+        false null o tornava `None` — a ficha inteira se perdia por um título ausente. Agora cai em
+        `PT_BR.untitled_title` (`SEM TÍTULO`), que é o que o validador de qualidade já reconhece
+        como título vazio.
   - [x] **A língua inteira saiu do meio do código.** As 573 linhas de stopwords (que estavam no
         motor de clustering e **não tinham teste nenhum**), a gramática de datas do staging, os
         prefixos de logradouro e as unidades do guarda, e as regras de plural do normalizador agora
         vêm de `PT_BR`. Dois acoplamentos que o TODO não listava entraram no mesmo passe: o
         dicionário `'portuguese'` do full-text (numa **coluna gerada**, então trocar de idioma é
         migração, não reboot) e o modelo `pt_core_news_lg` dos presets de NER.
+  - **Os seletores e os nomes de campo em português ficam dentro do adapter** de propósito: são o
+        contrato com *aquele* site, e nenhum valor de configuração abstrai um layout de HTML.
 - [x] **`/health` de orquestrador** — **fechado em 2026-10-07** por `/health/live` +
       `/health/ready` (fora de `/api/v1` e do contrato), cada um com seu timeout e engine próprio.
       O `/system/health` continua sendo o painel humano: um responde *qual peça caiu*, o outro
@@ -249,8 +271,9 @@ Extrair todas as strings das páginas para um arquivo de idioma.
 - **Na SPA:** ~255 strings PT hardcoded nas rotas, mais os `lib/` (`format.ts` formata data e
   número em pt-BR). Não há nenhuma infra de i18n hoje (`i18n`/`useTranslation`/`intl`: zero).
 - **No servidor:** prompts de LLM em português **não devem ser traduzidos** (eles raciocinam sobre
-  texto em português — está no `AGENTS.md`), e as chaves ISAD(G) do staging **também não** (têm de
-  casar com o payload externo).
+  texto em português — está no `AGENTS.md`), e os **rótulos de campo da origem** tampouco: são as
+  chaves do payload, e traduzir uma esvazia a coluna em silêncio. Eles moram no `SourceSchema` da
+  origem, não no domínio de staging.
 
 ### 3. Site público (`apps/public/`)
 
@@ -271,7 +294,7 @@ artefato:
 | `domains/staging/dates.py` | 124 linhas | **Língua** (a gramática) → perfil; o algoritmo (a ordem das tentativas) ficou |
 | `domain/vocabulary.py` | 235 linhas | **Partido:** as regras de PT foram para o perfil; os bairros e nomes de pessoa viraram `archive_collection_terms` |
 | `hierarchy_proposal_service.py` | 42 linhas de mapa | **Acervo** → `archive_arrangement_vocabulary` |
-| `domains/staging/schemas.py` | — | **Não se toca:** as chaves ISAD(G) casam com o payload externo |
+| `domains/staging/schemas.py` | — | **Achado depois:** os 28 rótulos da origem saíram do transform e viraram `SourceSchema` (`PMC_SOURCE_SCHEMA`) — continuam **não traduzidos**, mas deixaram de ser constante do domínio de staging |
 | `models/document.py` + `document_repo.py` | — | **Língua** (não estava na lista): o dicionário `'portuguese'` do full-text |
 | `engines/NER/registry.py` | — | **Língua** (não estava na lista): o modelo `pt_core_news_lg` dos presets |
 
@@ -283,9 +306,9 @@ artefato:
   `institution_id`/`collection_id`. A instalação **é** a instituição, então os catálogos são globais
   — e o gatilho de revisão do ADR é exatamente o dia em que isso deixar de valer.
 - **O que continua fora, de propósito:** os prompts de LLM em português (raciocinam sobre texto em
-  português), as chaves ISAD(G) do staging (payload externo) e as ~334 strings PT da SPA (item 2,
-  i18n, com `routeMessage()` como costura). O nome do banco `memoriacuritibana` também fica: é
-  identidade de dado, decidido no ADR 0007.
+  português), os **rótulos de campo da origem** (chaves do payload; moram no `SourceSchema`, não no
+  domínio) e as ~334 strings PT da SPA (item 2, i18n, com `routeMessage()` como costura). O nome do
+  banco `memoriacuritibana` também fica: é identidade de dado, decidido no ADR 0007.
 
 ### 5. Ingestões plurais — configuração por origem
 
@@ -502,8 +525,8 @@ antigos para 3.608 documentos e **nenhum** para os ~1.218 que entraram no re-par
 
 | Verificação | Resultado |
 | --- | --- |
-| `pytest` (unit + integração) | **1.202 passed** |
-| `ruff check` / `ruff format --check` | limpos (336 arquivos) |
+| `pytest` (unit + integração) | **1.219 passed** |
+| `ruff check` / `ruff format --check` | limpos (338 arquivos) |
 | `basedpyright` | **0 errors, 0 warnings** |
 | `alembic check` | **sem drift** (29 migrações) |
 | `alembic downgrade -1` + `upgrade head` | as duas tabelas e o enum voltam, o seed reaplica (38 + 71 linhas) e `check` segue sem drift |
@@ -512,6 +535,8 @@ antigos para 3.608 documentos e **nenhum** para os ~1.218 que entraram no re-par
 | `/health/live` e `/health/ready` em execução real | 200 com o banco de pé, **503** com o banco parado |
 | `/api/v1/vocabulary` em execução real | 38 nomes de arranjo e 71 termos semeados, com `tag_count` por grafia |
 | Tela `/vocabulario` renderizada no browser | duas seções, tema aplicado, **zero erro de console** |
+| `SourceSchema` da origem em execução real | 28 rótulos + 2 campos de data; o mapa é conferido contra `StagingDocumentDTO.model_fields` e a origem resolve por `ACERVO_SOURCE=pmc` |
+| Título placeholder no staging | `não informado` deixa de ser rejeitado e vira `SEM TÍTULO` (antes: documento perdido) |
 
 ### Ciclos anteriores (preservados)
 

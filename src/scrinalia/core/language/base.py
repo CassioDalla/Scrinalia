@@ -30,6 +30,13 @@ class LanguageProfile:
 
     #: Spellings the origin wrote where there was no date at all (``00/00/0000``, ``sem data``).
     empty_date_values: frozenset[str]
+    #: Spellings the origin wrote where a *text* field carried no information (``não informado``,
+    #: ``nenhum``, ``-``). One definition of "the origin wrote nothing": the date set and the
+    #: subject guard's placeholder pattern are views of it, not parallel lists that drift.
+    false_null_values: frozenset[str]
+    #: The title a record gets when the origin declared none (``SEM TÍTULO``). Stored, not derived:
+    #: it is what the archivist reads and what the quality validator recognises as an empty title.
+    untitled_title: str
     #: ``década de 1980`` / ``anos 90`` — the approximate decade expression.
     decade_pattern: Pattern[str]
     #: ``1951-1953`` / ``1920 a 2006`` — a range, joined by a language word or a dash.
@@ -45,6 +52,7 @@ class LanguageProfile:
     two_digit_year_base: int
 
     #: A placeholder such as ``local não identificado``: the origin's way of writing "empty".
+    #: Built from the profile's placeholder spellings, so the pattern and the set cannot drift.
     placeholder_pattern: Pattern[str]
     #: Street/address prefixes. A place, never a subject.
     street_pattern: Pattern[str]

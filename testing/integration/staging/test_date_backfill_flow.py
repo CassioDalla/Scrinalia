@@ -6,9 +6,15 @@ from sqlalchemy import select
 
 from scrinalia.domains.archive.models import ArchiveDocument
 from scrinalia.domains.archive.workers.worker_archive_transfer import execute as run_transfer
+from scrinalia.domains.ingestion.adapters.pmc_scraper import PMC_SOURCE_SCHEMA
 from scrinalia.domains.ingestion.models import RawData
 from scrinalia.domains.staging.models import StagingDocument
 from scrinalia.domains.staging.worker import run_staging_pipeline
+
+
+def _run(db_session, **kwargs) -> None:
+    """Runs the pipeline against the reference origin, which is the vocabulary these tests assume."""
+    run_staging_pipeline(db_session, PMC_SOURCE_SCHEMA, **kwargs)
 
 
 def _raw(description_id: str = "date-1", raw_date: str = "Década de 1980", content_hash: str = "raw-hash-1") -> RawData:
@@ -29,7 +35,7 @@ def test_staging_parses_a_decade_into_a_date(db_session) -> None:
     db_session.add(_raw())
     db_session.flush()
 
-    run_staging_pipeline(db_session)
+    _run(db_session)
 
     staging = db_session.get(StagingDocument, "date-1")
     assert staging.document_date == date(1980, 1, 1)
@@ -39,17 +45,17 @@ def test_the_cdc_skips_an_unchanged_payload_and_force_reparses_it(db_session) ->
     """Regression for the bug the fix exists for: a parser change never reached staging."""
     db_session.add(_raw())
     db_session.flush()
-    run_staging_pipeline(db_session)
+    _run(db_session)
 
     staging = db_session.get(StagingDocument, "date-1")
     staging.document_date = None  # what the old parser produced
     db_session.flush()
 
-    run_staging_pipeline(db_session)
+    _run(db_session)
     db_session.refresh(staging)
     assert staging.document_date is None  # the raw hash did not change, so it was skipped
 
-    run_staging_pipeline(db_session, force=True)
+    _run(db_session, force=True)
     db_session.refresh(staging)
     assert staging.document_date == date(1980, 1, 1)
 
@@ -59,7 +65,7 @@ def test_force_reparses_every_record(db_session) -> None:
         db_session.add(_raw(description_id=f"date-{index}", content_hash=f"raw-{index}"))
     db_session.flush()
 
-    run_staging_pipeline(db_session, force=True)
+    _run(db_session, force=True)
 
     dates = db_session.scalars(select(StagingDocument.document_date)).all()
     assert dates == [date(1980, 1, 1)] * 3
@@ -73,7 +79,7 @@ def test_force_reparses_every_record(db_session) -> None:
 def test_a_parser_change_reaches_the_archive(db_session) -> None:
     db_session.add(_raw(description_id="date-9", raw_date="00/00/0000"))
     db_session.flush()
-    run_staging_pipeline(db_session, force=True)
+    _run(db_session, force=True)
     run_transfer(db_session)
 
     archived = db_session.get(ArchiveDocument, "date-9")
@@ -97,7 +103,7 @@ def test_the_transfer_does_not_touch_a_human_approved_document(db_session) -> No
 
     db_session.add(_raw(description_id="date-10", raw_date="00/00/0000"))
     db_session.flush()
-    run_staging_pipeline(db_session, force=True)
+    _run(db_session, force=True)
     run_transfer(db_session)
 
     archived = db_session.get(ArchiveDocument, "date-10")
@@ -138,7 +144,7 @@ def test_access_conditions_reaches_the_archive(db_session) -> None:
         )
     )
     db_session.flush()
-    run_staging_pipeline(db_session, force=True)
+    _run(db_session, force=True)
     run_transfer(db_session)
 
     archived = db_session.get(ArchiveDocument, "access-1")
@@ -159,7 +165,7 @@ def test_declaring_the_field_moves_the_cdc_key(db_session) -> None:
 
     db_session.add(_raw(description_id="access-2"))
     db_session.flush()
-    run_staging_pipeline(db_session, force=True)
+    _run(db_session, force=True)
 
     staging = db_session.get(StagingDocument, "access-2")
     record = StagingRecord.model_validate(staging)
