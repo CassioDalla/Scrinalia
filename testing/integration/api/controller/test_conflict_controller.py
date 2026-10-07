@@ -299,7 +299,7 @@ class TestConflictLifecycle:
         assert ledger["items"][0]["decided_by"] == TEST_ADMIN_NAME
         assert db_session.get(ArchiveEntity, entity.entity_id) is None
 
-        undone = client.delete(f"/api/v1/taxonomy/conflicts/resolutions/{data['resolution_id']}?undone_by=bruno")
+        undone = client.delete(f"/api/v1/taxonomy/conflicts/resolutions/{data['resolution_id']}")
         assert undone.status_code == HTTP_200_OK
         assert undone.json()["data"]["loser_restored"] is True
 
@@ -308,7 +308,7 @@ class TestConflictLifecycle:
         assert restored is not None and restored.name == "Batel"
         ledger = client.get("/api/v1/taxonomy/conflicts/resolutions").json()
         assert ledger["items"][0]["is_undone"] is True
-        assert ledger["items"][0]["undone_by"] == "bruno"
+        assert ledger["items"][0]["undone_by"] == TEST_ADMIN_NAME
 
     def test_an_unknown_pair_is_refused_with_422(self, client: TestClient, api_uses_test_db, db_session):
         """A pair whose sides do not exist cannot be resolved, and the message says which side."""

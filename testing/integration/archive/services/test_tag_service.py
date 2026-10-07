@@ -566,7 +566,7 @@ def test_merge_then_undo_restores_the_tag_through_the_service(use_test_db, db_se
     assert page.items[0].absorbed_name == "edifícios"
     assert page.items[0].changed_by == "arquivista"
 
-    entry = service.undo_merge(response.merge_ids[0], undone_by="outro arquivista")
+    entry = service.undo_merge(response.merge_ids[0], undone_by=Author(name="outro arquivista"))
     db_session.commit()
 
     assert entry.is_undone

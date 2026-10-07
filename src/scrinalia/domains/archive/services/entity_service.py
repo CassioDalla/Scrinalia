@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from typing import Literal, cast
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.domain.normalization import normalize_entity
 from scrinalia.domains.archive.exceptions import InvalidParam
 from scrinalia.domains.archive.ports.entity import EntityRepositoryPort
@@ -296,7 +297,9 @@ class EntityService:
         """The audit trail of the resolutions: what was written, by whom, and what was reversed."""
         return self.repo.list_conflict_resolutions(include_undone=include_undone, limit=limit, offset=offset)
 
-    def undo_conflict_resolution(self, resolution_id: int, undone_by: str | None = None) -> ConflictResolutionLogEntry:
+    def undo_conflict_resolution(
+        self, resolution_id: int, undone_by: Author | None = None
+    ) -> ConflictResolutionLogEntry:
         """
         Reverses one resolution: the losing row, its links and the ban it planted.
 

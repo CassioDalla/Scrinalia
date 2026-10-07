@@ -4220,9 +4220,7 @@ export interface operations {
     };
     ApiV1HierarchyMaterialisationLogMaterialisationIdUndoMaterialisation: {
         parameters: {
-            query?: {
-                undone_by?: string | null;
-            };
+            query?: never;
             header?: never;
             path: {
                 materialisation_id: number;
@@ -5516,9 +5514,7 @@ export interface operations {
     };
     ApiV1TaxonomyConflictsResolutionsResolutionIdUndoConflictResolution: {
         parameters: {
-            query?: {
-                undone_by?: string | null;
-            };
+            query?: never;
             header?: never;
             path: {
                 resolution_id: number;
@@ -6219,9 +6215,7 @@ export interface operations {
     };
     ApiV1TaxonomyTagsMergeLogMergeIdUndoTagMerge: {
         parameters: {
-            query?: {
-                undone_by?: string | null;
-            };
+            query?: never;
             header?: never;
             path: {
                 merge_id: number;

@@ -21,7 +21,7 @@ to be the number the write produces. A dry run that lies is worse than no dry ru
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from scrinalia.core.author import assign_author
+from scrinalia.core.author import Author, assign_author
 from scrinalia.domains.archive.domain.hierarchy import (
     collapse_chain,
     resolve_rung,
@@ -364,7 +364,7 @@ class HierarchyMaterialisationService:
             items=[self._to_log_dto(entry) for entry in entries],
         )
 
-    def undo(self, materialisation_id: int, undone_by: str | None) -> HierarchyMaterialisationLogDTO:
+    def undo(self, materialisation_id: int, undone_by: Author | None) -> HierarchyMaterialisationLogDTO:
         """
         Reverses one run: every moved description goes back where it was, then the created nodes go.
 
@@ -402,7 +402,7 @@ class HierarchyMaterialisationService:
                 plan.materialised_description_id = None
 
         entry.undone_at = datetime.now(UTC)
-        entry.undone_by = undone_by
+        assign_author(entry, "undone_by", undone_by)
         self.repo.db.flush()
         return self._to_log_dto(entry)
 

@@ -429,7 +429,7 @@ class TestUndo:
         ).all()
 
         result = self._materialise(service, collection, nobrade)
-        service.undo(result.materialisation_id, undone_by="ana")
+        service.undo(result.materialisation_id, undone_by=Author(name="ana"))
 
         after = db_session.execute(
             select(ArchiveDocument.description_id, ArchiveDocument.parent_id, ArchiveDocument.path).order_by(
@@ -450,7 +450,7 @@ class TestUndo:
             == result.created_nodes
         )
 
-        service.undo(result.materialisation_id, undone_by="ana")
+        service.undo(result.materialisation_id, undone_by=Author(name="ana"))
 
         assert (
             db_session.scalar(
@@ -463,17 +463,17 @@ class TestUndo:
 
     def test_undoing_twice_is_a_conflict(self, service, collection, nobrade):
         result = self._materialise(service, collection, nobrade)
-        service.undo(result.materialisation_id, undone_by="ana")
+        service.undo(result.materialisation_id, undone_by=Author(name="ana"))
         with pytest.raises(MaterialisationAlreadyUndoneError):
-            service.undo(result.materialisation_id, undone_by="ana")
+            service.undo(result.materialisation_id, undone_by=Author(name="ana"))
 
     def test_an_unknown_run_is_a_not_found(self, service):
         with pytest.raises(MaterialisationNotFoundError):
-            service.undo(99999, undone_by="ana")
+            service.undo(99999, undone_by=Author(name="ana"))
 
     def test_the_ledger_entry_survives_the_reversal(self, service, collection, nobrade):
         result = self._materialise(service, collection, nobrade)
-        service.undo(result.materialisation_id, undone_by="ana")
+        service.undo(result.materialisation_id, undone_by=Author(name="ana"))
 
         log = service.list_log(include_undone=True, limit=10, offset=0)
         assert log.total == 1
@@ -518,7 +518,7 @@ class TestUndo:
         db_session.flush()
 
         with pytest.raises(InvalidHierarchyPlanError, match="recebeu descrições depois"):
-            service.undo(result.materialisation_id, undone_by="ana")
+            service.undo(result.materialisation_id, undone_by=Author(name="ana"))
 
     def test_the_rungs_that_pointed_at_a_deleted_node_go_back_to_not_materialised(
         self, service, collection, nobrade, db_session
@@ -535,7 +535,7 @@ class TestUndo:
                 select(ArchiveDocument).where(ArchiveDocument.staging_content_hash == "curation:created-node")
             ).all()
         }
-        service.undo(result.materialisation_id, undone_by="ana")
+        service.undo(result.materialisation_id, undone_by=Author(name="ana"))
 
         plans = service.list_plans(None, 200, 0).items
         assert created_ids
@@ -552,7 +552,7 @@ class TestUndo:
 
     def test_applying_again_after_an_undo_rebuilds_the_same_tree(self, service, collection, nobrade, db_session):
         first = self._materialise(service, collection, nobrade)
-        service.undo(first.materialisation_id, undone_by="ana")
+        service.undo(first.materialisation_id, undone_by=Author(name="ana"))
         second = service.apply(HierarchyMaterialisationRequest(changed_by=Author(name="ana")))
 
         assert second.created_nodes == first.created_nodes

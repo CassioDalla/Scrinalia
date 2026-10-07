@@ -6,7 +6,7 @@ from sqlalchemy import CursorResult, delete, desc, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
-from scrinalia.core.author import Author, author_columns
+from scrinalia.core.author import Author, assign_author, author_columns
 from scrinalia.domains.archive.domain.normalization import (
     LIKE_ESCAPE,
     escape_like,
@@ -638,7 +638,9 @@ class EntityRepository:
         self.db.flush()
         return transferred
 
-    def undo_conflict_resolution(self, resolution_id: int, undone_by: str | None = None) -> ConflictResolutionLogEntry:
+    def undo_conflict_resolution(
+        self, resolution_id: int, undone_by: Author | None = None
+    ) -> ConflictResolutionLogEntry:
         """
         Reverses one resolution: the losing row comes back, its links come back, the ban goes.
 
@@ -684,7 +686,7 @@ class EntityRepository:
         self._lift_conflict_ban(row)
 
         row.undone_at = datetime.now(UTC)
-        row.undone_by = undone_by
+        assign_author(row, "undone_by", undone_by)
         self.db.flush()
         return self._to_resolution_entry(row)
 

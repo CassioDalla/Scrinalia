@@ -1222,7 +1222,7 @@ class TagRepository:
             if canonical_tag_id is not None
         }
 
-    def undo_merge(self, merge_id: int, undone_by: str | None = None) -> MergeLogEntryDTO:
+    def undo_merge(self, merge_id: int, undone_by: Author | None = None) -> MergeLogEntryDTO:
         """
         Reverses one merge: restores the tag, its links, its classification and its spellings.
 
@@ -1260,7 +1260,7 @@ class TagRepository:
         self._restore_spellings(row)
 
         row.undone_at = datetime.now(UTC)
-        row.undone_by = undone_by
+        assign_author(row, "undone_by", undone_by)
         self.db.flush()
         return self._to_merge_log_dto(row)
 

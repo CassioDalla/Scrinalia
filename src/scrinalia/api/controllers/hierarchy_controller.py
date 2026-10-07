@@ -404,7 +404,7 @@ class HierarchyController(Controller):
         self,
         materialisation_service: NamedDependency[HierarchyMaterialisationService],
         materialisation_id: FromPath[int],
-        undone_by: FromQuery[str | None] = None,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> dict:
         """
         Reverses one run: the descriptions go back where they were, then the created rungs go.
@@ -412,7 +412,7 @@ class HierarchyController(Controller):
         The second attempt is **409** and an unknown id is **404**; the ledger entry is never
         deleted, so "this was materialised, then reversed" survives the reversal.
         """
-        entry = materialisation_service.undo(materialisation_id, undone_by=undone_by)
+        entry = materialisation_service.undo(materialisation_id, undone_by=current_user.author)
         return {
             "message": f"Materialização {materialisation_id} desfeita: {entry.changed_rows} descrições voltaram ao lugar.",
             "data": entry.model_dump(),

@@ -139,7 +139,7 @@ def test_undo_restores_the_loser_its_id_and_only_the_links_it_created(use_test_d
     data = repo.apply_conflict_resolution(plan, "TAG", source="HUMAN", decided_by=Author(name="ana"))
     db_session.flush()
 
-    entry = repo.undo_conflict_resolution(data.resolution_id, undone_by="bruno")
+    entry = repo.undo_conflict_resolution(data.resolution_id, undone_by=Author(name="bruno"))
     db_session.flush()
 
     assert entry.undone_by == "bruno"

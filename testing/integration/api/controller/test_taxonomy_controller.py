@@ -509,13 +509,17 @@ def test_undo_tag_merge_route_returns_the_restored_entry(client: TestClient, moc
     mocked = mocker.patch.object(TagService, "undo_merge")
     mocked.return_value = _log_entry(undone_by="arquivista")
 
-    response = client.delete("/api/v1/taxonomy/tags/merge-log/5?undone_by=arquivista")
+    response = client.delete("/api/v1/taxonomy/tags/merge-log/5")
 
     assert response.status_code == HTTP_200_OK
     body = response.json()
+    # The body echoes the *service's* answer, which this test mocked; who the route passed as the
+    # author is asserted below, on the call itself.
     assert body["data"]["undone_by"] == "arquivista"
     assert "restaurada" in body["message"]
-    mocked.assert_called_once_with(5, undone_by="arquivista")
+    _, kwargs = mocked.call_args
+    assert kwargs["undone_by"].name == TEST_ADMIN_NAME
+    assert kwargs["undone_by"].user_id is not None
 
 
 def test_undo_tag_merge_route_maps_a_repeated_undo_to_409(client: TestClient, mocker):

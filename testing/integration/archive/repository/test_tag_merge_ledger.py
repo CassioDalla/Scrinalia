@@ -97,7 +97,7 @@ def test_undo_merge_restores_the_tag_the_links_and_the_classification(use_test_d
     db_session.flush()
     assert db_session.get(ArchiveTag, restored_id) is None  # the tag is really gone
 
-    entry = repo.undo_merge(merge_id, undone_by="arquivista")
+    entry = repo.undo_merge(merge_id, undone_by=Author(name="arquivista"))
     db_session.flush()
 
     restored = db_session.get(ArchiveTag, restored_id)

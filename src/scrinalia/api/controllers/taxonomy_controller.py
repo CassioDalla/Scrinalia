@@ -311,13 +311,13 @@ class TaxonomyController(Controller):
         self,
         tag_service: NamedDependency[TagService],
         merge_id: FromPath[int],
-        undone_by: FromQuery[str | None] = None,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> TagMergeUndoResponse:
         """
         Undoes one merge from the ledger: the tag, its links, its classification and its
         spellings come back exactly as they were.
         """
-        entry = tag_service.undo_merge(merge_id, undone_by=undone_by)
+        entry = tag_service.undo_merge(merge_id, undone_by=current_user.author)
         return TagMergeUndoResponse(
             code=RouteMessageCode.TAG_MERGE_UNDONE,
             message=f"Mesclagem desfeita: a tag '{entry.absorbed_name}' foi restaurada.",
@@ -758,7 +758,7 @@ class TaxonomyController(Controller):
         self,
         entity_service: NamedDependency[EntityService],
         resolution_id: FromPath[int],
-        undone_by: FromQuery[str | None] = None,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> dict:
         """
         Reverses one resolution: the losing row, its links and the ban it planted.
@@ -766,7 +766,7 @@ class TaxonomyController(Controller):
         The second attempt is **409** and an unknown id is **404**; the ledger entry is never
         deleted, so "this was resolved, then reversed" survives the reversal.
         """
-        entry = entity_service.undo_conflict_resolution(resolution_id, undone_by=undone_by)
+        entry = entity_service.undo_conflict_resolution(resolution_id, undone_by=current_user.author)
         return {
             "message": (
                 f"Resolução {resolution_id} desfeita: {entry.documents_transferred} vínculo(s) "

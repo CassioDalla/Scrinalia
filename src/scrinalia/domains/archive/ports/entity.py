@@ -51,7 +51,7 @@ class EntityRepositoryPort(Protocol):
         self, include_undone: bool = True, limit: int = 50, offset: int = 0
     ) -> tuple[list[ConflictResolutionLogEntry], int]: ...
     def undo_conflict_resolution(
-        self, resolution_id: int, undone_by: str | None = None
+        self, resolution_id: int, undone_by: Author | None = None
     ) -> ConflictResolutionLogEntry: ...
     def get_relevance_count(
         self, entity_type: Literal["ORG", "PER", "LOC"] | None = None, limit: int = 30

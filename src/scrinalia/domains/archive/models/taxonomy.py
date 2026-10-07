@@ -269,6 +269,10 @@ class ArchiveTaxonomyMergeLog(Base):
 
     undone_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     undone_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    #: The account behind the name above, exactly like every other authorship in the schema.
+    undone_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
 
 
 class ArchiveTypology(Base):

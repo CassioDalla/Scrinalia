@@ -3,6 +3,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Literal
 
+from scrinalia.core.author import Author
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.domain.normalization import normalize_stopword, normalize_tag
 from scrinalia.domains.archive.exceptions import (
@@ -442,7 +443,7 @@ class TagService:
 
         return BatchMergeResponse(applied=result.applied, failed=[*failures, *result.failed], skipped=skipped)
 
-    def undo_merge(self, merge_id: int, undone_by: str | None = None) -> MergeLogEntryDTO:
+    def undo_merge(self, merge_id: int, undone_by: Author | None = None) -> MergeLogEntryDTO:
         """
         Reverses one merge from the ledger, restoring the tag, its links and its spellings.
 
