@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from memoria_curitibana.api.controllers.cleaning_controller import CleaningController
 from memoria_curitibana.api.controllers.curation_controller import CurationController
 from memoria_curitibana.api.controllers.document_controller import DocumentController
+from memoria_curitibana.api.controllers.health_controller import HealthController
 from memoria_curitibana.api.controllers.hierarchy_controller import HierarchyController
 from memoria_curitibana.api.controllers.public_controller import PublicController
 from memoria_curitibana.api.controllers.system_controller import SystemController
@@ -45,6 +46,9 @@ def _logging_config() -> LoggingConfig:
 def create_app() -> Litestar:
     """Builds the ASGI application. Tests and tooling should use this factory."""
     route_handlers: list[Any] = [
+        # First: ``/health/*`` is the one route that must never be reached through the SPA's
+        # ``html_mode`` catch-all, and the static router is appended last precisely so it cannot be.
+        HealthController,
         TaxonomyController,
         CleaningController,
         CurationController,
