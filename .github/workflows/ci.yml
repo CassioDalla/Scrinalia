@@ -185,12 +185,20 @@ jobs:
           fi
       - name: Type check
         run: uv run basedpyright
+      - name: Run tests
+        # The suite builds its own schema from the models (``create_all``) and drops every table it
+        # created on teardown, so it runs **before** the migration check on purpose. Pointing pytest
+        # at a database Alembic has already migrated is the trap AGENTS.md documents: ``create_all``
+        # skips the tables it finds, the seeded level ladder stays, and every fixture that inserts it
+        # hits ``uq_description_level_ordinal``. Measured on the first CI run: 74 failed + 44 errors
+        # there, and the same commit is green on a database the migrations have not touched.
+        run: uv run pytest
       - name: Apply migrations on a fresh database
+        # After the suite, which drops every table it created: this is the one place the migrations
+        # meet a database nothing else has built.
         run: uv run alembic upgrade head
       - name: Check for model/migration drift
         run: uv run alembic check
-      - name: Run tests
-        run: uv run pytest
 
   frontend:
     name: Curator UI (types, lint, build)
