@@ -401,7 +401,11 @@ class TaxonomyController(Controller):
             tags_deleted=deleted_count,
         )
 
-    @post("/tags/suggest-macro", opt={"access": Access.CURATE})
+    # ``AUTHENTICATED`` and not ``CURATE``: the route computes candidates and writes nothing, and
+    # the permission is about what a request can *change* — the route that applies a suggestion has
+    # its own permission. The clustering is expensive (BERTopic, seconds of CPU) and that is the
+    # accepted trade, the same one the previews make; it is pinned in ``READ_ONLY_POSTS``.
+    @post("/tags/suggest-macro", opt={"access": Access.AUTHENTICATED})
     async def suggest_macro_categories(
         self, tag_service: NamedDependency[TagService], data: SuggestMacroRequest
     ) -> MacroCategoriesSuggestionResponse:

@@ -44,6 +44,9 @@ READ_ONLY_POSTS = {
     ("POST", "/api/v1/taxonomy/conflicts/resolve/preview"),
     ("POST", "/api/v1/taxonomy/tags/merge/preview"),
     ("POST", "/api/v1/taxonomy/tags/stopwords/purge/preview"),
+    # Computes candidates for the subject axis and writes nothing; the route that *applies* a
+    # suggestion carries its own permission. It was the one read-only POST classified as a write.
+    ("POST", "/api/v1/taxonomy/tags/suggest-macro"),
 }
 
 #: Litestar's auto-generated preflight handler is not an operation of this API and carries no
