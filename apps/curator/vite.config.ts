@@ -15,8 +15,14 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": { target: "http://localhost:8000", changeOrigin: true },
-      "/schema": { target: "http://localhost:8000", changeOrigin: true },
+      /*
+        ``changeOrigin`` stays **false** on purpose: the API's ``origin_guard`` compares the
+        ``Origin`` a mutating request carries with the ``Host`` it was addressed to, and rewriting
+        Host to ``localhost:8000`` would make every dev mutation look cross-origin and answer 403.
+        Preserving the host keeps development same-origin, which is what production already is.
+      */
+      "/api": { target: "http://localhost:8000" },
+      "/schema": { target: "http://localhost:8000" },
     },
   },
   build: {

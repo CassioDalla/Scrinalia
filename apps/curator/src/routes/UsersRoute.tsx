@@ -63,7 +63,9 @@ export function UsersRoute() {
         <p className="rounded-md bg-(--color-accent)/5 px-3 py-2 text-xs text-(--color-accent) ring-1 ring-(--color-accent)/20">
           A senha criada aqui é <strong>temporária</strong>: a conta troca no primeiro acesso. Desativar
           encerra todas as sessões na hora, e a última conta de administrador ativa não pode ser
-          desativada nem rebaixada — é o único beco sem saída que não tem volta pela tela.
+          desativada nem rebaixada — é o único beco sem saída que não tem volta pela tela. Tentativas
+          repetidas <strong>bloqueiam a conta</strong> por um tempo crescente; redefinir a senha
+          destrava e encerra as sessões.
         </p>
 
         {users.error ? <ErrorState error={users.error} /> : null}
@@ -225,6 +227,16 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
           {user.must_change_password ? (
             <Badge tone="warn" title="Ainda usa a senha temporária">
               troca pendente
+            </Badge>
+          ) : null}
+          {user.is_locked ? (
+            <Badge tone="danger" title="Bloqueada por tentativas de acesso: a senha correta também é recusada até o prazo.">
+              bloqueada até {formatDateTime(user.locked_until)}
+            </Badge>
+          ) : null}
+          {!user.is_locked && (user.failed_attempts ?? 0) > 0 ? (
+            <Badge tone="warn" title="Tentativas falhas desde o último acesso bem-sucedido">
+              {user.failed_attempts} tentativa(s) falha(s)
             </Badge>
           ) : null}
           <span className="w-full text-xs text-(--color-muted)">
