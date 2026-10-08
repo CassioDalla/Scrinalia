@@ -133,10 +133,10 @@ def execute(
     # them. Same trick as ``worker_embedding``, applied to a catalog instead of a text.
     # The curated half of the NENHUMA class. The deterministic guard covers what has a
     # recognisable form; these are the judgements no rule reaches (``pessoas``, ``vista
-    # aérea``, ``capanema``), where the model cannot abstain and answers confidently wrong.
+    # aérea``, ``exemplo lugar``), where the model cannot abstain and answers confidently wrong.
     excluded_terms = repository.get_subject_exclusions()
     # The collection's own families — the toponyms and the person names — are rows, so the worker
-    # hands them to the guard instead of the guard carrying Curitiba's names in a regex.
+    # hands them to the guard instead of the guard carrying the city's names in a regex.
     vocabulary = repository.collection_vocabulary()
 
     label_fingerprint = label_set_fingerprint(categories_map)

@@ -489,7 +489,7 @@ class SubjectExclusionSuggestion(BaseModel):
     A term the deterministic guard already refuses, with the evidence around it.
 
     The route does **not** invent a verdict for the terms no rule reaches — ``pessoas``,
-    ``vista aérea``, ``capanema`` are semantic calls, and the measurement says the model cannot
+    ``vista aérea``, ``exemplo lugar`` are semantic calls, and the measurement says the model cannot
     abstain on exactly those (asked to choose, it chooses confidently and wrongly). What it does is
     make the guard's existing verdict legible: it has been silently skipping these terms inside
     ``worker_macro_category`` while ``source='RULE'`` sat unused in the schema.

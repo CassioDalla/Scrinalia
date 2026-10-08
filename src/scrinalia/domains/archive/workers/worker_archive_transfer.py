@@ -27,7 +27,7 @@ from scrinalia.domains.archive.worker_stamp import (
 # Batch size for the Batch Commit
 BATCH_SIZE = 500
 
-#: Separators an origin may use to spell the full path of codes (``"BR PRADAP / SMU / ED"``). Used
+#: Separators an origin may use to spell the full path of codes (``"ACERVO RAIZ / BETA / ED"``). Used
 #: only as a fallback: the parent *code* is what resolution reads when it is present, because a
 #: path is a snapshot of the arrangement and a code is the thing itself.
 _PATH_SEPARATORS = ("/", ">", "|", "\\")

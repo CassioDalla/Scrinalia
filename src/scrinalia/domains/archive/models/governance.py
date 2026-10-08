@@ -127,7 +127,7 @@ class DomainSubjectExclusion(Base):
     a bare year, a placeholder, a street, a number with a unit. Measured against the labelled
     set it catches one of four non-subjects, because the rest are semantic judgements with no
     shape to match — ``pessoas`` (166 documents) is too generic to be an aboutness,
-    ``vista aérea`` (89) is a photographic point of view, ``capanema`` (91) is a proper noun
+    ``vista aérea`` (89) is a photographic point of view, ``exemplo lugar`` (91) is a proper noun
     the guard has never seen. No rule reaches those, and the model cannot abstain: asked to
     choose, it chooses confidently and wrongly.
 

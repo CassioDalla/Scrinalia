@@ -67,7 +67,7 @@
             "type": "string"
           },
           "token": {
-            "description": "Token do código de referência (ex.: 'SMU'), ou o código inteiro (ex.: 'BR PRADAP').",
+            "description": "Token do código de referência (ex.: 'BETA'), ou o código inteiro (ex.: 'ACERVO RAIZ').",
             "maxLength": 100,
             "minLength": 1,
             "type": "string"
@@ -458,7 +458,7 @@
         "type": "object"
       },
       "CollectionTermKind": {
-        "description": "\n    What a term of the collection is, when it is not a subject.\n\n    The subject guard refuses a term for one of five shapes. Three of them are properties of\n    the *language* (a placeholder, a bare year, a measure) and two are properties of the\n    *collection*: a toponym it carries as a place and a person name it carries as a name. The\n    second family used to be a regex inside ``domain/vocabulary.py`` holding the bairros of\n    Curitiba and fifteen names; they are rows now because another institution's collection\n    carries other names, and a regex cannot be edited by the archivist.\n\n    The kind is stored instead of a boolean \"is a place\" because the finest rung is the one\n    the facet is asked about — a bairro and a country are both places, and only one of them is\n    \"where in the city\". ``PERSON`` is deliberately not a place: the name goes nowhere, it is\n    the producer.\n    ",
+        "description": "\n    What a term of the collection is, when it is not a subject.\n\n    The subject guard refuses a term for one of five shapes. Three of them are properties of\n    the *language* (a placeholder, a bare year, a measure) and two are properties of the\n    *collection*: a toponym it carries as a place and a person name it carries as a name. The\n    second family used to be a regex inside ``domain/vocabulary.py`` holding the city's bairros\n    and fifteen names; they are rows now because another institution's collection\n    carries other names, and a regex cannot be edited by the archivist.\n\n    The kind is stored instead of a boolean \"is a place\" because the finest rung is the one\n    the facet is asked about — a bairro and a country are both places, and only one of them is\n    \"where in the city\". ``PERSON`` is deliberately not a place: the name goes nowhere, it is\n    the producer.\n    ",
         "enum": [
           "DISTRICT",
           "MUNICIPALITY",
@@ -3278,7 +3278,7 @@
             ]
           },
           "reference_code": {
-            "description": "Código do novo nó, ex.: 'BR PRADAP SMU'.",
+            "description": "Código do novo nó, ex.: 'ACERVO RAIZ BETA'.",
             "minLength": 1,
             "type": "string"
           },

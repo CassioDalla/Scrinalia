@@ -35,7 +35,7 @@ class DescriptionLevelUpdateRequest(BaseModel):
 class HierarchyNodeCreateRequest(BaseModel):
     """Creates an arrangement node that has no counterpart in the source."""
 
-    reference_code: str = Field(min_length=1, description="Código do novo nó, ex.: 'BR PRADAP SMU'.")
+    reference_code: str = Field(min_length=1, description="Código do novo nó, ex.: 'ACERVO RAIZ BETA'.")
     title: str = Field(min_length=1, description="Título do nó.")
     level_id: int | None = None
     parent_id: str | None = Field(default=None, description="Descrição superior; omita para criar na raiz.")

@@ -61,11 +61,11 @@ def is_blocked_entity_name(name: str, blacklist: set[str]) -> bool:
 
     The exact-match check is not enough, and the real engine shows why: spaCy merges
     neighbouring tokens, so with "iptu" excluded the model still returns the single
-    entity ``"IPTU do Batel"``. An exact comparison against the blacklist lets that
+    entity ``"IPTU do Exemplo"``. An exact comparison against the blacklist lets that
     false positive straight through — the very leak the exclusion catalog exists to
     close. Matching on token boundaries blocks the merged form while leaving
     legitimate names that merely contain the letters untouched (``"iptu"`` blocks
-    ``"iptu do batel"``, but never ``"iptuana"``).
+    ``"iptu do exemplo"``, but never ``"iptuana"``).
     """
     normalized = name.strip().lower()
 

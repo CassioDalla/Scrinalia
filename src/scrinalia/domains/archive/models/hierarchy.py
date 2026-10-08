@@ -63,7 +63,7 @@ class ArchiveHierarchyNodePlan(Base):
     One rung the reference codes imply, and the archivist's decision about it.
 
     Exists because the codes cannot be trusted alone. The measurement gave the canonical example:
-    ``BR PRADAP SMU ED AL CONSTR`` splits into two alphabetic segments that are, in the real
+    ``ACERVO RAIZ BETA ED AL CONSTR`` splits into two alphabetic segments that are, in the real
     arrangement, **one** level ("Alvenaria - Construções") — and no slicer can know that, because
     the evidence is not in the string. So the machine proposes and the human disposes, and the
     disposition has to outlive the run that produced it: approving a rung must not be asked again

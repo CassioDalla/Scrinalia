@@ -3,12 +3,12 @@ The subject vocabulary of the archive and what is deliberately *not* a subject.
 
 Two measured facts made this module necessary (Fase 1.5, defeito 2/2):
 
-1. **The five drawers registered for the IPPUC/SMU records do not cover the collection.**
-   ``igrejas`` reaches 2.467 documents — the largest tag of the archive — and there was no
+1. **The five drawers registered for the ALFA/BETA records do not cover the collection.**
+   ``tema exemplo`` reaches 2.467 documents — the largest tag of the archive — and there was no
    "Religião" for it, so the model had no choice but ``Instituição``. No label format fixes
    a missing drawer.
-2. **Two of those five were never subjects.** ``Instituição`` (``ippuc`` 2.376 docs, ``pmc``
-   269) and ``Localidade`` (``curitiba`` 1.865, ``centro`` 464) describe provenance and
+2. **Two of those five were never subjects.** ``Instituição`` (``alfa`` 2.376 docs, ``pmc``
+   269) and ``Localidade`` (``cidade`` 1.865, ``exemplo lugar`` 464) describe provenance and
    geography. Sharing a slot with ``alvenaria`` is what produced "``alvenaria`` is
    Mobilidade".
 
@@ -170,7 +170,7 @@ def is_place_term(term: str, vocabulary: CollectionVocabulary | None = None) -> 
 
     Returns ``True`` for a street spelling and for a toponym the collection registered. Kept next
     to :func:`is_subject_candidate` on purpose: the two answer different questions about the same
-    word, and a curator reading only one of them would conclude that ``rua xv de novembro``
+    word, and a curator reading only one of them would conclude that ``rua exemplo``
     (118 documents) is discarded.
     """
     return is_street(term) or (bool(vocabulary) and vocabulary.is_place(term))

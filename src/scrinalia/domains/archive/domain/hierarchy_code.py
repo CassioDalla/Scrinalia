@@ -4,23 +4,23 @@ The collection is hierarchical and the evidence is the ``reference_code``, fille
 of the 3,608 real descriptions. But slicing it on every space is wrong for a third of the
 acervo, and the measurement is what showed it::
 
-    BR PRADAP IPPUC FOTOGRAFIA 00680            -> the token layout is structure + serial
-    BR PRADAP SMU ED AL CONSTR 2154 1903        -> ... and here a number sits in the middle
+    ACERVO RAIZ ALFA FOTOGRAFIA 00680           -> the token layout is structure + serial
+    ACERVO RAIZ BETA ED AL CONSTR 2154 1903     -> ... and here a number sits in the middle
 
-Naive prefix slicing turns ``BR PRADAP SMU ED AL`` into **1,123 parents of one document each**,
+Naive prefix slicing turns ``ACERVO RAIZ BETA ED AL`` into **1,123 parents of one document each**,
 because the code interleaves the arrangement vocabulary with the identifiers of the leaf. This
 module separates the two: the arrangement is carried by the alphabetic tokens, and a trailing
 run of identifiers belongs to the node they close, not to a rung of the tree.
 
 The classification is deliberately conservative and never guesses:
 
-* an **alphabetic** token is arrangement vocabulary (``IPPUC``, ``ED``, ``AL``, ``CONSTR``).
+* an **alphabetic** token is arrangement vocabulary (``ALFA``, ``ED``, ``AL``, ``CONSTR``).
   ``str.isalpha`` is Unicode-aware, so ``LEGISLAÇÃO`` is vocabulary;
 * anything else — digits, ``(1)``, ``369B``, ``998-1``, ``11925_1916`` — is an identifier;
 * an identifier that is **not** a clean number is flagged ``UNPARSED_TAIL`` instead of being
   silently swallowed, because that is exactly the ~20 malformed codes a curator has to see;
 * an identifier that survives *before* the last vocabulary token is flagged
-  ``MID_CODE_IDENTIFIER`` (``BR PRADAP SEPLAD OF 478 1959 DUP``) and kept in the path: dropping
+  ``MID_CODE_IDENTIFIER`` (``ACERVO RAIZ GAMA OF 478 1959 DUP``) and kept in the path: dropping
   it would invent a node, keeping it quietly would invent a rung.
 
 Nothing here reads or writes the database. It answers one question — "which tokens describe the
@@ -40,7 +40,7 @@ _WHITESPACE = re.compile(r"[\s\u00a0]+")
 #: spelling the curator should look at.
 _PLAIN_NUMBER = re.compile(r"^\d+$")
 
-#: The shallowest arrangement a code can name: ``BR PRADAP``, the custodian entity's own collection.
+#: The shallowest arrangement a code can name: ``ACERVO RAIZ``, the custodian entity's own collection.
 #: Kept here so the slicer, the proposal and the migration cannot disagree about where the ladder
 #: starts.
 ROOT_MIN_TOKENS = 2
@@ -71,7 +71,7 @@ class SlicedReferenceCode:
 
     @property
     def structural_code(self) -> str:
-        """The arrangement path as a string (``"BR PRADAP SMU ED AL CONSTR"``)."""
+        """The arrangement path as a string (``"ACERVO RAIZ BETA ED AL CONSTR"``)."""
         return " ".join(self.structural)
 
     @property
@@ -84,7 +84,7 @@ class SlicedReferenceCode:
         Every rung of the arrangement this code sits on, root first, the code itself last.
 
         The prefixes are the containers the code implies and that the source may never have sent as
-        records — ``BR PRADAP``, ``BR PRADAP SMU``, ``BR PRADAP SMU ED`` … for a SMU process. They
+        records — ``ACERVO RAIZ``, ``ACERVO RAIZ BETA``, ``ACERVO RAIZ BETA ED`` … for a BETA process. They
         are expressed in **codes**, not ids, because the proposal is computed before any node
         exists; materialising them (H4) is what translates a code into an id.
         """
@@ -113,7 +113,7 @@ def is_structural_token(token: str) -> bool:
     True when the token names part of the arrangement rather than a leaf.
 
     ``str.isalpha`` is the whole rule, and the measurement is the reason it is enough: across
-    all 3,608 real codes, every arrangement token is alphabetic (``IPPUC``, ``SMICS``,
+    all 3,608 real codes, every arrangement token is alphabetic (``ALFA``, ``ETA``,
     ``CONSTR``, ``LEGISLAÇÃO``) and every identifier carries a digit or a bracket.
     """
     return token.isalpha()

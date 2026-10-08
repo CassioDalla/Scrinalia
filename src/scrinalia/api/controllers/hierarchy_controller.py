@@ -336,7 +336,7 @@ class HierarchyController(Controller):
         Records the verdict on one rung: its level, its title, or that it **is** another rung.
 
         ``collapse_into_code`` is where the archivist corrects what the code cannot know. The
-        measured example: ``BR PRADAP SMU ED AL`` and ``BR PRADAP SMU ED AL CONSTR`` are one level
+        measured example: ``ACERVO RAIZ BETA ED AL`` and ``ACERVO RAIZ BETA ED AL CONSTR`` are one level
         of the arrangement ("Alvenaria - Construções") — nothing in the string says so.
         """
         return materialisation_service.decide(

@@ -1644,7 +1644,7 @@ export interface components {
         ArrangementTermCreateRequest: {
             /** @description O nome que o arquivista lê na proposta. */
             display_name: string;
-            /** @description Token do código de referência (ex.: 'SMU'), ou o código inteiro (ex.: 'BR PRADAP'). */
+            /** @description Token do código de referência (ex.: 'BETA'), ou o código inteiro (ex.: 'ACERVO RAIZ'). */
             token: string;
         };
         /** ArrangementTermDTO */
@@ -1753,8 +1753,8 @@ export interface components {
          *         The subject guard refuses a term for one of five shapes. Three of them are properties of
          *         the *language* (a placeholder, a bare year, a measure) and two are properties of the
          *         *collection*: a toponym it carries as a place and a person name it carries as a name. The
-         *         second family used to be a regex inside ``domain/vocabulary.py`` holding the bairros of
-         *         Curitiba and fifteen names; they are rows now because another institution's collection
+         *         second family used to be a regex inside ``domain/vocabulary.py`` holding the city's bairros
+         *         and fifteen names; they are rows now because another institution's collection
          *         carries other names, and a regex cannot be edited by the archivist.
          *
          *         The kind is stored instead of a boolean "is a place" because the finest rung is the one
@@ -2461,7 +2461,7 @@ export interface components {
             note?: string | null;
             /** @description Descrição superior; omita para criar na raiz. */
             parent_id?: string | null;
-            /** @description Código do novo nó, ex.: 'BR PRADAP SMU'. */
+            /** @description Código do novo nó, ex.: 'ACERVO RAIZ BETA'. */
             reference_code: string;
             scope_content?: string | null;
             /** @description Título do nó. */

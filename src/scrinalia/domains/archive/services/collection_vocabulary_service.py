@@ -4,7 +4,7 @@ The collection vocabulary catalogue: what this archive declares, and the guard's
 Nothing here is fixed by the software. The arrangement names and the non-subject terms are the
 archivist's statement about *this* collection, which is why they are rows and not constants: the
 reference installation seeds them, another institution replaces them, and an installation that
-declares nothing gets an empty guard rather than Curitiba's names.
+declares nothing gets an empty guard rather than the city's names.
 
 Two callers matter beyond the screen. The hierarchy proposal asks for ``arrangement_names()`` to
 suggest a rung's name, and the subject guard asks for ``guard_vocabulary()`` — the value object

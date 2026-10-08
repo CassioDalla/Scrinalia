@@ -11,7 +11,7 @@ class ArrangementTermCreateRequest(BaseModel):
     token: str = Field(
         min_length=1,
         max_length=100,
-        description="Token do código de referência (ex.: 'SMU'), ou o código inteiro (ex.: 'BR PRADAP').",
+        description="Token do código de referência (ex.: 'BETA'), ou o código inteiro (ex.: 'ACERVO RAIZ').",
     )
     display_name: str = Field(min_length=1, max_length=200, description="O nome que o arquivista lê na proposta.")
 

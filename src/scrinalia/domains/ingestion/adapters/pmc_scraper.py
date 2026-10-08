@@ -70,8 +70,7 @@ PMC_SOURCE_SCHEMA = SourceSchema(
 
 class PMCScraperAdapter(IDiscoveryAdapter, IDetailAdapter):
     """
-    Concrete adapter for data extraction from the Curitiba City Hall (PMC) public
-    archive website.
+    Concrete adapter for data extraction from a public archive website.
 
     It implements the discovery (IDiscoveryAdapter) and detailed extraction
     (IDetailAdapter) interfaces, translating messy HTML and HTTP library

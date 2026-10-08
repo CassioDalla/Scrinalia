@@ -490,8 +490,8 @@ class TagRepository:
         collection's two, loaded here once — so a term the worker skips is a term the catalogue shows.
 
         Deliberately **no verdict for the semantic half**: ``pessoas``, ``vista aérea`` and
-        ``capanema`` have no shape to match, and the measurement on the labelled set says the
-        statistical signals available lie — by document count the top of the orphans is ``igrejas``
+        ``exemplo lugar`` have no shape to match, and the measurement on the labelled set says the
+        statistical signals available lie — by document count the top of the orphans is ``tema exemplo``
         (2.474, a real subject missing a drawer), and by low confidence it is ``madeira`` (0.30) and
         ``ecletismo`` (0.38), also real subjects. Proposing those would be worse than the three
         hardcoded examples the screen used to offer.

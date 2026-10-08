@@ -3,8 +3,8 @@ The vocabulary of the collection: what the archive itself declares, as rows.
 
 Two things were constants in the code and are properties of *this* collection, not of the
 system: the map of arrangement tokens to the names the curator reads (``ED`` -> ``Edificações``,
-``IPPUC`` -> the institute), and the gazetteer of toponyms and person names the subject guard
-recognises. The first made the hierarchy proposal suggest Curitiba's secretariats to any
+``ALFA`` -> the institute), and the gazetteer of toponyms and person names the subject guard
+recognises. The first made the hierarchy proposal suggest the city's secretariats to any
 installation; the second refused 16 person names and 34 bairros that another archive would not
 even have.
 
@@ -28,10 +28,10 @@ class ArchiveArrangementTerm(Base):
     """
     One arrangement token and the name the proposal suggests for the rung that carries it.
 
-    ``token`` is either a single code token (``IPPUC``, ``ED``) or a full code (``BR PRADAP``),
+    ``token`` is either a single code token (``ALFA``, ``ED``) or a full code (``ACERVO RAIZ``),
     stored normalised: uppercase, single spaces. The proposal reads the full code first and falls
     back to its last token, so a row keyed by the whole code wins over a row keyed by its last
-    token — which is what makes "the root has its own name" expressible next to "``SMU`` is the
+    token — which is what makes "the root has its own name" expressible next to "``BETA`` is the
     secretariat".
 
     Suggestions only. Nothing here creates a node: the archivist reviews the proposal and the

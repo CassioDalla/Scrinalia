@@ -3,7 +3,7 @@ Materialising the arrangement, driven by a recorded human decision (Fase 2.5, H4
 
 The proposal (H3) reads the codes and says what tree they imply. This is what turns that reading
 into rows — and it exists because **the code cannot be trusted alone**. The canonical case came
-from the archivist: ``BR PRADAP SMU ED AL CONSTR`` splits into two alphabetic segments that are, in
+from the archivist: ``ACERVO RAIZ BETA ED AL CONSTR`` splits into two alphabetic segments that are, in
 the real arrangement, one level ("Alvenaria - Construções"). No slicer can know that; the evidence
 is not in the string. So:
 

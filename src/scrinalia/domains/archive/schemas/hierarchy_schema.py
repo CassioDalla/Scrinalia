@@ -174,7 +174,7 @@ class CreateHierarchyNodeCommand(BaseModel):
     the codes imply and the source never sent; this is that write.
     """
 
-    reference_code: str = Field(min_length=1, description="Code of the new node, e.g. 'BR PRADAP SMU'.")
+    reference_code: str = Field(min_length=1, description="Code of the new node, e.g. 'ACERVO RAIZ BETA'.")
     title: str = Field(min_length=1, description="Title of the node.")
     level_id: int | None = None
     parent_id: str | None = Field(default=None, description="Parent code holder; omit for a root.")

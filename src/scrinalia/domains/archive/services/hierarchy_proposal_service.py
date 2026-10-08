@@ -3,7 +3,7 @@
 This is the decision point of the phase. The roadmap is explicit that H3 comes **before** any
 screen, because the report says how regular the structure actually is — and the measurement
 already contradicted the roadmap's own estimate: slicing the codes on every space turns
-``BR PRADAP SMU ED AL`` into 1,123 parents of one document each, because the code interleaves the
+``ACERVO RAIZ BETA ED AL`` into 1,123 parents of one document each, because the code interleaves the
 arrangement vocabulary with the identifiers of the leaf. ``domain.hierarchy_code`` separates the
 two, which is what brings ~3,600 codes down to a few dozen rungs a human can actually review.
 
@@ -146,7 +146,7 @@ class HierarchyProposalService:
         Groups documents by the rung their code hangs from.
 
         The trailing identifiers of a code are the document's own identity inside its rung, so a
-        document's *rung* is its structural code — ``BR PRADAP IPPUC FOTOGRAFIA`` for the 2,391
+        document's *rung* is its structural code — ``ACERVO RAIZ ALFA FOTOGRAFIA`` for the 2,391
         items, not ``... 00680``. Without that distinction every document would be its own parent.
 
         The key is folded with ``normalize_reference_code`` so it meets the keys of
@@ -193,7 +193,7 @@ class HierarchyProposalService:
                 if candidate == code or candidate.startswith(f"{code} "):
                     node.subtree_ids.update(doc.description_id for doc in docs)
 
-        # A rung that is itself a description (``BR PRADAP IPPUC FOTOGRAFIAS`` is the Série record)
+        # A rung that is itself a description (``ACERVO RAIZ ALFA FOTOGRAFIAS`` is the Série record)
         # is the node, not a descendant of itself: counting it would inflate every materialised
         # rung by one. It stays in the ancestor's count, which is why the discard is per node.
         for code, node in nodes.items():
@@ -300,7 +300,7 @@ class HierarchyProposalService:
                 nodes[code].flags.add(str(HierarchyIssue.NEAR_DUPLICATE_NODE))
 
         # A rung whose ordinal is not strictly above its parent's cannot be materialised: the tree
-        # rule refuses it. Surfacing it is the honest outcome — the SMU branch really carries more
+        # rule refuses it. Surfacing it is the honest outcome — the BETA branch really carries more
         # levels than the ladder has rungs, and only a human can decide what to collapse.
         for node in nodes.values():
             parent = nodes.get(node.parent_code) if node.parent_code else None

@@ -25,7 +25,10 @@ class Settings(BaseSettings):
     DB_PASS: SecretStr = SecretStr("admin123")
     DB_HOST: str = "localhost"
     DB_PORT: int = 5432
-    DB_NAME: str = "memoriacuritibana"
+    #: Neutral on purpose. It used to be the reference collection's own database name, which made a
+    #: fresh clone default to somebody else's catalogue; a deployment that wants that name sets
+    #: ``DB_NAME`` in its ``.env``, where its own configuration belongs.
+    DB_NAME: str = "scrinalia"
 
     # Public site that gets scraped. Read at the composition point and handed to the adapter,
     # never by the adapter itself: an adapter that reads global settings cannot be pointed at

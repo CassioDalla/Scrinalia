@@ -106,7 +106,7 @@ class ArchiveTagFacet(Base):
     The non-subject axis of a tag: what it *is*, when it is not an *about*.
 
     ``archive_tags.macro_category_id`` holds one subject drawer and nothing else. A tag like
-    ``ippuc`` (2.376 documents) or ``curitiba`` (1.865) has no subject but is unmistakably a
+    ``alfa`` (2.376 documents) or ``cidade`` (1.865) has no subject but is unmistakably a
     producer or a place; forcing them into the subject axis is a measured cause of the
     classification defect, because they competed with ``alvenaria`` for the same slot. This
     table is where those statements live instead.
@@ -124,7 +124,7 @@ class ArchiveTagFacet(Base):
     )
     facet_type: Mapped[str] = mapped_column(String(20), primary_key=True)
 
-    #: The canonical value of the facet (``IPPUC``, ``Curitiba``). Falls back to the tag
+    #: The canonical value of the facet (``ALFA``, ``Cidade``). Falls back to the tag
     #: name when the curator only confirms the axis without renaming the spelling.
     value: Mapped[str] = mapped_column(String(100), nullable=False)
 

@@ -179,7 +179,7 @@ class EntityRepository:
           pairs: **52.9 s**, with **identical results**.
 
         The ``lower() = lower()`` disjunct was redundant, not a safety net: ``pg_trgm`` normalises
-        case for trigram extraction, so ``similarity('Batel', 'batel') = 1`` and at **any** threshold
+        case for trigram extraction, so ``similarity('Exemplo', 'exemplo') = 1`` and at **any** threshold
         in ``[0, 1]`` every pair it matched was already matched by ``%``. Do not add an OR here —
         it silently costs a factor of 37. ``testing/integration/archive/services/test_entity_service.py``
         pins the case-insensitivity this reasoning depends on.
@@ -912,7 +912,7 @@ class EntityRepository:
 
         # 1. Prepares the list of dictionaries for the mass INSERT.
         # Names are normalized to lowercase (mirroring the Tag dimension) so that
-        # "Curitiba" and "curitiba" resolve to the same canonical entity.
+        # "Cidade" and "cidade" resolve to the same canonical entity.
         insert_data = []
         names_to_search = []
 

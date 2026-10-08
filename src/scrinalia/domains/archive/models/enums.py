@@ -41,8 +41,8 @@ class TagFacetType(enum.StrEnum):
     Which non-subject axis a tag belongs to.
 
     ``ArchiveTag.macro_category_id`` answers "what is this about?". Some tags have no honest
-    answer to that question but a very clear answer to a different one: ``ippuc`` is *who
-    produced*, ``curitiba`` is *where*. Before this existed those terms competed with
+    answer to that question but a very clear answer to a different one: ``alfa`` is *who
+    produced*, ``cidade`` is *where*. Before this existed those terms competed with
     ``alvenaria`` for the same subject drawer, which is a measured cause of the systematic
     misclassification (``alvenaria`` landing in "Mobilidade e Transporte").
 
@@ -50,9 +50,9 @@ class TagFacetType(enum.StrEnum):
     subject but can carry a place *and* an institution at once.
     """
 
-    #: The producer or the body the record is about (``ippuc``, ``pmc``, ``urbs``).
+    #: The producer or the body the record is about (``alfa``, ``pmc``, ``theta``).
     INSTITUTION = "INSTITUTION"
-    #: A toponym or a street address (``curitiba``, ``centro``, ``rua xv de novembro``).
+    #: A toponym or a street address (``cidade``, ``exemplo lugar``, ``rua exemplo``).
     PLACE = "PLACE"
 
 
@@ -63,8 +63,8 @@ class CollectionTermKind(enum.StrEnum):
     The subject guard refuses a term for one of five shapes. Three of them are properties of
     the *language* (a placeholder, a bare year, a measure) and two are properties of the
     *collection*: a toponym it carries as a place and a person name it carries as a name. The
-    second family used to be a regex inside ``domain/vocabulary.py`` holding the bairros of
-    Curitiba and fifteen names; they are rows now because another institution's collection
+    second family used to be a regex inside ``domain/vocabulary.py`` holding the city's bairros
+    and fifteen names; they are rows now because another institution's collection
     carries other names, and a regex cannot be edited by the archivist.
 
     The kind is stored instead of a boolean "is a place" because the finest rung is the one
@@ -75,13 +75,13 @@ class CollectionTermKind(enum.StrEnum):
 
     #: A bairro: the finest place the collection declares.
     DISTRICT = "DISTRICT"
-    #: A municipality (``curitiba``, ``pinhais``, ``araucária``), including a foreign city.
+    #: A municipality (``cidade``, ``vila exemplo``), including a foreign city.
     MUNICIPALITY = "MUNICIPALITY"
-    #: A state or province (``paraná``, ``santa catarina``, ``bahia``).
+    #: A state or province (``estado exemplo``, ``província exemplo``).
     STATE = "STATE"
-    #: A region broader than a municipality (``região metropolitana de curitiba``).
+    #: A region broader than a municipality (``região exemplo``).
     REGION = "REGION"
-    #: A country the collection's records reach (``frança``, ``alemanha``).
+    #: A country the collection's records reach (``país exemplo``).
     COUNTRY = "COUNTRY"
     #: A person's name: a producer or the person depicted, never a subject.
     PERSON = "PERSON"

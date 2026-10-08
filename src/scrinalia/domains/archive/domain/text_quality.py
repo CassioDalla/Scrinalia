@@ -27,7 +27,7 @@ AI_TEXT_COLUMNS: tuple[str, ...] = (
 )
 
 #: An excerpt shorter than this is not proposed by the frequency routine. Shorter
-#: fragments match too much unrelated text ("de Curitiba", "nº 12") and a human
+#: fragments match too much unrelated text ("da cidade", "nº 12") and a human
 #: approving them would remove legitimate content.
 EXCERPT_MIN_LENGTH = 40
 

@@ -164,7 +164,7 @@ class DocumentAncestorSummary(BaseModel):
     One rung of the branch a description sits on, root first.
 
     Streamlined on purpose: the read view of a collection page needs to *place* the description
-    ("this item is inside the Série Registros Fotográficos, under the Fundo IPPUC"), not to repeat
+    ("this item is inside the Série Registros Fotográficos, under the Fundo ALFA"), not to repeat
     the whole ISAD(G) record of every ancestor above it.
     """
 

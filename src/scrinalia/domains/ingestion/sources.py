@@ -27,7 +27,7 @@ def get_source_schema(code: str | None = None) -> SourceSchema:
     The active origin's vocabulary: the explicit code wins, then ``ACERVO_SOURCE``.
 
     There is **no default**. A fallback would make an installation that never declared its origin
-    read the reference site's labels, which is the "the default is Curitiba" defect ADR 0008 removed
+    read the reference site's labels, which is the "the default is the reference collection" defect ADR 0008 removed
     from the collection vocabulary — the same mistake in a different place.
     """
     resolved = code or settings.ACERVO_SOURCE

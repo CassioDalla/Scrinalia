@@ -288,11 +288,11 @@ def collapse_chain(code: str, collapse_map: Mapping[str, str]) -> str:
     """
     Follows the "this rung IS that rung" links to their end.
 
-    The operation the code cannot do for itself. ``BR PRADAP SMU ED AL`` and ``BR PRADAP SMU ED AL
-    CONSTR`` are, in the real arrangement, **one** level ("Alvenaria - Construções") — and nothing
-    in the string says so, because the evidence is not in the string. The link is written by a
-    person; this only follows it, with a cycle guard so a pair of contradictory links cannot make
-    the walk run forever.
+    The operation the code cannot do for itself. ``ACERVO RAIZ BETA ED AL`` and
+    ``ACERVO RAIZ BETA ED AL CONSTR`` are, in the real arrangement, **one** level ("Alvenaria -
+    Construções") — and nothing in the string says so, because the evidence is not in the string. The
+    link is written by a person; this only follows it, with a cycle guard so a pair of contradictory
+    links cannot make the walk run forever.
     """
     seen = {code}
     current = code
@@ -339,7 +339,7 @@ def plan_flag_vocabulary() -> list[str]:
     * ``HierarchyIssue.NEAR_DUPLICATE_NODE`` — a sibling one letter apart (``FOTOGRAFIA`` versus
       ``FOTOGRAFIAS``), which is a statement about the collection and not about the rung;
     * ``HierarchyViolation.LEVEL_NOT_ALLOWED_AS_CHILD`` — the rung cannot be materialised where the
-      code puts it, which the SMU branch really does. The other violations are never flags: they are
+      code puts it, which the BETA branch really does. The other violations are never flags: they are
       the answers to "may this move happen?", and they live in ``violations``;
     * ``CodeFlag`` — what the slicer noticed while reading the code itself.
 
