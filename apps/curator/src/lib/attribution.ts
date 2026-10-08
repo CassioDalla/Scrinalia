@@ -28,5 +28,5 @@ export const ATTRIBUTION = {
   /** Where the license text can be read. */
   licenseUrl: "https://www.gnu.org/licenses/agpl-3.0.html",
   /** The public repository: the Corresponding Source this work offers. */
-  sourceUrl: "https://github.com/CassioDalla/scrinalia",
+  sourceUrl: "https://github.com/CassioDalla/Scrinalia",
 } as const;

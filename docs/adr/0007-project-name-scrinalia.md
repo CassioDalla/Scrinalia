@@ -125,9 +125,11 @@ Negative, and accepted:
   working. Nothing outside this repository does, which is why the alias was not worth its
   lifetime cost.
 - **The GitHub repository and the checkout directory still carry the old name.** The footer's
-  `sourceUrl` points at `https://github.com/CassioDalla/scrinalia`, which is the §13 offer of
+  `sourceUrl` points at `https://github.com/CassioDalla/Scrinalia`, which is the §13 offer of
   Corresponding Source and must resolve — so renaming the repository is not optional politeness,
-  it is part of the same operation, and until it happens that link is a 404. The local directory
+  it is part of the same operation, and until it happens that link is a 404. **Resolved:** the
+  repository is now `Scrinalia`, the canonical capitalisation, matching the display name; GitHub
+  redirects the old lowercase URL, so nothing that already cited it broke. The local directory
   additionally feeds the editable install's `.pth`, so `uv sync` is needed after renaming it.
 - **The container and image names changed** (`scrinalia_db`, `scrinalia-postgres:15`), which
   requires recreating the containers. The volume is untouched: `docker compose down` then up, and

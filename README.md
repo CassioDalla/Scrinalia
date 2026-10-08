@@ -6,7 +6,7 @@
      and says what the license actually is: ``AGPL-3.0-only`` **plus** the attribution term of section
      7(b), not the bare SPDX identifier. -->
 [![License: AGPL-3.0-only + attribution](https://img.shields.io/badge/license-AGPL--3.0--only%20%2B%20attribution-blue)](LICENSE-ADDITIONAL-TERMS.md)
-[![CI](https://github.com/CassioDalla/scrinalia/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/CassioDalla/scrinalia/actions/workflows/ci.yml)
+[![CI](https://github.com/CassioDalla/Scrinalia/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/CassioDalla/Scrinalia/actions/workflows/ci.yml)
 
 A system for archivists to catalogue and manage archival descriptions (ISAD(G) metadata),
 with AI-driven enrichment and Human-in-the-Loop governance.

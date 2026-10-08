@@ -76,4 +76,4 @@ history is the detail.
   reads the **runtime** export and not the development environment: an advisory in a tool that never
   reaches an installation no longer hides the ones that do.
 
-[Unreleased]: https://github.com/CassioDalla/scrinalia/commits/main
+[Unreleased]: https://github.com/CassioDalla/Scrinalia/commits/main

@@ -9,7 +9,7 @@ trigger AI work that costs hours of CPU. Reports are welcome and are handled pri
 **Use GitHub's private vulnerability reporting** — do not open a public issue, and do not describe
 the problem in a discussion:
 
-> **<https://github.com/CassioDalla/scrinalia/security/advisories/new>**
+> **<https://github.com/CassioDalla/Scrinalia/security/advisories/new>**
 
 The repository's **Security** tab has the same entry point ("Report a vulnerability"). It opens a
 private advisory that only the maintainers can read, and it is where the fix is prepared and the

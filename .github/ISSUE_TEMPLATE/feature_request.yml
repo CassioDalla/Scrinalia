@@ -8,8 +8,8 @@ body:
       value: |
         The project has opinions, and most of them have an ADR behind them. A proposal that names the
         problem — not only the solution — is the one that can be discussed. Read
-        [`AGENTS.md`](https://github.com/CassioDalla/scrinalia/blob/main/AGENTS.md) and the
-        [ADRs](https://github.com/CassioDalla/scrinalia/tree/main/docs/adr) before writing.
+        [`AGENTS.md`](https://github.com/CassioDalla/Scrinalia/blob/main/AGENTS.md) and the
+        [ADRs](https://github.com/CassioDalla/Scrinalia/tree/main/docs/adr) before writing.
 
   - type: textarea
     id: problem
