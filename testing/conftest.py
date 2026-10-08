@@ -8,6 +8,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from litestar import Litestar
 from litestar.testing import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
@@ -253,8 +254,23 @@ def api_uses_test_db(db_session):
         yield
 
 
+@pytest.fixture(scope="session")
+def api_app() -> Litestar:
+    """
+    The Litestar application, built once for the whole session.
+
+    ``create_app()`` costs ~94 ms and every HTTP test used to pay it: the suite builds the same
+    application ~300 times. Nothing in it is per-test state — the route table, the guards and the
+    providers are resolved per request, and the three writers that need the test session
+    (``api_uses_test_db``) are patched on the module attributes the request reads. The **lifespan**
+    still runs per test, because the client stays function-scoped: that is the part that owns the
+    process-wide runtime, and a test may want it fresh.
+    """
+    return create_app()
+
+
 @pytest.fixture()
-def api_client(api_uses_test_db) -> Generator[TestClient, None, None]:
+def api_client(api_uses_test_db, api_app) -> Generator[TestClient, None, None]:
     """
     The HTTP client of the integration tests, over the test database.
 
@@ -265,7 +281,7 @@ def api_client(api_uses_test_db) -> Generator[TestClient, None, None]:
     # The sign-in brake is process-wide by design, so a fresh window per test keeps one test's
     # logins from counting against the next one's — and lets the rate-limit test set the ceiling.
     provide_login_rate_limiter.cache_clear()
-    with TestClient(app=create_app()) as test_client:
+    with TestClient(app=api_app) as test_client:
         yield test_client  # type: ignore[misc]
 
 
