@@ -1,0 +1,99 @@
+# Documentation toolchain. The decision and its alternatives are in
+# docs/adr/0010-documentation-coverage-and-freshness.md: English is the canonical
+# language, Portuguese is a translation of it (page.md / page.pt.md), coverage is a
+# gate and freshness is a report produced by the hook below.
+site_name: Scrinalia
+site_description: Archival description cataloguing and AI-driven enrichment (ISAD(G))
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - search.highlight
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+plugins:
+  - search:
+      lang:
+        - en
+        - pt
+  - i18n:
+      docs_structure: suffix
+      # A page without a translation serves the English one instead of answering 404.
+      fallback_to_default: true
+      reconfigure_material: true
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+        - locale: pt
+          name: Português (Brasil)
+          build: true
+          nav_translations:
+            Home: Início
+            Guides: Guias
+            Installation and deployment: Instalação e implantação
+            Operations: Operação
+            Curation: Curadoria
+            Data model: Modelo de dados
+            Architecture decisions: Decisões de arquitetura
+            Index: Índice
+            Documentation log: Registro da documentação
+
+hooks:
+  - docs/_hooks/freshness.py
+
+exclude_docs: |
+  _hooks/
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - Guides:
+      - Installation and deployment: guides/install.md
+      - Operations: guides/operate.md
+      - Curation: guides/curate.md
+      - Data model: guides/data-model.md
+  - Architecture decisions:
+      - Index: adr/index.md
+      - 0001 Litestar as the HTTP framework: adr/0001-litestar-as-http-framework.md
+      - 0002 src layout and internal namespace: adr/0002-src-layout-and-internal-namespace.md
+      - 0003 Monorepo and curator frontend stack: adr/0003-monorepo-and-curator-frontend-stack.md
+      - 0004 Worker execution from the API: adr/0004-worker-execution-from-the-api.md
+      - 0005 Observability without an external service: adr/0005-observability-without-an-external-service.md
+      - 0006 License and author attribution: adr/0006-license-and-author-attribution.md
+      - 0007 Project name Scrinalia: adr/0007-project-name-scrinalia.md
+      - 0008 Language in code, collection vocabulary in the database: adr/0008-language-in-code-and-collection-vocabulary-in-the-database.md
+      - 0009 Authentication and authorization: adr/0009-authentication-and-authorization.md
+      - 0010 Documentation coverage and freshness: adr/0010-documentation-coverage-and-freshness.md
+  - Documentation log: log.md

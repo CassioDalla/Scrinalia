@@ -1,0 +1,37 @@
+# Dependabot: the update PRs, and what is deliberately not listed.
+#
+# Two ecosystems are configured. The third — the SPA's `bun.lock` — is **not**, and that is a
+# decision rather than an oversight: an `npm` entry would open pull requests that change
+# `package.json` without touching `bun.lock`, and CI installs with `--frozen-lockfile`, so every one
+# of them would fail. The front needs an updater that reads `bun.lock` (Renovate does; Dependabot's
+# support for it is still partial) — recorded in `TODO.md` as the remaining step.
+version: 2
+
+updates:
+  # The actions pinned by SHA in `.github/workflows/` never update themselves: pinning is what makes
+  # a compromised tag unable to run, and Dependabot is what makes the pins move forward instead of
+  # rotting. One grouped PR a week, not one per action.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Python. Dependabot understands `uv.lock`, so the PR it opens moves the lockfile too — which is
+  # the whole point: a dependency bump that only edits `pyproject.toml` would fail `uv sync --locked`
+  # in CI.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      python:
+        patterns: ["*"]

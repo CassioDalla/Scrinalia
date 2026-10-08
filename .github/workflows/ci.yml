@@ -1,0 +1,263 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+# Least privilege by default. A workflow that only reads the repository should not carry a token that
+# can write to it, and a third-party action that turns malicious cannot escalate what it was not given.
+permissions:
+  contents: read
+
+# One run per branch/PR: a force-push cancels the previous run instead of leaving two racing, which on
+# a repository being opened to the world is also the cheapest way to absorb a flood of pushes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint & format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # ``persist-credentials: false``: the default leaves the GITHUB_TOKEN in the checkout's git
+      # config, where any later step could read it. Nothing in this workflow pushes.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+      - name: Run ruff (lint)
+        run: uvx ruff@0.16.10 check .
+      - name: Run ruff (format check)
+        run: uvx ruff@0.16.10 format --check .
+
+  secrets:
+    name: Secret scan (full history)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The whole history, not the last commit: a secret committed and later removed is still in
+          # every clone, and finding exactly that is the point of the scan.
+          fetch-depth: 0
+          persist-credentials: false
+      - name: gitleaks over every commit
+        # The official image, pinned by digest, run directly instead of through a third-party action:
+        # one fewer action to trust. A contributor reproduces it locally with the same command.
+        run: |
+          docker run --rm -v "$PWD:/repo" \
+            zricethezav/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            detect --source /repo --log-opts="--all" --redact --no-banner
+
+  audit:
+    name: Dependency advisories
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Non-blocking on purpose, for now: the lock can carry advisories the project has not triaged, and
+    # a job that is red on day one only teaches people to ignore it. Promote it to blocking once the
+    # list is clean — `TODO.md` records the decision.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+      - name: Python advisories (the runtime surface only)
+        # Three decisions in one command:
+        # ``--no-dev`` — what ships in the product, not the development environment. A dev-only
+        #   advisory (jupyterlab's tornado, for instance) is not something an installation exposes,
+        #   and mixing the two buries the ones that are.
+        # ``--no-deps --disable-pip`` — the exported lock is fully pinned, so pip-audit reads it
+        #   without resolving or installing anything; otherwise CI would download torch to ask a
+        #   database whether a version is vulnerable.
+        run: |
+          uv export --no-hashes --no-emit-project --no-dev --frozen --format requirements-txt -o requirements-audit.txt
+          uvx pip-audit@2.10.1 -r requirements-audit.txt --no-deps --disable-pip
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+      - name: Front-end advisories
+        run: |
+          bun install --frozen-lockfile
+          bun audit
+
+  workflow-lint:
+    name: Workflow lint (zizmor)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+      - name: zizmor
+        # ``--persona=pedantic`` so an action tag or an unpinned image is a finding and not a
+        # suggestion: the workflow is what runs with the repository's token.
+        run: uvx zizmor@1.30.1 --persona=pedantic .github/workflows
+
+  dco:
+    name: Signed-off-by (DCO)
+    # Only a pull request has a range of commits to check; a push to main was reviewed before it got
+    # there, and its commits carry the sign-off that was checked at the time.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Every commit of the pull request carries a Signed-off-by
+        run: |
+          # GitHub checks out the pull request's merge commit: the first parent is the base, the
+          # second is the head, so the commits of the PR are exactly the ones between them.
+          if ! git rev-parse -q --verify HEAD^2 >/dev/null; then
+            echo "Not a merge commit; nothing to compare against."
+            exit 0
+          fi
+          status=0
+          for sha in $(git rev-list HEAD^1..HEAD^2); do
+            if ! git log -1 --format='%(trailers:key=Signed-off-by,valueonly)' "$sha" | grep -q .; then
+              echo "::error::$sha has no Signed-off-by trailer. Amend it with: git commit -s --amend"
+              status=1
+            fi
+          done
+          exit $status
+
+  test:
+    name: Migrations & tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        # Same image as docker-compose.test.yml, pinned to the same digest: the migrations need the
+        # pgvector extension, which the stock postgres image does not ship, and a tag can be
+        # re-pushed — a test run has to say something about the image it actually used.
+        image: pgvector/pgvector:pg15@sha256:47af0b65960b14f1c6945aa4ccae37836c632e9a6fe0eea9160936e616e5b2e9
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test_user -d test_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      DB_USER: test_user
+      DB_PASS: test_password
+      DB_NAME: test_db
+      TEST_DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install dependencies
+        # ``--locked``: the committed ``uv.lock`` is the contract, and a dependency that would change
+        # the resolution fails the build instead of silently producing a different environment than the
+        # one every developer and installer gets.
+        run: uv sync --locked
+      - name: Check the OpenAPI contract is up to date
+        # The front-end client is generated from packages/api-contract/openapi.json, so a route or a
+        # schema change that does not regenerate the contract would only fail in the browser. This
+        # turns it into a build failure, which is the entire reason the contract is committed.
+        run: |
+          uv run python -m scrinalia.api.dump_openapi > /tmp/openapi.json
+          if ! diff -u packages/api-contract/openapi.json /tmp/openapi.json; then
+            echo "::error::packages/api-contract/openapi.json está desatualizado. Rode: uv run python -m scrinalia.api.dump_openapi > packages/api-contract/openapi.json && bun run --cwd apps/curator codegen"
+            exit 1
+          fi
+      - name: Type check
+        run: uv run basedpyright
+      - name: Run tests
+        # The suite builds its own schema from the models (``create_all``) and drops every table it
+        # created on teardown, so it runs **before** the migration check on purpose. Pointing pytest
+        # at a database Alembic has already migrated is the trap AGENTS.md documents: ``create_all``
+        # skips the tables it finds, the seeded level ladder stays, and every fixture that inserts it
+        # hits ``uq_description_level_ordinal``. Measured on the first CI run: 74 failed + 44 errors
+        # there, and the same commit is green on a database the migrations have not touched.
+        run: uv run pytest
+      - name: Apply migrations on a fresh database
+        # After the suite, which drops every table it created: this is the one place the migrations
+        # meet a database nothing else has built.
+        run: uv run alembic upgrade head
+      - name: Check for model/migration drift
+        run: uv run alembic check
+
+  frontend:
+    name: Curator UI (types, lint, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Check the generated API client is up to date
+        # ``schema.d.ts`` is committed so the build never depends on the Python app, but it must be
+        # regenerated whenever ``openapi.json`` moves. Regenerating here and comparing is what keeps
+        # a hand-written ``fetch`` from creeping in unnoticed.
+        run: |
+          bun run --cwd apps/curator codegen
+          if ! git diff --exit-code -- apps/curator/src/api/schema.d.ts; then
+            echo "::error::apps/curator/src/api/schema.d.ts está desatualizado. Rode 'bun run --cwd apps/curator codegen' e faça o commit."
+            exit 1
+          fi
+      - name: Type check
+        run: bun run --cwd apps/curator typecheck
+      - name: Lint
+        run: bun run --cwd apps/curator lint
+      - name: Build
+        run: bun run --cwd apps/curator build
+
+  docs:
+    name: Documentation (strict build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The freshness report is a report *against git history* (ADR 0010). On a shallow clone
+          # the hook cannot answer and degrades to "report unavailable" — a green build that says
+          # nothing, which is worse than no report at all.
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+      - name: Build the site
+        # ``--strict`` so a broken link or a malformed block fails like a broken import does.
+        #
+        # ``uvx`` with explicit versions instead of ``uv sync --group docs``: ``uv sync`` installs
+        # the project's own dependencies as well (torch, transformers and spaCy — 148 packages
+        # measured), and rendering Markdown needs none of them. It is the same pattern the lint job
+        # already uses for ``uvx ruff@``; the ``docs`` dependency group exists for local
+        # development (``uv sync --group docs`` and ``uv run mkdocs serve``).
+        #
+        # The coverage gate is not here: it is a test, so it runs in the ``test`` job with the
+        # application installed (``testing/unit/docs/test_documentation_coverage.py``).
+        run: |
+          uvx --from 'mkdocs==1.6.1' \
+            --with 'mkdocs-material==9.7.7' \
+            --with 'mkdocs-static-i18n==1.3.1' \
+            mkdocs build --strict

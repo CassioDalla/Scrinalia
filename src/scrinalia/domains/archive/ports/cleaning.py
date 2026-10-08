@@ -1,0 +1,39 @@
+from collections.abc import Sequence
+from typing import Protocol
+
+from scrinalia.domains.archive.schemas.cleaning_schema import (
+    AllowedColumns,
+    CleanableDocumentDTO,
+    CleaningRuleCreateDTO,
+    CleaningRuleDTO,
+    CleaningUpdateCommand,
+    RuleKind,
+)
+
+
+class CleaningRepositoryPort(Protocol):
+    """
+    Output port for the dynamic cleaning rules.
+
+    Reads and writes cross the boundary as DTOs/commands; the SQLAlchemy
+    entities never leave the adapter.
+    """
+
+    # --- Rule reads/writes ---
+    def create_rule(self, rule_data: CleaningRuleCreateDTO) -> CleaningRuleDTO: ...
+    def get_active_rules(self, rule_kind: RuleKind | None = None) -> Sequence[CleaningRuleDTO]: ...
+    def list_rules(
+        self, rule_kind: RuleKind | None = None, *, include_inactive: bool = False
+    ) -> Sequence[CleaningRuleDTO]: ...
+    def get_rule_by_id(self, rule_id: int) -> CleaningRuleDTO | None: ...
+    def deactivate_rule(self, rule_id: int) -> CleaningRuleDTO | None: ...
+    def activate_rule(self, rule_id: int) -> CleaningRuleDTO | None: ...
+
+    # --- Document scans and updates ---
+    def get_unprocessed_documents_for_rule(
+        self, rule_id: int, target_column: AllowedColumns, limit: int = 500
+    ) -> Sequence[CleanableDocumentDTO]: ...
+    def get_random_sample_for_dry_run(
+        self, target_column: AllowedColumns, limit: int = 200
+    ) -> Sequence[CleanableDocumentDTO]: ...
+    def apply_cleaning(self, updates: Sequence[CleaningUpdateCommand]) -> None: ...

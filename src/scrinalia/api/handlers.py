@@ -1,0 +1,252 @@
+from litestar import Request, Response
+from litestar.exceptions import NotAuthorizedException, PermissionDeniedException
+from litestar.status_codes import (
+    HTTP_400_BAD_REQUEST,
+    HTTP_401_UNAUTHORIZED,
+    HTTP_403_FORBIDDEN,
+    HTTP_404_NOT_FOUND,
+    HTTP_409_CONFLICT,
+    HTTP_422_UNPROCESSABLE_ENTITY,
+    HTTP_423_LOCKED,
+    HTTP_429_TOO_MANY_REQUESTS,
+    HTTP_500_INTERNAL_SERVER_ERROR,
+)
+from sqlalchemy.exc import IntegrityError
+
+from scrinalia.api.middleware import request_id_of
+from scrinalia.api.security import PERMISSION_DENIED_MESSAGE, SESSION_REQUIRED_MESSAGE
+from scrinalia.core.logger import logger
+from scrinalia.domains.archive.exceptions import (
+    ArrangementTermNotFoundError,
+    CleaningRuleNotFoundError,
+    CollectionTermNotFoundError,
+    ConflictResolutionAlreadyUndoneError,
+    ConflictResolutionNotFoundError,
+    DescriptionLevelNotFoundError,
+    DocumentHasChildrenError,
+    DocumentNotFoundError,
+    DomainException,
+    DuplicateArrangementTermError,
+    DuplicateCollectionTermError,
+    DuplicateDescriptionLevelError,
+    DuplicateTypologyError,
+    EngineExecutionError,
+    EntityNotFoundError,
+    HierarchyNodeNotFoundError,
+    HierarchyPlanNotFoundError,
+    InvalidDescriptionLevelError,
+    InvalidHierarchyMoveError,
+    InvalidHierarchyPlanError,
+    InvalidMergeError,
+    InvalidParam,
+    InvalidTypologyError,
+    InvalidWorkerSettingsError,
+    MacroCategoryNotFoundError,
+    MaterialisationAlreadyUndoneError,
+    MaterialisationNotFoundError,
+    MergeAlreadyUndoneError,
+    MergeLogNotFoundError,
+    TagMergeProposalNotFoundError,
+    TagNotFoundError,
+    TextTemplateNotFoundError,
+    TypologyNotFoundError,
+    UnresolvableConflictError,
+    WorkerNotFoundError,
+    WorkerRunAlreadyActiveError,
+    WorkerRunNotFoundError,
+)
+from scrinalia.domains.archive.repository.api_error_repo import ApiErrorRecorder
+from scrinalia.domains.identity.exceptions import (
+    AccountLockedError,
+    DuplicateUserEmailError,
+    InvalidCredentialsError,
+    InvalidCurrentPasswordError,
+    InvalidEmailError,
+    LastAdminError,
+    SessionNotFoundError,
+    TooManyLoginAttemptsError,
+    UserNotFoundError,
+    WeakPasswordError,
+)
+
+#: One recorder for the process. It opens its own short-lived session per write, so this instance
+#: keeps nothing between requests and needs no per-request wiring.
+_api_error_recorder = ApiErrorRecorder()
+
+
+def domain_exception_handler(request: Request, exc: DomainException) -> Response:
+    """
+    Dynamically maps business Core exceptions to the
+    correct HTTP protocol status codes.
+    """
+    # Defines a default error in case the specific exception is not mapped
+    status_code = HTTP_400_BAD_REQUEST
+
+    if isinstance(
+        exc,
+        (
+            TagNotFoundError,
+            TagMergeProposalNotFoundError,
+            EntityNotFoundError,
+            MergeLogNotFoundError,
+            DocumentNotFoundError,
+            CleaningRuleNotFoundError,
+            MacroCategoryNotFoundError,
+            TextTemplateNotFoundError,
+            DescriptionLevelNotFoundError,
+            TypologyNotFoundError,
+            ArrangementTermNotFoundError,
+            CollectionTermNotFoundError,
+            ConflictResolutionNotFoundError,
+            HierarchyNodeNotFoundError,
+            HierarchyPlanNotFoundError,
+            MaterialisationNotFoundError,
+            WorkerNotFoundError,
+            WorkerRunNotFoundError,
+            UserNotFoundError,
+            SessionNotFoundError,
+        ),
+    ):
+        status_code = HTTP_404_NOT_FOUND
+
+    elif isinstance(
+        exc,
+        (
+            MergeAlreadyUndoneError,
+            DuplicateDescriptionLevelError,
+            DuplicateTypologyError,
+            DuplicateArrangementTermError,
+            DuplicateCollectionTermError,
+            MaterialisationAlreadyUndoneError,
+            ConflictResolutionAlreadyUndoneError,
+            DocumentHasChildrenError,
+            WorkerRunAlreadyActiveError,
+            DuplicateUserEmailError,
+            LastAdminError,
+        ),
+    ):
+        status_code = HTTP_409_CONFLICT
+
+    elif isinstance(exc, InvalidCredentialsError):
+        # The one refusal that is about *being* someone rather than about the payload: the client's
+        # next move is to sign in again, not to fix a field.
+        status_code = HTTP_401_UNAUTHORIZED
+
+    elif isinstance(exc, AccountLockedError):
+        # 423 and not 401: the credentials were right, so signing in again changes nothing — the
+        # client has to wait, and the sentence says so.
+        status_code = HTTP_423_LOCKED
+
+    elif isinstance(exc, TooManyLoginAttemptsError):
+        status_code = HTTP_429_TOO_MANY_REQUESTS
+
+    elif isinstance(exc, (InvalidParam, InvalidMergeError)):
+        status_code = HTTP_400_BAD_REQUEST
+
+    elif isinstance(
+        exc,
+        (
+            EngineExecutionError,
+            InvalidDescriptionLevelError,
+            InvalidHierarchyMoveError,
+            InvalidHierarchyPlanError,
+            InvalidTypologyError,
+            UnresolvableConflictError,
+            InvalidWorkerSettingsError,
+            InvalidCurrentPasswordError,
+            InvalidEmailError,
+            WeakPasswordError,
+        ),
+    ):
+        status_code = HTTP_422_UNPROCESSABLE_ENTITY
+
+    # Standardized response structure for the Front-end
+    return Response(
+        content={
+            "error_code": exc.__class__.__name__,
+            "message": str(exc),
+        },
+        status_code=status_code,
+    )
+
+
+def integrity_error_handler(request: Request, exc: IntegrityError) -> Response:
+    """Captures structural PostgreSQL conflicts (e.g.: Unique, Foreign Key violation)."""
+    return Response(
+        content={
+            "error_code": "IntegrityError",
+            "message": "Conflito estrutural no banco de dados. Operação abortada.",
+        },
+        status_code=HTTP_409_CONFLICT,
+    )
+
+
+def unhandled_exception_handler(request: Request, exc: Exception) -> Response:
+    """
+    The last handler: an unexpected failure is recorded and answered in the shape clients already know.
+
+    Only genuinely unexpected exceptions reach here. ``DomainException`` and ``IntegrityError`` have
+    handlers of their own and Litestar picks the more specific one first, because a 404 or a 409 is an
+    *answer* the API owes a client, not a defect. ``HTTPException`` (404, 405) keeps Litestar's
+    default for the same reason — overriding it would turn "no such route" into a recorded incident.
+
+    The response says nothing about the cause: the exception text of a programming mistake is not
+    something to publish to whoever is signed in. What ties the sentence the archivist reads to the
+    traceback is the request id, which the middleware put in the response header.
+    """
+    path = str(request.scope.get("path") or "")
+    request_id = request_id_of(request.scope)
+    logger.opt(exception=exc).error(f"💥 Falha não tratada em {request.method} {path}: {exc}")
+
+    _api_error_recorder.record(
+        request_id=request_id,
+        method=request.method,
+        path=path,
+        status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+        exc=exc,
+    )
+
+    return Response(
+        content={
+            "error_code": "InternalError",
+            "message": "Erro interno inesperado. A falha foi registrada e pode ser localizada pela referência.",
+        },
+        status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+    )
+
+
+def not_authorized_handler(request: Request, exc: NotAuthorizedException) -> Response:
+    """
+    Renders "you are not signed in" in the shape every other answer of this API uses.
+
+    Litestar's own body is ``{"status_code": 401, "detail": ...}``, and the front reads
+    ``error_code``/``message`` everywhere else; without this the one answer a screen must react to
+    would be the only one with a different shape. It is registered **by class**, which is safe here
+    for the same reason the catch-all is registered by status key: this is not in the MRO of the
+    framework's 404, so it cannot swallow "no such route".
+    """
+    return Response(
+        content={
+            "error_code": type(exc).__name__,
+            "message": str(exc.detail) or SESSION_REQUIRED_MESSAGE,
+        },
+        status_code=HTTP_401_UNAUTHORIZED,
+    )
+
+
+def permission_denied_handler(request: Request, exc: PermissionDeniedException) -> Response:
+    """
+    Renders "your account may not do this" in the same shape.
+
+    A 403 and not a 404, deliberately: the route is documented and the client is signed in, so
+    hiding its existence would only make a misconfigured role look like a typo in the URL. The
+    surface that hides existence is the **public** one, and there the rule is about unpublished
+    records, not about administrative routes.
+    """
+    return Response(
+        content={
+            "error_code": type(exc).__name__,
+            "message": str(exc.detail) or PERMISSION_DENIED_MESSAGE,
+        },
+        status_code=HTTP_403_FORBIDDEN,
+    )

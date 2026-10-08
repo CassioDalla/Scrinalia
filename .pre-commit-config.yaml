@@ -1,0 +1,23 @@
+# Install once per clone with: uv run pre-commit install
+# Run against every file with:  uv run pre-commit run --all-files
+#
+# The cache lives inside the workspace (see PRE_COMMIT_HOME in the README): the hook has to
+# stash unstaged files before it runs, and a sandboxed checkout cannot write to ~/.cache.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.10
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: basedpyright
+        name: basedpyright (type check)
+        # The venv binary directly, not `uv run basedpyright`: `uv` needs its own cache
+        # directory, which is another thing a sandboxed checkout cannot always write to.
+        # `uv sync` must have run at least once, which the test suite already requires.
+        entry: .venv/bin/basedpyright
+        language: system
+        pass_filenames: false

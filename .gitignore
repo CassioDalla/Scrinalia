@@ -7,14 +7,31 @@ wheels/
 *.egg-info
 .vscode
 .env
-logs
+logs/
 .coverage
+coverage.xml
 /htmlcov
+.pytest_cache/
+.ruff_cache/
+*.log
 
 # Virtual environments
 .venv
 
-
 # Dados
 *.csv
 /Data
+
+# Documentos de análise (não versionados)
+/.analysis/
+.cache-pre-commit/
+.cache-hf/
+.cache-uv/
+
+# Front-end (Bun workspaces)
+node_modules/
+.cache-bun/
+.cache-chrome/
+
+# MkDocs output: the site is built, never committed
+site/

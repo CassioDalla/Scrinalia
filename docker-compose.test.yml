@@ -1,13 +1,32 @@
+# Same project as ``docker-compose.yml``, on purpose: the two files describe one checkout's
+# infrastructure, and that is how they were already grouped when the name was implicit. The test
+# database is tmpfs, so nothing here can be lost — but the name is pinned for the same reason as
+# there: it must not depend on the directory the repository was cloned into.
+name: scrinalia
+
 services:
   postgres_test:
-    image: postgres:15 # Use a mesma versão do seu banco oficial
-    container_name: memoria_curitibana_db_test
+    # Same PostgreSQL major version and same pgvector extension as the official dev
+    # image. The test database is built from the models, so it needs the extensions the
+    # generated/vector columns depend on. PostGIS is deliberately absent here: no
+    # migration enables it yet, and CI uses this same image.
+    #
+    # Pinned by digest, like the CI service and the ``FROM`` in ``docker/postgres/Dockerfile``:
+    # a tag can be re-pushed, and a test suite that runs against a different image than the one
+    # recorded here is a test suite that proves nothing about the image CI used.
+    image: pgvector/pgvector:pg15@sha256:47af0b65960b14f1c6945aa4ccae37836c632e9a6fe0eea9160936e616e5b2e9
+    container_name: scrinalia_db_test
     environment:
       POSTGRES_USER: test_user
       POSTGRES_PASSWORD: test_password
       POSTGRES_DB: test_db
     ports:
-      - "5433:5432"
+      # Overridable because 5433 is a popular host port: when another project already holds it,
+      # the container starts *without* publishing anything and the suite silently talks to the
+      # wrong PostgreSQL — which looks like a test failure, not a port conflict. Run with
+      # ``TEST_DB_PORT=5434`` and ``TEST_DATABASE_URL=...:5434/test_db``. CI does not use this
+      # file (it declares the service container itself), so the default stays 5433.
+      - "${TEST_DB_PORT:-5433}:5432"
     # O tmpfs faz o banco rodar inteiramente na memória RAM!
     # Os testes vão voar porque não há gravação real no disco rígido.
     tmpfs:

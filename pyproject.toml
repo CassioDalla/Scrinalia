@@ -1,16 +1,23 @@
 [project]
-name = "memoria-curitibana-etl"
-version = "0.1.0"
-description = "Add your description here"
+name = "scrinalia"
+version = "1.0.0"
+description = "Archival description cataloguing and AI-driven enrichment system (ISAD(G))"
 readme = "README.md"
 requires-python = ">=3.12"
+# AGPL-3.0-only, plus the attribution term added under section 7(b) of that license and stated
+# in LICENSE-ADDITIONAL-TERMS.md. The code cannot be taken closed; a modified version offered
+# over a network must publish its source (section 13); and the author attribution in the page
+# footer must be preserved. See docs/adr/0006-license-and-author-attribution.md.
+license = "AGPL-3.0-only"
+license-files = ["LICENSE", "LICENSE-ADDITIONAL-TERMS.md"]
+authors = [{ name = "CassioDalla", email = "cassiodalla@hotmail.com" }]
 dependencies = [
+    "alembic>=1.20.0",
+    "argon2-cffi>=25.1.0",
     "beautifulsoup4>=4.14.3",
     "bertopic>=0.17.4",
     "boto3>=1.43.27",
     "dotenv>=0.9.9",
-    "honcho>=2.0.0",
-    "jupyterlab>=4.5.7",
     "litestar[standard]>=2.24.0",
     "loguru>=0.7.3",
     "numpy>=2.3.5",
@@ -18,13 +25,11 @@ dependencies = [
     "pillow>=12.2.0",
     "psycopg2==2.9.12",
     "pt-core-news-lg",
-    "pytest>=9.0.3",
-    "pytest-mock>=3.15.1",
+    "pydantic-settings>=2.15.0",
     "requests>=2.34.2",
     "scikit-learn>=1.8.0",
     "spacy>=3.8.14",
     "sqlalchemy>=2.0.50",
-    "streamlit>=1.58.0",
     "torch>=2.12.0",
     "transformers>=5.9.0",
 ]
@@ -32,13 +37,22 @@ dependencies = [
 [tool.uv.sources]
 pt-core-news-lg = { url = "https://github.com/explosion/spacy-models/releases/download/pt_core_news_lg-3.8.0/pt_core_news_lg-3.8.0-py3-none-any.whl" }
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# The application lives in src/ and is installed as a single internal namespace.
+# It is not published: see docs/adr/0002-src-layout-and-internal-namespace.md.
+packages = ["src/scrinalia"]
+
 [tool.ruff]
 # Define o tamanho máximo da linha (88 é o padrão do Black, mas muitos preferem 120)
 line-length = 120
 
-# Versão do Python que o seu projeto suporta. 
+# Versão do Python que o seu projeto suporta.
 # O Ruff usa isso para saber quais modernizações de sintaxe pode aplicar.
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 # Lista de regras que o Ruff deve validar (ver explicação abaixo)
@@ -72,8 +86,47 @@ line-ending = "auto"
 
 [dependency-groups]
 dev = [
+    "basedpyright>=1.40.1",
+    "jupyterlab>=4.5.7",
+    "pre-commit>=4.6.2",
+    "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
+    "pytest-mock>=3.15.1",
+    "ruff>=0.16.10",
+    # Only for `testing/evaluation/macro_category_quality.py`: transformers 5.x needs it
+    # to convert the sentencepiece tokenizer of the alternate zero-shot model. Never
+    # imported by the application.
+    "tiktoken>=0.14.0",
+    # Same reason: it is what reads the `sentencepiece.bpe.model` of the alternate
+    # tokenizer. Without it transformers falls back to a tiktoken extractor that cannot
+    # parse the file at all.
+    "sentencepiece>=0.2.2",
+]
+docs = [
+    "mkdocs-material>=9.7.7",
+    "mkdocs-static-i18n>=1.3.1",
 ]
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
+# No pythonpath: the application is installed from src/ by `uv sync`, so the tests
+# import scrinalia.* exactly like any other consumer would.
+testpaths = ["testing"]
+markers = [
+    "unit: fast tests that never touch a database or load real models",
+    "integration: tests that require a PostgreSQL test database",
+]
+
+# The type-check baseline is **not** here: it lives in ``pyrightconfig.json``. Two measured reasons,
+# both worth knowing before "tidying" this back into a ``[tool.*]`` section:
+#
+# 1. Pylance knows nothing about ``[tool.basedpyright]`` — it reads ``[tool.pyright]`` or
+#    ``pyrightconfig.json``. With neither, it falls back to its own defaults (``standard`` over the
+#    whole workspace) and reports diagnostics in the test suite that CI never checks.
+# 2. Putting ``[tool.pyright]`` here is worse than leaving it out: basedpyright then ignores its own
+#    section *and* the pyright one and drops to ``recommended`` over everything — 661 errors where
+#    there were none, i.e. a broken gate from a change that looked editor-only.
+#
+# ``pyrightconfig.json`` is the one file both tools read, so the editor and the gate share a single
+# definition instead of two that drift. Pragmatic baseline: type-check the application code, keep
+# third-party noise and one-off tooling out of the gate, tighten over time (see ``TODO.md``).

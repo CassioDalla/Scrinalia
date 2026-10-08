@@ -1,0 +1,13 @@
+# Who reviews what.
+#
+# One maintainer today, so the rule is simple: everything. It exists from the start because a
+# CODEOWNERS file added after a repository is public arrives with a backlog of unreviewed changes;
+# and because the file is what makes "request a review automatically" a setting instead of a habit.
+#
+# See https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+*       @CassioDalla
+
+# The decisions that are expensive to reverse deserve to be visible as such: an ADR is a contract with
+# future maintainers, not a note.
+/docs/  @CassioDalla

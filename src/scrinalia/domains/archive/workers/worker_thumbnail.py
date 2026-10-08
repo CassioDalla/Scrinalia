@@ -1,0 +1,179 @@
+import time
+from io import BytesIO
+from typing import Any
+
+import requests
+from PIL import Image
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.sql.elements import ColumnElement
+
+from scrinalia.core.database import get_db
+from scrinalia.core.logger import logger
+from scrinalia.core.storage import S3Storage
+from scrinalia.core.unit_of_work import UnitOfWork
+from scrinalia.domains.archive.models import ArchiveDocument
+from scrinalia.domains.archive.ports.storage import ThumbnailStoragePort
+from scrinalia.domains.archive.repository.governance import ai_writable_documents
+from scrinalia.domains.archive.worker_stamp import THUMBNAIL_FAILED
+
+
+def pending_conditions(force: bool = False) -> list[ColumnElement[bool]]:
+    """
+    Predicate of the thumbnail queue, shared by ``execute`` and the operations panel.
+
+    The unit is the description, but the ledger is the storage URI and not the ``thumbnail``
+    stamp: a document leaves the queue when its miniatures is actually in the bucket. The
+    ``thumbnail_failed`` mark keeps a hopeless download (a dead link) from looping forever —
+    ``force`` is the way back from a mark that was *not* hopeless, which is what a bucket that
+    was down for an afternoon leaves behind.
+    """
+    conditions: list[ColumnElement[bool]] = [
+        ArchiveDocument.original_thumbnail_url.is_not(None),
+        ArchiveDocument.storage_thumbnail_uri.is_(None),
+        ai_writable_documents(),
+    ]
+    if not force:
+        conditions.append(~ArchiveDocument.execution_log.has_key(THUMBNAIL_FAILED.key))
+    return conditions
+
+
+def count_pending(db: Session, force: bool = False, **options: Any) -> int:
+    """Documents the next thumbnail run would download (every failed one, with ``force``)."""
+    stmt = select(func.count()).select_from(ArchiveDocument).where(*pending_conditions(force))
+    return int(db.scalar(stmt) or 0)
+
+
+def count_processed(db: Session, **options: Any) -> int:
+    """Documents whose miniatures is already in the storage."""
+    stmt = select(func.count()).select_from(ArchiveDocument).where(ArchiveDocument.storage_thumbnail_uri.is_not(None))
+    return int(db.scalar(stmt) or 0)
+
+
+def count_failed(db: Session, **options: Any) -> int:
+    """Documents marked as failed, so a plain run will not retry them (``force=true`` will)."""
+    stmt = (
+        select(func.count())
+        .select_from(ArchiveDocument)
+        .where(ArchiveDocument.execution_log.has_key(THUMBNAIL_FAILED.key))
+    )
+    return int(db.scalar(stmt) or 0)
+
+
+def download_image_to_memory(url: str) -> BytesIO | None:
+    """
+    Performs the HTTP download disguised as a user browser and processes
+    the image bytes, converting everything to an optimized JPEG standard.
+
+    Args:
+        url (str): The direct public link to the original image.
+
+    Returns:
+        BytesIO | None: Memory buffer containing the JPEG image, or None on failure.
+    """
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            img = Image.open(BytesIO(response.content))
+
+            # Converts PNG/GIF images with transparency to safe RGB
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+
+            output_buffer = BytesIO()
+            img.save(output_buffer, format="JPEG", quality=100, subsampling=0)
+
+            # Returns the read pointer to the beginning of the file
+            output_buffer.seek(0)
+
+            return output_buffer
+        else:
+            logger.warning(f"⚠️ HTTP error {response.status_code} accessing: {url}")
+            return None
+    except Exception as e:
+        logger.error(f"❌ Network failure downloading {url}: {e}")
+        return None
+
+
+def execute(db: Session, storage: ThumbnailStoragePort | None = None, force: bool = False) -> None:
+    """
+    Asynchronous orchestrator responsible for migrating images from an ephemeral
+    external link to a secure Object Storage (any S3-compatible endpoint).
+
+    Scans the Fact table for documents that have the original link but
+    whose local storage URI is still empty. ``force`` also picks up the documents marked
+    ``thumbnail_failed``, which is what a transient storage outage left behind: without it a
+    bucket that was down for an afternoon is indistinguishable from a dead link, forever.
+    """
+    logger.info("📸 Starting the Thumbnails Worker...")
+
+    storage = storage or S3Storage()
+    uow = UnitOfWork(db)
+
+    # Fetches images that have not yet been uploaded AND that have not failed. HUMAN_APPROVED
+    # documents are left untouched.
+    query = select(ArchiveDocument).where(*pending_conditions(force))
+
+    pending_documents = db.scalars(query).yield_per(50)
+
+    processed = 0
+    successes = 0
+
+    for doc in pending_documents:
+        try:
+            with db.begin_nested():
+                target_url = doc.original_thumbnail_url
+
+                if not target_url:
+                    continue
+
+                file_name = f"thumb_{doc.description_id}.jpg"
+                bucket_path = f"thumbnails/{file_name}"
+
+                image_bytes = download_image_to_memory(target_url)
+
+                if image_bytes:
+                    final_uri = storage.upload_file(file_stream=image_bytes, file_path=bucket_path)
+                    doc.storage_thumbnail_uri = final_uri
+                    # A document that reached the bucket is not a failed one any more: without
+                    # this, a forced retry that succeeds leaves the panel counting it as failed.
+                    if not THUMBNAIL_FAILED.applies_to(doc.execution_log):
+                        doc.execution_log = THUMBNAIL_FAILED.clear(doc.execution_log)
+                        flag_modified(doc, "execution_log")
+                    successes += 1
+                else:
+                    # On download failure, stamps it in the JSONB so it is not retried on the next loop
+                    doc.execution_log = THUMBNAIL_FAILED.mark(doc.execution_log)
+                    flag_modified(doc, "execution_log")
+
+                processed += 1
+
+                if processed % 50 == 0:
+                    logger.info(f"⏳ Progress: {processed} images analyzed...")
+
+                time.sleep(0.5)
+
+        except Exception as e:
+            logger.error(f"❌ Catastrophic error in document {doc.description_id}: {e}")
+            # Stamp the failure so the document does not loop forever on a broken record.
+            try:
+                doc.execution_log = THUMBNAIL_FAILED.mark(doc.execution_log)
+                flag_modified(doc, "execution_log")
+                uow.commit()
+            except Exception as stamp_error:
+                logger.critical(f"🔥 Critical failure stamping the error on doc {doc.description_id}: {stamp_error}")
+                uow.rollback()
+            continue
+
+    uow.commit()
+    logger.success(f"✅ Thumbnails Worker finished! {successes} images saved successfully out of {processed} attempts.")
+
+
+if __name__ == "__main__":
+    with get_db() as db:
+        execute(db)

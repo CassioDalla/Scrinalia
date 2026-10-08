@@ -1,0 +1,70 @@
+name: Feature request
+description: Propose a capability, or a change to one that exists.
+title: "feat: "
+labels: ["enhancement", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The project has opinions, and most of them have an ADR behind them. A proposal that names the
+        problem — not only the solution — is the one that can be discussed. Read
+        [`AGENTS.md`](https://github.com/CassioDalla/Scrinalia/blob/main/AGENTS.md) and the
+        [ADRs](https://github.com/CassioDalla/Scrinalia/tree/main/docs/adr) before writing.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: |
+        Who is stuck, and what are they trying to do? Describe the situation in archival terms — what
+        the archivist is deciding — before proposing a mechanism.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you propose
+      description: The shape you have in mind. If you are not sure, say so; the problem matters more.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Including "do nothing", and what it costs.
+
+  - type: dropdown
+    id: contract
+    attributes:
+      label: Does it change the API contract?
+      description: |
+        A new route, a new field in a response, a changed status code. The OpenAPI document is
+        generated, committed and checked in CI, so a contract change is a visible decision.
+      options:
+        - "No — internal only"
+        - "Yes — additive (a new route or field; old clients keep working)"
+        - "Yes — breaking (an existing client has to change)"
+        - "I do not know"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: schema
+    attributes:
+      label: Does it need a database change?
+      options:
+        - "No"
+        - "Yes — a new table, column or index"
+        - "I do not know"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues and the ADRs, and this is not already decided.
+          required: true
