@@ -57,3 +57,18 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   is why the report had not been able to see the change coming. It is also why this entry's range
   reaches back to `4681067`: the page was already stale against the dependency bumps the previous
   round closed, and adding the source is what made it visible.
+
+## 2026-10-08 — the suite's own cost
+
+- **Range:** `b3db7e2..e8a7a61`
+- **Pages:**
+  - `guides/data-model.md` — **no-change**: the only thing the page takes from `testing/conftest.py`
+    is `archive_error_fingerprint`, mirrored into the test schema, and the story of a schema built by
+    `create_all` instead of Alembic. Neither moved. What moved is test infrastructure — the Litestar
+    application built once per session instead of once per test, and the argon2id cost lowered for
+    the suite — and the page does not describe either.
+- **A gap worth knowing, not a verdict:** `guides/install.md` and its translation also mention
+  `testing/conftest.py` (the sentence about the test schema not being built by Alembic), but they do
+  not declare it in `sources:`, so the report does not track it. Leaving it out is defensible — the
+  mention is incidental to an install guide — but it means that sentence can go stale in silence, and
+  this is the note that says so rather than a claim that the page is current.
