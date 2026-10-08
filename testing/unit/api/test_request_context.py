@@ -7,6 +7,8 @@ one is refused, and the id reaches a record emitted from inside a threaded handl
 all the work actually happens.
 """
 
+from collections.abc import Iterator
+
 import pytest
 from litestar import Litestar, get
 from litestar.testing import TestClient
@@ -24,7 +26,7 @@ def _work() -> dict[str, bool]:
 
 
 @pytest.fixture
-def records() -> list[dict]:
+def records() -> Iterator[list[dict]]:
     """Captures the loguru records emitted during a test, and detaches the sink afterwards."""
     captured: list[dict] = []
 
@@ -39,9 +41,9 @@ def records() -> list[dict]:
 
 
 @pytest.fixture
-def client() -> TestClient:
+def client() -> Iterator[TestClient]:
     with TestClient(app=Litestar(route_handlers=[_work], middleware=[RequestContextMiddleware()])) as test_client:
-        yield test_client  # type: ignore[misc]
+        yield test_client
 
 
 def test_the_client_id_is_echoed_back(client: TestClient) -> None:

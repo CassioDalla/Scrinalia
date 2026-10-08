@@ -141,8 +141,10 @@ def test_preview_returns_the_before_and_after(client: TestClient, mocker):
 
 def test_preview_reports_an_invalid_regex_without_failing(client: TestClient, mocker):
     """The dry run is safe mode: a bad pattern is reported in the payload."""
-    mocker.patch.object(CleaningService, "simulate_dry_run")
-    mock_dry_run = CleaningService.simulate_dry_run
+    # The mock is the object ``patch.object`` returns, not the class attribute read back afterwards:
+    # reading it back works at runtime, but the attribute's *declared* type is a function, so the
+    # ``.return_value`` assignment is invisible to a type checker.
+    mock_dry_run = mocker.patch.object(CleaningService, "simulate_dry_run")
     mock_dry_run.return_value = DryRunResponseDTO(is_valid_regex=False, error_message="Sintaxe de Regex inválida: *")
 
     response = client.post(

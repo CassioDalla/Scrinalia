@@ -49,8 +49,7 @@ Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).
   `uv run pytest testing/unit/archive/workers/test_worker_ner.py::test_name`.
 - Lint/format: `uv run ruff check .` and `uv run ruff format .` (ruff is a dev dependency; line-length 120, double quotes). CI enforces `ruff format --check .`.
 - `Procfile` defines the `api` process (`uvicorn` with `CUDA_VISIBLE_DEVICES=""`, i.e. CPU). The curator SPA has no process of its own: `create_app()` mounts `apps/curator/dist` at `/` when the build exists, which is why a deploy must build it (`bun run curator:build`).
-- Type check: `uv run basedpyright` (scope and strictness in `[tool.basedpyright]`;
-  it checks `src/scrinalia` and `main.py`).
+- Type check: `uv run basedpyright` (scope and strictness in **`pyrightconfig.json`**, not in a `[tool.*]` section — it checks `src/scrinalia` and `main.py` and excludes `testing`). The file is the one place the editor and the gate both read: Pylance ignores `[tool.basedpyright]`, and a `[tool.pyright]` section makes basedpyright ignore *its own* section and drop to its defaults (measured: 661 errors). Do not move it into `pyproject.toml`.
 - Pre-commit hooks (ruff lint/format + basedpyright): `uv run pre-commit install` once per clone; run manually with `uv run pre-commit run --all-files`.
 
 ## Language

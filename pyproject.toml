@@ -113,17 +113,16 @@ markers = [
     "integration: tests that require a PostgreSQL test database",
 ]
 
-[tool.basedpyright]
-# Pragmatic typed-Python baseline: type-check the application code, keep
-# third-party noise and one-off tooling out of the gate. Tighten over time.
-typeCheckingMode = "basic"
-pythonVersion = "3.12"
-include = ["src/scrinalia", "main.py"]
-exclude = [
-    "**/__pycache__",
-    ".venv",
-    "migrations",
-    "testing",
-    "Data",
-]
-reportMissingTypeStubs = false
+# The type-check baseline is **not** here: it lives in ``pyrightconfig.json``. Two measured reasons,
+# both worth knowing before "tidying" this back into a ``[tool.*]`` section:
+#
+# 1. Pylance knows nothing about ``[tool.basedpyright]`` — it reads ``[tool.pyright]`` or
+#    ``pyrightconfig.json``. With neither, it falls back to its own defaults (``standard`` over the
+#    whole workspace) and reports diagnostics in the test suite that CI never checks.
+# 2. Putting ``[tool.pyright]`` here is worse than leaving it out: basedpyright then ignores its own
+#    section *and* the pyright one and drops to ``recommended`` over everything — 661 errors where
+#    there were none, i.e. a broken gate from a change that looked editor-only.
+#
+# ``pyrightconfig.json`` is the one file both tools read, so the editor and the gate share a single
+# definition instead of two that drift. Pragmatic baseline: type-check the application code, keep
+# third-party noise and one-off tooling out of the gate, tighten over time (see ``TODO.md``).

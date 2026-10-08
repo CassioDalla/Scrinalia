@@ -195,6 +195,18 @@ que funciona" de "um repo que estranhos podem auditar e usar".
       commits** além do DCO. São regras independentes: a assinatura prova quem criou o commit, o
       trailer `Signed-off-by` declara o direito de submetê-lo, e o job `dco` confere o trailer.
 - [ ] **Badges** de licença e de CI no `README`.
+- [x] **Editor e gate com a mesma régua.** O Pylance não conhece `[tool.basedpyright]` e caía no
+      default dele (`standard` sobre o workspace inteiro), acusando 58 diagnósticos nos testes que o
+      CI nunca checou. A régua virou **um arquivo só**, `pyrightconfig.json`, que os **dois** leem.
+      Armadilha medida: um bloco `[tool.pyright]` no `pyproject.toml` faz o basedpyright ignorar a
+      própria seção e cair em `recommended` sobre tudo — **661 erros onde havia zero**. Não mover.
+- [ ] **Apertar: incluir `testing/` no type check.** Custa **47 diagnósticos** (medidos em `standard`;
+      em `basic`, que é a régua atual, são menos), todos de rigor em código de teste e nenhum bug:
+      `Literal['APPROVED']` onde o campo declara `PlanStatus` (StrEnum, então o runtime tolera),
+      `scalar_one_or_none()` desreferenciado sem `assert x is not None`, e o fixture `session_factory`.
+      Já resolvido no caminho: `extraPaths` (5 imports) e o bug real que apareceu na triagem
+      (`testing/evaluation/hierarchy_proposal.py`). Vale porque foi um erro **desse tipo** que
+      encontrou um script quebrado que a suíte não cobre.
 
 #### Fase 2 — repositório e comunidade
 

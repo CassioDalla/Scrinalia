@@ -1,0 +1,23 @@
+{
+  // The single type-check baseline, and it is read by **both** tools: Pylance (the editor) reads
+  // ``pyrightconfig.json``, and basedpyright — the CI gate — reads it too, with precedence over
+  // ``[tool.basedpyright]``.
+  //
+  // It lives here rather than in ``pyproject.toml`` because of a measured trap: adding a
+  // ``[tool.pyright]`` section there makes basedpyright ignore its own section *and* the pyright one,
+  // falling back to its defaults — ``recommended`` over the whole workspace, 661 errors where there
+  // were none. That would have broken the gate while looking like an editor-only change.
+  // ``pyrightconfig.json`` is the one file both tools honour, so the editor and the gate cannot drift
+  // apart; an editor that reports what CI never checks is what teaches people to ignore red.
+  //
+  // ``extraPaths`` is the other half: ``from testing.conftest import ...`` resolves because pytest
+  // puts the repository root on the path and a type checker does not. It clears five
+  // ``reportMissingImports`` the moment the test suite is brought into scope — which is the
+  // tightening path ``TODO.md`` records, together with what it still costs.
+  "typeCheckingMode": "basic",
+  "pythonVersion": "3.12",
+  "include": ["src/scrinalia", "main.py"],
+  "exclude": ["**/__pycache__", ".venv", "migrations", "testing", "Data"],
+  "reportMissingTypeStubs": false,
+  "extraPaths": ["."]
+}

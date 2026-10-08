@@ -6,6 +6,8 @@ These tests pin both directions, that the probe talks to nothing else, and that 
 route never prints *why* it failed.
 """
 
+from collections.abc import Iterator
+
 import pytest
 import requests
 from litestar.testing import TestClient
@@ -39,9 +41,9 @@ def _engine_that_refuses() -> _Engine:
 
 
 @pytest.fixture
-def client() -> TestClient:
+def client() -> Iterator[TestClient]:
     with TestClient(app=create_app()) as test_client:
-        yield test_client  # type: ignore[misc]
+        yield test_client
 
 
 def test_liveness_answers_while_the_database_is_down(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
