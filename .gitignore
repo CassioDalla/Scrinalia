@@ -32,3 +32,6 @@ coverage.xml
 node_modules/
 .cache-bun/
 .cache-chrome/
+
+# MkDocs output: the site is built, never committed
+site/

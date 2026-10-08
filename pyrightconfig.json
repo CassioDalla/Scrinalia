@@ -17,9 +17,13 @@
   //
   // ``extraPaths`` is what makes ``from testing.conftest import ...`` resolvable: the tests import the
   // suite as a package rooted at the repository, which pytest arranges and a type checker does not.
+  //
+  // ``docs/_hooks`` is in scope because it is code that runs outside the package — the MkDocs hook
+  // that produces the documentation freshness report (ADR 0010). A file that runs in CI but sits
+  // outside the gate is exactly the one that rots; it is a lone module, not a package.
   "typeCheckingMode": "basic",
   "pythonVersion": "3.12",
-  "include": ["src/scrinalia", "main.py", "testing"],
+  "include": ["src/scrinalia", "main.py", "testing", "docs/_hooks"],
   "exclude": ["**/__pycache__", ".venv", "migrations", "Data"],
   "reportMissingTypeStubs": false,
   "extraPaths": ["."]
