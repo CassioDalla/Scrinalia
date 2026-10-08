@@ -1,10 +1,9 @@
 # Scrinalia
 
-<!-- The CI badge points at ``main``, the default branch. ``main`` does not carry
-     ``.github/workflows/`` yet, so it reads "no status" until ``dev`` is merged — which is honest,
-     and cheaper than a badge that follows a branch nobody is looking at. The license badge is static
-     and says what the license actually is: ``AGPL-3.0-only`` **plus** the attribution term of section
-     7(b), not the bare SPDX identifier. -->
+<!-- The CI badge points at ``main``, the default branch — the one a visitor lands on, and the one
+     whose workflow runs the whole gate. The license badge is static and says what the license
+     actually is: ``AGPL-3.0-only`` **plus** the attribution term of section 7(b), not the bare SPDX
+     identifier. -->
 [![License: AGPL-3.0-only + attribution](https://img.shields.io/badge/license-AGPL--3.0--only%20%2B%20attribution-blue)](LICENSE-ADDITIONAL-TERMS.md)
 [![CI](https://github.com/CassioDalla/Scrinalia/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/CassioDalla/Scrinalia/actions/workflows/ci.yml)
 
@@ -16,10 +15,12 @@ three-layer pipeline, and enriches them with named entities, typologies and subj
 categories. Every AI decision is advisory: an archivist reviews and approves, and approved
 documents are locked against further automatic rewrites.
 
-> **Status:** research project under active development. The curator UI is a React SPA
-> (`apps/curator/`) served by the API. The HTTP API is the stable contract, and the TypeScript
-> client is generated from it. The public diffusion site (`apps/public/`) is planned; the public
-> projection and its routes already exist on the API.
+> **Status:** pre-1.0, with the curator surface complete: the pipeline, the AI workers, the review
+> governance, the authentication and the 24 screens are in place, and the documentation covers
+> install, operation, curation and the data model. No release has been cut yet. The curator UI is a
+> React SPA (`apps/curator/`) served by the API; the HTTP API is the stable contract, and the
+> TypeScript client is generated from it. The public diffusion site (`apps/public/`) is planned —
+> the public projection and its routes already exist on the API, and nothing is published by default.
 
 ## How it works
 
@@ -57,18 +58,20 @@ re-queues the affected tags by itself. The quality validator grades the record (
 suspicious title, scope that was only boilerplate) and sends it to human review, and the embedding
 runs last because every text mutation has to happen before it.
 
-The subject axis reads a **vocabulary**, not the raw tag list: eight drawers derived from the
-collection, plus two kinds of "this is not a subject". The split follows the owner of each piece.
-What is a property of **Portuguese** — `rua`, `não identificado`, a bare year, `303 anos` — lives in
-a language profile (`core/language`, selected by `ACERVO_LANGUAGE`): it is not a curation decision,
-and a second language is a module rather than a second parser. What is a property of **this
-collection** — the bairros it names, the people it depicts, the tokens its reference codes carry —
-is a catalogue the archivist edits at `/vocabulario` (`archive_collection_terms` and
-`archive_arrangement_vocabulary`), seeded with the reference collection and replaceable without a
-deploy. On top of the deterministic guard sits the curated `domain_subject_exclusions` catalogue,
-for the judgements no rule reaches. Below 0.55 confidence a tag is left without a drawer **and**
-queued for review rather than guessed at. A tag whose axis is provenance or geography (`ippuc`,
-`curitiba`) carries an `archive_tag_facets` row instead of competing for a subject drawer.
+The subject axis reads a **vocabulary**, not the raw tag list: eight drawers, plus two kinds of "this
+is not a subject". The split follows what owns each piece. What is a property of **Portuguese** —
+`rua`, `não identificado`, a bare year, `303 anos` — lives in a language profile (`core/language`,
+selected by `ACERVO_LANGUAGE`): it is not a curation decision, and a second language is a module
+rather than a second parser. What is a property of **a collection** — the neighbourhoods it names,
+the people it depicts, the tokens its reference codes carry — is a catalogue the archivist edits at
+`/vocabulario` (`archive_collection_terms` and `archive_arrangement_vocabulary`), which the
+installation loads from its own file (`python -m scrinalia.domains.archive.cli import`) and can
+replace without a deploy: a fresh clone starts with an empty catalogue and never inherits another
+institution's vocabulary. On top of the deterministic guard sits the curated
+`domain_subject_exclusions` catalogue, for the judgements no rule reaches. Below 0.55 confidence a
+tag is left without a drawer **and** queued for review rather than guessed at. A tag whose axis is
+provenance or geography carries an `archive_tag_facets` row instead of competing for a subject
+drawer.
 
 ## Requirements
 
@@ -119,8 +122,10 @@ docker compose --profile app up -d --build   # application + PostgreSQL
 ```
 
 PostgreSQL stays outside the image, and the object storage and Ollama are not part of the stack at
-all: only `DB_HOST`, `S3_ENDPOINT_URL` and `OLLAMA_HOST_URL` change to reach them. The service sits
-behind the `app` profile, so
+all: only `DB_HOST`, `S3_ENDPOINT_URL` and the Ollama host change to reach them — and the container
+reads `APP_OLLAMA_HOST_URL`, not `OLLAMA_HOST_URL`, because a `docker-compose.yml` `environment:`
+entry wins over `env_file` and `localhost` inside the container is the container itself. The service
+sits behind the `app` profile, so
 `docker compose up -d` — and therefore `bun run dev` — keeps starting the infrastructure alone.
 Port 8000 is the one `bun run api:dev` uses; do not run both at once.
 
@@ -246,6 +251,7 @@ The screens that exist today, in the order the work happens:
 | `/arranjo/diagnostico` | the structural diagnosis, one section per problem, with the evidence |
 | `/arranjo/niveis` | the NOBRADE ladder: weight per rung, editable, never deleted |
 | `/arranjo/tipologias` | the documental typologies the classifier proposes: active ones are the labels, retired ones keep their weight |
+| `/vocabulario` | the collection's own vocabulary: the arrangement tokens and the terms the guards and the classifier read |
 | `/assuntos/tags` | the tag catalog: weight, near-duplicates and the merge queue with undo |
 | `/assuntos/categorias` | the subject drawers the classifier reads, with their weight |
 | `/assuntos/descobrir` | cluster the vocabulary to discover a drawer it does not have |
@@ -259,13 +265,15 @@ The screens that exist today, in the order the work happens:
 | `/sistema/workers` | the AI workers: engine, preset and model, the queue, the persisted default and a run button |
 | `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage and the effective process configuration |
+| `/configuracoes/usuarios` | the accounts: create, change a role, deactivate, reset a password, and the active sessions of each account (`ADMIN`) |
 
 The arrangement screens offer no silent correction: every write is a decision taken on a screen
 that showed its impact first, and the applied materialisations are reversible from the ledger.
-Where a write has no undo — the stopword purge, an entity merge, and the deletion of a description —
-the screen says so before the click instead of after it. The deletion is the only write that removes a
-record: it refuses a node that still has children, asks for the reference code to be typed, and leaves
-the whole ISAD(G) snapshot in `archive_document_deletions`, which is a trail and not a recycle bin.
+Where a write has no undo — the stopword purge, merging or deleting an entity, the deletion of a
+description, and the NER veto — the screen says so before the click instead of after it. The
+deletion is the only write that removes a record: it refuses a node that still has children, asks
+for the reference code to be typed, and leaves the whole ISAD(G) snapshot in
+`archive_document_deletions`, which is a trail and not a recycle bin.
 
 ## Running the workers
 
@@ -335,7 +343,7 @@ docker compose -f docker-compose.test.yml up -d
 src/scrinalia/   the application (installed package)
   api/                    Litestar controllers, request schemas, composition root
   core/                   settings, logging, database, unit of work
-  domains/                ingestion, staging, archive (models/repository/services/workers)
+  domains/                ingestion, staging, archive, identity (models/repository/services/workers)
 apps/curator/             React SPA: the archivist's interface
 packages/api-contract/    openapi.json, generated from the app and committed
 testing/                  test suite (outside the package, on purpose)
@@ -347,8 +355,8 @@ main.py                   deployable entrypoint (re-exports the ASGI app)
 ## Documentation
 
 The guides and the architecture decisions live in [`docs/`](docs/) and are rendered with MkDocs
-Material. `uv sync --group docs` once, then `uv run mkdocs serve`; CI builds the site and fails on a
-broken link.
+Material. `uv sync --group docs` once, then `uv run mkdocs serve -a 127.0.0.1:8080` — the default
+port is the API's; CI builds the site with `--strict` and fails on a broken link.
 
 - [Installation and deployment](docs/guides/install.md) — from a fresh clone to an installation
   running behind HTTPS, with the complete variable table and the backup story.
