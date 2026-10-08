@@ -1,0 +1,18 @@
+# The page a stranger sees when they click "New issue".
+#
+# The security entry is a **contact link**, not a template: a template would create a public issue the
+# moment someone typed the vulnerability into it, and the whole point of private reporting is that the
+# report never becomes public before a fix exists. The link takes them straight to the private
+# advisory form instead.
+blank_issues_enabled: false
+
+contact_links:
+  - name: Report a security vulnerability (private)
+    url: https://github.com/CassioDalla/scrinalia/security/advisories/new
+    about: Do not open a public issue for a vulnerability — this opens a private advisory only the maintainers can read.
+  - name: How to install and run the project
+    url: https://github.com/CassioDalla/scrinalia/blob/main/README.md
+    about: Setup, environment variables and the development stack.
+  - name: Architecture rules and conventions
+    url: https://github.com/CassioDalla/scrinalia/blob/main/AGENTS.md
+    about: The decisions that are easy to break — read before proposing a change to a route, a domain or the schema.

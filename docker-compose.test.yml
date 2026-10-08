@@ -10,7 +10,11 @@ services:
     # image. The test database is built from the models, so it needs the extensions the
     # generated/vector columns depend on. PostGIS is deliberately absent here: no
     # migration enables it yet, and CI uses this same image.
-    image: pgvector/pgvector:pg15
+    #
+    # Pinned by digest, like the CI service and the ``FROM`` in ``docker/postgres/Dockerfile``:
+    # a tag can be re-pushed, and a test suite that runs against a different image than the one
+    # recorded here is a test suite that proves nothing about the image CI used.
+    image: pgvector/pgvector:pg15@sha256:47af0b65960b14f1c6945aa4ccae37836c632e9a6fe0eea9160936e616e5b2e9
     container_name: scrinalia_db_test
     environment:
       POSTGRES_USER: test_user

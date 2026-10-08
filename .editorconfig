@@ -1,0 +1,30 @@
+# Editor defaults, so a contribution does not arrive with a different tab, a BOM or a CRLF.
+# See https://editorconfig.org — most editors honour this file without a plugin.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Python: 4 spaces, the language's own convention and what ruff formats to.
+[*.py]
+indent_size = 4
+
+# Markdown keeps trailing whitespace meaningful in some dialects, and a hard wrap is a line break.
+[*.md]
+trim_trailing_whitespace = false
+
+# The Makefile-like files that do not exist yet are listed anyway: a `Makefile` that arrives later
+# must not be broken by an editor that converts its tabs to spaces.
+[Makefile]
+indent_style = tab
+
+[*.{yml,yaml}]
+indent_size = 2
+
+[*.{json,jsonc}]
+indent_size = 2

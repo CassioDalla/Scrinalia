@@ -1,0 +1,53 @@
+name: CodeQL
+
+# The only scanner here that follows the data instead of the dependency list: it can see a value
+# coming from a request and reaching a query, which a version-based audit cannot. It runs on the pull
+# request (so a finding arrives before the merge), on `main`, and weekly — a query pack improves
+# without the code changing, and a weekly run is what notices that.
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  schedule:
+    - cron: "23 4 * * 1"
+
+# Least privilege at the workflow level; the job widens it only for what the upload requires.
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      # ``security-events: write`` is how the results reach the Security tab; ``packages: read`` is
+      # how the action pulls the query packs. Both are required by CodeQL and by nothing else.
+      security-events: write # upload the analysis to the Security tab
+      packages: read # pull the CodeQL query packs
+      actions: read # read the workflow run metadata CodeQL attaches to the results
+      contents: read # read the repository being analysed
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["python", "javascript-typescript"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3.38.2
+        with:
+          languages: ${{ matrix.language }}
+          # The default pack finds security bugs; this one adds the correctness queries, which is
+          # where "the value is used before it is validated" lives.
+          queries: security-and-quality
+      - name: Analyze
+        uses: github/codeql-action/analyze@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3.38.2
+        with:
+          category: "/language:${{ matrix.language }}"

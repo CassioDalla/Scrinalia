@@ -1,0 +1,93 @@
+name: Bug report
+description: Something in Scrinalia does not do what it says it does.
+title: "bug: "
+labels: ["bug", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Two notes before you write:
+
+        - **A security vulnerability does not belong here** — use the private advisory form linked on
+          the previous page. A public issue is a disclosure.
+        - **Never paste a secret, a password, a session cookie or the contents of your `.env`.** If a
+          secret leaked, rotate it first.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what the system did instead.
+      placeholder: |
+        I opened the accounts screen and deactivated a second administrator. I expected the button to
+        work; the screen answered "esta é a última conta de administrador ativa".
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to reproduce it
+      description: The shortest sequence that shows the problem. A screen and a click are enough.
+    validations:
+      required: true
+
+  - type: input
+    id: reference
+    attributes:
+      label: Reference (X-Request-ID)
+      description: |
+        Every API answer carries a request id, and the screen shows it as "referência" when a request
+        fails. It is the exact line in the server log; without it a report is a time range.
+      placeholder: "e.g. 3f2a9c1e-4b7d-4a2f-9c3e-8b1d2f4a6c7e"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log lines
+      description: |
+        From `logs/` (`ui_stream.jsonl` for the API, `ui_stream.jsonl`/`errors` for the workers), with
+        the request id above. **Redact secrets and personal data.**
+      render: text
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How is it installed
+      options:
+        - Docker Compose + `uvicorn` (the documented path)
+        - Bare `uvicorn` / `uv run uvicorn main:app`
+        - Behind a reverse proxy
+        - Other (describe in "What happened")
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: A release tag, or the output of `git rev-parse HEAD`.
+      placeholder: "e.g. v0.1.0 or 2292970"
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, Python and Bun versions, and whether the machine has a GPU.
+      placeholder: "Ubuntu 24.04 · Python 3.12 · Bun 1.3 · CPU only"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues and did not find this one.
+          required: true
+        - label: This is not a security vulnerability (those go to the private advisory form).
+          required: true
+        - label: I removed every secret, token and personal datum from what I pasted.
+          required: true
