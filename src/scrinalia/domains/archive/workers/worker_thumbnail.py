@@ -99,7 +99,7 @@ def download_image_to_memory(url: str) -> BytesIO | None:
 def execute(db: Session, storage: ThumbnailStoragePort | None = None) -> None:
     """
     Asynchronous orchestrator responsible for migrating images from an ephemeral
-    external link to a secure Object Storage (e.g. MinIO/S3).
+    external link to a secure Object Storage (any S3-compatible endpoint).
 
     Scans the Fact table for documents that have the original link but
     whose local storage URI is still empty.

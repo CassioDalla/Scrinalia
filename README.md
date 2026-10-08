@@ -62,7 +62,7 @@ queued for review rather than guessed at. A tag whose axis is provenance or geog
 
 - Python 3.12, managed with [`uv`](https://docs.astral.sh/uv/)
 - [Bun](https://bun.sh/) 1.3+ (only for the curator UI)
-- Docker (PostgreSQL/PostGIS and MinIO)
+- Docker (for PostgreSQL/PostGIS; object storage is **not** part of the stack — see below)
 - For AI workers: a local [Ollama](https://ollama.com/) instance, and enough disk for the
   PyTorch and transformer model stack
 
@@ -75,7 +75,7 @@ uv sync
 # 2. Configure the environment
 cp .env.example .env      # then edit the values
 
-# 3. Start the local infrastructure (PostGIS on 5432, MinIO on 9000/9001)
+# 3. Start the database (PostGIS on 5432)
 docker compose up -d
 
 # 4. Create the schema
@@ -102,12 +102,13 @@ and the project needs no CORS — which is also what makes the session cookie fi
 same origin and a CORS configuration the project deliberately does not have.
 
 ```bash
-docker compose --profile app up -d --build   # application + PostgreSQL + MinIO
+docker compose --profile app up -d --build   # application + PostgreSQL
 # → http://localhost:8000
 ```
 
-PostgreSQL, MinIO and Ollama stay outside the image; only `DB_HOST`, `S3_ENDPOINT_URL` and
-`OLLAMA_HOST_URL` change to reach them. The service sits behind the `app` profile, so
+PostgreSQL stays outside the image, and the object storage and Ollama are not part of the stack at
+all: only `DB_HOST`, `S3_ENDPOINT_URL` and `OLLAMA_HOST_URL` change to reach them. The service sits
+behind the `app` profile, so
 `docker compose up -d` — and therefore `bun run dev` — keeps starting the infrastructure alone.
 Port 8000 is the one `bun run api:dev` uses; do not run both at once.
 
@@ -201,7 +202,7 @@ bun run curator:build                         # writes apps/curator/dist, served
 starts the API and starts the SPA. Run the pieces separately when you only want one of them:
 
 ```bash
-bun run db:up      # docker compose up -d — PostgreSQL and MinIO
+bun run db:up      # docker compose up -d — PostgreSQL (the object storage is yours)
 bun run api:dev    # uv run uvicorn main:app --reload — the API alone, on :8000
 bun run curator:dev  # the SPA alone, on :5173
 ```

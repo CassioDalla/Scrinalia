@@ -1,0 +1,48 @@
+# Build context for the application image (root Dockerfile).
+#
+# The image is assembled from explicit COPY instructions, so this file is not what decides the image
+# contents — it keeps the context small and, more importantly, keeps artefacts that exist **only** on
+# the developer's machine out of the build. ``apps/curator/dist`` is the sharp one: it is gitignored,
+# it is served by the API when present, and a stale bundle copied into the image would look like a
+# front-end that ignores the deploy. The runtime stage takes the bundle from the Bun build stage.
+
+# Version control and CI
+.git
+.github
+.gitignore
+
+# Python virtual environment, caches and compiled artefacts
+.venv
+__pycache__
+**/__pycache__
+*.py[cod]
+*.egg-info
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+coverage.xml
+htmlcov
+
+# Repository-local caches (the checkout keeps them in the workspace on purpose)
+.cache-bun
+.cache-hf
+.cache-uv
+.cache-pre-commit
+.cache-chrome
+
+# Node/Bun and the bundler output
+node_modules
+**/node_modules
+dist
+**/dist
+bun-debug.log
+
+# Runtime state that belongs to the volume, never to the image
+logs
+*.log
+
+# Local configuration and unpublished collection data
+.env
+Data
+.analysis

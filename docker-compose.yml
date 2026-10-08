@@ -1,8 +1,12 @@
 # The project name is pinned, and it must stay pinned. Compose derives it from the directory name
-# by default and prefixes the named volumes with it, so renaming the checkout silently created
-# **empty** ``pgdata``/``minio_data`` volumes: the collection was still on disk, in
-# ``<old-directory>_pgdata``, and the UI showed nothing. Pinning it makes the volume names depend
-# on this file instead of on where someone happened to clone the repository.
+# by default and prefixes the named volumes with it, so renaming the checkout silently created an
+# **empty** ``pgdata`` volume: the collection was still on disk, in ``<old-directory>_pgdata``, and
+# the UI showed nothing. Pinning it makes the volume name depend on this file instead of on where
+# someone happened to clone the repository.
+#
+# The stack is the database only. Object storage is **not** part of it: the project needs an
+# S3-compatible endpoint (``S3_ENDPOINT_URL``) and does not care which one — MinIO, Ceph, SeaweedFS
+# or a cloud bucket are infrastructure the operator brings, not something this repository ships.
 name: scrinalia
 
 services:
@@ -21,19 +25,58 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-  minio:
-    image: minio/minio:latest
-    container_name: minio_storage
+  # The application image: the API **and** the curator SPA it serves from the same origin (see the
+  # Dockerfile for why they are one container). It is behind a profile on purpose — ``bun run dev``
+  # runs ``docker compose up -d`` and must keep starting the infrastructure alone, so the image is
+  # never built by accident while developing. Bring the whole system up with:
+  #
+  #   docker compose --profile app up -d --build     # → http://localhost:8000
+  #   docker compose --profile app logs -f app
+  #
+  # Port 8000 is the same one ``bun run api:dev`` uses; do not run both at once.
+  app:
+    profiles: ["app"]
+    build:
+      context: .
+    image: scrinalia-app:latest
+    container_name: scrinalia_app
+    restart: always
+    # ``service_started`` and not ``service_healthy``: the database image declares no healthcheck, and
+    # the entrypoint already retries ``alembic upgrade head`` until it answers. That retry is the
+    # thing that makes the boot order safe, not this stanza.
+    depends_on:
+      db:
+        condition: service_started
     ports:
-      - "9000:9000" # Porta da API S3
-      - "9001:9001" # Porta do Painel Web
+      - "8000:8000"
+    # ``.env`` supplies the rest (AUTH_*, ACERVO_*, LOG_LEVEL, S3_*, …) and is optional: a fresh
+    # clone runs on the defaults in ``core/config.py``.
+    env_file:
+      - path: .env
+        required: false
     environment:
-      MINIO_ROOT_USER: "admin_minio"
-      MINIO_ROOT_PASSWORD: "password_super_segura"
+      # Everything ``.env`` says for the host has to be re-pointed at the compose network, where
+      # ``localhost`` is the container itself.
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER:-admin}
+      DB_PASS: ${DB_PASS:-admin123}
+      DB_NAME: ${DB_NAME:-memoriacuritibana}
+      # The object storage is not in this stack. ``host.docker.internal`` reaches a service running
+      # on the host; an S3 elsewhere is set in ``.env`` and interpolated here.
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://host.docker.internal:9000}
+      # Ollama is not part of this stack either. The alias below reaches an instance running on the
+      # host; a real deployment points APP_OLLAMA_HOST_URL at whatever host serves the models.
+      OLLAMA_HOST_URL: ${APP_OLLAMA_HOST_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
-      - minio_data:/data
-    command: server /data --console-address ":9001"
+      # Both are written at runtime and must survive a rebuild: the loguru sink (``LOG_DIR``) and the
+      # HuggingFace cache the transformer models are downloaded into on first use.
+      - app_logs:/app/logs
+      - hf_cache:/home/scrinalia/.cache/huggingface
 
 volumes:
   pgdata:
-  minio_data:
+  app_logs:
+  hf_cache:

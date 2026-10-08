@@ -72,7 +72,7 @@ def test_execute_worker_thumbnails_success(mocker: MockerFixture) -> None:
 
     mock_db.scalars.return_value.yield_per.return_value = [fake_doc]
 
-    # Mocks of external integrations (Network and MinIO)
+    # Mocks of external integrations (network and S3)
     mocker.patch.object(worker_thumbnail, "download_image_to_memory", return_value=b"bytes")
 
     mock_storage = mocker.patch("scrinalia.domains.archive.workers.worker_thumbnail.S3Storage")
