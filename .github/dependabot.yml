@@ -8,11 +8,18 @@
 version: 2
 
 updates:
+  # Both ecosystems carry `target-branch: dev`, because `dev` is the integration branch and `main`
+  # only moves at a release. With the version updates arriving on `main`, `dev` stops being "the next
+  # release" and has to be fast-forwarded — measured: it fell behind and needed one. The option is
+  # version-updates only, and security updates always use the default branch, so an urgent fix is not
+  # delayed by the cycle.
+  #
   # The actions pinned by SHA in `.github/workflows/` never update themselves: pinning is what makes
   # a compromised tag unable to run, and Dependabot is what makes the pins move forward instead of
   # rotting. One grouped PR a week, not one per action.
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
@@ -33,6 +40,7 @@ updates:
   # every database connection. A major is a decision, and a decision deserves its own PR.
   - package-ecosystem: "uv"
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
