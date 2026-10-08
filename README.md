@@ -130,6 +130,17 @@ Three roles: `ADMIN` (accounts and the AI workers), `CURATOR` (the record, its s
 catalogues) and `VIEWER` (reads). There is no self-service password recovery by e-mail — the CLI on the
 host is the way back in, which is deliberate for an installation with no mail server.
 
+**Repeated failed sign-ins lock the account**, and the window doubles with each further lockout up to a
+ceiling (`AUTH_LOGIN_MAX_ATTEMPTS`, `AUTH_LOGIN_LOCKOUT_MINUTES`, `AUTH_LOGIN_LOCKOUT_MAX_MINUTES`).
+The count is a column, so it survives a restart; resetting the password lifts the lock, and the accounts
+screen shows a locked account and how many attempts it has. In front of it there is a per-address brake
+on the login route (`AUTH_LOGIN_RATE_MAX` per `AUTH_LOGIN_RATE_WINDOW_SECONDS`, answering 429) which
+lives in the process and resets with it — the durable defence is the lockout.
+
+Mutating requests are also checked against their `Origin`: same-origin is accepted, and a deployment
+behind a reverse proxy that rewrites `Host` declares the public origin in `AUTH_TRUSTED_ORIGINS`. A
+request with no `Origin` (curl, the CLI) is accepted, and reads are never checked.
+
 **One setting to change before exposing the instance:** `AUTH_COOKIE_SECURE=true` behind HTTPS. Left
 false over the open internet, the session token travels in clear text.
 

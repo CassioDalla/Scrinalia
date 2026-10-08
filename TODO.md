@@ -6,8 +6,8 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > **Como ler.** `✅` = feito **e verificado em execução real** (Postgres + engines reais), não
 > apenas lido no código. `[ ]` = pendente. `[~]` = parcial.
 >
-> **Estado do gate (2026-10-07, após a gestão de contas — B9.2):** **1.343 testes** passando · `ruff`
-> limpo · `basedpyright` **0 erros** · **32 migrações** sem drift · contrato OpenAPI
+> **Estado do gate (2026-10-07, após o endurecimento da autenticação — B9.3):** **1.368 testes**
+> passando · `ruff` limpo · `basedpyright` **0 erros** · **32 migrações** sem drift · contrato OpenAPI
 > **94 paths / 111 operações / 182 schemas**, gerado, commitado e sem drift · SPA (`tsc`, `eslint`,
 > `vite build`) limpa e servida pelo próprio Litestar · **9 ADRs**. As **111 operações** estão todas
 > classificadas por permissão, e a superfície aberta são três.
@@ -24,8 +24,8 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 | 2.5 | Hierarquia das descrições | ✅ **Fechada** (H1–H8, com tela) |
 | 3 | Descoberta, performance e observabilidade | 🟡 **Quase** — falta o agendador; `/health` e o rastreamento de erros **fechados** (ADR 0005) |
 | 3.5 | Qualidade do dado de entrada | ✅ **Fechada** |
-| 4 | UI, BFF e publicação | 🟡 **Curador completo** (23 telas) e **auth entregue (B9.1 + B9.2)**; faltam o endurecimento (B9.3) e o **site público** |
-| **5** | **Release 1.0** | 🟡 **Iniciada** — licença (0006), nome (0007), desacoplamento (0008) e auth (0009) fechados; faltam o endurecimento (B9.3) e docs |
+| 4 | UI, BFF e publicação | 🟡 **Curador completo** (23 telas) e **auth entregue (B9.1–B9.3)**; falta o **site público** |
+| **5** | **Release 1.0** | 🟡 **Iniciada** — licença (0006), nome (0007), desacoplamento (0008) e auth (0009) fechados; falta a base de documentação |
 
 **O sistema está funcionalmente pronto.** Ingestão → staging → archive → enriquecimento por IA →
 curadoria humana → bloqueio de reprocessamento, tudo verificado ponta a ponta. O **curador tem 23
@@ -33,9 +33,8 @@ telas** cobrindo todo o sitemap mais o painel de operação, e o **Streamlit sai
 
 **O que falta para uma 1.0 é de outra natureza:** não é feature, é *produto*. Documentação,
 desacoplamento institucional e autenticação — a **licença** (ADR 0006), o **nome** (ADR 0007), o
-**desacoplamento** (ADR 0008) e a **autenticação** (ADR 0009, ciclos B9.1 e B9.2) foram fechados em
-2026-10-07. Restam o **endurecimento da autenticação** (B9.3: lockout, rate-limit, `Origin`) e a
-**base de documentação**. Detalhe na seção seguinte.
+**desacoplamento** (ADR 0008) e a **autenticação** (ADR 0009, ciclos B9.1 a B9.3) foram fechados em
+2026-10-07. Resta a **base de documentação**. Detalhe na seção seguinte.
 
 > **Ciclos entregues, em uma linha cada** (o detalhe está nas fases fechadas):
 > contrato + onda 1 (2026-10-05) · onda 2, o plano de arranjo (2026-10-05) · ondas 4–6 e a remoção
@@ -48,27 +47,30 @@ desacoplamento institucional e autenticação — a **licença** (ADR 0006), o *
 > do acervo com tela, e a configuração da origem (2026-10-07)** · **a autenticação — sessão por
 > cookie no banco, argon2id, três papéis e as operações classificadas, com a autoria vindo da
 > sessão em vez do request (2026-10-07)** · **a gestão de contas — `/api/v1/users`, a tela
-> `Configurações › Usuários` e o menu que esconde a área que o papel não alcança (2026-10-07)**.
+> `Configurações › Usuários` e o menu que esconde a área que o papel não alcança (2026-10-07)** ·
+> **o endurecimento da autenticação — bloqueio com backoff em sessão própria, rate-limit por
+> endereço e `origin_guard` nas mutações (2026-10-07)**.
 
 ---
 
 ## 🎯 Caminho para a 1.0
 
-> **Resposta curta: não estamos perto — estamos a ~2 ciclos.** O software está pronto; o *produto*
-> não. Nada aqui é feature nova: é o que separa "um sistema que funciona" de "um release que outra
-> instituição consegue instalar, entender e usar com segurança".
+> **Resposta curta: falta um ciclo — a documentação.** O software está pronto, a autenticação também; o
+> *produto* ainda não. Nada aqui é feature nova: é o que separa "um sistema que funciona" de "um release
+> que outra instituição consegue instalar, entender e usar com segurança".
 
 ### ✅ Já pronto para um release
 
 - Pipeline completo e verificado ponta a ponta, com governança (`HUMAN_APPROVED` bloqueia IA).
-- 22 telas de curadoria + painel de operação; Streamlit removido.
+- 23 telas de curadoria + painel de operação; Streamlit removido.
 - Contrato OpenAPI gerado, commitado e com CI bloqueante; cliente TS gerado do contrato.
-- 1.343 testes, CI com 3 jobs (lint, testes+migrações+contrato, frontend).
+- 1.368 testes, CI com 3 jobs (lint, testes+migrações+contrato, frontend).
 - Schema 100% sob Alembic, 32 migrações sem drift.
-- **Autenticação entregue (B9.1):** sessão por cookie com a linha no banco (só o sha256 do token),
+- **Autenticação entregue (B9.1–B9.3):** sessão por cookie com a linha no banco (só o sha256 do token),
   argon2id, três papéis e **cada operação de `/api/v1` declarando a sua permissão** — com um teste que
   falha se alguma ficar sem classificação. A superfície aberta são três operações, e a difusão
-  continua aberta por design.
+  continua aberta por design. O endurecimento fecha o resto: bloqueio com backoff gravado fora da
+  transação do request, rate-limit por endereço e `Origin` checado nas mutações.
 - Superfície pública **já projetada** (allowlist com partição exata e teste) — falta só o app.
 - **Determinismo do contrato** corrigido: o OpenAPI não depende mais do `PYTHONHASHSEED`.
 - **Licença fechada** (`AGPL-3.0-only` + termo de atribuição do §7(b), com rodapé na SPA e
@@ -99,7 +101,7 @@ desacoplamento institucional e autenticação — a **licença** (ADR 0006), o *
       - **Nome:** **decidido e aplicado em 2026-10-07** — o projeto é **`Scrinalia`** (ADR 0007, §
         abaixo). O `attribution.ts` continua sendo o ponto único da troca: renomear de novo é uma
         linha, não uma tela.
-- [~] **Auth (B9) — B9.1 e B9.2 entregues em 2026-10-07; B9.3 pendente.** Antes disso qualquer
+- [x] **Auth (B9) — B9.1, B9.2 e B9.3 entregues em 2026-10-07.** Antes disso qualquer
       cliente que alcançasse a API aprovava fichas, apagava descrições, fundia taxonomia e **disparava
       workers**: eram **85 paths / 100 operações**, 58 delas de mutação, e **15 colunas de autoria em
       15 tabelas** guardavam texto livre (`changed_by`, `requested_by`, `decided_by`, `deleted_by`,
@@ -129,12 +131,20 @@ desacoplamento institucional e autenticação — a **licença** (ADR 0006), o *
         o que o papel não alcança — os **leitores puros** (acervo, árvore, diagnóstico) não declaram
         nada e continuam visíveis a todos, e o 403 com frase segue sendo a verdade para quem chega
         pela URL direta.
-      - **Pendente no B9.3 — endurecimento, e uma armadilha já medida.** `failed_attempts`/
-        `locked_until` existem na tabela e **nada os escreve**: o contador **não pode** viver na
-        transação do request, porque um login que falha levanta e o `provide_unit_of_work` faz rollback
-        — o contador seria apagado pela falha que ele conta. Precisa da própria sessão commitada, como
-        `archive_worker_runs`. Junto: rate-limit no login, checagem de `Origin` nas mutações e auditoria
-        de sessões.
+      - **B9.3 — entregue. Endurecimento, e a armadilha medida que ele fechou.** O contador de
+        `failed_attempts`/`locked_until` **não podia** viver na transação do request: um login que
+        falha levanta e o `provide_unit_of_work` faz rollback, então o contador seria apagado pela
+        falha que ele conta. Agora ele é escrito por `LoginAttemptRecorder`, com **sessão própria
+        commitada** como `archive_worker_runs`; o sucesso limpa o estado na transação do request (a
+        assimetria é deliberada — um sucesso commita de qualquer forma). O backoff anda no próprio
+        contador — o *n*-ésimo bloqueio dobra a janela até `AUTH_LOGIN_LOCKOUT_MAX_MINUTES` — e
+        **só a senha correta** numa conta bloqueada ouve o motivo (`AccountLockedError`, 423); para
+        quem adivinha a resposta continua `InvalidCredentialsError`, então o bloqueio não é oráculo
+        de existência. Junto: rate-limit por endereço (janela deslizante **no processo**, 429 — um
+        freio, não a garantia), `origin_guard` nas mutações (mesma origem ou `AUTH_TRUSTED_ORIGINS`;
+        sem `Origin` passa, leitura nunca é checada) e `is_locked` calculado **no servidor** para a
+        tela de contas. `last_login_at` já era escrito no B9.1; a auditoria de sessões é a lista de
+        sessões por conta do B9.2, agora com o estado de bloqueio ao lado.
       - **Lacuna conhecida e registrada:** o `openapi.json` **não declara** o esquema de segurança do
         cookie. Um `security` global marcaria também as rotas de difusão e os probes como protegidos, o
         que seria pior que subdeclarar; declarar por rota é uma mudança maior que este ciclo.
@@ -172,8 +182,6 @@ desacoplamento institucional e autenticação — a **licença** (ADR 0006), o *
         diagnóstico. O que a tela ainda **não** faz é desabilitar botão a botão nas telas antigas: o
         menu esconde a área inteira, e um controle que o papel não pode usar responde 403 com frase —
         honesto, e a decidir caso a caso quando doer.
-      - **B9.3 — pendente. Endurecimento.** `failed_attempts`/`locked_until` com backoff, rate-limit no login,
-        checagem de `Origin` nas mutações, `last_login_at` e auditoria de sessões.
       - **O que custa mais que o login (medido).** (a) **11 campos `changed_by` em schemas de
         request** (mais o `requested_by` do runner): se a autenticação chega e o cliente continua
         podendo mandar o nome, o curador logado escreve o nome de outro e a auditoria fica **pior**
@@ -203,7 +211,9 @@ desacoplamento institucional e autenticação — a **licença** (ADR 0006), o *
         portão de login e remoção do autor livre; (5) `chore(todo)` fechar o bullet do B9.1;
         (6) `feat(identity)` contas e sessões administrativas (`/api/v1/users`); (7) `feat(curator)` a
         seção Configurações, a tela de contas e o menu por papel; (8) `test(archive)` a invariante de
-        `path` verificada pelo próprio diagnóstico.
+        `path` verificada pelo próprio diagnóstico; (9) `feat(identity)` bloqueio com backoff, rate-limit
+        e `origin_guard`; (10) `feat(curator)` o estado de bloqueio na tela de contas; (11) `docs(todo)`
+        fechar o B9.3.
 - [x] **Renomear o projeto, o pacote e o repositório** — **feito em 2026-10-07**: o projeto agora é
       **`Scrinalia`** (`refactor(pkg)!: rename memoria_curitibana to scrinalia`), com decisão e
       etimologia no **ADR 0007**. Escopo medido antes de executar: **240 arquivos** com uma das
@@ -641,7 +651,7 @@ antigos para 3.608 documentos e **nenhum** para os ~1.218 que entraram no re-par
 
 | Verificação | Resultado |
 | --- | --- |
-| `pytest` (unit + integração) | **1.343 passed** |
+| `pytest` (unit + integração) | **1.368 passed** |
 | `ruff check` / `ruff format --check` | limpos (372 arquivos) |
 | `basedpyright` | **0 errors, 0 warnings** |
 | `alembic check` | **sem drift** (32 migrações) |
@@ -650,6 +660,8 @@ antigos para 3.608 documentos e **nenhum** para os ~1.218 que entraram no re-par
 | Contrato OpenAPI | **94 paths / 111 operações / 182 schemas**, sem drift (cliente TS incluído) |
 | `/api/v1/users` em execução real (teste de integração) | criar, editar, desativar, resetar senha, listar e revogar sessões — com a permissão `ADMIN` e a sessão de outra conta respondendo 404 |
 | Tela `Configurações › Usuários` | `tsc`/`eslint`/`vite build` limpos; o menu esconde a área que o papel não alcança |
+| Bloqueio em execução real (teste de integração) | 3 falhas → a senha **correta** responde **423** mesmo com o rollback de cada request; a conta lê `failed_attempts`/`locked_until` |
+| Rate-limit e `Origin` em execução real | 429 ao estourar a janela por endereço; **403** em mutação de origem estranha, **200** na leitura, e o **proxy do Vite** (Host preservado) aceita a origem do dev |
 | `/health/live` e `/health/ready` em execução real | 200 com o banco de pé, **503** com o banco parado |
 | `/api/v1/vocabulary` em execução real | 38 nomes de arranjo e 71 termos semeados, com `tag_count` por grafia |
 | Tela `/vocabulario` renderizada no browser | duas seções, tema aplicado, **zero erro de console** |
@@ -679,9 +691,11 @@ antigos para 3.608 documentos e **nenhum** para os ~1.218 que entraram no re-par
 1. **Acurácia de assunto em 0.500/0.575** — limite do zero-shot NLI com sintagma nominal.
    Decisão: aceitar e resolver por curadoria.
 2. **Busca semântica com qualidade fraca** — a híbrida (RRF) continua pendente; o MRR caiu 0.019.
-3. **Autenticação entregue (B9.1 + B9.2), endurecimento pendente (B9.3)** — sessão, papéis, guard
-   por operação e gestão de contas; faltam o lockout (`failed_attempts`/`locked_until` sem escritor),
-   o rate-limit no login e a checagem de `Origin` nas mutações.
+3. **Autenticação entregue (B9.1–B9.3), com limites conscientes** — sessão, papéis, guard por operação,
+   gestão de contas, bloqueio com backoff, rate-limit e `Origin`. O que **não** existe, de propósito:
+   2FA, SSO/OIDC e recuperação de senha por e-mail (o CLI no host é o caminho de volta). Dois limites
+   técnicos registrados: o rate-limit é **por processo** (não distribuído — a garantia durável é o
+   bloqueio por conta) e a sessão revogada guarda `revoked_at` mas **não quem** a revogou.
 4. **O acervo de referência está parcialmente processado** — tipologia e embedding pendentes.
 5. **`path` desnormalizado** — a invariante é mantida pelo serviço e **verificada no CI** pelo próprio
    diagnóstico depois de cada escritor (criar, mover, materializar/desfazer). O limite que resta é que
