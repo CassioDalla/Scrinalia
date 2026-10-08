@@ -44,14 +44,18 @@ transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-
          -> quality-validator -> embedding
 ```
 
-Each worker stamps a versioned key in the document's `execution_log`, so re-running a
-worker only touches documents it has not already processed. The macro-category worker stamps
-the **tag** (`archive_tags.execution_log`) instead, because it classifies the subject axis
-rather than a document — and its stamp value is the **hash of the label set** it classified
-against, so rewriting a curator label re-queues the affected tags by itself. The quality
-validator grades the record (missing date, suspicious title, scope that was only boilerplate)
-and sends it to human review, and the embedding runs last because every text mutation has to
-happen before it.
+Most workers stamp a versioned key in the document's `execution_log` — `hierarchy_parent_v1` for
+the transfer, `worker_ner_v2`, `worker_typology_classifier_v2`, `worker_quality_validator_v1` and
+`worker_embedding_v1` for the AI stages, and one `cleaning_rule_{id}` key per cleaning rule — so
+re-running a worker only touches documents it has not already processed. Three do not key on the
+document: `thumbnail` keys on the storage URI it wrote (`thumbnail_failed` is the failure mark),
+`conflict-judge` records its verdicts in `archive_ai_review_queue` because its unit is a pair and
+not a document, and the macro-category worker stamps the **tag**
+(`archive_tags.execution_log`), because it classifies the subject axis rather than a document — and
+its stamp value is the **hash of the label set** it classified against, so rewriting a curator label
+re-queues the affected tags by itself. The quality validator grades the record (missing date,
+suspicious title, scope that was only boilerplate) and sends it to human review, and the embedding
+runs last because every text mutation has to happen before it.
 
 The subject axis reads a **vocabulary**, not the raw tag list: eight drawers derived from the
 collection, plus two kinds of "this is not a subject". The split follows the owner of each piece.
@@ -336,20 +340,43 @@ apps/curator/             React SPA: the archivist's interface
 packages/api-contract/    openapi.json, generated from the app and committed
 testing/                  test suite (outside the package, on purpose)
 migrations/               Alembic revisions; owns the database schema
-docs/adr/                 accepted architecture decisions
+docs/                     the documentation site: guides + ADRs, built with MkDocs
 main.py                   deployable entrypoint (re-exports the ASGI app)
 ```
 
 ## Documentation
 
-- [`AGENTS.md`](AGENTS.md) — conventions and the architectural rules that are easy to get wrong
-- [`TODO.md`](TODO.md) — roadmap
+The guides and the architecture decisions live in [`docs/`](docs/) and are rendered with MkDocs
+Material. `uv sync --group docs` once, then `uv run mkdocs serve`; CI builds the site and fails on a
+broken link.
+
+- [Installation and deployment](docs/guides/install.md) — from a fresh clone to an installation
+  running behind HTTPS, with the complete variable table and the backup story.
+- [Operations](docs/guides/operate.md) — the workers and the pipeline order, presets and overrides,
+  the run ledger, reprocessing and the failure groups.
+- [Curation](docs/guides/curate.md) — what each screen decides, and **which decisions have no way
+  back**.
+- [Data model](docs/guides/data-model.md) — the three layers plus `identity`, the idempotency stamps,
+  the ledgers and the generated columns.
 - [`docs/adr/`](docs/adr/) — architecture decision records, including
   [`0006`](docs/adr/0006-license-and-author-attribution.md) on licensing,
   [`0007`](docs/adr/0007-project-name-scrinalia.md) on the name,
   [`0008`](docs/adr/0008-language-in-code-and-collection-vocabulary-in-the-database.md) on what is
-  language, what is collection data and what is configuration, and
-  [`0009`](docs/adr/0009-authentication-and-authorization.md) on authentication and authorization
+  language, what is collection data and what is configuration,
+  [`0009`](docs/adr/0009-authentication-and-authorization.md) on authentication and authorization,
+  and [`0010`](docs/adr/0010-documentation-coverage-and-freshness.md) on how the documentation is
+  kept in step with the code.
+- [Documentation log](docs/log.md) — the pages reviewed against the code, and when.
+
+In the repository: [`AGENTS.md`](AGENTS.md) — conventions and the architectural rules that are easy
+to get wrong — and [`TODO.md`](TODO.md) — the roadmap.
+
+Two rules hold the documentation to the code, and both matter before touching a documented surface
+(ADR 0010). **Coverage is a gate**: `testing/unit/docs/test_documentation_coverage.py` fails when a
+worker, a setting, a screen, a table or an ADR is missing from the page that owns it. **Freshness is
+a report**: each guide declares the code it documents in `sources:`, `mkdocs build` prints what moved
+since the page was last touched, and `docs/log.md` records the verdict — `updated`, or `no-change`
+with a reason. A change to a documented surface updates the page in the same pull request.
 
 ## Contributing and security
 

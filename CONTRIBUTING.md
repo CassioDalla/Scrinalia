@@ -35,16 +35,23 @@ Run these from the repository root before opening the PR; they are what CI runs.
 uv run ruff check . && uv run ruff format --check .
 uv run basedpyright
 uv run pytest
+uv sync --group docs && uv run mkdocs build --strict   # the site, plus the freshness report
 bun run contract               # regenerates openapi.json + the TypeScript client
 bun run --cwd apps/curator typecheck && bun run --cwd apps/curator lint && bun run --cwd apps/curator build
 uv run alembic check           # fails on model/migration drift
 ```
 
-Two of these are easy to forget and both fail CI:
+Three of these are easy to forget and all three fail CI:
 
 - **the contract is generated and committed.** A route or schema change must include the regenerated
   `packages/api-contract/openapi.json` and `apps/curator/src/api/schema.d.ts`;
-- **`alembic check` must report no drift.** A model change without a migration is a broken install.
+- **`alembic check` must report no drift.** A model change without a migration is a broken install;
+- **a documented surface change updates its page** (ADR 0010). The coverage gate is a test
+  (`testing/unit/docs/`): a new worker, settings field, screen, table or ADR without its page fails
+  it. Freshness is a report, not a gate — the build prints what moved, and `docs/log.md` is where the
+  verdict is recorded, including `no-change` with the reason for leaving a page alone. Run
+  `uv run python docs/_hooks/freshness.py` to see the report alone, and load the `documenter` skill
+  for a triage round.
 
 ## Conventions
 
