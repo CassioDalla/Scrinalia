@@ -1,53 +1,18 @@
 """
-The collection vocabulary: the seed mirror, the lookup rule and the value object.
+The collection vocabulary: the lookup rule and the value object.
 
-The mirror exists because a migration must keep describing the state it produced, so the seed is
-duplicated on purpose and pinned here instead of trusted — the same pattern the NOBRADE ladder and
-the subject drawers already follow. The rest of the file pins the two pure functions the proposal
-and the guard read.
+There is nothing left to pin against a migration: the catalogue is **data of the installation**, the
+seed left ``src/``, and the tests carry the reference collection's rows as fixture data instead
+(``testing/reference_vocabulary.py`` explains why they may). What is left to test is the rule itself
+and the two pure functions the proposal and the guard read.
 """
 
-import importlib.util
-from pathlib import Path
-from types import ModuleType
-
 from scrinalia.domains.archive.domain.collection_vocabulary import (
-    ARRANGEMENT_TERMS,
-    COLLECTION_TERMS,
     PLACE_KINDS,
     CollectionVocabulary,
     suggest_name,
     vocabulary_from_rows,
 )
-
-#: The repository root, derived from this file (testing/unit/archive/domain/).
-_MIGRATIONS_DIR = Path(__file__).resolve().parents[4] / "migrations" / "versions"
-
-
-def _load_migration(filename: str) -> ModuleType:
-    """Loads a migration module by path, since ``migrations`` is not an importable package."""
-    spec = importlib.util.spec_from_file_location(filename.removesuffix(".py"), _MIGRATIONS_DIR / filename)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-class TestTheMigrationAndTheMirrorAgree:
-    def test_the_arrangement_vocabulary_is_the_seeded_one(self) -> None:
-        migration = _load_migration("b3d6f1a2c4e7_add_the_collection_vocabulary_catalogues.py")
-        assert migration.ARRANGEMENT_TERMS == ARRANGEMENT_TERMS
-
-    def test_the_collection_terms_are_the_seeded_ones(self) -> None:
-        migration = _load_migration("b3d6f1a2c4e7_add_the_collection_vocabulary_catalogues.py")
-        assert migration.COLLECTION_TERMS == COLLECTION_TERMS
-
-    def test_every_seeded_kind_is_a_known_kind(self) -> None:
-        """A kind the enum does not carry would fail the insert at migration time, not in a test."""
-        from scrinalia.domains.archive.models.enums import CollectionTermKind
-
-        known = {kind.value for kind in CollectionTermKind}
-        assert {kind for _term, kind in COLLECTION_TERMS} <= known
 
 
 class TestSuggestName:

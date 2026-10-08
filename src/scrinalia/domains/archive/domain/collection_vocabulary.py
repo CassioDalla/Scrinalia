@@ -1,20 +1,18 @@
 """
-The collection's own vocabulary: the value object the guard reads, and the seed mirror.
-
-Two things live here, and the distinction matters.
+The collection's own vocabulary: the value object the guard reads.
 
 ``CollectionVocabulary`` is the **runtime** input: a frozen pair of sets that the subject guard
-consults for the two families the *collection* owns — a toponym it carries as a place and a
-person name. The guard stays a pure function of the term plus this object, which is what keeps
-it deterministic and testable; the repository loads the object from ``archive_collection_terms``
-once per run.
+consults for the two families the *collection* owns — a toponym it carries as a place and a person
+name. The guard stays a pure function of the term plus this object, which is what keeps it
+deterministic and testable; the repository loads the object from ``archive_collection_terms`` once
+per run.
 
-``ARRANGEMENT_TERMS`` and ``COLLECTION_TERMS`` are the **seed mirror** of the reference
-collection: the rows the migration registers. They are duplicated in the migration on purpose
-(replaying history must reproduce the state it produced) and a test pins the two together, the
-same pattern ``NOBRADE_LEVELS`` and ``SUBJECT_CATEGORIES`` already follow. Nothing at runtime
-reads them — an installation that empties the catalogue must not silently inherit Curitiba's
-names, which is exactly what a fallback would do.
+There is deliberately no seed here. The vocabulary is **data of the installation**, and the reference
+collection's rows left the repository for the same reason the descriptions did: a clone must not
+carry somebody's catalogue. A fresh install therefore starts with an empty vocabulary, and the guard
+refuses nothing of its own — which is the correct answer and not a degraded one. An installation that
+wants the vocabulary it came from loads it with
+``python -m scrinalia.domains.archive.cli import``.
 """
 
 from collections.abc import Mapping
@@ -62,136 +60,6 @@ EMPTY_VOCABULARY = CollectionVocabulary()
 #: The kinds that claim the PLACE facet, as stored values. Derived from the enum so the catalogue
 #: and the guard cannot disagree about which kind is a place.
 PLACE_KINDS: frozenset[str] = frozenset(kind.value for kind in PLACE_TERM_KINDS)
-
-
-# =============================================================================
-# The seed mirror of the reference collection
-# =============================================================================
-
-#: Arrangement token (or full code) to the name the proposal suggests, in the order the seed
-#: registers it. The root is the whole-code entry; the rest are single tokens.
-ARRANGEMENT_TERMS: tuple[tuple[str, str], ...] = (
-    ("BR PRADAP", "Acervo da entidade custodiadora"),
-    ("IPPUC", "IPPUC - Instituto de Pesquisa e Planejamento Urbano de Curitiba"),
-    ("SMU", "SMU - Secretaria Municipal de Urbanismo"),
-    ("SMMA", "SMMA - Secretaria Municipal do Meio Ambiente"),
-    ("SEPLAD", "SEPLAD - Secretaria Municipal do Planejamento"),
-    ("CMC", "CMC - Câmara Municipal de Curitiba"),
-    ("FAS", "FAS - Fundação de Ação Social"),
-    ("SGM", "SGM - Secretaria Municipal de Governo"),
-    ("SMCS", "SMCS - Secretaria Municipal da Comunicação Social"),
-    ("SMDS", "SMDS - Secretaria Municipal da Defesa Social"),
-    ("FOTOGRAFIA", "Registros Fotográficos"),
-    ("FOTOGRAFIAS", "Registros Fotográficos"),
-    ("ED", "Edificações"),
-    ("AL", "Alvenaria"),
-    ("CONSTR", "Construções"),
-    ("CVCO", "Certificados de Vistoria e Conclusão de Obras"),
-    ("OUVIDORIA", "Ouvidoria Municipal de Curitiba"),
-    ("LEGISLAÇÃO", "Referência Legislativa"),
-    ("MICROFILME", "Microfilme"),
-    ("PROC", "Processos"),
-    ("MATADOURO", "Matadouro Municipal"),
-    ("DIAPOSITIVO", "Diapositivos"),
-    ("JORN", "Jornais"),
-    ("REQUERIMENTOS", "Requerimentos"),
-    ("REQ", "Requerimentos"),
-    ("OF", "Ofícios"),
-    ("HIST", "Histórico"),
-    ("PP", "Pareceres e Projetos"),
-    ("DUP", "Duplicatas"),
-    ("GAZ", "Gazeta"),
-    ("MERC", "Mercado"),
-    ("ATUBA", "Atuba"),
-    ("INVENT", "Inventário"),
-    ("MODELO", "Modelo"),
-    ("BOMBAS", "Bombas"),
-    ("INFLAMAVEIS", "Inflamáveis"),
-    ("DEPOSITO", "Depósito"),
-    ("PEQ", "Pequenos"),
-)
-
-#: The non-subject terms the reference collection carries, as ``(term, kind)``. The kind is the
-#: enum **value** and not the member, so the mirror stays plain data and a migration can carry it
-#: without importing application code.
-COLLECTION_TERMS: tuple[tuple[str, str], ...] = (
-    # Bairros and the areas the collection names as places.
-    ("curitiba antiga", "DISTRICT"),
-    ("centro", "DISTRICT"),
-    ("centro cívico", "DISTRICT"),
-    ("centro histórico", "DISTRICT"),
-    ("batel", "DISTRICT"),
-    ("boqueirão", "DISTRICT"),
-    ("alto boqueirão", "DISTRICT"),
-    ("campinas", "DISTRICT"),
-    ("cajuru", "DISTRICT"),
-    ("uberaba", "DISTRICT"),
-    ("pinheirinho", "DISTRICT"),
-    ("portão", "DISTRICT"),
-    ("pilarzinho", "DISTRICT"),
-    ("mossunguê", "DISTRICT"),
-    ("bigorrilho", "DISTRICT"),
-    ("bacacheri", "DISTRICT"),
-    ("rebouças", "DISTRICT"),
-    ("guabirotuba", "DISTRICT"),
-    ("tatuquara", "DISTRICT"),
-    ("barreirinha", "DISTRICT"),
-    ("juvevê", "DISTRICT"),
-    ("capão", "DISTRICT"),
-    ("capão da imbuia", "DISTRICT"),
-    ("capão raso", "DISTRICT"),
-    ("santa felicidade", "DISTRICT"),
-    ("alto da glória", "DISTRICT"),
-    ("alto da xv", "DISTRICT"),
-    ("são francisco", "DISTRICT"),
-    ("sítio cercado", "DISTRICT"),
-    ("cristo rei", "DISTRICT"),
-    ("campo comprido", "DISTRICT"),
-    ("prado velho", "DISTRICT"),
-    ("vila", "DISTRICT"),
-    # Municipalities, including the ones abroad (the collection's records reach them).
-    ("curitiba", "MUNICIPALITY"),
-    ("são paulo", "MUNICIPALITY"),
-    ("joinville", "MUNICIPALITY"),
-    ("paris", "MUNICIPALITY"),
-    ("zurique", "MUNICIPALITY"),
-    ("zurich", "MUNICIPALITY"),
-    ("washington", "MUNICIPALITY"),
-    ("campina grande do sul", "MUNICIPALITY"),
-    ("araucária", "MUNICIPALITY"),
-    ("pinhais", "MUNICIPALITY"),
-    ("mandirituba", "MUNICIPALITY"),
-    ("balsa nova", "MUNICIPALITY"),
-    # States and the metropolitan region.
-    ("paraná", "STATE"),
-    ("santa catarina", "STATE"),
-    ("bahia", "STATE"),
-    ("região metropolitana de curitiba", "REGION"),
-    ("rmc", "REGION"),
-    # Countries.
-    ("australia", "COUNTRY"),
-    ("austrália", "COUNTRY"),
-    ("suíça", "COUNTRY"),
-    ("frança", "COUNTRY"),
-    ("alemanha", "COUNTRY"),
-    # Person names: the producer or the person depicted, never a subject.
-    ("jaime lerner", "PERSON"),
-    ("oscar niemeyer", "PERSON"),
-    ("lúcio costa", "PERSON"),
-    ("mário de miranda", "PERSON"),
-    ("joel rocha", "PERSON"),
-    ("poty lazzarotto", "PERSON"),
-    ("tadeusz kościuszko", "PERSON"),
-    ("ernesto guaita", "PERSON"),
-    ("lina faria", "PERSON"),
-    ("michelangelo cuniberti", "PERSON"),
-    ("marilia kranz", "PERSON"),
-    ("paulo spzak", "PERSON"),
-    ("eduardo fernando chaves", "PERSON"),
-    ("aristeu dias", "PERSON"),
-    ("joão zaco paraná", "PERSON"),
-    ("abrão assad", "PERSON"),
-)
 
 
 def vocabulary_from_rows(rows: list[tuple[str, str]]) -> CollectionVocabulary:

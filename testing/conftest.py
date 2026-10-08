@@ -15,11 +15,7 @@ from sqlalchemy.orm import Session
 from scrinalia.api.dependencies import provide_login_rate_limiter
 from scrinalia.asgi import create_app
 from scrinalia.core.base import Base
-from scrinalia.domains.archive.domain.collection_vocabulary import (
-    ARRANGEMENT_TERMS,
-    COLLECTION_TERMS,
-    vocabulary_from_rows,
-)
+from scrinalia.domains.archive.domain.collection_vocabulary import vocabulary_from_rows
 from scrinalia.domains.archive.domain.level_catalog import NOBRADE_LEVELS
 from scrinalia.domains.archive.models import (
     ArchiveArrangementTerm,
@@ -38,6 +34,7 @@ from scrinalia.domains.identity.repository import SessionRepository, UserReposit
 from scrinalia.domains.identity.repository.login_attempt_repo import LoginAttemptRecorder
 from scrinalia.domains.identity.services import AuthService
 from scrinalia.domains.ingestion import models as ingest_model
+from testing.reference_vocabulary import ARRANGEMENT_TERMS, COLLECTION_TERMS
 
 # Dynamically discover the absolute path of the 'tests' folder
 TESTS_FOLDER = Path(__file__).parent
@@ -489,13 +486,16 @@ def seed_nobrade_levels(db_session):
 @pytest.fixture
 def reference_vocabulary(db_session):
     """
-    Sows the collection vocabulary the migration seeds, from the seed mirror in the domain.
+    Sows the reference collection's vocabulary, which the tests carry as fixture data.
 
-    The test schema is built by ``create_all``, which never runs a migration, so the catalogue is
-    empty unless a test puts rows in it. That is the honest behaviour and it is worth being explicit
-    about: an installation with no vocabulary refuses nothing, so a test that asserts the guard
-    refuses ``jaime lerner`` has to declare that the collection carries the name — exactly like the
-    migration does for the reference collection.
+    The catalogue belongs to the installation and is not in ``src/`` any more — a fresh install starts
+    empty — but the tests are a different matter: they were written against this collection, spelling
+    by spelling, and the guard is only proven to cover what it was written for if the names it refuses
+    are the real ones. ``testing/reference_vocabulary.py`` holds them and says so.
+
+    The test schema is built by ``create_all``, which never runs a migration, so the catalogue is empty
+    unless a test puts rows in it — exactly like a fresh installation. A test that asserts the guard
+    refuses ``jaime lerner`` therefore has to declare that the collection carries the name.
 
     Returns the value object the guard consumes, so a unit test can hand it over directly without a
     round trip through the repository.

@@ -13,7 +13,7 @@ from types import ModuleType
 
 import pytest
 
-from scrinalia.domains.archive.domain.collection_vocabulary import COLLECTION_TERMS, vocabulary_from_rows
+from scrinalia.domains.archive.domain.collection_vocabulary import vocabulary_from_rows
 from scrinalia.domains.archive.domain.vocabulary import (
     RETIRED_CATEGORIES,
     SUBJECT_CATEGORIES,
@@ -27,10 +27,12 @@ from scrinalia.domains.archive.domain.vocabulary import (
     is_year,
     subject_exclusion_signal,
 )
+from testing.reference_vocabulary import COLLECTION_TERMS
 
-#: The vocabulary of the reference collection, built from the seed mirror. The two families the
-#: *collection* owns — the toponyms and the person names — are rows now, so the guard has to be
-#: handed them; the three the *language* owns it reads from the profile on its own.
+#: The vocabulary of the reference collection, carried as fixture data (``testing/reference_vocabulary``
+#: explains why it is not in ``src/``). The two families the *collection* owns — the toponyms and the
+#: person names — are rows now, so the guard has to be handed them; the three the *language* owns it
+#: reads from the profile on its own.
 REFERENCE = vocabulary_from_rows(list(COLLECTION_TERMS))
 
 #: The repository root, derived from this file (testing/unit/archive/domain/) so the test
