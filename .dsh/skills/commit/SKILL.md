@@ -58,6 +58,16 @@ Signed-off-by: CassioDalla <cassiodalla@hotmail.com>
   copyright of your contribution. There is no CLA.
 - `git commit -s` on every commit is the whole workflow. The flag also works with `--amend`, and
   `git rebase --signoff <base>` retro-fits a branch that was committed without it.
+- **The sign-off and a cryptographic signature are independent, and they combine.** A signature
+  (`commit.gpgsign=true`, SSH or GPG) rides in the commit *object header* and proves who created it;
+  the sign-off is a *trailer in the message* and states the right to submit it. One is checked by the
+  forge ("Verified"), the other by CI. With signing on, `git commit -s` writes both — never drop `-s`
+  because the commit is signed, nor the signature because it is signed off. On a machine that does
+  not sign by default: `git commit -s -S`.
+- **A rebase re-creates the commits, so a signature is not inherited.** `git rebase --signoff` leaves
+  the range signed *only* because git signs each new commit when `commit.gpgsign=true`; with signing
+  off and manual `-S`, the replay would silently drop the signatures. Check with
+  `git log --format='%G?' <range>` before force-pushing a rewritten branch.
 - CI checks the trailer on every commit of a pull request (the `dco` job in
   `.github/workflows/ci.yml`) and fails without it.
 - Never sign off on somebody else's behalf, and never hand-write somebody else's name and address

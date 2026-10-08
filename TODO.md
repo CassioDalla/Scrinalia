@@ -186,6 +186,14 @@ que funciona" de "um repo que estranhos podem auditar e usar".
       (`cyclonedx-bom`) e atesta a proveniência (`actions/attest-build-provenance`) **antes** de criar
       a tag e o release com `gh release create --target --generate-notes`. O primeiro release público
       é o `v1.0.0` (default do input).
+      - ⚠️ **A tag sai sem assinatura.** O `gh` cria a tag pela API do GitHub, não no seu clone, então
+        a regra "require signed commits" não a alcança. Se tag assinada importar, ou o workflow assina
+        localmente e faz push (e aí precisa de credencial no workflow, que foi evitado de propósito),
+        ou se aceita — a proveniência atesta os **artefatos**, não a tag.
+- [ ] **Assinatura de commit como regra.** As chaves já são usadas por padrão
+      (`commit.gpgsign=true`, formato SSH), então o ruleset da `main` pode ligar **Require signed
+      commits** além do DCO. São regras independentes: a assinatura prova quem criou o commit, o
+      trailer `Signed-off-by` declara o direito de submetê-lo, e o job `dco` confere o trailer.
 - [ ] **Badges** de licença e de CI no `README`.
 
 #### Fase 2 — repositório e comunidade
