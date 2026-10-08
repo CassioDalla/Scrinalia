@@ -40,3 +40,35 @@ with short or full shas, and part of a `## <date> — <title>` entry.
     no reactivation route although the screen says deactivating is reversible;
     `POST /taxonomy/tags/suggest-macro` writes nothing and declares `CURATE`; and the inbox's
     `IMPLEMENTED` set does not list `/entidades/conflitos` or `/qualidade/anomalias`, which exist.
+
+## 2026-10-08 — the CPU build of torch
+
+- **Range:** `4681067..b3db7e2`
+- **Pages:**
+  - `guides/install.md` — **updated**: the lockfile no longer carries the CUDA runtime. `torch` comes
+    from the CPU-only index now (measured: 3.46 GB → 0.66 GB, and 2.19 GB of the old lock were
+    `nvidia-*` packages), so the paragraph that justified `CUDA_VISIBLE_DEVICES=""` by the wheel was
+    no longer true: the variable covers the installation that re-locks for a GPU, and the routes to
+    CUDA that do not pass through torch. The "To use a GPU instead" list gained the re-lock as its
+    first step, because without it the GPU presets have no wheel to run on.
+  - `guides/install.pt.md` — **updated**: the same section, same structure.
+- **One front-matter decision in this change:** `pyproject.toml` joined the page's `sources:`. It is
+  where the index decision lives, and it was the one install-time fact the page did not track — which
+  is why the report had not been able to see the change coming. It is also why this entry's range
+  reaches back to `4681067`: the page was already stale against the dependency bumps the previous
+  round closed, and adding the source is what made it visible.
+
+## 2026-10-08 — the suite's own cost
+
+- **Range:** `b3db7e2..e8a7a61`
+- **Pages:**
+  - `guides/data-model.md` — **no-change**: the only thing the page takes from `testing/conftest.py`
+    is `archive_error_fingerprint`, mirrored into the test schema, and the story of a schema built by
+    `create_all` instead of Alembic. Neither moved. What moved is test infrastructure — the Litestar
+    application built once per session instead of once per test, and the argon2id cost lowered for
+    the suite — and the page does not describe either.
+- **A gap worth knowing, not a verdict:** `guides/install.md` and its translation also mention
+  `testing/conftest.py` (the sentence about the test schema not being built by Alembic), but they do
+  not declare it in `sources:`, so the report does not track it. Leaving it out is defensible — the
+  mention is incidental to an install guide — but it means that sentence can go stale in silence, and
+  this is the note that says so rather than a claim that the page is current.

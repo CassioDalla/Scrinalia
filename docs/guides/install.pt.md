@@ -230,25 +230,33 @@ ADR 0008 removeu uma camada acima. Uma implantação que queira outro nome o def
 
 ## CPU e GPU
 
-O `Procfile` sobe a API como `CUDA_VISIBLE_DEVICES="" uv run uvicorn main:app --reload`, e o estágio
-de runtime do `Dockerfile` define a mesma variável como `ENV`. O valor vazio esconde toda GPU do
-processo, o que faz duas coisas: a aplicação roda na CPU, e uma máquina sem o driver da NVIDIA não
-falha no boot. A variável existe porque a roda do `torch` que o lockfile fixa carrega todo o runtime
-CUDA mesmo com o processo rodando na CPU; o `Dockerfile` declara o motivo de esconder a GPU — uma
-máquina sem o driver não pode fazer o processo falhar na partida. A CPU é a forma que o processo
-embarcado assume, não uma limitação do código.
+A CPU é a forma que o processo embarcado assume, não uma limitação do código, e isso é garantido em
+dois lugares. O `pyproject.toml` aponta o `torch` para o **índice só-CPU do PyTorch**, então nenhum
+runtime CUDA chega a ser instalado; e o `Procfile` sobe a API como `CUDA_VISIBLE_DEVICES="" uv run
+uvicorn main:app --reload`, com o estágio de runtime do `Dockerfile` definindo a mesma variável como
+`ENV`, então o processo não enxerga GPU nem numa máquina que tenha uma.
 
-Para usar uma GPU em vez disso:
+O índice vale mais do que parece. Medido neste lock, a roda padrão resolve **3,46 GB**, dos quais
+**2,19 GB são pacotes `nvidia-*`** e 248 MB de `triton` — um runtime que um processo de CPU nunca
+executa, baixado e cacheado por toda instalação e pela CI. Com o índice de CPU o mesmo lock resolve
+**0,66 GB**. A variável cobre o outro sentido: impede que uma instalação re-lockada com CUDA falhe numa
+máquina sem o driver da NVIDIA, e esconde a GPU das partes da pilha que chegam ao CUDA por outro
+caminho (o `spaCy` só chega a uma pelo `cupy`, o extra `spacy[gpu]`, que este projeto não declara).
 
-1. Não defina `CUDA_VISIBLE_DEVICES=""` para o processo; suba-o sem a variável, ou nomeie o
+Para usar uma GPU em vez disso, a roda precisa estar lá primeiro:
+
+1. Remova a linha `torch = { index = "pytorch-cpu" }` e o bloco `[[tool.uv.index]]` do `pytorch-cpu`
+   do `pyproject.toml`, e rode `uv lock && uv sync`. A roda padrão do PyPI carrega o runtime CUDA no
+   Linux e no Windows; o macOS mantém a build dele de qualquer jeito.
+2. Não defina `CUDA_VISIBLE_DEVICES=""` para o processo; suba-o sem a variável, ou nomeie o
    dispositivo desejado (`CUDA_VISIBLE_DEVICES=0`).
-2. Escolha uma configuração que use a GPU. O motor de tipologia (usado também pelo worker de
+3. Escolha uma configuração que use a GPU. O motor de tipologia (usado também pelo worker de
    macro-categoria) tem o preset `gpu_cloud` com `device: "cuda"`; o preset padrão do NER já é `gpu`,
    que chama `spacy.prefer_gpu()` — note que o spaCy só chega à GPU pelo runtime CUDA dele
    (`cupy`, o extra `spacy[gpu]`), que este projeto não declara, então instale-o à parte se quiser as
    entidades na GPU; o motor de embeddings tem um único preset, `multilingual_minilm`, em
    `device: "cpu"`, e aceita override.
-3. Rode pelo runner unificado, que encaminha `--option key=value` ao worker e daí à fábrica do
+4. Rode pelo runner unificado, que encaminha `--option key=value` ao worker e daí à fábrica do
    motor:
 
 ```bash

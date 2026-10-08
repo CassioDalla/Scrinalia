@@ -70,6 +70,9 @@ Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).
 - Type check: `uv run basedpyright` (scope and strictness in **`pyrightconfig.json`**, not in a `[tool.*]` section — it checks `src/scrinalia`, `main.py`, `testing` and `docs/_hooks`, and excludes `migrations/` and `Data/`). The file is the one place the editor and the gate both read: Pylance ignores `[tool.basedpyright]`, and a `[tool.pyright]` section makes basedpyright ignore *its own* section and drop to its defaults (measured: 661 errors). Do not move it into `pyproject.toml`.
 - Pre-commit hooks (ruff lint/format + basedpyright): `uv run pre-commit install` once per clone; run manually with `uv run pre-commit run --all-files`.
 
+## Branches
+- **`dev` is the integration branch and `main` is the release branch.** A change lands in `dev` through a pull request, and `main` only moves at a release (`dev` → `main`) — the release itself is the manual `Release` workflow, never a side effect of a merge. Dependabot's version updates carry `target-branch: dev`; security updates always use the default branch. `CONTRIBUTING.md` has the flow.
+
 ## Language
 - Everything in code is **English**: filenames, identifiers, comments, docstrings, log messages, Pydantic `Field` descriptions and internal errors.
 - Portuguese is allowed **only for end-user-visible text**: curator UI strings (the React SPA), API response `message` values, and exception messages that the API forwards to users (`DomainException` subclasses).

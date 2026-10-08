@@ -124,6 +124,15 @@ jobs:
           fi
           status=0
           for sha in $(git rev-list HEAD^1..HEAD^2); do
+            # A merge commit the forge created is committed by ``GitHub <noreply@github.com>``: it has
+            # no author to certify — the trailer is the *author's* statement — and the commits it
+            # brings were each checked in their own pull request. Without this, a ``dev`` -> ``main``
+            # pull request can never pass: every PR merged into ``dev`` leaves one of these behind.
+            # The test is on the committer and not on "is a merge", so a merge somebody resolved by
+            # hand still has to be signed off.
+            if [ "$(git log -1 --format='%cE' "$sha")" = "noreply@github.com" ]; then
+              continue
+            fi
             if ! git log -1 --format='%(trailers:key=Signed-off-by,valueonly)' "$sha" | grep -q .; then
               echo "::error::$sha has no Signed-off-by trailer. Amend it with: git commit -s --amend"
               status=1
