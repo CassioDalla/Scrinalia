@@ -38,18 +38,18 @@ def nobrade(db_session, seed_nobrade_levels):
 
 
 def _assert_invariant(db_session) -> None:
-    """Every node's path equals its parent's plus its own id, and a root's is its own id."""
-    broken = db_session.execute(
-        text(
-            """
-            SELECT d.description_id, d.path
-              FROM archive_documents d
-              LEFT JOIN archive_documents p ON p.description_id = d.parent_id
-             WHERE d.path <> coalesce(p.path || '.', '') || d.description_id
-            """
-        )
-    ).all()
-    assert broken == []
+    """
+    Every node's path equals its parent's plus its own id, and a root's is its own id.
+
+    Asserted through ``find_path_divergences`` — the very query the ``PATH_DIVERGENCE`` diagnostic
+    serves — and not through a second SQL string written here. The invariant is denormalised, so the
+    only thing that keeps it true is that every writer maintains it; a test that re-implements the
+    comparison would keep passing while the shipped check drifted, and the health panel would be the
+    one place nobody looked. This is the automatic verification of the invariant in CI: the writers
+    are exercised below and the shipped check is asked, on a healthy tree, for its empty answer.
+    """
+    items, total = HierarchyRepository(db_session).find_path_divergences(limit=10, offset=0)
+    assert (items, total) == ([], 0)
 
 
 class TestTheMaterialisedPath:
@@ -321,6 +321,32 @@ class TestDiagnostics:
 
         page = hierarchy.diagnostics(str(HierarchyIssue.DOSSIER_WITHOUT_PARENT), limit=10, offset=0)
         assert [item.description_id for item in page.items] == ["orphan-2"]
+
+    def test_a_healthy_tree_reports_no_divergence(self, db_session, hierarchy, nobrade):
+        """
+        The empty answer of the shipped check, on a tree the writers built.
+
+        The pair with the test below is the point: one proves the diagnostic *can* answer "nothing
+        wrong" — including the early return that skips the evidence query — and the other proves the
+        same query is not blind. Without this half, a diagnostic that always returned zero would look
+        green, and the invariant would be verified by nothing.
+        """
+        root = hierarchy.create_node(
+            CreateHierarchyNodeCommand(reference_code="BR PRADAP", title="Acervo", level_id=nobrade["acervo"].level_id)
+        )
+        hierarchy.create_node(
+            CreateHierarchyNodeCommand(
+                reference_code="BR PRADAP SMU",
+                title="SMU",
+                level_id=nobrade["fundo"].level_id,
+                parent_id=root.description_id,
+            )
+        )
+
+        page = hierarchy.diagnostics(str(HierarchyIssue.PATH_DIVERGENCE), limit=10, offset=0)
+
+        assert (page.items, page.total) == ([], 0)
+        assert hierarchy.diagnostic_summary().counts[str(HierarchyIssue.PATH_DIVERGENCE)] == 0
 
     def test_a_broken_path_is_found(self, db_session, hierarchy, nobrade):
         """The invariant is queried, not trusted: 'should always be empty' is a claim to falsify."""

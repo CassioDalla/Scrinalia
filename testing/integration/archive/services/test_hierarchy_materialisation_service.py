@@ -13,7 +13,7 @@ they are the whole reason the plan catalogue exists.
 """
 
 import pytest
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 
 from scrinalia.core.author import Author
 from scrinalia.domains.archive.domain.hierarchy import PlanStatus, plan_flag_vocabulary
@@ -118,17 +118,17 @@ def _full_decisions() -> dict[str, tuple[str, str, str | None]]:
 
 
 def _assert_invariant(db_session) -> None:
-    broken = db_session.execute(
-        text(
-            """
-            SELECT d.description_id
-              FROM archive_documents d
-              LEFT JOIN archive_documents p ON p.description_id = d.parent_id
-             WHERE d.path <> coalesce(p.path || '.', '') || d.description_id
-            """
-        )
-    ).all()
-    assert broken == []
+    """
+    The materialised path still equals the parent's plus the id, after the apply and after the undo.
+
+    Asked through ``find_path_divergences`` — the query the ``PATH_DIVERGENCE`` diagnostic serves —
+    so the invariant is verified by the shipped check and not by a copy of it written in the test.
+    Materialisation is the writer with the most moving parts (a group attached per rung, an undo that
+    restores ``parent_id`` and ``path`` together), and this is the CI's automatic verification that
+    none of those paths drifted.
+    """
+    items, total = HierarchyRepository(db_session).find_path_divergences(limit=10, offset=0)
+    assert (items, total) == ([], 0)
 
 
 class TestTheCatalogueOfDecisions:
