@@ -23,6 +23,14 @@ concurrency:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
+    # Code scanning needs a public repository, or GitHub Advanced Security on a private one. Without
+    # either, the analysis runs to completion and the **upload** is refused, so the job goes red for a
+    # reason that has nothing to do with the code. The condition is written ``!= true`` and not
+    # ``== false`` on purpose: a payload without the field (a scheduled run, if GitHub ever stops
+    # sending it) **runs** the scan, so the weekly check can never be lost in silence — it would fail
+    # loudly instead. Until the repository is public, ``gitleaks`` and the dependency audit are the
+    # security gates, and both run.
+    if: github.event.repository.private != true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
