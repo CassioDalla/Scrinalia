@@ -60,7 +60,9 @@ def test_trigger_queues_the_run_with_its_resolved_config(service, runtime, db_se
     worker_name, run_id, _resolved = runtime.calls[0]
     assert (worker_name, run_id) == ("ner", run.run_id)
     # The row is already committed when the executor is handed the id.
-    assert WorkerRunRepository(db_session).get(run.run_id).status == WorkerRunStatus.QUEUED
+    queued_row = WorkerRunRepository(db_session).get(run.run_id)
+    assert queued_row is not None
+    assert queued_row.status == WorkerRunStatus.QUEUED
 
 
 def test_trigger_honours_the_persisted_override(service, db_session) -> None:
@@ -117,9 +119,13 @@ def test_recover_orphans_closes_the_runs_a_dead_process_left(db_session) -> None
 
     assert repository.recover_orphans() == 2
 
-    assert repository.get(queued.run_id).status == WorkerRunStatus.INTERRUPTED
-    assert repository.get(running.run_id).status == WorkerRunStatus.INTERRUPTED
-    assert "processo anterior" in (repository.get(running.run_id).error or "")
+    recovered_queued = repository.get(queued.run_id)
+    assert recovered_queued is not None
+    assert recovered_queued.status == WorkerRunStatus.INTERRUPTED
+    recovered_running = repository.get(running.run_id)
+    assert recovered_running is not None
+    assert recovered_running.status == WorkerRunStatus.INTERRUPTED
+    assert "processo anterior" in (recovered_running.error or "")
 
 
 def test_the_runner_records_a_successful_run(db_session, ledger, monkeypatch) -> None:

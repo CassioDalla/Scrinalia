@@ -1,3 +1,5 @@
+from typing import Literal
+
 import pytest
 from pytest_mock import MockerFixture
 
@@ -432,7 +434,12 @@ def test_suggest_merges_rejects_an_out_of_range_threshold(mocker: MockerFixture)
 
 
 def _proposal(
-    proposal_id: int, *, status: str, canonical_id: int, canonical_name: str, members: list
+    proposal_id: int,
+    *,
+    status: Literal["SUGGESTED", "APPROVED", "REJECTED", "APPLIED"],
+    canonical_id: int,
+    canonical_name: str,
+    members: list,
 ) -> TagMergeProposalDTO:
     return TagMergeProposalDTO(
         proposal_id=proposal_id,

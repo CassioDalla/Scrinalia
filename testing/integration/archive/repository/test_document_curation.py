@@ -129,6 +129,7 @@ def test_update_review_marks_the_document_human_approved(db_session, generate_ar
             description_id="edit-6", final_title="Título do arquivista", changed_by=Author(name="ana")
         )
     )
+    assert summary is not None
 
     assert summary.review_status == "HUMAN_APPROVED"
 
@@ -155,6 +156,7 @@ def test_a_changed_catalogue_key_re_reads_the_derived_name(
             changed_by=Author(name="ana"),
         )
     )
+    assert summary is not None
 
     assert summary.level == "Item Documental"
     assert summary.typology == "Ata de Reunião"
@@ -184,6 +186,7 @@ def test_suggested_final_title_strips_the_approved_template(db_session, generate
     _title_template(db_session)
 
     summary = DocumentRepository(db_session).get_by_id("title-1")
+    assert summary is not None
 
     assert summary.suggested_final_title == "Rua Izaac Ferreira"
     assert summary.original_title == "Registros Fotográficos - Rua Izaac Ferreira"
@@ -192,7 +195,10 @@ def test_suggested_final_title_strips_the_approved_template(db_session, generate
 def test_suggested_final_title_needs_an_approved_template(db_session, generate_archive_doc) -> None:
     generate_archive_doc(description_id="title-2", original_title="Registros Fotográficos - Rua Izaac")
 
-    assert DocumentRepository(db_session).get_by_id("title-2").suggested_final_title is None
+    summary = DocumentRepository(db_session).get_by_id("title-2")
+    assert summary is not None
+
+    assert summary.suggested_final_title is None
 
 
 def test_a_pending_title_excerpt_is_not_applied(db_session, generate_archive_doc) -> None:
@@ -202,7 +208,10 @@ def test_a_pending_title_excerpt_is_not_applied(db_session, generate_archive_doc
     repository.update_template(template.template_id, TemplateUpdateCommand(status="SUGGESTED", is_active=False))
     db_session.flush()
 
-    assert DocumentRepository(db_session).get_by_id("title-3").suggested_final_title is None
+    summary = DocumentRepository(db_session).get_by_id("title-3")
+    assert summary is not None
+
+    assert summary.suggested_final_title is None
 
 
 def test_suggested_final_title_disappears_once_the_human_decides(db_session, generate_archive_doc) -> None:
@@ -212,6 +221,7 @@ def test_suggested_final_title_disappears_once_the_human_decides(db_session, gen
     summary = DocumentRepository(db_session).update_review(
         DocumentReviewCommand(description_id="title-4", final_title="Rua Izaac", changed_by=Author(name="ana"))
     )
+    assert summary is not None
 
     assert summary.final_title == "Rua Izaac"
     assert summary.suggested_final_title is None
@@ -225,7 +235,10 @@ def test_a_general_excerpt_does_not_become_a_title_suggestion(db_session, genera
     )
     db_session.flush()
 
-    assert DocumentRepository(db_session).get_by_id("title-5").suggested_final_title is None
+    summary = DocumentRepository(db_session).get_by_id("title-5")
+    assert summary is not None
+
+    assert summary.suggested_final_title is None
 
 
 # ==========================================

@@ -438,7 +438,9 @@ def test_upsert_merge_proposals_never_overwrites_a_human_decision(use_test_db, d
     assert decided.decided_at is not None
 
     assert repo.upsert_merge_proposals([suggestion]) == 0
-    assert repo.get_merge_proposal(proposal_id).status == "REJECTED"
+    stored = repo.get_merge_proposal(proposal_id)
+    assert stored is not None
+    assert stored.status == "REJECTED"
 
 
 def test_merge_proposals_flag_the_number_bearing_members(use_test_db, db_session):

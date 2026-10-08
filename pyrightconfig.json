@@ -10,14 +10,17 @@
   // ``pyrightconfig.json`` is the one file both tools honour, so the editor and the gate cannot drift
   // apart; an editor that reports what CI never checks is what teaches people to ignore red.
   //
-  // ``extraPaths`` is the other half: ``from testing.conftest import ...`` resolves because pytest
-  // puts the repository root on the path and a type checker does not. It clears five
-  // ``reportMissingImports`` the moment the test suite is brought into scope — which is the
-  // tightening path ``TODO.md`` records, together with what it still costs.
+  // ``testing`` is in scope on purpose. It was out while the suite carried 47 diagnostics, and
+  // clearing them paid for itself: a diagnostic of exactly that kind is what found
+  // ``testing/evaluation/hierarchy_proposal.py`` broken — a script the suite does not cover, so
+  // nothing else would have. The baseline stays ``basic``: this is a gate, not a style contest.
+  //
+  // ``extraPaths`` is what makes ``from testing.conftest import ...`` resolvable: the tests import the
+  // suite as a package rooted at the repository, which pytest arranges and a type checker does not.
   "typeCheckingMode": "basic",
   "pythonVersion": "3.12",
-  "include": ["src/scrinalia", "main.py"],
-  "exclude": ["**/__pycache__", ".venv", "migrations", "testing", "Data"],
+  "include": ["src/scrinalia", "main.py", "testing"],
+  "exclude": ["**/__pycache__", ".venv", "migrations", "Data"],
   "reportMissingTypeStubs": false,
   "extraPaths": ["."]
 }

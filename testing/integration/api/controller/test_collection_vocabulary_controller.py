@@ -20,6 +20,7 @@ from scrinalia.domains.archive.exceptions import (
     DuplicateArrangementTermError,
     DuplicateCollectionTermError,
 )
+from scrinalia.domains.archive.models.enums import CollectionTermKind
 from scrinalia.domains.archive.schemas.collection_vocabulary_schema import (
     ArrangementTermDTO,
     CollectionTermDTO,
@@ -31,8 +32,17 @@ from scrinalia.domains.archive.services.collection_vocabulary_service import Col
 def _response() -> CollectionVocabularyResponse:
     return CollectionVocabularyResponse(
         arrangement_terms=[ArrangementTermDTO(term_id=1, token="SMU", display_name="SMU - Urbanismo", is_active=True)],
-        collection_terms=[CollectionTermDTO(term_id=2, term="centro", kind="DISTRICT", is_active=True, tag_count=4)],
-        kinds=["DISTRICT", "MUNICIPALITY", "STATE", "REGION", "COUNTRY", "PERSON"],
+        collection_terms=[
+            CollectionTermDTO(term_id=2, term="centro", kind=CollectionTermKind.DISTRICT, is_active=True, tag_count=4)
+        ],
+        kinds=[
+            CollectionTermKind.DISTRICT,
+            CollectionTermKind.MUNICIPALITY,
+            CollectionTermKind.STATE,
+            CollectionTermKind.REGION,
+            CollectionTermKind.COUNTRY,
+            CollectionTermKind.PERSON,
+        ],
     )
 
 

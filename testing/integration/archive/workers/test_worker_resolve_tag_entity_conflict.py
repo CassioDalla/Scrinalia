@@ -5,7 +5,7 @@ own logic: when it auto-resolves, when it defers to a human, and how it protects
 itself against reprocessing the same pair.
 """
 
-from unittest.mock import MagicMock
+from typing import Literal
 
 from sqlalchemy import select
 
@@ -32,7 +32,9 @@ def _conflict(tag_id: int = 1, entity_id: int = 10) -> CrossDomainConflict:
     )
 
 
-def _decision(winner: str = "ENTITY", confidence: float = 0.95, reason: str = "Regra 1: nome de lugar") -> MagicMock:
+def _decision(
+    winner: Literal["TAG", "ENTITY"] = "ENTITY", confidence: float = 0.95, reason: str = "Regra 1: nome de lugar"
+) -> EntityTagDecisionSchema:
     return EntityTagDecisionSchema(winner=winner, confidence=confidence, reason=reason)
 
 
@@ -111,7 +113,9 @@ def test_database_failure_during_resolution_falls_back_to_human(db_session, mock
     entries = _queue_entries(db_session)
     assert len(entries) == 1
     assert entries[0].status == ArchiveReviewStatus.NEEDS_REVIEW
-    assert "FALHA NO BANCO" in entries[0].llm_reason
+    llm_reason = entries[0].llm_reason
+    assert llm_reason is not None
+    assert "FALHA NO BANCO" in llm_reason
 
 
 def test_engine_failure_aborts_before_scanning(db_session, mocker, mock_registry):

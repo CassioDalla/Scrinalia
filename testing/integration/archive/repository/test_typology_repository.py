@@ -78,4 +78,6 @@ def test_retiring_a_typology_takes_it_out_of_the_labels_and_keeps_the_descriptio
 
     # The weight of the retired one is still visible, which is what makes retiring a trade.
     assert repo.document_counts() == {retired.typology_id: 1}
-    assert repo.get(retired.typology_id).name == "Dossiê Funcional"
+    retired_typology = repo.get(retired.typology_id)
+    assert retired_typology is not None
+    assert retired_typology.name == "Dossiê Funcional"

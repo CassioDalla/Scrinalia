@@ -12,6 +12,7 @@ from scrinalia.core import config as core_config
 from scrinalia.domains.archive.engines.classification import registry as classification_registry
 from scrinalia.domains.archive.engines.embeddings import registry as embeddings_registry
 from scrinalia.domains.archive.engines.LLMs import registry as llm_registry
+from scrinalia.domains.archive.engines.LLMs.ollama_tag_entity_conflict import OllamaJudgeEngine
 from scrinalia.domains.archive.engines.NER import registry as ner_registry
 from scrinalia.domains.archive.engines.title_quality import registry as title_registry
 
@@ -102,6 +103,10 @@ def test_llm_host_comes_from_the_environment(monkeypatch) -> None:
         )
 
     engine = llm_registry.get_engine("ollama_judge", preset="granite_local")
+    # ``host`` belongs to the Ollama engine, not to ``ResolveTagEntityConflictEngine`` — that Protocol
+    # is about deciding a conflict, and a future engine backed by something else would have no host to
+    # declare. Narrowing here is what keeps the assertion about the engine it is actually about.
+    assert isinstance(engine, OllamaJudgeEngine)
     assert engine.host == "http://ollama.interno:11434/api/generate"
 
 

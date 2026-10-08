@@ -80,7 +80,12 @@ def collection(db_session, nobrade, generate_archive_doc):
     return db_session
 
 
-def _approve(service, nobrade, decisions: dict[str, tuple[str, str, str | None]], status_by_default: str = "REJECTED"):
+def _approve(
+    service,
+    nobrade,
+    decisions: dict[str, tuple[str, str, str | None]],
+    status_by_default: PlanStatus = PlanStatus.REJECTED,
+):
     """Approves the rungs named in ``decisions`` and applies the default verdict to the rest."""
     for plan in service.list_plans(status=None, limit=200, offset=0).items:
         if plan.code in decisions:
@@ -88,7 +93,7 @@ def _approve(service, nobrade, decisions: dict[str, tuple[str, str, str | None]]
             service.decide(
                 plan.plan_id,
                 HierarchyPlanDecisionCommand(
-                    status="APPROVED",
+                    status=PlanStatus.APPROVED,
                     level_id=nobrade[level_code].level_id,
                     title=title,
                     collapse_into_code=collapse,
@@ -171,9 +176,11 @@ class TestTheCatalogueOfDecisions:
         assert total[str(PlanStatus.APPROVED)] == 0
 
         plan = next(p for p in service.list_plans(None, 200, 0).items if p.code == "BR PRADAP SMU")
-        service.decide(plan.plan_id, HierarchyPlanDecisionCommand(status="APPROVED", decided_by=Author(name="ana")))
+        service.decide(
+            plan.plan_id, HierarchyPlanDecisionCommand(status=PlanStatus.APPROVED, decided_by=Author(name="ana"))
+        )
 
-        after = service.list_plans(status="APPROVED", limit=1, offset=0).status_counts
+        after = service.list_plans(status=PlanStatus.APPROVED, limit=1, offset=0).status_counts
         assert after[str(PlanStatus.APPROVED)] == 1
         assert after[str(PlanStatus.SUGGESTED)] == total[str(PlanStatus.SUGGESTED)] - 1
         assert sum(after.values()) == sum(total.values())
@@ -188,7 +195,10 @@ class TestTheCatalogueOfDecisions:
         service.decide(
             plan.plan_id,
             HierarchyPlanDecisionCommand(
-                status="APPROVED", level_id=nobrade["fundo"].level_id, title="Meu título", decided_by=Author(name="ana")
+                status=PlanStatus.APPROVED,
+                level_id=nobrade["fundo"].level_id,
+                title="Meu título",
+                decided_by=Author(name="ana"),
             ),
         )
 
@@ -207,7 +217,7 @@ class TestTheCatalogueOfDecisions:
         assert plan.level_id is not None  # the proposal already carries the inferred rung
 
         decided = service.decide(
-            plan.plan_id, HierarchyPlanDecisionCommand(status="APPROVED", decided_by=Author(name="ana"))
+            plan.plan_id, HierarchyPlanDecisionCommand(status=PlanStatus.APPROVED, decided_by=Author(name="ana"))
         )
 
         assert decided.status == "APPROVED"
@@ -223,11 +233,13 @@ class TestTheCatalogueOfDecisions:
         db_session.flush()
 
         with pytest.raises(InvalidHierarchyPlanError, match="nível de descrição"):
-            service.decide(plan.plan_id, HierarchyPlanDecisionCommand(status="APPROVED", decided_by=Author(name="ana")))
+            service.decide(
+                plan.plan_id, HierarchyPlanDecisionCommand(status=PlanStatus.APPROVED, decided_by=Author(name="ana"))
+            )
 
     def test_an_unknown_plan_is_a_not_found(self, service):
         with pytest.raises(HierarchyPlanNotFoundError):
-            service.decide(99999, HierarchyPlanDecisionCommand(status="APPROVED"))
+            service.decide(99999, HierarchyPlanDecisionCommand(status=PlanStatus.APPROVED))
 
     def test_an_unknown_level_is_refused(self, service, collection):
         service.suggest()
@@ -235,7 +247,7 @@ class TestTheCatalogueOfDecisions:
         with pytest.raises(DescriptionLevelNotFoundError):
             service.decide(
                 plan.plan_id,
-                HierarchyPlanDecisionCommand(status="APPROVED", level_id=99999, decided_by=Author(name="ana")),
+                HierarchyPlanDecisionCommand(status=PlanStatus.APPROVED, level_id=99999, decided_by=Author(name="ana")),
             )
 
     def test_collapsing_onto_an_unknown_code_is_refused(self, service, collection, nobrade):
@@ -245,7 +257,7 @@ class TestTheCatalogueOfDecisions:
             service.decide(
                 plan.plan_id,
                 HierarchyPlanDecisionCommand(
-                    status="APPROVED", level_id=nobrade["serie"].level_id, collapse_into_code="BR INVENTADO"
+                    status=PlanStatus.APPROVED, level_id=nobrade["serie"].level_id, collapse_into_code="BR INVENTADO"
                 ),
             )
 
@@ -256,7 +268,7 @@ class TestTheCatalogueOfDecisions:
             service.decide(
                 plan.plan_id,
                 HierarchyPlanDecisionCommand(
-                    status="APPROVED", level_id=nobrade["serie"].level_id, collapse_into_code=plan.code
+                    status=PlanStatus.APPROVED, level_id=nobrade["serie"].level_id, collapse_into_code=plan.code
                 ),
             )
 
@@ -266,12 +278,14 @@ class TestTheCatalogueOfDecisions:
         level_id = nobrade["serie"].level_id
         service.decide(
             first.plan_id,
-            HierarchyPlanDecisionCommand(status="APPROVED", level_id=level_id, collapse_into_code=second.code),
+            HierarchyPlanDecisionCommand(status=PlanStatus.APPROVED, level_id=level_id, collapse_into_code=second.code),
         )
         with pytest.raises(InvalidHierarchyPlanError, match="ciclo"):
             service.decide(
                 second.plan_id,
-                HierarchyPlanDecisionCommand(status="APPROVED", level_id=level_id, collapse_into_code=first.code),
+                HierarchyPlanDecisionCommand(
+                    status=PlanStatus.APPROVED, level_id=level_id, collapse_into_code=first.code
+                ),
             )
 
 

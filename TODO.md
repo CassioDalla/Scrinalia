@@ -196,9 +196,9 @@ que funciona" de "um repo que estranhos podem auditar e usar".
       trailer `Signed-off-by` declara o direito de submetê-lo, e o job `dco` confere o trailer.
 - [x] **Badges** de licença e de CI no `README`. O de licença é estático e diz o que a licença é —
       `AGPL-3.0-only` **mais** a atribuição da seção 7(b) —, não só o identificador SPDX. O de CI
-      aponta para **`dev`**: o `main` ainda não tem `.github/workflows/`, então um badge nele leria
-      "no status" mesmo depois de público. **Trocar para `main`** (ou tirar o `?branch=`) depois do
-      merge do `dev`.
+      aponta para **`main`**, o branch default: ele lê "no status" até o `dev` ser mergeado (o `main`
+      ainda não tem `.github/workflows/`), o que é honesto e mais barato do que um badge seguindo um
+      branch que ninguém olha.
       - Observação: o badge de CI só renderiza para terceiros **depois** do repositório virar público
         (em repo privado o endpoint exige autenticação).
 - [x] **Editor e gate com a mesma régua.** O Pylance não conhece `[tool.basedpyright]` e caía no
@@ -206,13 +206,14 @@ que funciona" de "um repo que estranhos podem auditar e usar".
       CI nunca checou. A régua virou **um arquivo só**, `pyrightconfig.json`, que os **dois** leem.
       Armadilha medida: um bloco `[tool.pyright]` no `pyproject.toml` faz o basedpyright ignorar a
       própria seção e cair em `recommended` sobre tudo — **661 erros onde havia zero**. Não mover.
-- [ ] **Apertar: incluir `testing/` no type check.** Custa **47 diagnósticos** (medidos em `standard`;
-      em `basic`, que é a régua atual, são menos), todos de rigor em código de teste e nenhum bug:
-      `Literal['APPROVED']` onde o campo declara `PlanStatus` (StrEnum, então o runtime tolera),
-      `scalar_one_or_none()` desreferenciado sem `assert x is not None`, e o fixture `session_factory`.
-      Já resolvido no caminho: `extraPaths` (5 imports) e o bug real que apareceu na triagem
-      (`testing/evaluation/hierarchy_proposal.py`). Vale porque foi um erro **desse tipo** que
-      encontrou um script quebrado que a suíte não cobre.
+- [x] **`testing/` dentro do type check.** Os 47 diagnósticos foram zerados e a suíte entrou no
+      escopo do gate (330 arquivos, `basic`, 0 erros e 0 avisos). **Dois deles eram imprecisão na
+      fonte, não no teste:** o `Protocol` `SessionContext` declarava `__exit__` com parâmetros `Any` e
+      não *positional-only*, o que rejeitava todo `@contextmanager` do projeto; e
+      `test_describe_config` olhava `engine.host` através de `ResolveTagEntityConflictEngine`, um
+      Protocol que só promete `decide_conflict` — o atributo é do motor Ollama, e o teste agora diz
+      isso. O resto foi narrowing honesto (`assert x is not None`) e `PlanStatus.APPROVED` no lugar da
+      string que o `StrEnum` tolerava em runtime.
 
 #### Fase 2 — repositório e comunidade
 

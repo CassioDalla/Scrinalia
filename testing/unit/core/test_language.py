@@ -66,7 +66,9 @@ def test_the_date_parser_reads_the_profiles_spelling(monkeypatch: pytest.MonkeyP
     )
     monkeypatch.setattr("scrinalia.domains.staging.dates.get_language", lambda: fake)
 
-    assert parse_document_date("2024/03/05").isoformat() == "2024-03-05"
+    parsed = parse_document_date("2024/03/05")
+    assert parsed is not None
+    assert parsed.isoformat() == "2024-03-05"
 
 
 def test_the_empty_values_are_the_profiles_word(monkeypatch: pytest.MonkeyPatch) -> None:

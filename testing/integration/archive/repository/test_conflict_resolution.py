@@ -139,6 +139,7 @@ def test_undo_restores_the_loser_its_id_and_only_the_links_it_created(use_test_d
     data = repo.apply_conflict_resolution(plan, "TAG", source="HUMAN", decided_by=Author(name="ana"))
     db_session.flush()
 
+    assert data.resolution_id is not None
     entry = repo.undo_conflict_resolution(data.resolution_id, undone_by=Author(name="bruno"))
     db_session.flush()
 
@@ -191,6 +192,7 @@ def test_undo_does_not_lift_a_ban_it_did_not_plant(use_test_db, db_session, gene
 
     data = repo.apply_conflict_resolution(plan, "TAG", source="HUMAN")
     db_session.flush()
+    assert data.resolution_id is not None
     repo.undo_conflict_resolution(data.resolution_id)
     db_session.flush()
 
@@ -224,6 +226,7 @@ def test_entity_winning_bans_the_tag_in_the_subject_axis(use_test_db, db_session
     ).all()
     assert list(entity_links) == [doc.description_id]
 
+    assert data.resolution_id is not None
     entry = repo.undo_conflict_resolution(data.resolution_id)
     db_session.flush()
     assert entry.loser_restored is True
@@ -240,10 +243,12 @@ def test_the_undo_is_single_shot_and_an_unknown_id_is_404(use_test_db, db_sessio
 
     data = repo.apply_conflict_resolution(repo.plan_conflict_resolution(tag.tag_id, entity.entity_id), "TAG")
     db_session.flush()
+    assert data.resolution_id is not None
     repo.undo_conflict_resolution(data.resolution_id)
     db_session.flush()
 
     with pytest.raises(ConflictResolutionAlreadyUndoneError):
+        assert data.resolution_id is not None
         repo.undo_conflict_resolution(data.resolution_id)
 
     with pytest.raises(ConflictResolutionNotFoundError):
@@ -450,6 +455,7 @@ def test_an_active_resolution_leaves_the_live_scan_and_an_undone_one_comes_back(
     # The entity is gone, so the live scan has nothing to return for this pair.
     assert repo.page_cross_domain_conflicts(threshold=0.6).total == 0
 
+    assert data.resolution_id is not None
     repo.undo_conflict_resolution(data.resolution_id)
     db_session.flush()
 
@@ -487,6 +493,7 @@ def test_the_ledger_lists_what_was_written_and_can_filter_the_undone(use_test_db
     assert entry.decided_by == "juiz"
     assert entry.is_undone is False
 
+    assert data.resolution_id is not None
     repo.undo_conflict_resolution(data.resolution_id)
     db_session.flush()
 
