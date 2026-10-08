@@ -38,6 +38,8 @@ import {
   fetchSystemWorkers,
   fetchTagRelevance,
   fetchTextTemplates,
+  fetchUserSessions,
+  fetchUsers,
   fetchWorkerSettingsRevisions,
   type DocumentSearch,
   type ConflictPairKindFilter,
@@ -535,6 +537,36 @@ export const queries = {
       queryKey: ["system", "settings", "revisions", worker],
       queryFn: () =>
         fetchWorkerSettingsRevisions({ worker, limit: SETTINGS_REVISIONS_PAGE_SIZE }),
+      staleTime: 5_000,
+    }),
+
+  // --- The accounts of the installation (the ``Permission.ADMIN`` surface) --------------------
+
+  /**
+   * Every account, deactivated ones included.
+   *
+   * Kept fresh for 15 s: the screen is the one place where "who exists?" is answered, and it is the
+   * screen an administrator edits — but the edits invalidate it themselves, so a long stale window
+   * would only make a second administrator's change invisible.
+   */
+  users: () =>
+    queryOptions({
+      queryKey: ["identity", "users"],
+      queryFn: fetchUsers,
+      staleTime: 15_000,
+    }),
+
+  /**
+   * Where one account is signed in.
+   *
+   * Read when a row is expanded, so it is a query of its own and not part of the list: the list is
+   * about accounts, and pulling every session of every account into it would answer a question the
+   * screen only asks one row at a time.
+   */
+  userSessions: (userId: number) =>
+    queryOptions({
+      queryKey: ["identity", "users", userId, "sessions"],
+      queryFn: () => fetchUserSessions(userId),
       staleTime: 5_000,
     }),
 };

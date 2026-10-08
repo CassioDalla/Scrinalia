@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Feedback";
 import { ATTRIBUTION } from "@/lib/attribution";
 import { cn } from "@/lib/cn";
+import { can, ROLE_LABEL, type Permission } from "@/lib/permissions";
 
 import { AttributionFooter } from "./AttributionFooter";
 import { LoginForm } from "./LoginForm";
@@ -19,11 +20,15 @@ import { PasswordChangeForm } from "./PasswordChangeForm";
  * back-end refuses is worse than one that says "not yet". The public site (``apps/public``) is the
  * only part of the sitemap deliberately absent — it is a separate surface, with its own projection.
  *
- * The menu is the same for every role for now. Hiding what an account cannot do is the accounts
- * screen's job (cycle B9.2); until then a refusal answers 403 with a sentence, which is honest and
- * visible rather than a menu that quietly lies about what exists.
+ * ``permission`` is the area the screen's **work** needs, and the shell hides the entry when the
+ * account does not carry it (cycle B9.2). It is the write permission and not the read one, because
+ * reading is what an authenticated session is: the pure reads — the collection, the tree, the
+ * diagnostic — carry none and stay reachable by every role, while a screen whose purpose is to
+ * decide (curate a record, maintain a catalogue, run a worker, manage accounts) carries the area it
+ * writes to. A role that lacks it sees a shorter menu, not a button that answers 403; the 403
+ * remains the truth and is what a direct URL still gets.
  */
-type NavItem = { to: string; label: string; hint: string };
+type NavItem = { to: string; label: string; hint: string; permission?: Permission };
 
 const NAV: { section: string; items: NavItem[] }[] = [
   {
@@ -41,7 +46,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: "Arranjo",
     items: [
-      { to: "/arranjo/plano", label: "Plano de arranjo", hint: "Decidir os níveis" },
+      { to: "/arranjo/plano", label: "Plano de arranjo", hint: "Decidir os níveis", permission: "CURATE" },
       { to: "/arranjo/diagnostico", label: "Diagnóstico", hint: "Onde está incoerente" },
     ],
   },
@@ -54,52 +59,72 @@ const NAV: { section: string; items: NavItem[] }[] = [
     */
     section: "Catálogos",
     items: [
-      { to: "/arranjo/niveis", label: "Níveis de descrição", hint: "A escada NOBRADE" },
-      { to: "/arranjo/tipologias", label: "Tipologias", hint: "A forma diplomática" },
-      { to: "/vocabulario", label: "Vocabulário do acervo", hint: "Nomes e lugares deste acervo" },
+      { to: "/arranjo/niveis", label: "Níveis de descrição", hint: "A escada NOBRADE", permission: "CATALOGUE" },
+      { to: "/arranjo/tipologias", label: "Tipologias", hint: "A forma diplomática", permission: "CATALOGUE" },
+      {
+        to: "/vocabulario",
+        label: "Vocabulário do acervo",
+        hint: "Nomes e lugares deste acervo",
+        permission: "CATALOGUE",
+      },
     ],
   },
   {
     section: "Assuntos",
     items: [
-      { to: "/assuntos/tags", label: "Tags", hint: "Peso, duplicatas e merges" },
-      { to: "/assuntos/categorias", label: "Categorias", hint: "As gavetas de assunto" },
-      { to: "/assuntos/descobrir", label: "Descobrir gavetas", hint: "Clusters por tema" },
-      { to: "/assuntos/excecoes", label: "Não é assunto", hint: "O que a regra não pega" },
+      { to: "/assuntos/tags", label: "Tags", hint: "Peso, duplicatas e merges", permission: "CURATE" },
+      {
+        to: "/assuntos/categorias",
+        label: "Categorias",
+        hint: "As gavetas de assunto",
+        permission: "CATALOGUE",
+      },
+      { to: "/assuntos/descobrir", label: "Descobrir gavetas", hint: "Clusters por tema", permission: "CURATE" },
+      { to: "/assuntos/excecoes", label: "Não é assunto", hint: "O que a regra não pega", permission: "CURATE" },
     ],
   },
   {
     section: "Entidades",
     items: [
-      { to: "/entidades/lista", label: "Entidades", hint: "NER: peso, tipo e merge" },
-      { to: "/entidades/excecoes", label: "Exclusões de NER", hint: "Isto é assunto, não nome" },
-      { to: "/entidades/conflitos", label: "Conflitos", hint: "Assunto x nome próprio" },
+      { to: "/entidades/lista", label: "Entidades", hint: "NER: peso, tipo e merge", permission: "CURATE" },
+      { to: "/entidades/excecoes", label: "Exclusões de NER", hint: "Isto é assunto, não nome", permission: "CURATE" },
+      { to: "/entidades/conflitos", label: "Conflitos", hint: "Assunto x nome próprio", permission: "CURATE" },
     ],
   },
   {
     section: "Qualidade",
     items: [
-      { to: "/qualidade/trechos", label: "Trechos", hint: "Boilerplate e escopo" },
-      { to: "/qualidade/regras", label: "Regras", hint: "Reescrever ou sinalizar" },
-      { to: "/qualidade/anomalias", label: "Anomalias", hint: "O que o validador marcou" },
+      { to: "/qualidade/trechos", label: "Trechos", hint: "Boilerplate e escopo", permission: "CATALOGUE" },
+      { to: "/qualidade/regras", label: "Regras", hint: "Reescrever ou sinalizar", permission: "CATALOGUE" },
+      { to: "/qualidade/anomalias", label: "Anomalias", hint: "O que o validador marcou", permission: "CURATE" },
     ],
   },
   {
     section: "Sistema",
     items: [
-      { to: "/sistema/workers", label: "Workers de IA", hint: "Presets, filas e execução" },
-      { to: "/sistema/execucoes", label: "Execuções", hint: "O ledger do que rodou" },
-      { to: "/sistema/diagnostico", label: "Diagnóstico", hint: "Banco, modelos e storage" },
+      {
+        to: "/sistema/workers",
+        label: "Workers de IA",
+        hint: "Presets, filas e execução",
+        permission: "OPERATE",
+      },
+      { to: "/sistema/execucoes", label: "Execuções", hint: "O ledger do que rodou", permission: "OPERATE" },
+      { to: "/sistema/diagnostico", label: "Diagnóstico", hint: "Banco, modelos e storage", permission: "OPERATE" },
     ],
   },
+  {
+    /*
+      The installation's own settings, at the end and apart from "Sistema".
+      
+      "Sistema" is what the *machine* is doing (workers, runs, probes) and belongs to whoever
+      operates the installation; "Configurações" is what the installation *is* — the accounts first,
+      and later the worker settings that today live inside the panel. Both are administrative, and
+      neither is curation.
+    */
+    section: "Configurações",
+    items: [{ to: "/configuracoes/usuarios", label: "Usuários", hint: "Contas, papéis e sessões", permission: "ADMIN" }],
+  },
 ];
-
-/** How the role reads to the person holding it. */
-const ROLE_LABEL: Record<AuthUser["role"], string> = {
-  ADMIN: "Administrador",
-  CURATOR: "Curador",
-  VIEWER: "Leitor",
-};
 
 export function AppShell() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -148,34 +173,40 @@ export function AppShell() {
           <p className="text-xs text-(--color-muted)">Curadoria do acervo</p>
         </div>
         <nav className="flex-1 overflow-y-auto px-2 py-3">
-          {NAV.map((group) => (
-            <div key={group.section} className="mb-3">
-              <p className="px-2 pb-1 text-[11px] font-semibold tracking-wide text-(--color-muted) uppercase">
-                {group.section}
-              </p>
-              <ul>
-                {group.items.map((item) => {
-                  const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
-                  return (
-                    <li key={item.to}>
-                      <Link
-                        to={item.to}
-                        className={cn(
-                          "block rounded-md px-2 py-1.5 text-sm transition",
-                          active
-                            ? "bg-(--color-accent)/10 font-medium text-(--color-accent)"
-                            : "text-(--color-ink) hover:bg-black/[0.04]",
-                        )}
-                      >
-                        {item.label}
-                        <span className="block text-[11px] font-normal text-(--color-muted)">{item.hint}</span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
+          {NAV.map((group) => {
+            // A role sees the screens it can work in, plus every pure read. An empty group is not
+            // rendered at all: a heading over nothing is a menu that advertises what it hides.
+            const items = group.items.filter((item) => !item.permission || can(user.role, item.permission));
+            if (items.length === 0) return null;
+            return (
+              <div key={group.section} className="mb-3">
+                <p className="px-2 pb-1 text-[11px] font-semibold tracking-wide text-(--color-muted) uppercase">
+                  {group.section}
+                </p>
+                <ul>
+                  {items.map((item) => {
+                    const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
+                    return (
+                      <li key={item.to}>
+                        <Link
+                          to={item.to}
+                          className={cn(
+                            "block rounded-md px-2 py-1.5 text-sm transition",
+                            active
+                              ? "bg-(--color-accent)/10 font-medium text-(--color-accent)"
+                              : "text-(--color-ink) hover:bg-black/[0.04]",
+                          )}
+                        >
+                          {item.label}
+                          <span className="block text-[11px] font-normal text-(--color-muted)">{item.hint}</span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })}
         </nav>
 
         <SessionFooter

@@ -1397,3 +1397,77 @@ export async function changePassword(
     }),
   );
 }
+
+// --- The accounts of the installation (the ``Permission.ADMIN`` surface) ------------------------
+
+/**
+ * The accounts, typed from the contract.
+ *
+ * ``AuthSession`` is deliberately not the session the browser holds: the row identifies a sign-in by
+ * ``session_id`` and carries what lets somebody recognise it (agent, address, when). There is no
+ * token in it, so nothing here can be replayed.
+ */
+export type AuthSession = components["schemas"]["AuthSessionDTO"];
+export type CreateUserRequest = components["schemas"]["CreateUserCommand"];
+export type UpdateUserRequest = components["schemas"]["UpdateUserCommand"];
+export type SetPasswordRequest = components["schemas"]["SetPasswordCommand"];
+
+/** Every account, deactivated ones included: they are what explains why somebody cannot sign in. */
+export async function fetchUsers(): Promise<AuthUser[]> {
+  return unwrap<AuthUser[]>(await client.GET("/api/v1/users"));
+}
+
+/** Creates an account. The password is temporary: the account replaces it at the first sign-in. */
+export async function createUser(body: CreateUserRequest): Promise<AuthUser> {
+  return unwrap<AuthUser>(await client.POST("/api/v1/users", { body }));
+}
+
+/** Renames, re-roles or (de)activates an account. Deactivating ends its sessions immediately. */
+export async function updateUser(userId: number, body: UpdateUserRequest): Promise<AuthUser> {
+  return unwrap<AuthUser>(
+    await client.PATCH("/api/v1/users/{user_id}", {
+      params: { path: { user_id: userId } },
+      body,
+    }),
+  );
+}
+
+/** An administrator sets a password without knowing the old one; every session of the account ends. */
+export async function resetUserPassword(
+  userId: number,
+  body: SetPasswordRequest,
+): Promise<RouteResponse> {
+  return unwrap<RouteResponse>(
+    await client.POST("/api/v1/users/{user_id}/password", {
+      params: { path: { user_id: userId } },
+      body,
+    }),
+  );
+}
+
+/** Where an account is signed in, with the session making *this* request marked. */
+export async function fetchUserSessions(userId: number): Promise<AuthSession[]> {
+  return unwrap<AuthSession[]>(
+    await client.GET("/api/v1/users/{user_id}/sessions", {
+      params: { path: { user_id: userId } },
+    }),
+  );
+}
+
+/** Ends one session of one account. */
+export async function revokeUserSession(userId: number, sessionId: number): Promise<RouteResponse> {
+  return unwrap<RouteResponse>(
+    await client.DELETE("/api/v1/users/{user_id}/sessions/{session_id}", {
+      params: { path: { user_id: userId, session_id: sessionId } },
+    }),
+  );
+}
+
+/** Ends every session of one account — the "sign out everywhere" of a lost laptop. */
+export async function revokeUserSessions(userId: number): Promise<RouteResponse> {
+  return unwrap<RouteResponse>(
+    await client.DELETE("/api/v1/users/{user_id}/sessions", {
+      params: { path: { user_id: userId } },
+    }),
+  );
+}

@@ -24,6 +24,7 @@ import { TagsRoute, validateTagsSearch } from "@/routes/TagsRoute";
 import { TextTemplatesRoute, validateTextTemplatesSearch } from "@/routes/TextTemplatesRoute";
 import { TreeRoute, validateTreeSearch } from "@/routes/TreeRoute";
 import { TypologiesRoute } from "@/routes/TypologiesRoute";
+import { UsersRoute } from "@/routes/UsersRoute";
 import { VocabularyRoute } from "@/routes/VocabularyRoute";
 
 /**
@@ -220,6 +221,19 @@ const systemHealthRoute = createRoute({
   component: SystemHealthRoute,
 });
 
+/**
+ * The installation's own settings: the accounts first.
+ *
+ * A section of its own at the end of the menu, and not a corner of "Sistema": the operations panel
+ * is what the *machine* is doing (workers, runs, probes) and the accounts are what the installation
+ * *is*. Both are administrative; only one of them is about the collection.
+ */
+const usersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/configuracoes/usuarios",
+  component: UsersRoute,
+});
+
 export const router = createRouter({
   routeTree: rootRoute.addChildren([
     inboxRoute,
@@ -245,6 +259,7 @@ export const router = createRouter({
     systemWorkersRoute,
     systemRunsRoute,
     systemHealthRoute,
+    usersRoute,
   ]),
   defaultPreload: "intent",
 });
