@@ -1,12 +1,12 @@
 # Scrinalia
 
-<!-- The CI badge follows ``dev`` because ``main`` does not carry ``.github/workflows/`` yet: a badge
-     pointed at it would read "no status" even after the repository is public. Switch ``?branch=dev``
-     to ``main`` — or drop the parameter, which then follows the default branch — once ``dev`` is
-     merged. The license badge is static and says what the license actually is: ``AGPL-3.0-only``
-     **plus** the attribution term of section 7(b), not the bare SPDX identifier. -->
+<!-- The CI badge points at ``main``, the default branch. ``main`` does not carry
+     ``.github/workflows/`` yet, so it reads "no status" until ``dev`` is merged — which is honest,
+     and cheaper than a badge that follows a branch nobody is looking at. The license badge is static
+     and says what the license actually is: ``AGPL-3.0-only`` **plus** the attribution term of section
+     7(b), not the bare SPDX identifier. -->
 [![License: AGPL-3.0-only + attribution](https://img.shields.io/badge/license-AGPL--3.0--only%20%2B%20attribution-blue)](LICENSE-ADDITIONAL-TERMS.md)
-[![CI](https://github.com/CassioDalla/scrinalia/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/CassioDalla/scrinalia/actions/workflows/ci.yml)
+[![CI](https://github.com/CassioDalla/scrinalia/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/CassioDalla/scrinalia/actions/workflows/ci.yml)
 
 A system for archivists to catalogue and manage archival descriptions (ISAD(G) metadata),
 with AI-driven enrichment and Human-in-the-Loop governance.
