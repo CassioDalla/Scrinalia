@@ -5,12 +5,30 @@ on:
     branches: [main, dev]
   pull_request:
 
+# Least privilege by default. A workflow that only reads the repository should not carry a token that
+# can write to it, and a third-party action that turns malicious cannot escalate what it was not given.
+permissions:
+  contents: read
+
+# One run per branch/PR: a force-push cancels the previous run instead of leaving two racing, which on
+# a repository being opened to the world is also the cheapest way to absorb a flood of pushes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     name: Lint & format
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      # ``persist-credentials: false``: the default leaves the GITHUB_TOKEN in the checkout's git
+      # config, where any later step could read it. Nothing in this workflow pushes.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
       - name: Run ruff (lint)
         run: uvx ruff@0.16.10 check .
       - name: Run ruff (format check)
@@ -19,6 +37,7 @@ jobs:
   test:
     name: Migrations & tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         # Same image as docker-compose.test.yml: the migrations need the pgvector
@@ -43,14 +62,19 @@ jobs:
       DB_NAME: test_db
       TEST_DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
           python-version: "3.12"
           enable-cache: true
       - name: Install dependencies
-        run: uv sync
+        # ``--locked``: the committed ``uv.lock`` is the contract, and a dependency that would change
+        # the resolution fails the build instead of silently producing a different environment than the
+        # one every developer and installer gets.
+        run: uv sync --locked
       - name: Check the OpenAPI contract is up to date
         # The front-end client is generated from packages/api-contract/openapi.json, so a route or a
         # schema change that does not regenerate the contract would only fail in the browser. This
@@ -73,10 +97,13 @@ jobs:
   frontend:
     name: Curator UI (types, lint, build)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.3.14
       - name: Install dependencies
