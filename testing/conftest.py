@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from scrinalia.api.dependencies import provide_login_rate_limiter
 from scrinalia.asgi import create_app
 from scrinalia.core.base import Base
+from scrinalia.core.config import get_settings
 from scrinalia.domains.archive.domain.collection_vocabulary import vocabulary_from_rows
 from scrinalia.domains.archive.domain.level_catalog import NOBRADE_LEVELS
 from scrinalia.domains.archive.models import (
@@ -28,7 +29,7 @@ from scrinalia.domains.archive.models import (
 )
 from scrinalia.domains.archive.schemas import ArchiveEntityDTO
 from scrinalia.domains.archive.schemas.document_schema import ArchiveDocumentDTO
-from scrinalia.domains.identity.domain.credentials import hash_password, normalize_email
+from scrinalia.domains.identity.domain.credentials import _decoy_hash, _hasher, hash_password, normalize_email
 from scrinalia.domains.identity.domain.permissions import Role
 from scrinalia.domains.identity.models import AuthUser
 from scrinalia.domains.identity.repository import SessionRepository, UserRepository
@@ -172,6 +173,48 @@ def engine():
     # At the end of all tests, drop the tables
     Base.metadata.drop_all(bind=engine)
     engine.dispose()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cheap_argon2() -> Generator[None, None, None]:
+    """
+    Runs the suite at a lower argon2id cost than an installation's.
+
+    The cost is a setting for exactly this reason (``core/config.py``), and what the tests here are
+    about is the *policy* around the hash — the decoy verification, the lockout, the sliding session,
+    the rehash on login — not the KDF. argon2's parameters are the library's contract: paying 64 MiB
+    and three iterations per account proves nothing about this code, and it was most of the suite's
+    runtime.
+
+    The values stay **above** the floor the two rehash tests build by hand
+    (``time_cost=1, memory_cost=8, parallelism=1``) on purpose: those assert that a weaker hash asks
+    to be rehashed, and their docstrings say the rule must not be an artifact of configuration — so
+    the configured cost has to differ from the one they build.
+    """
+    current = get_settings()
+    production = (
+        current.AUTH_PASSWORD_TIME_COST,
+        current.AUTH_PASSWORD_MEMORY_KIB,
+        current.AUTH_PASSWORD_PARALLELISM,
+    )
+    current.AUTH_PASSWORD_TIME_COST = 2
+    current.AUTH_PASSWORD_MEMORY_KIB = 8192
+    current.AUTH_PASSWORD_PARALLELISM = 2
+
+    # The hasher and the decoy are each built once per process, from the settings, so both caches have
+    # to be dropped for the new cost to be the one the suite pays.
+    _hasher.cache_clear()
+    _decoy_hash.cache_clear()
+
+    yield
+
+    (
+        current.AUTH_PASSWORD_TIME_COST,
+        current.AUTH_PASSWORD_MEMORY_KIB,
+        current.AUTH_PASSWORD_PARALLELISM,
+    ) = production
+    _hasher.cache_clear()
+    _decoy_hash.cache_clear()
 
 
 @pytest.fixture(scope="function")
@@ -549,8 +592,8 @@ def auth_service(db_session) -> AuthService:
 
     The real one and not a fake, on purpose: what these tests are about is the *policy* — the decoy
     verification, the sliding session, the lockout, the last-admin guard — and a double would test
-    the double. Hashing runs at the configured cost (``AUTH_PASSWORD_*``), so a test pays the ~45 ms
-    of argon2 it would pay in production.
+    the double. The hash cost is the suite's and not an installation's: ``cheap_argon2`` lowers it
+    once for the whole session.
 
     The failed-login recorder is bound to the test's session: it commits on its own in production, so
     a test that locks an account needs the increment to be visible to the next call — and rolled back
