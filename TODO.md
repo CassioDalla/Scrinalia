@@ -23,20 +23,18 @@ secret scanning com push protection, branch protection na `main` (PR obrigatóri
 sem force-push, sem deleção, histórico linear) e permissões de Actions em *read*. Falta, **nesta
 ordem**:
 
-- [ ] **Commitar e empurrar o que está no working tree.** Hoje são **43 caminhos** sem commit: a base
-      de documentação inteira (guias, `mkdocs.yml`, hook, testes, ADR 0010, skill `documenter`) e os
-      cinco consertos de código da última rodada. Nada disso está no `origin/dev` ainda.
-- [ ] **Levar o `dev` para o `main` antes de abrir.** O branch **default é o `main`**, e ele está
-      **206 commits atrás** do `dev`: medido, ele **não tem `LICENSE`** nem
-      `LICENSE-ADDITIONAL-TERMS.md`, e também não tem `SECURITY.md`, `CONTRIBUTING.md`,
-      `CODE_OF_CONDUCT.md`, os ADRs, os templates nem os workflows do CI. Abrir o repositório hoje
-      mostraria um README antigo **sem licença** e sem nada do endurecimento. O caminho é o que a
-      branch protection agora exige: **PR de `dev` para `main`** com os checks verdes — os 206 commits
-      já carregam `Signed-off-by` (medido), então o job `dco` passa — e o merge põe o `main` em dia.
-      De quebra, o badge de CI sai do "no status".
-- [ ] **Revisar o `AGENTS.md`** antes de abrir: tirar o que ainda é específico do dono ou da
-      instituição. É o único documento grande que **não** passou por essa linha de corte — o
-      `README.md`, o `TODO.md` e os quatro guias passaram.
+- [x] **Commitar e empurrar o working tree.** Feito: a base de documentação, os cinco consertos de
+      código, a revisão do `README.md` e do `AGENTS.md` e o bump da versão — `dev` está em sincronia
+      com `origin/dev`.
+- [x] **Revisar o `AGENTS.md`.** Não havia caminho absoluto, nome de máquina nem nome de acervo; o
+      que saiu foram as **contagens do acervo** (quantas tags, quantos pares, quantas decisões do
+      juiz) — os tempos que justificam decisões ficaram.
+- [ ] **Mergear o PR `dev` → `main`.** O PR está aberto e o branch **default é o `main`**, que está
+      **206 commits atrás**: medido, ele **não tem `LICENSE`** nem `LICENSE-ADDITIONAL-TERMS.md`, e
+      também não tem `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, os ADRs, os templates nem
+      os workflows do CI. O merge — que a branch protection exige com os checks verdes, e os commits
+      já carregam `Signed-off-by`, então o job `dco` passa — põe o `main` em dia e tira o badge de CI
+      do "no status".
 - [ ] **Ligar "Require signed commits"** no ruleset da `main`. As chaves já são usadas por padrão
       (`commit.gpgsign=true`, formato SSH). É regra independente do DCO: a assinatura prova **quem
       criou** o commit, o trailer `Signed-off-by` declara o **direito de submetê-lo**, e o job `dco`
@@ -69,9 +67,10 @@ O software está pronto; **o acervo de referência está parcialmente processado
 - [ ] **Decidir a ordem:** rodar a IA (tipologia, embedding, quality-validator) **antes ou depois** de
       decidir os 81 rungs. Enquanto não rodar, a UI mostra menos do que o sistema sabe. É decisão de
       produto, não de engenharia.
-- [ ] **Cortar o primeiro Release.** A documentação fechou, então o `v1.0.0` está desbloqueado. O
-      workflow (`Actions → Release`) roda com `dry_run: true` por padrão: a primeira execução valida e
-      builda **sem** criar tag, e imprime no resumo o que os Conventional Commits sugerem.
+- [ ] **Cortar o primeiro Release.** A versão já está em **1.0.0** (`pyproject.toml`, `uv.lock`,
+      `CITATION.cff`, `CHANGELOG.md`, `apps/curator/package.json` e `README.md`), então falta rodar o
+      workflow (`Actions → Release`): com `dry_run: true` ele valida e builda **sem** criar a tag, e
+      imprime no resumo o que os Conventional Commits sugerem.
 
 **O que não pode rodar no acervo real sem decisão do dono:**
 
