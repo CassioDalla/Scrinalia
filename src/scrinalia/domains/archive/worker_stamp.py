@@ -43,6 +43,18 @@ class WorkerStamp:
         new_log[self.key] = value
         return new_log
 
+    def clear(self, execution_log: dict[str, str] | None) -> dict[str, str]:
+        """
+        Returns a new log dict without this worker's key.
+
+        The failure marks are why this exists: a document that failed for a reason which is gone —
+        a bucket that was down for an afternoon — has to be able to lose the mark when a forced
+        retry succeeds, or the panel keeps counting a repaired document as failed.
+        """
+        new_log = dict(execution_log) if execution_log else {}
+        new_log.pop(self.key, None)
+        return new_log
+
 
 # Canonical stamps. Keeping them as module constants prevents the "worker_ner_v2"
 # string from being duplicated (and drifting) across queries and workers.

@@ -103,11 +103,23 @@ def test_an_unknown_engine_or_option_is_rejected(service) -> None:
     with pytest.raises(InvalidWorkerSettingsError, match="não existe para o eixo"):
         service.update_settings("ner", WorkerSettingsRequest(engine_name="motor_inexistente"))
 
+    # ``force`` is a declared option of the thumbnail worker now (it is the way back from a mark a
+    # transient outage left behind); an option the worker does not declare is still refused.
     with pytest.raises(InvalidWorkerSettingsError, match="não aceita a opção"):
-        service.update_settings("thumbnail", WorkerSettingsRequest(options={"force": True}))
+        service.update_settings("thumbnail", WorkerSettingsRequest(options={"nao_existe": True}))
 
     with pytest.raises(InvalidWorkerSettingsError, match="objeto do runner"):
         service.update_settings("ner", WorkerSettingsRequest(options={"config": {"x": 1}}))
+
+
+def test_the_thumbnail_worker_accepts_force(service) -> None:
+    """A bucket that was down for an afternoon must not exclude those documents for good."""
+    service.update_settings("thumbnail", WorkerSettingsRequest(options={"force": True}))
+
+    thumbnail = next(worker for worker in service.list_workers().workers if worker.name == "thumbnail")
+    assert thumbnail.settings.options == {"force": True}
+    # With ``force`` the marked documents are pending again; without it the queue skips them.
+    assert thumbnail.pending is not None
 
 
 def test_the_engine_of_the_quality_validator_cannot_be_overridden_here(service) -> None:

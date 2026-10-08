@@ -1,4 +1,5 @@
 from pytest_mock import MockerFixture
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Session
 
 from scrinalia.domains.archive.workers import worker_thumbnail
@@ -169,3 +170,33 @@ def test_execute_worker_uses_injected_storage_port(mocker: MockerFixture) -> Non
     fake_storage.upload_file.assert_called_once()
     mock_s3_cls.assert_not_called()
     assert fake_doc.storage_thumbnail_uri == "s3://bucket/thumb_doc-port.jpg"
+
+
+# ==========================================
+# 3. THE FAILURE MARK AND THE WAY BACK
+# ==========================================
+
+
+def _sql(conditions) -> str:
+    """The predicate as SQL with its literals inlined, so the keys are readable."""
+    dialect = postgresql.dialect()
+    return " AND ".join(
+        str(condition.compile(dialect=dialect, compile_kwargs={"literal_binds": True})) for condition in conditions
+    )
+
+
+def test_pending_conditions_exclude_the_failed_documents() -> None:
+    """A dead link must not loop forever, so the plain run skips what is already marked."""
+    assert "thumbnail_failed" in _sql(worker_thumbnail.pending_conditions())
+
+
+def test_force_brings_the_failed_documents_back() -> None:
+    """``force`` is the way back from a mark a transient outage left behind.
+
+    Without it, an afternoon with the bucket down was indistinguishable from a broken link and
+    those documents never returned to the queue.
+    """
+    forced = worker_thumbnail.pending_conditions(force=True)
+
+    assert "thumbnail_failed" not in _sql(forced)
+    assert len(forced) == len(worker_thumbnail.pending_conditions()) - 1
