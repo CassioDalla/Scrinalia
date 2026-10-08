@@ -24,6 +24,8 @@ const IMPLEMENTED = new Set([
   "/arranjo/diagnostico",
   "/assuntos/tags",
   "/assuntos/categorias",
+  "/entidades/conflitos",
+  "/qualidade/anomalias",
 ]);
 
 function pathOf(route: string): string {
