@@ -49,9 +49,9 @@ armadilhas de arquitetura estão no
 ## Decisões e situação
 
 As [decisões de arquitetura](adr/index.md) explicam por que o sistema é como é, incluindo as
-alternativas que foram medidas e descartadas. O Scrinalia é pré-1.0: a superfície de curadoria está
-completa, a superfície de difusão pública existe sem site na frente dela ainda, e o acervo de
-referência usado para calibrar a IA continua parcialmente processado. O `TODO.md` carrega o estado
+alternativas que foram medidas e descartadas. **O Scrinalia está na 1.0**: o pipeline, os workers de
+IA, a governança da revisão, a autenticação e a superfície de curadoria estão completos, e a
+superfície de difusão pública existe sem site na frente dela ainda. O `TODO.md` carrega o estado
 atual, e o [registro da documentação](log.md) registra o que foi revisado e quando.
 
 ## Licença

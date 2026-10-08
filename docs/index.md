@@ -43,10 +43,10 @@ architectural traps are in
 ## Decisions and status
 
 The [architecture decisions](adr/index.md) explain why the system is built the way it is, including
-the alternatives that were measured and rejected. Scrinalia is pre-1.0: the curator surface is
-complete, the public diffusion surface exists with no site in front of it yet, and the reference
-collection that was used to tune the AI is still partially processed. `TODO.md` carries the current
-state, and the [documentation log](log.md) records what was reviewed and when.
+the alternatives that were measured and rejected. **Scrinalia is at 1.0**: the pipeline, the AI
+workers, the review governance, the authentication and the curator surface are complete, and the
+public diffusion surface exists with no site in front of it yet. `TODO.md` carries the current state,
+and the [documentation log](log.md) records what was reviewed and when.
 
 ## License
 

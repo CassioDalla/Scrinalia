@@ -1,14 +1,13 @@
 # Changelog
 
 All notable changes to this project are documented here. The format is
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project intends to follow
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first release.
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-There is no release yet: everything below is what `main` carries today, and it will become
-`v0.1.0` when the documentation cycle closes. Entries describe **behaviour**, not commits — the
-history is the detail.
+`1.0.0` is the first release: everything below is what the repository carries today. Entries describe
+**behaviour**, not commits — the history is the detail.
 
-## [Unreleased]
+## [1.0.0] - 2026-10-08
 
 ### Added
 
@@ -21,7 +20,7 @@ history is the detail.
   queue.
 - **Human-in-the-loop governance**: `HUMAN_APPROVED` blocks AI rewrites, a review queue holds
   tag × entity collisions, and every human edit records its before/after in a revision ledger.
-- **Curation API and UI**: 94 paths / 111 operations, and 23 screens covering the collection, the
+- **Curation API and UI**: 95 paths / 112 operations, and 24 screens covering the collection, the
   arrangement, the subject and entity vocabularies, quality, the operations panel and the accounts.
 - **Lexical and semantic search** with facets: an accent-insensitive generated `search_vector` with
   GIN indexes, and pgvector embeddings with an HNSW cosine index.
@@ -37,6 +36,10 @@ history is the detail.
   cause computed in a generated column.
 - **A generated, committed API contract**: `bun run contract` dumps the OpenAPI document and
   regenerates the TypeScript client; CI fails when either is stale.
+- **The documentation an installer, an operator and an archivist read** (ADR 0010): four guides in
+  English and Portuguese, plus the index and the ADRs, held to the code by two rules — coverage is a
+  gate (a worker, a setting, a screen, a table or an ADR missing from the page that owns it fails the
+  suite) and freshness is a report whose verdict lands in a triage ledger.
 - **A release flow that produces verifiable artifacts**: the `Release` workflow validates the
   version, builds the curator SPA, generates the Python SBOM and attests the build provenance before
   creating the tag and the release.
@@ -76,4 +79,5 @@ history is the detail.
   reads the **runtime** export and not the development environment: an advisory in a tool that never
   reaches an installation no longer hides the ones that do.
 
-[Unreleased]: https://github.com/CassioDalla/Scrinalia/commits/main
+[Unreleased]: https://github.com/CassioDalla/Scrinalia/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.0.0
