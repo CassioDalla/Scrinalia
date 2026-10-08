@@ -7,6 +7,8 @@ from litestar.status_codes import (
     HTTP_404_NOT_FOUND,
     HTTP_409_CONFLICT,
     HTTP_422_UNPROCESSABLE_ENTITY,
+    HTTP_423_LOCKED,
+    HTTP_429_TOO_MANY_REQUESTS,
     HTTP_500_INTERNAL_SERVER_ERROR,
 )
 from sqlalchemy.exc import IntegrityError
@@ -55,12 +57,14 @@ from scrinalia.domains.archive.exceptions import (
 )
 from scrinalia.domains.archive.repository.api_error_repo import ApiErrorRecorder
 from scrinalia.domains.identity.exceptions import (
+    AccountLockedError,
     DuplicateUserEmailError,
     InvalidCredentialsError,
     InvalidCurrentPasswordError,
     InvalidEmailError,
     LastAdminError,
     SessionNotFoundError,
+    TooManyLoginAttemptsError,
     UserNotFoundError,
     WeakPasswordError,
 )
@@ -127,6 +131,14 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
         # The one refusal that is about *being* someone rather than about the payload: the client's
         # next move is to sign in again, not to fix a field.
         status_code = HTTP_401_UNAUTHORIZED
+
+    elif isinstance(exc, AccountLockedError):
+        # 423 and not 401: the credentials were right, so signing in again changes nothing — the
+        # client has to wait, and the sentence says so.
+        status_code = HTTP_423_LOCKED
+
+    elif isinstance(exc, TooManyLoginAttemptsError):
+        status_code = HTTP_429_TOO_MANY_REQUESTS
 
     elif isinstance(exc, (InvalidParam, InvalidMergeError)):
         status_code = HTTP_400_BAD_REQUEST

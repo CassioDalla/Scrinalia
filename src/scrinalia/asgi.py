@@ -32,7 +32,7 @@ from scrinalia.api.handlers import (
 )
 from scrinalia.api.lifespan import application_lifespan
 from scrinalia.api.middleware import RequestContextMiddleware
-from scrinalia.api.security import access_guard
+from scrinalia.api.security import access_guard, origin_guard
 from scrinalia.api.spa import curator_spa_router
 from scrinalia.core.config import settings
 from scrinalia.core.logger import InterceptHandler, intercept_stdlib_logging
@@ -90,11 +90,14 @@ def create_app() -> Litestar:
         # The request id is minted before anything else, so the access line of a refused request
         # carries it too.
         middleware=[RequestContextMiddleware()],
-        # One guard for every route: it authenticates from the session cookie and then enforces the
-        # role each operation declares in its own ``opt``. Registered per controller it would leak
-        # into the reads a VIEWER must reach, because Litestar guards are cumulative and a route
-        # cannot relax what its controller declared.
-        guards=[access_guard],
+        # Two guards for every route, and they answer different questions. ``origin_guard`` runs
+        # first because it is the cheapest — it reads two headers and touches no database — and it
+        # refuses a cross-origin mutation before the session is even resolved. ``access_guard`` then
+        # authenticates from the session cookie and enforces the role each operation declares in its
+        # own ``opt``. Registered per controller either would leak into routes that must not have it,
+        # because Litestar guards are cumulative and a route cannot relax what its controller
+        # declared.
+        guards=[origin_guard, access_guard],
         dependencies={"unit_of_work": Provide(provide_unit_of_work)},
         exception_handlers={
             DomainException: domain_exception_handler,

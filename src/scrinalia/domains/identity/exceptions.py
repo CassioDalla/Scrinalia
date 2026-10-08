@@ -46,6 +46,30 @@ class InvalidCredentialsError(DomainException):
     pass
 
 
+class AccountLockedError(DomainException):
+    """Raised when the credentials are **correct** but the account is serving a lockout.
+
+    The one branch that is allowed to speak: it is reached only after the password was verified, so
+    whoever reads it already knew the password. An attacker guessing cannot tell a locked account
+    from an unknown one, because for them the answer stays ``InvalidCredentialsError``.
+    """
+
+    # Ideal translation in Litestar: HTTP 423 (Locked)
+    pass
+
+
+class TooManyLoginAttemptsError(DomainException):
+    """Raised when one client address exceeds the sign-in ceiling of the sliding window.
+
+    A brake in front of the per-account lockout, not a replacement for it: it lives in the process,
+    so it resets on restart and does not follow the account. It exists so that one address cannot
+    walk the whole account list at full speed.
+    """
+
+    # Ideal translation in Litestar: HTTP 429 (Too Many Requests)
+    pass
+
+
 class InvalidCurrentPasswordError(DomainException):
     """Raised when the current password given while changing it does not match."""
 

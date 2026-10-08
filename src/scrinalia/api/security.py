@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import enum
 from dataclasses import dataclass
+from urllib.parse import urlsplit
 
 from litestar.connection import ASGIConnection
 from litestar.exceptions import NotAuthorizedException, PermissionDeniedException
@@ -51,6 +52,11 @@ API_PREFIX = "/api/v1"
 SESSION_REQUIRED_MESSAGE = "É preciso entrar para acessar o sistema."
 PERMISSION_DENIED_MESSAGE = "Sua conta não tem permissão para esta ação."
 UNCLASSIFIED_ROUTE_MESSAGE = "Rota sem classificação de acesso."
+CROSS_ORIGIN_MESSAGE = "Requisição recusada: a origem não é a deste sistema."
+
+#: The methods a browser can send from another site, and therefore the ones a CSRF check applies to.
+#: ``GET``/``HEAD``/``OPTIONS`` are excluded because they must not change anything in the first place.
+UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 
 class Access(enum.StrEnum):
@@ -186,3 +192,88 @@ def access_guard(connection: ASGIConnection, route_handler: BaseRouteHandler) ->
 
     if not has_permission(user.role, Permission(access.value)):
         raise PermissionDeniedException(PERMISSION_DENIED_MESSAGE)
+
+
+# --- The cross-origin check on mutations ---------------------------------------------------------
+
+
+def trusted_origins() -> set[str]:
+    """The extra origins the deployment declares, normalised for comparison."""
+    raw = get_settings().AUTH_TRUSTED_ORIGINS
+    return {value.strip().rstrip("/").lower() for value in raw.split(",") if value.strip()}
+
+
+def _origin_netloc(origin: str) -> str | None:
+    """The ``host[:port]`` of an origin, or ``None`` when it is not a usable one (``null``, garbage)."""
+    try:
+        parsed = urlsplit(origin)
+    except ValueError:
+        return None
+    if not parsed.scheme or not parsed.netloc:
+        return None
+    return parsed.netloc.lower()
+
+
+def _without_default_port(authority: str) -> str:
+    """
+    Drops ``:80``/``:443`` so a spelled-out default port is the same place as none.
+
+    The request's scheme is not read: behind a reverse proxy the ``Host`` header and the TLS
+    termination can disagree, and the check is about *which host* the browser was talking to, not
+    about which port it used to say so.
+    """
+    host, separator, port = authority.rpartition(":")
+    if separator and port in {"80", "443"}:
+        return host
+    return authority
+
+
+def is_allowed_origin(origin: str, host: str, trusted: set[str]) -> bool:
+    """
+    Whether a mutating request may carry this ``Origin``.
+
+    Two ways to be allowed, and no third: the origin is exactly one the deployment declared, or its
+    ``host[:port]`` is the one the request was addressed to. Comparing the authority and not the whole
+    string is what makes ``https://arquivo.org`` and ``https://arquivo.org:443`` the same place.
+    """
+    normalized = origin.strip().rstrip("/")
+    if not normalized:
+        return False
+    if normalized.lower() in trusted:
+        return True
+    netloc = _origin_netloc(normalized)
+    if netloc is None:
+        return False
+    return _without_default_port(netloc) == _without_default_port(host.strip().lower())
+
+
+def origin_guard(connection: ASGIConnection, route_handler: BaseRouteHandler) -> None:
+    """
+    Refuses a mutating request whose ``Origin`` is not this system.
+
+    The session cookie is ``SameSite=Lax``, which already keeps a cross-site form post from carrying
+    it in a current browser; this is the second lock on the same door, and it is the one that holds
+    when the browser is old, when a subdomain shares the cookie, or when ``SameSite`` is relaxed for
+    a deployment. A request with **no** ``Origin`` is allowed: curl, the CLI and the test client do
+    not send one, and refusing them would break every non-browser client to defend against a browser
+    that always sends it.
+
+    Like ``access_guard`` this is a guard and not a middleware: it runs inside the exception-handler
+    layer, so the 403 is correlated and logged like every other answer, and a route reached by a path
+    that skipped it fails closed in the handler that reads the session.
+    """
+    scope = connection.scope
+    method = str(scope.get("method") or "").upper()
+    if method not in UNSAFE_METHODS or not str(scope.get("path") or "").startswith(API_PREFIX):
+        return
+
+    origin = connection.headers.get("origin")
+    if not origin:
+        return
+
+    host = connection.headers.get("host", "")
+    if is_allowed_origin(origin, host, trusted_origins()):
+        return
+
+    logger.warning(f"🛡️ Origem recusada em {method} {scope.get('path')}: {origin} (host {host or '?'})")
+    raise PermissionDeniedException(CROSS_ORIGIN_MESSAGE)

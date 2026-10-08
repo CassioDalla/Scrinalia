@@ -7,6 +7,7 @@ from litestar import Request
 from litestar.di import NamedDependency
 from litestar.exceptions import NotAuthorizedException
 
+from scrinalia.api.login_rate_limit import LoginRateLimiter
 from scrinalia.api.security import (
     SESSION_REQUIRED_MESSAGE,
     AuthenticatedUser,
@@ -43,6 +44,7 @@ from scrinalia.domains.archive.services.text_quality_service import TextQualityS
 from scrinalia.domains.archive.services.typology_service import TypologyService
 from scrinalia.domains.archive.services.worker_operations_service import WorkerOperationsService
 from scrinalia.domains.archive.services.worker_run_service import WorkerRunService
+from scrinalia.domains.identity.repository.login_attempt_repo import LoginAttemptRecorder
 from scrinalia.domains.identity.repository.session_repo import SessionRepository
 from scrinalia.domains.identity.repository.user_repo import UserRepository
 from scrinalia.domains.identity.services.auth_service import AuthService
@@ -194,9 +196,27 @@ def provide_failure_service(unit_of_work: NamedDependency[UnitOfWork]) -> Failur
 
 
 def provide_auth_service(unit_of_work: NamedDependency[UnitOfWork]) -> AuthService:
-    """Builds the identity service over the request transaction."""
+    """
+    Builds the identity service over the request transaction.
+
+    The failed-login recorder is the one collaborator that does **not** use that transaction: it
+    commits in its own session, because the failure it counts is about to roll the request back. See
+    ``LoginAttemptRecorder``.
+    """
     db = unit_of_work.db
-    return AuthService(UserRepository(db), SessionRepository(db))
+    return AuthService(UserRepository(db), SessionRepository(db), LoginAttemptRecorder())
+
+
+@lru_cache(maxsize=1)
+def provide_login_rate_limiter() -> LoginRateLimiter:
+    """
+    The process-wide sign-in rate limiter.
+
+    Cached on purpose: the sliding window only means anything if it is shared by every request, and a
+    limiter built per request would count each attempt in its own empty window. The state resets with
+    the process, which is the documented limit of the brake — the account lockout is the durable one.
+    """
+    return LoginRateLimiter()
 
 
 def provide_current_user(request: Request) -> AuthenticatedUser:

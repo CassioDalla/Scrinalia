@@ -200,10 +200,30 @@
           "email": {
             "type": "string"
           },
+          "failed_attempts": {
+            "default": 0,
+            "type": "integer"
+          },
           "is_active": {
             "type": "boolean"
           },
+          "is_locked": {
+            "description": "Whether the lockout is in force **now**.\n\nComputed on the server and not in the browser: \"now\" is the server's clock, and a screen that\ncompared timestamps itself would need an impure read during render to decide it — which is\nexactly the kind of thing that makes a React component stop being reproducible.",
+            "readOnly": true,
+            "type": "boolean"
+          },
           "last_login_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "locked_until": {
             "oneOf": [
               {
                 "format": "date-time",
@@ -230,6 +250,7 @@
         "required": [
           "email",
           "is_active",
+          "is_locked",
           "must_change_password",
           "name",
           "role",

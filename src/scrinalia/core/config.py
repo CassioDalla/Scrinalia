@@ -86,6 +86,29 @@ class Settings(BaseSettings):
     AUTH_PASSWORD_TIME_COST: int = 3
     AUTH_PASSWORD_PARALLELISM: int = 4
 
+    #: The lockout of an account, counted in the database and **not** in the request transaction: a
+    #: failed login raises and the unit of work rolls back, so a counter incremented there would be
+    #: erased by the very failure it counts (see ``LoginAttemptRecorder``). ``AUTH_LOGIN_MAX_ATTEMPTS``
+    #: failed sign-ins lock the account for ``AUTH_LOGIN_LOCKOUT_MINUTES``, and each further lockout
+    #: **doubles** the window up to ``AUTH_LOGIN_LOCKOUT_MAX_MINUTES`` — a fixed window hands a
+    #: guesser a predictable retry schedule.
+    AUTH_LOGIN_MAX_ATTEMPTS: int = 5
+    AUTH_LOGIN_LOCKOUT_MINUTES: int = 15
+    AUTH_LOGIN_LOCKOUT_MAX_MINUTES: int = 240
+
+    #: A per-address ceiling on sign-in attempts, in front of the per-account lockout. It lives in
+    #: the process (a sliding window) and is therefore a *brake*, not the guarantee: the durable
+    #: defence is the account lockout in the database. ``AUTH_LOGIN_RATE_MAX`` attempts per
+    #: ``AUTH_LOGIN_RATE_WINDOW_SECONDS`` from one client address answer 429.
+    AUTH_LOGIN_RATE_MAX: int = 20
+    AUTH_LOGIN_RATE_WINDOW_SECONDS: int = 300
+
+    #: Extra origins accepted on a mutating request, comma-separated (``https://arquivo.org``).
+    #: The SPA is same-origin in production and the dev proxy preserves the host, so the list is
+    #: empty by default; a deployment behind a reverse proxy that rewrites ``Host`` declares here
+    #: the public origin it is reached by. See ``origin_guard``.
+    AUTH_TRUSTED_ORIGINS: str = ""
+
     # Observability
     LOG_DIR: str = "logs"
     LOG_LEVEL: str = "INFO"

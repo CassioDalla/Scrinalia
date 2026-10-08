@@ -8,6 +8,7 @@ whether an anonymous client is told apart from one whose password was wrong.
 
 from litestar.testing import TestClient
 
+from scrinalia.core.config import settings
 from scrinalia.domains.identity.domain.permissions import Role
 
 EMAIL = "maria@teste.local"
@@ -170,3 +171,62 @@ def test_a_new_password_below_the_policy_is_refused(client: TestClient) -> None:
 
     assert response.status_code == 422
     assert response.json()["error_code"] == "WeakPasswordError"
+
+
+# ==========================================
+# THE HARDENING (B9.3)
+# ==========================================
+
+
+def test_repeated_failures_lock_the_account_even_though_every_request_rolled_back(
+    api_client: TestClient, generate_user, monkeypatch
+) -> None:
+    """
+    The measured trap, at the boundary where it bites.
+
+    A failed login raises, ``provide_unit_of_work`` rolls the request back, and the counter has to
+    survive anyway — that is why it is written through its own committed session. If it were written
+    in the request transaction, this test would answer 401 on the last call: the lock would have been
+    erased by each failure that created it.
+    """
+    monkeypatch.setattr(settings, "AUTH_LOGIN_MAX_ATTEMPTS", 3)
+    generate_user(email=EMAIL, password=PASSWORD)
+
+    for _ in range(3):
+        assert _login(api_client, password="a senha errada").status_code == 401
+
+    locked = _login(api_client)
+
+    assert locked.status_code == 423
+    assert locked.json()["error_code"] == "AccountLockedError"
+
+
+def test_the_lockout_is_visible_on_the_account_the_administrator_reads(
+    client: TestClient, generate_user, monkeypatch
+) -> None:
+    """The lockout is a fact about the account, so the accounts screen has to be able to show it."""
+    monkeypatch.setattr(settings, "AUTH_LOGIN_MAX_ATTEMPTS", 2)
+    maria = generate_user(email=EMAIL, password=PASSWORD)
+    for _ in range(2):
+        _login(client, password="a senha errada")
+
+    body = client.get("/api/v1/users").json()
+    row = next(item for item in body if item["user_id"] == maria.user_id)
+
+    assert row["failed_attempts"] == 2
+    assert row["locked_until"] is not None
+
+
+def test_too_many_attempts_from_one_address_answer_429(api_client: TestClient, generate_user, monkeypatch) -> None:
+    """The brake in front of the lockout: it counts attempts, not accounts."""
+    monkeypatch.setattr(settings, "AUTH_LOGIN_RATE_MAX", 2)
+    monkeypatch.setattr(settings, "AUTH_LOGIN_RATE_WINDOW_SECONDS", 300)
+    generate_user(email=EMAIL, password=PASSWORD)
+
+    assert _login(api_client, password="a senha errada").status_code == 401
+    assert _login(api_client, password="a senha errada").status_code == 401
+
+    refused = _login(api_client)
+
+    assert refused.status_code == 429
+    assert refused.json()["error_code"] == "TooManyLoginAttemptsError"

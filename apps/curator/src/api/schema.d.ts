@@ -1677,8 +1677,19 @@ export interface components {
         AuthUserDTO: {
             created_at?: string | null;
             email: string;
+            /** @default 0 */
+            failed_attempts: number;
             is_active: boolean;
+            /**
+             * @description Whether the lockout is in force **now**.
+             *
+             *     Computed on the server and not in the browser: "now" is the server's clock, and a screen that
+             *     compared timestamps itself would need an impure read during render to decide it — which is
+             *     exactly the kind of thing that makes a React component stop being reproducible.
+             */
+            readonly is_locked: boolean;
             last_login_at?: string | null;
+            locked_until?: string | null;
             must_change_password: boolean;
             name: string;
             role: components["schemas"]["Role"];

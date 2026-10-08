@@ -12,6 +12,7 @@ from litestar.testing import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
+from scrinalia.api.dependencies import provide_login_rate_limiter
 from scrinalia.asgi import create_app
 from scrinalia.core.base import Base
 from scrinalia.domains.archive.domain.collection_vocabulary import (
@@ -34,6 +35,7 @@ from scrinalia.domains.identity.domain.credentials import hash_password, normali
 from scrinalia.domains.identity.domain.permissions import Role
 from scrinalia.domains.identity.models import AuthUser
 from scrinalia.domains.identity.repository import SessionRepository, UserRepository
+from scrinalia.domains.identity.repository.login_attempt_repo import LoginAttemptRecorder
 from scrinalia.domains.identity.services import AuthService
 from scrinalia.domains.ingestion import models as ingest_model
 
@@ -212,6 +214,12 @@ def use_test_db(db_session):
         yield
 
 
+@contextmanager
+def _shared_session(db):
+    """Hands the test's session to a writer that would open its own, without closing it."""
+    yield db
+
+
 @pytest.fixture()
 def api_uses_test_db(db_session):
     """
@@ -226,6 +234,11 @@ def api_uses_test_db(db_session):
     dependency resolution, so it has no unit of work to borrow), and that one is patched too: without
     it a login written by the request transaction would be looked up in the real database, and every
     authenticated request in the suite would answer 401.
+
+    The **failed-login recorder** is the third writer with a session of its own, and it is bound to
+    the test's session for the same reason plus one more: its whole point is to commit outside the
+    request transaction, so a test that locks an account needs the increment to be visible to the
+    request that follows — and rolled back with the test like everything else.
     """
 
     @contextmanager
@@ -235,6 +248,10 @@ def api_uses_test_db(db_session):
     with (
         patch("scrinalia.api.dependencies.create_session", _session),
         patch("scrinalia.api.security.get_db", _session),
+        patch(
+            "scrinalia.api.dependencies.LoginAttemptRecorder",
+            lambda: LoginAttemptRecorder(session_factory=lambda: _shared_session(db_session)),
+        ),
     ):
         yield
 
@@ -248,6 +265,9 @@ def api_client(api_uses_test_db) -> Generator[TestClient, None, None]:
     and a test about the open surface (the diffusion routes, the health probes, the login itself) gets
     the honest thing — a client that has not signed in.
     """
+    # The sign-in brake is process-wide by design, so a fresh window per test keeps one test's
+    # logins from counting against the next one's — and lets the rate-limit test set the ceiling.
+    provide_login_rate_limiter.cache_clear()
     with TestClient(app=create_app()) as test_client:
         yield test_client  # type: ignore[misc]
 
@@ -512,11 +532,19 @@ def auth_service(db_session) -> AuthService:
     The real service over the test session.
 
     The real one and not a fake, on purpose: what these tests are about is the *policy* — the decoy
-    verification, the sliding session, the last-admin guard — and a double would test the double.
-    Hashing runs at the configured cost (``AUTH_PASSWORD_*``), so a test pays the ~45 ms of argon2
-    it would pay in production.
+    verification, the sliding session, the lockout, the last-admin guard — and a double would test
+    the double. Hashing runs at the configured cost (``AUTH_PASSWORD_*``), so a test pays the ~45 ms
+    of argon2 it would pay in production.
+
+    The failed-login recorder is bound to the test's session: it commits on its own in production, so
+    a test that locks an account needs the increment to be visible to the next call — and rolled back
+    with the test like everything else.
     """
-    return AuthService(UserRepository(db_session), SessionRepository(db_session))
+    return AuthService(
+        UserRepository(db_session),
+        SessionRepository(db_session),
+        LoginAttemptRecorder(session_factory=lambda: _shared_session(db_session)),
+    )
 
 
 @pytest.fixture

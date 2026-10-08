@@ -26,6 +26,7 @@ from scrinalia.domains.identity.domain.credentials import (
 )
 from scrinalia.domains.identity.domain.permissions import Role
 from scrinalia.domains.identity.exceptions import (
+    AccountLockedError,
     DuplicateUserEmailError,
     InvalidCredentialsError,
     InvalidCurrentPasswordError,
@@ -34,6 +35,7 @@ from scrinalia.domains.identity.exceptions import (
     UserNotFoundError,
 )
 from scrinalia.domains.identity.models import AuthSession, AuthUser
+from scrinalia.domains.identity.repository.login_attempt_repo import LoginAttemptRecorder
 from scrinalia.domains.identity.repository.session_repo import SessionRepository
 from scrinalia.domains.identity.repository.user_repo import UserRepository
 from scrinalia.domains.identity.schemas.user_schema import (
@@ -46,13 +48,29 @@ from scrinalia.domains.identity.schemas.user_schema import (
 #: who needs the distinction has the account list to consult.
 INVALID_CREDENTIALS_MESSAGE = "E-mail ou senha inválidos."
 
+#: The one refusal that may name its reason, because it is only reached after the password verified:
+#: whoever reads it already knew the password, so it is not an enumeration oracle.
+ACCOUNT_LOCKED_MESSAGE = (
+    "Conta temporariamente bloqueada por tentativas de acesso. Tente novamente mais tarde "
+    "ou peça ao administrador uma nova senha."
+)
+
 
 class AuthService:
     """Sign-in, sessions and the account lifecycle, over one request's transaction."""
 
-    def __init__(self, users: UserRepository, sessions: SessionRepository) -> None:
+    def __init__(
+        self,
+        users: UserRepository,
+        sessions: SessionRepository,
+        attempts: LoginAttemptRecorder | None = None,
+    ) -> None:
         self.users = users
         self.sessions = sessions
+        #: The writer of the failed-login counter, which commits in its own session — see
+        #: ``LoginAttemptRecorder``. A default instance is real, so a construction site that never
+        #: authenticates (the session resolver, the CLI) still cannot open a hole: it holds no state.
+        self.attempts = attempts if attempts is not None else LoginAttemptRecorder()
 
     # --- Signing in -----------------------------------------------------------------------------
 
@@ -61,15 +79,26 @@ class AuthService:
         The account behind these credentials, or a refusal.
 
         Every branch spends the same time: an unknown address is verified against a decoy hash, so
-        the answer cannot be told apart from a wrong password by a stopwatch.
+        the answer cannot be told apart from a wrong password by a stopwatch. A locked account is
+        verified too — the refusal is decided after the hash check, and only a *correct* password is
+        told that the lock is why it failed.
         """
         user = self.users.get_by_email(email)
         if user is None:
             verify_decoy(password)
             raise InvalidCredentialsError(INVALID_CREDENTIALS_MESSAGE)
 
+        locked = user.locked_until is not None and user.locked_until > datetime.now(UTC)
+
         if not verify_password(password, user.password_hash):
+            if not locked:
+                # The write survives the rollback this raise is about to cause: it goes through its
+                # own committed session, and the counter is the lockout.
+                self.attempts.record_failure(user.user_id)
             raise InvalidCredentialsError(INVALID_CREDENTIALS_MESSAGE)
+
+        if locked:
+            raise AccountLockedError(ACCOUNT_LOCKED_MESSAGE)
 
         if not user.is_active:
             # Same sentence on purpose: a deactivated account is a fact about the installation, and
@@ -92,6 +121,10 @@ class AuthService:
         The raw token is returned exactly once, to be put in the cookie: only its digest reaches the
         database, so this is the last moment it exists in the process. The password is rehashed here
         if the stored one used weaker parameters than the current configuration.
+
+        The failed-attempt state is cleared in **this** transaction, and that asymmetry is the point:
+        a failure must be committed even though the request rolls back, while a success commits
+        anyway — so the clear needs no second session.
         """
         user = self.authenticate(email, password)
         now = datetime.now(UTC)
@@ -99,6 +132,8 @@ class AuthService:
         if needs_rehash(user.password_hash):
             user.password_hash = hash_password(password)
         user.last_login_at = now
+        user.failed_attempts = 0
+        user.locked_until = None
         self.users.save(user)
 
         token = generate_session_token()

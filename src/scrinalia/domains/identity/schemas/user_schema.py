@@ -6,9 +6,9 @@ share — the HTTP body and the CLI. A second bound here would be a second defin
 would disagree the moment an institution raises the minimum.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from scrinalia.domains.identity.domain.permissions import Role
 
@@ -30,8 +30,27 @@ class AuthUserDTO(BaseModel):
     must_change_password: bool
     last_login_at: datetime | None = None
     created_at: datetime | None = None
+    #: How many sign-ins failed since the last success. Surfaced so the accounts screen can show a
+    #: lockout instead of leaving the administrator to guess why somebody cannot get in; it is the
+    #: same number the lockout is computed from, never a second counter.
+    failed_attempts: int = 0
+    #: When the lockout lifts, or ``None``. A value in the past is a lockout that has already served
+    #: its time — the next failure starts the count again from where it stopped.
+    locked_until: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def is_locked(self) -> bool:
+        """
+        Whether the lockout is in force **now**.
+
+        Computed on the server and not in the browser: "now" is the server's clock, and a screen that
+        compared timestamps itself would need an impure read during render to decide it — which is
+        exactly the kind of thing that makes a React component stop being reproducible.
+        """
+        return self.locked_until is not None and self.locked_until > datetime.now(UTC)
 
 
 class CreateUserCommand(BaseModel):

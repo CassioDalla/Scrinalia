@@ -14,7 +14,12 @@ policy and HTTP — a cookie in, a cookie out, and the sentences the screen show
 from litestar import Controller, Request, Response, get, post
 from litestar.di import NamedDependency, Provide
 
-from scrinalia.api.dependencies import provide_auth_service, provide_current_user
+from scrinalia.api.dependencies import (
+    provide_auth_service,
+    provide_current_user,
+    provide_login_rate_limiter,
+)
+from scrinalia.api.login_rate_limit import LoginRateLimiter
 from scrinalia.api.security import Access, AuthenticatedUser
 from scrinalia.core.config import get_settings
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode, RouteResponse
@@ -32,12 +37,14 @@ class AuthController(Controller):
     dependencies = {  # noqa: RUF012
         "auth_service": Provide(provide_auth_service, sync_to_thread=False),
         "current_user": Provide(provide_current_user, sync_to_thread=False),
+        "login_rate_limiter": Provide(provide_login_rate_limiter, sync_to_thread=False),
     }
 
     @post("/login", opt={"access": Access.PUBLIC}, sync_to_thread=True)
     def login(
         self,
         auth_service: NamedDependency[AuthService],
+        login_rate_limiter: NamedDependency[LoginRateLimiter],
         request: Request,
         data: LoginCommand,
     ) -> Response[AuthUserDTO]:
@@ -45,8 +52,11 @@ class AuthController(Controller):
         Opens a session and hands back the account.
 
         The answer is the account, not a sentence: the screen needs to know the name and the role to
-        draw the shell, and a message would make it ask again.
+        draw the shell, and a message would make it ask again. The per-address brake runs **before**
+        the hash check, so an address walking the account list pays nothing to be refused, while the
+        per-account lockout is decided inside the service, after the password was verified.
         """
+        login_rate_limiter.check(request.client.host if request.client else "unknown")
         token, user = auth_service.login(
             data.email,
             data.password,

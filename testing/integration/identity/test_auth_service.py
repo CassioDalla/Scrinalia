@@ -11,6 +11,7 @@ import pytest
 from argon2 import PasswordHasher
 from sqlalchemy import select
 
+from scrinalia.core.config import settings
 from scrinalia.domains.identity.domain.credentials import (
     generate_session_token,
     hash_session_token,
@@ -19,6 +20,7 @@ from scrinalia.domains.identity.domain.credentials import (
 )
 from scrinalia.domains.identity.domain.permissions import Role
 from scrinalia.domains.identity.exceptions import (
+    AccountLockedError,
     DuplicateUserEmailError,
     InvalidCredentialsError,
     InvalidCurrentPasswordError,
@@ -409,3 +411,104 @@ def test_revoking_every_session_ends_all_of_them(auth_service, generate_user) ->
     assert ended == 3
     assert auth_service.list_sessions(user.user_id) == []
     assert all(auth_service.resolve_session(token) is None for token in tokens)
+
+
+# ==========================================
+# THE LOCKOUT (B9.3)
+# ==========================================
+
+
+def test_failed_attempts_are_counted_and_lock_the_account(auth_service, generate_user, monkeypatch) -> None:
+    """
+    The count reaches the threshold and the account locks — written through the recorder's own
+    session, which is the whole reason the column can hold a fact the request transaction discards.
+    """
+    monkeypatch.setattr(settings, "AUTH_LOGIN_MAX_ATTEMPTS", 3)
+    user = generate_user()
+
+    for _ in range(3):
+        with pytest.raises(InvalidCredentialsError):
+            auth_service.authenticate("maria@arquivo.org", "a senha errada")
+
+    assert user.failed_attempts == 3
+    assert user.locked_until is not None
+
+
+def test_a_correct_password_on_a_locked_account_is_told_the_lockout(auth_service, generate_user, monkeypatch) -> None:
+    """
+    The one branch allowed to name the reason: the password verified, so the reader already knew it.
+
+    An attacker guessing keeps getting the generic sentence — the answer that would enumerate a
+    locked account is never reached without the password.
+    """
+    monkeypatch.setattr(settings, "AUTH_LOGIN_MAX_ATTEMPTS", 2)
+    generate_user()
+
+    for _ in range(2):
+        with pytest.raises(InvalidCredentialsError):
+            auth_service.authenticate("maria@arquivo.org", "a senha errada")
+
+    with pytest.raises(AccountLockedError):
+        auth_service.authenticate("maria@arquivo.org", PASSWORD)
+    with pytest.raises(InvalidCredentialsError):
+        auth_service.authenticate("maria@arquivo.org", "a senha errada")
+
+
+def test_a_wrong_password_while_locked_does_not_keep_counting(auth_service, generate_user, monkeypatch) -> None:
+    """The account is already locked; growing the count further would only punish the owner."""
+    monkeypatch.setattr(settings, "AUTH_LOGIN_MAX_ATTEMPTS", 2)
+    user = generate_user()
+    for _ in range(2):
+        with pytest.raises(InvalidCredentialsError):
+            auth_service.authenticate("maria@arquivo.org", "a senha errada")
+    locked_until = user.locked_until
+
+    with pytest.raises(InvalidCredentialsError):
+        auth_service.authenticate("maria@arquivo.org", "outra senha errada")
+
+    assert user.failed_attempts == 2
+    assert user.locked_until == locked_until
+
+
+def test_the_lockout_doubles_with_each_further_one(auth_service, generate_user, monkeypatch) -> None:
+    """
+    The backoff rides on the count: the second lockout is twice the first, up to the ceiling.
+
+    An expired lock is simulated instead of waiting for it, which also pins that the lock lifts by
+    itself — nothing has to clear the column for the account to be usable again.
+    """
+    monkeypatch.setattr(settings, "AUTH_LOGIN_MAX_ATTEMPTS", 2)
+    monkeypatch.setattr(settings, "AUTH_LOGIN_LOCKOUT_MINUTES", 10)
+    monkeypatch.setattr(settings, "AUTH_LOGIN_LOCKOUT_MAX_MINUTES", 60)
+    user = generate_user()
+
+    for _ in range(2):
+        with pytest.raises(InvalidCredentialsError):
+            auth_service.authenticate("maria@arquivo.org", "a senha errada")
+    first = user.locked_until
+    assert first is not None
+    assert 9 <= (first - datetime.now(UTC)).total_seconds() / 60 <= 11
+
+    # The lock expires: the account is usable again, and the count keeps going from where it stopped.
+    user.locked_until = datetime.now(UTC) - timedelta(seconds=1)
+    for _ in range(2):
+        with pytest.raises(InvalidCredentialsError):
+            auth_service.authenticate("maria@arquivo.org", "a senha errada")
+
+    second = user.locked_until
+    assert second is not None
+    assert 19 <= (second - datetime.now(UTC)).total_seconds() / 60 <= 21
+
+
+def test_a_successful_login_clears_the_failed_attempts(auth_service, generate_user, monkeypatch) -> None:
+    """The count is "since the last success", so a person who remembers the password starts clean."""
+    monkeypatch.setattr(settings, "AUTH_LOGIN_MAX_ATTEMPTS", 5)
+    user = generate_user()
+    for _ in range(2):
+        with pytest.raises(InvalidCredentialsError):
+            auth_service.authenticate("maria@arquivo.org", "a senha errada")
+
+    auth_service.login("maria@arquivo.org", PASSWORD)
+
+    assert user.failed_attempts == 0
+    assert user.locked_until is None
