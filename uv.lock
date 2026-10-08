@@ -1560,82 +1560,6 @@ wheels = [
 ]
 
 [[package]]
-name = "scrinalia"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "alembic" },
-    { name = "argon2-cffi" },
-    { name = "beautifulsoup4" },
-    { name = "bertopic" },
-    { name = "boto3" },
-    { name = "dotenv" },
-    { name = "litestar", extra = ["standard"] },
-    { name = "loguru" },
-    { name = "numpy" },
-    { name = "pandas" },
-    { name = "pillow" },
-    { name = "psycopg2" },
-    { name = "pt-core-news-lg" },
-    { name = "pydantic-settings" },
-    { name = "requests" },
-    { name = "scikit-learn" },
-    { name = "spacy" },
-    { name = "sqlalchemy" },
-    { name = "torch" },
-    { name = "transformers" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "basedpyright" },
-    { name = "jupyterlab" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "pytest-mock" },
-    { name = "ruff" },
-    { name = "sentencepiece" },
-    { name = "tiktoken" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "alembic", specifier = ">=1.20.0" },
-    { name = "beautifulsoup4", specifier = ">=4.14.3" },
-    { name = "bertopic", specifier = ">=0.17.4" },
-    { name = "boto3", specifier = ">=1.43.27" },
-    { name = "dotenv", specifier = ">=0.9.9" },
-    { name = "litestar", extras = ["standard"], specifier = ">=2.24.0" },
-    { name = "loguru", specifier = ">=0.7.3" },
-    { name = "numpy", specifier = ">=2.3.5" },
-    { name = "pandas", specifier = ">=2.3.3" },
-    { name = "pillow", specifier = ">=12.2.0" },
-    { name = "psycopg2", specifier = "==2.9.12" },
-    { name = "pt-core-news-lg", url = "https://github.com/explosion/spacy-models/releases/download/pt_core_news_lg-3.8.0/pt_core_news_lg-3.8.0-py3-none-any.whl" },
-    { name = "pydantic-settings", specifier = ">=2.15.0" },
-    { name = "requests", specifier = ">=2.34.2" },
-    { name = "scikit-learn", specifier = ">=1.8.0" },
-    { name = "spacy", specifier = ">=3.8.14" },
-    { name = "sqlalchemy", specifier = ">=2.0.50" },
-    { name = "torch", specifier = ">=2.12.0" },
-    { name = "transformers", specifier = ">=5.9.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "basedpyright", specifier = ">=1.40.1" },
-    { name = "jupyterlab", specifier = ">=4.5.7" },
-    { name = "pre-commit", specifier = ">=4.6.2" },
-    { name = "pytest", specifier = ">=9.0.3" },
-    { name = "pytest-cov", specifier = ">=7.1.0" },
-    { name = "pytest-mock", specifier = ">=3.15.1" },
-    { name = "ruff", specifier = ">=0.16.10" },
-    { name = "sentencepiece", specifier = ">=0.2.2" },
-    { name = "tiktoken", specifier = ">=0.14.0" },
-]
-
-[[package]]
 name = "mistune"
 version = "3.2.1"
 source = { registry = "https://pypi.org/simple" }
@@ -3308,6 +3232,83 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/ac/70/64b4d7ca92f9cf2e6fc6aaa2eecf80bb9b6b985043a9583f32f8177ea122/scipy-1.16.3-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:ffa6eea95283b2b8079b821dc11f50a17d0571c92b43e2b5b12764dc5f9b285d", size = 38802779, upload-time = "2025-10-28T17:37:59.393Z" },
     { url = "https://files.pythonhosted.org/packages/61/82/8d0e39f62764cce5ffd5284131e109f07cf8955aef9ab8ed4e3aa5e30539/scipy-1.16.3-cp314-cp314t-win_amd64.whl", hash = "sha256:d9f48cafc7ce94cf9b15c6bffdc443a81a27bf7075cf2dcd5c8b40f85d10c4e7", size = 39471128, upload-time = "2025-10-28T17:38:05.259Z" },
     { url = "https://files.pythonhosted.org/packages/64/47/a494741db7280eae6dc033510c319e34d42dd41b7ac0c7ead39354d1a2b5/scipy-1.16.3-cp314-cp314t-win_arm64.whl", hash = "sha256:21d9d6b197227a12dcbf9633320a4e34c6b0e51c57268df255a0942983bac562", size = 26464127, upload-time = "2025-10-28T17:38:11.34Z" },
+]
+
+[[package]]
+name = "scrinalia"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "alembic" },
+    { name = "argon2-cffi" },
+    { name = "beautifulsoup4" },
+    { name = "bertopic" },
+    { name = "boto3" },
+    { name = "dotenv" },
+    { name = "litestar", extra = ["standard"] },
+    { name = "loguru" },
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "pillow" },
+    { name = "psycopg2" },
+    { name = "pt-core-news-lg" },
+    { name = "pydantic-settings" },
+    { name = "requests" },
+    { name = "scikit-learn" },
+    { name = "spacy" },
+    { name = "sqlalchemy" },
+    { name = "torch" },
+    { name = "transformers" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "basedpyright" },
+    { name = "jupyterlab" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-mock" },
+    { name = "ruff" },
+    { name = "sentencepiece" },
+    { name = "tiktoken" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "alembic", specifier = ">=1.20.0" },
+    { name = "argon2-cffi", specifier = ">=25.1.0" },
+    { name = "beautifulsoup4", specifier = ">=4.14.3" },
+    { name = "bertopic", specifier = ">=0.17.4" },
+    { name = "boto3", specifier = ">=1.43.27" },
+    { name = "dotenv", specifier = ">=0.9.9" },
+    { name = "litestar", extras = ["standard"], specifier = ">=2.24.0" },
+    { name = "loguru", specifier = ">=0.7.3" },
+    { name = "numpy", specifier = ">=2.3.5" },
+    { name = "pandas", specifier = ">=2.3.3" },
+    { name = "pillow", specifier = ">=12.2.0" },
+    { name = "psycopg2", specifier = "==2.9.12" },
+    { name = "pt-core-news-lg", url = "https://github.com/explosion/spacy-models/releases/download/pt_core_news_lg-3.8.0/pt_core_news_lg-3.8.0-py3-none-any.whl" },
+    { name = "pydantic-settings", specifier = ">=2.15.0" },
+    { name = "requests", specifier = ">=2.34.2" },
+    { name = "scikit-learn", specifier = ">=1.8.0" },
+    { name = "spacy", specifier = ">=3.8.14" },
+    { name = "sqlalchemy", specifier = ">=2.0.50" },
+    { name = "torch", specifier = ">=2.12.0" },
+    { name = "transformers", specifier = ">=5.9.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "basedpyright", specifier = ">=1.40.1" },
+    { name = "jupyterlab", specifier = ">=4.5.7" },
+    { name = "pre-commit", specifier = ">=4.6.2" },
+    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "pytest-mock", specifier = ">=3.15.1" },
+    { name = "ruff", specifier = ">=0.16.10" },
+    { name = "sentencepiece", specifier = ">=0.2.2" },
+    { name = "tiktoken", specifier = ">=0.14.0" },
 ]
 
 [[package]]

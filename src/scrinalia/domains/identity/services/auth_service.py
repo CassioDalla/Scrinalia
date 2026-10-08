@@ -30,9 +30,10 @@ from scrinalia.domains.identity.exceptions import (
     InvalidCredentialsError,
     InvalidCurrentPasswordError,
     LastAdminError,
+    SessionNotFoundError,
     UserNotFoundError,
 )
-from scrinalia.domains.identity.models import AuthUser
+from scrinalia.domains.identity.models import AuthSession, AuthUser
 from scrinalia.domains.identity.repository.session_repo import SessionRepository
 from scrinalia.domains.identity.repository.user_repo import UserRepository
 from scrinalia.domains.identity.schemas.user_schema import (
@@ -177,6 +178,37 @@ class AuthService:
         if user is None:
             raise UserNotFoundError(f"Conta {user_id} não encontrada.")
         return user
+
+    def list_sessions(self, user_id: int) -> list[AuthSession]:
+        """
+        The live sessions of one account, most recently seen first.
+
+        The account is resolved before the list, so an unknown id is a 404 and not an empty list:
+        "this account has no open sessions" and "there is no such account" are different answers, and
+        an administrator who mistyped an id needs the second one.
+        """
+        self.get_user(user_id)
+        return self.sessions.list_active_for_user(user_id, datetime.now(UTC))
+
+    def revoke_session(self, user_id: int, session_id: int) -> AuthSession:
+        """
+        Ends one session of one account.
+
+        An id that does not exist, or that belongs to another account, is the same refusal — see
+        ``SessionNotFoundError``: the alternative answers "that id is real, just not here", which is
+        an enumeration of other people's sessions.
+        """
+        self.get_user(user_id)
+        session = self.sessions.get(session_id)
+        if session is None or session.user_id != user_id:
+            raise SessionNotFoundError(f"Sessão {session_id} não encontrada para esta conta.")
+        self.sessions.revoke(session, datetime.now(UTC))
+        return session
+
+    def revoke_all_sessions(self, user_id: int) -> int:
+        """Ends every live session of an account — the "sign out everywhere" an administrator needs."""
+        self.get_user(user_id)
+        return self.sessions.revoke_all_for_user(user_id, datetime.now(UTC))
 
     def create_user(self, command: CreateUserCommand, *, must_change_password: bool = False) -> AuthUser:
         """

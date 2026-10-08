@@ -21,6 +21,16 @@ class SessionRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
+    def get(self, session_id: int) -> AuthSession | None:
+        """
+        One session by id, revoked or not.
+
+        The administrative read and the target of a revocation: both need the row even when it is no
+        longer live, because the answer to "revoke this session" must not depend on the screen having
+        listed it a second earlier.
+        """
+        return self.db.get(AuthSession, session_id)
+
     def issue(
         self,
         *,

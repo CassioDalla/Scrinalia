@@ -23,6 +23,8 @@ from scrinalia.domains.identity.exceptions import (
     InvalidCredentialsError,
     InvalidCurrentPasswordError,
     LastAdminError,
+    SessionNotFoundError,
+    UserNotFoundError,
     WeakPasswordError,
 )
 from scrinalia.domains.identity.models import AuthSession
@@ -332,3 +334,78 @@ def test_deactivating_an_account_ends_its_sessions(auth_service, generate_user) 
     auth_service.update_user(user, UpdateUserCommand(is_active=False))
 
     assert auth_service.resolve_session(token) is None
+
+
+# ==========================================
+# THE SESSIONS OF AN ACCOUNT
+# ==========================================
+
+
+def test_the_sessions_of_an_account_are_listed(auth_service, generate_user) -> None:
+    """The "where am I signed in?" read: one row per live sign-in, and none of the ended ones."""
+    user = generate_user()
+    first_token, _ = auth_service.login("maria@arquivo.org", PASSWORD)
+    second_token, _ = auth_service.login("maria@arquivo.org", PASSWORD)
+    auth_service.logout(first_token)
+
+    sessions = auth_service.list_sessions(user.user_id)
+
+    assert len(sessions) == 1
+    assert sessions[0].token_hash == hash_session_token(second_token)
+
+
+def test_listing_the_sessions_of_an_unknown_account_is_a_not_found(auth_service) -> None:
+    """
+    An empty list would be a lie: it says "this account has no open sessions" about an account that
+    does not exist, and the administrator who mistyped an id would believe it.
+    """
+    with pytest.raises(UserNotFoundError):
+        auth_service.list_sessions(999)
+
+
+def test_revoking_one_session_leaves_the_others_alone(auth_service, generate_user) -> None:
+    user = generate_user()
+    first_token, _ = auth_service.login("maria@arquivo.org", PASSWORD)
+    second_token, _ = auth_service.login("maria@arquivo.org", PASSWORD)
+
+    auth_service.revoke_session(user.user_id, auth_service.list_sessions(user.user_id)[0].session_id)
+
+    still_live = [auth_service.resolve_session(token) is not None for token in (first_token, second_token)]
+    assert still_live.count(True) == 1
+
+
+def test_a_session_of_another_account_cannot_be_revoked_through_it(auth_service, generate_user) -> None:
+    """
+    The id alone must not be enough.
+
+    Both sides of the refusal are asserted: the call raises *and* the session is still live — an
+    implementation that revoked first and validated later would pass the first assertion alone.
+    """
+    owner = generate_user(email="maria@arquivo.org")
+    other = generate_user(email="ana@arquivo.org")
+    token, _ = auth_service.login("maria@arquivo.org", PASSWORD)
+    session = auth_service.list_sessions(owner.user_id)[0]
+
+    with pytest.raises(SessionNotFoundError):
+        auth_service.revoke_session(other.user_id, session.session_id)
+
+    assert auth_service.resolve_session(token) is not None
+
+
+def test_revoking_an_unknown_session_is_a_not_found(auth_service, generate_user) -> None:
+    user = generate_user()
+
+    with pytest.raises(SessionNotFoundError):
+        auth_service.revoke_session(user.user_id, 999)
+
+
+def test_revoking_every_session_ends_all_of_them(auth_service, generate_user) -> None:
+    """The "sign out everywhere" of a lost laptop, and it reports how many it ended."""
+    user = generate_user()
+    tokens = [auth_service.login("maria@arquivo.org", PASSWORD)[0] for _ in range(3)]
+
+    ended = auth_service.revoke_all_sessions(user.user_id)
+
+    assert ended == 3
+    assert auth_service.list_sessions(user.user_id) == []
+    assert all(auth_service.resolve_session(token) is None for token in tokens)

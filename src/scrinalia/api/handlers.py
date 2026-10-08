@@ -60,6 +60,7 @@ from scrinalia.domains.identity.exceptions import (
     InvalidCurrentPasswordError,
     InvalidEmailError,
     LastAdminError,
+    SessionNotFoundError,
     UserNotFoundError,
     WeakPasswordError,
 )
@@ -99,6 +100,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             WorkerNotFoundError,
             WorkerRunNotFoundError,
             UserNotFoundError,
+            SessionNotFoundError,
         ),
     ):
         status_code = HTTP_404_NOT_FOUND

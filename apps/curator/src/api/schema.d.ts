@@ -1447,6 +1447,93 @@ export interface paths {
         patch: operations["ApiV1TypologiesTypologyIdUpdateTypology"];
         trace?: never;
     };
+    "/api/v1/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListUsers */
+        get: operations["ApiV1UsersListUsers"];
+        put?: never;
+        /** CreateUser */
+        post: operations["ApiV1UsersCreateUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** UpdateUser */
+        patch: operations["ApiV1UsersUserIdUpdateUser"];
+        trace?: never;
+    };
+    "/api/v1/users/{user_id}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ResetPassword */
+        post: operations["ApiV1UsersUserIdPasswordResetPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{user_id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListSessions */
+        get: operations["ApiV1UsersUserIdSessionsListSessions"];
+        put?: never;
+        post?: never;
+        /** RevokeAllSessions */
+        delete: operations["ApiV1UsersUserIdSessionsRevokeAllSessions"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{user_id}/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** RevokeSession */
+        delete: operations["ApiV1UsersUserIdSessionsSessionIdRevokeSession"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/vocabulary": {
         parameters: {
             query?: never;
@@ -1571,6 +1658,20 @@ export interface components {
         ArrangementTermUpdateRequest: {
             display_name?: string | null;
             is_active?: boolean | null;
+        };
+        /** AuthSessionDTO */
+        AuthSessionDTO: {
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            ip_address?: string | null;
+            /** @default false */
+            is_current: boolean;
+            /** Format: date-time */
+            last_seen_at: string;
+            session_id: number;
+            user_agent?: string | null;
         };
         /** AuthUserDTO */
         AuthUserDTO: {
@@ -1823,6 +1924,16 @@ export interface components {
             text: string;
             /** @description Outras grafias do mesmo trecho. */
             variants?: string[];
+        };
+        /** CreateUserCommand */
+        CreateUserCommand: {
+            /** @description Identificador da conta; normalizado para minúsculas. */
+            email: string;
+            /** @description Como o nome aparece nos ledgers e na tela. */
+            name: string;
+            /** @description Senha inicial; a política é verificada no domínio. */
+            password: string;
+            role: components["schemas"]["Role"];
         };
         /** CrossDomainConflict */
         CrossDomainConflict: {
@@ -2831,11 +2942,18 @@ export interface components {
          *         things and a translation catalogue needs to tell them apart.
          * @enum {string}
          */
-        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORD_PURGE_DONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "CONFLICT_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED";
+        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORD_PURGE_DONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "CONFLICT_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
         /** RouteResponse */
         RouteResponse: {
             code: components["schemas"]["RouteMessageCode"];
             message: string;
+        };
+        /** SetPasswordCommand */
+        SetPasswordCommand: {
+            /** @default true */
+            must_change: boolean;
+            /** @description Nova senha; a política é verificada no domínio. */
+            password: string;
         };
         /** StopwordBanResponse */
         StopwordBanResponse: {
@@ -3250,6 +3368,12 @@ export interface components {
             status?: "SUGGESTED" | "APPROVED" | "REJECTED" | null;
             text?: string | null;
             variants?: string[] | null;
+        };
+        /** UpdateUserCommand */
+        UpdateUserCommand: {
+            is_active?: boolean | null;
+            name?: string | null;
+            role?: components["schemas"]["Role"] | null;
         };
         /** WorkerEngineDTO */
         WorkerEngineDTO: {
@@ -7016,6 +7140,259 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TypologyDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1UsersListUsers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthUserDTO"][];
+                };
+            };
+        };
+    };
+    ApiV1UsersCreateUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateUserCommand"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthUserDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1UsersUserIdUpdateUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateUserCommand"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthUserDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1UsersUserIdPasswordResetPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetPasswordCommand"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RouteResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1UsersUserIdSessionsListSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthSessionDTO"][];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1UsersUserIdSessionsRevokeAllSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RouteResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1UsersUserIdSessionsSessionIdRevokeSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RouteResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

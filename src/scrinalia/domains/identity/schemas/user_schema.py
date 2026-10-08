@@ -55,6 +55,28 @@ class UpdateUserCommand(BaseModel):
     is_active: bool | None = None
 
 
+class AuthSessionDTO(BaseModel):
+    """
+    One live sign-in, as the accounts screen reads it.
+
+    There is no token and no token hash: the row is identified by ``session_id``, which is enough to
+    revoke it and useless for impersonating it. ``user_agent``/``ip_address`` are what let somebody
+    recognise "that one is not me" — they are free-form context written at sign-in and never trusted.
+    """
+
+    session_id: int
+    user_agent: str | None = None
+    ip_address: str | None = None
+    created_at: datetime
+    last_seen_at: datetime
+    expires_at: datetime
+    #: Whether this is the session making the request. Set by the controller from the cookie, never
+    #: stored: it is a fact about *this* request, not about the row.
+    is_current: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class SetPasswordCommand(BaseModel):
     """An administrator (or the CLI) sets a new password without knowing the old one."""
 

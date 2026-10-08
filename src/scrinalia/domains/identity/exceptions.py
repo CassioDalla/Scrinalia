@@ -14,6 +14,19 @@ class UserNotFoundError(DomainException):
     pass
 
 
+class SessionNotFoundError(DomainException):
+    """Raised when a session named by an administrative operation does not exist.
+
+    Also the answer when the session exists but belongs to another account: from the screen's side
+    the two are the same fact — there is no live session of *this* account with that id — and
+    answering differently would let an administrator enumerate the sessions of an account they were
+    not looking at.
+    """
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
 class DuplicateUserEmailError(DomainException):
     """Raised when an account would carry an address that is already taken."""
 

@@ -21,6 +21,7 @@ from scrinalia.api.controllers.system_controller import SystemController
 from scrinalia.api.controllers.taxonomy_controller import TaxonomyController
 from scrinalia.api.controllers.text_quality_controller import TextQualityController
 from scrinalia.api.controllers.typology_controller import TypologyController
+from scrinalia.api.controllers.users_controller import UsersController
 from scrinalia.api.dependencies import provide_unit_of_work
 from scrinalia.api.handlers import (
     domain_exception_handler,
@@ -75,6 +76,10 @@ def create_app() -> Litestar:
         SystemController,
         TextQualityController,
         TypologyController,
+        # The accounts: the surface of ``Permission.ADMIN``, which is where the menu's
+        # "Configurações" group lands. Registered with the rest — it declares its own permission on
+        # every operation like any other controller.
+        UsersController,
     ]
 
     if (spa := curator_spa_router()) is not None:

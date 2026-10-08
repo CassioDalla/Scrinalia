@@ -78,6 +78,12 @@ class RouteMessageCode(enum.StrEnum):
     # and already speaks both domains; the identity domain itself imports nothing from the archive.
     SESSION_ENDED = "SESSION_ENDED"
     PASSWORD_CHANGED = "PASSWORD_CHANGED"
+    #: An administrator replaced somebody's password, which ended every session of that account.
+    USER_PASSWORD_RESET = "USER_PASSWORD_RESET"
+    #: Every session of one account was ended at once.
+    USER_SESSIONS_REVOKED = "USER_SESSIONS_REVOKED"
+    #: One session of one account was ended.
+    SESSION_REVOKED = "SESSION_REVOKED"
 
 
 class RouteResponse(BaseModel):
