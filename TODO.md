@@ -6,10 +6,10 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > **Como ler.** `✅` = feito **e verificado em execução real** (Postgres + engines reais), não
 > apenas lido no código. `[ ]` = pendente. `[~]` = parcial.
 >
-> **Estado do gate (2026-10-07, após a autenticação — B9.1):** **1.317 testes** passando · `ruff`
+> **Estado do gate (2026-10-07, após a gestão de contas — B9.2):** **1.343 testes** passando · `ruff`
 > limpo · `basedpyright` **0 erros** · **32 migrações** sem drift · contrato OpenAPI
-> **89 paths / 104 operações / 178 schemas**, gerado, commitado e sem drift · SPA (`tsc`, `eslint`,
-> `vite build`) limpa e servida pelo próprio Litestar · **9 ADRs**. As **104 operações** estão todas
+> **94 paths / 111 operações / 182 schemas**, gerado, commitado e sem drift · SPA (`tsc`, `eslint`,
+> `vite build`) limpa e servida pelo próprio Litestar · **9 ADRs**. As **111 operações** estão todas
 > classificadas por permissão, e a superfície aberta são três.
 
 ---
@@ -24,18 +24,18 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 | 2.5 | Hierarquia das descrições | ✅ **Fechada** (H1–H8, com tela) |
 | 3 | Descoberta, performance e observabilidade | 🟡 **Quase** — falta o agendador; `/health` e o rastreamento de erros **fechados** (ADR 0005) |
 | 3.5 | Qualidade do dado de entrada | ✅ **Fechada** |
-| 4 | UI, BFF e publicação | 🟡 **Curador completo** (22 telas) e **auth entregue (B9.1)**; faltam a tela de contas (B9.2) e o **site público** |
-| **5** | **Release 1.0** | 🟡 **Iniciada** — licença (0006), nome (0007), desacoplamento (0008) e auth (0009) fechados; faltam a gestão de contas e docs |
+| 4 | UI, BFF e publicação | 🟡 **Curador completo** (23 telas) e **auth entregue (B9.1 + B9.2)**; faltam o endurecimento (B9.3) e o **site público** |
+| **5** | **Release 1.0** | 🟡 **Iniciada** — licença (0006), nome (0007), desacoplamento (0008) e auth (0009) fechados; faltam o endurecimento (B9.3) e docs |
 
 **O sistema está funcionalmente pronto.** Ingestão → staging → archive → enriquecimento por IA →
-curadoria humana → bloqueio de reprocessamento, tudo verificado ponta a ponta. O **curador tem 22
+curadoria humana → bloqueio de reprocessamento, tudo verificado ponta a ponta. O **curador tem 23
 telas** cobrindo todo o sitemap mais o painel de operação, e o **Streamlit saiu do repositório**.
 
 **O que falta para uma 1.0 é de outra natureza:** não é feature, é *produto*. Documentação,
 desacoplamento institucional e autenticação — a **licença** (ADR 0006), o **nome** (ADR 0007), o
-**desacoplamento** (ADR 0008) e a **autenticação** (ADR 0009, ciclo B9.1) foram fechados em
-2026-10-07. Restam a **gestão de contas na tela** (B9.2) e a **base de documentação**. Detalhe na
-seção seguinte.
+**desacoplamento** (ADR 0008) e a **autenticação** (ADR 0009, ciclos B9.1 e B9.2) foram fechados em
+2026-10-07. Restam o **endurecimento da autenticação** (B9.3: lockout, rate-limit, `Origin`) e a
+**base de documentação**. Detalhe na seção seguinte.
 
 > **Ciclos entregues, em uma linha cada** (o detalhe está nas fases fechadas):
 > contrato + onda 1 (2026-10-05) · onda 2, o plano de arranjo (2026-10-05) · ondas 4–6 e a remoção
@@ -46,8 +46,9 @@ seção seguinte.
 > atribuição do autor no rodapé (2026-10-07)** · **o nome `Scrinalia` e o rename do pacote
 > (2026-10-07)** · **o desacoplamento institucional — o perfil de língua `pt-BR`, os dois catálogos
 > do acervo com tela, e a configuração da origem (2026-10-07)** · **a autenticação — sessão por
-> cookie no banco, argon2id, três papéis e as 104 operações classificadas, com a autoria vindo da
-> sessão em vez do request (2026-10-07)**.
+> cookie no banco, argon2id, três papéis e as operações classificadas, com a autoria vindo da
+> sessão em vez do request (2026-10-07)** · **a gestão de contas — `/api/v1/users`, a tela
+> `Configurações › Usuários` e o menu que esconde a área que o papel não alcança (2026-10-07)**.
 
 ---
 
@@ -62,7 +63,7 @@ seção seguinte.
 - Pipeline completo e verificado ponta a ponta, com governança (`HUMAN_APPROVED` bloqueia IA).
 - 22 telas de curadoria + painel de operação; Streamlit removido.
 - Contrato OpenAPI gerado, commitado e com CI bloqueante; cliente TS gerado do contrato.
-- 1.317 testes, CI com 3 jobs (lint, testes+migrações+contrato, frontend).
+- 1.343 testes, CI com 3 jobs (lint, testes+migrações+contrato, frontend).
 - Schema 100% sob Alembic, 32 migrações sem drift.
 - **Autenticação entregue (B9.1):** sessão por cookie com a linha no banco (só o sha256 do token),
   argon2id, três papéis e **cada operação de `/api/v1` declarando a sua permissão** — com um teste que
@@ -98,11 +99,11 @@ seção seguinte.
       - **Nome:** **decidido e aplicado em 2026-10-07** — o projeto é **`Scrinalia`** (ADR 0007, §
         abaixo). O `attribution.ts` continua sendo o ponto único da troca: renomear de novo é uma
         linha, não uma tela.
-- [~] **Auth (B9) — B9.1 entregue em 2026-10-07; B9.2 e B9.3 pendentes.** Antes disso qualquer
+- [~] **Auth (B9) — B9.1 e B9.2 entregues em 2026-10-07; B9.3 pendente.** Antes disso qualquer
       cliente que alcançasse a API aprovava fichas, apagava descrições, fundia taxonomia e **disparava
       workers**: eram **85 paths / 100 operações**, 58 delas de mutação, e **15 colunas de autoria em
       15 tabelas** guardavam texto livre (`changed_by`, `requested_by`, `decided_by`, `deleted_by`,
-      `created_by`, `undone_by`). Hoje são **89 paths / 104 operações**, todas classificadas, e a
+      `created_by`, `undone_by`). Hoje são **94 paths / 111 operações**, todas classificadas, e a
       superfície aberta são **três** operações: o login e as duas rotas de difusão.
       - **O que a execução corrigiu no plano, e vale para o próximo ciclo.** (1) O guard faz a
         **autenticação junto** com a autorização, e não um middleware: um middleware roda fora do
@@ -117,11 +118,17 @@ seção seguinte.
         a ser verificado. (5) `EntityRepository.resolve_cross_domain_conflict` gravava
         `decided_by=source`, então "quem decidiu" respondia `JUDGE`/`HUMAN`; o teste **afirmava o
         defeito** e agora afirma a correção.
-      - **Pendente no B9.2 — papéis na tela.** `/api/v1/users` (CRUD, papel, ativar/desativar, reset,
-        sessões ativas e revogação) e o grupo **"Configurações"** no fim da sidebar, com `Usuários`
-        primeiro. O menu é o mesmo para todos os papéis **de propósito** até lá: esconder o que a conta
-        não pode fazer é o trabalho desta tela, e uma negação hoje é um 403 com frase — visível e
-        honesto, em vez de um menu que mente sobre o que existe.
+      - **B9.2 — entregue. Papéis na tela.** `/api/v1/users` (listar, criar, editar nome/papel,
+        ativar/desativar, reset de senha, sessões ativas e revogação — uma ou todas) e o grupo
+        **"Configurações"** no fim da sidebar, com `Usuários` primeiro, na tela
+        `/configuracoes/usuarios`. Duas decisões que a execução fixou: (1) a senha criada na tela é
+        **temporária** (`must_change_password=True`), como a do CLI — quem a digitou foi o
+        administrador, não o dono da conta; e (2) revogar sessão de **outra conta** responde 404 e não
+        200: o id sozinho não pode enumerar os acessos alheios. O menu deixou de ser o mesmo para todos
+        os papéis: cada entrada declara a **área que a tela escreve** (`Permission`) e o shell esconde
+        o que o papel não alcança — os **leitores puros** (acervo, árvore, diagnóstico) não declaram
+        nada e continuam visíveis a todos, e o 403 com frase segue sendo a verdade para quem chega
+        pela URL direta.
       - **Pendente no B9.3 — endurecimento, e uma armadilha já medida.** `failed_attempts`/
         `locked_until` existem na tabela e **nada os escreve**: o contador **não pode** viver na
         transação do request, porque um login que falha levanta e o `provide_unit_of_work` faz rollback
@@ -160,14 +167,13 @@ seção seguinte.
         **aqui**, não no B9.2: o CLI cria o admin com senha temporária e `must_change_password`, e sem
         essa rota ele fica preso num beco sem saída). **O ADR 0009 nasce neste ciclo**, não no B9.3: o
         registro pertence a quem toma a decisão.
-      - **B9.2 — pendente. Papéis e a página Configurações.** `/api/v1/users` (CRUD, papel, ativar/desativar,
-        reset, sessões ativas e revogação) e o grupo **"Configurações"** no fim da sidebar, com
-        `Usuários` primeiro. Depois é o lugar natural para o que é *configuração* e não *operação*
-        (settings de worker), deixando "Sistema" com execuções e diagnóstico. A UI passa a esconder e
-        desabilitar o que o papel não pode.
+      - **O que o B9.2 deixou armado para depois.** "Configurações" é o lugar natural para o que é
+        *configuração* e não *operação* (settings de worker), deixando "Sistema" com execuções e
+        diagnóstico. O que a tela ainda **não** faz é desabilitar botão a botão nas telas antigas: o
+        menu esconde a área inteira, e um controle que o papel não pode usar responde 403 com frase —
+        honesto, e a decidir caso a caso quando doer.
       - **B9.3 — pendente. Endurecimento.** `failed_attempts`/`locked_until` com backoff, rate-limit no login,
-        checagem de `Origin` nas mutações, `last_login_at` e auditoria de sessões. Pode colar no B9.2
-        se o ciclo precisar encurtar.
+        checagem de `Origin` nas mutações, `last_login_at` e auditoria de sessões.
       - **O que custa mais que o login (medido).** (a) **11 campos `changed_by` em schemas de
         request** (mais o `requested_by` do runner): se a autenticação chega e o cliente continua
         podendo mandar o nome, o curador logado escreve o nome de outro e a auditoria fica **pior**
@@ -194,7 +200,10 @@ seção seguinte.
       - **Ordem dos commits:** (1) `feat(identity)!` modelos, sessões, argon2id, CLI e migração;
         (2) `feat(api)!` sessão obrigatória, classificação de acesso e contrato (+ ADR 0009);
         (3) `refactor(api)!` autoria vinda da sessão + `changed_by_user_id`; (4) `feat(curator)`
-        portão de login e remoção do autor livre; (5) `chore(todo)` fechar o bullet do B9.1.
+        portão de login e remoção do autor livre; (5) `chore(todo)` fechar o bullet do B9.1;
+        (6) `feat(identity)` contas e sessões administrativas (`/api/v1/users`); (7) `feat(curator)` a
+        seção Configurações, a tela de contas e o menu por papel; (8) `test(archive)` a invariante de
+        `path` verificada pelo próprio diagnóstico.
 - [x] **Renomear o projeto, o pacote e o repositório** — **feito em 2026-10-07**: o projeto agora é
       **`Scrinalia`** (`refactor(pkg)!: rename memoria_curitibana to scrinalia`), com decisão e
       etimologia no **ADR 0007**. Escopo medido antes de executar: **240 arquivos** com uma das
@@ -434,8 +443,15 @@ mais ("de qual origem é esta fila?") e a origem no ledger de execuções.
   é uma coluna gerada, compartilhada pelos dois ledgers, e a tela agrupa. O encaminhamento para um
   serviço hospedado continua possível **sem tocar no caminho de escrita** — o gatilho e o custo
   aceito (sem alerta nem paging) estão no ADR 0005.
-- **`path` desnormalizado** — `PATH_DIVERGENCE` = 0 hoje, mas a invariante ainda não é verificada
-  automaticamente no CI.
+- **`path` desnormalizado** — ✅ **resolvido em 2026-10-07**: a invariante é verificada no CI pelo
+  **próprio diagnóstico** que a tela usa. Os dois testes que reescreviam a comparação em SQL
+  (`test_hierarchy_service.py`, `test_hierarchy_materialisation_service.py`) passaram a perguntar a
+  `find_path_divergences` — a query que serve `PATH_DIVERGENCE` — e não uma segunda definição que
+  poderia continuar verde enquanto a rota divergisse. A verificação cobre os **três escritores**
+  (criar, mover a subárvore, materializar e desfazer) e os **dois lados**: uma árvore saudável
+  responde vazio, incluindo o *early return* do total zero, e a linha corrompida de propósito
+  continua sendo encontrada — sem esse par, um diagnóstico que sempre respondesse "nada errado"
+  passaria despercebido.
 
 ---
 
@@ -625,13 +641,15 @@ antigos para 3.608 documentos e **nenhum** para os ~1.218 que entraram no re-par
 
 | Verificação | Resultado |
 | --- | --- |
-| `pytest` (unit + integração) | **1.219 passed** |
-| `ruff check` / `ruff format --check` | limpos (338 arquivos) |
+| `pytest` (unit + integração) | **1.343 passed** |
+| `ruff check` / `ruff format --check` | limpos (372 arquivos) |
 | `basedpyright` | **0 errors, 0 warnings** |
-| `alembic check` | **sem drift** (29 migrações) |
+| `alembic check` | **sem drift** (32 migrações) |
 | `alembic downgrade -1` + `upgrade head` | as duas tabelas e o enum voltam, o seed reaplica (38 + 71 linhas) e `check` segue sem drift |
 | `tsc` / `eslint` / `vite build` | limpos |
-| Contrato OpenAPI | **85 paths / 100 operações / 173 schemas**, sem drift (cliente TS incluído) |
+| Contrato OpenAPI | **94 paths / 111 operações / 182 schemas**, sem drift (cliente TS incluído) |
+| `/api/v1/users` em execução real (teste de integração) | criar, editar, desativar, resetar senha, listar e revogar sessões — com a permissão `ADMIN` e a sessão de outra conta respondendo 404 |
+| Tela `Configurações › Usuários` | `tsc`/`eslint`/`vite build` limpos; o menu esconde a área que o papel não alcança |
 | `/health/live` e `/health/ready` em execução real | 200 com o banco de pé, **503** com o banco parado |
 | `/api/v1/vocabulary` em execução real | 38 nomes de arranjo e 71 termos semeados, com `tag_count` por grafia |
 | Tela `/vocabulario` renderizada no browser | duas seções, tema aplicado, **zero erro de console** |
@@ -661,9 +679,14 @@ antigos para 3.608 documentos e **nenhum** para os ~1.218 que entraram no re-par
 1. **Acurácia de assunto em 0.500/0.575** — limite do zero-shot NLI com sintagma nominal.
    Decisão: aceitar e resolver por curadoria.
 2. **Busca semântica com qualidade fraca** — a híbrida (RRF) continua pendente; o MRR caiu 0.019.
-3. **Sem autenticação** — bloqueador da 1.0.
+3. **Autenticação entregue (B9.1 + B9.2), endurecimento pendente (B9.3)** — sessão, papéis, guard
+   por operação e gestão de contas; faltam o lockout (`failed_attempts`/`locked_until` sem escritor),
+   o rate-limit no login e a checagem de `Origin` nas mutações.
 4. **O acervo de referência está parcialmente processado** — tipologia e embedding pendentes.
-5. **`path` desnormalizado** — `PATH_DIVERGENCE` = 0 hoje, mas sem verificação automática no CI.
+5. **`path` desnormalizado** — a invariante é mantida pelo serviço e **verificada no CI** pelo próprio
+   diagnóstico depois de cada escritor (criar, mover, materializar/desfazer). O limite que resta é que
+   o banco **não** a garante: um `UPDATE` manual fora do serviço ainda pode divergir, e é o
+   `PATH_DIVERGENCE` que o encontra.
 6. **7 nós com `LEVEL_NOT_ALLOWED_AS_CHILD`** — a família SMU não cabe na escada de 6 níveis.
 7. **Premissa de processo único** — o executor na API + a recuperação de órfãos assumem
    `uvicorn --workers 1`. Documentado no ADR 0004; **precisa estar no guia de deploy**.

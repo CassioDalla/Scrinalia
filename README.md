@@ -111,7 +111,13 @@ is a first-party cookie whose row lives in `auth_sessions` — only the SHA-256 
 which is what makes "sign out everywhere" and "this person no longer works here" take effect at once
 instead of at expiry.
 
-Accounts are administered from the host:
+An `ADMIN` manages the accounts from the curator UI, under **Configurações › Usuários**: create,
+change a role, deactivate, reset a password, and see or end the active sessions of any account. A
+password created there is temporary — the account replaces it at the first sign-in — and deactivating
+an account ends its sessions immediately. The **last active administrator** cannot be deactivated or
+demoted, so the installation can never lock itself out of the UI.
+
+The host CLI remains for the bootstrap and for the way back in:
 
 ```bash
 uv run python -m scrinalia.domains.identity.cli list
@@ -227,6 +233,23 @@ uv run ruff format .          # format
 uv run basedpyright           # type check
 uv run pre-commit install     # once per clone
 ```
+
+> **When the checkout cannot write to `~/.cache`** — a sandboxed agent, a container with a read-only
+> home — export both caches into the workspace, which is already gitignored, and run the hooks with
+> the venv binary so `uv`'s own cache is not needed either:
+>
+> ```bash
+> export PRE_COMMIT_HOME=.cache-pre-commit
+> export UV_CACHE_DIR=.cache-uv
+> .venv/bin/pre-commit run --all-files
+> ```
+>
+> The same variables are what makes `git commit` work: the installed hook calls `.venv/bin/python3`
+> directly, but pre-commit still stashes the unstaged files into `PRE_COMMIT_HOME` and fails with
+> `Read-only file system` when that directory is `~/.cache/pre-commit`. The cache stores absolute
+> paths, so after the checkout directory is renamed it has to be rebuilt (delete `.cache-pre-commit`
+> and run the command above). The three hooks are the same three checks CI runs: `ruff`,
+> `ruff format` and `basedpyright`.
 
 Integration tests need a PostgreSQL database on port 5433:
 
