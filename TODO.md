@@ -143,10 +143,18 @@ que funciona" de "um repo que estranhos podem auditar e usar".
         Tirar exige **migração nova** que apague as linhas — editar a antiga quebraria a regra de que
         replay de histórico reproduz o estado que ele produziu — e ajustar os testes que hoje herdam
         o vocabulário do fixture.
-      - [ ] **Um token do acervo está em código de runtime.** `_ROOT_ARRANGEMENT = "BR PRADAP"` em
-        `domain/hierarchy_code.py` fatia os códigos contra o arranjo da instituição de referência.
-        Pela ADR 0008 o vocabulário é **dado**, então isto é defeito: é o que faria um banco zerado —
-        ou outra instituição — fatiar contra Curitiba. Precisa virar configuração ou linha de tabela.
+      - [x] **O fatiador NÃO tem token do acervo em código — verificado.** Eu tinha registrado o
+        contrário aqui, e a checagem desmentiu: `slice_reference_code` recebe **só** o código e
+        classifica por **forma** (`str.isalpha()` = arranjo, dígito/outro = identificador) com
+        `ROOT_MIN_TOKENS = 2`. O `BR PRADAP` existe apenas em comentário e em exemplo de docstring.
+        Um banco zerado não faz o fatiador fatiar contra Curitiba.
+      - [ ] **O nome do banco de referência é o default:** `DB_NAME = "memoriacuritibana"` em
+        `core/config.py` e nos dois pontos do `docker-compose.yml`. Neutro seria `scrinalia`. É
+        mudança **quebradiça para instalação existente** (um volume já criado tem o outro nome), então
+        vai junto com uma nota de migração, não sozinha.
+      - [ ] **~50 menções a tokens e nomes reais em comentários e docstrings de `src/`** (`BR PRADAP`,
+        `IPPUC`, `SMU`, `Curitiba`) e em `description=` de schemas da API. Não têm efeito de runtime —
+        é decisão de curadoria se exemplo ilustrativo precisa ser neutro.
       - [ ] **Números e nomes do acervo em documentação.** `AGENTS.md` (5 ocorrências) e `TODO.md`
         (12) citam 4.844, 4.816, 3.608, 8.155, 6.142, nomes de fundos e `BR PRADAP`. Proposta: manter
         as **medições agregadas**, que são a evidência de por que o código é como é ("52,9 s com o
