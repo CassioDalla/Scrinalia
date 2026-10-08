@@ -32,22 +32,15 @@ body:
     validations:
       required: true
 
-  - type: input
-    id: reference
-    attributes:
-      label: Reference (X-Request-ID)
-      description: |
-        Every API answer carries a request id, and the screen shows it as "referência" when a request
-        fails. It is the exact line in the server log; without it a report is a time range.
-      placeholder: "e.g. 3f2a9c1e-4b7d-4a2f-9c3e-8b1d2f4a6c7e"
-
   - type: textarea
     id: logs
     attributes:
       label: Relevant log lines
       description: |
-        From `logs/` (`ui_stream.jsonl` for the API, `ui_stream.jsonl`/`errors` for the workers), with
-        the request id above. **Redact secrets and personal data.**
+        Optional, and the most useful thing you can attach. A failed request shows a "referência" on
+        the screen: searching `logs/ui_stream.jsonl` for it returns the lines of that request — the id
+        travels in every record of it, so it comes along in the excerpt. `logs/critical.log` keeps the
+        errors only. **Redact secrets and personal data.**
       render: text
 
   - type: dropdown
