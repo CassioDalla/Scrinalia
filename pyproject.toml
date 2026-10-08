@@ -36,6 +36,17 @@ dependencies = [
 
 [tool.uv.sources]
 pt-core-news-lg = { url = "https://github.com/explosion/spacy-models/releases/download/pt_core_news_lg-3.8.0/pt_core_news_lg-3.8.0-py3-none-any.whl" }
+# torch comes from the CPU-only index. The shipped process runs on the CPU (`Procfile` hides the GPU),
+# and the default wheel drags the whole CUDA runtime along: measured, the lock resolved to 3.46 GB, of
+# which 2.19 GB were `nvidia-*` packages and 248 MB `triton` — none of it executed by a CPU host. The
+# CPU index takes the same lock to 0.66 GB. A GPU installation removes this line and the index below
+# and re-locks; `docs/guides/install.md` owns the recipe.
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [build-system]
 requires = ["hatchling"]

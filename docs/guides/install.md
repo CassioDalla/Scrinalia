@@ -8,6 +8,7 @@ sources:
   - docker/entrypoint.sh
   - docker/postgres/Dockerfile
   - package.json
+  - pyproject.toml
   - src/scrinalia/core/config.py
   - src/scrinalia/core/logger.py
   - src/scrinalia/core/storage.py
@@ -245,25 +246,34 @@ defect ADR 0008 removed one layer up. A deployment that wants another name sets 
 
 ## CPU and GPU
 
-`Procfile` starts the API as `CUDA_VISIBLE_DEVICES="" uv run uvicorn main:app --reload`, and the
-runtime stage of the `Dockerfile` sets the same variable as an `ENV`. The empty value hides every
-GPU from the process, which does two things: the application runs on the CPU, and a host without the
-NVIDIA driver does not fail at start-up. The variable is there because the `torch` wheel the lockfile
-pins carries the whole CUDA runtime even though the process runs on the CPU; the `Dockerfile` states
-the reason for hiding the GPU — a host without the driver must not make the process fail on
-start-up. CPU is the shape the shipped process assumes, not a limitation of the code.
+CPU is the shape the shipped process assumes, not a limitation of the code, and it is enforced in two
+places. `pyproject.toml` points `torch` at the **CPU-only PyTorch index**, so no CUDA runtime is
+installed at all; and `Procfile` starts the API as `CUDA_VISIBLE_DEVICES="" uv run uvicorn main:app
+--reload`, with the runtime stage of the `Dockerfile` setting the same variable as an `ENV`, so the
+process cannot see a GPU even on a host that has one.
 
-To use a GPU instead:
+The index is worth more than it looks. Measured on this lock, the default wheel resolves **3.46 GB**,
+of which **2.19 GB are `nvidia-*` packages** and 248 MB `triton` — a runtime a CPU process never
+executes, downloaded and cached by every installation and by CI. With the CPU index the same lock
+resolves to **0.66 GB**. The variable covers the other direction: it keeps a re-locked CUDA
+installation from failing on a host without the NVIDIA driver, and it hides the GPU from the parts of
+the stack that reach CUDA by another route (`spaCy` only reaches one through `cupy`, the `spacy[gpu]`
+extra, which this project does not declare).
 
-1. Do not set `CUDA_VISIBLE_DEVICES=""` for the process; start it without the variable, or name the
+To use a GPU instead, the wheel has to be there first:
+
+1. Remove the `torch = { index = "pytorch-cpu" }` line and the `[[tool.uv.index]]` block for
+   `pytorch-cpu` from `pyproject.toml`, then run `uv lock && uv sync`. The default PyPI wheel carries
+   the CUDA runtime on Linux and Windows; macOS keeps its own build either way.
+2. Do not set `CUDA_VISIBLE_DEVICES=""` for the process; start it without the variable, or name the
    device you mean (`CUDA_VISIBLE_DEVICES=0`).
-2. Choose a configuration that uses the GPU. The typology engine (also used by the macro-category
+3. Choose a configuration that uses the GPU. The typology engine (also used by the macro-category
    worker) has a `gpu_cloud` preset with `device: "cuda"`; NER's default preset is already `gpu`,
    which calls `spacy.prefer_gpu()` — note that spaCy reaches the GPU only through its CUDA runtime
    (`cupy`, the `spacy[gpu]` extra), which this project does not declare, so install it separately
    if you want the entities on the GPU; the embedding engine has a single `multilingual_minilm`
    preset on `device: "cpu"` and takes an override.
-3. Run through the unified runner, which forwards `--option key=value` to the worker and from there
+4. Run through the unified runner, which forwards `--option key=value` to the worker and from there
    to the engine factory:
 
 ```bash

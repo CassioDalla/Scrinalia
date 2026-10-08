@@ -103,8 +103,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 1000 --user-group scrinalia
 
-# CUDA_VISIBLE_DEVICES="" mirrors the Procfile: the application runs on CPU, so a host without the
-# NVIDIA driver must not make the process fail on start-up.
+# CUDA_VISIBLE_DEVICES="" mirrors the Procfile: the application runs on CPU, and the lockfile pins the
+# CPU build of torch. The variable covers the installation that re-locks for a GPU — it keeps a host
+# without the NVIDIA driver from failing on start-up, and hides the GPU from the parts of the stack
+# that reach CUDA by another route.
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     VIRTUAL_ENV=/app/.venv \
