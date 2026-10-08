@@ -166,3 +166,31 @@ def test_deactivate_rule_not_found(cleaning_service, mock_repo):
         cleaning_service.deactivate_rule(999)
 
     assert "Regra 999 não encontrada" in str(exc_info.value)
+
+
+def test_activate_rule_success(cleaning_service, mock_repo):
+    """Reactivation is the way back deactivation promised; the service still never commits."""
+    activated = CleaningRuleDTO(
+        rule_id=99,
+        rule_name="Regra Teste",
+        is_active=True,
+        target_column="original_title",
+        regex_pattern=".",
+        replacement_string="",
+    )
+    mock_repo.activate_rule.return_value = activated
+
+    result = cleaning_service.activate_rule(99)
+
+    assert result.is_active is True
+    mock_repo.activate_rule.assert_called_once_with(99)
+    mock_repo.db.commit.assert_not_called()
+
+
+def test_activate_rule_not_found(cleaning_service, mock_repo):
+    mock_repo.activate_rule.return_value = None
+
+    with pytest.raises(CleaningRuleNotFoundError) as exc_info:
+        cleaning_service.activate_rule(999)
+
+    assert "Regra 999 não encontrada" in str(exc_info.value)

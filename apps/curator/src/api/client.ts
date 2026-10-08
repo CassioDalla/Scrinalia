@@ -1184,8 +1184,13 @@ export async function previewTextTemplate(
 
 // --- Quality of the input data: the cleaning rules ---------------------------------------------
 
-export async function fetchCleaningRules(): Promise<CleaningRule[]> {
-  return unwrap<CleaningRule[]>(await client.GET("/api/v1/quality/cleaning-rules"));
+/** The catalogue. ``includeInactive`` is what lets the screen show the way back. */
+export async function fetchCleaningRules(includeInactive = false): Promise<CleaningRule[]> {
+  return unwrap<CleaningRule[]>(
+    await client.GET("/api/v1/quality/cleaning-rules", {
+      params: { query: { include_inactive: includeInactive } },
+    }),
+  );
 }
 
 export async function createCleaningRule(
@@ -1200,6 +1205,15 @@ export async function createCleaningRule(
 export async function deactivateCleaningRule(ruleId: number): Promise<CleaningRuleMutationResponse> {
   return unwrap<CleaningRuleMutationResponse>(
     await client.PATCH("/api/v1/quality/cleaning-rules/{rule_id}/deactivate", {
+      params: { path: { rule_id: ruleId } },
+    }),
+  );
+}
+
+/** The way back: the rule returns to the queue the worker reads, with its id and history intact. */
+export async function activateCleaningRule(ruleId: number): Promise<CleaningRuleMutationResponse> {
+  return unwrap<CleaningRuleMutationResponse>(
+    await client.PATCH("/api/v1/quality/cleaning-rules/{rule_id}/activate", {
       params: { path: { rule_id: ruleId } },
     }),
   );

@@ -5258,6 +5258,7 @@
         "enum": [
           "CLEANING_RULE_CREATED",
           "CLEANING_RULE_DEACTIVATED",
+          "CLEANING_RULE_ACTIVATED",
           "TEXT_TEMPLATE_SUGGESTED",
           "TEXT_TEMPLATE_CREATED",
           "TEXT_TEMPLATE_UPDATED",
@@ -10508,6 +10509,20 @@
       "get": {
         "deprecated": false,
         "operationId": "ApiV1QualityCleaningRulesListRules",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "include_inactive",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -10522,6 +10537,44 @@
             },
             "description": "Request fulfilled, document follows",
             "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
           }
         },
         "summary": "ListRules",
@@ -10665,6 +10718,78 @@
           }
         },
         "summary": "PreviewDryRun",
+        "tags": [
+          "Data Quality"
+        ]
+      }
+    },
+    "/api/v1/quality/cleaning-rules/{rule_id}/activate": {
+      "patch": {
+        "deprecated": false,
+        "operationId": "ApiV1QualityCleaningRulesRuleIdActivateActivateRule",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "rule_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CleaningRuleMutationResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ActivateRule",
         "tags": [
           "Data Quality"
         ]

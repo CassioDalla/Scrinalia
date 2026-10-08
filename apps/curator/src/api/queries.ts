@@ -412,7 +412,10 @@ export const queries = {
   cleaningRules: () =>
     queryOptions({
       queryKey: ["quality", "cleaning-rules"],
-      queryFn: fetchCleaningRules,
+      // The retired rules come along on purpose: deactivating is reversible, and the screen cannot
+      // offer the way back to a rule it does not fetch. The arrow keeps the query context from
+      // being passed as the flag.
+      queryFn: () => fetchCleaningRules(true),
       // The list is the whole catalogue and it changes only when an archivist writes to it, which
       // is exactly when the screen invalidates it.
       staleTime: 60_000,

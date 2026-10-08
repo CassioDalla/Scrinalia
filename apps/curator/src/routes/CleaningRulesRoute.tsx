@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import {
+  activateCleaningRule,
   createCleaningRule,
   deactivateCleaningRule,
   previewCleaningRule,
@@ -32,6 +33,13 @@ const TARGETS: CleaningTargetColumn[] = [
 ];
 const KINDS: RuleKind[] = ["REWRITE", "VALIDATE", "LLM_CHECK"];
 
+function subtitleOf(active: number, retired: number): string {
+  const activeLabel = active === 1 ? "1 regra ativa" : `${formatCount(active)} regras ativas`;
+  if (retired === 0) return active === 0 ? "Nenhuma regra ativa" : activeLabel;
+  const retiredLabel = retired === 1 ? "1 desativada" : `${formatCount(retired)} desativadas`;
+  return `${active === 0 ? "Nenhuma regra ativa" : activeLabel} · ${retiredLabel}`;
+}
+
 /**
  * The cleaning rules: the one place a regular expression can rewrite the collection.
  *
@@ -60,36 +68,37 @@ export function CleaningRulesRoute() {
     onSuccess: invalidate,
   });
 
+  const activate = useMutation({
+    mutationFn: (ruleId: number) => activateCleaningRule(ruleId),
+    onSuccess: invalidate,
+  });
+
   const rows = rules.data ?? [];
+  const activeCount = rows.filter((rule) => rule.is_active).length;
+  const retiredCount = rows.length - activeCount;
+  // Active first: the loud ones (a REWRITE rule rewrites the collection) stay at the top, and the
+  // retired ones sit at the bottom, which is where the way back lives.
+  const ordered = [...rows].sort((a, b) => Number(b.is_active) - Number(a.is_active));
 
   return (
     <>
-      <PageHeader
-        title="Regras de limpeza"
-        subtitle={
-          rules.data
-            ? rows.length === 0
-              ? "Nenhuma regra ativa"
-              : `${formatCount(rows.length)} regras ativas`
-            : "Lendo as regras…"
-        }
-      />
+      <PageHeader title="Regras de limpeza" subtitle={rules.data ? subtitleOf(activeCount, retiredCount) : "Lendo as regras…"} />
 
       <div className="grid max-w-5xl gap-4 px-6 py-5">
         <p className="rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
           <strong>O tipo da regra é o que separa limpar de destruir.</strong> Uma regra{" "}
           <code>REWRITE</code> substitui cada ocorrência no acervo; <code>VALIDATE</code> e{" "}
           <code>LLM_CHECK</code> só sinalizam — o worker filtra <code>REWRITE</code> explicitamente.
-          Regras nunca são apagadas: desativar é o caminho reversível.
+          Regras nunca são apagadas: as desativadas continuam nesta tela, com o botão de reativar.
         </p>
 
         {rules.error ? <ErrorState error={rules.error} /> : null}
         {rules.isPending ? <Spinner /> : null}
 
-        {rules.data && rows.length === 0 ? (
+        {rules.data && activeCount === 0 ? (
           <EmptyState
             title="Nenhuma regra ativa"
-            hint="Sem regra REWRITE ativa, o worker de limpeza não reescreve nada. Sem regra VALIDATE/LLM_CHECK, a fila de anomalias fica vazia por construção — não por o acervo estar perfeito."
+            hint="Sem regra REWRITE ativa, o worker de limpeza não reescreve nada. Sem regra VALIDATE/LLM_CHECK, a fila de anomalias fica vazia por construção — não por o acervo estar perfeito. As desativadas aparecem abaixo, com o botão de reativar."
           />
         ) : null}
 
@@ -102,9 +111,9 @@ export function CleaningRulesRoute() {
         <CreateRuleCard onCreated={invalidate} />
 
         <ul className="grid gap-2">
-          {rows.map((rule) => (
+          {ordered.map((rule) => (
             <li key={rule.rule_id}>
-              <Card className={rule.rule_kind === "REWRITE" ? "ring-(--color-warn)/40" : undefined}>
+              <Card className={rule.is_active && rule.rule_kind === "REWRITE" ? "ring-(--color-warn)/40" : undefined}>
                 <CardBody className="grid gap-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -113,16 +122,29 @@ export function CleaningRulesRoute() {
                         {labelOf(RULE_KIND_LABEL, rule.rule_kind)}
                       </Badge>
                       <Badge tone="neutral">{labelOf(TARGET_COLUMN_LABEL, rule.target_column)}</Badge>
-                      <Badge tone="ok">ativa</Badge>
+                      <Badge tone={rule.is_active ? "ok" : "neutral"}>
+                        {rule.is_active ? "ativa" : "desativada"}
+                      </Badge>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={deactivate.isPending}
-                      onClick={() => deactivate.mutate(rule.rule_id)}
-                    >
-                      desativar
-                    </Button>
+                    {rule.is_active ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={deactivate.isPending}
+                        onClick={() => deactivate.mutate(rule.rule_id)}
+                      >
+                        desativar
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={activate.isPending}
+                        onClick={() => activate.mutate(rule.rule_id)}
+                      >
+                        reativar
+                      </Button>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3 text-xs text-(--color-muted)">
@@ -139,11 +161,17 @@ export function CleaningRulesRoute() {
                     {rule.engine_name ? <span>engine: {rule.engine_name}</span> : null}
                   </div>
 
-                  {rule.rule_kind === "REWRITE" ? (
+                  {rule.is_active && rule.rule_kind === "REWRITE" ? (
                     <p className="text-xs text-(--color-warn)">
                       Esta regra reescreve o acervo: cada ocorrência em{" "}
                       {labelOf(TARGET_COLUMN_LABEL, rule.target_column)} será substituída na próxima
                       varredura.
+                    </p>
+                  ) : null}
+                  {!rule.is_active ? (
+                    <p className="text-xs text-(--color-muted)">
+                      Desativada: o worker não lê esta regra. Reativar devolve a mesma regra, com o
+                      mesmo id — nada foi apagado.
                     </p>
                   ) : null}
                 </CardBody>

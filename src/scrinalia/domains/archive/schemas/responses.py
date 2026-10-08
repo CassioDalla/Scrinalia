@@ -41,6 +41,7 @@ class RouteMessageCode(enum.StrEnum):
     # --- Cleaning rules (data quality) ---
     CLEANING_RULE_CREATED = "CLEANING_RULE_CREATED"
     CLEANING_RULE_DEACTIVATED = "CLEANING_RULE_DEACTIVATED"
+    CLEANING_RULE_ACTIVATED = "CLEANING_RULE_ACTIVATED"
 
     # --- Text excerpts (the boilerplate the AI must not read) ---
     TEXT_TEMPLATE_SUGGESTED = "TEXT_TEMPLATE_SUGGESTED"

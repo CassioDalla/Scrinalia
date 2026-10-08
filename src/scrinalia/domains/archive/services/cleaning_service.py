@@ -66,10 +66,26 @@ class CleaningService:
     def get_active_rules(self, rule_kind: str | None = None) -> list[CleaningRuleDTO]:
         return list(self.repo.get_active_rules(rule_kind=rule_kind))  # type: ignore[arg-type]
 
+    def list_rules(self, *, include_inactive: bool = False) -> list[CleaningRuleDTO]:
+        """The catalogue for the screen; the workers keep reading only the active ones."""
+        return list(self.repo.list_rules(include_inactive=include_inactive))
+
     def deactivate_rule(self, rule_id: int) -> CleaningRuleDTO:
         # The transaction is owned by the caller (API middleware or worker context):
         # the repository flushes and the use case never commits on its own.
         rule = self.repo.deactivate_rule(rule_id)
+        if rule is None:
+            raise CleaningRuleNotFoundError(f"Regra {rule_id} não encontrada.")
+
+        return rule
+
+    def activate_rule(self, rule_id: int) -> CleaningRuleDTO:
+        """Returns the rule to the queue the worker reads.
+
+        It exists because deactivating had no way back: the rule was never deleted, but nothing
+        could put it to work again, so trying a rule once was a final decision.
+        """
+        rule = self.repo.activate_rule(rule_id)
         if rule is None:
             raise CleaningRuleNotFoundError(f"Regra {rule_id} não encontrada.")
 

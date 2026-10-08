@@ -36,7 +36,20 @@ class CleaningRepository:
         The filter is not a convenience: the cleaning worker must only see ``REWRITE``
         rules, otherwise a validation rule would rewrite the text with its replacement.
         """
-        stmt = select(ArchiveCleaningRule).where(ArchiveCleaningRule.is_active.is_(True))
+        return self.list_rules(rule_kind)
+
+    def list_rules(
+        self, rule_kind: RuleKind | None = None, *, include_inactive: bool = False
+    ) -> Sequence[CleaningRuleDTO]:
+        """
+        The rules a screen shows, retired ones included when asked.
+
+        The workers keep calling :meth:`get_active_rules`; this exists because deactivating is
+        reversible and a screen cannot offer a way back to a rule it cannot see.
+        """
+        stmt = select(ArchiveCleaningRule)
+        if not include_inactive:
+            stmt = stmt.where(ArchiveCleaningRule.is_active.is_(True))
         if rule_kind is not None:
             stmt = stmt.where(ArchiveCleaningRule.rule_kind == rule_kind)
         return [CleaningRuleDTO.model_validate(rule, from_attributes=True) for rule in self.db.scalars(stmt).all()]
@@ -48,11 +61,24 @@ class CleaningRepository:
 
     def deactivate_rule(self, rule_id: int) -> CleaningRuleDTO | None:
         """Marks the rule as inactive and returns it; the caller owns the commit."""
+        return self._set_active(rule_id, active=False)
+
+    def activate_rule(self, rule_id: int) -> CleaningRuleDTO | None:
+        """Puts the rule back to work and returns it; the caller owns the commit.
+
+        A rule is never deleted, so deactivating has to be reversible — otherwise "deactivating is
+        the reversible way to stop the worker reading it" is a promise the API cannot keep, and
+        re-creating the rule becomes the only way back, with a new id and no history.
+        """
+        return self._set_active(rule_id, active=True)
+
+    def _set_active(self, rule_id: int, *, active: bool) -> CleaningRuleDTO | None:
+        """The one write of ``is_active``, shared by deactivation and reactivation."""
         rule = self.db.scalars(select(ArchiveCleaningRule).where(ArchiveCleaningRule.rule_id == rule_id)).one_or_none()
         if rule is None:
             return None
 
-        rule.is_active = False
+        rule.is_active = active
         self.db.flush()
         return CleaningRuleDTO.model_validate(rule, from_attributes=True)
 

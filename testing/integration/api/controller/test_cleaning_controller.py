@@ -35,7 +35,7 @@ def _rule(rule_id: int = 1) -> CleaningRuleDTO:
 
 
 def test_list_rules_serialises_the_dtos(client: TestClient, mocker):
-    mock_list = mocker.patch.object(CleaningService, "get_active_rules")
+    mock_list = mocker.patch.object(CleaningService, "list_rules")
     mock_list.return_value = [_rule(1), _rule(2)]
 
     response = client.get("/api/v1/quality/cleaning-rules/")
@@ -44,6 +44,22 @@ def test_list_rules_serialises_the_dtos(client: TestClient, mocker):
     body = response.json()
     assert [rule["rule_id"] for rule in body] == [1, 2]
     assert body[0]["regex_pattern"] == r"\bav\b\.?"
+    # The default is the workers' view: only what is active.
+    mock_list.assert_called_once_with(include_inactive=False)
+
+
+def test_list_rules_can_include_the_retired_ones(client: TestClient, mocker):
+    """The way back needs to see what was retired; nothing here deletes a rule."""
+    mock_list = mocker.patch.object(CleaningService, "list_rules")
+    retired = _rule(7)
+    retired.is_active = False
+    mock_list.return_value = [retired]
+
+    response = client.get("/api/v1/quality/cleaning-rules/?include_inactive=true")
+
+    assert response.status_code == HTTP_200_OK
+    assert response.json()[0]["is_active"] is False
+    mock_list.assert_called_once_with(include_inactive=True)
 
 
 # ==========================================
@@ -181,6 +197,35 @@ def test_deactivate_missing_rule_maps_to_404(client: TestClient, mocker):
     )
 
     response = client.patch("/api/v1/quality/cleaning-rules/999/deactivate")
+
+    assert response.status_code == HTTP_404_NOT_FOUND
+    assert response.json()["error_code"] == "CleaningRuleNotFoundError"
+
+
+# ==========================================
+# 5. REACTIVATION
+# ==========================================
+
+
+def test_activate_rule_returns_the_updated_rule(client: TestClient, mocker):
+    """The way back: deactivating is reversible, so the screen that says so is telling the truth."""
+    mock_activate = mocker.patch.object(CleaningService, "activate_rule")
+    mock_activate.return_value = _rule(5)
+
+    response = client.patch("/api/v1/quality/cleaning-rules/5/activate")
+
+    assert response.status_code == HTTP_200_OK
+    assert response.json()["data"]["is_active"] is True
+    assert response.json()["code"] == "CLEANING_RULE_ACTIVATED"
+    mock_activate.assert_called_once_with(5)
+
+
+def test_activate_missing_rule_maps_to_404(client: TestClient, mocker):
+    mocker.patch.object(
+        CleaningService, "activate_rule", side_effect=CleaningRuleNotFoundError("Regra 999 não encontrada.")
+    )
+
+    response = client.patch("/api/v1/quality/cleaning-rules/999/activate")
 
     assert response.status_code == HTTP_404_NOT_FOUND
     assert response.json()["error_code"] == "CleaningRuleNotFoundError"
