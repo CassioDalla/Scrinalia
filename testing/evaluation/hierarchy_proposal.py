@@ -32,6 +32,7 @@ from pathlib import Path
 
 from scrinalia.core.database import get_db
 from scrinalia.core.logger import logger
+from scrinalia.domains.archive.repository.collection_vocabulary_repo import CollectionVocabularyRepository
 from scrinalia.domains.archive.repository.hierarchy_repo import HierarchyRepository
 from scrinalia.domains.archive.repository.level_catalog_repo import LevelCatalogRepository
 from scrinalia.domains.archive.schemas.hierarchy_schema import HierarchyProposalCommand
@@ -45,7 +46,9 @@ DEFAULT_LIMIT = 5000
 
 def build_report(db, limit: int = DEFAULT_LIMIT) -> dict:
     """Runs the proposal and reduces it to the numbers a decision needs."""
-    service = HierarchyProposalService(HierarchyRepository(db), LevelCatalogRepository(db))
+    service = HierarchyProposalService(
+        HierarchyRepository(db), LevelCatalogRepository(db), CollectionVocabularyRepository(db)
+    )
     proposal = service.propose(HierarchyProposalCommand(limit=limit))
 
     nodes = [node.model_dump() for node in proposal.nodes]
