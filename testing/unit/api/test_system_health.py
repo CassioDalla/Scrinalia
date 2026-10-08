@@ -70,6 +70,11 @@ def test_storage_probe_says_it_is_not_configured(monkeypatch) -> None:
 def test_storage_probe_reports_a_bucket_that_does_not_answer(monkeypatch) -> None:
     monkeypatch.setattr(system_health.settings, "S3_ENDPOINT_URL", "http://localhost:9000")
     monkeypatch.setattr(system_health.settings, "S3_BUCKET_NAME", "bronze")
+    # The credentials are part of what "configured" means, and the probe reads them from the settings
+    # object. Without setting them here the test passes only on a machine whose `.env` happens to
+    # carry them, which is exactly how it passed locally and failed on the first CI run.
+    monkeypatch.setattr(system_health.settings, "S3_ACCESS_KEY", SecretStr("chave"))
+    monkeypatch.setattr(system_health.settings, "S3_SECRET_KEY", SecretStr("segredo"))
 
     class _BrokenClient:
         def head_bucket(self, Bucket):  # the boto3 signature is capitalised

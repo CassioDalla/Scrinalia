@@ -10,6 +10,7 @@ where a guard that never runs looks perfectly correct.
 import pytest
 from litestar.testing import TestClient
 
+from scrinalia.api.controllers import health_controller
 from scrinalia.domains.identity.domain.permissions import Role
 from scrinalia.domains.identity.schemas.user_schema import UpdateUserCommand
 
@@ -45,10 +46,22 @@ def test_the_diffusion_surface_answers_without_a_session(api_client: TestClient)
     assert api_client.get("/api/v1/public/documents").status_code == 200
 
 
-def test_the_health_probes_answer_without_a_session(api_client: TestClient) -> None:
-    """The orchestrator must not have to know the API version, let alone hold a session."""
+def test_the_health_probes_answer_without_a_session(api_client: TestClient, monkeypatch) -> None:
+    """The orchestrator must not have to know the API version, let alone hold a session.
+
+    The readiness probe owns an engine built from the ambient settings, so the database is pinned
+    here rather than assumed. A literal 200 tied the test to whichever database the checkout pointed
+    at: it passed in CI, where the job exports ``DB_*``, and failed on a machine whose ``.env`` names
+    a database that does not exist. Pinning both answers is also the only way this test can see the
+    503, which is the half an orchestrator actually acts on.
+    """
     assert api_client.get("/health/live").status_code == 200
+
+    monkeypatch.setattr(health_controller, "database_answers", lambda: True)
     assert api_client.get("/health/ready").status_code == 200
+
+    monkeypatch.setattr(health_controller, "database_answers", lambda: False)
+    assert api_client.get("/health/ready").status_code == 503
 
 
 def test_the_api_document_answers_without_a_session(api_client: TestClient) -> None:
