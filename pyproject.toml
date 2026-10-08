@@ -23,7 +23,7 @@ dependencies = [
     "numpy>=2.3.5",
     "pandas>=2.3.3",
     "pillow>=12.2.0",
-    "psycopg2==2.9.12",
+    "psycopg2==2.9.13",
     "pt-core-news-lg",
     "pydantic-settings>=2.15.0",
     "requests>=2.34.2",
