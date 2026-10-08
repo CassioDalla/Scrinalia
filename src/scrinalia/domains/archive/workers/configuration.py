@@ -134,6 +134,12 @@ def resolve_configuration(
     choice of this call. Everything the caller does not name falls back to the override and then to
     the signature default.
     """
+    # The explicit choice of *this call* is validated here, next to ``validate_options`` below and
+    # for the same reason: the CLI resolves its configuration through this function too, so a
+    # refusal that only the panel makes is not a guarantee — ``--engine`` used to reach a worker
+    # whose engine lives in the active LLM_CHECK rule and override it silently. The persisted
+    # override is validated where it is written (``WorkerOperationsService.update_settings``).
+    validate_engine_choice(spec, engine_name, preset)
     override_options = dict(setting.options or {}) if setting is not None else {}
     merged_options = {**override_options, **(options or {})}
     validate_options(spec, merged_options)
