@@ -20,8 +20,9 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 
 Os **Settings do GitHub já estão feitos**: advisory privada, Dependabot (alerts + security updates),
 secret scanning com push protection, o ruleset `Main Protect` na `main` (PR obrigatório, sem
-force-push, sem deleção e **assinatura obrigatória**) e permissões de Actions em *read*. Duas coisas
-que o ruleset **não** exige, e vale saber: os checks do CI (eles rodam em cada PR, mas o merge não
+force-push, sem deleção e **assinatura obrigatória**), o ruleset `dev protect` na `dev` (sem
+force-push, sem deleção e assinatura obrigatória) e permissões de Actions em *read*. Duas coisas que
+o `Main Protect` **não** exige, e vale saber: os checks do CI (eles rodam em cada PR, mas o merge não
 espera por eles) e histórico linear (os três métodos de merge estão liberados). Falta, **nesta
 ordem**:
 
@@ -41,6 +42,15 @@ ordem**:
       `required_signatures`, e os commits do PR estão assinados (`commit.gpgsign=true`, formato SSH).
       É regra independente do DCO: a assinatura prova **quem criou** o commit, o trailer
       `Signed-off-by` declara o **direito de submetê-lo**, e o job `dco` confere o trailer.
+- [ ] **Fechar o `dev protect`.** O ruleset existe e já bloqueia force-push, deleção e commit sem
+      assinatura, mas as duas regras que sustentam a convenção estão **vazias**: não há regra de
+      `pull_request` (push direto no `dev` continua permitido) e `required_status_checks` está com a
+      **lista vazia** — a regra existe e não exige check nenhum. Ao preencher a lista, dois detalhes do
+      `ci.yml` mandam: o job `dco` só roda em PR (`if: github.event_name == 'pull_request'`), então
+      exigi-lo só faz sentido junto com a regra de PR; e `Dependency advisories` tem
+      `continue-on-error: true`, ou seja, é sempre verde e não serve de gate. Vale revisitar também a
+      assinatura obrigatória no `dev`: é coerente com o `main`, mas um contribuidor externo sem chave
+      não pousa nada no `dev` — e, sem ela no `dev`, o `main` recusaria o merge depois.
 - [ ] **Tornar público.** É o último passo, e a ordem importou: um segredo que entra no histórico de
       um repositório público já vazou. A varredura (`gitleaks`, 232 commits) e a limpeza do acervo já
       passaram; o que falta é o clique.
