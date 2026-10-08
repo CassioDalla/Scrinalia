@@ -116,24 +116,28 @@ que funciona" de "um repo que estranhos podem auditar e usar".
 
 #### Fase 0 — antes de tornar público (obrigatório)
 
-- [ ] **Varrer o histórico por segredos.** `.env` é gitignored, mas o histórico pode ter tido um:
-      `uvx gitleaks detect --source . --log-opts="--all"` (ou `trufflehog git file://. --only-verified`).
-      **Se achar: rotacione o segredo *e* reescreva o histórico** (`git filter-repo`) — rotacionar
-      sozinho não resolve, porque o commit continua no clone de quem já baixou.
-- [ ] **Confirmar que nada sensível está versionado**:
-      `git ls-files | grep -E '\.env$|logs/|\.analysis/|\.cache'` deve ser vazio; revisar o `.gitignore`
-      (`.cache-uv/`, `.cache-pre-commit/`, `.uv-cache/`).
+- [x] **Varrer o histórico por segredos — feito, sem achados.** O gitleaks não está instalado, mas não
+      precisa estar: a imagem oficial roda com Docker e o resultado foi **232 commits, nenhum
+      vazamento**. O comando (também é o job de CI, com o digest pinado):
+      `docker run --rm -v "$PWD:/repo" zricethezav/gitleaks@sha256:c00b… detect --source /repo --log-opts="--all" --redact --no-banner`.
+      Se um dia achar: rotacione **e** reescreva o histórico (`git filter-repo`) — rotacionar sozinho
+      não remove o commit do clone de quem já baixou.
+- [x] **Nada sensível versionado** — `git ls-files | grep -E '\.env$|logs/|\.analysis/|\.cache'` é
+      vazio, e o `.env` **nunca** esteve no histórico (`git log --all -- .env` vazio).
 - [ ] **Decidir o que dos dados internos vai junto.** O `TODO.md` cita números do acervo de referência
       (4.844 descrições, nomes de fundos). É intencional? Se não for, generalizar antes de abrir.
-- [ ] **Conferir a licença**: `LICENSE` (AGPL verbatim), `LICENSE-ADDITIONAL-TERMS.md`, campo `license`
-      no `pyproject.toml` e nos dois `package.json`, e o rodapé de atribuição na SPA.
-- [ ] **`SECURITY.md`** com: canal de reporte **privado** (não issue pública), versões suportadas,
-      prazo de resposta e o que **não** é considerado vulnerabilidade (ex.: `/schema` aberto por
-      decisão).
-- [ ] **Configurar no GitHub (Settings)**, ainda em repo privado: *private vulnerability reporting*,
-      *secret scanning* + *push protection*, *Dependabot alerts* + *security updates*, *branch
-      protection* na `main` (PR obrigatório, status checks, sem force-push, histórico linear) e
-      restringir quem cria tags/releases.
+- [x] **Licença conferida**: `LICENSE` (AGPL verbatim), `LICENSE-ADDITIONAL-TERMS.md`, `license` no
+      `pyproject.toml` e nos dois `package.json`, e o rodapé de atribuição na SPA.
+- [x] **`SECURITY.md`** criado, com o reporte pela **advisory privada do GitHub** (decisão do dono),
+      versões suportadas, prazo de resposta, escopo e a lista explícita do que **não** é vulnerabilidade.
+- [ ] **Configurar no GitHub (Settings)**, ainda em repo privado — só o dono pode fazer, na ordem:
+      1. **Settings → Security → Private vulnerability reporting** → *Enable*.
+      2. **Settings → Code security** → ligar *Dependabot alerts*, *Dependabot security updates*,
+         *Secret scanning* e *Push protection*.
+      3. **Settings → Branches → Add branch protection rule** para `main`: exigir pull request, exigir
+         os status checks do CI, proibir force-push e deleção, exigir histórico linear.
+      4. **Settings → Actions → General → Workflow permissions** = *Read repository contents*.
+      5. **Settings → General → Danger zone** → tornar público **só depois** de 1–4.
 - [ ] **Só então tornar público.** A ordem importa: um segredo que entra no histórico de um repo
       público já vazou.
 
@@ -147,41 +151,47 @@ que funciona" de "um repo que estranhos podem auditar e usar".
 - [x] **Actions pinadas por SHA** (`checkout` v4.4.0, `setup-uv` v5.4.2, `setup-bun` v2.2.0), com o
       comentário da versão. Tag é mutável; SHA não. **Verificado com `uvx zizmor`** — as 6 ocorrências
       de `unpinned-uses` sumiram.
-- [ ] **Job de segredos** (`gitleaks`) em `push` e `pull_request` — o mesmo scanner da Fase 0, agora
-      contínuo.
-- [ ] **Job de dependências vulneráveis**: `uvx pip-audit` sobre o export do `uv` para o Python e
-      `bun audit` para o front. Começar **não bloqueante** (`continue-on-error: true`) e promover a
-      bloqueante depois de zerar os avisos — um job vermelho no dia 1 só ensina a ignorá-lo.
-- [ ] **Job de lint do workflow**: `uvx zizmor .github/workflows` (o `--persona=pedantic` ainda aponta
-      **1** achado: a imagem `pgvector/pgvector:pg15` não está pinada por digest).
-- [ ] **Pinar imagens Docker por digest** (`pgvector/pgvector:pg15@sha256:…`) — e **nos três lugares**:
-      o serviço do CI, o `docker-compose.test.yml` e o `FROM` do `docker/postgres/Dockerfile`, senão CI
-      e desenvolvimento divergem.
-- [ ] **CodeQL** (Python + JS/TS): grátis em repo público e roda no PR; é o único scanner que entende
-      o fluxo de dados, não só a dependência.
-- [ ] **Dependabot** (`.github/dependabot.yml`) para `github-actions` e para as dependências Python e
-      JS, agrupando minor/patch numa PR só. Se o ecossistema `uv` não for suportado, um job semanal de
-      `uv lock --upgrade` + PR automática resolve o mesmo.
-- [ ] **No release**: SBOM e proveniência (`anchore/sbom-action`,
-      `actions/attest-build-provenance`) e um artefato de release.
-- [ ] **Rodar os pre-commit hooks no CI** (`pre-commit run --all-files`) para o local e o CI não
-      divergirem quando um hook novo entrar.
+- [x] **Job de segredos** — `gitleaks` no histórico completo, com a imagem pinada por digest.
+- [x] **Job de lint do workflow** — `zizmor@1.30.1 --persona=pedantic` nos dois workflows: **0 achados**
+      (era 6 `unpinned-uses` + a imagem sem digest).
+- [x] **Imagens Docker pinadas por digest** — `pgvector` nos **três** lugares (serviço do CI,
+      `docker-compose.test.yml`, `FROM` do `docker/postgres/Dockerfile`) e `minio` no compose de dev.
+- [x] **CodeQL** (Python + JS/TS) em PR, `main` e semanal — é o único scanner que segue o dado, não a
+      lista de dependências.
+- [x] **Dependabot** para `github-actions` e `uv`, com PRs agrupadas e prefixo `chore(deps)`.
+      **O front ficou de fora de propósito**: um entry `npm` mudaria `package.json` sem tocar
+      `bun.lock`, e o CI instala com `--frozen-lockfile` — toda PR quebraria. Precisa de um updater que
+      entenda `bun.lock` (o Renovate entende; o suporte do Dependabot ainda é parcial).
+- [x] **DCO** — documentado no `CONTRIBUTING` e verificado por um job no CI (ver Fase 2).
+- [x] **Pre-commit no CI** — desnecessário por enquanto: os três hooks são `ruff`, `ruff format` e
+      `basedpyright`, que o CI já roda. Um job de `pre-commit` só acrescentaria valor no dia em que um
+      hook **novo** entrar; aí ele entra junto.
+- [ ] **Auditoria de dependências — criada, ainda não bloqueante.** `pip-audit` (sobre o export do
+      `uv`, com `--no-deps --disable-pip`) e `bun audit` rodam com `continue-on-error: true`. O
+      `pip-audit` já acusa advisories reais em dependências transitivas (`tornado`, `transformers`,
+      `urllib3`): **triar e então promover o job a bloqueante** — um job vermelho no dia 1 só ensina a
+      ignorá-lo.
+- [ ] **SBOM e proveniência no release** (`anchore/sbom-action`, `actions/attest-build-provenance`) e
+      o workflow que publica um release a partir de uma tag `v*`.
+- [ ] **Badges** de licença e de CI no `README`.
 
 #### Fase 2 — repositório e comunidade
 
-- [ ] **`CONTRIBUTING.md`**: como rodar, convenções de commit (Conventional Commits), o que um PR
-      precisa (testes, contrato regerado, `ruff`/`pyright`, e o `AGENTS.md` como guia de arquitetura).
-- [ ] **`CODE_OF_CONDUCT.md`** (Contributor Covenant) e **`CODEOWNERS`**.
-- [ ] **Templates** de issue/PR (`.github/ISSUE_TEMPLATE/*.yml`, `PULL_REQUEST_TEMPLATE.md`), com um
-      template de **segurança** que redireciona para o `SECURITY.md` em vez de abrir issue.
-- [ ] **`CHANGELOG.md`** (Keep a Changelog) + tags semver (`v0.1.0`) e um Release com notas; a 1.0 é o
-      primeiro release "supported".
-- [ ] **`CITATION.cff`** (instituições citam software) e badges de licença/CI no `README`.
-- [ ] **`.gitattributes`** (`* text=auto eol=lf`, binários explícitos) e **`.editorconfig`**.
-- [ ] **Decidir DCO × CLA**: com AGPL + termo de atribuição, um **DCO** (`Signed-off-by`, inbound =
-      outbound) basta e é o menor atrito; CLA só se houver intenção de relicenciar no futuro.
-- [ ] **Revisar o `AGENTS.md` antes de publicar**: ele é excelente para mostrar como o projeto pensa,
-      mas tirar qualquer coisa específica do dono/instituição.
+- [x] **`CONTRIBUTING.md`** — setup, os checks que a PR precisa, convenções (Conventional Commits,
+      código em inglês, contrato gerado), o **DCO** explicado e a licença.
+- [x] **`CODE_OF_CONDUCT.md`** (Contributor Covenant 2.1, contato pelo GitHub) e
+      **`.github/CODEOWNERS`**.
+- [x] **Templates** de bug e feature (formulários), o `config.yml` com o link para a **advisory
+      privada** — um template de segurança criaria uma issue pública no primeiro caractere digitado — e
+      o `PULL_REQUEST_TEMPLATE.md`.
+- [x] **`CHANGELOG.md`** (Keep a Changelog) com o que `main` carrega hoje, a ser cortado em `v0.1.0`.
+- [x] **`CITATION.cff`**, **`.gitattributes`** e **`.editorconfig`**.
+- [x] **DCO decidido** — era a dúvida: `Signed-off-by` no commit (`git commit -s`), verificado por um
+      job no CI. É a *certificação de origem*: "escrevi isto ou tenho o direito de enviar, e pode ser
+      distribuído sob esta licença". **Não cede copyright** e não é um contrato. CLA só faria sentido
+      se houvesse intenção de relicenciar no futuro, que não é o caso.
+- [ ] **Revisar o `AGENTS.md` antes de publicar**: tirar qualquer coisa específica do dono/instituição.
+- [ ] **Tags semver** (`v0.1.0`) e o primeiro Release com notas, quando a documentação fechar.
 - [ ] **Publicar a documentação** (`docs/`) e linkar no README.
 
 ### 3. Recomendados antes do 1.0
@@ -317,7 +327,9 @@ scraper de outra instituição, cada um com ciclo de vida, periodicidade e **con
 | `alembic check` | **sem drift** (32 migrações) |
 | `tsc` / `eslint` / `vite build` | limpos |
 | Contrato OpenAPI | **94 paths / 111 operações / 182 schemas**, sem drift (cliente TS incluído) |
-| `zizmor` no workflow | **0 achados** (era 6 `unpinned-uses`); no modo `pedantic`, 1 (`imagem sem digest`) |
+| `zizmor --persona=pedantic` nos workflows | **0 achados** (era 6 `unpinned-uses` + a imagem sem digest) |
+| `gitleaks` no histórico completo | **232 commits, nenhum segredo** |
+| `pip-audit` / `bun audit` | rodam; o Python acusa advisories transitivos (`tornado`, `transformers`, `urllib3`) — job **não bloqueante** até triar |
 | `/api/v1/users` em execução real | criar, editar, desativar, resetar senha, listar e revogar sessões; sessão de outra conta responde 404 |
 | Bloqueio em execução real | 3 falhas → a senha **correta** responde **423** mesmo com o rollback de cada request |
 | Rate-limit e `Origin` em execução real | 429 ao estourar a janela; **403** em mutação de origem estranha, **200** na leitura, e o proxy do Vite (Host preservado) aceita a origem do dev |

@@ -92,6 +92,47 @@ uv run uvicorn main:app --reload
 The API is then available at `http://localhost:8000/`, with the OpenAPI schema at
 `/schema/swagger`.
 
+### Running the whole system in a container
+
+The image contains the API **and** the curator SPA. That is the deployment shape the code already
+assumes rather than a packaging choice: `create_app()` mounts `apps/curator/dist` at `/` when the
+build exists, so the SPA has no process of its own, the browser stays on the same origin as the API
+and the project needs no CORS — which is also what makes the session cookie first-party and what
+`origin_guard` compares against. A second container in front of the API would have to re-create that
+same origin and a CORS configuration the project deliberately does not have.
+
+```bash
+docker compose --profile app up -d --build   # application + PostgreSQL + MinIO
+# → http://localhost:8000
+```
+
+PostgreSQL, MinIO and Ollama stay outside the image; only `DB_HOST`, `S3_ENDPOINT_URL` and
+`OLLAMA_HOST_URL` change to reach them. The service sits behind the `app` profile, so
+`docker compose up -d` — and therefore `bun run dev` — keeps starting the infrastructure alone.
+Port 8000 is the one `bun run api:dev` uses; do not run both at once.
+
+The entrypoint applies `alembic upgrade head` before starting `uvicorn`, retrying while the database
+is still coming up (`SCRINALIA_DB_WAIT_SECONDS`, default 60) and giving up with a non-zero exit when
+it is genuinely unreachable. Set `SCRINALIA_RUN_MIGRATIONS=false` to skip it when migrations are a
+separate step. The first administrator is created from inside the container:
+
+```bash
+docker compose --profile app exec app \
+  python -m scrinalia.domains.identity.cli create \
+  --email voce@instituicao.org --name "Seu Nome" --role ADMIN
+```
+
+Two properties of the image are load-bearing before changing it. It runs **one** API process on
+purpose: the worker executor lives inside the API and `api/lifespan.py` marks any `QUEUED`/`RUNNING`
+run it finds at start-up as `INTERRUPTED`, so `--workers > 1` requires moving the executor out first.
+And the Python environment is installed **editable** at `/app/src`, which is what `api/spa.py`'s
+`parents[3]` needs to find the SPA build — `--no-editable` deploys an API with no UI, silently.
+
+> The lockfile pins the PyPI `torch`, whose Linux wheel pulls the whole CUDA runtime into the image
+> even though the container runs on CPU (`CUDA_VISIBLE_DEVICES=""`, as in the `Procfile`). A CPU-only
+> image needs a different resolution of the PyTorch stack, which belongs in `pyproject.toml`/`uv.lock`
+> — so that CI and the image keep building the same dependency graph — and not in the Dockerfile.
+
 `GET /health/live` and `GET /health/ready` are the orchestrator's probes, and they sit outside
 `/api/v1` and outside the schema on purpose. Liveness touches nothing and answers 200 while the
 process answers; readiness runs `SELECT 1` and answers **503** when the database does not, so a
@@ -300,6 +341,15 @@ main.py                   deployable entrypoint (re-exports the ASGI app)
   [`0008`](docs/adr/0008-language-in-code-and-collection-vocabulary-in-the-database.md) on what is
   language, what is collection data and what is configuration, and
   [`0009`](docs/adr/0009-authentication-and-authorization.md) on authentication and authorization
+
+## Contributing and security
+
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to set the project up, what a pull request has to pass,
+  the commit conventions, and the **DCO** (sign your commits with `git commit -s`).
+- [`SECURITY.md`](SECURITY.md) — **report a vulnerability privately**, through the repository's
+  Security tab. Never in a public issue.
+- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) and [`CHANGELOG.md`](CHANGELOG.md).
+- If you use Scrinalia in academic work, [`CITATION.cff`](CITATION.cff) has the citation.
 
 ## The name
 
