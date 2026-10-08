@@ -41,11 +41,12 @@ WORKERS: dict[str, WorkerFn] = {
 }
 
 # Recommended execution order for the enrichment pipeline. The macro-category step runs
-# last: it depends on the tags already existing and on the curators having registered the
-# categories (usually from a cluster suggestion) it classifies against. The embedding
-# step runs after every worker that can change the document text, because it embeds that
-# text and keys its stamp on a hash of it. The quality validator runs before it: it
-# reads the tags, the typology and the entities the earlier workers produced.
+# after the workers that produce tags: it depends on the tags already existing and on the
+# curators having registered the categories (usually from a cluster suggestion) it
+# classifies against. The quality validator comes next, because it reads the tags, the
+# typology and the entities the earlier workers produced. The embedding step runs last,
+# after every worker that can change the document text, because it embeds that text and
+# keys its stamp on a hash of it.
 PIPELINE_ORDER = [
     "transfer",
     "cleaning",
