@@ -27,6 +27,23 @@ The integration tests need their own database — see the **Tests** section of [
 for the port and the `TEST_DATABASE_URL` override. Never point the test suite at a database you care
 about: it drops the schema on teardown.
 
+## Branches and the flow
+
+Two long-lived branches, and the direction between them is one-way:
+
+- **`dev` is the integration branch.** A change — a fix, a feature, a documentation edit — goes on its
+  own branch and lands in `dev` through a pull request.
+- **`main` is the release branch.** It only moves at a release, through a `dev` → `main` pull request.
+  Do not open a pull request against `main` unless you are cutting one.
+
+So the normal path is `your-branch` → `dev` → `main`, and the release is the workflow described at the
+end of this file: a merge is not a version.
+
+**Dependabot follows the same path.** Its version updates carry `target-branch: dev`, so dependency
+bumps integrate in `dev` like everything else. Security updates are the deliberate exception — they
+always use the default branch, so an urgent fix does not wait for the release cycle. Both facts are in
+`.github/dependabot.yml`, next to the reason for each.
+
 ## The checks a pull request has to pass
 
 Run these from the repository root before opening the PR; they are what CI runs.
