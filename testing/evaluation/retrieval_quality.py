@@ -15,8 +15,10 @@ Run it from the repository root, against a real database and the real model:
 
     uv run python -m testing.evaluation.retrieval_quality --min-ratio 0.05 --k 10
 
-Relevance is **derived from the title** (see ``retrieval_pairs.json``): the metric is a
-proxy, honest about being one. It exists to compare two rankings, not to crown a model.
+Relevance is **derived from the title** (the shape of the labelled set is documented in
+``testing/evaluation/README.md``): the metric is a proxy, honest about being one. It exists to
+compare two rankings, not to crown a model. The set itself names real descriptions, so it is
+collection data and lives outside the repository — ``dataset.py`` says where.
 """
 
 from __future__ import annotations
@@ -42,8 +44,8 @@ from scrinalia.domains.archive.repository.text_quality_repo import (
     TextQualityRepository,
     embedding_text_sql,
 )
+from testing.evaluation.dataset import load_dataset
 
-PAIRS_PATH = Path(__file__).parent / "retrieval_pairs.json"
 EMBED_BATCH_SIZE = 128
 
 
@@ -180,7 +182,7 @@ def run(
     exclude: list[str] | None = None,
     scope: str = "EMBEDDING",
 ) -> dict:
-    pairs = json.loads(PAIRS_PATH.read_text(encoding="utf-8"))["pairs"]
+    pairs = load_dataset("retrieval_pairs.json")["pairs"]
 
     from scrinalia.domains.archive.engines.embeddings.registry import get_engine
 

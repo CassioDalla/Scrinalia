@@ -124,8 +124,33 @@ que funciona" de "um repo que estranhos podem auditar e usar".
       não remove o commit do clone de quem já baixou.
 - [x] **Nada sensível versionado** — `git ls-files | grep -E '\.env$|logs/|\.analysis/|\.cache'` é
       vazio, e o `.env` **nunca** esteve no histórico (`git log --all -- .env` vazio).
-- [ ] **Decidir o que dos dados internos vai junto.** O `TODO.md` cita números do acervo de referência
-      (4.844 descrições, nomes de fundos). É intencional? Se não for, generalizar antes de abrir.
+- [x] **Decisão: dado do acervo não vai para o repositório público.** Nada que descreva a coleção de
+      referência é versionado — nem descrições, nem IDs, nem nomes de fundos e bairros, nem os
+      conjuntos rotulados. Consequência de projeto: **o sistema tem de subir e operar com banco
+      zerado**, e o dono vai testar exatamente assim.
+      - [x] **Os dois conjuntos de avaliação saíram.** `retrieval_pairs.json` (IDs de descrição reais
+        e títulos) e `macro_category_pairs.json` (tags reais com veredictos de curador) vivem agora
+        em `Data/evaluation/`, que é ignorado. `testing/evaluation/dataset.py` é o ponto único que os
+        carrega — de `Data/` ou de `SCRINALIA_EVALUATION_DATA` — e falha **com a instrução** em vez
+        de `FileNotFoundError`, porque o reflexo diante de um fixture ausente é recriá-lo a partir do
+        código, que é o que não pode acontecer. O **formato** ficou versionado em
+        `testing/evaluation/README.md`: a forma é método, as linhas são acervo. Nenhum teste dependia
+        deles.
+      - [ ] **A semente do vocabulário ainda está no repo** — 38 tokens de arranjo (`BR PRADAP`,
+        `IPPUC`, `SMU`, …) e 71 termos de coleção (bairros de Curitiba) em
+        `domain/collection_vocabulary.py` **e** na migração `b3d6f1a2c4e7`, mais o fixture
+        `reference_vocabulary` do `conftest.py`. É o estado inicial da instalação de referência.
+        Tirar exige **migração nova** que apague as linhas — editar a antiga quebraria a regra de que
+        replay de histórico reproduz o estado que ele produziu — e ajustar os testes que hoje herdam
+        o vocabulário do fixture.
+      - [ ] **Um token do acervo está em código de runtime.** `_ROOT_ARRANGEMENT = "BR PRADAP"` em
+        `domain/hierarchy_code.py` fatia os códigos contra o arranjo da instituição de referência.
+        Pela ADR 0008 o vocabulário é **dado**, então isto é defeito: é o que faria um banco zerado —
+        ou outra instituição — fatiar contra Curitiba. Precisa virar configuração ou linha de tabela.
+      - [ ] **Números e nomes do acervo em documentação.** `AGENTS.md` (5 ocorrências) e `TODO.md`
+        (12) citam 4.844, 4.816, 3.608, 8.155, 6.142, nomes de fundos e `BR PRADAP`. Proposta: manter
+        as **medições agregadas**, que são a evidência de por que o código é como é ("52,9 s com o
+        OR, 1,4 s sem, resultados idênticos"), e remover o **conteúdo** — nome de fundo, bairro, ID.
 - [x] **Licença conferida**: `LICENSE` (AGPL verbatim), `LICENSE-ADDITIONAL-TERMS.md`, `license` no
       `pyproject.toml` e nos dois `package.json`, e o rodapé de atribuição na SPA.
 - [x] **`SECURITY.md`** criado, com o reporte pela **advisory privada do GitHub** (decisão do dono),

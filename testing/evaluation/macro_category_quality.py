@@ -45,8 +45,9 @@ import numpy as np
 
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.domain.vocabulary import SUBJECT_CATEGORIES
+from testing.evaluation.dataset import load_dataset
 
-PAIRS_PATH = Path(__file__).parent / "macro_category_pairs.json"
+PAIRS_FILENAME = "macro_category_pairs.json"
 
 #: Identifies the class of "this tag is not a subject at all". The deterministic guard in
 #: ``domain.vocabulary`` decides it, not the model, so it is excluded from the model's
@@ -259,8 +260,7 @@ MODELS = {
 # =============================================================================
 
 
-def load_pairs(path: Path) -> tuple[list[GoldenPair], list[str]]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+def load_pairs(payload: dict) -> tuple[list[GoldenPair], list[str]]:
     pairs = [
         GoldenPair(
             name=item["name"],
@@ -296,7 +296,7 @@ def run(
 ) -> tuple[dict, list[BenchResult]]:
     from scrinalia.domains.archive.domain.vocabulary import is_subject_candidate
 
-    pairs, _vocabulary = load_pairs(PAIRS_PATH)
+    pairs, _vocabulary = load_pairs(load_dataset(PAIRS_FILENAME))
     if limit:
         # Keep the head of the list: it is the part that decides the navigation.
         pairs = pairs[:limit]
