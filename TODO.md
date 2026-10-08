@@ -19,8 +19,10 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 ### 1. Abrir o repositório — o único bloqueador de sequência
 
 Os **Settings do GitHub já estão feitos**: advisory privada, Dependabot (alerts + security updates),
-secret scanning com push protection, branch protection na `main` (PR obrigatório, checks do CI,
-sem force-push, sem deleção, histórico linear) e permissões de Actions em *read*. Falta, **nesta
+secret scanning com push protection, o ruleset `Main Protect` na `main` (PR obrigatório, sem
+force-push, sem deleção e **assinatura obrigatória**) e permissões de Actions em *read*. Duas coisas
+que o ruleset **não** exige, e vale saber: os checks do CI (eles rodam em cada PR, mas o merge não
+espera por eles) e histórico linear (os três métodos de merge estão liberados). Falta, **nesta
 ordem**:
 
 - [x] **Commitar e empurrar o working tree.** Feito: a base de documentação, os cinco consertos de
@@ -35,10 +37,10 @@ ordem**:
       os workflows do CI. O merge — que a branch protection exige com os checks verdes, e os commits
       já carregam `Signed-off-by`, então o job `dco` passa — põe o `main` em dia e tira o badge de CI
       do "no status".
-- [ ] **Ligar "Require signed commits"** no ruleset da `main`. As chaves já são usadas por padrão
-      (`commit.gpgsign=true`, formato SSH). É regra independente do DCO: a assinatura prova **quem
-      criou** o commit, o trailer `Signed-off-by` declara o **direito de submetê-lo**, e o job `dco`
-      confere o trailer. Ligar isso **depois** do merge do `dev` evita reescrever 206 commits.
+- [x] **Assinatura obrigatória.** Já está ligada: o ruleset `Main Protect` carrega a regra
+      `required_signatures`, e os commits do PR estão assinados (`commit.gpgsign=true`, formato SSH).
+      É regra independente do DCO: a assinatura prova **quem criou** o commit, o trailer
+      `Signed-off-by` declara o **direito de submetê-lo**, e o job `dco` confere o trailer.
 - [ ] **Tornar público.** É o último passo, e a ordem importou: um segredo que entra no histórico de
       um repositório público já vazou. A varredura (`gitleaks`, 232 commits) e a limpeza do acervo já
       passaram; o que falta é o clique.
