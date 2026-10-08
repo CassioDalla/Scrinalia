@@ -155,7 +155,8 @@ que funciona" de "um repo que estranhos podem auditar e usar".
 - [x] **Job de lint do workflow** — `zizmor@1.30.1 --persona=pedantic` nos dois workflows: **0 achados**
       (era 6 `unpinned-uses` + a imagem sem digest).
 - [x] **Imagens Docker pinadas por digest** — `pgvector` nos **três** lugares (serviço do CI,
-      `docker-compose.test.yml`, `FROM` do `docker/postgres/Dockerfile`) e `minio` no compose de dev.
+      `docker-compose.test.yml`, `FROM` do `docker/postgres/Dockerfile`). O MinIO **saiu** do compose:
+      o projeto só pede um endpoint S3-compatível, e o storage é infraestrutura do operador.
 - [x] **CodeQL** (Python + JS/TS) em PR, `main` e semanal — é o único scanner que segue o dado, não a
       lista de dependências.
 - [x] **Dependabot** para `github-actions` e `uv`, com PRs agrupadas e prefixo `chore(deps)`.
@@ -166,13 +167,25 @@ que funciona" de "um repo que estranhos podem auditar e usar".
 - [x] **Pre-commit no CI** — desnecessário por enquanto: os três hooks são `ruff`, `ruff format` e
       `basedpyright`, que o CI já roda. Um job de `pre-commit` só acrescentaria valor no dia em que um
       hook **novo** entrar; aí ele entra junto.
-- [ ] **Auditoria de dependências — criada, ainda não bloqueante.** `pip-audit` (sobre o export do
-      `uv`, com `--no-deps --disable-pip`) e `bun audit` rodam com `continue-on-error: true`. O
-      `pip-audit` já acusa advisories reais em dependências transitivas (`tornado`, `transformers`,
-      `urllib3`): **triar e então promover o job a bloqueante** — um job vermelho no dia 1 só ensina a
-      ignorá-lo.
-- [ ] **SBOM e proveniência no release** (`anchore/sbom-action`, `actions/attest-build-provenance`) e
-      o workflow que publica um release a partir de uma tag `v*`.
+- [x] **Auditoria de dependências — advisories do runtime resolvidos.** O job audita o export
+      **sem dev** (`--no-dev`), que é o que embarca na instalação; pra ele, `pip-audit` e `bun audit`
+      respondem **"no known vulnerabilities"**. As correções foram **bumps mínimos** (o menor fix
+      publicado, não o último release): `torch` 2.12→2.13, `transformers` 5.9→5.10,
+      `sentence-transformers` 5.5.1→5.6, `setuptools` 81→83, `urllib3` 2.7→2.8, `pillow` 12.2→12.3,
+      `anyio`, `multidict`, `soupsieve`, `fsspec`. **Ainda `continue-on-error: true`**: um advisory
+      novo pode aparecer sem correção disponível, e a promoção a bloqueante é uma linha — a decisão
+      fica com o dono depois de ver o job verde algumas semanas.
+      - ⚠️ **Consequência do bump de `torch`/`sentence-transformers`:** os embeddings guardados no
+        acervo foram calculados com a versão antiga, e o carimbo do worker é o **hash do texto**, não
+        da versão do modelo — então o worker **não** recoloca esses documentos na fila sozinho.
+        Antes de confiar na busca semântica: re-rodar `worker_embedding` (ou comparar os vetores,
+        como no `cos = 1.0` medido no B11) e re-rodar `testing/evaluation/retrieval_quality.py`.
+- [x] **SBOM e proveniência no release.** `.github/workflows/release.yml` (dispatch manual, default
+      `dry_run: true`): valida a versão, **recusa re-apontar uma tag existente**, imprime no resumo o
+      que os Conventional Commits sugerem (patch/minor/major), builda a SPA, gera o SBOM Python
+      (`cyclonedx-bom`) e atesta a proveniência (`actions/attest-build-provenance`) **antes** de criar
+      a tag e o release com `gh release create --target --generate-notes`. O primeiro release público
+      é o `v1.0.0` (default do input).
 - [ ] **Badges** de licença e de CI no `README`.
 
 #### Fase 2 — repositório e comunidade

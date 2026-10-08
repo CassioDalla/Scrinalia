@@ -18,7 +18,7 @@ the design decisions are documented, and the document that matters most before y
 ```bash
 uv sync                        # Python 3.12, managed by uv
 bun install                    # packages and scripts; Vite is the bundler
-docker compose up -d           # PostgreSQL + MinIO
+docker compose up -d           # PostgreSQL (object storage is an endpoint you bring)
 uv run alembic upgrade head    # the schema is owned by Alembic
 uv run pre-commit install      # ruff + basedpyright on every commit
 ```
@@ -76,6 +76,28 @@ contribution. There is no CLA, and the project does not need one.
 
 CI checks the trailer on every commit of a pull request, so a missing sign-off fails the build rather
 than being caught in review.
+
+## Cutting a release
+
+Releases go through the **`Release` workflow** (Actions → Release → *Run workflow*), not through a
+hand-made tag. It takes the version (`1.0.0` is the first public one), validates that it is a
+semantic version and that the tag does not exist, builds the curator SPA, generates the Python SBOM
+and attests the build provenance. Only then does it create the tag and the GitHub Release.
+
+**It defaults to `dry_run: true`**: the first run validates and builds without tagging anything, and
+the job summary prints what Conventional Commits since the last tag imply the next version to be
+(patch, minor or major). Re-run it with `dry_run: false` when the artifacts look right.
+
+Two rules the workflow enforces and a human should not work around:
+
+- **a published version is never re-pointed.** If `v1.2.0` exists, the only way forward is `v1.2.1`;
+- **the tag is created from the commit the workflow ran on**, so a release is always a commit whose
+  CI was green — do not release from a branch that is not `main`.
+
+The workflow does not re-run the test suite: the gate is the CI job on the commit, and duplicating it
+would only make the release slower than the check that guards it. It also does not update the
+`CHANGELOG.md` — move the entries from `## [Unreleased]` into a `## [x.y.z] - YYYY-MM-DD` section in
+the same pull request that prepares the release, so the file is reviewed like every other change.
 
 ## License
 

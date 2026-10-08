@@ -37,6 +37,9 @@ history is the detail.
   cause computed in a generated column.
 - **A generated, committed API contract**: `bun run contract` dumps the OpenAPI document and
   regenerates the TypeScript client; CI fails when either is stale.
+- **A release flow that produces verifiable artifacts**: the `Release` workflow validates the
+  version, builds the curator SPA, generates the Python SBOM and attests the build provenance before
+  creating the tag and the release.
 
 ### Changed
 
@@ -46,6 +49,9 @@ history is the detail.
   the reference collection.
 - **The AI text composition moved into SQL**: one expression feeds the embedding text, its MD5 stamp,
   NER and the typology, so the four cannot disagree.
+- **Object storage is not shipped.** `docker compose up -d` starts PostgreSQL only; the project needs
+  an S3-compatible endpoint (`S3_ENDPOINT_URL`) and does not care which product serves it, so the
+  storage is infrastructure the operator brings rather than a service this repository runs.
 
 ### Fixed
 
@@ -64,5 +70,10 @@ history is the detail.
 - **Per-address rate limiting** on the login route, in front of the per-account lockout.
 - **Cross-origin checking** on mutating requests, allowing a same-origin `Origin` or one declared in
   `AUTH_TRUSTED_ORIGINS`, and never checking a read.
+- **Known advisories in the runtime dependencies resolved** by minimal version bumps — `torch`,
+  `transformers`, `sentence-transformers`, `setuptools`, `urllib3`, `pillow`, `anyio`, `multidict`,
+  `soupsieve` and `fsspec` — instead of jumping every package to its latest release. The CI audit now
+  reads the **runtime** export and not the development environment: an advisory in a tool that never
+  reaches an installation no longer hides the ones that do.
 
 [Unreleased]: https://github.com/CassioDalla/scrinalia/commits/main

@@ -1,0 +1,138 @@
+name: Release
+
+# Cutting a release is a deliberate act, not a side effect of a merge. The workflow takes the version
+# as input, validates it, builds the artifacts, and only then creates the tag and the release — so a
+# failed build leaves no tag behind. The first public release is **1.0.0**; the default below is the
+# one that will be used when the documentation cycle closes.
+#
+# It does not run the test suite: a release is cut from a commit whose CI is already green, and
+# re-running the suite here would only make the release slower than the check that guards it.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the leading 'v' (the first public release is 1.0.0)"
+        required: true
+        default: "1.0.0"
+      dry_run:
+        description: "Validate and build without creating the tag or the release"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+# A release is a sequence, not a race: a second dispatch waits instead of cancelling the first.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Tag and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # create the tag and the GitHub Release
+      id-token: write # sign the provenance attestation
+      attestations: write # store the attestation in the repository
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The history and the tags: the commit-range summary below needs both.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate the requested version
+        id: version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          # The input reaches the shell through the environment, never interpolated into the script:
+          # a workflow input is text a person types, and text a person types does not belong inside a
+          # shell program.
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::'$VERSION' is not a semantic version (expected MAJOR.MINOR.PATCH)."
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "::error::tag v$VERSION already exists — a published version is never re-pointed."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: What the commits since the last tag imply
+        # Not a gate: the human chooses the version. This is the arithmetic that keeps the choice
+        # honest — Conventional Commits already say whether the release is a patch, a minor or a
+        # major, and a release that contradicts its own history is worth a second look.
+        run: |
+          last="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+          range="${last:+${last}..}HEAD"
+          {
+            echo "### Commits since ${last:-the first commit}"
+            echo
+            git log --no-merges --format='- %s' $range | head -50
+            echo
+            if git log --no-merges --format='%s%n%b' $range | grep -qE '(^[a-z]+(\(.+\))?!:)|^BREAKING CHANGE'; then
+              echo "**Conventional Commits suggest: MAJOR** (a breaking change is present)"
+            elif git log --no-merges --format='%s' $range | grep -qE '^feat(\(.+\))?:'; then
+              echo "**Conventional Commits suggest: MINOR** (a feature is present)"
+            else
+              echo "**Conventional Commits suggest: PATCH** (only fixes and chores)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+
+      - name: Build the curator SPA
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          bun install --frozen-lockfile
+          bun run --cwd apps/curator build
+          tar -czf "scrinalia-curator-$VERSION.tar.gz" -C apps/curator dist
+
+      - name: Software bill of materials (Python runtime)
+        # Built from the lock, not from the environment: it describes what an installation will have,
+        # and it does not need the packages downloaded to say so.
+        run: |
+          uv export --no-hashes --no-emit-project --no-dev --frozen --format requirements-txt -o requirements-release.txt
+          uvx --from cyclonedx-bom cyclonedx-py requirements requirements-release.txt --of json -o sbom-python.cdx.json
+          rm requirements-release.txt
+
+      - name: Attest the build provenance
+        # The signature that ties the artifact to this workflow run and commit: whoever downloads the
+        # tarball can verify it was built here, from this source, and not somewhere else.
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: |
+            scrinalia-curator-*.tar.gz
+            sbom-python.cdx.json
+
+      - name: Create the tag and the release
+        if: inputs.dry_run == false
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # ``gh`` creates the tag at this commit and the release in one call: no local push, and no
+          # credential kept in the checkout's git config.
+          gh release create "v$VERSION" \
+            --target "$GITHUB_SHA" \
+            --title "Scrinalia v$VERSION" \
+            --generate-notes \
+            "scrinalia-curator-$VERSION.tar.gz" \
+            "sbom-python.cdx.json"
+
+      - name: Dry run — nothing was tagged
+        if: inputs.dry_run == true
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          echo "::notice::Dry run: built the artifacts for v$VERSION and stopped. Re-run with dry_run=false to tag and publish."
