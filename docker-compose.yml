@@ -19,7 +19,7 @@ services:
     environment:
       POSTGRES_USER: ${DB_USER:-admin}
       POSTGRES_PASSWORD: ${DB_PASS:-admin123}
-      POSTGRES_DB: ${DB_NAME:-memoriacuritibana}
+      POSTGRES_DB: ${DB_NAME:-scrinalia}
     ports:
       - "5432:5432"
     volumes:
@@ -61,7 +61,7 @@ services:
       DB_PORT: "5432"
       DB_USER: ${DB_USER:-admin}
       DB_PASS: ${DB_PASS:-admin123}
-      DB_NAME: ${DB_NAME:-memoriacuritibana}
+      DB_NAME: ${DB_NAME:-scrinalia}
       # The object storage is not in this stack. ``host.docker.internal`` reaches a service running
       # on the host; an S3 elsewhere is set in ``.env`` and interpolated here.
       S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://host.docker.internal:9000}

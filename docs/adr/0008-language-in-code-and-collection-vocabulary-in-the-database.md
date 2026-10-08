@@ -160,7 +160,10 @@ Negative, and accepted:
   `PT_BR.stopwords` is what the clustering engines discard before vectorising. Collapsing them would
   let a NER veto silence a tag the curator kept.
 - **The database name `memoriacuritibana` still carries the city.** It is data identity, and ADR
-  0007 already decided it stays.
+  0007 already decided it stays. **Resolved for a fresh install:** the *default* in `core/config.py`
+  and in both `docker-compose.yml` stanzas is now `scrinalia`, so a clone no longer points at somebody
+  else's catalogue. An installation that already has the old database keeps its name — renaming a
+  database is a data operation, not a code one — and says so in its own `.env`.
 
 ## Alternatives considered
 

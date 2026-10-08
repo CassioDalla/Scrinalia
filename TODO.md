@@ -136,29 +136,44 @@ que funciona" de "um repo que estranhos podem auditar e usar".
         código, que é o que não pode acontecer. O **formato** ficou versionado em
         `testing/evaluation/README.md`: a forma é método, as linhas são acervo. Nenhum teste dependia
         deles.
-      - [ ] **A semente do vocabulário ainda está no repo** — 38 tokens de arranjo (`BR PRADAP`,
-        `IPPUC`, `SMU`, …) e 71 termos de coleção (bairros de Curitiba) em
-        `domain/collection_vocabulary.py` **e** na migração `b3d6f1a2c4e7`, mais o fixture
-        `reference_vocabulary` do `conftest.py`. É o estado inicial da instalação de referência.
-        Tirar exige **migração nova** que apague as linhas — editar a antiga quebraria a regra de que
-        replay de histórico reproduz o estado que ele produziu — e ajustar os testes que hoje herdam
-        o vocabulário do fixture.
+      - [x] **A semente do vocabulário saiu do repo.** Os 38 tokens de arranjo e os 71 termos de
+        coleção saíram de `domain/collection_vocabulary.py` **e** da migração `b3d6f1a2c4e7`, que
+        agora só cria as tabelas. Editar uma revisão aplicada é normalmente errado e aqui é o certo
+        pelo motivo que importa: **não é mudança de schema**, e manter a semente significaria embarcar
+        o acervo no único lugar onde um `git clone` sempre traz. Quem já rodou a forma antiga **mantém
+        as linhas** — elas passaram a ser dado daquela instalação — e quem clona começa vazio; os dois
+        convergem no comportamento, porque nada lê a semente em runtime.
+        - O vocabulário virou **arquivo carregável**: `python -m scrinalia.domains.archive.cli
+          export|import` (`Data/vocabulary/collection_vocabulary.json`, ignorado). O `import` é
+          idempotente e assimétrico — cria o que falta (respeitando `is_active`, para um termo
+          aposentado não ressuscitar), corrige nome e **nunca apaga**. O arquivo da instalação de
+          referência já foi gerado, então não há nada para redigitar: um comando e pronto.
+        - Os testes **mantêm os nomes reais**, agora em `testing/reference_vocabulary.py`: eles foram
+          escritos contra este acervo, grafia por grafia, e é isso que faz o teste falhar quando a
+          guarda deixa de cobrir o que ele foi escrito para cobrir. Vocabulário neutro deixaria a
+          suíte verde sobre nada. Decisão do dono.
+        - Verificado com **banco zerado**: 32 migrações, `alembic check` sem drift, catálogo vazio,
+          `/health/ready` 200, difusão pública 200 com `total: 0`, e o `import` levando 0 → 109 linhas
+          (e 0 na segunda vez).
       - [x] **O fatiador NÃO tem token do acervo em código — verificado.** Eu tinha registrado o
         contrário aqui, e a checagem desmentiu: `slice_reference_code` recebe **só** o código e
         classifica por **forma** (`str.isalpha()` = arranjo, dígito/outro = identificador) com
         `ROOT_MIN_TOKENS = 2`. O `BR PRADAP` existe apenas em comentário e em exemplo de docstring.
         Um banco zerado não faz o fatiador fatiar contra Curitiba.
-      - [ ] **O nome do banco de referência é o default:** `DB_NAME = "memoriacuritibana"` em
-        `core/config.py` e nos dois pontos do `docker-compose.yml`. Neutro seria `scrinalia`. É
-        mudança **quebradiça para instalação existente** (um volume já criado tem o outro nome), então
-        vai junto com uma nota de migração, não sozinha.
-      - [ ] **~50 menções a tokens e nomes reais em comentários e docstrings de `src/`** (`BR PRADAP`,
-        `IPPUC`, `SMU`, `Curitiba`) e em `description=` de schemas da API. Não têm efeito de runtime —
-        é decisão de curadoria se exemplo ilustrativo precisa ser neutro.
-      - [ ] **Números e nomes do acervo em documentação.** `AGENTS.md` (5 ocorrências) e `TODO.md`
-        (12) citam 4.844, 4.816, 3.608, 8.155, 6.142, nomes de fundos e `BR PRADAP`. Proposta: manter
-        as **medições agregadas**, que são a evidência de por que o código é como é ("52,9 s com o
-        OR, 1,4 s sem, resultados idênticos"), e remover o **conteúdo** — nome de fundo, bairro, ID.
+      - [x] **`DB_NAME` neutro.** Era o nome do banco da coleção de referência; agora o default é
+        `scrinalia` em `core/config.py` e nos dois pontos do `docker-compose.yml`. É mudança
+        **quebradiça para instalação existente** — um volume já criado tem o outro nome — então quem
+        já tem o banco aponta `DB_NAME` no `.env` (o desta máquina já aponta).
+      - [x] **Comentários e docstrings de `src/` limpos.** 21 arquivos com exemplos que nomeavam
+        fundos, secretarias e bairros passaram a usar placeholders neutros (`ACERVO RAIZ`, `ALFA`,
+        `BETA`, `exemplo lugar`), mais cinco arquivos fora da primeira lista
+        (`models/governance.py`, `repository/tag_repo.py`, `schemas/tag_schema.py`,
+        `workers/worker_ner.py`). O contrato da API foi **regenerado** (`bun run contract`), porque
+        `description=` de schema e docstring de enum chegam ao OpenAPI.
+      - [x] **Números e nomes do acervo em documentação.** Linha de corte aplicada: as **medições
+        agregadas** ficaram (são a evidência de por que o código é como é — "52,9 s com o OR, 1,4 s
+        sem, resultados idênticos") e o **conteúdo** saiu — nome de fundo, bairro, ID. `AGENTS.md` e
+        `TODO.md` atualizados, incluindo `memoriacuritibana_legacy` → `scrinalia_legacy`.
 - [x] **Licença conferida**: `LICENSE` (AGPL verbatim), `LICENSE-ADDITIONAL-TERMS.md`, `license` no
       `pyproject.toml` e nos dois `package.json`, e o rodapé de atribuição na SPA.
 - [x] **`SECURITY.md`** criado, com o reporte pela **advisory privada do GitHub** (decisão do dono),
@@ -475,7 +490,7 @@ existe e a suíte passa a rodar contra o schema migrado (53 falhas + 42 erros qu
 ### Medir o acervo (não confie em número congelado)
 
 ```bash
-docker exec scrinalia_db psql -U admin -d memoriacuritibana -c "
+docker exec scrinalia_db psql -U admin -d scrinalia -c "
 SELECT 'descrições' AS medida, count(*)::text AS valor FROM archive_documents
 UNION ALL SELECT 'com pai', count(*)::text FROM archive_documents WHERE parent_id IS NOT NULL
 UNION ALL SELECT 'sem nível', count(*)::text FROM archive_documents WHERE level_id IS NULL
