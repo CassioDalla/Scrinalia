@@ -25,6 +25,12 @@ updates:
   # Python. Dependabot understands `uv.lock`, so the PR it opens moves the lockfile too — which is
   # the whole point: a dependency bump that only edits `pyproject.toml` would fail `uv sync --locked`
   # in CI.
+  #
+  # `update-types` keeps the group to minor and patch on purpose. A dependency that does not match
+  # the rule is still updated, in its own pull request, so a major is not hidden — it is separated.
+  # Measured: with `patterns: ["*"]` alone, one PR carried pandas 3, SQLAlchemy 2.1 and transformers
+  # 5.18 together, failed the type check before the suite ran, and hid a driver change that broke
+  # every database connection. A major is a decision, and a decision deserves its own PR.
   - package-ecosystem: "uv"
     directory: "/"
     schedule:
@@ -35,3 +41,4 @@ updates:
     groups:
       python:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
