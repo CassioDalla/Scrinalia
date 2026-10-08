@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 
 class DebertaEngine:
@@ -31,4 +31,6 @@ class DebertaEngine:
 
     def classify(self, texts: list[str], candidate_labels: list[str], **kwargs: Any) -> list[dict]:
         results = self.classifier(texts, candidate_labels, **kwargs)
-        return results if isinstance(results, list) else [results]
+        # The pipeline's ``__call__`` is unannotated, so transformers infers a union that includes
+        # the streaming iterator; this call never streams and answers one dict per text.
+        return cast("list[dict]", results if isinstance(results, list) else [results])

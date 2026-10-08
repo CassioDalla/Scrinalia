@@ -40,6 +40,7 @@ import json
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 
@@ -225,7 +226,9 @@ def build_mdeberta(device: str):
     )
 
     def classify(text: str, labels: list[str]) -> dict:
-        out = classifier(text, labels, batch_size=1)
+        # The pipeline's ``__call__`` is unannotated, so transformers infers a union that includes
+        # the streaming iterator; this call never streams and answers one dict.
+        out = cast("dict", classifier(text, labels, batch_size=1))
         return {"label": out["labels"][0], "score": out["scores"][0]}
 
     return classify
@@ -243,7 +246,9 @@ def build_xlm_roberta(device: str):
     )
 
     def classify(text: str, labels: list[str]) -> dict:
-        out = classifier(text, labels, batch_size=1)
+        # The pipeline's ``__call__`` is unannotated, so transformers infers a union that includes
+        # the streaming iterator; this call never streams and answers one dict.
+        out = cast("dict", classifier(text, labels, batch_size=1))
         return {"label": out["labels"][0], "score": out["scores"][0]}
 
     return classify

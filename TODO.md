@@ -89,6 +89,15 @@ O software está pronto; **o acervo de referência está parcialmente processado
       `mock_registry` (correto) e por isso a classe de bug do `suggest-macro` fica invisível.
 - [ ] **Publicar o site** e decidir se versiona por release (`mike`). **Não bloqueia a 1.0**: o build
       com `--strict` já é o gate e o site é gerado do repositório; hospedagem é uma decisão separada.
+- [ ] **Adotar pandas 3 e SQLAlchemy 2.1 de propósito.** Os dois estão segurados no `pyproject.toml`
+      (`pandas<3`, `sqlalchemy<2.1`) porque o Dependabot os trouxe num PR de grupo com 12 outros bumps.
+      O SQLAlchemy 2.1 **troca o driver padrão de `postgresql://` de psycopg2 para psycopg (v3)**, e o
+      projeto pina `psycopg2`: medido, a suíte dá **748 erros de setup** (`No module named 'psycopg'`)
+      com o 2.1.4 e passa com o 2.0.54. A adoção é: tornar o driver explícito
+      (`postgresql+psycopg2://`) em `core/config.py`, `testing/conftest.py` e no env do CI, ajustar a
+      tipagem de `Row` (6 pontos) e a de pandas (`int(row[...])`, 2 pontos) e re-rodar a suíte. O
+      pandas 3 muda a tipagem de `Series.__getitem__` e traz mudanças de comportamento (string dtype,
+      copy-on-write) que a suíte atual não exercita.
 
 ---
 
@@ -147,6 +156,14 @@ O software está pronto; **o acervo de referência está parcialmente processado
   tinha volta *nem forma de ver a regra desativada*).
 - **Um teste que prende a assinatura antiga falha quando o contrato melhora** — foi o caso do
   `thumbnail` recusando `force`; atualizar o teste é parte da correção.
+- **Um bump de major pode trocar o driver padrão, não só a tipagem.** O SQLAlchemy 2.1 manda
+  `postgresql://` para o psycopg **v3**; com `psycopg2` pinado, toda conexão falha. O `basedpyright`
+  pegou 13 diagnósticos e **não** pegou isso — verde no type check não é sinal de runtime, e o passo
+  `Run tests` do CI só roda depois dele.
+- **Um grupo do Dependabot com `patterns: ["*"]` transforma três decisões de major num `chore(deps)`**
+  (pandas 3, SQLAlchemy 2.1 e transformers 5.18 no mesmo PR). Major se adota de propósito, com o
+  lock rebaseado e a suíte rodada — o lock que o Dependabot testou não é o que o rebase produz
+  (o PR trazia SQLAlchemy 2.1.3; o rebase resolveu 2.1.4).
 
 ---
 
