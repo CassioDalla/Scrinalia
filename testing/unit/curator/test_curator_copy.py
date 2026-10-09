@@ -1,6 +1,6 @@
 """The curator SPA's copy contract (issue #23).
 
-Three rules that no green gate could see before, each one the day after a defect that shipped:
+Four rules that no green gate could see before, each one the day after a defect that shipped:
 
 1. **A design token exists, and is written the way Tailwind v4 needs it.** `bg-[--color-surface]`
    compiles to `background-color: --color-surface` — invalid CSS the browser drops *silently*, which
@@ -14,10 +14,16 @@ Three rules that no green gate could see before, each one the day after a defect
    settings card and the `<h1>` all read; a route names its screen and cannot pass a heading of its
    own. That is what makes "the menu says `Tags` and the page says *Vocabulário de tags*" impossible
    instead of merely repaired.
+4. **A retired word does not come back.** The one-verb-per-action canon of `lib/copy.ts` is prose
+   too, and prose is where it leaked: `components/hierarchy/MaterialisationPanel.tsx` kept saying
+   `rung`, `apply` and `dry-run` through the whole review, because it is a **component and not a
+   screen** — the per-screen pass never opened it, and nothing failed. This is the rule that makes
+   the next one fail.
 
 The parser is deliberately textual. The SPA has no test runner of its own (there is no `vitest` and
-this is not the change that adds one), and the three rules are about *source text* — a token spelled
-wrong, a name typed twice, a heading written by hand — which is exactly what a text scan can decide.
+this is not the change that adds one), and the four rules are about *source text* — a token spelled
+wrong, a name typed twice, a heading written by hand, a word that should be gone — which is exactly
+what a text scan can decide.
 """
 
 from __future__ import annotations
@@ -47,8 +53,87 @@ SOURCES = sorted(
     path for pattern in ("*.ts", "*.tsx", "*.css") for path in SRC.rglob(pattern) if path.name != "schema.d.ts"
 )
 
+#: The words this interface retired, and what it says instead. Each one was in the tree when the
+#: canon landed, and each one is now at zero — the gate is what keeps it there.
+#:
+#: What is deliberately **not** here, because it cannot be decided from the text alone:
+#:
+#: * `gravar` in the sense of *recording* — "o veredito é gravado", "o validador gravou este código",
+#:   "cada aplicação grava uma entrada" — which is not the `Salvar` action and reads correctly. Only
+#:   the action was retired ("não pode `gravar` um nível" became "não pode salvar").
+#: * `desativar`, which is the right verb for an **account** and the retired one for a **catalogue
+#:   row** (`Aposentar`). Which object it acts on is not in the word.
+RETIRED = {
+    r"\brungs?\b": "the Portuguese UI says `degrau` (`rung` is the English of the code and the docs)",
+    r"\bunific\w*": "the merge is `Mesclar`",
+    r"\bapag\w*": "destroying stored data is `Excluir`",
+    r"\bcadastr\w*": "creating a row is `Criar`",
+    r"\bexecuta(?:r|ndo|do|da|dos|das|ou)?\b": "launching a run is `Rodar agora` (`execução` is the noun)",
+    r"\bapply\b": "the batch commit is `aplicação`",
+    r"\bdry-run\b": "the preview is `prévia`",
+    r"\bundo\b": "walking a ledger back is `Desfazer`",
+}
+
+#: A legitimate use of a retired word, with the reason it is legitimate. Empty is the normal state:
+#: the map exists so that an exception is a line in a diff a reviewer reads, and not a hole in the
+#: pattern. ``(file, the text as it appears, why)``.
+ALLOWED: tuple[tuple[str, str, str], ...] = ()
+
+#: A double-quoted literal, and a JSX text node. Both are what a person can read on the screen.
+LITERAL = re.compile(r'"([^"\n]{2,})"')
+JSX_TEXT = re.compile(r'>\s*([A-Za-zÀ-ÿ][^<>{}"\n]{2,}?)\s*<')
+COMMENT = re.compile(r"/\*.*?\*/|^\s*//[^\n]*", re.M | re.S)
+
+#: A path — a contract route or a front-end one — which is an identifier and never copy. It is why
+#: `'/api/v1/hierarchy/materialisation/apply'` in `api/client.ts` is not a use of the retired word:
+#: it is the name of an operation, and no screen renders it. (The one place a path *is* shown —
+#: `NerExclusionsRoute`'s link text — is a JSX text node, and the node pattern requires a letter
+#: first, so it is not read as a path and not read as copy either.)
+PATH = re.compile(r"^/[^\s]*$")
+
+
+def visible_strings(path: Path) -> list[str]:
+    """Every string of a source file that can reach the screen.
+
+    Comments are read out first: they are English, they carry `rung` and `apply` on purpose, and a
+    comment is not copy. The extraction is a scan and not a parser — it takes every double-quoted
+    literal and every JSX text node — which is why a legitimate use of a retired word needs an entry
+    in `ALLOWED` instead of a cleverer pattern.
+    """
+    body = COMMENT.sub("", text(path))
+    return [value for value in LITERAL.findall(body) + JSX_TEXT.findall(body) if not PATH.match(value)]
+
+
+def test_no_retired_word_is_visible() -> None:
+    """The canon of `lib/copy.ts`, held over every string the archivist can read."""
+    offenders: list[str] = []
+    for path in SOURCES:
+        relative = path.relative_to(CURATOR).as_posix()
+        for value in visible_strings(path):
+            if any(relative == file and allowed in value for file, allowed, _ in ALLOWED):
+                continue
+            for pattern, instead in RETIRED.items():
+                if re.search(pattern, value, re.I):
+                    offenders.append(f"{relative}: {value.strip()[:70]!r} — {instead}")
+    assert not offenders, (
+        "these user-visible strings use a word the interface retired:\n  "
+        + "\n  ".join(sorted(set(offenders)))
+        + "\n\nThe canon lives in `apps/curator/src/lib/copy.ts`; if a use is legitimate, add it to "
+        "`ALLOWED` in this test with the reason, so the exception is a line a reviewer reads."
+    )
+
+
+def test_the_extractor_sees_strings() -> None:
+    """A sanity check on the scan itself, so a broken pattern fails instead of passing silently."""
+    seen = visible_strings(SCREENS)
+    assert len(seen) > 20, f"the extractor found {len(seen)} strings in `lib/screens.ts`; the pattern is broken."
+    assert any(value == "As gavetas de assunto" for value in seen), (
+        "the extractor no longer reads a plain literal from `lib/screens.ts`."
+    )
+
 
 def text(path: Path) -> str:
+    """The whole source of a file, or an empty string when it does not exist."""
     return path.read_text(encoding="utf-8") if path.exists() else ""
 
 
