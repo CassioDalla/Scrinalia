@@ -377,7 +377,8 @@ port is the API's; CI builds the site with `--strict` and fails on a broken link
 - [Documentation log](docs/log.md) — the pages reviewed against the code, and when.
 
 In the repository: [`AGENTS.md`](AGENTS.md) — conventions and the architectural rules that are easy
-to get wrong — and [`TODO.md`](TODO.md) — the roadmap.
+to get wrong. The work that is left is in the
+[open issues](https://github.com/CassioDalla/Scrinalia/issues) and their milestones.
 
 Two rules hold the documentation to the code, and both matter before touching a documented surface
 (ADR 0010). **Coverage is a gate**: `testing/unit/docs/test_documentation_coverage.py` fails when a

@@ -21,7 +21,7 @@ dependencies = [
     "litestar[standard]>=2.24.0",
     "loguru>=0.7.3",
     "numpy>=2.3.5",
-    "pandas>=2.3.3,<3",  # held: 3.x is a deliberate adoption, see TODO.md
+    "pandas>=2.3.3,<3",  # held: 3.x is a deliberate adoption
     "pillow>=12.2.0",
     "psycopg2==2.9.13",
     "pt-core-news-lg",
@@ -29,7 +29,7 @@ dependencies = [
     "requests>=2.34.2",
     "scikit-learn>=1.8.0",
     "spacy>=3.8.14",
-    "sqlalchemy>=2.0.50,<2.1",  # held: 2.1 switches the default driver to psycopg3, see TODO.md
+    "sqlalchemy>=2.0.50,<2.1",  # held: 2.1 switches the default driver to psycopg3
     "torch>=2.12.0",
     "transformers>=5.9.0",
 ]
@@ -140,4 +140,4 @@ markers = [
 #
 # ``pyrightconfig.json`` is the one file both tools read, so the editor and the gate share a single
 # definition instead of two that drift. Pragmatic baseline: type-check the application code, keep
-# third-party noise and one-off tooling out of the gate, tighten over time (see ``TODO.md``).
+# third-party noise and one-off tooling out of the gate, tighten over time.

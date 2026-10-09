@@ -20,9 +20,9 @@ the role map (ADR 0009).
 - Front: the curator UI is the React SPA in `apps/curator/` (ADR 0003). It is the only front end:
   the temporary Streamlit dashboard was removed in B8. Treat the API as the stable interface.
 - Code is written in **English**: filenames, identifiers, comments, docstrings, log messages and internal error messages. Only end-user-visible text stays Portuguese (see Language below). Commits follow Conventional Commits.
-- `README.md` is the front door for newcomers (what the system is, how to run it); the roadmap
-  lives in `TODO.md`, the accepted architecture decisions in `docs/adr/`, and the guides an
-  installer, an operator and an archivist read in `docs/guides/`. Keep them in step with the code,
+- `README.md` is the front door for newcomers (what the system is, how to run it); the work that is
+  left lives in the GitHub issues and their milestones, the accepted architecture decisions in
+  `docs/adr/`, and the guides an installer, an operator and an archivist read in `docs/guides/`. Keep them in step with the code,
   and never state something in them that you have not verified.
 - **The documentation is versioned with the code and held to it by two rules (ADR 0010).**
   *Coverage is a gate*: `testing/unit/docs/test_documentation_coverage.py` walks the real catalogues

@@ -19,7 +19,7 @@ run of a session. Everything below is the procedure it defines.
 
 - **Never state what you have not verified.** Every claim in a page is traceable to a file, a
   command or a route you read. This is the rule `AGENTS.md` already states for `README.md` and
-  `TODO.md`, and it is the one that separates documentation from prose.
+  the guides, and it is the one that separates documentation from prose.
 - **English is canonical, Portuguese is a translation of it.** Write the English page first and the
   translation after it; never let the translation be the only place a fact exists. A translation
   never adds structure the English page does not have.
@@ -106,7 +106,7 @@ of judgement, not one line per worker.
   nobody will read.
 - Translating mechanically: the Portuguese page is read by the person who operates the system, and
   a literal translation of an English term that the SPA already names in Portuguese is a defect.
-- Documenting an intention. If a feature does not exist in the code, it belongs in `TODO.md` and
+- Documenting an intention. If a feature does not exist in the code, it belongs in an issue and
   nowhere else.
 - Adding a page without `sources:`. An English page without `sources:` is a page that can never be
   reported stale; the front-matter test fails on it.
