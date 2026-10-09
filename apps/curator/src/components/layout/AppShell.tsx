@@ -104,8 +104,14 @@ type NavGroup = { id: string; section?: string; items: NavItem[] };
 
 const NAV: NavGroup[] = [
   {
-    id: "curadoria",
-    section: "Curadoria",
+    /*
+      `Início` stands on its own, with no heading, and the group it used to head is gone.
+
+      "Curadoria" held exactly one entry, which is the same defect the landing at the foot of the
+      menu was fixed for — and the comment there already states the rule: *the fix was not a better
+      heading*. A section exists to gather, and a section that gathers one line is a line of chrome.
+    */
+    id: "inicio",
     items: [{ screen: "inbox", icon: LayoutDashboard }],
   },
   {
@@ -185,6 +191,18 @@ type ResolvedNavItem = NavItem & Screen;
  * pages needs: the shell may hide an entry, and it must never be the thing that grants one, so both
  * halves only ever take an entry away.
  */
+/**
+ * Whether an entry is the one the archivist is standing on.
+ *
+ * It is a function and not an inline expression because **the group's accordion needs the same
+ * answer**: the group of the current screen has to be open, or landing on `/entidades/conflitos`
+ * shows `Entidades` collapsed with the active entry hidden inside it.
+ */
+function isCurrent(item: ResolvedNavItem, pathname: string): boolean {
+  if (item.path === "/") return pathname === "/";
+  return pathname.startsWith(item.path) || (item.alsoActive ?? []).some((path) => pathname.startsWith(path));
+}
+
 function reaches(role: AuthUser["role"], item: NavItem): boolean {
   if (item.permission && !can(role, item.permission)) return false;
   if (item.anyOf && !item.anyOf.some((area) => can(role, area))) return false;
@@ -239,6 +257,17 @@ export function AppShell() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const [changingPassword, setChangingPassword] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed);
+  /*
+    The section the archivist opened by hand, **with the screen it was opened on**.
+
+    The path is part of the state on purpose: it is what expires the choice when they navigate, so
+    the menu shows the section of the current screen and never drifts into two by accident. An
+    effect that cleared it would do the same job and cost a second render — and React's own lint
+    rule says so. It is not persisted, unlike the collapse: it is derived from where they are, so
+    there is nothing durable to remember.
+  */
+  const [opened, setOpened] = useState<{ path: string; group: string } | null>(null);
+  const openGroup = opened?.path === pathname ? opened.group : null;
 
   /*
     The installation, before the session.
@@ -325,6 +354,15 @@ export function AppShell() {
   */
   const groups = visibleNav(user.role);
 
+  /*
+    The group the archivist is standing in, which is open by construction.
+
+    Without it, landing on `/entidades/conflitos` from a link would show `Entidades` collapsed and
+    the active entry — the highlighted one, the whole reason the rail is worth reading — hidden
+    inside it.
+  */
+  const activeGroup = groups.find((group) => group.items.some((item) => isCurrent(item, pathname)))?.id;
+
   const toggleSidebar = () => {
     const next = !collapsed;
     setCollapsed(next);
@@ -393,34 +431,50 @@ export function AppShell() {
           aria-label="Menu principal"
           className={cn("min-h-0 flex-1 overflow-y-auto py-3", collapsed ? "px-1.5" : "px-2")}
         >
-          {groups.map((group, index) => (
-            <div
-              key={group.id}
-              /*
-                Collapsed, a group boundary is a hairline instead of a heading: the words are gone and
-                the separation is still what tells the archivist where one vocabulary ends. Expanded,
-                the hairline is drawn only for the group that has no heading at all — the landing at
-                the foot of the menu — because everywhere else the heading is the separation.
-              */
-              className={cn(
-                collapsed ? index > 0 && "mt-3 border-t border-(--color-line) pt-3" : "mb-3",
-                !collapsed && !group.section && index > 0 && "mt-3 border-t border-(--color-line) pt-3",
-              )}
-            >
-              {collapsed || !group.section ? null : (
-                <p className="px-2 pb-1 text-[11px] font-semibold tracking-wide text-(--color-muted) uppercase">
-                  {group.section}
-                </p>
-              )}
-              <ul className={cn(collapsed && "space-y-1")}>
-                {group.items.map((item) => {
-                  const Icon = item.icon;
-                  const active =
-                    item.path === "/"
-                      ? pathname === "/"
-                      : pathname.startsWith(item.path) ||
-                        (item.alsoActive ?? []).some((path) => pathname.startsWith(path));
-                  return (
+          {groups.map((group, index) => {
+            /*
+              Collapsed, a group boundary is a hairline instead of a heading and **every** entry is
+              shown: the accordion is an affordance of the expanded rail, where the words are, and a
+              heading with no label in a 64px column would be a click that says nothing.
+
+              Expanded, a group with no heading — `Início` at the top, `Configurações` at the foot —
+              is always open, because there is nothing to click to open it.
+            */
+            const open = collapsed || !group.section || group.id === activeGroup || group.id === openGroup;
+            const panelId = `app-nav-${group.id}`;
+            return (
+              <div
+                key={group.id}
+                className={cn(
+                  collapsed ? index > 0 && "mt-3 border-t border-(--color-line) pt-3" : "mb-3",
+                  !collapsed && !group.section && index > 0 && "mt-3 border-t border-(--color-line) pt-3",
+                )}
+              >
+                {collapsed || !group.section ? null : (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOpened((current) =>
+                        current?.path === pathname && current.group === group.id
+                          ? null
+                          : { path: pathname, group: group.id },
+                      )
+                    }
+                    aria-expanded={open}
+                    aria-controls={panelId}
+                    className="flex w-full items-center justify-between rounded-md px-2 pb-1 text-[11px] font-semibold tracking-wide text-(--color-muted) uppercase transition hover:text-(--color-ink)"
+                  >
+                    {group.section}
+                    <span aria-hidden className="text-[9px]">
+                      {open ? "▾" : "▸"}
+                    </span>
+                  </button>
+                )}
+                <ul id={panelId} className={cn(collapsed && "space-y-1", !open && "hidden")}>
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const active = isCurrent(item, pathname);
+                    return (
                     <li key={item.path}>
                       <Link
                         to={item.path}
@@ -448,13 +502,14 @@ export function AppShell() {
                             <span className="block text-[11px] font-normal text-(--color-muted)">{item.hint}</span>
                           </span>
                         )}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })}
         </nav>
 
         <SessionFooter
