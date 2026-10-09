@@ -142,7 +142,7 @@ export function CategoriesRoute() {
           <section className="grid gap-2">
             <SectionTitle>Aposentadas</SectionTitle>
             <p className="text-xs text-(--color-muted)">
-              Saíram do eixo de assunto porque são proveniência e geografia, não assunto. Nunca foram apagadas: a
+              Saíram do eixo de assunto porque são proveniência e geografia, não assunto. Nunca foram excluídas: a
               chave estrangeira é <code>SET NULL</code>, e excluir uma gaveta excluiria o registro de que ela existiu.
             </p>
             {retired.map((category) => (

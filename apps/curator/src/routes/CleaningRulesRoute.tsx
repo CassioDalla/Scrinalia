@@ -175,7 +175,7 @@ export function CleaningRulesRoute() {
                   {!rule.is_active ? (
                     <p className="text-xs text-(--color-muted)">
                       Aposentada: o worker não lê esta regra. Reativar devolve a mesma regra, com o
-                      mesmo id — nada foi apagado.
+                      mesmo id — nada foi excluído.
                     </p>
                   ) : null}
                 </CardBody>

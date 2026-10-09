@@ -97,7 +97,7 @@ export function SubjectExclusionsRoute() {
         <Notice tone="accent">
           O guard determinístico pega o que tem forma — data, placeholder, logradouro, número — e na
           medição real ele pegou <strong>1 de 4</strong> dos não-assuntos do gabarito. O resto é
-          julgamento semântico que nenhuma regra resolve. <strong>Banir não apaga nada:</strong> a tag
+          julgamento semântico que nenhuma regra resolve. <strong>Banir não exclui nada:</strong> a tag
           continua no acervo e alcançável pela busca; só a classificação de assunto para de adivinhar.
         </Notice>
 
@@ -248,7 +248,7 @@ export function SubjectExclusionsRoute() {
             <div className="grid gap-1">
               <span className="text-sm font-semibold">Vetar termos</span>
               <span className="text-xs text-(--color-muted)">
-                Banir não apaga nada: a tag continua no acervo, só a classificação de assunto para de adivinhar.
+                Banir não exclui nada: a tag continua no acervo, só a classificação de assunto para de adivinhar.
               </span>
             </div>
           }

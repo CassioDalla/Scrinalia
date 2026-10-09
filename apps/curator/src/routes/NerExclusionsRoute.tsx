@@ -109,7 +109,7 @@ export function NerExclusionsRoute() {
             <div className="grid gap-1">
               <span className="text-sm font-semibold">Vetar termos</span>
               <span className="text-xs text-(--color-muted)">
-                O veto vale para o termo inteiro e apaga as entidades já extraídas dessa grafia.
+                O veto vale para o termo inteiro e exclui as entidades já extraídas dessa grafia.
               </span>
             </div>
           }
@@ -141,7 +141,7 @@ export function NerExclusionsRoute() {
             </div>
             {ban.data ? (
               <p className="text-xs text-(--color-muted)">
-                {routeMessage(ban.data)} {formatCount(ban.data.entities_deleted)} entidades apagadas.
+                {routeMessage(ban.data)} {formatCount(ban.data.entities_deleted)} entidades excluídas.
               </p>
             ) : null}
             {ban.error ? <ErrorState error={ban.error} /> : null}

@@ -717,7 +717,7 @@ function TagMergePanel({
             ) : null}
             {preview.data.category_would_be_lost ? (
               <Notice tone="danger">
-                Esta unificação <strong>apaga uma classificação de assunto</strong>: a tag absorvida está na gaveta{" "}
+                Esta mesclagem <strong>exclui uma classificação de assunto</strong>: a tag absorvida está na gaveta{" "}
                 <strong>{lostDrawers.join(", ") || "—"}</strong> e a canônica não tem gaveta.
               </Notice>
             ) : null}
@@ -881,7 +881,7 @@ function ProposalsTab({
     mutationFn: (proposal: TagMergeProposal) =>
       decideMergeProposal(proposal.proposal_id, {
         status: "REJECTED",
-        note: `Editada e aplicada à mão: a máquina propôs ${formatCount((proposal.members ?? []).length)} membros e a seleção revisada foi unificada pelo ledger.`,
+        note: `Editada e aplicada à mão: a máquina propôs ${formatCount((proposal.members ?? []).length)} membros e a seleção revisada foi mesclada pelo ledger.`,
       }),
     onSuccess: invalidate,
   });
@@ -967,7 +967,7 @@ function ProposalsTab({
         <Notice tone="warn" as="div" className="flex flex-wrap items-center gap-3">
           <span className="text-xs text-(--color-warn)">
             <strong>{formatCount(approvedNotSelected.length)}</strong> cluster(s) aprovado(s) nesta página{" "}
-            <strong>ainda não foram unificados</strong>: aprovar registra a intenção, e só o apply absorve as tags.
+            <strong>ainda não foram mesclados</strong>: aprovar registra a intenção, e só o apply absorve as tags.
             Enquanto ele não roda, o ledger abaixo não muda.
           </span>
           <Button
@@ -1068,7 +1068,7 @@ function ProposalsTab({
       {proposals.data && total === 0 ? (
         <EmptyState
           title="Nenhuma proposta com este filtro"
-          hint="Rode 'Propor clusters' para registrar os pares acima do limiar. A proposta não unifica nada: ela só escreve a pergunta."
+          hint="Rode 'Propor clusters' para registrar os pares acima do limiar. A proposta não mescla nada: ela só escreve a pergunta."
           action={
             <Button onClick={() => suggest.mutate()} disabled={suggest.isPending}>
               Propor clusters
@@ -1116,7 +1116,7 @@ function ProposalsTab({
                 members={(proposal.members ?? []).map((member) => ({ tag_id: member.tag_id, name: member.name }))}
                 initialCanonicalId={proposal.canonical_id ?? undefined}
                 title={`Editar e aplicar o cluster #${proposal.proposal_id}`}
-                hint="Desmarque a tag que não pertence ao conjunto e escolha a canônica. Aplicar unifica a seleção revisada pelo mesmo planejador do lote, registra no ledger — e fecha esta proposta como rejeitada, porque a pergunta da máquina foi respondida de outro jeito."
+                hint="Desmarque a tag que não pertence ao conjunto e escolha a canônica. Aplicar mescla a seleção revisada pelo mesmo planejador do lote, registra no ledger — e fecha esta proposta como rejeitada, porque a pergunta da máquina foi respondida de outro jeito."
                 onMerged={(outcome) => {
                   // The report goes to the screen: this row is about to leave the SUGGESTED filter.
                   setLastEdited({ proposalId: proposal.proposal_id, outcome });
@@ -1403,7 +1403,7 @@ function ProposalCard({
             ) : null}
             {preview.category_would_be_lost ? (
               <Notice tone="danger">
-                Esta unificação <strong>apaga uma classificação de assunto</strong>: um dos membros está numa gaveta que
+                Esta mesclagem <strong>exclui uma classificação de assunto</strong>: um dos membros está numa gaveta que
                 a canônica não tem.
               </Notice>
             ) : null}
@@ -1486,7 +1486,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
   return (
     <div className="grid gap-4">
       <Notice tone="warn" className="max-w-3xl">
-        <strong>Banir não apaga nada.</strong> Banir registra que o termo não vale; a <strong>purga</strong> é o passo
+        <strong>Banir não exclui nada.</strong> Banir registra que o termo não vale; a <strong>purga</strong> é o passo
         que exclui as tags com esse nome — e ela <strong>não tem desfazer</strong>: o merge guarda o estado anterior e
         restaura, a purga não. Por isso ela vem sempre depois de conferir o impacto.
       </Notice>
@@ -1514,7 +1514,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
       {stopwords.data && words.length === 0 ? (
         <EmptyState
           title="Nenhum termo banido"
-          hint="Banir um termo o tira do eixo escolhido. Nada é apagado por banir: a purga é um passo separado, abaixo."
+          hint="Banir um termo o tira do eixo escolhido. Nada é excluído por banir: a purga é um passo separado, abaixo."
         />
       ) : null}
 
@@ -1534,7 +1534,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
               nounSingular="termo banido"
               nounPlural="termos banidos"
               emptyTitle="Nenhum termo banido"
-              emptyHint="Banir um termo o tira do eixo escolhido. Nada é apagado por banir: a purga é um passo separado, abaixo."
+              emptyHint="Banir um termo o tira do eixo escolhido. Nada é excluído por banir: a purga é um passo separado, abaixo."
               renderItem={(item) => (
                 <div className="flex items-center justify-between gap-3 py-1.5">
                   <span className="flex min-w-0 items-center gap-2">
@@ -1606,7 +1606,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
         <CardHeader className="text-sm font-semibold text-(--color-danger)">Excluir as tags banidas</CardHeader>
         <CardBody className="grid gap-3">
           <p className="text-xs text-(--color-muted)">
-            A purga apaga toda tag cujo nome seja um termo banido nos eixos <code>TAG</code> ou <code>ALL</code>. Os
+            A purga exclui toda tag cujo nome seja um termo banido nos eixos <code>TAG</code> ou <code>ALL</code>. Os
             vínculos caem junto e a classificação da tag vai embora. <strong>Não há desfazer.</strong>
           </p>
 
@@ -1664,7 +1664,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
 
           {purged !== null ? (
             <Notice tone="ok">
-              {formatCount(purged)} tag(s) apagada(s). Isto <strong>não</strong> aparece no ledger de merges: não há
+              {formatCount(purged)} tag(s) excluída(s). Isto <strong>não</strong> aparece no ledger de merges: não há
               estado anterior guardado para restaurar.
             </Notice>
           ) : null}

@@ -26,7 +26,7 @@ QUEUE_CATALOGUE: tuple[tuple[str, str, str, str], ...] = (
         "tag_merge_proposals",
         "Propostas de merge de tags",
         "/assuntos/tags",
-        "Conjuntos de grafias que a rotina propôs unificar; nenhum foi unificado.",
+        "Conjuntos de grafias que a rotina propôs mesclar; nenhum foi mesclado.",
     ),
     (
         "cross_domain_conflicts",
