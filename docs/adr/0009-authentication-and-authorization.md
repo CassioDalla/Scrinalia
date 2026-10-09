@@ -157,7 +157,8 @@ are B9.2. Lockout/backoff, rate limiting, `Origin` checking on mutations and an 
 The OpenAPI document does **not** declare the cookie security scheme: a global `security` requirement
 would also mark the diffusion routes and the health probes as protected, and per-route declarations are
 a larger change than this cycle. The contract therefore understates the requirement rather than
-stating it wrongly; it is recorded in `TODO.md` as a known gap.
+stating it wrongly; the gap is known and accepted, and it is named among the accepted limits in the
+[operations guide](../guides/operate.md).
 
 **Operational.** A session lookup is one indexed query per authenticated request, on its own short
 session; the sliding renewal only writes when the session has been idle (`AUTH_SESSION_TOUCH_MINUTES`),

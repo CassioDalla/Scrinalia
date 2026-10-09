@@ -21,7 +21,8 @@
       only generated.
 - [ ] If the SPA changed: `bun run --cwd apps/curator typecheck && lint && build` are clean, **and** I
       rendered the screen.
-- [ ] If documentation became untrue, I updated it — `README.md`, `TODO.md`, an ADR, or `AGENTS.md`.
+- [ ] If documentation became untrue, I updated it — `README.md`, a guide under `docs/`, an ADR, or
+      `AGENTS.md`.
 - [ ] I removed every secret and every real personal datum from the diff and from the tests.
 
 ## Breaking change?

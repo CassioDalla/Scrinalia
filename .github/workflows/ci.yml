@@ -59,7 +59,7 @@ jobs:
     timeout-minutes: 15
     # Non-blocking on purpose, for now: the lock can carry advisories the project has not triaged, and
     # a job that is red on day one only teaches people to ignore it. Promote it to blocking once the
-    # list is clean — `TODO.md` records the decision.
+    # list is clean.
     continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

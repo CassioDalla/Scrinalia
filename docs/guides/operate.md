@@ -438,3 +438,67 @@ request id:
 A `5xx` is a warning, everything else is an info line. The two orchestrator probes (`/health/live`
 and `/health/ready`) are excluded from the access line — an orchestrator asks every few seconds and
 would rotate a 50 MB file with nothing but "200 OK" — but they are not excluded from correlation.
+
+## Measuring the collection
+
+Two tables answer two different questions, and a number taken from the wrong one misleads.
+
+`execution_log` says **whether a worker ran over a unit**: it is the stamp the queue is built from.
+`archive_worker_runs` says **what ran, when, with which engine and preset, how long it took and how it
+ended** (`SUCCESS`, `FAILED`, `INTERRUPTED`). An empty stamp count is a fact about the queue; the row
+in the ledger is the fact about the execution that explains it — a stage at zero and one interrupted
+run at start-up are the same event seen from two tables.
+
+This is the query the reference collection was measured with. Run it against the installation's own
+database, and treat every number as a measurement with a date rather than as a constant:
+
+```bash
+docker exec <container> psql -U <user> -d <database> -t -A -F' | ' -c "
+SELECT 'descrições', count(*)::text FROM archive_documents
+UNION ALL SELECT 'com pai', count(*)::text FROM archive_documents WHERE parent_id IS NOT NULL
+UNION ALL SELECT 'sem nível', count(*)::text FROM archive_documents WHERE level_id IS NULL
+UNION ALL SELECT 'tags', count(*)::text FROM archive_tags
+UNION ALL SELECT 'tags sem gaveta', count(*)::text FROM archive_tags WHERE macro_category_id IS NULL
+UNION ALL SELECT 'propostas sugeridas', count(*)::text FROM archive_tag_merge_proposals WHERE status='SUGGESTED'
+UNION ALL SELECT 'propostas aplicadas', count(*)::text FROM archive_tag_merge_proposals WHERE status='APPLIED'
+UNION ALL SELECT 'rungs decididos', count(*)::text FROM archive_hierarchy_node_plans WHERE status <> 'SUGGESTED'
+UNION ALL SELECT 'rungs no total', count(*)::text FROM archive_hierarchy_node_plans
+UNION ALL SELECT 'ner_v2', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_ner_v2'
+UNION ALL SELECT 'typology_v2', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_typology_classifier_v2'
+UNION ALL SELECT 'macro_v1 (tags)', count(*)::text FROM archive_tags WHERE execution_log ? 'worker_macro_category_v1'
+UNION ALL SELECT 'embedding_v1', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_embedding_v1'
+UNION ALL SELECT 'quality_validator_v1', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_quality_validator_v1'
+UNION ALL SELECT 'publicados', count(*)::text FROM archive_documents WHERE is_published
+UNION ALL SELECT 'revisões humanas', count(*)::text FROM archive_document_revisions;"
+```
+
+One stamp carries a trap worth knowing before reading the number: `embedding_v1` is the **MD5 of the
+effective text**, not the identity of the model, so it stays up to date when the vectors do not —
+changing `torch`, `sentence-transformers` or the preset does not put a single description back in the
+queue. When the embedding model changes, the vector has to be rebuilt explicitly.
+
+## Known limits and accepted trade-offs
+
+These are measured, accepted, and not waiting for a fix. They are here so that an operator knows which
+behaviour to expect, and so that a limit already paid for is not read as a defect.
+
+- **Nobody is paged.** Observability is the panel, the run ledger and the failure groups; an external
+  alerting service is deliberately not part of the system (ADR 0005). A new root cause is found by
+  somebody opening the screen, not by a notification.
+- **The executor assumes a single API process.** The API runs one worker at a time
+  (`WORKER_RUNTIME_MAX_WORKERS`) and the recovery in `api/lifespan.py` marks what a dead process left
+  behind, which is only correct with `uvicorn --workers 1` (see [Interrupted runs](#interrupted-runs)).
+- **The arrangement `path` is not enforced by the database.** The column is materialised by the
+  service, so a hand-written `UPDATE` can diverge it from the tree; the `PATH_DIVERGENCE` diagnostic
+  is what finds it. Do not write `path` directly — go through the routes that own the move.
+- **Authentication has conscious limits.** The login rate limiter is **process-local** and resets on
+  restart, which is why the durable defence is the per-account lockout column; revoking a session
+  records that it was revoked, not **who** revoked it; and OIDC/SSO, second factors and e-mail
+  recovery are out of scope (ADR 0009). Recovery is the administrator, or the CLI on the host.
+- **The contract does not declare the session cookie.** The OpenAPI document carries no `security`
+  scheme for it, because a global requirement would also mark the diffusion routes and the health
+  probes as protected (ADR 0009). A generated client cannot discover the requirement; it answers 401
+  like any other anonymous request.
+- **Ranking by semantics alone is weaker than the lexical one.** The vectors work and the order does
+  not: the bench that measures it is `testing/evaluation/retrieval_quality.py`, and combining the two
+  rankings is open work. A semantic search that **finds more** is not a search that **orders better**.

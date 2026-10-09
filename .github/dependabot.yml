@@ -4,7 +4,7 @@
 # decision rather than an oversight: an `npm` entry would open pull requests that change
 # `package.json` without touching `bun.lock`, and CI installs with `--frozen-lockfile`, so every one
 # of them would fail. The front needs an updater that reads `bun.lock` (Renovate does; Dependabot's
-# support for it is still partial) — recorded in `TODO.md` as the remaining step.
+# support for it is still partial) — a gap that is still open.
 version: 2
 
 updates:

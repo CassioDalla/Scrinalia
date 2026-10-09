@@ -408,3 +408,68 @@ tem id de requisição:
 Um `5xx` é aviso, o resto é linha de informação. As duas sondas do orquestrador (`/health/live` e
 `/health/ready`) ficam fora da linha de acesso — um orquestrador pergunta a cada poucos segundos e
 rotacionaria um arquivo de 50 MB só com "200 OK" — mas não ficam fora da correlação.
+
+## Medir o acervo
+
+Duas tabelas respondem a duas perguntas diferentes, e um número tirado da tabela errada engana.
+
+`execution_log` diz **se um worker passou por uma unidade**: é o carimbo de onde a fila é construída.
+`archive_worker_runs` diz **o que rodou, quando, com que engine e preset, quanto demorou e como
+terminou** (`SUCCESS`, `FAILED`, `INTERRUPTED`). Uma contagem de carimbo vazia é um fato sobre a fila;
+a linha no ledger é o fato sobre a execução que explica a fila — uma etapa em zero e uma execução
+interrompida na subida são o mesmo evento visto de duas tabelas.
+
+Esta é a consulta com que o acervo de referência foi medido. Rode no banco da própria instalação e
+trate todo número como uma medição com data, não como uma constante:
+
+```bash
+docker exec <container> psql -U <user> -d <database> -t -A -F' | ' -c "
+SELECT 'descrições', count(*)::text FROM archive_documents
+UNION ALL SELECT 'com pai', count(*)::text FROM archive_documents WHERE parent_id IS NOT NULL
+UNION ALL SELECT 'sem nível', count(*)::text FROM archive_documents WHERE level_id IS NULL
+UNION ALL SELECT 'tags', count(*)::text FROM archive_tags
+UNION ALL SELECT 'tags sem gaveta', count(*)::text FROM archive_tags WHERE macro_category_id IS NULL
+UNION ALL SELECT 'propostas sugeridas', count(*)::text FROM archive_tag_merge_proposals WHERE status='SUGGESTED'
+UNION ALL SELECT 'propostas aplicadas', count(*)::text FROM archive_tag_merge_proposals WHERE status='APPLIED'
+UNION ALL SELECT 'rungs decididos', count(*)::text FROM archive_hierarchy_node_plans WHERE status <> 'SUGGESTED'
+UNION ALL SELECT 'rungs no total', count(*)::text FROM archive_hierarchy_node_plans
+UNION ALL SELECT 'ner_v2', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_ner_v2'
+UNION ALL SELECT 'typology_v2', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_typology_classifier_v2'
+UNION ALL SELECT 'macro_v1 (tags)', count(*)::text FROM archive_tags WHERE execution_log ? 'worker_macro_category_v1'
+UNION ALL SELECT 'embedding_v1', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_embedding_v1'
+UNION ALL SELECT 'quality_validator_v1', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_quality_validator_v1'
+UNION ALL SELECT 'publicados', count(*)::text FROM archive_documents WHERE is_published
+UNION ALL SELECT 'revisões humanas', count(*)::text FROM archive_document_revisions;"
+```
+
+Um carimbo tem uma armadilha que vale saber antes de ler o número: `embedding_v1` é o **MD5 do texto
+efetivo**, não a identidade do modelo, então ele fica em dia mesmo quando os vetores não estão —
+trocar `torch`, `sentence-transformers` ou o preset não devolve uma única descrição para a fila.
+Quando o modelo de embedding muda, o vetor precisa ser reconstruído de propósito.
+
+## Limites conhecidos e trade-offs aceitos
+
+São medidos, aceitos e não estão esperando correção. Estão aqui para o operador saber que
+comportamento esperar, e para um limite já pago não ser lido como defeito.
+
+- **Ninguém é avisado.** A observabilidade é o painel, o ledger de execuções e os grupos de falha; um
+  serviço externo de alerta está deliberadamente fora do sistema (ADR 0005). Uma causa raiz nova é
+  encontrada por quem abre a tela, não por uma notificação.
+- **O executor assume um único processo da API.** A API roda um worker por vez
+  (`WORKER_RUNTIME_MAX_WORKERS`) e a recuperação no `api/lifespan.py` marca o que um processo morto
+  deixou para trás, o que só é correto com `uvicorn --workers 1` (veja *Execuções INTERRUPTED*, acima).
+- **O `path` do arranjo não é garantido pelo banco.** A coluna é materializada pelo serviço, então um
+  `UPDATE` escrito à mão pode divergi-la da árvore; o diagnóstico `PATH_DIVERGENCE` é o que encontra.
+  Não escreva `path` diretamente — passe pelas rotas que são donas da movimentação.
+- **A autenticação tem limites conscientes.** O limitador de tentativas de login é **por processo** e
+  zera no restart, e é por isso que a defesa durável é a coluna de bloqueio por conta; revogar uma
+  sessão registra que ela foi revogada, não **quem** revogou; e OIDC/SSO, segundo fator e recuperação
+  de senha por e-mail estão fora de escopo (ADR 0009). A recuperação é o administrador, ou o CLI no
+  host.
+- **O contrato não declara o cookie de sessão.** O documento OpenAPI não carrega um esquema
+  `security` para ele, porque uma exigência global também marcaria as rotas de difusão e as sondas de
+  saúde como protegidas (ADR 0009). Um cliente gerado não consegue descobrir a exigência; ele recebe
+  401 como qualquer requisição anônima.
+- **Ordenar só pela semântica é pior que pelo lexical.** Os vetores funcionam e a ordem não: a
+  bancada que mede isso é `testing/evaluation/retrieval_quality.py`, e combinar os dois rankings é
+  trabalho aberto. Uma busca semântica que **encontra mais** não é uma busca que **ordena melhor**.

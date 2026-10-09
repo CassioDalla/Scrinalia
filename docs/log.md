@@ -72,3 +72,31 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   not declare it in `sources:`, so the report does not track it. Leaving it out is defensible — the
   mention is incidental to an install guide — but it means that sentence can go stale in silence, and
   this is the note that says so rather than a claim that the page is current.
+
+## 2026-10-09 — the roadmap leaves the repository
+
+- **Range:** `becba5e..cb85181`
+- **Pages:**
+  - `guides/operate.md` — **updated**: two sections appended, *Measuring the collection* (the query,
+    and the one stamp that does not name its producer) and *Known limits and accepted trade-offs*.
+  - `guides/operate.pt.md` — **updated**: the translation of both sections, with the Portuguese
+    anchors the build actually emits.
+  - `index.md` and `index.pt.md` — **updated**: the pointer to the retired page becomes the open
+    issues and their milestones, and the sentence about the current state now names the limits page.
+  - `adr/0009-authentication-and-authorization.md` — **updated**: the gap it recorded in the retired
+    page now points at the limits section. An ADR is a page like any other for freshness, and this was
+    the only reference to a *current* fact rather than to history.
+- **The pages that did not need work, and that is the finding:** the retirement was expected to move a
+  safety list and a set of failure modes. Both were already documented under the gate —
+  `guides/curate.md` owns "what has no way back" and the arrangement undo, `guides/operate.md` owns the
+  reprocessing window and the single-process assumption, `models/taxonomy.py` owns the classifier's
+  baseline, and `AGENTS.md` owns the failure modes. So the move was the two new sections above, and the
+  rest was deleted as duplication rather than relocated.
+- **Not carried over, on purpose:** the retrieval measurements (MRR and Hit@10) and the collection's
+  own state. A page that stores a number which is expected to move is a page that lies on the next run,
+  and those belong to the open work that measures them.
+- **A defect the change exposed, fixed in it:** the in-site link check resolved an anchor against the
+  canonical page even when the linking page was a translation — the opposite of what its docstring
+  states and of what the build produces. Measured on the built site, the Portuguese page keeps the
+  Portuguese anchor. The check now bites in both directions; before the fix it accepted a link that
+  would answer 404 in the browser.
