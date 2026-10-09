@@ -4,6 +4,14 @@ name: CodeQL
 # coming from a request and reaching a query, which a version-based audit cannot. It runs on the pull
 # request (so a finding arrives before the merge), on `main`, and weekly — a query pack improves
 # without the code changing, and a weekly run is what notices that.
+#
+# This workflow is an **advanced** configuration, and it cannot coexist with the repository's *default
+# setup*: while that is on, the analysis runs to completion and the **upload** is refused with
+# ``CodeQL analyses from advanced configurations cannot be processed when the default setup is
+# enabled``, so the job goes red for a reason that has nothing to do with the code (measured on the
+# first `dev` push that got past the guard below). Keep default setup off in Settings > Code security
+# while this file exists, and note that both analyses upload under the same ``/language:<lang>``
+# category — which is what makes the alerts follow the code instead of being duplicated.
 on:
   push:
     branches: [main, dev]
@@ -28,8 +36,8 @@ jobs:
     # reason that has nothing to do with the code. The condition is written ``!= true`` and not
     # ``== false`` on purpose: a payload without the field (a scheduled run, if GitHub ever stops
     # sending it) **runs** the scan, so the weekly check can never be lost in silence — it would fail
-    # loudly instead. Until the repository is public, ``gitleaks`` and the dependency audit are the
-    # security gates, and both run.
+    # loudly instead. The repository is public today, so the scan runs; the guard stays for a private
+    # fork or mirror, where ``gitleaks`` and the dependency audit are the security gates.
     if: github.event.repository.private != true
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -43,15 +51,30 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ["python", "javascript-typescript"]
+        # ``build-mode: none`` for all three, and not because the default is being restated: it is
+        # what keeps the analysis from running a build. Python and JavaScript/TypeScript are
+        # interpreted, and ``actions`` is read from the workflow YAML itself — so CodeQL must never be
+        # given the chance to ``uv sync`` (torch, transformers and spaCy, 148 packages) to look at
+        # code it can extract without any of it. ``actions`` is the third language on purpose: it
+        # analyses these very files, where a value interpolated into a ``run:`` is a command injection
+        # that no Python query can see.
+        include:
+          - language: actions
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+          - language: python
+            build-mode: none
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Initialize CodeQL
         uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         with:
           languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
           # The default pack finds security bugs; this one adds the correctness queries, which is
           # where "the value is used before it is validated" lives.
           queries: security-and-quality
