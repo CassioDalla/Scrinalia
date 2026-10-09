@@ -176,7 +176,7 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
   };
 
   return (
-    <div className="grid max-w-5xl gap-4">
+    <div className="grid gap-4">
       {/*
         The proposal is shown *next to* the field it proposes, and is never the stored value: the
         machine proposes the title, only the archivist writes ``final_title``.
@@ -345,7 +345,7 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
   const drawers = macroCategories.data ?? [];
 
   return (
-    <div className="grid max-w-5xl gap-4">
+    <div className="grid gap-4">
       <Notice tone="warn">
         Editar os assuntos marca o documento como <strong>revisado por humano</strong>, o que impede a IA de
         reescrevê-lo daqui em diante. É a mesma regra da edição de campos.
@@ -543,7 +543,7 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
   const currentParentTitle = parentLabel ?? parent?.title ?? parent?.description_id ?? null;
 
   return (
-    <div className="grid max-w-5xl gap-4">
+    <div className="grid gap-4">
       <Card>
         <CardHeader className="text-sm font-semibold">Caminho até a raiz</CardHeader>
         <CardBody>
@@ -706,7 +706,7 @@ function HistoryTab({ document }: { document: DocumentSummary }) {
   if (isPending) return <Spinner />;
 
   return (
-    <div className="grid max-w-4xl gap-4">
+    <div className="grid gap-4">
       {!data || data.length === 0 ? (
         <EmptyState
           title="Nenhuma revisão humana"

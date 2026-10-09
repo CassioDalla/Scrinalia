@@ -88,7 +88,7 @@ export function NerExclusionsRoute() {
         }
       />
 
-      <PageBody className="max-w-4xl">
+      <PageBody>
         <Notice tone="warn">
           <strong>O veto vale para o termo inteiro, não para pedaços.</strong> O extrator funde tokens
           vizinhos: com <code>iptu</code> vetado ele ainda devolve <code>“IPTU do Batel”</code> como uma

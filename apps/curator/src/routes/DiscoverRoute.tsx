@@ -52,7 +52,7 @@ export function DiscoverRoute() {
         }
       />
 
-      <PageBody className="max-w-4xl">
+      <PageBody>
         <Card>
           <CardHeader className="text-sm font-semibold">Agrupar por tema</CardHeader>
           <CardBody className="grid gap-2">

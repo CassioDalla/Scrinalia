@@ -111,7 +111,7 @@ export function DeletionsRoute() {
         }
       />
 
-      <PageBody className="max-w-4xl">
+      <PageBody>
         <Notice tone="warn">
           <strong>Isto é uma trilha, não uma lixeira.</strong> A exclusão é definitiva e nada aqui
           restaura. O que a tela guarda é o retrato do que saiu — código, título, nível e o conteúdo

@@ -92,7 +92,7 @@ export function SubjectExclusionsRoute() {
         }
       />
 
-      <PageBody className="max-w-4xl">
+      <PageBody>
         {/*
           The computed candidates, not three hardcoded examples.
 

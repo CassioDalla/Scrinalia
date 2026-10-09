@@ -74,7 +74,7 @@ export function AnomaliesRoute() {
         }
       />
 
-      <PageBody className="max-w-4xl">
+      <PageBody>
         {inbox.data && (queue?.count ?? 0) === 0 ? (
           <EmptyState
             title="Nenhuma anomalia detectada"

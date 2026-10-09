@@ -138,7 +138,7 @@ export function EntitiesRoute() {
         }
       />
 
-      <PageBody className="max-w-6xl">
+      <PageBody>
         <Notice tone="accent">
           <strong>Reclassificar não é renomear um rótulo.</strong> Ao corrigir o tipo, o serviço grava
           também o sinônimo de ancoragem: o extrator passa a devolver aquela grafia com o tipo novo, em
