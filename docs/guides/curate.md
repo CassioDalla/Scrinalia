@@ -262,6 +262,22 @@ verbs this page uses are that file's:
 system in different ways, and one word for both would say they do not. Banning a term keeps its own
 verb (`Banir` / `Desbanir`), because it is a different flag and it deletes nothing.
 
+### The screen is one window tall
+
+The shell is exactly one viewport and the **page never scrolls**: what scrolls is the content
+column, so the rail — and the entry to `Configurações` at its foot — stays where it is on a long
+screen. The screen's own header is sticky inside that column, which is what keeps the title, the
+status and **the actions** in reach: "Propor níveis", "Rodar agora" and "Excluir órfãs" used to leave
+the window with the content. Measured at 1440x900 on the entities list: the document is 900px in a
+900px window, the content is 3299px in an 867px column, and the menu is 734px in a 734px box.
+
+The menu **folds into one open section**, plus the section the archivist is standing in — that one is
+open by construction, because an active entry hidden inside a collapsed group is a menu that hides
+where you are. Clicking a heading opens it and closes the one opened by hand; navigating closes that
+one, so the menu never drifts into three. A heading carries no icon: the glyph belongs to the entry.
+`Início` stands at the top with no heading, like the landing at the foot, because a section that
+gathers one line is a line of chrome.
+
 ### The menu collapses to icons
 
 A control in the menu's own header folds it into a 64px column of icons and back, and the browser
@@ -270,10 +286,14 @@ remembers the choice: how wide a column of the screen is is presentation state, 
 
 Collapsed, every entry keeps its icon; the label stays the link's accessible name and the `title`
 carries label and hint, so the hint is hidden and never truncated. The active entry keeps the accent
-colour, the section headings become hairlines, and the session footer folds into the account's
-initial plus two icon buttons. The wordmark leaves the menu but not the page: the attribution renders
-at the foot of every screen (`AttributionFooter`, ADR 0006). The icons come from `lucide-react`, one
-glyph per entry.
+colour, the group headings become hairlines, and the accordion is off — a heading with no label in a
+64px column is a click that says nothing — so all sixteen entries show at once. The session footer
+folds into the account's initial plus two icon buttons.
+
+The wordmark leaves the menu but not the page: the attribution renders at the foot of **every**
+screen (`AttributionFooter`, ADR 0006), including the three that come before a session — the first-run
+setup, the sign-in form and the forced password change — and it ends with the installation's version,
+alone at the right. The icons come from `lucide-react`, one glyph per entry.
 
 ## Curadoria
 

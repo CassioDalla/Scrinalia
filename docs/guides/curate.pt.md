@@ -240,6 +240,21 @@ verbos que esta página usa são os desse arquivo:
 sistema de maneiras diferentes, e uma palavra só para as duas diria que não. Banir um termo mantém o
 verbo próprio (`Banir` / `Desbanir`), porque é outra marca e não exclui nada.
 
+### A tela tem a altura de uma janela
+
+A casca tem exatamente uma viewport e a **página nunca rola**: o que rola é a coluna de conteúdo, então
+a rail — e a entrada de `Configurações` no pé dela — fica onde está numa tela longa. O cabeçalho da
+própria tela é fixo dentro dessa coluna, e é isso que mantém o título, o estado e **as ações** ao
+alcance: "Propor níveis", "Rodar agora" e "Excluir órfãs" saíam da janela junto com o conteúdo. Medido
+a 1440x900 na lista de entidades: o documento tem 900px numa janela de 900px, o conteúdo tem 3299px
+numa coluna de 867px e o menu tem 734px numa caixa de 734px.
+
+O menu **se dobra numa seção aberta**, mais a seção em que o arquivista está — essa fica aberta por
+construção, porque uma entrada ativa escondida dentro de um grupo recolhido é um menu que esconde onde
+você está. Clicar num título abre o grupo e fecha o que foi aberto à mão; navegar fecha esse, então o
+menu nunca escorrega para três. O título não carrega ícone: o glifo é da entrada. `Início` fica no topo
+sem título, como a entrada do pé, porque uma seção que junta uma linha é uma linha de cromo.
+
 ### O menu se recolhe a ícones
 
 Um controle no cabeçalho do próprio menu o dobra numa coluna de ícones de 64px e o devolve, e o
@@ -248,9 +263,14 @@ navegador lembra a escolha: a largura de uma coluna da tela é estado de apresen
 
 Recolhido, cada entrada mantém o ícone; o rótulo continua sendo o nome acessível do link e o `title`
 carrega rótulo e dica, de modo que a dica fica escondida e nunca cortada. A entrada ativa mantém a cor
-de destaque, os títulos de seção viram filetes e o rodapé de sessão vira a inicial da conta mais dois
-botões de ícone. O nome da atribuição sai do menu, mas não da página: a atribuição é renderizada no pé
-de toda tela (`AttributionFooter`, ADR 0006). Os ícones vêm do `lucide-react`, um glifo por entrada.
+de destaque, os títulos de grupo viram filetes e o acordeão fica desligado — um título sem rótulo numa
+coluna de 64px é um clique que não diz nada —, então as dezesseis entradas aparecem de uma vez. O
+rodapé de sessão vira a inicial da conta mais dois botões de ícone.
+
+O nome da atribuição sai do menu, mas não da página: a atribuição é renderizada no pé de **toda** tela
+(`AttributionFooter`, ADR 0006), incluindo as três que vêm antes de uma sessão — a configuração inicial,
+o formulário de entrada e a troca de senha forçada — e ela termina com a versão da instalação, sozinha à
+direita. Os ícones vêm do `lucide-react`, um glifo por entrada.
 
 ## Curadoria
 

@@ -313,3 +313,35 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   aprovados`, `a aplicação segue o vínculo`) and the tags proposals tab (`incluir no lote de
   aplicação`).
 
+
+## 2026-10-09 — the shell stops scrolling the menu away, and the footer reaches the public
+
+- **Range:** `24ba826..05819cd`
+- **Pages:**
+  - `guides/curate.md` — **updated**: a new *The screen is one window tall* states the layout the
+    archivist now reads in — the shell is one viewport, only the content column scrolls, the header is
+    sticky so the actions stay in reach, and the menu folds into one open section plus the one you are
+    standing in, with `Início` standing outside any heading. *The menu collapses to icons* gained the
+    one thing the accordion changes about it (collapsed, the accordion is off and all sixteen entries
+    show) and the corrected claim about the footer: it renders at the foot of every screen **including
+    the three that come before a session**, which was false when it was written.
+  - `guides/curate.pt.md` — **updated**: the same two sections, in the SPA's vocabulary.
+- **Why the round exists, and what it measured rather than assumed:** the rail used to grow to the
+  height of the *page* (`min-h-full`), so on a long screen the whole menu scrolled out of view — at
+  1440x900 at the foot of `/entidades/lista`, a blank rail column and no menu at all — and the
+  `overflow-y-auto` on the nav never engaged. After the fix, from the DOM: the document is 900px in a
+  900px window, the content column 3299px in 867px, and the nav 975px in 734px — which is what proved
+  the accordion was still needed. After the accordion, the nav is **734 in 734**: the menu fits, and
+  the active group is the one expanded.
+- **The footer claim was false and is now true.** `AttributionFooter`'s own docstring says a notice
+  hidden behind a login is not a notice to the users of a network service, and the three screens
+  before a session returned from `AppShell` before the shell existed — so the four §7(b) elements,
+  and the version added in this range, were invisible to anyone without an account. Measured with the
+  browser's cookies cleared: `/` now renders all four elements and `v1.0.0`.
+- **What did not move:** the screen count (25), the settings tables, the data model and the API
+  contract — no route, no setting, no table, no migration and no contract change in this range. The
+  menu keeps its **16 entries**; the accordion changed how they are shown, not how many there are.
+- **Not carried, on purpose:** the version comes from `pyproject.toml` and not from the API, because
+  the built SPA is served by the API from the same commit — so the number is known when the bundle is
+  written and a request would buy nothing. The API's own `info.version` is Litestar's default
+  (`{"title": "Litestar API", "version": "1.0.0"}`) and was not a candidate.
