@@ -1,0 +1,192 @@
+"""The curator SPA's copy contract (issue #23).
+
+Three rules that no green gate could see before, each one the day after a defect that shipped:
+
+1. **A design token exists, and is written the way Tailwind v4 needs it.** `bg-[--color-surface]`
+   compiles to `background-color: --color-surface` — invalid CSS the browser drops *silently*, which
+   is how 105 of them shipped with `tsc`, ESLint and the Vite build all green. The parenthesised form
+   fixed that, and then `bg-(--color-surface-2)` named a token `styles.css` never defined and did the
+   same thing again: valid syntax, undefined variable, no background. So the test checks both halves.
+2. **The product's name is defined once.** `lib/attribution.ts` owns it because the license
+   obligation points at that file; `index.html` used to type it a second time, where no component
+   could see it and a rename would not reach it.
+3. **A screen's heading comes from the catalogue.** `lib/screens.ts` holds the label the menu, the
+   settings card and the `<h1>` all read; a route names its screen and cannot pass a heading of its
+   own. That is what makes "the menu says `Tags` and the page says *Vocabulário de tags*" impossible
+   instead of merely repaired.
+
+The parser is deliberately textual. The SPA has no test runner of its own (there is no `vitest` and
+this is not the change that adds one), and the three rules are about *source text* — a token spelled
+wrong, a name typed twice, a heading written by hand — which is exactly what a text scan can decide.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+CURATOR = REPO_ROOT / "apps" / "curator"
+SRC = CURATOR / "src"
+
+STYLES = SRC / "styles.css"
+ATTRIBUTION = SRC / "lib" / "attribution.ts"
+SCREENS = SRC / "lib" / "screens.ts"
+ROUTER = SRC / "router.tsx"
+INDEX_HTML = CURATOR / "index.html"
+MAIN_TSX = SRC / "main.tsx"
+
+#: The form Tailwind v4 needs, and the form that compiles to nothing.
+TOKEN = re.compile(r"\(--color-([a-z0-9-]+)\)")
+BRACKET_TOKEN = re.compile(r"\[--[a-z]")
+VAR_TOKEN = re.compile(r"var\(--color-([a-z0-9-]+)\)")
+
+#: Every source file of the SPA. `dist/` is excluded: it is generated, and it is where a stale build
+#: would hide the defect the gate exists to catch.
+SOURCES = sorted(
+    path for pattern in ("*.ts", "*.tsx", "*.css") for path in SRC.rglob(pattern) if path.name != "schema.d.ts"
+)
+
+
+def text(path: Path) -> str:
+    return path.read_text(encoding="utf-8") if path.exists() else ""
+
+
+def defined_tokens() -> set[str]:
+    """The colour tokens `@theme` actually defines."""
+    theme = text(STYLES).split("@theme", 1)
+    assert len(theme) == 2, "`styles.css` has no `@theme` block: the palette has to live somewhere."
+    return set(re.findall(r"--color-([a-z0-9-]+):", theme[1]))
+
+
+def test_every_colour_token_used_exists() -> None:
+    """A token that is not in the theme renders nothing, and nothing is exactly what you see."""
+    defined = defined_tokens()
+    assert defined, "no colour token is defined in `styles.css`."
+    unknown: dict[str, list[str]] = {}
+    for path in SOURCES:
+        for name in set(TOKEN.findall(text(path))) | set(VAR_TOKEN.findall(text(path))):
+            if name not in defined:
+                unknown.setdefault(name, []).append(path.relative_to(CURATOR).as_posix())
+    assert not unknown, (
+        f"these colour tokens are used but not defined in `src/styles.css`: "
+        f"{ {name: sorted(files) for name, files in unknown.items()} }. Tailwind compiles the "
+        "reference and the browser drops the declaration, so the element renders with no colour."
+    )
+
+
+def test_no_token_uses_the_bracket_form() -> None:
+    """The form that compiles to invalid CSS, and that a green build cannot see."""
+    offenders = [
+        f"{path.relative_to(CURATOR).as_posix()}:{number}"
+        for path in SOURCES
+        for number, line in enumerate(text(path).splitlines(), start=1)
+        if BRACKET_TOKEN.search(line)
+    ]
+    assert not offenders, (
+        f"these lines use the bracket form of a design token: {offenders}. Tailwind v4 needs "
+        "parentheses — `bg-(--color-surface)`, not `bg-[--color-surface]` — because the bracket form "
+        "compiles to `background-color: --color-surface`, which the browser drops silently."
+    )
+
+
+def test_the_product_name_is_written_once() -> None:
+    """One definition, in the file the license obligation already points at."""
+    match = re.search(r'name:\s*"([^"]+)"', text(ATTRIBUTION))
+    assert match, "`lib/attribution.ts` no longer declares the display name."
+    name = match.group(1)
+
+    offenders = [
+        path.relative_to(CURATOR).as_posix()
+        for path in sorted(CURATOR.rglob("*"))
+        if path.is_file()
+        and path.suffix in {".ts", ".tsx", ".html", ".json", ".css"}
+        and path != ATTRIBUTION
+        and "dist" not in path.parts
+        and "node_modules" not in path.parts
+        and name in text(path)
+    ]
+    assert not offenders, (
+        f"the product's name is typed outside `lib/attribution.ts`, which owns it: {offenders}. "
+        "A second copy is a second thing to forget — the license notice points at the first one."
+    )
+
+    assert "document.title" in text(MAIN_TSX), (
+        "`main.tsx` no longer writes the tab's title from the one definition of the name; the name "
+        "would have to be typed into `index.html` again."
+    )
+
+
+def _screen_records() -> dict[str, tuple[str, bool]]:
+    """Every entry of `SCREENS`, keyed by its id: its path, and whether its heading is dynamic."""
+    body = text(SCREENS).split("export const SCREENS", 1)
+    assert len(body) == 2, "`lib/screens.ts` no longer exports `SCREENS`."
+    records: dict[str, tuple[str, bool]] = {}
+    for block in re.finditer(r"\n  (\w+): \{(.*?)\n  \},", body[1], re.S):
+        identifier, entry = block.group(1), block.group(2)
+        path = re.search(r'path:\s*"([^"]+)"', entry)
+        assert path, f"`SCREENS.{identifier}` has no path, so no route can be matched to it."
+        records[identifier] = (path.group(1), "dynamicTitle: true" in entry)
+    assert records, "`lib/screens.ts` declares no screen."
+    return records
+
+
+def _routes() -> dict[str, str]:
+    """Every route of `router.tsx`, keyed by its path: the component that renders it."""
+    records: dict[str, str] = {}
+    for block in re.finditer(r"createRoute\(\{(.*?)\n\}\);", text(ROUTER), re.S):
+        entry = block.group(1)
+        path = re.search(r'path:\s*"([^"]+)"', entry)
+        component = re.search(r"component:\s*(\w+)", entry)
+        assert path and component, f"a route in `router.tsx` has no path or no component:\n{entry[:200]}"
+        records[path.group(1)] = component.group(1)
+    assert records, "`router.tsx` declares no route."
+    return records
+
+
+def test_every_route_has_a_named_screen() -> None:
+    """A route without a name is a screen the menu, the card and the heading cannot agree on."""
+    screens = _screen_records()
+    routes = _routes()
+    named = {path for path, _ in screens.values()}
+    missing = sorted(set(routes) - named)
+    assert not missing, (
+        f"these routes of `apps/curator/src/router.tsx` have no entry in `lib/screens.ts`: {missing}. "
+        "Every screen has one name, and it is the one the menu, the settings card and the `<h1>` read."
+    )
+    orphaned = sorted(named - set(routes))
+    assert not orphaned, (
+        f"`lib/screens.ts` names screens that `router.tsx` does not declare: {orphaned}. "
+        "A name for a route that does not exist is a menu entry that leads nowhere."
+    )
+
+
+def test_every_heading_comes_from_the_screens_catalogue() -> None:
+    """The heading is not a prop a route can get wrong; it names its screen and the catalogue answers."""
+    screens = _screen_records()
+    by_path = {path: identifier for identifier, (path, _) in screens.items()}
+    dynamic = {identifier for identifier, (_, is_dynamic) in screens.items() if is_dynamic}
+
+    by_component: dict[str, Path] = {}
+    for path in sorted((SRC / "routes").glob("*.tsx")):
+        for component in re.findall(r"export function (\w+Route)\b", text(path)):
+            by_component[component] = path
+
+    failures: list[str] = []
+    for path, component in _routes().items():
+        identifier = by_path[path]
+        if identifier in dynamic:
+            continue
+        source = by_component.get(component)
+        assert source, f"no file in `src/routes/` exports `{component}` for `{path}`."
+        body = text(source)
+        if f'screen="{identifier}"' not in body:
+            failures.append(f'{source.name} does not pass `screen="{identifier}"`')
+        elif re.search(r"<PageHeader[^>]*\stitle=", body):
+            failures.append(f"{source.name} passes a `title` to `<PageHeader>` as well")
+
+    assert not failures, (
+        f"the page heading is not taken from `lib/screens.ts`: {failures}. The `<h1>` is the menu's "
+        "label, resolved by `PageHeader` from the screen id — a heading typed in the route is a "
+        "second definition, and it is the one that drifted."
+    )
