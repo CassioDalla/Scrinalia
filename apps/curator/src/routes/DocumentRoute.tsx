@@ -22,7 +22,9 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
+import { Field } from "@/components/ui/Field";
 import { Input, Select, Textarea } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
 import { Tabs } from "@/components/ui/Tabs";
 import { Typeahead } from "@/components/ui/Typeahead";
 import { ACTION } from "@/lib/copy";
@@ -344,10 +346,10 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
 
   return (
     <div className="grid max-w-5xl gap-4">
-      <p className="rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
+      <Notice tone="warn">
         Editar os assuntos marca o documento como <strong>revisado por humano</strong>, o que impede a IA de
         reescrevê-lo daqui em diante. É a mesma regra da edição de campos.
-      </p>
+      </Notice>
 
       <Card>
         <CardHeader className="flex items-center justify-between">
@@ -585,10 +587,7 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
           </p>
 
           <div className="grid gap-2 sm:grid-cols-2">
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="text-(--color-muted)">
-                Unidade superior atual: {currentParentTitle ?? "raiz"}
-              </span>
+            <Field label={<>Unidade superior atual: {currentParentTitle ?? "raiz"}</>}>
               <Typeahead
                 placeholder="buscar a nova unidade superior…"
                 disabled={move.isPending}
@@ -608,10 +607,9 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
                   setParentLabel(option.label);
                 }}
               />
-            </label>
+            </Field>
 
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="text-(--color-muted)">Nível de descrição</span>
+            <Field label="Nível de descrição">
               <Select
                 value={levelId ?? ""}
                 onChange={(event) => setLevelId(event.target.value ? Number(event.target.value) : null)}
@@ -623,17 +621,16 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
                   </option>
                 ))}
               </Select>
-            </label>
+            </Field>
 
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="text-(--color-muted)">Quem decide (texto livre até existir auth)</span>
-              
-            </label>
-
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="text-(--color-muted)">Nota da decisão</span>
+            {/*
+              One field, and it used to be two: the other was a label for a "who decides" input that
+              no longer exists — the API takes the actor from the session since ADR 0009 — so the form
+              showed a field title with nothing under it.
+            */}
+            <Field label="Nota da decisão">
               <Input value={note} onChange={(event) => setNote(event.target.value)} />
-            </label>
+            </Field>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -658,10 +655,10 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
 
           {move.error ? <ErrorState error={move.error} /> : null}
           {move.data ? (
-            <p className="rounded-md bg-(--color-ok)/5 px-3 py-2 text-xs text-(--color-ok) ring-1 ring-(--color-ok)/25">
+            <Notice tone="ok">
               Movido: agora pende de {move.data.parent_id ?? "ninguém (raiz)"} e o caminho é{" "}
               <code>{move.data.path}</code>.
-            </p>
+            </Notice>
           ) : null}
         </CardBody>
       </Card>
@@ -813,23 +810,20 @@ function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
         </div>
 
         {open ? (
-          <div className="grid gap-3 rounded-md bg-(--color-danger)/5 p-3 ring-1 ring-(--color-danger)/20">
+          <Notice tone="danger" as="div" className="grid gap-3">
             <p className="text-xs text-(--color-danger)">
               Uma descrição com filhos <strong>não pode</strong> ser excluída: a árvore ficaria apontando para um
               ramo que não existe. O serviço recusa e diz quantos filhos estão no caminho.
             </p>
 
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="text-(--color-muted)">
-                Escreva <code>{expected}</code> para confirmar
-              </span>
+            <Field label={<>Escreva <code>{expected}</code> para confirmar</>}>
               <Input
                 value={confirmation}
                 onChange={(event) => setConfirmation(event.target.value)}
                 placeholder={expected}
                 className="max-w-md font-mono"
               />
-            </label>
+            </Field>
 
             {/*
               One field, and it used to be two: the other was a label for a "who deletes" input that
@@ -837,14 +831,13 @@ function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
               showed a field title with nothing under it.
             */}
             <div className="grid gap-2">
-              <label className="flex flex-col gap-1 text-xs">
-                <span className="text-(--color-muted)">Motivo (guardado na trilha)</span>
+              <Field label="Motivo (guardado na trilha)">
                 <Input
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
                   placeholder="ex.: duplicata da descrição 00574"
                 />
-              </label>
+              </Field>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -867,7 +860,7 @@ function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
                 “{done.title}” foi excluída. A trilha guarda o retrato dela.
               </p>
             ) : null}
-          </div>
+          </Notice>
         ) : null}
       </CardBody>
     </Card>

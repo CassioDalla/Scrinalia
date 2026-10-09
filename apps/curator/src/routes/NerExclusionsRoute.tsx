@@ -12,6 +12,8 @@ import { Disclosure } from "@/components/ui/Disclosure";
 import { LedgerList } from "@/components/ui/LedgerList";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input, Textarea } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
+import { PageBody } from "@/components/layout/PageBody";
 import { ACTION } from "@/lib/copy";
 import { EXCLUSION_SOURCE_HINT, EXCLUSION_SOURCE_LABEL } from "@/lib/entities";
 import { formatCount, formatDateTime } from "@/lib/format";
@@ -86,13 +88,13 @@ export function NerExclusionsRoute() {
         }
       />
 
-      <div className="grid max-w-4xl gap-4 px-6 py-5">
-        <p className="rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
+      <PageBody className="max-w-4xl">
+        <Notice tone="warn">
           <strong>O veto vale para o termo inteiro, não para pedaços.</strong> O extrator funde tokens
           vizinhos: com <code>iptu</code> vetado ele ainda devolve <code>“IPTU do Batel”</code> como uma
           entidade, então o bloqueio é por limite de token. E ele <strong>vale para trás</strong>: as
           entidades já extraídas dessa grafia são excluídas, junto com os vínculos.
-        </p>
+        </Notice>
 
         {/*
           The write first. The card used to be the last thing on the page: on a screen whose single
@@ -107,7 +109,7 @@ export function NerExclusionsRoute() {
             <div className="grid gap-1">
               <span className="text-sm font-semibold">Vetar termos</span>
               <span className="text-xs text-(--color-muted)">
-                O veto vale para o termo inteiro e exclui as entidades já extraídas dessa grafia.
+                O veto vale para o termo inteiro e apaga as entidades já extraídas dessa grafia.
               </span>
             </div>
           }
@@ -217,7 +219,7 @@ export function NerExclusionsRoute() {
             <div className="grid gap-1">
               <span className="text-sm font-semibold">Vetar termos</span>
               <span className="text-xs text-(--color-muted)">
-                O veto vale para o termo inteiro e apaga as entidades já extraídas dessa grafia.
+                O veto vale para o termo inteiro e exclui as entidades já extraídas dessa grafia.
               </span>
             </div>
           }
@@ -249,7 +251,7 @@ export function NerExclusionsRoute() {
             </div>
             {ban.data ? (
               <p className="text-xs text-(--color-muted)">
-                {routeMessage(ban.data)} {formatCount(ban.data.entities_deleted)} entidades apagadas.
+                {routeMessage(ban.data)} {formatCount(ban.data.entities_deleted)} entidades excluídas.
               </p>
             ) : null}
             {ban.error ? <ErrorState error={ban.error} /> : null}
@@ -308,7 +310,7 @@ export function NerExclusionsRoute() {
           ))}
         </ul>
 
-      </div>
+      </PageBody>
     </>
   );
 }

@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
+import { PageBody } from "@/components/layout/PageBody";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { asNumber, asString } from "@/lib/search";
 
@@ -109,13 +111,13 @@ export function DeletionsRoute() {
         }
       />
 
-      <div className="grid max-w-4xl gap-4 px-6 py-5">
-        <p className="rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
+      <PageBody className="max-w-4xl">
+        <Notice tone="warn">
           <strong>Isto é uma trilha, não uma lixeira.</strong> A exclusão é definitiva e nada aqui
           restaura. O que a tela guarda é o retrato do que saiu — código, título, nível e o conteúdo
           ISAD(G) inteiro — para que a decisão possa ser explicada depois. O ledger de revisões não
           serviria: ele cai junto com a descrição.
-        </p>
+        </Notice>
 
         <div className="flex flex-wrap items-center gap-2">
           <SearchBox value={search.termo} onSearch={(termo) => patch({ termo })} />
@@ -231,7 +233,7 @@ export function DeletionsRoute() {
             </Button>
           </div>
         ) : null}
-      </div>
+      </PageBody>
     </>
   );
 }

@@ -18,7 +18,11 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
+import { Field } from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
+import { PageBody } from "@/components/layout/PageBody";
+import { SectionTitle } from "@/components/ui/SectionTitle";
 import { ACTION } from "@/lib/copy";
 import { formatCount } from "@/lib/format";
 import { TERM_KIND_HINT, TERM_KIND_TONE, termKindLabel } from "@/lib/vocabulary";
@@ -61,14 +65,14 @@ export function VocabularyRoute() {
         }
       />
 
-      <div className="grid max-w-5xl gap-4 px-6 py-5">
-        <p className="rounded-md bg-(--color-accent)/5 px-3 py-2 text-xs text-(--color-accent) ring-1 ring-(--color-accent)/20">
+      <PageBody>
+        <Notice tone="accent">
           Estas duas listas são <strong>dados do acervo</strong>, não regras do sistema. O que é
           propriedade da língua portuguesa — <em>rua</em>, <em>avenida</em>, <em>não identificado</em>,{" "}
           <em>303 anos</em>, um ano solto — fica no perfil de idioma e <strong>não</strong> aparece aqui:
           mudá-lo seria mudar o significado que o sistema dá à palavra. Aposentar um termo não o exclui, e
           um termo aposentado volta a ser tratado como assunto na próxima execução do classificador.
-        </p>
+        </Notice>
 
         {vocabulary.error ? <ErrorState error={vocabulary.error} /> : null}
         {vocabulary.isPending ? (
@@ -80,7 +84,7 @@ export function VocabularyRoute() {
         ) : null}
 
         <section className="grid gap-2">
-          <h2 className="text-sm font-semibold">Vocabulário de arranjo</h2>
+          <SectionTitle>Vocabulário de arranjo</SectionTitle>
           <p className="text-xs text-(--color-muted)">
             O nome que a proposta de arranjo sugere para um degrau do código de referência. O código
             inteiro tem precedência sobre o último token, então <code>BR PRADAP</code> pode ter um nome
@@ -93,7 +97,7 @@ export function VocabularyRoute() {
         </section>
 
         <section className="grid gap-2">
-          <h2 className="text-sm font-semibold">Termos do acervo</h2>
+          <SectionTitle>Termos do acervo</SectionTitle>
           <p className="text-xs text-(--color-muted)">
             O que o acervo carrega e <strong>não</strong> é assunto. Um lugar continua alcançável pela
             faceta Lugar; um nome de pessoa é o produtor e não vai a lugar nenhum. É essa diferença que o
@@ -104,7 +108,7 @@ export function VocabularyRoute() {
             <CollectionTermCard key={term.term_id} term={term} kinds={kinds} />
           ))}
         </section>
-      </div>
+      </PageBody>
     </>
   );
 }
@@ -156,14 +160,13 @@ function ArrangementTermCard({ term }: { term: ArrangementTerm }) {
       }
     >
       <div className="grid gap-2">
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-(--color-muted)">Nome sugerido</span>
+        <Field label="Nome sugerido">
           <Input
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
             maxLength={200}
           />
-        </label>
+        </Field>
         <div className="flex items-center gap-2">
           <Button
             size="sm"
@@ -212,24 +215,22 @@ function CreateArrangementTermCard() {
     >
       <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Token ou código</span>
+          <Field label="Token ou código">
             <Input
               value={draft.token}
               onChange={(event) => setDraft({ ...draft, token: event.target.value })}
               placeholder="ex.: SMU"
               maxLength={100}
             />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Nome sugerido</span>
+          </Field>
+          <Field label="Nome sugerido">
             <Input
               value={draft.display_name}
               onChange={(event) => setDraft({ ...draft, display_name: event.target.value })}
               placeholder="ex.: SMU - Secretaria Municipal de Urbanismo"
               maxLength={200}
             />
-          </label>
+          </Field>
         </div>
         <div>
           <Button variant="primary" disabled={!valid || create.isPending} onClick={() => create.mutate()}>
@@ -287,16 +288,14 @@ function CollectionTermCard({ term, kinds }: { term: CollectionTerm; kinds: Coll
     >
       <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Grafia como aparece no acervo</span>
+          <Field label="Grafia como aparece no acervo">
             <Input
               value={spelling}
               onChange={(event) => setSpelling(event.target.value)}
               maxLength={200}
             />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Tipo</span>
+          </Field>
+          <Field label="Tipo">
             <Select
               value={kind}
               onChange={(event) => setKind(event.target.value as CollectionTermKind)}
@@ -307,7 +306,7 @@ function CollectionTermCard({ term, kinds }: { term: CollectionTerm; kinds: Coll
                 </option>
               ))}
             </Select>
-          </label>
+          </Field>
         </div>
         <p className="text-xs text-(--color-muted)">{TERM_KIND_HINT[kind] ?? ""}</p>
         <div className="flex items-center gap-2">
@@ -358,17 +357,15 @@ function CreateCollectionTermCard({ kinds }: { kinds: CollectionTermKind[] }) {
     >
       <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Grafia</span>
+          <Field label="Grafia">
             <Input
               value={draft.term}
               onChange={(event) => setDraft({ ...draft, term: event.target.value })}
               placeholder="ex.: batel"
               maxLength={200}
             />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Tipo</span>
+          </Field>
+          <Field label="Tipo">
             <Select
               value={draft.kind}
               onChange={(event) => setDraft({ ...draft, kind: event.target.value as CollectionTermKind })}
@@ -379,7 +376,7 @@ function CreateCollectionTermCard({ kinds }: { kinds: CollectionTermKind[] }) {
                 </option>
               ))}
             </Select>
-          </label>
+          </Field>
         </div>
         <p className="text-xs text-(--color-muted)">{TERM_KIND_HINT[draft.kind] ?? ""}</p>
         <div>

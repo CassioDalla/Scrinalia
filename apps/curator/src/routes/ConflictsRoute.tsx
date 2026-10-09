@@ -17,7 +17,10 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
+import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
+import { PageBody } from "@/components/layout/PageBody";
 import { ACTION } from "@/lib/copy";
 import { CONFLICT_WINNER_HINT, CONFLICT_WINNER_LABEL, CONFLICT_WINNER_TONE, ENTITY_TYPE_LABEL } from "@/lib/entities";
 import { formatCount, formatDateTime } from "@/lib/format";
@@ -190,7 +193,7 @@ export function ConflictsRoute() {
         }
       />
 
-      <div className="grid max-w-5xl gap-4 px-6 py-5">
+      <PageBody>
         <Disclosure
           toggleLabel="Onde cada veredito é gravado"
           header={
@@ -228,8 +231,7 @@ export function ConflictsRoute() {
         {view === "pendentes" ? (
           <>
             <div className="flex flex-wrap items-end justify-between gap-3">
-              <label className="flex flex-col gap-1 text-xs">
-                <span className="text-(--color-muted)">Limiar de similaridade</span>
+              <Field label="Limiar de similaridade">
                 <Input
                   type="number"
                   min={0.5}
@@ -243,7 +245,7 @@ export function ConflictsRoute() {
                     if (event.key === "Enter") applyThreshold();
                   }}
                 />
-              </label>
+              </Field>
               {conflicts.data ? (
                 <p className="text-xs text-(--color-muted)">
                   {formatCount(conflicts.data.near_duplicate_count)} grafias diferentes ·{" "}
@@ -276,9 +278,9 @@ export function ConflictsRoute() {
         ) : null}
 
         {feedback ? (
-          <p className="rounded-md bg-(--color-ok)/5 px-3 py-2 text-xs text-(--color-ok) ring-1 ring-(--color-ok)/20">
+          <Notice tone="ok">
             {feedback}
-          </p>
+          </Notice>
         ) : null}
         {active.error ? <ErrorState error={active.error} /> : null}
         {active.isPending ? <Spinner label="Lendo a colisão…" /> : null}
@@ -501,7 +503,7 @@ export function ConflictsRoute() {
           que mostra as auto-resoluções: elas excluíram a linha perdedora, então não existem mais na
           varredura ao vivo.
         </p>
-      </div>
+      </PageBody>
     </>
   );
 }
@@ -541,10 +543,10 @@ function PreviewPanel({
         </div>
 
         {plan.already_resolved ? (
-          <p className="rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/25">
+          <Notice tone="warn">
             Este par já tem uma resolução em vigor no ledger. Decidir de novo escreve uma segunda
             resolução — o desfazer de cada uma é independente.
-          </p>
+          </Notice>
         ) : null}
 
         {plan.judge_winner ? (
@@ -556,9 +558,9 @@ function PreviewPanel({
         ) : null}
 
         {!plan.resolvable ? (
-          <p className="rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/25">
+          <Notice tone="warn">
             {plan.blocker}
-          </p>
+          </Notice>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2">
             <VerdictCard
@@ -587,10 +589,9 @@ function PreviewPanel({
         )}
 
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Nota da decisão</span>
+          <Field label="Nota da decisão">
             <Input value={note} onChange={(event) => onNote(event.target.value)} />
-          </label>
+          </Field>
         </div>
 
         <div className="flex flex-wrap gap-2">

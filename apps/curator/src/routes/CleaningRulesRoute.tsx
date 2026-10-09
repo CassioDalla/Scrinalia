@@ -18,7 +18,10 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
+import { Field } from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
+import { PageBody } from "@/components/layout/PageBody";
 import { ACTION } from "@/lib/copy";
 import { formatCount } from "@/lib/format";
 import { labelOf } from "@/lib/hierarchy";
@@ -85,13 +88,13 @@ export function CleaningRulesRoute() {
     <>
       <PageHeader screen="cleaningRules" pending={rules.isPending} status={rules.data ? subtitleOf(activeCount, retiredCount) : undefined} />
 
-      <div className="grid max-w-5xl gap-4 px-6 py-5">
-        <p className="rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
+      <PageBody>
+        <Notice tone="warn">
           <strong>O tipo da regra é o que separa limpar de destruir.</strong> Uma regra{" "}
           <code>REWRITE</code> substitui cada ocorrência no acervo; <code>VALIDATE</code> e{" "}
           <code>LLM_CHECK</code> só sinalizam — o worker filtra <code>REWRITE</code> explicitamente.
           Regras nunca são excluídas: as aposentadas continuam nesta tela, com o botão de reativar.
-        </p>
+        </Notice>
 
         {rules.error ? <ErrorState error={rules.error} /> : null}
         {rules.isPending ? <Spinner /> : null}
@@ -180,7 +183,7 @@ export function CleaningRulesRoute() {
             </li>
           ))}
         </ul>
-      </div>
+      </PageBody>
     </>
   );
 }
@@ -251,17 +254,15 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
     >
       <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Nome</span>
+          <Field label="Nome">
             <Input
               value={draft.rule_name}
               onChange={(event) => patch({ rule_name: event.target.value })}
               maxLength={150}
               placeholder="ex.: normaliza abreviação de logradouro"
             />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Coluna alvo</span>
+          </Field>
+          <Field label="Coluna alvo">
             <Select
               value={draft.target_column}
               onChange={(event) => patch({ target_column: event.target.value as CleaningTargetColumn })}
@@ -272,31 +273,28 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
                 </option>
               ))}
             </Select>
-          </label>
+          </Field>
         </div>
 
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Expressão regular (Python)</span>
+          <Field label="Expressão regular (Python)">
             <Input
               value={draft.regex_pattern}
               onChange={(event) => patch({ regex_pattern: event.target.value })}
               placeholder={String.raw`\bav\b\.?`}
               className="font-mono"
             />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Substituir por (vazio = remover o trecho)</span>
+          </Field>
+          <Field label="Substituir por (vazio = remover o trecho)">
             <Input
               value={draft.replacement_string ?? ""}
               onChange={(event) => patch({ replacement_string: event.target.value })}
               className="font-mono"
             />
-          </label>
+          </Field>
         </div>
 
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-(--color-muted)">Tipo</span>
+        <Field label="Tipo">
           <Select value={draft.rule_kind} onChange={(event) => patch({ rule_kind: event.target.value as RuleKind })}>
             {KINDS.map((kind) => (
               <option key={kind} value={kind}>
@@ -305,36 +303,33 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
             ))}
           </Select>
           <span className="text-(--color-muted)">{RULE_KIND_HINT[draft.rule_kind ?? "REWRITE"]}</span>
-        </label>
+        </Field>
 
         {draft.rule_kind === "VALIDATE" ? (
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Motivo gravado no documento quando casar</span>
+          <Field label="Motivo gravado no documento quando casar">
             <Input
               value={draft.anomaly_reason ?? ""}
               onChange={(event) => patch({ anomaly_reason: event.target.value || null })}
               placeholder="ex.: título fora do padrão"
             />
-          </label>
+          </Field>
         ) : null}
 
         {draft.rule_kind === "LLM_CHECK" ? (
           <div className="grid gap-2 sm:grid-cols-2">
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="text-(--color-muted)">Engine</span>
+            <Field label="Engine">
               <Input
                 value={draft.engine_name ?? ""}
                 onChange={(event) => patch({ engine_name: event.target.value || null })}
                 placeholder="ex.: ollama"
               />
-            </label>
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="text-(--color-muted)">Preset</span>
+            </Field>
+            <Field label="Preset">
               <Input
                 value={draft.preset ?? ""}
                 onChange={(event) => patch({ preset: event.target.value || null })}
               />
-            </label>
+            </Field>
           </div>
         ) : null}
 

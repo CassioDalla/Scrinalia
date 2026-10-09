@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
+import { PageBody } from "@/components/layout/PageBody";
 import { cn } from "@/lib/cn";
 import { formatCount, formatDate, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
 import { ANOMALY_REASON_HINT, anomalyReasonCode, anomalyReasonLabel } from "@/lib/quality";
@@ -73,7 +74,7 @@ export function AnomaliesRoute() {
         }
       />
 
-      <div className="grid max-w-4xl gap-4 px-6 py-5">
+      <PageBody className="max-w-4xl">
         {inbox.data && (queue?.count ?? 0) === 0 ? (
           <EmptyState
             title="Nenhuma anomalia detectada"
@@ -211,7 +212,7 @@ export function AnomaliesRoute() {
             </Button>
           </div>
         ) : null}
-      </div>
+      </PageBody>
     </>
   );
 }

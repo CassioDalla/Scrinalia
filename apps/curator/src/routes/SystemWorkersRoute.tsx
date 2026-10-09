@@ -17,6 +17,9 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Input, Select, Textarea } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
+import { PageBody } from "@/components/layout/PageBody";
+import { Field } from "@/components/ui/Field";
 import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
 import {
@@ -50,7 +53,7 @@ export function SystemWorkersRoute() {
   return (
     <>
       <PageHeader screen="workers" />
-      <div className="grid gap-3 px-6 py-5">
+      <PageBody className="gap-3">
         {error ? <ErrorState error={error} /> : null}
 
         {isPending ? (
@@ -62,7 +65,7 @@ export function SystemWorkersRoute() {
         ) : null}
 
         {(data?.workers ?? []).map((worker) => <WorkerCard key={worker.name} worker={worker} />)}
-      </div>
+      </PageBody>
     </>
   );
 }
@@ -163,9 +166,9 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
         </div>
 
         {worker.pending_reason ? (
-          <p className="rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
+          <Notice tone="warn">
             {worker.pending_reason}
-          </p>
+          </Notice>
         ) : null}
 
         {worker.settings.note ? (
@@ -179,9 +182,9 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
         ) : null}
 
         {feedback ? (
-          <p className="rounded-md bg-(--color-ok)/5 px-3 py-2 text-xs text-(--color-ok) ring-1 ring-(--color-ok)/20">
+          <Notice tone="ok">
             {feedback}
-          </p>
+          </Notice>
         ) : null}
 
         {panel === "run" ? <RunPanel worker={worker} onDone={setFeedback} /> : null}
@@ -269,7 +272,7 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
 
         {settings.engine_source === "signature" ? (
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="grid gap-1 text-xs">
+            <label className="flex flex-col gap-1 text-xs">
               Engine
               <Select
                 value={engine}
@@ -285,7 +288,7 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
                 ))}
               </Select>
             </label>
-            <label className="grid gap-1 text-xs">
+            <label className="flex flex-col gap-1 text-xs">
               Preset
               <Select value={preset} onChange={(event) => setPreset(event.target.value)}>
                 <option value="">(o do código)</option>
@@ -306,7 +309,7 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
         )}
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="grid gap-1 text-xs">
+          <label className="flex flex-col gap-1 text-xs">
             Tamanho do lote (vazio = o do código)
             <Input
               type="number"
@@ -318,7 +321,7 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
           </label>
         </div>
 
-        <label className="grid gap-1 text-xs">
+        <label className="flex flex-col gap-1 text-xs">
           Opções (JSON; ex.: {"{\"force\": true}"})
           <Textarea
             rows={2}
@@ -398,7 +401,7 @@ function SettingsPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (mess
 
         {settings.engine_source === "signature" ? (
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="grid gap-1 text-xs">
+            <label className="flex flex-col gap-1 text-xs">
               Engine
               <Select
                 value={engine}
@@ -415,7 +418,7 @@ function SettingsPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (mess
                 ))}
               </Select>
             </label>
-            <label className="grid gap-1 text-xs">
+            <label className="flex flex-col gap-1 text-xs">
               Preset
               <Select value={preset} onChange={(event) => setPreset(event.target.value)}>
                 <option value="">(o do código)</option>
@@ -435,9 +438,13 @@ function SettingsPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (mess
           </p>
         )}
 
+        {/*
+          One field, and it used to be two: the other was a label for a "who is changing this" input
+          that no longer exists — the API takes the actor from the session since ADR 0009 — so the
+          card showed a field title with nothing under it.
+        */}
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="grid gap-1 text-xs">
-            Tamanho do lote (vazio = o do código)
+          <Field label="Tamanho do lote (vazio = o do código)">
             <Input
               type="number"
               min={1}
@@ -445,14 +452,10 @@ function SettingsPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (mess
               onChange={(event) => setBatch(event.target.value)}
               placeholder={String(settings.db_batch_size ?? "")}
             />
-          </label>
-          <label className="grid gap-1 text-xs">
-            Quem está alterando (opcional)
-            
-          </label>
+          </Field>
         </div>
 
-        <label className="grid gap-1 text-xs">
+        <label className="flex flex-col gap-1 text-xs">
           Opções (JSON; ex.: {"{\"force\": true}"})
           <Textarea rows={2} value={optionsText} onChange={(event) => setOptionsText(event.target.value)} placeholder="{}" />
         </label>

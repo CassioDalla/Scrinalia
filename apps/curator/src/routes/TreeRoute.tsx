@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton, Spinner } from "@/components/ui/Feedback";
+import { Field } from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
 import { cn } from "@/lib/cn";
 import { ACTION } from "@/lib/copy";
@@ -277,21 +278,18 @@ function CreateNodePanel({
         </div>
 
         <div className="grid gap-2 sm:grid-cols-3">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Código de referência</span>
+          <Field label="Código de referência">
             <Input
               value={referenceCode}
               onChange={(event) => setReferenceCode(event.target.value)}
               placeholder="ex.: BR PRADAP SMU ED"
               maxLength={500}
             />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Título</span>
+          </Field>
+          <Field label="Título">
             <Input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={300} />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Nível de descrição</span>
+          </Field>
+          <Field label="Nível de descrição">
             <Select
               value={levelId ?? ""}
               onChange={(event) => setLevelId(event.target.value ? Number(event.target.value) : null)}
@@ -303,13 +301,12 @@ function CreateNodePanel({
                 </option>
               ))}
             </Select>
-          </label>
+          </Field>
         </div>
 
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-(--color-muted)">Escopo e conteúdo (opcional)</span>
+        <Field label="Escopo e conteúdo (opcional)">
           <Input value={scopeContent} onChange={(event) => setScopeContent(event.target.value)} />
-        </label>
+        </Field>
 
         {levels.error ? <ErrorState error={levels.error} /> : null}
         {parent.error ? <ErrorState error={parent.error} /> : null}

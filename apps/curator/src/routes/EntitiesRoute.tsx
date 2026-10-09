@@ -19,8 +19,11 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
+import { Field } from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
 import { Tabs } from "@/components/ui/Tabs";
+import { PageBody } from "@/components/layout/PageBody";
 import { ACTION } from "@/lib/copy";
 import { ENTITY_TYPE_HINT, ENTITY_TYPE_LABEL, ENTITY_TYPE_TONE } from "@/lib/entities";
 import { descricoes, formatCount } from "@/lib/format";
@@ -135,13 +138,13 @@ export function EntitiesRoute() {
         }
       />
 
-      <div className="grid max-w-6xl gap-4 px-6 py-5">
-        <p className="rounded-md bg-(--color-accent)/5 px-3 py-2 text-xs text-(--color-accent) ring-1 ring-(--color-accent)/20">
+      <PageBody className="max-w-6xl">
+        <Notice tone="accent">
           <strong>Reclassificar não é renomear um rótulo.</strong> Ao corrigir o tipo, o serviço grava
           também o sinônimo de ancoragem: o extrator passa a devolver aquela grafia com o tipo novo, em
           toda execução futura. E <strong>mesclar não tem desfazer</strong> — só as tags têm ledger; a
           entidade absorvida vira sinônimo e não volta.
-        </p>
+        </Notice>
 
         {purgeOrphans.data ? (
           <p className="text-xs text-(--color-muted)">
@@ -226,7 +229,7 @@ export function EntitiesRoute() {
         ) : (
           <SimilarityTab onMerged={invalidate} />
         )}
-      </div>
+      </PageBody>
     </>
   );
 }
@@ -372,22 +375,21 @@ function MergePanel({
           ))}
         </div>
 
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-(--color-muted)">Renomear a canônica (opcional; o nome antigo vira sinônimo)</span>
+        <Field label="Renomear a canônica (opcional; o nome antigo vira sinônimo)">
           <Input
             value={newName}
             onChange={(event) => setNewName(event.target.value)}
             placeholder={nameOf(canonicalId)}
             className="max-w-md"
           />
-        </label>
+        </Field>
 
-        <p className="rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
+        <Notice tone="warn">
           As <strong>{formatCount(absorbed.length)}</strong> entidades absorvidas deixam de existir e
           seus vínculos passam para <strong>{nameOf(canonicalId)}</strong>. As grafias viram sinônimos
           (o extrator continua reconhecendo-as) — mas <strong>não há desfazer</strong>: entidades não
           têm ledger como as tags.
-        </p>
+        </Notice>
 
         <div className="flex items-center gap-2">
           <Button variant="primary" disabled={merge.isPending} onClick={() => merge.mutate()}>
@@ -472,17 +474,15 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-(--color-muted)">Nome-alvo (vazio = todos os pares parecidos)</span>
+        <Field label="Nome-alvo (vazio = todos os pares parecidos)">
           <Input
             value={target}
             onChange={(event) => setTarget(event.target.value)}
             placeholder="ex.: prefeitura"
             className="w-72"
           />
-        </label>
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-(--color-muted)">Limiar de similaridade</span>
+        </Field>
+        <Field label="Limiar de similaridade">
           <Input
             type="number"
             min={0.1}
@@ -492,7 +492,7 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
             onChange={(event) => setThreshold(Number(event.target.value))}
             className="w-28"
           />
-        </label>
+        </Field>
       </div>
 
       <p className="text-xs text-(--color-muted)">

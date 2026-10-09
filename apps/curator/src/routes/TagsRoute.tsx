@@ -33,7 +33,9 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton, Spinner } from "@/components/ui/Feedback";
 import { Input, Select } from "@/components/ui/Input";
 import { LedgerList } from "@/components/ui/LedgerList";
+import { Notice } from "@/components/ui/Notice";
 import { Tabs } from "@/components/ui/Tabs";
+import { PageBody } from "@/components/layout/PageBody";
 import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { asBoolean, asEnum, asNumber, asString } from "@/lib/search";
@@ -143,7 +145,7 @@ export function TagsRoute() {
         />
       </div>
 
-      <div className="px-6 py-5">
+      <PageBody>
         {search.aba === "similaridade" ? (
           <SimilarityTab search={search} patch={patch} />
         ) : search.aba === "propostas" ? (
@@ -153,7 +155,7 @@ export function TagsRoute() {
         ) : (
           <RelevanceTab search={search} patch={patch} />
         )}
-      </div>
+      </PageBody>
     </>
   );
 }
@@ -506,11 +508,11 @@ function SimilarityTab({
  */
 function MergeOutcome({ label, outcome }: { label: string; outcome: MergeResponse }) {
   return (
-    <p className="rounded-md bg-(--color-ok)/5 px-3 py-2 text-xs text-(--color-ok) ring-1 ring-(--color-ok)/25">
+    <Notice tone="ok">
       <strong>{label}</strong> · {formatCount(outcome.documents_updated)} documento(s) atualizado(s) ·{" "}
       {formatCount(outcome.tags_deleted)} tag(s) absorvida(s) · ledger{" "}
       <code>{(outcome.merge_ids ?? []).join(", ") || "—"}</code>. O desfazer está no ledger de merges.
-    </p>
+    </Notice>
   );
 }
 
@@ -714,18 +716,18 @@ function TagMergePanel({
               </p>
             ) : null}
             {preview.data.category_would_be_lost ? (
-              <p className="rounded bg-(--color-danger)/5 px-2 py-1 text-(--color-danger) ring-1 ring-(--color-danger)/20">
+              <Notice tone="danger">
                 Esta unificação <strong>apaga uma classificação de assunto</strong>: a tag absorvida está na gaveta{" "}
                 <strong>{lostDrawers.join(", ") || "—"}</strong> e a canônica não tem gaveta.
-              </p>
+              </Notice>
             ) : null}
           </div>
         ) : null}
 
-        <p className="rounded-md bg-(--color-ok)/5 px-3 py-2 text-xs text-(--color-ok) ring-1 ring-(--color-ok)/20">
+        <Notice tone="ok">
           Diferente do merge de entidades, este <strong>tem desfazer</strong>: o ledger da aba Propostas guarda a tag,
           os vínculos, a classificação e as grafias, e restaura tudo.
-        </p>
+        </Notice>
 
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -754,11 +756,11 @@ function TagMergePanel({
         {merge.error ? <ErrorState error={merge.error} /> : null}
 
         {outcome ? (
-          <p className="rounded-md bg-(--color-ok)/5 px-3 py-2 text-xs text-(--color-ok) ring-1 ring-(--color-ok)/25">
+          <Notice tone="ok">
             {formatCount(outcome.documents_updated)} documento(s) atualizado(s) ·{" "}
             {formatCount(outcome.tags_deleted)} tag(s) absorvida(s). Ledger{" "}
             <code>{(outcome.merge_ids ?? []).join(", ") || "—"}</code>: o desfazer fica na aba Propostas.
-          </p>
+          </Notice>
         ) : null}
       </CardBody>
     </Card>
@@ -953,16 +955,16 @@ function ProposalsTab({
       </div>
 
       {suggest.data ? (
-        <p className="rounded-md bg-(--color-ok)/5 px-3 py-2 text-xs text-(--color-ok) ring-1 ring-(--color-ok)/25">
+        <Notice tone="ok">
           Proposta: {formatCount(suggest.data.clusters_found)} cluster(s) encontrados, {formatCount(suggest.data.persisted)}{" "}
           registrados, {formatCount(suggest.data.pending)} pendentes, {formatCount(suggest.data.flagged)} com aviso. Uma
           decisão já tomada não é sobrescrita.
-        </p>
+        </Notice>
       ) : null}
       {suggest.error ? <ErrorState error={suggest.error} /> : null}
 
       {approvedNotSelected.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-md bg-(--color-warn)/5 px-3 py-2 ring-1 ring-(--color-warn)/25">
+        <Notice tone="warn" as="div" className="flex flex-wrap items-center gap-3">
           <span className="text-xs text-(--color-warn)">
             <strong>{formatCount(approvedNotSelected.length)}</strong> cluster(s) aprovado(s) nesta página{" "}
             <strong>ainda não foram unificados</strong>: aprovar registra a intenção, e só o apply absorve as tags.
@@ -978,7 +980,7 @@ function ProposalsTab({
           <Button size="sm" disabled={selectAllApproved.isPending} onClick={() => selectAllApproved.mutate()}>
             {selectAllApproved.isPending ? "Buscando…" : "selecionar todas as aprovadas"}
           </Button>
-        </div>
+        </Notice>
       ) : null}
 
       {fulfilled.length > 0 ? (
@@ -1000,7 +1002,7 @@ function ProposalsTab({
       ) : null}
 
       {selected.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-md bg-(--color-accent)/5 px-3 py-2 ring-1 ring-(--color-accent)/25">
+        <Notice tone="accent" as="div" className="flex flex-wrap items-center gap-2">
           <span className="text-xs">
             {formatCount(selected.length)} cluster(s) selecionado(s) para aplicar
           </span>
@@ -1021,12 +1023,12 @@ function ProposalsTab({
           <Button size="sm" variant="ghost" onClick={() => setSelected([])}>
             limpar seleção
           </Button>
-        </div>
+        </Notice>
       ) : null}
 
       {apply.error ? <ErrorState error={apply.error} /> : null}
       {batch ? (
-        <div className="grid gap-1 rounded-md bg-(--color-ok)/5 px-3 py-2 text-xs ring-1 ring-(--color-ok)/25">
+        <Notice tone="ok" as="div" className="grid gap-1">
           <p className="font-medium text-(--color-ok)">
             {formatCount((batch.applied ?? []).length)} cluster(s) aplicado(s)
             {(batch.skipped ?? []).length > 0
@@ -1051,7 +1053,7 @@ function ProposalsTab({
               #{entry.proposal_id} não aplicado: {entry.error}
             </p>
           ))}
-        </div>
+        </Notice>
       ) : null}
 
       {proposals.error ? <ErrorState error={proposals.error} /> : null}
@@ -1400,10 +1402,10 @@ function ProposalCard({
               </p>
             ) : null}
             {preview.category_would_be_lost ? (
-              <p className="rounded bg-(--color-danger)/5 px-2 py-1 text-(--color-danger) ring-1 ring-(--color-danger)/20">
+              <Notice tone="danger">
                 Esta unificação <strong>apaga uma classificação de assunto</strong>: um dos membros está numa gaveta que
                 a canônica não tem.
-              </p>
+              </Notice>
             ) : null}
           </div>
         ) : null}
@@ -1483,11 +1485,11 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
 
   return (
     <div className="grid gap-4">
-      <p className="max-w-3xl rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
+      <Notice tone="warn" className="max-w-3xl">
         <strong>Banir não apaga nada.</strong> Banir registra que o termo não vale; a <strong>purga</strong> é o passo
         que exclui as tags com esse nome — e ela <strong>não tem desfazer</strong>: o merge guarda o estado anterior e
         restaura, a purga não. Por isso ela vem sempre depois de conferir o impacto.
-      </p>
+      </Notice>
 
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant={search.escopo ? "secondary" : "primary"} onClick={() => patch({ escopo: undefined })}>
@@ -1630,7 +1632,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
           {purge.error ? <ErrorState error={purge.error} /> : null}
 
           {preview ? (
-            <div className="grid gap-2 rounded-md bg-(--color-danger)/5 p-3 text-xs ring-1 ring-(--color-danger)/20">
+            <Notice tone="danger" as="div" className="grid gap-2">
               <p>
                 Nada foi excluído ainda. Seriam <strong>{formatCount(preview.total_tags)} tag(s)</strong> em{" "}
                 <strong>{formatCount(preview.total_documents)} descrição(ões)</strong>.
@@ -1657,14 +1659,14 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
                   ))}
                 </ul>
               )}
-            </div>
+            </Notice>
           ) : null}
 
           {purged !== null ? (
-            <p className="rounded-md bg-(--color-ok)/5 px-3 py-2 text-xs text-(--color-ok) ring-1 ring-(--color-ok)/25">
+            <Notice tone="ok">
               {formatCount(purged)} tag(s) apagada(s). Isto <strong>não</strong> aparece no ledger de merges: não há
               estado anterior guardado para restaurar.
-            </p>
+            </Notice>
           ) : null}
         </CardBody>
       </Card>

@@ -12,6 +12,8 @@ import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
 import { LedgerList } from "@/components/ui/LedgerList";
+import { Notice } from "@/components/ui/Notice";
+import { PageBody } from "@/components/layout/PageBody";
 import { ACTION } from "@/lib/copy";
 import { descricoes, formatCount } from "@/lib/format";
 import { SIGNAL_HINT, SIGNAL_LABEL } from "@/lib/quality";
@@ -91,13 +93,13 @@ export function SubjectExclusionsRoute() {
         }
       />
 
-      <div className="grid max-w-4xl gap-4 px-6 py-5">
-        <p className="rounded-md bg-(--color-accent)/5 px-3 py-2 text-xs text-(--color-accent) ring-1 ring-(--color-accent)/20">
+      <PageBody className="max-w-4xl">
+        <Notice tone="accent">
           O guard determinístico pega o que tem forma — data, placeholder, logradouro, número — e na
           medição real ele pegou <strong>1 de 4</strong> dos não-assuntos do gabarito. O resto é
           julgamento semântico que nenhuma regra resolve. <strong>Banir não apaga nada:</strong> a tag
           continua no acervo e alcançável pela busca; só a classificação de assunto para de adivinhar.
-        </p>
+        </Notice>
 
         {/*
           The computed candidates, not three hardcoded examples.
@@ -340,7 +342,7 @@ export function SubjectExclusionsRoute() {
 
         {restore.error ? <ErrorState error={restore.error} /> : null}
 
-      </div>
+      </PageBody>
     </>
   );
 }

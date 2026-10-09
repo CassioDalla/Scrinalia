@@ -13,7 +13,10 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
+import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
+import { PageBody } from "@/components/layout/PageBody";
 import { ACTION } from "@/lib/copy";
 import { descricoes, formatCount } from "@/lib/format";
 
@@ -58,13 +61,13 @@ export function TypologiesRoute() {
         }
       />
 
-      <div className="grid max-w-5xl gap-4 px-6 py-5">
-        <p className="rounded-md bg-(--color-accent)/5 px-3 py-2 text-xs text-(--color-accent) ring-1 ring-(--color-accent)/20">
+      <PageBody>
+        <Notice tone="accent">
           O nome é o rótulo que o classificador propõe, e a descrição de contexto é{" "}
           <strong>documentação para quem lê o catálogo</strong> — ela nunca vai para o modelo.
           Aposentar uma tipologia a tira das opções do classificador <strong>sem</strong> desclassificar
           nenhuma descrição: por isso o peso de cada uma continua visível.
-        </p>
+        </Notice>
 
         {catalog.error ? <ErrorState error={catalog.error} /> : null}
         {catalog.isPending ? (
@@ -83,7 +86,7 @@ export function TypologiesRoute() {
             <TypologyCard key={typology.typology_id} typology={typology} onChanged={invalidate} />
           ))}
         </section>
-      </div>
+      </PageBody>
     </>
   );
 }
@@ -136,17 +139,13 @@ function TypologyCard({ typology, onChanged }: { typology: Typology; onChanged: 
       }
     >
       <div className="grid gap-2">
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-(--color-muted)">Nome (o rótulo do classificador)</span>
+        <Field label="Nome (o rótulo do classificador)">
           <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={100} />
-        </label>
+        </Field>
 
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-(--color-muted)">
-            Descrição de contexto (o que cai nesta tipologia; o arquivista lê, o modelo não)
-          </span>
+        <Field label="Descrição de contexto (o que cai nesta tipologia; o arquivista lê, o modelo não)">
           <Input value={context} onChange={(event) => setContext(event.target.value)} />
-        </label>
+        </Field>
 
         <div className="flex items-center gap-2">
           <Button
@@ -206,23 +205,21 @@ function CreateTypologyCard({ onCreated }: { onCreated: () => void }) {
           contexto.
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Nome</span>
+          <Field label="Nome">
             <Input
               value={draft.name}
               onChange={(event) => setDraft({ ...draft, name: event.target.value })}
               placeholder="ex.: Ata de Reunião"
               maxLength={100}
             />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Descrição de contexto</span>
+          </Field>
+          <Field label="Descrição de contexto">
             <Input
               value={draft.context_description ?? ""}
               onChange={(event) => setDraft({ ...draft, context_description: event.target.value || null })}
               placeholder="ex.: registros de encontros e deliberações"
             />
-          </label>
+          </Field>
         </div>
         <div>
           <Button

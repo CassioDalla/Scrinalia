@@ -16,7 +16,9 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
+import { Field } from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
 import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
 import {
@@ -141,11 +143,11 @@ export function PlanRoute() {
           </p>
 
           {suggest.data ? (
-            <p className="mb-4 rounded-md bg-(--color-ok)/5 px-3 py-2 text-xs text-(--color-ok) ring-1 ring-(--color-ok)/25">
+            <Notice tone="ok" className="mb-4">
               Proposta: {formatCount(suggest.data.created)} degrau(s) novo(s), {formatCount(suggest.data.refreshed)}{" "}
               atualizada(s), {formatCount(suggest.data.preserved)} decisão(ões) preservada(s). Total no catálogo:{" "}
               {formatCount(suggest.data.total)}.
-            </p>
+            </Notice>
           ) : null}
           {suggest.error ? <ErrorState error={suggest.error} /> : null}
 
@@ -368,10 +370,9 @@ function PlanCard({
       {isSuggested ? (
         <div className="flex flex-col gap-2">
           <div className="grid gap-2 sm:grid-cols-2">
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="text-(--color-muted)">
-                Nível de descrição {flags.includes("ORDINAL_INFERRED") ? "(inferido, não declarado)" : ""}
-              </span>
+            <Field
+              label={<>Nível de descrição {flags.includes("ORDINAL_INFERRED") ? "(inferido, não declarado)" : ""}</>}
+            >
               <Select
                 value={levelId ?? ""}
                 onChange={(event) => setLevelId(event.target.value ? Number(event.target.value) : null)}
@@ -383,18 +384,16 @@ function PlanCard({
                   </option>
                 ))}
               </Select>
-            </label>
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="text-(--color-muted)">Título do nó</span>
+            </Field>
+            <Field label="Título do nó">
               <Input
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder={plan.code}
                 maxLength={300}
               />
-            </label>
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="text-(--color-muted)">Fundir em (este degrau é o mesmo nível que…)</span>
+            </Field>
+            <Field label="Fundir em (este degrau é o mesmo nível que…)">
               <Input
                 value={collapse}
                 onChange={(event) => setCollapse(event.target.value)}
@@ -409,11 +408,10 @@ function PlanCard({
                     <option key={code} value={code} />
                   ))}
               </datalist>
-            </label>
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="text-(--color-muted)">Nota da decisão</span>
+            </Field>
+            <Field label="Nota da decisão">
               <Input value={note} onChange={(event) => setNote(event.target.value)} />
-            </label>
+            </Field>
           </div>
 
           {!canApprove ? (

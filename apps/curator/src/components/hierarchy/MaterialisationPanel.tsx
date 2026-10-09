@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
 import { ACTION_LABEL, ACTION_TONE, PLAN_STATUS_LABEL, PLAN_STATUS_TONE, labelOf } from "@/lib/hierarchy";
@@ -135,9 +136,9 @@ export function MaterialisationPanel({
           </div>
 
           {approved === 0 ? (
-            <p className="rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
+            <Notice tone="warn">
               Nenhuma rung aprovada: aprove ao menos uma antes de materializar a árvore.
-            </p>
+            </Notice>
           ) : null}
 
           <div className="flex flex-wrap gap-2">
@@ -173,10 +174,10 @@ export function MaterialisationPanel({
               </ul>
 
               {items.some((item) => item.rooted_early) ? (
-                <p className="rounded-md bg-(--color-warn)/5 px-2 py-1.5 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
+                <Notice tone="warn">
                   {items.filter((item) => item.rooted_early).length} rung(s) ficariam na raiz porque a rung acima delas
                   não foi aprovada.
-                </p>
+                </Notice>
               ) : null}
 
               <ul className="divide-y divide-(--color-line) text-xs">
@@ -199,7 +200,7 @@ export function MaterialisationPanel({
           ) : null}
 
           {result ? (
-            <div className="flex flex-col gap-2 rounded-md bg-(--color-ok)/5 p-3 text-xs ring-1 ring-(--color-ok)/25">
+            <Notice tone="ok" as="div" className="flex flex-col gap-2">
               <p className="font-medium text-(--color-ok)">
                 Materialização {result.materialisation_id}: {formatCount(result.created_nodes)} nó(s) criado(s),{" "}
                 {formatCount(result.adopted_nodes)} adotado(s), {formatCount(result.documents_attached)} descrição(ões)
@@ -219,7 +220,7 @@ export function MaterialisationPanel({
                   {undo.isPending ? "Desfazendo…" : "Desfazer esta materialização"}
                 </Button>
               </div>
-            </div>
+            </Notice>
           ) : null}
 
           {undo.error ? <ErrorState error={undo.error} /> : null}

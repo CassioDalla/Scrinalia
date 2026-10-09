@@ -8,7 +8,11 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
+import { Field } from "@/components/ui/Field";
 import { Input, Textarea } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
+import { PageBody } from "@/components/layout/PageBody";
+import { SectionTitle } from "@/components/ui/SectionTitle";
 import { ACTION } from "@/lib/copy";
 import { formatCount } from "@/lib/format";
 
@@ -66,12 +70,12 @@ export function CategoriesRoute() {
         }
       />
 
-      <div className="grid max-w-5xl gap-4 px-6 py-5">
-        <p className="rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
+      <PageBody>
+        <Notice tone="warn">
           <strong>A frase não melhora a classificação.</strong> Medido em 44 tags rotuladas à mão: dar uma frase ao
           modelo em vez do nome nu leva a acurácia a <strong>0.000</strong>, com 65% das tags numa única gaveta. O
           rótulo existe para o curador ajustar a redação sem deploy — não espere ganho dele.
-        </p>
+        </Notice>
 
         {categories.error ? <ErrorState error={categories.error} /> : null}
         {categories.isPending ? (
@@ -127,7 +131,7 @@ export function CategoriesRoute() {
 
         {active.length > 0 ? (
           <section className="grid gap-2">
-            <h2 className="text-sm font-semibold">Ativas</h2>
+            <SectionTitle>Ativas</SectionTitle>
             {active.map((category) => (
               <CategoryCard key={category.category_id} category={category} onChanged={invalidate} />
             ))}
@@ -136,7 +140,7 @@ export function CategoriesRoute() {
 
         {retired.length > 0 ? (
           <section className="grid gap-2">
-            <h2 className="text-sm font-semibold">Aposentadas</h2>
+            <SectionTitle>Aposentadas</SectionTitle>
             <p className="text-xs text-(--color-muted)">
               Saíram do eixo de assunto porque são proveniência e geografia, não assunto. Nunca foram apagadas: a
               chave estrangeira é <code>SET NULL</code>, e excluir uma gaveta excluiria o registro de que ela existiu.
@@ -147,7 +151,7 @@ export function CategoriesRoute() {
           </section>
         ) : null}
 
-      </div>
+      </PageBody>
     </>
   );
 }
@@ -204,24 +208,21 @@ function CategoryCard({ category, onChanged }: { category: MacroCategory; onChan
     >
       <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Nome</span>
+          <Field label="Nome">
             <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={100} />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Rótulo que o modelo lê (vazio = o nome)</span>
+          </Field>
+          <Field label="Rótulo que o modelo lê (vazio = o nome)">
             <Input
               value={label}
               onChange={(event) => setLabel(event.target.value)}
               placeholder={category.name}
             />
-          </label>
+          </Field>
         </div>
 
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-(--color-muted)">Descrição (documentação do curador, nunca vai ao modelo)</span>
+        <Field label="Descrição (documentação do curador, nunca vai ao modelo)">
           <Input value={description} onChange={(event) => setDescription(event.target.value)} />
-        </label>
+        </Field>
 
         <div className="flex items-center gap-2">
           <Button

@@ -9,7 +9,10 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState } from "@/components/ui/Feedback";
+import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
+import { PageBody } from "@/components/layout/PageBody";
 import { ACTION } from "@/lib/copy";
 import { formatCount } from "@/lib/format";
 import { routeMessage } from "@/lib/messages";
@@ -49,13 +52,13 @@ export function DiscoverRoute() {
         }
       />
 
-      <div className="grid max-w-4xl gap-4 px-6 py-5">
-        <p className="rounded-md bg-(--color-accent)/5 px-3 py-2 text-xs text-(--color-accent) ring-1 ring-(--color-accent)/20">
+      <PageBody className="max-w-4xl">
+        <Notice tone="accent">
           O vocabulário cresceu de 5 para 8 gavetas porque a medição pediu: <code>igrejas</code> alcança
           <strong> 2.467 documentos</strong> — a maior tag do acervo — e não havia "Religião" para ela.
           Nenhum rótulo conserta uma gaveta inexistente. As gavetas que saíram (<em>Instituição</em>,{" "}
           <em>Localidade</em>, <em>Pessoa</em>) não eram ruins: são proveniência e geografia, não assunto.
-        </p>
+        </Notice>
 
         <Card>
           <CardHeader className="text-sm font-semibold">Agrupar por tema</CardHeader>
@@ -91,9 +94,9 @@ export function DiscoverRoute() {
         {suggest.data ? (
           <>
             {routeMessage(suggest.data) ? (
-              <p className="rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
+              <Notice tone="warn">
                 {routeMessage(suggest.data)}
-              </p>
+              </Notice>
             ) : null}
 
             {suggestions.length === 0 && !routeMessage(suggest.data) ? (
@@ -112,7 +115,7 @@ export function DiscoverRoute() {
             </li>
           ))}
         </ul>
-      </div>
+      </PageBody>
     </>
   );
 }
@@ -163,10 +166,9 @@ function SuggestionCard({
       }
     >
       <div className="grid gap-2">
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-(--color-muted)">Nome da gaveta</span>
+        <Field label="Nome da gaveta">
           <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={100} />
-        </label>
+        </Field>
 
         {(category.real_samples ?? []).length > 0 ? (
           <div className="flex flex-wrap gap-1">
