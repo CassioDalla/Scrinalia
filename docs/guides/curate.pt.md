@@ -12,7 +12,8 @@ A SPA é servida pela própria API (uma origem, sem CORS), e toda tela lê e esc
 a partir do contrato OpenAPI. As telas são declaradas em `apps/curator/src/router.tsx` e a navegação
 em `apps/curator/src/components/layout/AppShell.tsx`. O menu tem **23 entradas** porque uma rota não
 é item de menu: a ficha da descrição, `/acervo/$descriptionId`, é alcançada pela lista e pela árvore.
-O roteador, por isso, declara 24 telas.
+O roteador, por isso, declara 24 telas. O próprio menu pode ser recolhido a ícones, o que é uma
+escolha de apresentação e não de permissão — *O menu se recolhe a ícones*, abaixo.
 
 Vale ler duas páginas junto com esta: [Modelo de dados](data-model.md) para o que os ledgers e as
 tabelas significam, e [Instalação e implantação](install.md) para o esquema, as contas e a
@@ -170,6 +171,18 @@ grupos existem para decidir, e ficam escondidos.
 O espelho é de mão única de propósito. Ele encurta o menu; nunca faz a API aceitar uma requisição. Uma
 URL direta para uma tela em que a conta não pode trabalhar ainda chega à API, e a API responde 403
 com uma frase — essa é a verdade, e a entrada escondida é uma cortesia.
+
+### O menu se recolhe a ícones
+
+Um controle no cabeçalho do próprio menu o dobra numa coluna de ícones de 64px e o devolve, e o
+navegador lembra a escolha: a largura de uma coluna da tela é estado de apresentação, então mora no
+`localStorage` e não na conta — a API não tem coluna para isso.
+
+Recolhido, cada entrada mantém o ícone; o rótulo continua sendo o nome acessível do link e o `title`
+carrega rótulo e dica, de modo que a dica fica escondida e nunca cortada. A entrada ativa mantém a cor
+de destaque, os títulos de seção viram filetes e o rodapé de sessão vira a inicial da conta mais dois
+botões de ícone. O nome da atribuição sai do menu, mas não da página: a atribuição é renderizada no pé
+de toda tela (`AttributionFooter`, ADR 0006). Os ícones vêm do `lucide-react`, um glifo por entrada.
 
 ## Curadoria
 
