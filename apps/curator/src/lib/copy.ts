@@ -41,6 +41,14 @@ export const PRODUCT = {
   tagline: "Curadoria do acervo",
   /** The browser tab. `index.html` boots with the neutral `Curadoria` and `main.tsx` replaces it. */
   documentTitle: `${ATTRIBUTION.name} — Curadoria`,
+  /**
+   * The system's version, injected at build time from `pyproject.toml` by `vite.config.ts`.
+   *
+   * It is the **distribution's** version and not `apps/curator/package.json`'s: the API serves the
+   * built SPA from the same commit, so one number describes the installation, and a second one
+   * would be a thing to keep in step for no reason. `AttributionFooter` is its only reader.
+   */
+  version: __APP_VERSION__,
 } as const;
 
 /**

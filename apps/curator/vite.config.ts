@@ -1,9 +1,31 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { reactClickToComponent } from "vite-plugin-react-click-to-component";
+
+/**
+ * The system's version, read from the one place that defines it.
+ *
+ * `pyproject.toml` is the distribution's version, and the built SPA is served by the API from the
+ * same commit — so injecting it at build time is the honest source, and cheaper than a request the
+ * footer would have to make on every screen. `package.json`'s own version is **not** used: it is
+ * the SPA's, and a footer that showed it would be showing a second number that can drift from the
+ * system it belongs to.
+ *
+ * The build **fails** when the version cannot be read. A footer that silently says `v0.0.0` is worse
+ * than a build that says why.
+ */
+function systemVersion(): string {
+  const manifest = readFileSync(fileURLToPath(new URL("../../pyproject.toml", import.meta.url)), "utf-8");
+  const version = /^version = "([^"]+)"/m.exec(manifest)?.[1];
+  if (!version) {
+    throw new Error('`pyproject.toml` has no `version = "..."`: the footer has no version to show.');
+  }
+  return version;
+}
 
 // The dev server proxies the API instead of the browser calling it cross-origin, which is what
 // keeps CORS out of the project entirely: in development the proxy answers, and in production the
@@ -37,6 +59,8 @@ export default defineConfig({
     */
     reactClickToComponent(),
   ],
+  // The footer's version, from `pyproject.toml` — see `systemVersion()` above.
+  define: { __APP_VERSION__: JSON.stringify(systemVersion()) },
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
