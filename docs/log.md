@@ -121,3 +121,28 @@ with short or full shas, and part of a `## <date> — <title>` entry.
 - **Not documented, on purpose:** the twenty-three glyph choices. The code names one per entry and a
   page that listed them would go stale the first time somebody picks a clearer one; what the page owes
   the reader is where the icons come from and what the collapsed entry keeps.
+
+## 2026-10-09 — the setup screens move behind a Configurações landing
+
+- **Range:** `0b41007..bec40af`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the introduction (23 menu entries → 16, 24 screens → 25, and what
+    the cards are), *The menu hides; it never grants* (the card rules: hidden by `can()`, a tab with
+    nothing visible not rendered, the entry present while at least one card is reachable, and the
+    direct URL that explains itself), a new *Configurações* screen section with its three tabs and
+    eight cards, and one pointer in each section whose group left the menu — Arranjo (the plan is a
+    card; the diagnostic moved into "Acervo"), Catálogos and Sistema. The per-screen sections stayed
+    where they were: what they document did not change.
+  - `guides/curate.pt.md` — **updated**: the translation of all of the above.
+  - `guides/operate.md` — **updated**: one sentence, and it is why this page was reported at all — it
+    called the operations panel "the `Sistema` section of the SPA", and that section no longer exists.
+    It now says the three cards of `/configuracoes`, under *Operação*.
+  - `guides/operate.pt.md` — **updated**: the same sentence, plus the section heading, which carried a
+    "(Sistema)" in parentheses.
+- **A finding the report produced:** `guides/operate.md` went stale for a reason that has nothing to do
+  with the workers it documents — it declares `apps/curator/src/router.tsx` among its sources, which is
+  what let the report catch a navigation fact stated in the operations guide. The declaration earned
+  its keep, and it is the argument for keeping the incidental sources rather than trimming them.
+- **Deliberately not documented as done:** the worker settings split, the issue's second bullet. The
+  panel still mixes configuration and the machine view; that work is issue #53, and the pages describe
+  the screen as it is today.
