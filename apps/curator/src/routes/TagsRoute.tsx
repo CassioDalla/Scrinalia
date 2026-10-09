@@ -1299,7 +1299,7 @@ function ProposalCard({
           {proposal.status === "APPROVED" && proposal.applicable ? (
             <label className="flex items-center gap-2 text-xs">
               <input type="checkbox" checked={selected} onChange={(event) => onToggle(event.target.checked)} />
-              incluir no lote de apply
+              incluir no lote de aplicação
             </label>
           ) : null}
           {proposal.status === "APPROVED" && !proposal.applicable ? (
@@ -1377,7 +1377,7 @@ function ProposalCard({
 
         {preview ? (
           <div className="grid gap-1 rounded-md bg-black/[0.02] p-3 text-xs ring-1 ring-(--color-line)">
-            <p className="font-medium">Nada foi escrito ainda. O apply usa este mesmo planejador.</p>
+            <p className="font-medium">Nada foi escrito ainda. A aplicação usa este mesmo planejador.</p>
             <p className="text-(--color-muted)">
               {formatCount(preview.documents_updated)} documento(s) atualizado(s) ·{" "}
               {formatCount(preview.links_rewritten)} vínculo(s) reescrito(s) ·{" "}

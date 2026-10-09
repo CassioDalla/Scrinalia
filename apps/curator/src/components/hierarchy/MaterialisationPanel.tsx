@@ -15,6 +15,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
+import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
 import { ACTION_LABEL, ACTION_TONE, PLAN_STATUS_LABEL, PLAN_STATUS_TONE, labelOf } from "@/lib/hierarchy";
@@ -97,7 +98,7 @@ export function MaterialisationPanel({
           <div>
             <div className="flex items-baseline justify-between">
               <span className="text-2xl font-semibold tabular-nums">{formatCount(decided)}</span>
-              <span className="text-xs text-(--color-muted)">de {formatCount(totalPlans)} rungs decididos</span>
+              <span className="text-xs text-(--color-muted)">de {formatCount(totalPlans)} degraus decididos</span>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/10">
               <div
@@ -116,8 +117,8 @@ export function MaterialisationPanel({
             ))}
           </ul>
           <p className="text-xs text-(--color-muted)">
-            Só as rungs <strong>aprovadas</strong> são materializadas. Uma rung rejeitada deixa suas descrições
-            órfãs de propósito: elas caem na rung aprovada mais próxima acima.
+            Só os degraus <strong>aprovados</strong> são materializados. Um degrau rejeitado deixa suas descrições
+            órfãs de propósito: elas caem no degrau aprovado mais próximo acima.
           </p>
         </CardBody>
       </Card>
@@ -137,7 +138,7 @@ export function MaterialisationPanel({
 
           {approved === 0 ? (
             <Notice tone="warn">
-              Nenhuma rung aprovada: aprove ao menos uma antes de materializar a árvore.
+              Nenhum degrau aprovado: aprove ao menos um antes de materializar a árvore.
             </Notice>
           ) : null}
 
@@ -147,12 +148,12 @@ export function MaterialisationPanel({
               disabled={approved === 0 || dryRun.isPending || apply.isPending}
               variant={preview ? "secondary" : "primary"}
             >
-              {dryRun.isPending ? "Conferindo…" : "Conferir o que será feito"}
+              {dryRun.isPending ? ACTION.preview.pending : ACTION.preview.label}
             </Button>
             <Button
               onClick={() => apply.mutate()}
               disabled={!preview || apply.isPending}
-              title={preview ? undefined : "O dry-run é obrigatório: confira o impacto primeiro."}
+              title={preview ? undefined : "A prévia é obrigatória: confira o impacto primeiro."}
             >
               {apply.isPending ? "Materializando…" : "Materializar"}
             </Button>
@@ -163,7 +164,7 @@ export function MaterialisationPanel({
 
           {preview ? (
             <div className="flex flex-col gap-3 rounded-md bg-black/[0.02] p-3 ring-1 ring-(--color-line)">
-              <p className="text-xs font-medium">Nada foi escrito ainda. O apply usa este mesmo planejador.</p>
+              <p className="text-xs font-medium">Nada foi escrito ainda. A aplicação usa este mesmo planejador.</p>
               <ul className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                 <PreviewNumber label="nós a criar" value={preview.nodes_to_create} />
                 <PreviewNumber label="nós a adotar" value={preview.nodes_to_adopt} />
@@ -175,8 +176,8 @@ export function MaterialisationPanel({
 
               {items.some((item) => item.rooted_early) ? (
                 <Notice tone="warn">
-                  {items.filter((item) => item.rooted_early).length} rung(s) ficariam na raiz porque a rung acima delas
-                  não foi aprovada.
+                  {items.filter((item) => item.rooted_early).length} degrau(s) ficariam na raiz porque o degrau acima deles
+                  não foi aprovado.
                 </Notice>
               ) : null}
 
@@ -193,7 +194,7 @@ export function MaterialisationPanel({
               </ul>
               {items.length > visibleItems.length ? (
                 <Button size="sm" variant="ghost" onClick={() => setShowAllItems(true)}>
-                  ver as {formatCount(items.length)} rungs
+                  ver os {formatCount(items.length)} degraus
                 </Button>
               ) : null}
             </div>
@@ -249,7 +250,7 @@ export function MaterialisationPanel({
               hint={
                 term
                   ? "A busca cobre quem autorizou e a nota da decisão."
-                  : "Cada apply grava uma entrada aqui, com o estado anterior das linhas que mudou."
+                  : "Cada aplicação grava uma entrada aqui, com o estado anterior das linhas que mudou."
               }
             />
           ) : null}
