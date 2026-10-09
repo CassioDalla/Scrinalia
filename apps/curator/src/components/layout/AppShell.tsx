@@ -23,7 +23,7 @@ import {
   UserX,
   type LucideIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { fetchCurrentUser, fetchSetupStatus, logout, type AuthUser } from "@/api/client";
 import { Button } from "@/components/ui/Button";
@@ -319,7 +319,9 @@ export function AppShell() {
   // An installation with no account: the screen that creates the first one, and the only time it can
   // ever be reached.
   if (needsSetup) {
-    return <SetupForm />;
+    return <PublicShell>
+      <SetupForm />
+    </PublicShell>;
   }
 
   if (session.isPending) {
@@ -333,7 +335,9 @@ export function AppShell() {
   // No session, an expired one or a refused one: the same screen, because from here they are the same
   // fact — this browser does not identify anybody.
   if (session.isError || !session.data) {
-    return <LoginForm />;
+    return <PublicShell>
+      <LoginForm />
+    </PublicShell>;
   }
 
   const user = session.data;
@@ -341,7 +345,9 @@ export function AppShell() {
   // The temporary password the CLI printed. The screens stay out of reach until it is replaced,
   // otherwise the bootstrap's password would become the account's permanent one.
   if (user.must_change_password) {
-    return <PasswordChangeForm forced />;
+    return <PublicShell>
+      <PasswordChangeForm forced />
+    </PublicShell>;
   }
 
   /*
@@ -530,6 +536,28 @@ export function AppShell() {
         </div>
         <AttributionFooter />
       </main>
+    </div>
+  );
+}
+
+/**
+ * The chrome of the screens that come **before** a session: the first-run setup, the sign-in form
+ * and the forced password change.
+ *
+ * They are not inside the rail — there is no session to navigate with — but they are the surface a
+ * stranger reaches, and the attribution has to be on it. `AttributionFooter`'s own contract says a
+ * notice hidden behind a login is not a notice to the users of a network service, and until now
+ * these three returns replaced the whole tree and took the footer with them: the §7(b) elements,
+ * and the version, were invisible to anyone without an account.
+ *
+ * `min-h-dvh` with the form in a `flex-1` box keeps the centring the three forms already had, and
+ * puts the footer at the bottom of the window instead of under the fold.
+ */
+function PublicShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <div className="flex flex-1 flex-col">{children}</div>
+      <AttributionFooter />
     </div>
   );
 }
