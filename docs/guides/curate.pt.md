@@ -87,7 +87,7 @@ a execução mudou:
 - toda descrição que ele moveu volta à **unidade superior e ao nível que tinha antes**;
 - os nós que a execução **criou** são apagados — o que só é possível restaurando primeiro, porque a
   auto-referência é `RESTRICT`;
-- os planos que apontavam para um nó apagado voltam a "não materializado", para o próximo apply não
+- os planos que apontavam para um nó apagado voltam a "não materializado", para a próxima aplicação não
   tentar ligar descrições a uma linha que não existe mais.
 
 O desfazer **recusa** quando uma execução posterior ligou descrições que o ledger não conhece, porque
@@ -354,36 +354,36 @@ para sempre, e a confirmação (digitar o código de referência) é o que separ
 
 ## Arranjo
 
-O plano é alcançado por `/configuracoes` — decidir as rungs é trabalho de montagem, não curadoria do
+O plano é alcançado por `/configuracoes` — decidir os degraus é trabalho de montagem, não curadoria do
 dia a dia — e o diagnóstico ficou no menu, sob "Acervo", ao lado da árvore que ele lê. Sem o plano, o
 grupo "Arranjo" teria uma linha só, então ele deixou de existir.
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Plano de arranjo — `/arranjo/plano` | aprovar ou rejeitar cada rung proposta, e materializar a árvore | sim — a decisão pode ser reaberta, e a materialização tem desfazer |
+| Plano de arranjo — `/arranjo/plano` | aprovar ou rejeitar cada degrau proposto, e materializar a árvore | sim — a decisão pode ser reaberta, e a materialização tem desfazer |
 | Diagnóstico do arranjo — `/arranjo/diagnostico` | nenhuma (a evidência; o conserto é em outra tela) | sim (só leitura) |
 
 ### Plano de arranjo — `/arranjo/plano`
 
-A máquina lê os códigos de referência e propõe as rungs; a decisão é do arquivista. Em cada rung a
+A máquina lê os códigos de referência e propõe os degraus; a decisão é do arquivista. Em cada degrau a
 evidência vem primeiro — a contagem de descrições, os níveis declarados, as amostras — e o formulário
 por último:
 
 - **Propor níveis** — `POST /api/v1/hierarchy/plans/suggest` (`CURATE`). Escreve as perguntas. É
-  idempotente por código e nunca reescreve uma rung que saiu de `SUGGESTED`, então a mesma pergunta
+  idempotente por código e nunca reescreve um degrau que saiu de `SUGGESTED`, então a mesma pergunta
   não é feita de novo.
-- **Aprovar** uma rung — `PATCH /api/v1/hierarchy/plans/{plan_id}` (`CURATE`) com `APPROVED`, o nível
+- **Aprovar** um degrau — `PATCH /api/v1/hierarchy/plans/{plan_id}` (`CURATE`) com `APPROVED`, o nível
   escolhido, um título opcional, um código opcional em "fundir em" e uma nota. Aprovar **exige** o
   nível: é a decisão que o código não sabe tomar.
-- **Rejeitar** — a mesma rota com `REJECTED`. Uma rung rejeitada deixa suas descrições órfãs de
-  propósito: elas caem na rung aprovada mais próxima acima.
+- **Rejeitar** — a mesma rota com `REJECTED`. Um degrau rejeitado deixa suas descrições órfãs de
+  propósito: elas caem no degrau aprovado mais próximo acima.
 - **Reabrir decisão** — a mesma rota com `SUGGESTED`. Reversível: a decisão volta para a fila e a
   próxima proposta pode atualizar a evidência dela. A decisão nunca é sobrescrita por uma proposta
   nova.
 
-O painel lateral materializa a árvore: ele sempre oferece "Conferir o que será feito" primeiro, e o
-botão de aplicar fica desabilitado até a prévia existir. Só as rungs aprovadas são materializadas. A
-prévia e o apply compartilham um planejador, então o número aprovado é o número escrito. O que o
+O painel lateral materializa a árvore: ele sempre oferece "Conferir impacto" primeiro, e o
+botão de aplicar fica desabilitado até a prévia existir. Só os degraus aprovados são materializados. A
+prévia e a aplicação compartilham um planejador, então o número aprovado é o número escrito. O que o
 desfazer restaura está descrito em **o lote que tem desfazer**.
 
 ### Diagnóstico do arranjo — `/arranjo/diagnostico`
@@ -476,7 +476,7 @@ Pares por similaridade de trigrama, mostrados crus, com a pontuação e os dois 
 leitura é `GET /api/v1/taxonomy/tags/similar`. A similaridade não diz qual grafia é a boa:
 `'alameda cabral'` e `'al. alameda cabral'` têm 1,000.
 
-A decisão é unificar: `POST /api/v1/taxonomy/tags/merge` (`CURATE`), depois de um dry-run
+A decisão é unificar: `POST /api/v1/taxonomy/tags/merge` (`CURATE`), depois de uma prévia
 (`POST /api/v1/taxonomy/tags/merge/preview`, uma leitura que calcula o mesmo plano que a escrita
 executa). O painel abre sempre com o impacto na frente: documentos atualizados, vínculos reescritos,
 tags absorvidas, grafias registradas e reapontadas, e o aviso que precisa ser lido antes do clique —

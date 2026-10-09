@@ -403,7 +403,7 @@ form last:
   queue and the next proposal may refresh its evidence. The decision is never overwritten by a new
   proposal.
 
-The side panel materialises the tree: it always offers "Conferir o que será feito" first, and the
+The side panel materialises the tree: it always offers "Conferir impacto" first, and the
 apply button stays disabled until the preview exists. Only approved rungs are materialised. The
 preview and the apply share one planner, so the approved number is the written number. What the undo
 restores is described under **the batch that does have an undo**.

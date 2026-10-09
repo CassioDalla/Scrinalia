@@ -277,3 +277,39 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   regenerates `openapi.json` and `schema.d.ts` for a description no screen renders — a decision of
   its own, recorded in the commit that left it.
 
+## 2026-10-09 — the copy pass closes its own gap
+
+- **Range:** `f731d2e..24ba826`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the page quoted the materialisation panel's button as
+    "Conferir o que será feito", and the panel now says **"Conferir impacto"** like every other
+    preview in the interface. One line, and it is the report's whole reason for naming the page.
+  - `guides/curate.pt.md` — **updated**: the same quote, plus the words the page had carried in
+    English all along — `rungs` (nine times) is now **degraus**, `apply` is **aplicação**, and
+    `dry-run` is **prévia**. The Portuguese page is the archivist's, and the SPA now names those
+    things in Portuguese; a term in English that the interface already names in Portuguese is the
+    defect the documenter rule names. The English page keeps `rung` and `apply`: they are the
+    project's English words, the ones the API docstrings and `lib/hierarchy.ts` use.
+- **Why this round exists:** the previous entry closed the range with the copy pass declared
+  complete, and it was not. `components/hierarchy/MaterialisationPanel.tsx` — a component and not a
+  screen — kept `rung`, `apply` and `dry-run` through all of it, because the per-screen review never
+  opened it and no gate looked. The commit that fixes it also adds the gate
+  (`test_curator_copy.py`'s retired-word rule), which is why the page's quoted string is the only
+  thing the report could see: the panel is not a `sources:` entry of any page.
+- **What did not move:** the screen count (25), the menu count (16), the settings tables and the
+  data model — no route, no setting, no table and no migration; and the API contract, untouched by
+  this range.
+- **Not carried, on purpose:** the retired-word list is deliberately short and its two omissions are
+  documented in the test — `gravar` in the sense of *recording*, which is not the `Salvar` action,
+  and `desativar`, which is right for an account and wrong for a catalogue row. Neither can be
+  decided from the text, and a pattern that guessed would fail on correct prose.
+- **The round found a hole in itself, by rendering.** The gate's extractor read a JSX text node only
+  up to the first newline, so a sentence the formatter wrapped was read as half a sentence:
+  `só o apply absorve as tags`, on the second line of the proposals tab's warning, survived the
+  review pass, the sweep and the gate's first version. The rendered screen showed it, the pattern now
+  joins a wrapped node, and the extractor's sanity test asserts it does — so the hole is closed by a
+  test rather than by a memory. Two states were rendered for this round and are the evidence for it:
+  the plan screen's materialisation panel (`Conferir impacto`, `de 81 degraus decididos`, `degraus
+  aprovados`, `a aplicação segue o vínculo`) and the tags proposals tab (`incluir no lote de
+  aplicação`).
+
