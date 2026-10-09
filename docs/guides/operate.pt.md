@@ -410,6 +410,44 @@ Um `5xx` é aviso, o resto é linha de informação. As duas sondas do orquestra
 `/health/ready`) ficam fora da linha de acesso — um orquestrador pergunta a cada poucos segundos e
 rotacionaria um arquivo de 50 MB só com "200 OK" — mas não ficam fora da correlação.
 
+## Recuperar acesso
+
+A recuperação de senha é guiada pelo administrador, e qual porta se aplica é a única pergunta:
+
+- **Alguém esqueceu a senha e um administrador consegue entrar.** O administrador abre
+  *Configurações → Usuários*, encontra a conta e usa **redefinir senha** — um botão na própria linha
+  da conta, então a redefinição é alcançada sem expandir a ficha. A senha digitada ali é
+  **temporária**: a conta a troca no primeiro acesso. A redefinição também **encerra todas as sessões**
+  dessa conta e **destrava um bloqueio**, que é o único caso que a tela sozinha resolve. Ela não tem
+  desfazer.
+- **Nenhum administrador consegue entrar** — o último ativo está bloqueado, desativado ou não existe
+  mais. Aí a operação que resolveria é justamente a que ninguém alcança, e a entrada é o terminal do
+  servidor:
+
+```bash
+# Quais contas existem e qual está ativa. O endereço é o que os comandos abaixo recebem.
+uv run python -m scrinalia.domains.identity.cli list
+
+# Uma senha explícita. A conta fica marcada como temporária e a troca no primeiro acesso.
+uv run python -m scrinalia.domains.identity.cli reset-password --email pessoa@instituicao.org --password 'a nova senha'
+
+# Sem --password, ele gera uma, imprime uma vez e marca a conta como temporária.
+uv run python -m scrinalia.domains.identity.cli reset-password --email pessoa@instituicao.org
+
+# Uma conta desativada é reativada antes de conseguir entrar de novo.
+uv run python -m scrinalia.domains.identity.cli activate --email pessoa@instituicao.org
+```
+
+O CLI roda no host contra o mesmo banco e chama **o mesmo serviço** que a API chama, então a política
+de senha, a revogação de sessões e a guarda de último administrador por trás de `deactivate` e
+`set-role` são o mesmo código, e não uma segunda implementação com menos verificações. Ele também é
+como a primeira conta de administrador é criada ([Instalação e implantação](install.md)).
+
+Duas coisas deliberadamente não existem, e a tela de entrada diz isso em vez de fingir o contrário:
+não há **redefinição por e-mail** (nada configura SMTP, e a ADR 0009 deixa a recuperação de
+autosserviço fora de escopo), e não há **tabela de tokens de redefinição** para guardar, expirar ou
+vazar. O *Esqueci minha senha* da tela declara esses dois caminhos e não promete mensagem nenhuma.
+
 ## Medir o acervo
 
 Duas tabelas respondem a duas perguntas diferentes, e um número tirado da tabela errada engana.
@@ -465,8 +503,8 @@ comportamento esperar, e para um limite já pago não ser lido como defeito.
 - **A autenticação tem limites conscientes.** O limitador de tentativas de login é **por processo** e
   zera no restart, e é por isso que a defesa durável é a coluna de bloqueio por conta; revogar uma
   sessão registra que ela foi revogada, não **quem** revogou; e OIDC/SSO, segundo fator e recuperação
-  de senha por e-mail estão fora de escopo (ADR 0009). A recuperação é o administrador, ou o CLI no
-  host. **A primeira conta é uma janela.** Enquanto a `auth_users` estiver vazia, o
+  de senha por e-mail estão fora de escopo (ADR 0009). A recuperação é o administrador ou o CLI no
+  host (veja [Recuperar acesso](#recuperar-acesso)). **A primeira conta é uma janela.** Enquanto a `auth_users` estiver vazia, o
   `POST /api/v1/setup/admin` é público e quem alcançar a instância primeiro pode criar o
   administrador; o lock de tabela torna duas tentativas simultâneas seguras, e nada torna a janela
   segura (ADR 0011). Configure a instância antes de expô-la, e leia o `GET /api/v1/setup/status` —
