@@ -100,3 +100,24 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   states and of what the build produces. Measured on the built site, the Portuguese page keeps the
   Portuguese anchor. The check now bites in both directions; before the fix it accepted a link that
   would answer 404 in the browser.
+
+## 2026-10-09 — the menu collapses to an icon rail
+
+- **Range:** `cb85181..0b41007`
+- **Pages:**
+  - `guides/curate.md` — **updated**: a new *The menu collapses to icons* subsection, plus a clause in
+    the introduction pointing at it. It records what the shell now does — the control in the menu's own
+    header, the 64px icon column, the choice remembered by the browser in `localStorage` (presentation
+    state, not an account setting), the label kept as the link's accessible name with the hint carried
+    by the `title`, the active entry keeping the accent colour, the section headings becoming hairlines
+    — and that the wordmark leaving the menu does not touch the attribution, which `AttributionFooter`
+    renders at the foot of every screen (ADR 0006). Every claim was read in `AppShell.tsx` and looked
+    at in the SPA in both states, reload included.
+  - `guides/curate.pt.md` — **updated**: the translation of the clause and of the subsection.
+- **The sentences that did not move:** what the page already said about the menu is still true —
+  twenty-three entries, one route that is not an entry, the permission filter that hides a group and
+  never grants, and the mirror that cannot grant. Collapsing is presentation and does not touch any of
+  it.
+- **Not documented, on purpose:** the twenty-three glyph choices. The code names one per entry and a
+  page that listed them would go stale the first time somebody picks a clearer one; what the page owes
+  the reader is where the icons come from and what the collapsed entry keeps.
