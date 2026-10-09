@@ -332,14 +332,30 @@ export function AppShell() {
   };
 
   return (
-    <div className="flex min-h-full">
+    /*
+      The shell is **exactly one viewport tall** and the page never scrolls; what scrolls is the
+      content column, inside `main`.
+
+      The version before it used `min-h-full`, so the rail grew to the height of the *page*: on a
+      long screen — the entities list, the plan — the whole menu scrolled out of view, and the
+      session footer went to the bottom of the document instead of the bottom of the window. The
+      `overflow-y-auto` on the nav never engaged, because the nav was never shorter than its
+      content. Measured at 1440x900 at the foot of `/entidades/lista`: a blank rail column and no
+      menu at all, not just the last entry below the fold.
+
+      `h-dvh` and not `h-screen`: the dynamic viewport unit follows a mobile browser's chrome, so
+      the footer does not sit under it. `min-h-0` on the nav and on the content column is what makes
+      them scroll instead of growing — a flex child refuses to shrink below its content by default,
+      which is the trap that broke this layout in the first place.
+    */
+    <div className="flex h-dvh overflow-hidden">
       <aside
         className={cn(
           "flex shrink-0 flex-col border-r border-(--color-line) bg-(--color-surface) transition-[width] duration-150",
           collapsed ? "w-16" : "w-64",
         )}
       >
-        <div className={cn("border-b border-(--color-line)", collapsed ? "px-2 py-2" : "px-4 py-4")}>
+        <div className={cn("shrink-0 border-b border-(--color-line)", collapsed ? "px-2 py-2" : "px-4 py-4")}>
           <div className="flex items-center justify-between gap-2">
             {/*
               The brand leaves the rail when it collapses; the attribution itself does not.
@@ -375,7 +391,7 @@ export function AppShell() {
         <nav
           id="app-nav"
           aria-label="Menu principal"
-          className={cn("flex-1 overflow-y-auto py-3", collapsed ? "px-1.5" : "px-2")}
+          className={cn("min-h-0 flex-1 overflow-y-auto py-3", collapsed ? "px-1.5" : "px-2")}
         >
           {groups.map((group, index) => (
             <div
@@ -450,7 +466,7 @@ export function AppShell() {
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <div className="flex-1">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {changingPassword ? (
             <PasswordChangeForm onDone={() => setChangingPassword(false)} />
           ) : (
@@ -496,7 +512,7 @@ function SessionFooter({
   if (collapsed) {
     const identity = `${user.name} · ${ROLE_LABEL[user.role]} · ${user.email}`;
     return (
-      <div className="flex flex-col items-center gap-2 border-t border-(--color-line) px-1.5 py-3">
+      <div className="flex shrink-0 flex-col items-center gap-2 border-t border-(--color-line) px-1.5 py-3">
         <span
           title={identity}
           aria-label={identity}
@@ -530,7 +546,7 @@ function SessionFooter({
   }
 
   return (
-    <div className="border-t border-(--color-line) px-4 py-3">
+    <div className="shrink-0 border-t border-(--color-line) px-4 py-3">
       <p className="truncate text-sm font-medium">{user.name}</p>
       <p className="truncate text-xs text-(--color-muted)">
         {ROLE_LABEL[user.role]} · {user.email}

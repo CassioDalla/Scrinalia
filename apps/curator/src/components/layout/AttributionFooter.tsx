@@ -15,7 +15,7 @@ import { PRODUCT } from "@/lib/copy";
  */
 export function AttributionFooter() {
   return (
-    <footer className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-(--color-line) bg-(--color-surface) px-4 py-2 text-[11px] text-(--color-muted)">
+    <footer className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-t border-(--color-line) bg-(--color-surface) px-4 py-2 text-[11px] text-(--color-muted)">
       <span>{ATTRIBUTION.name}</span>
       <Separator />
       <span>

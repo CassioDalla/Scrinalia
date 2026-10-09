@@ -45,7 +45,7 @@ export function PageHeader(props: PageHeaderProps) {
       : { title: props.title, subtitle: props.subtitle };
 
   return (
-    <header className="flex flex-wrap items-start justify-between gap-3 border-b border-(--color-line) bg-(--color-surface) px-6 py-4">
+    <header className="sticky top-0 z-10 flex flex-wrap items-start justify-between gap-3 border-b border-(--color-line) bg-(--color-surface) px-6 py-4">
       <div className="min-w-0">
         <h1 className="truncate text-lg font-semibold">{title}</h1>
         {subtitle ? <div className="mt-0.5 text-sm text-(--color-muted)">{subtitle}</div> : null}
