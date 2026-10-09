@@ -10,10 +10,13 @@ nenhuma.
 
 A SPA é servida pela própria API (uma origem, sem CORS), e toda tela lê e escreve pelo cliente gerado
 a partir do contrato OpenAPI. As telas são declaradas em `apps/curator/src/router.tsx` e a navegação
-em `apps/curator/src/components/layout/AppShell.tsx`. O menu tem **23 entradas** porque uma rota não
-é item de menu: a ficha da descrição, `/acervo/$descriptionId`, é alcançada pela lista e pela árvore.
-O roteador, por isso, declara 24 telas. O próprio menu pode ser recolhido a ícones, o que é uma
-escolha de apresentação e não de permissão — *O menu se recolhe a ícones*, abaixo.
+em `apps/curator/src/components/layout/AppShell.tsx`. O menu tem **16 entradas**: as telas que ninguém
+abre no meio da catalogação — o plano de arranjo, os catálogos, o painel de workers, o ledger de
+execuções, os diagnósticos e as contas — são cartões de `/configuracoes`, não itens de menu
+(*Configurações*, abaixo). Uma rota também não vem do menu: a ficha da descrição,
+`/acervo/$descriptionId`, é alcançada pela lista e pela árvore. O roteador, por isso, declara **25
+telas**. O próprio menu pode ser recolhido a ícones, o que é uma escolha de apresentação e não de
+permissão — *O menu se recolhe a ícones*, abaixo.
 
 Vale ler duas páginas junto com esta: [Modelo de dados](data-model.md) para o que os ledgers e as
 tabelas significam, e [Instalação e implantação](install.md) para o esquema, as contas e a
@@ -165,8 +168,15 @@ A casca filtra as entradas pela área em que a tela **escreve**
 (`apps/curator/src/lib/permissions.ts`, um espelho do mapa de papéis do servidor), e um grupo vazio
 não é renderizado. As telas que só leem não carregam permissão e ficam visíveis para todo papel:
 Início, a lista do acervo, a árvore, a trilha de excluídas e o diagnóstico do arranjo. Um `VIEWER`
-vê, portanto, os grupos "Curadoria" e "Acervo" e, em "Arranjo", só "Diagnóstico" — todos os outros
-grupos existem para decidir, e ficam escondidos.
+vê, portanto, exatamente os grupos "Curadoria" e "Acervo" — todos os outros grupos existem para
+decidir, e ficam escondidos.
+
+A mesma regra governa os cartões de `/configuracoes`, e é o catálogo de cartões
+(`apps/curator/src/lib/settings.ts`) que a página e a entrada de menu leem: um cartão fica escondido
+quando a conta não carrega a área em que a tela escreve, uma aba com todos os cartões escondidos não é
+renderizada, e a entrada fica no menu enquanto **ao menos um** cartão for alcançável. Um `VIEWER` não
+tem Configurações nenhuma, e uma URL direta até ela chega a uma página que diz por que está vazia em
+vez de fingir que quebrou.
 
 O espelho é de mão única de propósito. Ele encurta o menu; nunca faz a API aceitar uma requisição. Uma
 URL direta para uma tela em que a conta não pode trabalhar ainda chega à API, e a API responde 403
@@ -286,6 +296,10 @@ para sempre, e a confirmação (digitar o código de referência) é o que separ
 
 ## Arranjo
 
+O plano é alcançado por `/configuracoes` — decidir as rungs é trabalho de montagem, não curadoria do
+dia a dia — e o diagnóstico ficou no menu, sob "Acervo", ao lado da árvore que ele lê. Sem o plano, o
+grupo "Arranjo" teria uma linha só, então ele deixou de existir.
+
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
 | Plano de arranjo — `/arranjo/plano` | aprovar ou rejeitar cada rung proposta, e materializar a árvore | sim — a decisão pode ser reaberta, e a materialização tem desfazer |
@@ -323,6 +337,9 @@ correção silenciosa**: cada linha leva à tela onde o conserto é uma decisão
 ao mesmo tempo `ORPHAN` e `DOSSIER_WITHOUT_PARENT`), por isso não há um total geral.
 
 ## Catálogos
+
+Os três são alcançados por `/configuracoes`, sob *Arranjo e catálogos*: são o vocabulário com que o
+trabalho é escrito, não o trabalho — e é por isso que o menu não os carrega mais.
 
 Os dois catálogos fechados que o arquivista mantém e o vocabulário do acervo. Nenhum deles apaga: uma
 linha se aposenta com `is_active=false`, porque as chaves estrangeiras são `SET NULL` e remover uma
@@ -632,7 +649,9 @@ correção é a revisão humana da ficha, na descrição.
 
 ## Sistema
 
-A máquina, não o acervo. Tudo aqui pertence a quem opera a instalação.
+A máquina, não o acervo. Tudo aqui pertence a quem opera a instalação, e as três telas são alcançadas
+por `/configuracoes`, sob *Operação*: o menu ficou com o que o arquivista consulta catalogando, e não
+é isto.
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
@@ -681,9 +700,30 @@ processo informa que um segredo existe, nunca qual é. Nada aqui escreve.
 
 ## Configurações
 
+A landing que reúne o que a instalação *é*, fora do caminho do que o arquivista faz todo dia. Ela
+mesma não escreve nada.
+
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
+| Configurações — `/configuracoes` | qual tela de montagem abrir | sim (só leitura) |
 | Usuários — `/configuracoes/usuarios` | quem existe, o que pode fazer e onde está conectado | sim (desativar e reativar) |
+
+### Configurações — `/configuracoes`
+
+Uma página de cartões, e cada cartão abre uma tela que já existia com a rota que sempre teve: o que
+mudou foi como se chega até ela. Três abas, na ordem da escada de permissões que elas percorrem:
+
+| Aba | Cartões |
+| --- | --- |
+| Arranjo e catálogos | Plano de arranjo (`CURATE`), Níveis de descrição, Tipologias e Vocabulário do acervo (`CATALOGUE`) |
+| Operação | Workers de IA, Execuções e Diagnóstico (`OPERATE`) |
+| Acesso | Usuários (`ADMIN`) |
+
+A aba fica na URL (`?aba=`), então dá para mandar alguém direto aos "cartões dos workers". Uma aba que
+a conta não pode preencher não é renderizada, e um `?aba=` que a nomeie cai na primeira aba que a
+conta *pode* preencher: um link válido para quem mandou ainda aterrissa em algo honesto para quem lê.
+Cada cartão carrega a área em que a sua tela escreve, e a entrada que abre esta página segue as mesmas
+áreas — a regra está em *O menu esconde; nunca concede*, acima.
 
 ### Usuários — `/configuracoes/usuarios`
 

@@ -1,17 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
-  BookMarked,
   CircleSlash,
-  Cpu,
-  FileType,
   Flag,
   FolderTree,
   GitCompareArrows,
-  HeartPulse,
-  History,
   KeyRound,
-  Layers,
   LayoutDashboard,
   LogOut,
   Network,
@@ -20,14 +14,13 @@ import {
   Ruler,
   Scissors,
   Search,
+  Settings,
   Sparkles,
   Tags,
   Trash2,
   TriangleAlert,
-  UserCog,
   Users,
   UserX,
-  Waypoints,
   type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -38,6 +31,7 @@ import { Skeleton } from "@/components/ui/Feedback";
 import { ATTRIBUTION } from "@/lib/attribution";
 import { cn } from "@/lib/cn";
 import { can, ROLE_LABEL, type Permission } from "@/lib/permissions";
+import { SETTINGS_PATHS, SETTINGS_PERMISSIONS } from "@/lib/settings";
 
 import { AttributionFooter } from "./AttributionFooter";
 import { LoginForm } from "./LoginForm";
@@ -58,6 +52,15 @@ import { PasswordChangeForm } from "./PasswordChangeForm";
  * writes to. A role that lacks it sees a shorter menu, not a button that answers 403; the 403
  * remains the truth and is what a direct URL still gets.
  *
+ * ``anyOf`` is the same rule for a page whose work is spread across areas: ``/configuracoes`` is a
+ * landing of cards, and it is in the menu while the account can open **at least one** of them. A
+ * ``VIEWER`` reaches none, so the entry is not rendered — and the card catalogue
+ * (``lib/settings.ts``) is what both this entry and that page read, so the two cannot disagree.
+ *
+ * Eight entries that used to live here — the arrangement plan, the three catalogue screens, the
+ * worker panel, the run ledger, the machine diagnostics and the accounts — are now cards of that
+ * landing. They left the menu, not the sitemap: each kept its route and its screen.
+ *
  * ``icon`` is one glyph per entry, and the set comes from ``lucide-react``. That is the recorded
  * decision of issue #21: a maintained library of consistent 24px glyphs, imported per icon so the
  * bundler keeps only the ones the menu names, instead of twenty-three hand-drawn SVGs inside this
@@ -65,61 +68,50 @@ import { PasswordChangeForm } from "./PasswordChangeForm";
  * carries the entry's identity on its own — the label stays reachable as its accessible name and as
  * the tooltip.
  */
-type NavItem = { to: string; label: string; hint: string; icon: LucideIcon; permission?: Permission };
+type NavItem = {
+  to: string;
+  label: string;
+  hint: string;
+  icon: LucideIcon;
+  permission?: Permission;
+  anyOf?: readonly Permission[];
+  /**
+   * Paths that also count as "this entry" for the highlight.
+   *
+   * The landing's screens left the menu, and without this the rail would show nothing selected while
+   * the archivist is standing on one of them.
+   */
+  alsoActive?: readonly string[];
+};
 
-const NAV: { section: string; items: NavItem[] }[] = [
+/** ``section`` is optional: the landing at the foot of the menu stands on its own, with no heading. */
+type NavGroup = { id: string; section?: string; items: NavItem[] };
+
+const NAV: NavGroup[] = [
   {
+    id: "curadoria",
     section: "Curadoria",
     items: [{ to: "/", label: "Início", hint: "O que precisa de mim", icon: LayoutDashboard }],
   },
   {
+    id: "acervo",
     section: "Acervo",
     items: [
       { to: "/acervo/lista", label: "Lista e busca", hint: "Facetas e ranking", icon: Search },
       { to: "/acervo/arvore", label: "Árvore", hint: "Navegar pelo arranjo", icon: Network },
       { to: "/acervo/excluidas", label: "Excluídas", hint: "A trilha do que saiu", icon: Trash2 },
-    ],
-  },
-  {
-    section: "Arranjo",
-    items: [
-      {
-        to: "/arranjo/plano",
-        label: "Plano de arranjo",
-        hint: "Decidir os níveis",
-        icon: Waypoints,
-        permission: "CURATE",
-      },
+      /*
+        The arrangement diagnostic sits with the collection and not in a group of its own.
+
+        It reads the tree the three entries above browse — where a code diverges, what is orphaned —
+        and it stayed behind when "Arranjo" lost its only other entry (the plan, now a card), so
+        keeping the heading would have left a section that exists to hold one line.
+       */
       { to: "/arranjo/diagnostico", label: "Diagnóstico", hint: "Onde está incoerente", icon: TriangleAlert },
     ],
   },
   {
-    /*
-      The two closed catalogues the archivist maintains, together and apart from "Arranjo".
-      The arrangement is *work* — deciding where each description sits; a catalogue is the
-      vocabulary that work is written against. Typologies are not arrangement (and not subject
-      either), so filing them under Arranjo would put engine labels in the middle of the tree.
-    */
-    section: "Catálogos",
-    items: [
-      {
-        to: "/arranjo/niveis",
-        label: "Níveis de descrição",
-        hint: "A escada NOBRADE",
-        icon: Layers,
-        permission: "CATALOGUE",
-      },
-      { to: "/arranjo/tipologias", label: "Tipologias", hint: "A forma diplomática", icon: FileType, permission: "CATALOGUE" },
-      {
-        to: "/vocabulario",
-        label: "Vocabulário do acervo",
-        hint: "Nomes e lugares deste acervo",
-        icon: BookMarked,
-        permission: "CATALOGUE",
-      },
-    ],
-  },
-  {
+    id: "assuntos",
     section: "Assuntos",
     items: [
       { to: "/assuntos/tags", label: "Tags", hint: "Peso, duplicatas e merges", icon: Tags, permission: "CURATE" },
@@ -147,6 +139,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     ],
   },
   {
+    id: "entidades",
     section: "Entidades",
     items: [
       { to: "/entidades/lista", label: "Entidades", hint: "NER: peso, tipo e merge", icon: Users, permission: "CURATE" },
@@ -167,6 +160,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     ],
   },
   {
+    id: "qualidade",
     section: "Qualidade",
     items: [
       { to: "/qualidade/trechos", label: "Trechos", hint: "Boilerplate e escopo", icon: Scissors, permission: "CATALOGUE" },
@@ -181,46 +175,41 @@ const NAV: { section: string; items: NavItem[] }[] = [
     ],
   },
   {
-    section: "Sistema",
-    items: [
-      {
-        to: "/sistema/workers",
-        label: "Workers de IA",
-        hint: "Presets, filas e execução",
-        icon: Cpu,
-        permission: "OPERATE",
-      },
-      { to: "/sistema/execucoes", label: "Execuções", hint: "O ledger do que rodou", icon: History, permission: "OPERATE" },
-      {
-        to: "/sistema/diagnostico",
-        label: "Diagnóstico",
-        hint: "Banco, modelos e storage",
-        icon: HeartPulse,
-        permission: "OPERATE",
-      },
-    ],
-  },
-  {
     /*
-      The installation's own settings, at the end and apart from "Sistema".
-      
-      "Sistema" is what the *machine* is doing (workers, runs, probes) and belongs to whoever
-      operates the installation; "Configurações" is what the installation *is* — the accounts first,
-      and later the worker settings that today live inside the panel. Both are administrative, and
-      neither is curation.
+      The landing, at the foot of the menu and without a heading.
+
+      "Configurações" used to be a section that aggregated a single entry, and the fix for that was
+      not a better heading: everything the installation *is* — the accounts, the catalogues, the
+      arrangement plan, the worker panel and the machine probes — became cards of one page, and the
+      entry that opens it belongs to no group. It is separated by the hairline the rail already draws
+      between groups, and it is in the menu exactly while the account can open a card.
     */
-    section: "Configurações",
+    id: "configuracoes",
     items: [
       {
-        to: "/configuracoes/usuarios",
-        label: "Usuários",
-        hint: "Contas, papéis e sessões",
-        icon: UserCog,
-        permission: "ADMIN",
+        to: "/configuracoes",
+        label: "Configurações",
+        hint: "Contas, catálogos e operação",
+        icon: Settings,
+        anyOf: SETTINGS_PERMISSIONS,
+        alsoActive: SETTINGS_PATHS,
       },
     ],
   },
 ];
+
+/**
+ * Whether the account sees an entry.
+ *
+ * `permission` is one area and `anyOf` is "at least one of these", which is what a landing of card
+ * pages needs: the shell may hide an entry, and it must never be the thing that grants one, so both
+ * halves only ever take an entry away.
+ */
+function reaches(role: AuthUser["role"], item: NavItem): boolean {
+  if (item.permission && !can(role, item.permission)) return false;
+  if (item.anyOf && !item.anyOf.some((area) => can(role, area))) return false;
+  return true;
+}
 
 /**
  * Whether the rail is collapsed, remembered by the browser.
@@ -298,8 +287,8 @@ export function AppShell() {
     behind.
   */
   const groups = NAV.map((group) => ({
-    section: group.section,
-    items: group.items.filter((item) => !item.permission || can(user.role, item.permission)),
+    ...group,
+    items: group.items.filter((item) => reaches(user.role, item)),
   })).filter((group) => group.items.length > 0);
 
   const toggleSidebar = () => {
@@ -356,12 +345,19 @@ export function AppShell() {
         >
           {groups.map((group, index) => (
             <div
-              key={group.section}
-              // Collapsed, a group boundary is a hairline instead of a heading: the words are gone and
-              // the separation is still what tells the archivist where one vocabulary ends.
-              className={cn(collapsed ? index > 0 && "mt-3 border-t border-(--color-line) pt-3" : "mb-3")}
+              key={group.id}
+              /*
+                Collapsed, a group boundary is a hairline instead of a heading: the words are gone and
+                the separation is still what tells the archivist where one vocabulary ends. Expanded,
+                the hairline is drawn only for the group that has no heading at all — the landing at
+                the foot of the menu — because everywhere else the heading is the separation.
+              */
+              className={cn(
+                collapsed ? index > 0 && "mt-3 border-t border-(--color-line) pt-3" : "mb-3",
+                !collapsed && !group.section && index > 0 && "mt-3 border-t border-(--color-line) pt-3",
+              )}
             >
-              {collapsed ? null : (
+              {collapsed || !group.section ? null : (
                 <p className="px-2 pb-1 text-[11px] font-semibold tracking-wide text-(--color-muted) uppercase">
                   {group.section}
                 </p>
@@ -369,7 +365,11 @@ export function AppShell() {
               <ul className={cn(collapsed && "space-y-1")}>
                 {group.items.map((item) => {
                   const Icon = item.icon;
-                  const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
+                  const active =
+                    item.to === "/"
+                      ? pathname === "/"
+                      : pathname.startsWith(item.to) ||
+                        (item.alsoActive ?? []).some((path) => pathname.startsWith(path));
                   return (
                     <li key={item.to}>
                       <Link
