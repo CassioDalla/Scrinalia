@@ -15,6 +15,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton, Spinner } from "@/components/ui/Feedback";
 import { Input, Select } from "@/components/ui/Input";
 import { cn } from "@/lib/cn";
+import { ACTION } from "@/lib/copy";
 import { formatCount, formatDate, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
 import { nodeLabel } from "@/lib/hierarchy";
 import { asString } from "@/lib/search";
@@ -72,8 +73,7 @@ export function TreeRoute() {
   return (
     <>
       <PageHeader
-        title="Árvore arquivística"
-        subtitle="Navegação pelo arranjo materializado. Escolher um nó mostra o ramo e as descrições que ele contém."
+        screen="tree"
         actions={
           <div className="flex items-center gap-2">
             <Button
@@ -81,7 +81,7 @@ export function TreeRoute() {
               variant={creating ? "secondary" : "primary"}
               onClick={() => setCreating((current) => !current)}
             >
-              {creating ? "cancelar criação" : "Criar nó"}
+              {creating ? ACTION.cancel.label : "Criar nó"}
             </Button>
             <Link to="/arranjo/plano">
               <Button size="sm">Plano de arranjo</Button>
@@ -94,7 +94,7 @@ export function TreeRoute() {
         <div className="border-b border-(--color-warn)/20 bg-(--color-warn)/5 px-6 py-2 text-xs text-(--color-warn)">
           <strong>{formatCount(orphans)} descrições ainda não têm unidade superior.</strong> O que
           aparece abaixo é só o que já foi materializado — o resto continua na raiz, esperando a decisão
-          das rungs.{" "}
+          dos degraus.{" "}
           <Link to="/arranjo/diagnostico" className="underline">
             Ver o diagnóstico
           </Link>
@@ -248,7 +248,7 @@ function CreateNodePanel({
       <CardBody className="grid gap-3">
         <p className="text-xs text-(--color-muted)">
           Um Fundo, uma Seção ou uma Série <strong>sem documentos</strong> não sai de nenhum código de
-          referência, e o plano só decide as rungs que o fatiador propôs. Declarar aqui é o outro
+          referência, e o plano só decide os degraus que o fatiador propôs. Declarar aqui é o outro
           caminho: a descrição nasce <code>HUMAN_APPROVED</code> e a escada é validada contra o pai
           escolhido pela mesma regra do mover.
         </p>
@@ -316,10 +316,10 @@ function CreateNodePanel({
 
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="primary" disabled={!valid || create.isPending} onClick={() => create.mutate()}>
-            {create.isPending ? "Criando…" : "Criar nó"}
+            {create.isPending ? ACTION.create.pending : "Criar nó"}
           </Button>
           <Button variant="ghost" onClick={onClose}>
-            cancelar
+            {ACTION.cancel.label}
           </Button>
           {!valid ? (
             <span className="text-xs text-(--color-muted)">

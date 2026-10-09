@@ -34,6 +34,7 @@ import { EmptyState, ErrorState, Skeleton, Spinner } from "@/components/ui/Feedb
 import { Input, Select } from "@/components/ui/Input";
 import { LedgerList } from "@/components/ui/LedgerList";
 import { Tabs } from "@/components/ui/Tabs";
+import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { asBoolean, asEnum, asNumber, asString } from "@/lib/search";
 import { useDebounced } from "@/lib/useDebounced";
@@ -132,10 +133,7 @@ export function TagsRoute() {
 
   return (
     <>
-      <PageHeader
-        title="Vocabulário de tags"
-        subtitle="Peso, duplicatas e a fila de merges — a decisão é sempre sua, e o merge é reversível."
-      />
+      <PageHeader screen="tags" />
 
       <div className="px-6">
         <Tabs
@@ -329,7 +327,7 @@ function SimilarityTab({
    * names that are gone.
    */
   const afterMerge = (outcome: MergeResponse) => {
-    setLastMerge({ label: "Unificação aplicada", outcome });
+    setLastMerge({ label: "Mesclagem aplicada", outcome });
     setMarked([]);
     invalidate();
   };
@@ -366,8 +364,8 @@ function SimilarityTab({
       <p className="max-w-3xl text-xs text-(--color-muted)">
         Pares por similaridade de trigrama. É a evidência que a proposta de merge usa — mostrada crua, sem julgar:
         <code> 'alameda cabral' </code> e <code> 'al. alameda cabral' </code> têm similaridade 1.000, e nenhum
-        limiar distingue sozinho o que é abreviação do que é outra coisa. Por isso o par traz o botão de unificar e
-        a escolha da canônica: a decisão é sua, com o impacto na frente, e o ledger desfaz. Para juntar mais de um
+        limiar distingue sozinho o que é abreviação do que é outra coisa. Por isso o par traz o botão de mesclar e
+        a escolha da canônica: a decisão é sua, com o impacto na frente, e o ledger desfaz. Para mesclar mais de um
         par de uma vez — “carlos de carvalho” aparece em várias linhas —, marque as linhas e use a barra que aparece
         embaixo.
       </p>
@@ -384,7 +382,7 @@ function SimilarityTab({
       {clusterOpen && marked.length >= 2 ? (
         <TagMergePanel
           members={marked}
-          title={`Unificar ${formatCount(marked.length)} tags marcadas`}
+          title={`Mesclar ${formatCount(marked.length)} tags marcadas`}
           hint="Estas tags vieram de linhas diferentes da lista: a canônica é escolhida abaixo, e o impacto é recalculado para o conjunto inteiro."
           onMerged={afterMerge}
           onClose={closePanel}
@@ -421,7 +419,7 @@ function SimilarityTab({
                         type="checkbox"
                         checked={rowMarked(pair)}
                         onChange={() => toggleRow(pair)}
-                        title="Marcar as duas tags desta linha para unificar em conjunto"
+                        title="Marcar as duas tags desta linha para mesclar em conjunto"
                         aria-label={`Marcar ${pair.name_1} e ${pair.name_2}`}
                       />
                       <span className="truncate">{pair.name_1}</span>
@@ -441,7 +439,7 @@ function SimilarityTab({
                         variant="secondary"
                         onClick={() => setOpenPair(openPair === pair ? null : pair)}
                       >
-                        {openPair === pair ? "fechar" : "unificar ↦"}
+                        {openPair === pair ? ACTION.close.label : "Mesclar ↦"}
                       </Button>
                     </span>
                   </div>
@@ -457,7 +455,7 @@ function SimilarityTab({
                           { tag_id: pair.id_1, name: pair.name_1 },
                           { tag_id: pair.id_2, name: pair.name_2 },
                         ]}
-                        title="Unificar duas tags"
+                        title="Mesclar duas tags"
                         onMerged={afterMerge}
                         onClose={closePanel}
                       />
@@ -633,7 +631,7 @@ function TagMergePanel({
   return (
     <Card className="ring-(--color-accent)/40">
       <CardBody className="grid gap-3">
-        <p className="text-sm font-semibold">{title ?? "Unificar tags"}</p>
+        <p className="text-sm font-semibold">{title ?? "Mesclar tags"}</p>
         {hint ? <p className="text-xs text-(--color-muted)">{hint}</p> : null}
 
         <div className="grid gap-2 text-xs">
@@ -682,7 +680,7 @@ function TagMergePanel({
 
         <p className="text-xs text-(--color-muted)">
           A similaridade não diz qual delas é a boa: a lista vem crua. Desmarque o que não pertence ao conjunto —
-          “289 anos” não é “294 anos” — e o impacto é recalculado com o mesmo planejador do unificar.
+          “289 anos” não é “294 anos” — e o impacto é recalculado com o mesmo planejador da mesclagem.
         </p>
 
         {preview.isPending ? <Spinner label="Conferindo o impacto…" /> : null}
@@ -690,7 +688,7 @@ function TagMergePanel({
 
         {preview.data ? (
           <div className="grid gap-1 rounded-md bg-black/[0.02] p-3 text-xs ring-1 ring-(--color-line)">
-            <p className="font-medium">Nada foi escrito ainda. O unificar usa este mesmo planejador.</p>
+            <p className="font-medium">Nada foi escrito ainda. A mesclagem usa este mesmo planejador.</p>
             <p className="text-(--color-muted)">
               {formatCount(preview.data.documents_updated)} documento(s) atualizado(s) ·{" "}
               {formatCount(preview.data.links_rewritten)} vínculo(s) reescrito(s) ·{" "}
@@ -738,18 +736,18 @@ function TagMergePanel({
                 ? "Um cluster precisa de ao menos duas tags: uma canônica e uma absorvida."
                 : preview.data
                   ? undefined
-                  : "O impacto é obrigatório: o unificar espera o dry-run."
+                  : "O impacto é obrigatório: conferir o impacto vem antes de mesclar."
             }
             onClick={() => merge.mutate()}
           >
             {merge.isPending
-              ? "Unificando…"
+              ? ACTION.merge.pending
               : absorbed.length === 1
-                ? `Unificar ${absorbed[0]?.name} em ${nameOf(canonicalId)}`
-                : `Unificar ${formatCount(absorbed.length)} tags em ${nameOf(canonicalId)}`}
+                ? `Mesclar ${absorbed[0]?.name} em ${nameOf(canonicalId)}`
+                : `Mesclar ${formatCount(absorbed.length)} tags em ${nameOf(canonicalId)}`}
           </Button>
           <Button variant="ghost" onClick={onClose}>
-            {outcome ? "fechar" : "cancelar"}
+            {outcome ? ACTION.close.label : ACTION.cancel.label}
           </Button>
         </div>
 
@@ -984,10 +982,10 @@ function ProposalsTab({
       ) : null}
 
       {fulfilled.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-md bg-(--color-surface-2) px-3 py-2 ring-1 ring-(--color-line)">
+        <div className="flex flex-wrap items-center gap-3 rounded-md bg-black/[0.02] px-3 py-2 ring-1 ring-(--color-line)">
           <span className="text-xs text-(--color-muted)">
             <strong>{formatCount(fulfilled.length)}</strong> cluster(s) aprovado(s) nesta página{" "}
-            <strong>já não têm o que absorver</strong>: os membros foram unificados por outra mesclagem (ou apagados por
+            <strong>já não têm o que absorver</strong>: os membros foram mesclados por outra mesclagem (ou excluídos por
             uma purga). Não são falhas — não há nada a aplicar.
           </span>
           <Button
@@ -1332,7 +1330,7 @@ function ProposalCard({
 
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" disabled={dryRun.isPending} onClick={() => dryRun.mutate()}>
-            {dryRun.isPending ? "Conferindo…" : "Conferir impacto"}
+            {dryRun.isPending ? ACTION.preview.pending : ACTION.preview.label}
           </Button>
           <Button
             size="sm"
@@ -1359,7 +1357,7 @@ function ProposalCard({
               size="sm"
               variant={editing ? "primary" : "secondary"}
               onClick={onEdit}
-              title="Tirar membros do cluster antes de unificar"
+              title="Tirar membros do cluster antes de mesclar"
             >
               {editing ? "fechando edição" : "editar"}
             </Button>
@@ -1487,7 +1485,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
     <div className="grid gap-4">
       <p className="max-w-3xl rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
         <strong>Banir não apaga nada.</strong> Banir registra que o termo não vale; a <strong>purga</strong> é o passo
-        que apaga as tags com esse nome — e ela <strong>não tem undo</strong>: o merge guarda o estado anterior e
+        que exclui as tags com esse nome — e ela <strong>não tem desfazer</strong>: o merge guarda o estado anterior e
         restaura, a purga não. Por isso ela vem sempre depois de conferir o impacto.
       </p>
 
@@ -1552,7 +1550,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
                     disabled={unban.isPending}
                     onClick={() => unban.mutate(item.word)}
                   >
-                    desbanir
+                    {ACTION.unban.label}
                   </Button>
                 </div>
               )}
@@ -1593,7 +1591,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
               disabled={splitWords(draft).length === 0 || ban.isPending}
               onClick={() => ban.mutate()}
             >
-              {ban.isPending ? "Banindo…" : "Banir"}
+              {ban.isPending ? ACTION.ban.pending : ACTION.ban.label}
             </Button>
           </div>
           <p className="text-xs text-(--color-muted)">{STOPWORD_SCOPE_HINT[draftScope]}</p>
@@ -1603,7 +1601,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
       </Card>
 
       <Card className="ring-(--color-danger)/30">
-        <CardHeader className="text-sm font-semibold text-(--color-danger)">Purgar as tags banidas</CardHeader>
+        <CardHeader className="text-sm font-semibold text-(--color-danger)">Excluir as tags banidas</CardHeader>
         <CardBody className="grid gap-3">
           <p className="text-xs text-(--color-muted)">
             A purga apaga toda tag cujo nome seja um termo banido nos eixos <code>TAG</code> ou <code>ALL</code>. Os
@@ -1612,19 +1610,19 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
 
           <div className="flex flex-wrap items-center gap-2">
             <Button disabled={dryRun.isPending || purge.isPending} onClick={() => dryRun.mutate()}>
-              {dryRun.isPending ? "Conferindo…" : "Conferir o que seria apagado"}
+              {dryRun.isPending ? ACTION.preview.pending : ACTION.preview.label}
             </Button>
             <Button
               variant="danger"
               disabled={!preview || preview.total_tags === 0 || purge.isPending}
-              title={preview ? undefined : "O impacto é obrigatório: confira o que seria apagado primeiro."}
+              title={preview ? undefined : "O impacto é obrigatório: confira o que seria excluído primeiro."}
               onClick={() => purge.mutate()}
             >
               {purge.isPending
-                ? "Apagando…"
+                ? ACTION.exclude.pending
                 : preview
-                  ? `Apagar ${formatCount(preview.total_tags)} tag(s)`
-                  : "Apagar (confira antes)"}
+                  ? `Excluir ${formatCount(preview.total_tags)} tag(s)`
+                  : "Excluir (confira antes)"}
             </Button>
           </div>
 
@@ -1634,7 +1632,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
           {preview ? (
             <div className="grid gap-2 rounded-md bg-(--color-danger)/5 p-3 text-xs ring-1 ring-(--color-danger)/20">
               <p>
-                Nada foi apagado ainda. Seriam <strong>{formatCount(preview.total_tags)} tag(s)</strong> em{" "}
+                Nada foi excluído ainda. Seriam <strong>{formatCount(preview.total_tags)} tag(s)</strong> em{" "}
                 <strong>{formatCount(preview.total_documents)} descrição(ões)</strong>.
               </p>
               {(preview.stopwords ?? []).length > 0 ? (
@@ -1644,7 +1642,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
               ) : null}
               {preview.total_tags === 0 ? (
                 <p className="text-(--color-muted)">
-                  Nenhuma tag do acervo tem um desses nomes — não há o que apagar.
+                  Nenhuma tag do acervo tem um desses nomes — não há o que excluir.
                 </p>
               ) : (
                 <ul className="max-h-64 overflow-y-auto">

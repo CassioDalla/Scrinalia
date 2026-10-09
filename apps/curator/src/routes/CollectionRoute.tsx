@@ -265,17 +265,16 @@ export function CollectionRoute() {
   return (
     <>
       <PageHeader
-        title="Acervo"
-        subtitle={
+        screen="collection"
+        pending={isPending}
+        status={
           data ? (
             <>
               {formatCount(total)} descrições
               {search.term ? ` para “${search.term}”` : ""}
-              {isFetching ? <span className="ml-2 text-xs">atualizando…</span> : null}
+              {isFetching ? <span className="ml-2">atualizando…</span> : null}
             </>
-          ) : (
-            "Buscando…"
-          )
+          ) : undefined
         }
       />
 

@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Input, Select } from "@/components/ui/Input";
+import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
 import {
   PLAN_FLAG_HINT,
@@ -101,16 +102,15 @@ export function PlanRoute() {
   return (
     <>
       <PageHeader
-        title="Plano de arranjo"
-        subtitle={
+        screen="plan"
+        pending={plans.isPending}
+        status={
           plans.data ? (
             <>
-              {formatCount(visible.length)} de {formatCount(catalogueTotal)} rungs
+              {formatCount(visible.length)} de {formatCount(catalogueTotal)} degraus
               {search.status ? ` · ${labelOf(PLAN_STATUS_LABEL, search.status)}` : ""}
             </>
-          ) : (
-            "Lendo o catálogo de decisões…"
-          )
+          ) : undefined
         }
         actions={
           <div className="flex flex-wrap items-center gap-2">
@@ -135,14 +135,14 @@ export function PlanRoute() {
       <div className="flex min-h-0">
         <div className="min-w-0 flex-1 px-6 py-5">
           <p className="mb-4 max-w-3xl text-sm text-(--color-muted)">
-            A máquina lê os códigos de referência e propõe as rungs; a decisão é sua. Nada é criado no acervo até a
-            materialização — e uma decisão tomada nunca é sobrescrita por uma nova proposta. Cada rung abre no clique:
+            A máquina lê os códigos de referência e propõe os degraus; a decisão é sua. Nada é criado no acervo até a
+            materialização — e uma decisão tomada nunca é sobrescrita por uma nova proposta. Cada degrau abre no clique:
             recolhida, a lista mostra o que já foi decidido sem os formulários no meio.
           </p>
 
           {suggest.data ? (
             <p className="mb-4 rounded-md bg-(--color-ok)/5 px-3 py-2 text-xs text-(--color-ok) ring-1 ring-(--color-ok)/25">
-              Proposta: {formatCount(suggest.data.created)} rung(s) nova(s), {formatCount(suggest.data.refreshed)}{" "}
+              Proposta: {formatCount(suggest.data.created)} degrau(s) novo(s), {formatCount(suggest.data.refreshed)}{" "}
               atualizada(s), {formatCount(suggest.data.preserved)} decisão(ões) preservada(s). Total no catálogo:{" "}
               {formatCount(suggest.data.total)}.
             </p>
@@ -195,7 +195,7 @@ export function PlanRoute() {
           {plans.data && catalogueTotal === 0 ? (
             <EmptyState
               title="O catálogo de decisões está vazio"
-              hint="Nenhuma rung foi proposta ainda. A proposta lê os códigos de referência do acervo e escreve as perguntas — nenhum nó é criado na coleção."
+              hint="Nenhum degrau foi proposto ainda. A proposta lê os códigos de referência do acervo e escreve as perguntas — nenhum nó é criado na coleção."
               action={
                 <Button onClick={() => suggest.mutate()} disabled={suggest.isPending}>
                   Propor níveis
@@ -206,8 +206,8 @@ export function PlanRoute() {
 
           {plans.data && catalogueTotal > 0 && visible.length === 0 ? (
             <EmptyState
-              title="Nenhuma rung com este filtro"
-              hint="Há rungs no catálogo, mas nenhuma casa com o aviso ou o código que você digitou."
+              title="Nenhum degrau com este filtro"
+              hint="Há degraus no catálogo, mas nenhum casa com o aviso ou o código que você digitou."
               action={
                 <Button size="sm" onClick={() => navigate({ to: "/arranjo/plano", search: {} })}>
                   Limpar filtros
@@ -294,7 +294,7 @@ function PlanCard({
   return (
     <Disclosure
       className={isSuggested ? "ring-(--color-accent)/40" : undefined}
-      toggleLabel={isSuggested ? "Decidir esta rung" : "Ver a decisão e as amostras"}
+      toggleLabel={isSuggested ? "Decidir este degrau" : "Ver a decisão e as amostras"}
       header={
         <div className="flex flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2">
@@ -330,7 +330,7 @@ function PlanCard({
 
           {plan.collapse_into_code ? (
             <p className="text-xs text-(--color-accent)">
-              Esta rung <strong>é</strong> <code>{plan.collapse_into_code}</code>: o apply segue o vínculo.
+              Este degrau <strong>é</strong> <code>{plan.collapse_into_code}</code>: a aplicação segue o vínculo.
             </p>
           ) : null}
         </div>
@@ -341,7 +341,7 @@ function PlanCard({
             size="sm"
             variant="ghost"
             disabled={decide.isPending}
-            title="Volta a rung para 'sugerido': a próxima proposta pode atualizar a evidência de novo."
+            title="Volta o degrau para 'sugerido': a próxima proposta pode atualizar a evidência de novo."
             onClick={() => decide.mutate("SUGGESTED")}
           >
             Reabrir decisão
@@ -394,11 +394,11 @@ function PlanCard({
               />
             </label>
             <label className="flex flex-col gap-1 text-xs">
-              <span className="text-(--color-muted)">Fundir em (esta rung é o mesmo nível que…)</span>
+              <span className="text-(--color-muted)">Fundir em (este degrau é o mesmo nível que…)</span>
               <Input
                 value={collapse}
                 onChange={(event) => setCollapse(event.target.value)}
-                placeholder="código de outra rung"
+                placeholder="código de outro degrau"
                 list={`codes-${plan.plan_id}`}
                 maxLength={500}
               />
@@ -429,7 +429,7 @@ function PlanCard({
               disabled={!canApprove || decide.isPending}
               onClick={() => decide.mutate("APPROVED")}
             >
-              {decide.isPending ? "Salvando…" : "Aprovar"}
+              {decide.isPending ? ACTION.save.pending : "Aprovar"}
             </Button>
             <Button size="sm" variant="danger" disabled={decide.isPending} onClick={() => decide.mutate("REJECTED")}>
               Rejeitar
@@ -438,7 +438,7 @@ function PlanCard({
         </div>
       ) : (
         <p className="text-xs text-(--color-muted)">
-          Reabrir devolve a rung para “sugerido”: a próxima proposta volta a atualizar a evidência dela.
+          Reabrir devolve o degrau para “sugerido”: a próxima proposta volta a atualizar a evidência dela.
         </p>
       )}
 

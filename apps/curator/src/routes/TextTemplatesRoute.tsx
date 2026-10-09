@@ -22,6 +22,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input, Select } from "@/components/ui/Input";
+import { ACTION } from "@/lib/copy";
 import { formatCount } from "@/lib/format";
 import {
   TEMPLATE_ACTION_LABEL,
@@ -84,13 +85,14 @@ export function TextTemplatesRoute() {
   return (
     <>
       <PageHeader
-        title="Trechos repetidos"
-        subtitle={
+        screen="textTemplates"
+        pending={templates.isPending}
+        status={
           templates.data
             ? rows.length === 0
               ? "Nenhum trecho no filtro atual"
               : `${formatCount(rows.length)} trechos no filtro atual`
-            : "Lendo o catálogo de trechos…"
+            : undefined
         }
       />
 
@@ -277,14 +279,14 @@ function TemplateCard({ template, onChanged }: { template: TextTemplate; onChang
               disabled={save.isPending}
               onClick={() => save.mutate({ scope })}
             >
-              {save.isPending ? "Salvando…" : "salvar escopo"}
+              {save.isPending ? ACTION.save.pending : "Salvar escopo"}
             </Button>
           ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="secondary" disabled={dryRun.isPending} onClick={() => dryRun.mutate()}>
-            {dryRun.isPending ? "Conferindo…" : "Conferir impacto"}
+            {dryRun.isPending ? ACTION.preview.pending : ACTION.preview.label}
           </Button>
 
           {status !== "APPROVED" ? (
@@ -294,7 +296,7 @@ function TemplateCard({ template, onChanged }: { template: TextTemplate; onChang
               disabled={save.isPending}
               onClick={() => save.mutate({ status: "APPROVED", is_active: true, scope })}
             >
-              aprovar
+              Aprovar
             </Button>
           ) : (
             <Button
@@ -303,13 +305,13 @@ function TemplateCard({ template, onChanged }: { template: TextTemplate; onChang
               disabled={save.isPending}
               onClick={() => save.mutate({ is_active: false })}
             >
-              desativar
+              {ACTION.retire.label}
             </Button>
           )}
 
           {status !== "REJECTED" ? (
             <Button size="sm" variant="ghost" disabled={save.isPending} onClick={() => save.mutate({ status: "REJECTED" })}>
-              rejeitar
+              Rejeitar
             </Button>
           ) : null}
 
@@ -320,7 +322,7 @@ function TemplateCard({ template, onChanged }: { template: TextTemplate; onChang
             title="Remove do catálogo e devolve os documentos afetados à fila da IA"
             onClick={() => remove.mutate()}
           >
-            remover
+            {ACTION.remove.label}
           </Button>
         </div>
 
@@ -393,15 +395,15 @@ function NewTemplateCard({ onCreated }: { onCreated: () => void }) {
         <div className="grid gap-1">
           <span className="text-sm font-semibold">Escrever um trecho</span>
           <span className="text-xs text-(--color-muted)">
-            O cadastro aplica o trecho e devolve os documentos afetados à fila da IA; só libera depois do impacto.
+            Criar o trecho já o aplica e devolve os documentos afetados à fila da IA; só libera depois do impacto.
           </span>
         </div>
       }
     >
       <div className="grid gap-2">
         <p className="text-xs text-(--color-muted)">
-          O cadastro já aplica o trecho e devolve os documentos afetados à fila da IA. Por isso o
-          botão de cadastrar só libera depois de conferir o impacto.
+          Criar o trecho já o aplica e devolve os documentos afetados à fila da IA. Por isso o
+          botão de criar só libera depois de conferir o impacto.
         </p>
         <textarea
           value={text}
@@ -464,7 +466,7 @@ function NewTemplateCard({ onCreated }: { onCreated: () => void }) {
             disabled={text.trim().length === 0 || dryRun.isPending}
             onClick={() => dryRun.mutate()}
           >
-            {dryRun.isPending ? "Conferindo…" : "Conferir impacto"}
+            {dryRun.isPending ? ACTION.preview.pending : ACTION.preview.label}
           </Button>
           <Button
             size="sm"
@@ -472,7 +474,7 @@ function NewTemplateCard({ onCreated }: { onCreated: () => void }) {
             disabled={text.trim().length === 0 || preview === null || create.isPending}
             onClick={() => create.mutate()}
           >
-            {create.isPending ? "Cadastrando…" : "Cadastrar e aplicar"}
+            {create.isPending ? ACTION.create.pending : "Criar e aplicar"}
           </Button>
         </div>
         {preview ? (

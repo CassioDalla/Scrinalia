@@ -3,8 +3,13 @@ import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
+import { PRODUCT } from "@/lib/copy";
 import { router } from "@/router";
 import "@/styles.css";
+
+// The tab's title, from the one definition of the product's name. `index.html` boots neutral on
+// purpose, so a rename is still a change to `lib/attribution.ts` and nothing else.
+document.title = PRODUCT.documentTitle;
 
 const queryClient = new QueryClient({
   defaultOptions: {

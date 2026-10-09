@@ -28,9 +28,10 @@ import { useState } from "react";
 import { fetchCurrentUser, fetchSetupStatus, logout, type AuthUser } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Feedback";
-import { ATTRIBUTION } from "@/lib/attribution";
 import { cn } from "@/lib/cn";
+import { PRODUCT } from "@/lib/copy";
 import { can, ROLE_LABEL, type Permission } from "@/lib/permissions";
+import { SCREENS, type Screen, type ScreenId } from "@/lib/screens";
 import { SETTINGS_PATHS, SETTINGS_PERMISSIONS } from "@/lib/settings";
 
 import { AttributionFooter } from "./AttributionFooter";
@@ -44,6 +45,12 @@ import { SetupForm } from "./SetupForm";
  * Every entry is a screen that exists and that the API can serve: a menu that offers a route the
  * back-end refuses is worse than one that says "not yet". The public site (``apps/public``) is the
  * only part of the sitemap deliberately absent — it is a separate surface, with its own projection.
+ *
+ * An entry names its **screen** and nothing else: the label and the hint are ``lib/screens.ts``'s,
+ * which is also what the settings card and the page's own ``<h1>`` read. That is the fix for the
+ * divergence this file used to carry — the menu said ``Tags`` while the page it opened said
+ * "Vocabulário de tags", and two different screens were both called "Diagnóstico" — and the coverage
+ * gate fails when a route exists without a name or a name without its route.
  *
  * ``permission`` is the area the screen's **work** needs, and the shell hides the entry when the
  * account does not carry it (cycle B9.2). It is the write permission and not the read one, because
@@ -70,9 +77,16 @@ import { SetupForm } from "./SetupForm";
  * the tooltip.
  */
 type NavItem = {
-  to: string;
-  label: string;
-  hint: string;
+  /**
+   * The screen this entry opens. One id, and the name comes from the catalogue.
+   *
+   * Neither the label nor the hint is typed here, and that is the fix for the defect this file used
+   * to carry: the menu said `Tags` while the page it opened said "Vocabulário de tags", and nothing
+   * made the two agree. Now the entry names the screen and `lib/screens.ts` says what it is called —
+   * so the rail, the settings card and the page heading read one string, and the coverage gate fails
+   * when a route exists without a name.
+   */
+  screen: ScreenId;
   icon: LucideIcon;
   permission?: Permission;
   anyOf?: readonly Permission[];
@@ -92,15 +106,15 @@ const NAV: NavGroup[] = [
   {
     id: "curadoria",
     section: "Curadoria",
-    items: [{ to: "/", label: "Início", hint: "O que precisa de mim", icon: LayoutDashboard }],
+    items: [{ screen: "inbox", icon: LayoutDashboard }],
   },
   {
     id: "acervo",
     section: "Acervo",
     items: [
-      { to: "/acervo/lista", label: "Lista e busca", hint: "Facetas e ranking", icon: Search },
-      { to: "/acervo/arvore", label: "Árvore", hint: "Navegar pelo arranjo", icon: Network },
-      { to: "/acervo/excluidas", label: "Excluídas", hint: "A trilha do que saiu", icon: Trash2 },
+      { screen: "collection", icon: Search },
+      { screen: "tree", icon: Network },
+      { screen: "deletions", icon: Trash2 },
       /*
         The arrangement diagnostic sits with the collection and not in a group of its own.
 
@@ -108,71 +122,35 @@ const NAV: NavGroup[] = [
         and it stayed behind when "Arranjo" lost its only other entry (the plan, now a card), so
         keeping the heading would have left a section that exists to hold one line.
        */
-      { to: "/arranjo/diagnostico", label: "Diagnóstico", hint: "Onde está incoerente", icon: TriangleAlert },
+      { screen: "diagnostics", icon: TriangleAlert },
     ],
   },
   {
     id: "assuntos",
     section: "Assuntos",
     items: [
-      { to: "/assuntos/tags", label: "Tags", hint: "Peso, duplicatas e merges", icon: Tags, permission: "CURATE" },
-      {
-        to: "/assuntos/categorias",
-        label: "Categorias",
-        hint: "As gavetas de assunto",
-        icon: FolderTree,
-        permission: "CATALOGUE",
-      },
-      {
-        to: "/assuntos/descobrir",
-        label: "Descobrir gavetas",
-        hint: "Clusters por tema",
-        icon: Sparkles,
-        permission: "CURATE",
-      },
-      {
-        to: "/assuntos/excecoes",
-        label: "Não é assunto",
-        hint: "O que a regra não pega",
-        icon: CircleSlash,
-        permission: "CURATE",
-      },
+      { screen: "tags", icon: Tags, permission: "CURATE" },
+      { screen: "categories", icon: FolderTree, permission: "CATALOGUE" },
+      { screen: "discover", icon: Sparkles, permission: "CURATE" },
+      { screen: "subjectExclusions", icon: CircleSlash, permission: "CURATE" },
     ],
   },
   {
     id: "entidades",
     section: "Entidades",
     items: [
-      { to: "/entidades/lista", label: "Entidades", hint: "NER: peso, tipo e merge", icon: Users, permission: "CURATE" },
-      {
-        to: "/entidades/excecoes",
-        label: "Exclusões de NER",
-        hint: "Isto é assunto, não nome",
-        icon: UserX,
-        permission: "CURATE",
-      },
-      {
-        to: "/entidades/conflitos",
-        label: "Conflitos",
-        hint: "Assunto x nome próprio",
-        icon: GitCompareArrows,
-        permission: "CURATE",
-      },
+      { screen: "entities", icon: Users, permission: "CURATE" },
+      { screen: "nerExclusions", icon: UserX, permission: "CURATE" },
+      { screen: "conflicts", icon: GitCompareArrows, permission: "CURATE" },
     ],
   },
   {
     id: "qualidade",
     section: "Qualidade",
     items: [
-      { to: "/qualidade/trechos", label: "Trechos", hint: "Boilerplate e escopo", icon: Scissors, permission: "CATALOGUE" },
-      { to: "/qualidade/regras", label: "Regras", hint: "Reescrever ou sinalizar", icon: Ruler, permission: "CATALOGUE" },
-      {
-        to: "/qualidade/anomalias",
-        label: "Anomalias",
-        hint: "O que o validador marcou",
-        icon: Flag,
-        permission: "CURATE",
-      },
+      { screen: "textTemplates", icon: Scissors, permission: "CATALOGUE" },
+      { screen: "cleaningRules", icon: Ruler, permission: "CATALOGUE" },
+      { screen: "anomalies", icon: Flag, permission: "CURATE" },
     ],
   },
   {
@@ -188,9 +166,7 @@ const NAV: NavGroup[] = [
     id: "configuracoes",
     items: [
       {
-        to: "/configuracoes",
-        label: "Configurações",
-        hint: "Contas, catálogos e operação",
+        screen: "settings",
         icon: Settings,
         anyOf: SETTINGS_PERMISSIONS,
         alsoActive: SETTINGS_PATHS,
@@ -198,6 +174,9 @@ const NAV: NavGroup[] = [
     ],
   },
 ];
+
+/** An entry with the screen's own name resolved. What the render below reads. */
+type ResolvedNavItem = NavItem & Screen;
 
 /**
  * Whether the account sees an entry.
@@ -210,6 +189,22 @@ function reaches(role: AuthUser["role"], item: NavItem): boolean {
   if (item.permission && !can(role, item.permission)) return false;
   if (item.anyOf && !item.anyOf.some((area) => can(role, area))) return false;
   return true;
+}
+
+/**
+ * The visible entries, each carrying its screen's path, label and hint.
+ *
+ * Resolving here — after the permission filter, before the render — is what keeps the separators
+ * right when a group empties out, and it is the only place the two catalogues meet: `NAV` decides
+ * what the rail offers, `SCREENS` says what each screen is called.
+ */
+function visibleNav(role: AuthUser["role"]): (Omit<NavGroup, "items"> & { items: ResolvedNavItem[] })[] {
+  return NAV.map((group) => ({
+    ...group,
+    items: group.items
+      .filter((item) => reaches(role, item))
+      .map((item) => ({ ...item, ...SCREENS[item.screen] })),
+  })).filter((group) => group.items.length > 0);
 }
 
 /**
@@ -325,12 +320,10 @@ export function AppShell() {
 
     Filtering first is what keeps the separators right when collapsed: the rule is "a line between
     two visible groups", and a group that vanished with the permission filter must not leave one
-    behind.
+    behind. `visibleNav` also resolves each entry against the screens catalogue here, so the render
+    below reads one shape.
   */
-  const groups = NAV.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => reaches(user.role, item)),
-  })).filter((group) => group.items.length > 0);
+  const groups = visibleNav(user.role);
 
   const toggleSidebar = () => {
     const next = !collapsed;
@@ -355,8 +348,8 @@ export function AppShell() {
             */}
             {collapsed ? null : (
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{ATTRIBUTION.name}</p>
-                <p className="truncate text-xs text-(--color-muted)">Curadoria do acervo</p>
+                <p className="truncate text-sm font-semibold">{PRODUCT.name}</p>
+                <p className="truncate text-xs text-(--color-muted)">{PRODUCT.tagline}</p>
               </div>
             )}
             <button
@@ -407,14 +400,14 @@ export function AppShell() {
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   const active =
-                    item.to === "/"
+                    item.path === "/"
                       ? pathname === "/"
-                      : pathname.startsWith(item.to) ||
+                      : pathname.startsWith(item.path) ||
                         (item.alsoActive ?? []).some((path) => pathname.startsWith(path));
                   return (
-                    <li key={item.to}>
+                    <li key={item.path}>
                       <Link
-                        to={item.to}
+                        to={item.path}
                         /*
                           The label is the accessible name in both states and the tooltip is the only
                           place the hint survives when the rail is collapsed — a truncated text node

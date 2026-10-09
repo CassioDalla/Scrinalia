@@ -21,6 +21,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input, Select } from "@/components/ui/Input";
 import { Tabs } from "@/components/ui/Tabs";
+import { ACTION } from "@/lib/copy";
 import { ENTITY_TYPE_HINT, ENTITY_TYPE_LABEL, ENTITY_TYPE_TONE } from "@/lib/entities";
 import { descricoes, formatCount } from "@/lib/format";
 import { asEnum, asNumber } from "@/lib/search";
@@ -112,23 +113,24 @@ export function EntitiesRoute() {
   return (
     <>
       <PageHeader
-        title="Entidades nomeadas"
-        subtitle={
+        screen="entities"
+        pending={relevance.isPending}
+        status={
           relevance.data
             ? `${formatCount(rows.length)} nomes por peso · ${formatCount(
                 rows.reduce((sum, row) => sum + row.total_usage, 0),
               )} vínculos entre os listados`
-            : "Lendo o vocabulário de nomes…"
+            : undefined
         }
         actions={
           <Button
             size="sm"
             variant="danger"
             disabled={purgeOrphans.isPending}
-            title="Apaga as entidades que nenhuma descrição carrega"
+            title="Exclui as entidades que nenhuma descrição carrega"
             onClick={() => purgeOrphans.mutate()}
           >
-            {purgeOrphans.isPending ? "Purgando…" : "Purgar órfãs"}
+            {purgeOrphans.isPending ? ACTION.exclude.pending : "Excluir órfãs"}
           </Button>
         }
       />
@@ -137,13 +139,13 @@ export function EntitiesRoute() {
         <p className="rounded-md bg-(--color-accent)/5 px-3 py-2 text-xs text-(--color-accent) ring-1 ring-(--color-accent)/20">
           <strong>Reclassificar não é renomear um rótulo.</strong> Ao corrigir o tipo, o serviço grava
           também o sinônimo de ancoragem: o extrator passa a devolver aquela grafia com o tipo novo, em
-          toda execução futura. E <strong>unificar não tem desfazer</strong> — só as tags têm ledger; a
+          toda execução futura. E <strong>mesclar não tem desfazer</strong> — só as tags têm ledger; a
           entidade absorvida vira sinônimo e não volta.
         </p>
 
         {purgeOrphans.data ? (
           <p className="text-xs text-(--color-muted)">
-            {routeMessage(purgeOrphans.data)} {formatCount(purgeOrphans.data.entities_deleted)} removidas.
+            {routeMessage(purgeOrphans.data)} {formatCount(purgeOrphans.data.entities_deleted)} excluídas.
           </p>
         ) : null}
         {purgeOrphans.error ? <ErrorState error={purgeOrphans.error} /> : null}
@@ -191,11 +193,11 @@ export function EntitiesRoute() {
               ))}
               {selected.length > 0 ? (
                 <span className="text-xs text-(--color-muted)">
-                  {formatCount(selected.length)} selecionada(s) · marque ao menos duas para unificar
+                  {formatCount(selected.length)} selecionada(s) · marque ao menos duas para mesclar
                 </span>
               ) : (
                 <span className="text-xs text-(--color-muted)">
-                  Marque duas ou mais para unificar; o tipo se corrige na própria linha.
+                  Marque duas ou mais para mesclar; o tipo se corrige na própria linha.
                 </span>
               )}
             </div>
@@ -295,10 +297,10 @@ function EntityRow({
                 size="sm"
                 variant="danger"
                 disabled={remove.isPending}
-                title="Nenhuma descrição carrega este nome: apagar não perde vínculo"
+                title="Nenhuma descrição carrega este nome: excluir não perde vínculo"
                 onClick={() => remove.mutate()}
               >
-                excluir
+                {ACTION.exclude.label}
               </Button>
             ) : null}
           </div>
@@ -350,7 +352,7 @@ function MergePanel({
   return (
     <Card className="ring-(--color-warn)/40">
       <CardBody className="grid gap-3">
-        <p className="text-sm font-semibold">{title ?? `Unificar ${formatCount(members.length)} entidades`}</p>
+        <p className="text-sm font-semibold">{title ?? `Mesclar ${formatCount(members.length)} entidades`}</p>
         {hint ? <p className="text-xs text-(--color-muted)">{hint}</p> : null}
 
         <div className="grid gap-2 text-xs">
@@ -390,13 +392,13 @@ function MergePanel({
         <div className="flex items-center gap-2">
           <Button variant="primary" disabled={merge.isPending} onClick={() => merge.mutate()}>
             {merge.isPending
-              ? "Unificando…"
+              ? ACTION.merge.pending
               : absorbed.length === 1
-                ? `Unificar ${absorbed[0]?.name} em ${nameOf(canonicalId)}`
-                : `Unificar ${formatCount(absorbed.length)} nomes em ${nameOf(canonicalId)}`}
+                ? `Mesclar ${absorbed[0]?.name} em ${nameOf(canonicalId)}`
+                : `Mesclar ${formatCount(absorbed.length)} nomes em ${nameOf(canonicalId)}`}
           </Button>
           <Button variant="ghost" onClick={onCancel}>
-            cancelar
+            {ACTION.cancel.label}
           </Button>
         </div>
         {merge.data ? (
@@ -495,8 +497,8 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
 
       <p className="text-xs text-(--color-muted)">
         O par é evidência, não decisão: similaridade de trigrama alta também acontece entre nomes
-        diferentes. A canônica é escolha sua, e unificar aqui é a mesma operação irreversível da aba de
-        relevância — só as tags têm ledger. Para juntar mais de um par de uma vez, marque as linhas e use
+        diferentes. A canônica é escolha sua, e mesclar aqui é a mesma operação irreversível da aba de
+        relevância — só as tags têm ledger. Para mesclar mais de um par de uma vez, marque as linhas e use
         a barra que aparece embaixo.
       </p>
 
@@ -516,7 +518,7 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
       {clusterOpen && marked.length >= 2 ? (
         <MergePanel
           members={marked}
-          title={`Unificar ${formatCount(marked.length)} entidades marcadas`}
+          title={`Mesclar ${formatCount(marked.length)} entidades marcadas`}
           hint="Estas entidades vieram de linhas diferentes da lista: a canônica é escolhida abaixo. Não há desfazer — entidades não têm ledger como as tags."
           onDone={afterMerge}
           onCancel={clearMarked}
@@ -548,7 +550,7 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
                       to the one that has them instead of offering a button it cannot honour.
                     */}
                     <span className="text-xs text-(--color-muted)">
-                      vizinho de “{target}” — para unificar, abra a lista de pares (esta resposta não traz o
+                      vizinho de “{target}” — para mesclar, abra a lista de pares (esta resposta não traz o
                       id do alvo)
                     </span>
                   </CardBody>
@@ -564,7 +566,7 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
                         type="checkbox"
                         checked={rowMarked(pair)}
                         onChange={() => toggleRow(pair)}
-                        title="Marcar as duas entidades desta linha para unificar em conjunto"
+                        title="Marcar as duas entidades desta linha para mesclar em conjunto"
                         aria-label={`Marcar ${pair.name_1} e ${pair.name_2}`}
                       />
                       <span className="font-medium">{pair.name_1}</span>
@@ -572,7 +574,7 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
                       {/*
                         The identifiers are not decoration: the real vocabulary carries pairs whose
                         two names are *identical* ("Cia." twice, similarity 1.000), and without the
-                        ids the confirmation says "unificar Cia. → Cia." and the archivist cannot
+                        ids the confirmation says "mesclar Cia. → Cia." and the archivist cannot
                         tell which row is which.
                       */}
                       <code className="text-[10px] text-(--color-muted)">#{pair.id_1}</code>
@@ -587,7 +589,7 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
                       variant="secondary"
                       onClick={() => setOpenPair(openPair === pair ? null : pair)}
                     >
-                      {openPair === pair ? "fechar" : "unificar ↦"}
+                      {openPair === pair ? ACTION.close.label : "Mesclar ↦"}
                     </Button>
                   </CardBody>
                 </Card>
@@ -602,7 +604,7 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
                       { entity_id: pair.id_1, name: pair.name_1 },
                       { entity_id: pair.id_2, name: pair.name_2 },
                     ]}
-                    title="Escolher a canônica e unificar"
+                    title="Escolher a canônica e mesclar"
                     hint={
                       pair.name_1 === pair.name_2
                         ? "Os dois nomes são idênticos nesta linha: confira os identificadores antes de decidir."

@@ -10,6 +10,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
+import { ACTION } from "@/lib/copy";
 import { formatCount } from "@/lib/format";
 import { routeMessage } from "@/lib/messages";
 
@@ -40,11 +41,10 @@ export function DiscoverRoute() {
   return (
     <>
       <PageHeader
-        title="Descobrir gavetas"
-        subtitle="Agrupa o vocabulário por tema para achar o assunto que ainda não tem gaveta."
+        screen="discover"
         actions={
           <Link to="/assuntos/categorias">
-            <Button size="sm">Gavetas atuais</Button>
+            <Button size="sm">Categorias atuais</Button>
           </Link>
         }
       />
@@ -63,7 +63,7 @@ export function DiscoverRoute() {
             <p className="text-xs text-(--color-muted)">
               Roda o motor de agrupamento de verdade: leva alguns segundos e é um clique deliberado. Os
               clusters abaixo são só <strong>propostas</strong> — nada entra no vocabulário sem você
-              cadastrar.
+              criar.
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -154,10 +154,10 @@ function SuggestionCard({
             disabled={name.trim().length === 0 || create.isPending || create.isSuccess}
             onClick={() => create.mutate()}
           >
-            {create.isSuccess ? "cadastrada" : create.isPending ? "Cadastrando…" : "Cadastrar como gaveta"}
+            {create.isSuccess ? "criada" : create.isPending ? ACTION.create.pending : `${ACTION.create.label} gaveta`}
           </Button>
           <Button size="sm" variant="ghost" onClick={onDismiss}>
-            descartar
+            {ACTION.discard.label}
           </Button>
         </div>
       }

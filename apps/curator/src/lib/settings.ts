@@ -12,6 +12,7 @@ import {
 
 import type { AuthUser } from "@/api/client";
 import { can, type Permission } from "@/lib/permissions";
+import { SCREENS, type Screen, type ScreenId } from "@/lib/screens";
 
 /**
  * What the installation *is*, gathered on `/configuracoes`.
@@ -27,6 +28,12 @@ import { can, type Permission } from "@/lib/permissions";
  * entry follows `SETTINGS_PERMISSIONS`, which is the areas the cards write to, and it is rendered
  * while the account carries at least one of them.
  *
+ * A card names its **screen**, and neither its label nor its hint is typed here. That is the same
+ * rule the menu follows, and it is what removed the divergences this file carried: the card said
+ * "Diagnóstico" for the machine probes while the menu used the same word for the arrangement ones,
+ * and it said "Níveis de descrição" while the page's own heading said "Catálogo de níveis". The card,
+ * the rail and the heading now read one record from `lib/screens.ts`.
+ *
  * Two rules decide what belongs, and both are the shell's own:
  *
  * * **`permission` is the area the screen's *work* needs**, exactly as in the nav — the write
@@ -41,24 +48,35 @@ import { can, type Permission } from "@/lib/permissions";
  */
 export type SettingsCard = {
   /** A screen that exists; the union is closed so a typo here fails the type check. */
-  to: SettingsPath;
-  label: string;
-  hint: string;
+  screen: SettingsScreenId;
   icon: LucideIcon;
   permission: Permission;
 };
 
-export type SettingsPath =
-  | "/sistema/workers"
-  | "/sistema/execucoes"
-  | "/sistema/diagnostico"
-  | "/arranjo/plano"
-  | "/arranjo/niveis"
-  | "/arranjo/tipologias"
-  | "/vocabulario"
-  | "/configuracoes/usuarios";
+/**
+ * The screens reachable from the landing.
+ *
+ * A subset of `ScreenId` and not a bare string: the eight screens that left the menu are the ones
+ * that live here, and narrowing the type means a card cannot be added for a screen that has no name
+ * — or for one that is already an entry in the rail.
+ */
+export type SettingsScreenId = Extract<
+  ScreenId,
+  | "plan"
+  | "levels"
+  | "typologies"
+  | "vocabulary"
+  | "workers"
+  | "runs"
+  | "health"
+  | "users"
+>;
+
+/** A card with its screen's name resolved. What the page renders. */
+export type ResolvedSettingsCard = SettingsCard & Screen;
 
 export type SettingsTab = { id: string; label: string; cards: SettingsCard[] };
+export type ResolvedSettingsTab = { id: string; label: string; cards: ResolvedSettingsCard[] };
 
 /**
  * The tabs, in the order of the permission ladder they walk: the archivist's work first, then the
@@ -69,75 +87,25 @@ export const SETTINGS_TABS: SettingsTab[] = [
     id: "arranjo",
     label: "Arranjo e catálogos",
     cards: [
-      {
-        to: "/arranjo/plano",
-        label: "Plano de arranjo",
-        hint: "Decidir os níveis",
-        icon: Waypoints,
-        permission: "CURATE",
-      },
-      {
-        to: "/arranjo/niveis",
-        label: "Níveis de descrição",
-        hint: "A escada NOBRADE",
-        icon: Layers,
-        permission: "CATALOGUE",
-      },
-      {
-        to: "/arranjo/tipologias",
-        label: "Tipologias",
-        hint: "A forma diplomática",
-        icon: FileType,
-        permission: "CATALOGUE",
-      },
-      {
-        to: "/vocabulario",
-        label: "Vocabulário do acervo",
-        hint: "Nomes e lugares deste acervo",
-        icon: BookMarked,
-        permission: "CATALOGUE",
-      },
+      { screen: "plan", icon: Waypoints, permission: "CURATE" },
+      { screen: "levels", icon: Layers, permission: "CATALOGUE" },
+      { screen: "typologies", icon: FileType, permission: "CATALOGUE" },
+      { screen: "vocabulary", icon: BookMarked, permission: "CATALOGUE" },
     ],
   },
   {
     id: "operacao",
     label: "Operação",
     cards: [
-      {
-        to: "/sistema/workers",
-        label: "Workers de IA",
-        hint: "Presets, filas e execução",
-        icon: Cpu,
-        permission: "OPERATE",
-      },
-      {
-        to: "/sistema/execucoes",
-        label: "Execuções",
-        hint: "O ledger do que rodou",
-        icon: History,
-        permission: "OPERATE",
-      },
-      {
-        to: "/sistema/diagnostico",
-        label: "Diagnóstico",
-        hint: "Banco, modelos e storage",
-        icon: HeartPulse,
-        permission: "OPERATE",
-      },
+      { screen: "workers", icon: Cpu, permission: "OPERATE" },
+      { screen: "runs", icon: History, permission: "OPERATE" },
+      { screen: "health", icon: HeartPulse, permission: "OPERATE" },
     ],
   },
   {
     id: "acesso",
     label: "Acesso",
-    cards: [
-      {
-        to: "/configuracoes/usuarios",
-        label: "Usuários",
-        hint: "Contas, papéis e sessões",
-        icon: UserCog,
-        permission: "ADMIN",
-      },
-    ],
+    cards: [{ screen: "users", icon: UserCog, permission: "ADMIN" }],
   },
 ];
 
@@ -159,21 +127,26 @@ export const SETTINGS_PERMISSIONS: readonly Permission[] = [
  *
  * The nav entry is the way *back up* to the landing, so it stays marked while the archivist is on
  * one of these screens: they left the menu, and the rail should still say which part of the
- * installation this is instead of showing nothing selected.
+ * installation this is instead of showing nothing selected. Taken from the screens catalogue, so a
+ * path here cannot drift from the route it names.
  */
 export const SETTINGS_PATHS: readonly string[] = SETTINGS_TABS.flatMap((tab) =>
-  tab.cards.map((card) => card.to),
+  tab.cards.map((card) => SCREENS[card.screen].path),
 );
 
 /**
  * The tabs this account has something in, empty tabs removed.
  *
  * An empty tab is not rendered for the same reason an empty menu group is not: a tab that opens on
- * nothing advertises what it hides.
+ * nothing advertises what it hides. Each surviving card is resolved against the screens catalogue
+ * here, so the page reads `card.label`, `card.hint` and `card.path` the way it always read its own
+ * fields.
  */
-export function visibleSettingsTabs(role: AuthUser["role"]): SettingsTab[] {
+export function visibleSettingsTabs(role: AuthUser["role"]): ResolvedSettingsTab[] {
   return SETTINGS_TABS.map((tab) => ({
     ...tab,
-    cards: tab.cards.filter((card) => can(role, card.permission)),
+    cards: tab.cards
+      .filter((card) => can(role, card.permission))
+      .map((card) => ({ ...card, ...SCREENS[card.screen] })),
   })).filter((tab) => tab.cards.length > 0);
 }

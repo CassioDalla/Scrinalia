@@ -12,6 +12,7 @@ import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
 import { LedgerList } from "@/components/ui/LedgerList";
+import { ACTION } from "@/lib/copy";
 import { descricoes, formatCount } from "@/lib/format";
 import { SIGNAL_HINT, SIGNAL_LABEL } from "@/lib/quality";
 import { routeMessage } from "@/lib/messages";
@@ -80,13 +81,12 @@ export function SubjectExclusionsRoute() {
   return (
     <>
       <PageHeader
-        title="Não é assunto"
-        subtitle={
-          exclusions.data ? `${formatCount(words.length)} termos fora do eixo de assunto` : "Lendo as exclusões…"
-        }
+        screen="subjectExclusions"
+        pending={exclusions.isPending}
+        status={exclusions.data ? `${formatCount(words.length)} termos fora do eixo de assunto` : undefined}
         actions={
           <Link to="/assuntos/tags">
-            <Button size="sm">Vocabulário de tags</Button>
+            <Button size="sm">Tags</Button>
           </Link>
         }
       />
@@ -329,7 +329,7 @@ export function SubjectExclusionsRoute() {
                       title="O classificador volta a considerar o termo"
                       onClick={() => restore.mutate(word)}
                     >
-                      restaurar
+                      {ACTION.remove.label}
                     </Button>
                   </div>
                 )}

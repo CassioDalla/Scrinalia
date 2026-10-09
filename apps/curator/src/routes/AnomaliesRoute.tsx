@@ -63,15 +63,12 @@ export function AnomaliesRoute() {
   return (
     <>
       <PageHeader
-        title="Anomalias detectadas"
-        subtitle={
-          page.data
-            ? `${formatCount(total)} descrições aguardando revisão`
-            : "Lendo a fila de anomalias…"
-        }
+        screen="anomalies"
+        pending={page.isPending}
+        status={page.data ? `${formatCount(total)} descrições aguardando revisão` : undefined}
         actions={
           <Link to="/qualidade/regras">
-            <Button size="sm">Regras de limpeza</Button>
+            <Button size="sm">Regras</Button>
           </Link>
         }
       />

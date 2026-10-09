@@ -18,6 +18,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
+import { ACTION } from "@/lib/copy";
 import { CONFLICT_WINNER_HINT, CONFLICT_WINNER_LABEL, CONFLICT_WINNER_TONE, ENTITY_TYPE_LABEL } from "@/lib/entities";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { labelOf } from "@/lib/hierarchy";
@@ -176,15 +177,16 @@ export function ConflictsRoute() {
   return (
     <>
       <PageHeader
-        title="Conflitos entre assunto e nome próprio"
-        subtitle={
+        screen="conflicts"
+        pending={view === "pendentes" ? conflicts.isPending : view === "decididos" ? judged.isPending : ledger.isPending}
+        status={
           view === "pendentes" && conflicts.data
             ? `${formatCount(conflicts.data.total)} colisões acima de ${threshold.toFixed(2)} de similaridade de trigrama`
             : view === "decididos" && judged.data
               ? `${formatCount(judged.data.total)} pares julgados · ${formatCount(judged.data.still_applicable)} ainda decidíveis`
               : view === "resolucoes" && ledger.data
                 ? `${formatCount(ledger.data.total)} resoluções no ledger`
-                : "Comparando os vocabulários…"
+                : undefined
         }
       />
 
@@ -202,7 +204,7 @@ export function ConflictsRoute() {
         >
           <p className="text-xs text-(--color-accent)">
             A decisão é guardada em <strong>dois lugares diferentes</strong>, de propósito: não são o
-            mesmo mecanismo — e um veto de entidade não pode fazer a purga de assunto apagar uma tag que
+            mesmo mecanismo — e um veto de entidade não pode fazer a purga de assunto excluir uma tag que
             você manteve. Toda resolução agora deixa também uma linha no ledger, com o que foi
             transferido e qual bloqueio foi plantado, e é isso que torna o desfazer exato.
           </p>
@@ -279,7 +281,7 @@ export function ConflictsRoute() {
           </p>
         ) : null}
         {active.error ? <ErrorState error={active.error} /> : null}
-        {active.isPending ? <Spinner label="Lendo…" /> : null}
+        {active.isPending ? <Spinner label="Lendo a colisão…" /> : null}
         {resolve.error ? <ErrorState error={resolve.error} /> : null}
         {undo.error ? <ErrorState error={undo.error} /> : null}
         {ask.error ? <ErrorState error={ask.error} /> : null}
@@ -338,7 +340,7 @@ export function ConflictsRoute() {
                           size="sm"
                           variant="secondary"
                           disabled={ask.isPending}
-                          title="Mostra o que cada veredito transfere, apaga e bloqueia. Nada é escrito."
+                          title="Mostra o que cada veredito transfere, exclui e bloqueia. Nada é escrito."
                           onClick={() => ask.mutate({ tag_id: row.tag_id, entity_id: row.entity_id })}
                         >
                           ver o impacto antes de decidir
@@ -453,7 +455,7 @@ export function ConflictsRoute() {
                         }
                         onClick={() => undo.mutate(entry.resolution_id)}
                       >
-                        desfazer
+                        {ACTION.undo.label}
                       </Button>
                       {entry.is_undone ? (
                         <span className="text-xs text-(--color-muted)">
@@ -496,7 +498,7 @@ export function ConflictsRoute() {
         <p className="text-xs text-(--color-muted)">
           O juiz de conflitos resolve sozinho os casos acima do limiar dele e manda para revisão só os
           duvidosos — é <em>essa</em> fila que a tela inicial conta. A aba <em>decididos</em> é a única
-          que mostra as auto-resoluções: elas apagaram a linha perdedora, então não existem mais na
+          que mostra as auto-resoluções: elas excluíram a linha perdedora, então não existem mais na
           varredura ao vivo.
         </p>
       </div>
@@ -598,7 +600,7 @@ function PreviewPanel({
             title={CONFLICT_WINNER_HINT.TAG}
             onClick={() => onConfirm("TAG")}
           >
-            confirmar: {CONFLICT_WINNER_LABEL.TAG} vence
+            {ACTION.apply.label}: {CONFLICT_WINNER_LABEL.TAG} vence
           </Button>
           <Button
             variant="primary"
@@ -606,10 +608,10 @@ function PreviewPanel({
             title={CONFLICT_WINNER_HINT.ENTITY}
             onClick={() => onConfirm("ENTITY")}
           >
-            confirmar: {CONFLICT_WINNER_LABEL.ENTITY} vence
+            {ACTION.apply.label}: {CONFLICT_WINNER_LABEL.ENTITY} vence
           </Button>
           <Button variant="ghost" disabled={pending} onClick={onCancel}>
-            cancelar
+            {ACTION.cancel.label}
           </Button>
         </div>
       </CardBody>

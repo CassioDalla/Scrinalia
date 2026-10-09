@@ -12,6 +12,7 @@ import { Disclosure } from "@/components/ui/Disclosure";
 import { LedgerList } from "@/components/ui/LedgerList";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input, Textarea } from "@/components/ui/Input";
+import { ACTION } from "@/lib/copy";
 import { EXCLUSION_SOURCE_HINT, EXCLUSION_SOURCE_LABEL } from "@/lib/entities";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { labelOf } from "@/lib/hierarchy";
@@ -76,11 +77,12 @@ export function NerExclusionsRoute() {
   return (
     <>
       <PageHeader
-        title="Exclusões de NER"
-        subtitle={
+        screen="nerExclusions"
+        pending={exclusions.isPending}
+        status={
           exclusions.data
             ? `${formatCount(rows.length)} termos vetados · ${formatCount(fromJudge)} do juiz · ${formatCount(fromHuman)} da curadoria`
-            : "Lendo as exclusões…"
+            : undefined
         }
       />
 
@@ -89,7 +91,7 @@ export function NerExclusionsRoute() {
           <strong>O veto vale para o termo inteiro, não para pedaços.</strong> O extrator funde tokens
           vizinhos: com <code>iptu</code> vetado ele ainda devolve <code>“IPTU do Batel”</code> como uma
           entidade, então o bloqueio é por limite de token. E ele <strong>vale para trás</strong>: as
-          entidades já extraídas dessa grafia são apagadas, junto com os vínculos.
+          entidades já extraídas dessa grafia são excluídas, junto com os vínculos.
         </p>
 
         {/*
@@ -105,7 +107,7 @@ export function NerExclusionsRoute() {
             <div className="grid gap-1">
               <span className="text-sm font-semibold">Vetar termos</span>
               <span className="text-xs text-(--color-muted)">
-                O veto vale para o termo inteiro e apaga as entidades já extraídas dessa grafia.
+                O veto vale para o termo inteiro e exclui as entidades já extraídas dessa grafia.
               </span>
             </div>
           }
@@ -197,7 +199,7 @@ export function NerExclusionsRoute() {
                         title="O extrator volta a considerar o termo"
                         onClick={() => unban.mutate(row.term)}
                       >
-                        remover veto
+                        {ACTION.remove.label}
                       </Button>
                     </div>
                     {row.reason ? <p className="text-xs text-(--color-muted)">{row.reason}</p> : null}
@@ -295,7 +297,7 @@ export function NerExclusionsRoute() {
                     title="O extrator volta a considerar o termo"
                     onClick={() => unban.mutate(row.term)}
                   >
-                    remover veto
+                    {ACTION.remove.label}
                   </Button>
                 </CardBody>
                 {row.reason ? (

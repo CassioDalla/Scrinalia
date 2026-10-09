@@ -3,7 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Scrinalia — Curadoria</title>
+    <!--
+      Deliberately without the product's name: it is defined once, in `src/lib/attribution.ts`, and
+      `main.tsx` writes the full title into the tab from `PRODUCT.documentTitle`. A name typed here
+      would be a second definition that no component could see, and the one the license obligation
+      points at would be the one that went stale.
+    -->
+    <title>Curadoria</title>
   </head>
   <body>
     <div id="root"></div>

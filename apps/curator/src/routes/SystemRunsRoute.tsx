@@ -79,8 +79,9 @@ export function SystemRunsRoute() {
   return (
     <>
       <PageHeader
-        title="Execuções"
-        subtitle={page.data ? `${formatCount(total)} execução(ões) registrada(s)` : "Lendo o ledger…"}
+        screen="runs"
+        pending={page.isPending}
+        status={page.data ? `${formatCount(total)} execução(ões) registrada(s)` : undefined}
       />
 
       <div className="grid max-w-5xl gap-4 px-6 py-5">

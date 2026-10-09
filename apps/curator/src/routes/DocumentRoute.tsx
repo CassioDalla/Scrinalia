@@ -25,6 +25,7 @@ import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import { Tabs } from "@/components/ui/Tabs";
 import { Typeahead } from "@/components/ui/Typeahead";
+import { ACTION } from "@/lib/copy";
 import { formatCount, formatDate, formatDateTime, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
 
 const routeApi = getRouteApi("/acervo/$descriptionId");
@@ -59,7 +60,15 @@ export function DocumentRoute() {
             <span className="text-(--color-muted)">{descriptionId}</span>
           )
         }
-        subtitle={
+        /*
+          The badges are the *status* and not a subtitle: the dossier's heading is the record's own
+          title, and the line under it reports what was read — the review state, whether it is
+          published, whether the validator flagged it. `SCREENS.dossier` carries the flag that exempts
+          this route from taking its heading from the catalogue, and the anatomy below is the same one
+          every other screen has.
+        */
+        pending={document.isPending}
+        status={
           document.data ? (
             <span className="flex flex-wrap items-center gap-2">
               <Badge tone={REVIEW_STATUS_TONE[document.data.review_status]}>
@@ -70,7 +79,7 @@ export function DocumentRoute() {
               <span>{formatDate(document.data.document_date)}</span>
               {document.data.level ? <span>· {document.data.level}</span> : null}
             </span>
-          ) : null
+          ) : undefined
         }
         actions={
           <Link to="/acervo/lista" className="text-sm text-(--color-muted) hover:underline">
@@ -403,7 +412,7 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                     disabled={removeTag.isPending}
                     onClick={() => removeTag.mutate(tag.tag_id)}
                   >
-                    remover
+                    {ACTION.remove.label}
                   </Button>
                 </span>
               </li>
@@ -463,7 +472,7 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                   disabled={removeEntity.isPending}
                   onClick={() => removeEntity.mutate(entity.entity_id)}
                 >
-                  remover
+                  {ACTION.remove.label}
                 </Button>
               </li>
             ))}
@@ -799,7 +808,7 @@ function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
             </p>
           </div>
           <Button size="sm" variant="danger" onClick={() => setOpen((current) => !current)}>
-            {open ? "cancelar" : "Excluir descrição…"}
+            {open ? ACTION.cancel.label : "Excluir descrição…"}
           </Button>
         </div>
 
@@ -822,11 +831,12 @@ function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
               />
             </label>
 
-            <div className="grid gap-2 sm:grid-cols-2">
-              <label className="flex flex-col gap-1 text-xs">
-                <span className="text-(--color-muted)">Quem exclui (texto livre até existir auth)</span>
-                
-              </label>
+            {/*
+              One field, and it used to be two: the other was a label for a "who deletes" input that
+              no longer exists — the API takes the actor from the session since ADR 0009 — so the form
+              showed a field title with nothing under it.
+            */}
+            <div className="grid gap-2">
               <label className="flex flex-col gap-1 text-xs">
                 <span className="text-(--color-muted)">Motivo (guardado na trilha)</span>
                 <Input
@@ -844,7 +854,7 @@ function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
                 title={matches ? undefined : "O código precisa bater com o da descrição."}
                 onClick={() => remove.mutate()}
               >
-                {remove.isPending ? "Excluindo…" : "Excluir definitivamente"}
+                {remove.isPending ? ACTION.exclude.pending : "Excluir definitivamente"}
               </Button>
               <span className="text-xs text-(--color-muted)">
                 {matches ? "o código confere" : "o botão libera quando o código bater"}

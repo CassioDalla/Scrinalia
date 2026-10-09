@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
+import { ACTION } from "@/lib/copy";
 import { descricoes, formatCount } from "@/lib/format";
 
 /**
@@ -47,11 +48,12 @@ export function LevelsRoute() {
   return (
     <>
       <PageHeader
-        title="Catálogo de níveis"
-        subtitle={
+        screen="levels"
+        pending={levels.isPending}
+        status={
           levels.data
             ? `${rows.length} níveis · ${formatCount(withDocuments)} descrições classificadas`
-            : "Lendo a escada…"
+            : undefined
         }
       />
 
@@ -59,7 +61,7 @@ export function LevelsRoute() {
         <p className="rounded-md bg-(--color-accent)/5 px-3 py-2 text-xs text-(--color-accent) ring-1 ring-(--color-accent)/20">
           A norma é o padrão, não a lei — mas ela é a assimetria que sustenta a carga: um nível
           desconhecido que chega da origem <strong>entra</strong> (a descrição fica sem nível e o
-          diagnóstico a lista), enquanto o arquivista <strong>não</strong> pode gravar um nível que
+          diagnóstico a lista), enquanto o arquivista <strong>não</strong> pode salvar um nível que
           não existe. Sem isso, uma lote inteiro falharia por causa de uma grafia nova.
         </p>
 
@@ -146,7 +148,7 @@ function LevelCard({ level, onChanged }: { level: DescriptionLevel; onChanged: (
           disabled={save.isPending}
           onClick={() => save.mutate({ is_active: !level.is_active })}
         >
-          {level.is_active ? "desativar" : "reativar"}
+          {level.is_active ? ACTION.retire.label : ACTION.reactivate.label}
         </Button>
       }
     >
@@ -208,7 +210,7 @@ function LevelCard({ level, onChanged }: { level: DescriptionLevel; onChanged: (
               })
             }
           >
-            {save.isPending ? "Salvando…" : "Salvar"}
+            {save.isPending ? ACTION.save.pending : ACTION.save.label}
           </Button>
           {dirty ? <span className="text-xs text-(--color-muted)">alterações não salvas</span> : null}
         </div>
@@ -250,7 +252,7 @@ function CreateLevelCard({ onCreated }: { onCreated: () => void }) {
         <div className="grid gap-1">
           <span className="text-sm font-semibold">Acrescentar um degrau</span>
           <span className="text-xs text-(--color-muted)">
-            Um ordinal novo e um código novo são uma rung nova; o ordinal não é editável depois.
+            Um ordinal novo e um código novo são um degrau novo; o ordinal não é editável depois.
           </span>
         </div>
       }
@@ -259,7 +261,7 @@ function CreateLevelCard({ onCreated }: { onCreated: () => void }) {
         <p className="text-xs text-(--color-muted)">
           O ordinal é a posição na escada: um nível só pode ser filho de outro de ordinal menor. Ele
           não é editável depois — mudá-lo renumeraria a árvore, e a árvore passada foi decidida contra
-          estes números. Um ordinal novo e um código novo são uma rung nova.
+          estes números. Um ordinal novo e um código novo são um degrau novo.
         </p>
         <div className="grid gap-2 sm:grid-cols-4">
           <label className="flex flex-col gap-1 text-xs">
@@ -321,7 +323,7 @@ function CreateLevelCard({ onCreated }: { onCreated: () => void }) {
         </div>
         <div>
           <Button variant="primary" disabled={!valid || create.isPending} onClick={() => create.mutate()}>
-            {create.isPending ? "Cadastrando…" : "Cadastrar nível"}
+            {create.isPending ? ACTION.create.pending : `${ACTION.create.label} nível`}
           </Button>
         </div>
         {create.error ? <ErrorState error={create.error} /> : null}

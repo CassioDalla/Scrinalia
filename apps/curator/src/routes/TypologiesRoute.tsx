@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
+import { ACTION } from "@/lib/copy";
 import { descricoes, formatCount } from "@/lib/format";
 
 /**
@@ -48,11 +49,12 @@ export function TypologiesRoute() {
   return (
     <>
       <PageHeader
-        title="Catálogo de tipologias"
-        subtitle={
+        screen="typologies"
+        pending={catalog.isPending}
+        status={
           catalog.data
             ? `${rows.length} tipologias · ${active} ativas · ${formatCount(classified)} descrições classificadas`
-            : "Lendo o catálogo…"
+            : undefined
         }
       />
 
@@ -60,7 +62,7 @@ export function TypologiesRoute() {
         <p className="rounded-md bg-(--color-accent)/5 px-3 py-2 text-xs text-(--color-accent) ring-1 ring-(--color-accent)/20">
           O nome é o rótulo que o classificador propõe, e a descrição de contexto é{" "}
           <strong>documentação para quem lê o catálogo</strong> — ela nunca vai para o modelo.
-          Desativar uma tipologia a tira das opções do classificador <strong>sem</strong> desclassificar
+          Aposentar uma tipologia a tira das opções do classificador <strong>sem</strong> desclassificar
           nenhuma descrição: por isso o peso de cada uma continua visível.
         </p>
 
@@ -108,7 +110,7 @@ function TypologyCard({ typology, onChanged }: { typology: Typology; onChanged: 
       header={
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">{typology.name}</span>
-          {typology.is_active ? <Badge tone="ok">ativa</Badge> : <Badge tone="neutral">desativada</Badge>}
+          {typology.is_active ? <Badge tone="ok">ativa</Badge> : <Badge tone="neutral">aposentada</Badge>}
           <Badge tone="neutral" title="Descrições classificadas com esta tipologia">
             {descricoes(typology.document_count ?? 0)}
           </Badge>
@@ -129,7 +131,7 @@ function TypologyCard({ typology, onChanged }: { typology: Typology; onChanged: 
           }
           onClick={() => save.mutate({ is_active: !typology.is_active })}
         >
-          {typology.is_active ? "desativar" : "reativar"}
+          {typology.is_active ? ACTION.retire.label : ACTION.reactivate.label}
         </Button>
       }
     >
@@ -158,7 +160,7 @@ function TypologyCard({ typology, onChanged }: { typology: Typology; onChanged: 
               })
             }
           >
-            {save.isPending ? "Salvando…" : "Salvar"}
+            {save.isPending ? ACTION.save.pending : ACTION.save.label}
           </Button>
           {dirty ? <span className="text-xs text-(--color-muted)">alterações não salvas</span> : null}
         </div>
@@ -185,10 +187,10 @@ function CreateTypologyCard({ onCreated }: { onCreated: () => void }) {
   return (
     <Disclosure
       triggerLabel="+ Nova tipologia"
-      toggleLabel="Cadastrar uma tipologia"
+      toggleLabel="Criar uma tipologia"
       header={
         <div className="grid gap-1">
-          <span className="text-sm font-semibold">Cadastrar uma tipologia</span>
+          <span className="text-sm font-semibold">Criar uma tipologia</span>
           <span className="text-xs text-(--color-muted)">
             Vale a pena quando o acervo carrega uma forma que o classificador não tem como propor —
             e o nome é o rótulo que ele vai usar.
@@ -228,7 +230,7 @@ function CreateTypologyCard({ onCreated }: { onCreated: () => void }) {
             disabled={!valid || create.isPending}
             onClick={() => create.mutate()}
           >
-            {create.isPending ? "Cadastrando…" : "Cadastrar tipologia"}
+            {create.isPending ? ACTION.create.pending : `${ACTION.create.label} tipologia`}
           </Button>
         </div>
         {create.error ? <ErrorState error={create.error} /> : null}

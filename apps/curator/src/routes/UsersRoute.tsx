@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Input, Select } from "@/components/ui/Input";
+import { ACTION } from "@/lib/copy";
 import { formatDateTime } from "@/lib/format";
 import { routeMessage } from "@/lib/messages";
 import { ROLE_LABEL, ROLES } from "@/lib/permissions";
@@ -59,10 +60,9 @@ export function UsersRoute() {
   return (
     <>
       <PageHeader
-        title="Contas"
-        subtitle={
-          users.data ? `${rows.length} contas · ${active} ativas` : "Lendo as contas…"
-        }
+        screen="users"
+        pending={users.isPending}
+        status={users.data ? `${rows.length} contas · ${active} ativas` : undefined}
       />
 
       <div className="grid max-w-5xl gap-4 px-6 py-5">
@@ -170,7 +170,7 @@ function CreateUserCard({ onCreated }: { onCreated: () => void }) {
         </label>
         <div className="flex items-center gap-3">
           <Button variant="primary" disabled={!valid || create.isPending} onClick={() => create.mutate()}>
-            {create.isPending ? "Criando…" : "Criar conta"}
+            {create.isPending ? ACTION.create.pending : `${ACTION.create.label} conta`}
           </Button>
           {create.data ? (
             <span className="text-xs text-(--color-ok)">Conta {create.data.email} criada.</span>
@@ -274,7 +274,7 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
               setOpen(true);
             }}
           >
-            redefinir senha
+            Redefinir senha
           </Button>
           <Button
             size="sm"
@@ -282,7 +282,7 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
             disabled={toggleActive.isPending}
             onClick={() => toggleActive.mutate()}
           >
-            {user.is_active ? "desativar" : "reativar"}
+            {user.is_active ? ACTION.deactivate.label : ACTION.reactivate.label}
           </Button>
         </div>
       }
@@ -309,7 +309,7 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
               disabled={!dirty || save.isPending || name.trim().length === 0}
               onClick={() => save.mutate({ name: name.trim(), role })}
             >
-              {save.isPending ? "Salvando…" : "Salvar"}
+              {save.isPending ? ACTION.save.pending : ACTION.save.label}
             </Button>
           </div>
         </div>

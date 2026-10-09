@@ -17,6 +17,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Input, Select, Textarea } from "@/components/ui/Input";
+import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
 import {
   describeConfig,
@@ -48,10 +49,7 @@ export function SystemWorkersRoute() {
 
   return (
     <>
-      <PageHeader
-        title="Workers de IA"
-        subtitle="O que roda, com qual preset e modelo, o que está na fila e o que já rodou."
-      />
+      <PageHeader screen="workers" />
       <div className="grid gap-3 px-6 py-5">
         {error ? <ErrorState error={error} /> : null}
 
@@ -89,7 +87,7 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
         setOpen(next);
         if (!next) setPanel("none");
       }}
-      toggleLabel="Ver detalhes, configurar e executar"
+      toggleLabel="Ver detalhes, configurar e rodar"
       className={active ? "ring-(--color-accent)/40" : undefined}
       header={<WorkerHeader worker={worker} />}
       actions={
@@ -108,9 +106,9 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
             variant="primary"
             onClick={() => openPanel("run")}
             disabled={active}
-            title={active ? "Há uma execução em andamento" : "Executar agora com a configuração efetiva"}
+            title={active ? "Há uma execução em andamento" : "Rodar agora com a configuração efetiva"}
           >
-            {active ? "Em execução…" : "Rodar agora"}
+            {active ? "Em execução…" : ACTION.run.label}
           </Button>
         </>
       }
@@ -334,7 +332,7 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
 
         <div className="flex items-center gap-2">
           <Button variant="primary" onClick={() => run.mutate()} disabled={run.isPending}>
-            {run.isPending ? "Enviando…" : "Executar agora"}
+            {run.isPending ? "Enviando…" : ACTION.run.label}
           </Button>
           <span className="text-xs text-(--color-muted)">
             {worker.pending == null
@@ -464,7 +462,7 @@ function SettingsPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (mess
 
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="primary" onClick={() => save.mutate()} disabled={save.isPending}>
-            Salvar padrão
+            {ACTION.save.label} padrão
           </Button>
           <Button
             variant="secondary"

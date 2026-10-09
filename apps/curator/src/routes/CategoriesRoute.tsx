@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Input, Textarea } from "@/components/ui/Input";
+import { ACTION } from "@/lib/copy";
 import { formatCount } from "@/lib/format";
 
 /**
@@ -56,11 +57,12 @@ export function CategoriesRoute() {
   return (
     <>
       <PageHeader
-        title="Gavetas de assunto"
-        subtitle={
+        screen="categories"
+        pending={categories.isPending}
+        status={
           categories.data
             ? `${active.length} ativas · ${retired.length} aposentadas · ${formatCount(totalDocuments)} descrições com gaveta`
-            : "Lendo o vocabulário…"
+            : undefined
         }
       />
 
@@ -83,10 +85,10 @@ export function CategoriesRoute() {
         {/* The write first, the catalogue after — and every drawer opens on demand. */}
         <Disclosure
           triggerLabel="+ Nova gaveta"
-          toggleLabel="Cadastrar uma gaveta"
+          toggleLabel="Criar uma gaveta"
           header={
             <div className="grid gap-1">
-              <span className="text-sm font-semibold">Cadastrar uma gaveta</span>
+              <span className="text-sm font-semibold">Criar uma gaveta</span>
               <span className="text-xs text-(--color-muted)">
                 Uma gaveta nova só passa a valer quando o classificador rodar de novo.
               </span>
@@ -116,7 +118,7 @@ export function CategoriesRoute() {
                 disabled={draftName.trim().length === 0 || create.isPending}
                 onClick={() => create.mutate()}
               >
-                {create.isPending ? "Cadastrando…" : "Cadastrar"}
+                {create.isPending ? ACTION.create.pending : ACTION.create.label}
               </Button>
             </div>
             {create.error ? <ErrorState error={create.error} /> : null}
@@ -137,7 +139,7 @@ export function CategoriesRoute() {
             <h2 className="text-sm font-semibold">Aposentadas</h2>
             <p className="text-xs text-(--color-muted)">
               Saíram do eixo de assunto porque são proveniência e geografia, não assunto. Nunca foram apagadas: a
-              chave estrangeira é <code>SET NULL</code>, e apagar uma gaveta apagaria o registro de que ela existiu.
+              chave estrangeira é <code>SET NULL</code>, e excluir uma gaveta excluiria o registro de que ela existiu.
             </p>
             {retired.map((category) => (
               <CategoryCard key={category.category_id} category={category} onChanged={invalidate} />
@@ -196,7 +198,7 @@ function CategoryCard({ category, onChanged }: { category: MacroCategory; onChan
           disabled={save.isPending}
           onClick={() => save.mutate({ is_active: !category.is_active })}
         >
-          {category.is_active ? "aposentar" : "reativar"}
+          {category.is_active ? ACTION.retire.label : ACTION.reactivate.label}
         </Button>
       }
     >
@@ -234,7 +236,7 @@ function CategoryCard({ category, onChanged }: { category: MacroCategory; onChan
               })
             }
           >
-            {save.isPending ? "Salvando…" : "Salvar"}
+            {save.isPending ? ACTION.save.pending : ACTION.save.label}
           </Button>
           {dirty ? <span className="text-xs text-(--color-muted)">alterações não salvas</span> : null}
         </div>

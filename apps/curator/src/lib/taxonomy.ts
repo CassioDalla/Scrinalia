@@ -40,7 +40,7 @@ export const REVIEW_FLAG_HINT: Record<string, string> = {
   WEAK_MEMBER:
     "A similaridade de algum membro com a canônica é baixa; o cluster pode estar juntando coisas diferentes.",
   CATEGORY_WOULD_BE_LOST:
-    "Um dos membros está numa gaveta de assunto que a canônica não tem. Unificar apaga essa classificação.",
+    "Um dos membros está numa gaveta de assunto que a canônica não tem. Mesclar exclui essa classificação.",
   MEMBER_IS_SYNONYM:
     "Algum membro é uma grafia que já foi absorvida por um merge anterior — o cluster pode ser reflexo de uma decisão antiga.",
 };
@@ -79,7 +79,7 @@ export const STOPWORD_SCOPE_LABEL: Record<string, string> = {
 };
 
 export const STOPWORD_SCOPE_HINT: Record<string, string> = {
-  TAG: "O termo sai do eixo de assunto. A purga apaga as tags com esse nome — e a purga não tem undo.",
+  TAG: "O termo sai do eixo de assunto. A purga exclui as tags com esse nome — e a purga não tem desfazer.",
   ENTITY: "O termo sai da extração de nomes próprios. Não afeta tag nenhuma.",
   ALL: "O termo sai dos dois eixos, e a purga o alcança.",
 };

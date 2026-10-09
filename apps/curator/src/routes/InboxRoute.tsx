@@ -98,10 +98,7 @@ export function InboxRoute() {
 
   return (
     <>
-      <PageHeader
-        title="O que precisa de mim hoje"
-        subtitle="Cada cartão leva à tela que resolve a pendência, já filtrada."
-      />
+      <PageHeader screen="inbox" />
       <div className="px-6 py-5">
         {error ? <ErrorState error={error} /> : null}
 

@@ -100,11 +100,12 @@ export function DeletionsRoute() {
   return (
     <>
       <PageHeader
-        title="Descrições excluídas"
-        subtitle={
+        screen="deletions"
+        pending={page.isPending}
+        status={
           page.data
             ? `${formatCount(total)} exclusão(ões) registrada(s)${search.termo ? ` para “${search.termo}”` : ""}`
-            : "Lendo a trilha…"
+            : undefined
         }
       />
 
