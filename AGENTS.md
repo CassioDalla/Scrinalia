@@ -170,3 +170,6 @@ Always run from the repo root. Python 3.12 managed by `uv` (`uv.lock`).
   root, so the suite exercises the same boundary a consumer does. Because the source lives in
   `src/`, `uv sync` must have run at least once before pytest can import anything.
 - CI (`.github/workflows/ci.yml`) carries the jobs that mirror a local run — a fast `uvx ruff` lint/format job; a `test` job that checks the committed `openapi.json` is current, then runs `alembic upgrade head` + `alembic check` and `uv run pytest` (which includes the documentation coverage gate) against a Postgres service on 5432; a `frontend` job (Bun) that regenerates the TypeScript client and fails on drift, then type-checks, lints and builds `apps/curator`; and a `docs` job that builds the site with `--strict` through `uvx` — plus the security and community jobs (`gitleaks`, `pip-audit`/`bun audit`, `zizmor`, DCO). The docs job checks out the **full history** on purpose: the freshness report is computed against git. Run the same checks locally before finishing.
+
+## Rendering the UI
+- **Playwright is not a dev dependency here** (no manifest, no lockfile): whether a session can render a screen is a property of the machine, not the clone — `ls ~/.cache/ms-playwright/` answers it, and the `render` skill has the recipe that works and the rule for a screen that was never looked at.
