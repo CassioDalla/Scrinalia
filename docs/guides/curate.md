@@ -30,7 +30,8 @@ the client generated from the OpenAPI contract. The screens are declared in
 `apps/curator/src/router.tsx` and the navigation in `apps/curator/src/components/layout/AppShell.tsx`.
 The menu has **23 entries** because one route is not a menu entry: the description's own dossier,
 `/acervo/$descriptionId`, is reached from the list and from the tree. The router therefore declares
-24 screens.
+24 screens. The menu itself can be collapsed to icons, which is a presentation choice and not a
+permission one — *The menu collapses to icons*, below.
 
 Two cross-cutting pages are worth reading with this one: [Data model](data-model.md) for what the
 ledgers and the tables mean, and [Installation and deployment](install.md) for the schema, the
@@ -189,6 +190,19 @@ is hidden.
 The mirror is one-way on purpose. It can make the menu shorter; it can never make the API accept a
 request. A direct URL to a screen the account cannot work in still reaches the API, and the API
 answers 403 with a sentence — that is the truth, and the hidden entry is a courtesy.
+
+### The menu collapses to icons
+
+A control in the menu's own header folds it into a 64px column of icons and back, and the browser
+remembers the choice: how wide a column of the screen is is presentation state, so it lives in
+`localStorage` and not in the account — the API has no column for it.
+
+Collapsed, every entry keeps its icon; the label stays the link's accessible name and the `title`
+carries label and hint, so the hint is hidden and never truncated. The active entry keeps the accent
+colour, the section headings become hairlines, and the session footer folds into the account's
+initial plus two icon buttons. The wordmark leaves the menu but not the page: the attribution renders
+at the foot of every screen (`AttributionFooter`, ADR 0006). The icons come from `lucide-react`, one
+glyph per entry.
 
 ## Curadoria
 
