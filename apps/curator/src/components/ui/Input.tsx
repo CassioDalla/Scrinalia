@@ -1,8 +1,16 @@
-import type { InputHTMLAttributes } from "react";
+import type { ComponentProps } from "react";
 
 import { cn } from "@/lib/cn";
 
-export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
+/**
+ * The one text field, typed with ``ComponentProps<"input">`` so a screen may pass a ``ref``.
+ *
+ * The accounts screen needs it: "redefinir senha" on a collapsed row opens the account straight on the
+ * password block and puts the cursor in the field, and a write the archivist came to the screen for
+ * should not also require hunting for where to type. ``InputHTMLAttributes`` has no ``ref``, and the
+ * three field components above the form would otherwise each need their own way in.
+ */
+export function Input({ className, ...props }: ComponentProps<"input">) {
   return (
     <input
       className={cn(

@@ -2,6 +2,8 @@
 sources:
   - apps/curator/src/router.tsx
   - apps/curator/src/components/layout/AppShell.tsx
+  - apps/curator/src/components/layout/LoginForm.tsx
+  - apps/curator/src/components/layout/PasswordChangeForm.tsx
   - apps/curator/src/routes/**
   - apps/curator/src/lib/permissions.ts
   - src/scrinalia/api/controllers/**
@@ -181,6 +183,21 @@ are areas, not buttons:
 
 Reading is not a permission: it is what an authenticated session is, and a pure read declares
 nothing.
+
+### Signing in, and forgetting the password
+
+The sign-in form is not a route: it renders in the shell's own place, so a deep link survives it — an
+archivist who opens `/acervo/lista` while signed out signs in and lands on `/acervo/lista`. A wrong
+password and an address that does not exist answer the same sentence, on purpose: the form is not an
+enumeration of who has an account.
+
+There is **no e-mail recovery** in this installation, and the screen does not pretend otherwise. Under
+the button, *Esqueci minha senha* opens a short explanation of the path that does exist: an
+administrator resets the password on the accounts screen (*Usuários*, below), the password is
+temporary and the account replaces it at the next sign-in, the reset ends every session of that
+account and lifts a lockout — and if the last active administrator is the one who cannot get in, the
+host's terminal is the way back ([Operations](operate.md) owns that procedure). Nothing on the screen
+promises a message, because no message is sent.
 
 ### The menu hides; it never grants
 
@@ -749,12 +766,18 @@ rule is under *The menu hides; it never grants* above.
 The accounts of the installation, the `ADMIN` surface. The writes are `POST /api/v1/users` (create),
 `PATCH /api/v1/users/{user_id}` (name, role, active), `POST /api/v1/users/{user_id}/password` (reset)
 and the session routes `GET`/`DELETE /api/v1/users/{user_id}/sessions[/{session_id}]` — all `ADMIN`.
-Four facts the API enforces and the screen states:
+Five facts the API enforces and the screen states:
 
 - **the password created here is temporary.** The administrator typed it, so the account replaces it
   at the first sign-in, exactly like the CLI bootstrap;
 - **deactivating ends every session of the account immediately**, which is what makes the flag real;
-- **resetting the password ends every session** and lifts a lockout caused by failed attempts;
+- **resetting the password ends every session** and lifts a lockout caused by failed attempts. It is
+  reachable from the account's own row (**redefinir senha**), without expanding the card, and the
+  confirmation names both consequences;
+- **resetting your own account signs you out.** The administrative reset has no "keep this session"
+  the way *Trocar senha* does, so an administrator who targets their own row ends the session they are
+  standing on; the screen says so before the click and points at **Trocar senha** in the session
+  footer, which keeps it;
 - **the last active administrator cannot be deactivated or demoted** (`LastAdminError`, 409). It is
   the one lockout with no way back through the screen; the way in is the CLI on the host.
 

@@ -162,6 +162,21 @@ escrita são áreas, não botões:
 
 Ler não é permissão: é o que uma sessão autenticada é, e uma leitura pura não declara nada.
 
+### Entrar, e esquecer a senha
+
+O formulário de entrada não é uma rota: ele é desenhado no lugar da casca, então um link direto
+sobrevive a ele — quem abre `/acervo/lista` sem sessão entra e cai em `/acervo/lista`. Uma senha
+errada e um endereço que não existe respondem a mesma frase, de propósito: o formulário não é uma
+enumeração de quem tem conta.
+
+Não há **recuperação por e-mail** nesta instalação, e a tela não finge o contrário. Abaixo do botão,
+*Esqueci minha senha* abre uma explicação curta do caminho que existe: um administrador redefine a
+senha na tela de contas (*Usuários*, abaixo), a senha é temporária e a conta a troca no primeiro
+acesso, a redefinição encerra todas as sessões dessa conta e destrava um bloqueio — e, se o último
+administrador ativo for justamente quem não consegue entrar, o terminal do servidor é a volta
+([Operação](operate.md) é dona desse procedimento). Nada na tela promete uma mensagem, porque
+nenhuma mensagem é enviada.
+
 ### O menu esconde; nunca concede
 
 A casca filtra as entradas pela área em que a tela **escreve**
@@ -730,12 +745,18 @@ Cada cartão carrega a área em que a sua tela escreve, e a entrada que abre est
 As contas da instalação, a superfície `ADMIN`. As escritas são `POST /api/v1/users` (criar),
 `PATCH /api/v1/users/{user_id}` (nome, papel, ativa), `POST /api/v1/users/{user_id}/password`
 (redefinir) e as rotas de sessão `GET`/`DELETE /api/v1/users/{user_id}/sessions[/{session_id}]` —
-todas `ADMIN`. Quatro fatos que a API impõe e a tela declara:
+todas `ADMIN`. Cinco fatos que a API impõe e a tela declara:
 
 - **a senha criada aqui é temporária.** O administrador a digitou, então a conta a troca no primeiro
   acesso, exatamente como no bootstrap do CLI;
 - **desativar encerra todas as sessões da conta na hora**, que é o que torna o sinalizador real;
-- **redefinir a senha encerra todas as sessões** e destrava um bloqueio por tentativas falhas;
+- **redefinir a senha encerra todas as sessões** e destrava um bloqueio por tentativas falhas. A ação
+  fica na própria linha da conta (**redefinir senha**), sem precisar expandir a ficha, e a confirmação
+  nomeia as duas consequências;
+- **redefinir a própria conta desconecta você.** A redefinição administrativa não tem o "mantenha esta
+  sessão" do **Trocar senha**, então o administrador que aponta para a própria linha encerra a sessão
+  em que está; a tela avisa antes do clique e aponta o **Trocar senha** no rodapé da sessão, que a
+  mantém;
 - **a última conta de administrador ativa não pode ser desativada nem rebaixada** (`LastAdminError`,
   409). É o único beco sem saída que não tem volta pela tela; a entrada é o CLI no host.
 

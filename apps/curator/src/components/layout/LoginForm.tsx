@@ -16,6 +16,14 @@ import { ATTRIBUTION } from "@/lib/attribution";
  * The failure is shown as one sentence, because that is what the API answers: an unknown address and a
  * wrong password are deliberately indistinguishable, and a screen that guessed between them would
  * undo that.
+ *
+ * The form is also the **front door of recovery**, and that is the whole of issue #26: the operation
+ * exists — an administrator resets a password on the accounts screen, and the CLI on the host
+ * recoloca the last administrator's — and what did not exist was anywhere to say so. The sentence under
+ * the button only states the path; the disclosure under it says what a reset *does* (the temporary
+ * password, the sessions that end, the lockout it lifts) and who holds the last resort. It never
+ * promises a message this screen cannot send, because no e-mail is configured and none is sent:
+ * pretending otherwise would leave somebody waiting for something that was never going to arrive.
  */
 export function LoginForm() {
   const [email, setEmail] = useState("");
@@ -80,8 +88,33 @@ export function LoginForm() {
         </Button>
 
         <p className="pt-4 text-xs text-(--color-muted)">
-          Não há recuperação de senha por e-mail: quem administra a instalação redefine a sua senha.
+          Sem recuperação por e-mail. Quem esqueceu a senha pede a um administrador da instalação, que a
+          redefine na tela de contas.
         </p>
+
+        {/*
+          A native `details`, like the deletion trail's snapshot: the copy is one small block that must
+          not push the form down, it works without JavaScript state, and the summary is a real
+          disclosure control a screen reader announces as one.
+        */}
+        <details className="pt-3 text-xs">
+          <summary className="cursor-pointer text-(--color-muted)">Esqueci minha senha</summary>
+          <div className="grid gap-2 pt-2 text-(--color-muted)">
+            <p>
+              Nenhuma mensagem é enviada por esta tela. Um administrador redefine a sua senha em{" "}
+              <strong>Configurações → Usuários</strong>, na conta certa.
+            </p>
+            <p>
+              A senha que ele define é <strong>temporária</strong>: a conta a troca no primeiro acesso. A
+              redefinição também <strong>encerra todas as sessões</strong> dessa conta — o que a retira de
+              qualquer dispositivo aberto — e destrava a conta se ela estiver bloqueada por tentativas falhas.
+            </p>
+            <p>
+              Se a conta for a última de administrador ativa e ninguém conseguir entrar, o acesso é
+              recolocado pelo terminal do servidor, por quem opera a máquina (guia de operação).
+            </p>
+          </div>
+        </details>
       </form>
     </div>
   );

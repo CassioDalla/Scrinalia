@@ -26,6 +26,9 @@ sources:
   - src/scrinalia/api/system_health.py
   - src/scrinalia/core/logger.py
   - src/scrinalia/core/config.py
+  - src/scrinalia/domains/identity/cli.py
+  - src/scrinalia/domains/identity/services/auth_service.py
+  - src/scrinalia/api/controllers/users_controller.py
   - docs/adr/0009-authentication-and-authorization.md
   - docs/adr/0011-first-run-setup-without-an-open-door.md
   - apps/curator/src/router.tsx
@@ -443,6 +446,44 @@ A `5xx` is a warning, everything else is an info line. The two orchestrator prob
 and `/health/ready`) are excluded from the access line — an orchestrator asks every few seconds and
 would rotate a 50 MB file with nothing but "200 OK" — but they are not excluded from correlation.
 
+## Recovering access
+
+Password recovery is guided by the administrator, and which door applies is the only question:
+
+- **Somebody forgot the password, and an administrator can sign in.** The administrator opens
+  *Configurações → Usuários*, finds the account and uses **redefinir senha** — a button on the
+  account's own row, so the reset is reached without expanding the card. The password typed there is
+  **temporary**: the account replaces it at the next sign-in. The reset also **ends every session of
+  that account** and **lifts a lockout**, which is the one case the screen alone can fix. It has no
+  undo.
+- **No administrator can sign in** — the last active one is locked out, deactivated or gone. Then
+  the operation that would fix it is the thing nobody can reach, and the way in is the host's
+  terminal:
+
+```bash
+# Which accounts exist, and which one is active. The address is what the commands below take.
+uv run python -m scrinalia.domains.identity.cli list
+
+# An explicit password. The account is marked temporary, so it replaces it at the next sign-in.
+uv run python -m scrinalia.domains.identity.cli reset-password --email pessoa@instituicao.org --password 'a nova senha'
+
+# Without --password it generates one, prints it once and marks the account temporary.
+uv run python -m scrinalia.domains.identity.cli reset-password --email pessoa@instituicao.org
+
+# A deactivated account is reactivated before it can sign in again.
+uv run python -m scrinalia.domains.identity.cli activate --email pessoa@instituicao.org
+```
+
+The CLI runs on the host against the same database and calls **the same service** the API calls, so
+the password policy, the session revocation, and the last-administrator guard behind `deactivate` and
+`set-role` are the same code and not a second implementation with fewer checks. It is also how the
+first administrator is created ([Installation and deployment](install.md)).
+
+Two things deliberately do not exist, and the sign-in screen says so rather than pretending
+otherwise: there is **no e-mail reset** (nothing configures SMTP, and ADR 0009 keeps self-service
+recovery out of scope), and there is **no reset-token table** to store, expire or leak. The screen's
+*Esqueci minha senha* states these two paths and promises no message.
+
 ## Measuring the collection
 
 Two tables answer two different questions, and a number taken from the wrong one misleads.
@@ -498,7 +539,8 @@ behaviour to expect, and so that a limit already paid for is not read as a defec
 - **Authentication has conscious limits.** The login rate limiter is **process-local** and resets on
   restart, which is why the durable defence is the per-account lockout column; revoking a session
   records that it was revoked, not **who** revoked it; and OIDC/SSO, second factors and e-mail
-  recovery are out of scope (ADR 0009). Recovery is the administrator, or the CLI on the host.
+  recovery are out of scope (ADR 0009). Recovery is the administrator or the CLI on the host (see
+  [Recovering access](#recovering-access)).
   **The first account is a window.** While `auth_users` is empty, `POST /api/v1/setup/admin` is
   public and whoever reaches the instance first may create the administrator; the table lock makes
   two simultaneous attempts safe, and nothing makes the window safe (ADR 0011). Configure the

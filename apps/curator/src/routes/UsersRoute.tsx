@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   createUser,
@@ -34,6 +34,12 @@ import { ROLE_LABEL, ROLES } from "@/lib/permissions";
  *   whoever holds the cookie keep working until it expired;
  * * **the last active administrator cannot be deactivated or demoted.** It is the one lockout with
  *   no way back through the screen, and the way in is the CLI on the host.
+ *
+ * This screen is also the **front door of recovery** (#26): it is where an administrator restores
+ * somebody's access, so the reset is reachable from the row it applies to, and the two facts the reset
+ * carries are stated instead of discovered — the temporary password, and the sessions that end with it.
+ * The one that surprises is the self-reset: an administrator who resets **their own** account is signed
+ * out by the click, because this operation does not spare the caller the way `change_password` does.
  *
  * There is no delete. An account is deactivated, because the ledgers carry its name and its id: a
  * decision whose author no longer exists is a worse record than a closed account.
@@ -183,6 +189,20 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
   const [role, setRole] = useState(user.role);
   const [password, setPassword] = useState("");
   const [mustChange, setMustChange] = useState(true);
+  /*
+    The reset is reachable from the row and not only from inside the card (#26): the header action opens
+    the account and asks the field's callback ref to put the cursor in it as the body mounts, so the
+    person who forgot their password does not have to expand a card to find out where to type. The flag
+    is a ref and not state because the work happens at mount, not because of it — an effect that set
+    state would re-render the card to move the cursor.
+  */
+  const revealReset = useRef(false);
+  const focusPassword = (node: HTMLInputElement | null) => {
+    if (node && revealReset.current) {
+      revealReset.current = false;
+      node.focus();
+    }
+  };
 
   const refresh = () => {
     onChanged();
@@ -245,14 +265,26 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
         </div>
       }
       actions={
-        <Button
-          size="sm"
-          variant={user.is_active ? "ghost" : "secondary"}
-          disabled={toggleActive.isPending}
-          onClick={() => toggleActive.mutate()}
-        >
-          {user.is_active ? "desativar" : "reativar"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              revealReset.current = true;
+              setOpen(true);
+            }}
+          >
+            redefinir senha
+          </Button>
+          <Button
+            size="sm"
+            variant={user.is_active ? "ghost" : "secondary"}
+            disabled={toggleActive.isPending}
+            onClick={() => toggleActive.mutate()}
+          >
+            {user.is_active ? "desativar" : "reativar"}
+          </Button>
+        </div>
       }
     >
       <div className="grid gap-4">
@@ -289,10 +321,24 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
             Redefinir a senha encerra todas as sessões desta conta — é o que se faz quando alguém
             perdeu o acesso.
           </p>
+          {/*
+            The reset revokes **every** session of the account, and unlike ``change_password`` it does
+            not spare the caller's. An administrator who resets their own account is signed out by the
+            click, so the screen says it before the click instead of letting them discover it: the
+            ordinary way to replace your own password is "Trocar senha", which keeps this session.
+          */}
+          {isSelf ? (
+            <p className="rounded-md bg-(--color-warn)/5 px-2 py-1.5 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
+              Esta é a sua conta: redefinir aqui <strong>encerra a sua própria sessão</strong> e desconecta
+              você. Para trocar a sua senha sabendo a atual, use <strong>Trocar senha</strong> no rodapé do
+              menu — com o menu recolhido, o ícone de chave — que mantém esta sessão aberta.
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-end gap-2">
             <label className="flex min-w-56 flex-1 flex-col gap-1 text-xs">
               <span className="text-(--color-muted)">Nova senha temporária</span>
               <Input
+                ref={focusPassword}
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
