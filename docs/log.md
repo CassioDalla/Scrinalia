@@ -233,3 +233,47 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   recovery path needs. The install guide already owns the CLI as the bootstrap, and duplicating its
   whole surface here would create a second place to correct.
 
+## 2026-10-09 — the interface gets one name per screen and one verb per action
+
+- **Range:** `6118170..f731d2e`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the page named screens by their old headings, and the headings
+    are now the menu's labels — `Diagnóstico` split into *Diagnóstico do arranjo* and *Saúde do
+    sistema*, which is the ambiguity issue #23 was filed for. A new *One name per screen, one verb per
+    action* states the copy canon the page now uses: `lib/screens.ts` as the one record per screen
+    (route, label, hint) that the menu, the settings card and the `<h1>` all read, the header's four
+    slots with the status line under the subtitle, and the verb table of `lib/copy.ts` — including
+    why `Aposentar` (a catalogue row) and `Desativar` (an account) are deliberately two words. The
+    prose followed the verbs: `Unificar` → `Mesclar`, `desativar` → `aposentar` for the `is_active`
+    catalogues. `components/layout/PageHeader.tsx`, `lib/screens.ts` and `lib/copy.ts` joined its
+    `sources:` — the section is a claim about all three and none was tracked.
+  - `guides/curate.pt.md` — **updated**: the translation, same canon, in the SPA's vocabulary.
+  - `guides/operate.md` — **no-change**: the report named it because its `sources:` carry the three
+    `System*Route.tsx` files, and this round moved the health screen's label to *Saúde do sistema* and
+    the run button's word to `Rodar agora`. The page names those screens by **route**
+    (`/sistema/diagnostico`, `/sistema/workers`), never by label, so no claim in it stopped being
+    true; the field the worker panel lost ("Quem está alterando") was never documented there. Nothing
+    was edited to quiet the report.
+- **Verified rather than assumed:** every one of the 25 routes was **rendered**, not merely built —
+  the API on a throwaway copy of the development database, the built SPA served from the same origin,
+  screenshotted through CDP at 1440px. The screens show the heading equal to the menu label
+  (`Categorias` / *As gavetas de assunto* / the count, in that order), the two renamed screens
+  (`Saúde do sistema`, `Nível de descrição` → `Níveis de descrição` on the settings card and the
+  heading), `Aposentar` where the catalogue row was `desativar`, `Rodar agora` where the same panel
+  had `Executar agora` beside it, `Mesclar` where the merge panel said `Unificar`, and the notices
+  drawing their ring and background after the move to `Notice`. The dossier renders its badges in the
+  status slot with the record's own title above them.
+- **Measured, not assumed:** the tags screen was the only user of `bg-(--color-surface-2)`, a token
+  `styles.css` does not define — 1 of the 9 tokens in use — and the box had no background; the two
+  dead form labels (`Quem decide`, `Quem está alterando`) were labels with no field under them, left
+  over from before the API took the actor from the session (ADR 0009). Both are gone, and the token
+  one is now a gate.
+- **What did not move:** the screen count (25), the menu count (16) and the settings tables — no route
+  and no setting was added; the data model — no table, no column and no migration; and the API
+  contract, whose only change in this range is a Portuguese hint the inbox renders
+  (`services/curation_service.py`), which is not part of the document.
+- **Not carried, on purpose:** the `words` field of the ban request is still documented in the
+  contract as "normalizados ao gravar", the one place the old save verb survives. Changing it
+  regenerates `openapi.json` and `schema.d.ts` for a description no screen renders — a decision of
+  its own, recorded in the commit that left it.
+

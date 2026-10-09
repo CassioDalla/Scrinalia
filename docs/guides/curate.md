@@ -2,10 +2,13 @@
 sources:
   - apps/curator/src/router.tsx
   - apps/curator/src/components/layout/AppShell.tsx
+  - apps/curator/src/components/layout/PageHeader.tsx
   - apps/curator/src/components/layout/LoginForm.tsx
   - apps/curator/src/components/layout/PasswordChangeForm.tsx
   - apps/curator/src/routes/**
   - apps/curator/src/lib/permissions.ts
+  - apps/curator/src/lib/screens.ts
+  - apps/curator/src/lib/copy.ts
   - src/scrinalia/api/controllers/**
   - src/scrinalia/api/schemas/public.py
   - src/scrinalia/api/security.py
@@ -30,14 +33,16 @@ has no way back at all.
 
 The SPA is served by the API itself (one origin, no CORS), and every screen reads and writes through
 the client generated from the OpenAPI contract. The screens are declared in
-`apps/curator/src/router.tsx` and the navigation in `apps/curator/src/components/layout/AppShell.tsx`.
-The menu has **16 entries**: the screens nobody opens in the middle of cataloguing — the arrangement
-plan, the catalogues, the worker panel, the run ledger, the diagnostics and the accounts — are cards
-of `/configuracoes` rather than menu entries (*Configurações*, below). One route is not reached from
-the menu either: the description's own dossier, `/acervo/$descriptionId`, comes from the list and
-from the tree. The router therefore declares **25 screens**. The menu itself can be collapsed to
-icons, which is a presentation choice and not a permission one — *The menu collapses to icons*,
-below.
+`apps/curator/src/router.tsx`, and **what each one is called** in
+`apps/curator/src/lib/screens.ts`: one record per screen holds the label the menu, the settings card
+and the page's own heading all read, so the three cannot disagree (*One name per screen, one verb per
+action*, below). The menu has **16 entries**: the screens nobody opens in the middle of cataloguing —
+the arrangement plan, the catalogues, the worker panel, the run ledger, the diagnostics and the
+accounts — are cards of `/configuracoes` rather than menu entries (*Configurações*, below). One route
+is not reached from the menu either: the description's own dossier, `/acervo/$descriptionId`, comes
+from the list and from the tree. The router therefore declares **25 screens**. The menu itself can be
+collapsed to icons, which is a presentation choice and not a permission one — *The menu collapses to
+icons*, below.
 
 Two cross-cutting pages are worth reading with this one: [Data model](data-model.md) for what the
 ledgers and the tables mean, and [Installation and deployment](install.md) for the schema, the
@@ -76,7 +81,7 @@ does not carry it.
   exclude or move the children first. The screen asks the archivist to type the reference code (or
   the id, when there is no code) before the button unlocks.
 
-- **Unifying entities** — `POST /api/v1/taxonomy/entities/merge`. The absorbed entities stop
+- **Merging entities** — `POST /api/v1/taxonomy/entities/merge`. The absorbed entities stop
   existing, their links move to the canonical one, and their spellings become synonyms so the
   extractor keeps recognising them. Entities have **no proposal catalogue and no ledger**, so this
   is the one merge with no undo — the tags' privilege is a ledger. The panel warns instead of
@@ -218,6 +223,45 @@ The mirror is one-way on purpose. It can make the menu shorter; it can never mak
 request. A direct URL to a screen the account cannot work in still reaches the API, and the API
 answers 403 with a sentence — that is the truth, and the hidden entry is a courtesy.
 
+### One name per screen, one verb per action
+
+The interface grew screen by screen, and so did its vocabulary: the menu said *Tags* while the page
+it opened said "Vocabulário de tags", the settings card said *Usuários* while the page said "Contas",
+and two different screens were both called *Diagnóstico*. Two files now own those words.
+
+`apps/curator/src/lib/screens.ts` holds **one record per screen** — its route, the label, and the hint
+that says what it decides. The label is the same string in the three places that used to disagree:
+the menu entry, the settings card and the page's own `<h1>`, which `PageHeader` resolves from the
+screen id a route declares. A route therefore cannot pass a heading of its own; the dossier is the one
+exception, and the catalogue is what flags it as the screen whose heading is the record's own title.
+
+Under the heading the header has the same four slots on every screen: the label, one line saying what
+the screen decides, the **status** of what was read — a count, a filter, a total — and the actions.
+The count used to compete with the explanatory line for the same slot, which is why some screens
+explained themselves and others only reported totals; while the read is in flight the status slot
+holds a skeleton of its own height, so the header does not jump when the numbers arrive.
+
+`apps/curator/src/lib/copy.ts` holds the product's name — re-exported from `lib/attribution.ts`, which
+owns it for the license notice — and **one verb per action**, with the word for it while it runs. The
+verbs this page uses are that file's:
+
+| Action | The word on the screen |
+| --- | --- |
+| writing an edited row | **Salvar** |
+| bringing a row into existence | **Criar** (the trigger beside it reads *+ Nova…*) |
+| taking a term off a list — a veto, an exclusion | **Remover** |
+| destroying a record, always behind a preview or a typed confirmation | **Excluir** |
+| the `is_active` switch on a **catalogue row** — a level, a typology, a drawer, a cleaning rule, a collection term | **Aposentar** / **Reativar** |
+| disabling an **account** | **Desativar** / **Reativar** |
+| launching one worker run | **Rodar agora** |
+| unifying two vocabulary entries | **Mesclar** |
+| committing a computed plan | **Aplicar** |
+| computing what a destructive write would do, without writing it | **Conferir impacto** |
+
+`Aposentar` and `Desativar` are deliberately two words: a catalogue row and an account leave the
+system in different ways, and one word for both would say they do not. Banning a term keeps its own
+verb (`Banir` / `Desbanir`), because it is a different flag and it deletes nothing.
+
 ### The menu collapses to icons
 
 A control in the menu's own header folds it into a 64px column of icons and back, and the browser
@@ -339,7 +383,7 @@ the "Arranjo" group would have held a single line, so the group disappeared with
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
 | Plano de arranjo — `/arranjo/plano` | approve or reject each proposed rung, and materialise the tree | yes — a decision can be reopened, and the materialisation has an undo |
-| Diagnóstico — `/arranjo/diagnostico` | none (the evidence; the fix is elsewhere) | yes (read only) |
+| Diagnóstico do arranjo — `/arranjo/diagnostico` | none (the evidence; the fix is elsewhere) | yes (read only) |
 
 ### Plano de arranjo — `/arranjo/plano`
 
@@ -364,7 +408,7 @@ apply button stays disabled until the preview exists. Only approved rungs are ma
 preview and the apply share one planner, so the approved number is the written number. What the undo
 restores is described under **the batch that does have an undo**.
 
-### Diagnóstico — `/arranjo/diagnostico`
+### Diagnóstico do arranjo — `/arranjo/diagnostico`
 
 The structural diagnosis, one section per issue, each with its count and its evidence (a section with
 zero stays visible, because knowing the check ran matters). It offers **no silent correction**: every
@@ -454,7 +498,7 @@ Pairs by trigram similarity, shown raw with the similarity score and both ids. T
 `GET /api/v1/taxonomy/tags/similar`. The similarity does not say which spelling is the good one:
 `'alameda cabral'` and `'al. alameda cabral'` score 1.000.
 
-The decision is to unify: `POST /api/v1/taxonomy/tags/merge` (`CURATE`), after a dry run
+The decision is to merge: `POST /api/v1/taxonomy/tags/merge` (`CURATE`), after a dry run
 (`POST /api/v1/taxonomy/tags/merge/preview`, a read that computes the same plan the write executes).
 The panel always opens with the impact first: documents updated, links rewritten, tags absorbed,
 spellings registered and repointed, and the one warning that must be read before the click —
@@ -565,7 +609,7 @@ The named-entity vocabulary, by weight or by similarity. Three decisions:
   a row no description carries, where deleting loses no link. No undo.
 - **Purgar órfãs** — `POST /api/v1/taxonomy/entities/orphans/purge` (`CURATE`): the same decision in
   batch. No undo.
-- **Unificar** — `POST /api/v1/taxonomy/entities/merge` (`CURATE`): the absorbed entities stop
+- **Mesclar** — `POST /api/v1/taxonomy/entities/merge` (`CURATE`): the absorbed entities stop
   existing, their links move to the canonical, their spellings become synonyms, and an optional new
   name for the canonical makes the old one a synonym too. Entities have no proposal catalogue and
   **no ledger**: there is no undo, and the panel says so instead of offering a button back. There is
@@ -631,7 +675,7 @@ undo.
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
 | Trechos — `/qualidade/trechos` | which consumer stops reading a repeated excerpt | yes (retire or remove from the catalogue) |
-| Regras — `/qualidade/regras` | whether a rule rewrites the text or only flags it | yes: deactivating has a route back, and the retired rule stays on the screen |
+| Regras — `/qualidade/regras` | whether a rule rewrites the text or only flags it | yes: retiring has a route back, and the retired rule stays on the screen |
 | Anomalias — `/qualidade/anomalias` | none (the correction is the record's review) | yes (read only) |
 
 ### Trechos — `/qualidade/trechos`
@@ -649,7 +693,7 @@ no "approve all" button on this screen.
 - **Escrever um trecho** — `POST /api/v1/quality/text-templates` (`CATALOGUE`). It is born approved
   and applied and returns the affected descriptions to the AI queue; the create button only unlocks
   after the impact is seen.
-- **Aprovar / rejeitar / desativar / salvar escopo / remover** —
+- **Aprovar / rejeitar / aposentar / salvar escopo / remover** —
   `PATCH`/`DELETE /api/v1/quality/text-templates/{template_id}` (`CATALOGUE`). Removing takes the
   excerpt out of the catalogue and returns the affected descriptions to the AI queue.
 
@@ -668,7 +712,7 @@ a rule that rewrites — `PATCH /api/v1/quality/cleaning-rules/{rule_id}/deactiv
 deleted, and the way back is a route rather than a new rule: the listing takes
 `include_inactive=true`, which is what puts the retired rules at the bottom of the screen with the
 button that returns them to the queue. Reactivating keeps the id and the history that re-creating
-the rule would have lost. Deactivation is the safe half of the pair — it is what you reach for when
+the rule would have lost. Retiring is the safe half of the pair — it is what you reach for when
 a rule is wrong, so the way out of it has to exist.
 
 An active `REWRITE` rule is the loudest thing on the screen, and the preview is what makes it
@@ -693,7 +737,7 @@ archivist consults while cataloguing, and this is not it.
 | --- | --- | --- |
 | Workers de IA — `/sistema/workers` | which model a worker runs with, and whether to run it now | the configured default yes; a run's effects follow what it wrote |
 | Execuções — `/sistema/execucoes` | none (the ledger and the grouped failures) | yes (read only) |
-| Diagnóstico — `/sistema/diagnostico` | none (database, models, storage, process) | yes (read only) |
+| Saúde do sistema — `/sistema/diagnostico` | none (database, models, storage, process) | yes (read only) |
 
 ### Workers de IA — `/sistema/workers`
 
@@ -726,7 +770,7 @@ cause (`GET /api/v1/system/failures`), which answer the question the ledger cann
 the same sentence are one cause. Clicking a group filters the ledger below instead of opening a
 second list, and a failure's reference is what is searched in the log.
 
-### Diagnóstico — `/sistema/diagnostico`
+### Saúde do sistema — `/sistema/diagnostico`
 
 Four independent probes (`GET /api/v1/system/health`, `OPERATE`): the database with its counts, the
 Ollama server with the models the presets require and which of them are missing, the thumbnail
@@ -752,7 +796,7 @@ what changed is how it is found. Three tabs, in the order of the permission ladd
 | Tab | Cards |
 | --- | --- |
 | Arranjo e catálogos | Plano de arranjo (`CURATE`), Níveis de descrição, Tipologias and Vocabulário do acervo (`CATALOGUE`) |
-| Operação | Workers de IA, Execuções and Diagnóstico (`OPERATE`) |
+| Operação | Workers de IA, Execuções and Saúde do sistema (`OPERATE`) |
 | Acesso | Usuários (`ADMIN`) |
 
 The tab is in the URL (`?aba=`), so "the worker cards" can be sent to somebody. A tab the account

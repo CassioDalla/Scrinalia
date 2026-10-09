@@ -9,8 +9,10 @@ decisão se toma ali, o que o clique escreve e se dá para desfazer** — e nome
 nenhuma.
 
 A SPA é servida pela própria API (uma origem, sem CORS), e toda tela lê e escreve pelo cliente gerado
-a partir do contrato OpenAPI. As telas são declaradas em `apps/curator/src/router.tsx` e a navegação
-em `apps/curator/src/components/layout/AppShell.tsx`. O menu tem **16 entradas**: as telas que ninguém
+a partir do contrato OpenAPI. As telas são declaradas em `apps/curator/src/router.tsx`, e **como cada
+uma se chama** em `apps/curator/src/lib/screens.ts`: um registro por tela guarda o rótulo que o menu,
+o cartão de configurações e o título da própria página leem, então os três não podem discordar
+(*Um nome por tela, um verbo por ação*, abaixo). O menu tem **16 entradas**: as telas que ninguém
 abre no meio da catalogação — o plano de arranjo, os catálogos, o painel de workers, o ledger de
 execuções, os diagnósticos e as contas — são cartões de `/configuracoes`, não itens de menu
 (*Configurações*, abaixo). Uma rota também não vem do menu: a ficha da descrição,
@@ -56,7 +58,7 @@ carrega.
   filhos primeiro. A tela pede que o arquivista digite o código de referência (ou o identificador,
   quando não há código) antes de o botão liberar.
 
-- **Unificar entidades** — `POST /api/v1/taxonomy/entities/merge`. As entidades absorvidas deixam de
+- **Mesclar entidades** — `POST /api/v1/taxonomy/entities/merge`. As entidades absorvidas deixam de
   existir, seus vínculos passam para a canônica e suas grafias viram sinônimos, para o extrator
   continuar reconhecendo-as. Entidades **não têm catálogo de propostas nem ledger**, então este é o
   merge sem desfazer — o privilégio das tags é ter ledger. O painel avisa em vez de oferecer um
@@ -197,6 +199,47 @@ O espelho é de mão única de propósito. Ele encurta o menu; nunca faz a API a
 URL direta para uma tela em que a conta não pode trabalhar ainda chega à API, e a API responde 403
 com uma frase — essa é a verdade, e a entrada escondida é uma cortesia.
 
+### Um nome por tela, um verbo por ação
+
+A interface cresceu tela por tela, e o vocabulário cresceu com ela: o menu dizia *Tags* enquanto a
+página que ele abria dizia "Vocabulário de tags", o cartão de configurações dizia *Usuários* enquanto
+a página dizia "Contas", e duas telas diferentes se chamavam *Diagnóstico*. Dois arquivos agora são
+donos dessas palavras.
+
+`apps/curator/src/lib/screens.ts` guarda **um registro por tela** — a rota, o rótulo e a dica que diz
+o que ela decide. O rótulo é a mesma string nos três lugares que discordavam: a entrada de menu, o
+cartão de configurações e o `<h1>` da própria página, que o `PageHeader` resolve a partir do id de
+tela que a rota declara. Uma rota, por isso, não consegue passar um título próprio; a ficha da
+descrição é a única exceção, e é o catálogo que a marca como a tela cujo título é o do próprio
+registro.
+
+Abaixo do título, o cabeçalho tem os mesmos quatro espaços em toda tela: o rótulo, uma linha dizendo o
+que a tela decide, o **estado** do que foi lido — uma contagem, um filtro, um total — e as ações. A
+contagem disputava o mesmo espaço com a linha explicativa, e é por isso que umas telas se explicavam e
+outras só relatavam totais; enquanto a leitura está em curso, o espaço do estado mostra um esqueleto
+da própria altura, para o cabeçalho não pular quando os números chegam.
+
+`apps/curator/src/lib/copy.ts` guarda o nome do produto — reexportado de `lib/attribution.ts`, que é
+dono dele para o aviso de licença — e **um verbo por ação**, com a palavra do meio da execução. Os
+verbos que esta página usa são os desse arquivo:
+
+| Ação | A palavra na tela |
+| --- | --- |
+| escrever uma linha editada | **Salvar** |
+| trazer uma linha à existência | **Criar** (o gatilho ao lado diz *+ Nova…*) |
+| tirar um termo de uma lista — um veto, uma exclusão | **Remover** |
+| destruir um registro, sempre atrás de uma prévia ou de uma confirmação digitada | **Excluir** |
+| a chave `is_active` de uma **linha de catálogo** — um nível, uma tipologia, uma gaveta, uma regra de limpeza, um termo do acervo | **Aposentar** / **Reativar** |
+| desativar uma **conta** | **Desativar** / **Reativar** |
+| disparar uma execução de worker | **Rodar agora** |
+| unificar duas entradas de vocabulário | **Mesclar** |
+| confirmar um plano calculado | **Aplicar** |
+| calcular o que uma escrita destrutiva faria, sem escrever | **Conferir impacto** |
+
+`Aposentar` e `Desativar` são duas palavras de propósito: uma linha de catálogo e uma conta saem do
+sistema de maneiras diferentes, e uma palavra só para as duas diria que não. Banir um termo mantém o
+verbo próprio (`Banir` / `Desbanir`), porque é outra marca e não exclui nada.
+
 ### O menu se recolhe a ícones
 
 Um controle no cabeçalho do próprio menu o dobra numa coluna de ícones de 64px e o devolve, e o
@@ -318,7 +361,7 @@ grupo "Arranjo" teria uma linha só, então ele deixou de existir.
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
 | Plano de arranjo — `/arranjo/plano` | aprovar ou rejeitar cada rung proposta, e materializar a árvore | sim — a decisão pode ser reaberta, e a materialização tem desfazer |
-| Diagnóstico — `/arranjo/diagnostico` | nenhuma (a evidência; o conserto é em outra tela) | sim (só leitura) |
+| Diagnóstico do arranjo — `/arranjo/diagnostico` | nenhuma (a evidência; o conserto é em outra tela) | sim (só leitura) |
 
 ### Plano de arranjo — `/arranjo/plano`
 
@@ -343,7 +386,7 @@ botão de aplicar fica desabilitado até a prévia existir. Só as rungs aprovad
 prévia e o apply compartilham um planejador, então o número aprovado é o número escrito. O que o
 desfazer restaura está descrito em **o lote que tem desfazer**.
 
-### Diagnóstico — `/arranjo/diagnostico`
+### Diagnóstico do arranjo — `/arranjo/diagnostico`
 
 O diagnóstico estrutural, uma seção por problema, cada uma com sua contagem e sua evidência (uma
 seção com zero continua visível, porque saber que a checagem rodou importa). Ele **não oferece
@@ -358,7 +401,7 @@ trabalho é escrito, não o trabalho — e é por isso que o menu não os carreg
 
 Os dois catálogos fechados que o arquivista mantém e o vocabulário do acervo. Nenhum deles apaga: uma
 linha se aposenta com `is_active=false`, porque as chaves estrangeiras são `SET NULL` e remover uma
-linha desclassificaria toda descrição que aponta para ela, além de apagar o registro de que ela
+linha desclassificaria toda descrição que aponta para ela, além de excluir o registro de que ela
 existiu.
 
 | Tela | Decisão | Reversível? |
@@ -373,7 +416,7 @@ O catálogo de níveis. Criar um degrau é `POST /api/v1/hierarchy/levels` e edi
 `PATCH /api/v1/hierarchy/levels/{level_id}` (`CATALOGUE`): nome, descrição, grafias aceitas, se exige
 unidade superior e se pode ter filhos. Duas regras que a tela declara em vez de contornar:
 
-- **não há exclusão.** `is_active=false` é o caminho, e o peso de um degrau desativado continua
+- **não há exclusão.** `is_active=false` é o caminho, e o peso de um degrau aposentado continua
   visível;
 - **o ordinal não é editável.** Mudá-lo renumeraria a árvore contra a qual o passado foi decidido; um
   ordinal errado é um degrau novo, não um renome.
@@ -387,8 +430,8 @@ O catálogo das tipologias documentais — a forma diplomática (ata, ofício, p
 assunto. `POST /api/v1/typologies` e `PATCH /api/v1/typologies/{typology_id}` (`CATALOGUE`) mantêm o
 nome e a descrição de contexto. O classificador recebe **só o nome**: acrescentar o contexto faz o
 modelo perder o vínculo e colapsar o acervo numa única tipologia (medido), então o contexto é
-documentação para quem lê. Desativar uma tipologia é a única alavanca que alcança o modelo — ela
-deixa de ser proposta sem desclassificar nenhuma descrição — e é por isso que o peso das desativadas
+documentação para quem lê. Aposentar uma tipologia é a única alavanca que alcança o modelo — ela
+deixa de ser proposta sem desclassificar nenhuma descrição — e é por isso que o peso das aposentadas
 continua na tela.
 
 ### Vocabulário do acervo — `/vocabulario`
@@ -404,7 +447,7 @@ O que *este* acervo declara, em oposição ao que a língua ou o software fixam.
 
 O que é propriedade da língua portuguesa — *rua*, *não identificado*, *303 anos*, um ano solto — fica
 no perfil de idioma e **não** aparece aqui: mudá-lo seria mudar o significado que o software dá à
-palavra. Retirar um termo não o apaga, e um termo retirado volta a ser tratado como assunto na
+palavra. Aposentar um termo não o exclui, e um termo aposentado volta a ser tratado como assunto na
 próxima execução do classificador.
 
 ## Assuntos
@@ -438,7 +481,7 @@ A decisão é unificar: `POST /api/v1/taxonomy/tags/merge` (`CURATE`), depois de
 executa). O painel abre sempre com o impacto na frente: documentos atualizados, vínculos reescritos,
 tags absorvidas, grafias registradas e reapontadas, e o aviso que precisa ser lido antes do clique —
 `category_would_be_lost`, quando a canônica não tem gaveta e uma absorvida tem, o que faria o merge
-apagar uma classificação de assunto.
+excluir uma classificação de assunto.
 
 O merge é **reversível**: a escrita é registrada por tag absorvida no ledger de merges antes de
 qualquer coisa mudar, e o desfazer (`DELETE /api/v1/taxonomy/tags/merge-log/{merge_id}`, `CURATE`)
@@ -486,7 +529,7 @@ Os termos banidos, e a única escrita destrutiva da taxonomia. A tela separa tr�
 !!! warning "O escopo protege o outro eixo"
 
     A purga lê apenas `TAG`/`ALL`. Um termo banido no eixo `ENTITY` é um veto de NER e nunca pode
-    fazer a purga de assunto apagar uma tag que o curador manteve — os dois são guardados em lugares
+    fazer a purga de assunto excluir uma tag que o curador manteve — os dois são guardados em lugares
     diferentes de propósito.
 
 ### Categorias — `/assuntos/categorias`
@@ -540,10 +583,10 @@ O vocabulário de nomes próprios, por peso ou por similaridade. Três decisões
   entre `ORG`, `PER` e `LOC`. Isso não é renomear um rótulo: o serviço grava também o sinônimo de
   ancoragem, então o extrator devolve aquela grafia com o tipo novo em toda execução futura.
 - **Excluir** uma entidade — `DELETE /api/v1/taxonomy/entities/{entity_id}` (`CURATE`), oferecido só
-  numa linha que nenhuma descrição carrega, onde apagar não perde vínculo. Sem desfazer.
+  numa linha que nenhuma descrição carrega, onde excluir não perde vínculo. Sem desfazer.
 - **Purgar órfãs** — `POST /api/v1/taxonomy/entities/orphans/purge` (`CURATE`): a mesma decisão em
   lote. Sem desfazer.
-- **Unificar** — `POST /api/v1/taxonomy/entities/merge` (`CURATE`): as entidades absorvidas deixam de
+- **Mesclar** — `POST /api/v1/taxonomy/entities/merge` (`CURATE`): as entidades absorvidas deixam de
   existir, seus vínculos passam para a canônica, suas grafias viram sinônimos, e um nome novo opcional
   para a canônica faz o antigo virar sinônimo também. Entidades não têm catálogo de propostas nem
   **ledger**: não há desfazer, e o painel avisa em vez de oferecer um botão de volta. Também não há
@@ -563,7 +606,7 @@ remover o veto não as traz de volta.
 
 Esta é a outra metade da governança bidirecional: ela registra o curador ou o juiz dizendo "isto
 pertence ao eixo de assunto", e é guardada separada das stopwords do eixo de assunto de propósito,
-para um veto aqui nunca fazer a purga de assunto apagar uma tag que o curador manteve.
+para um veto aqui nunca fazer a purga de assunto excluir uma tag que o curador manteve.
 
 ### Conflitos — `/entidades/conflitos`
 
@@ -590,13 +633,13 @@ propósito**:
 - **a entidade vence** — os vínculos da tag passam para a entidade, a linha da tag é apagada e o nome
   da tag entra nas stopwords de escopo `TAG`.
 
-Colapsar os dois deixaria um veto de NER fazer a purga de assunto apagar a tag vencedora.
+Colapsar os dois deixaria um veto de NER fazer a purga de assunto excluir a tag vencedora.
 
 Resolver é `POST /api/v1/taxonomy/conflicts/resolve` (`CURATE`) e o desfazer é
 `DELETE /api/v1/taxonomy/conflicts/resolutions/{resolution_id}` (`CURATE`). O desfazer é exato porque
 o ledger grava `created_link_ids` e `ban_created`: as duas escritas usam `ON CONFLICT DO NOTHING`,
 então reverter uma resolução posterior não pode levantar um bloqueio que uma anterior plantou, nem
-apagar um vínculo que já existia antes. O ledger restaura a linha perdedora a partir do retrato dela.
+excluir um vínculo que já existia antes. O ledger restaura a linha perdedora a partir do retrato dela.
 Um par já resolvido pode ser decidido de novo — a segunda resolução é independente, e cada uma tem o
 próprio desfazer.
 
@@ -610,8 +653,8 @@ próprio desfazer.
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Trechos — `/qualidade/trechos` | de qual consumidor um trecho repetido sai | sim (desativar ou remover do catálogo) |
-| Regras — `/qualidade/regras` | se uma regra reescreve o texto ou só sinaliza | sim: a desativação tem caminho de volta, e a regra desativada continua na tela |
+| Trechos — `/qualidade/trechos` | de qual consumidor um trecho repetido sai | sim (aposentar ou remover do catálogo) |
+| Regras — `/qualidade/regras` | se uma regra reescreve o texto ou só sinaliza | sim: aposentar tem caminho de volta, e a regra aposentada continua na tela |
 | Anomalias — `/qualidade/anomalias` | nenhuma (a correção é a revisão da ficha) | sim (só leitura) |
 
 ### Trechos — `/qualidade/trechos`
@@ -628,7 +671,7 @@ prejudica e mantido onde ajuda: aprovar tudo o que a máquina sugeriu piorou o r
 - **Escrever um trecho** — `POST /api/v1/quality/text-templates` (`CATALOGUE`). Ele nasce aprovado e
   aplicado e devolve as descrições afetadas à fila da IA; o botão de cadastrar só libera depois de o
   impacto ser visto.
-- **Aprovar / rejeitar / desativar / salvar escopo / remover** —
+- **Aprovar / rejeitar / aposentar / salvar escopo / remover** —
   `PATCH`/`DELETE /api/v1/quality/text-templates/{template_id}` (`CATALOGUE`). Remover tira o trecho
   do catálogo e devolve as descrições afetadas à fila da IA.
 
@@ -647,7 +690,7 @@ quando a regra reescreve — `PATCH /api/v1/quality/cleaning-rules/{rule_id}/dea
 apagada, e o caminho de volta é uma rota, não uma regra nova: a listagem aceita
 `include_inactive=true`, que é o que coloca as regras aposentadas no fim da tela com o botão que as
 devolve à fila. Reativar preserva o id e o histórico que recadastrar a regra teria perdido.
-Desativar é a metade segura do par — é o que se procura quando uma regra está errada, então a saída
+Aposentar é a metade segura do par — é o que se procura quando uma regra está errada, então a saída
 dela precisa existir.
 
 Uma regra `REWRITE` ativa é a coisa mais barulhenta da tela, e a prévia é o que a torna visível: uma
@@ -672,7 +715,7 @@ por `/configuracoes`, sob *Operação*: o menu ficou com o que o arquivista cons
 | --- | --- | --- |
 | Workers de IA — `/sistema/workers` | com qual modelo um worker roda, e se rodá-lo agora | o padrão configurado sim; os efeitos de uma execução seguem o que ela escreveu |
 | Execuções — `/sistema/execucoes` | nenhuma (o ledger e as falhas agrupadas) | sim (só leitura) |
-| Diagnóstico — `/sistema/diagnostico` | nenhuma (banco, modelos, storage, processo) | sim (só leitura) |
+| Saúde do sistema — `/sistema/diagnostico` | nenhuma (banco, modelos, storage, processo) | sim (só leitura) |
 
 ### Workers de IA — `/sistema/workers`
 
@@ -705,7 +748,7 @@ agrupadas por causa (`GET /api/v1/system/failures`), que respondem à pergunta q
 responde: quarenta linhas dizendo a mesma frase são uma causa. Clicar num grupo filtra o ledger
 abaixo em vez de abrir uma segunda lista, e a referência de uma falha é o que se procura no log.
 
-### Diagnóstico — `/sistema/diagnostico`
+### Saúde do sistema — `/sistema/diagnostico`
 
 Quatro verificações independentes (`GET /api/v1/system/health`, `OPERATE`): o banco com suas
 contagens, o servidor Ollama com os modelos que os presets exigem e quais deles faltam, o storage das
@@ -731,7 +774,7 @@ mudou foi como se chega até ela. Três abas, na ordem da escada de permissões 
 | Aba | Cartões |
 | --- | --- |
 | Arranjo e catálogos | Plano de arranjo (`CURATE`), Níveis de descrição, Tipologias e Vocabulário do acervo (`CATALOGUE`) |
-| Operação | Workers de IA, Execuções e Diagnóstico (`OPERATE`) |
+| Operação | Workers de IA, Execuções e Saúde do sistema (`OPERATE`) |
 | Acesso | Usuários (`ADMIN`) |
 
 A aba fica na URL (`?aba=`), então dá para mandar alguém direto aos "cartões dos workers". Uma aba que
