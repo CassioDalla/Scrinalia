@@ -7,82 +7,104 @@ Documento central de planejamento: curadoria e enriquecimento de acervo arquiví
 > no código. `[ ]` = pendente. `[~]` = parcial. O detalhe de cada ciclo vive no histórico do Git e nos
 > ADRs: aqui fica **o que falta** e o que **impede alguém de refazer ou desfazer** uma decisão medida.
 >
-> **Estado do gate (2026-10-08):** **1.395 testes** · `ruff` limpo · `basedpyright` **0 erros** ·
-> **32 migrações** sem drift · contrato **95 paths / 112 operações / 182 schemas** sem drift · SPA
-> (`tsc`, `eslint`, `vite build`) limpa e servida pelo próprio Litestar · **10 ADRs** · site MkDocs
-> builda com `--strict` em inglês e português, com o gate de cobertura da documentação dentro da suíte.
+> **Estado do gate (2026-10-09, re-medido neste checkout):** **1.395 testes** em **16,9 s** ·
+> `ruff check`/`format --check` limpos · `basedpyright` **0 erros** · **32 migrações** e
+> `alembic check` sem drift · contrato **95 paths / 112 operações / 182 schemas** regenerado sem
+> drift · SPA (`tsc`, `eslint`, `vite build`) limpa e servida pelo próprio Litestar · **10 ADRs** ·
+> site MkDocs `--strict` em inglês e português, com o relatório de frescor dizendo *every page is
+> fresh*.
+>
+> **O repositório é público e a `v1.0.0` está publicada** (2026-10-09); o site responde em
+> <https://cassiodalla.github.io/Scrinalia/> e em `/pt/`. O que falta agora é **acervo, decisão de
+> produto e três itens pequenos de código** — seções 2 e 3.
 
 ---
 
 ## 🎯 O que falta
 
-### 1. Abrir o repositório — o único bloqueador de sequência
+### 1. Abrir o repositório — ✅ **fechado em 2026-10-09**
 
-Os **Settings do GitHub já estão feitos**: advisory privada, Dependabot (alerts + security updates),
-secret scanning com push protection, o ruleset `Main Protect` na `main` (PR obrigatório, sem
-force-push, sem deleção e **assinatura obrigatória**), o ruleset `dev protect` na `dev` (sem
-force-push, sem deleção e assinatura obrigatória) e permissões de Actions em *read*. Duas coisas que
-o `Main Protect` **não** exige, e vale saber: os checks do CI (eles rodam em cada PR, mas o merge não
-espera por eles) e histórico linear (os três métodos de merge estão liberados). Falta, **nesta
-ordem**:
+Era o único bloqueador de sequência, e a ordem importou: a varredura de segredos (`gitleaks`, 232
+commits) e a limpeza do acervo passaram **antes** do clique. Verificado na API do GitHub neste
+checkout, não de memória:
 
-- [x] **Commitar e empurrar o working tree.** Feito: a base de documentação, os cinco consertos de
-      código, a revisão do `README.md` e do `AGENTS.md` e o bump da versão — `dev` está em sincronia
-      com `origin/dev`.
-- [x] **Revisar o `AGENTS.md`.** Não havia caminho absoluto, nome de máquina nem nome de acervo; o
-      que saiu foram as **contagens do acervo** (quantas tags, quantos pares, quantas decisões do
-      juiz) — os tempos que justificam decisões ficaram.
-- [ ] **Mergear o PR `dev` → `main`.** O PR está aberto e o branch **default é o `main`**, que está
-      **206 commits atrás**: medido, ele **não tem `LICENSE`** nem `LICENSE-ADDITIONAL-TERMS.md`, e
-      também não tem `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, os ADRs, os templates nem
-      os workflows do CI. O merge — que a branch protection exige com os checks verdes, e os commits
-      já carregam `Signed-off-by`, então o job `dco` passa — põe o `main` em dia e tira o badge de CI
-      do "no status".
-- [x] **Assinatura obrigatória.** Já está ligada: o ruleset `Main Protect` carrega a regra
-      `required_signatures`, e os commits do PR estão assinados (`commit.gpgsign=true`, formato SSH).
-      É regra independente do DCO: a assinatura prova **quem criou** o commit, o trailer
-      `Signed-off-by` declara o **direito de submetê-lo**, e o job `dco` confere o trailer.
-- [ ] **Fechar o `dev protect`.** O ruleset existe e já bloqueia force-push, deleção e commit sem
-      assinatura, mas as duas regras que sustentam a convenção estão **vazias**: não há regra de
-      `pull_request` (push direto no `dev` continua permitido) e `required_status_checks` está com a
-      **lista vazia** — a regra existe e não exige check nenhum. Ao preencher a lista, dois detalhes do
-      `ci.yml` mandam: o job `dco` só roda em PR (`if: github.event_name == 'pull_request'`), então
-      exigi-lo só faz sentido junto com a regra de PR; e `Dependency advisories` tem
-      `continue-on-error: true`, ou seja, é sempre verde e não serve de gate. Vale revisitar também a
-      assinatura obrigatória no `dev`: é coerente com o `main`, mas um contribuidor externo sem chave
-      não pousa nada no `dev` — e, sem ela no `dev`, o `main` recusaria o merge depois.
-- [ ] **Tornar público.** É o último passo, e a ordem importou: um segredo que entra no histórico de
-      um repositório público já vazou. A varredura (`gitleaks`, 232 commits) e a limpeza do acervo já
-      passaram; o que falta é o clique.
+- [x] **Repositório público.** `visibility: public`, `default_branch: main`, `homepage` apontando para
+      o site, advisory privada e *push protection* ligadas, secret scanning e atualizações de
+      segurança do Dependabot habilitados.
+- [x] **PR `dev` → `main` mergeado.** `main` está em `6fa6f6f` e carrega o que faltava (a licença e o
+      termo do §7(b), `SECURITY.md`, `CONTRIBUTING.md`, o COC, os ADRs, os templates e os workflows).
+      `dev` está **2 commits à frente** (`#20`, o CodeQL dos workflows): é o fluxo normal, e o próximo
+      release os leva. O badge de CI deixou de ser "no status".
+- [x] **`v1.0.0` publicada.** Tag `v1.0.0` em `6fa6f6f`, release de 2026-10-09T00:23Z, com SBOM e
+      proveniência do workflow `Release`.
+- [x] **Site publicado** em <https://cassiodalla.github.io/Scrinalia/> — a raiz (inglês) responde
+      **200** e o `/pt/` também. **O deploy foi manual** (`mkdocs gh-deploy`; o commit do `gh-pages` é
+      *"Deployed e96473f with MkDocs version: 1.6.1"*, do dono): o que falta é o job de CI no item 3.
+- [x] **Assinatura obrigatória** nos dois rulesets. É regra independente do DCO: a assinatura prova
+      **quem criou** o commit, o trailer `Signed-off-by` declara o **direito de submetê-lo**, e o job
+      `dco` confere o trailer.
 
-### 2. Fechar a 1.0 — o que é **operação**, não código
+O que sobrou, e é pequeno:
 
-O software está pronto; **o acervo de referência está parcialmente processado**. Medido em
-**2026-10-06** — re-meça antes de confiar (o comando está no Handoff):
+- [~] **`dev protect` pela metade.** O ruleset tem `deletion`, `non_fast_forward`,
+      `required_signatures` e agora também `required_status_checks` — verificado na API: **três
+      contextos** (`Lint & format`, `Migrations & tests`, `Curator UI (types, lint, build)`), todos
+      batendo com o `name:` dos jobs do `ci.yml`. **Falta a regra de `pull_request`**, que é a que
+      sustenta o `dev` como branch de integração; sem ela, o que impede um push direto é só a regra de
+      checks. Ao acrescentá-la, dois detalhes do `ci.yml` continuam mandando: `Signed-off-by (DCO)` só
+      roda em PR (`if: github.event_name == 'pull_request'`), então exigi-lo só faz sentido junto com a
+      regra; e `Dependency advisories` tem `continue-on-error: true`, ou seja, é sempre verde e não
+      serve de gate. Vale revisitar também a assinatura obrigatória no `dev`: é coerente com a `main`,
+      mas um contribuidor externo sem chave não pousa nada no `dev` — e, sem ela no `dev`, a `main`
+      recusaria o merge depois.
+- [ ] **Higiene do repositório público** (medido agora): `description` está **nula** e `topics`
+      **vazio** — é o que aparece na busca do GitHub e no cartão do repositório.
+      `delete_branch_on_merge` é `false` e há **5 branches remotas já mergeadas**
+      (`adopt-deps-pr5`, `ci-codeql-advanced-setup`, `perf-tests-argon2` e duas do Dependabot).
+      `Main Protect` continua **sem** `required_status_checks` e **sem** histórico linear (os três
+      métodos de merge liberados): é escolha, não esquecimento — mas é a assimetria entre os dois
+      rulesets que confunde quem chega.
 
-| # | Medida | Valor |
-| --- | --- | ---: |
-| 1 | Descrições | **4.844** |
-| 2 | Com pai (árvore materializada) | **4.826** |
-| 3 | Tags / sem gaveta de assunto | **8.155 / 7.461** |
-| 4 | Propostas de merge: sugeridas / aplicadas | **748 / 127** |
-| 5 | Rungs decididos / total | **24 / 81** |
-| 6 | Carimbos `ner_v2` / `typology_v2` | **4.826 / 0** |
-| 7 | Carimbos `macro_category_v1` (tags) / `embedding_v1` | **957 / 41** |
-| 8 | Publicados / revisões humanas | **0 / 0** |
+### 2. O acervo de referência — **operação, não código**
 
-- [ ] **Rodar a IA pendente.** `typology_v2` está em **0** e `embedding_v1` em **41** de 4.844;
-      enquanto isso, a busca semântica serve vetores antigos para 3.608 e nenhum para os ~1.218 do
-      re-parse. E o bump de `torch`/`sentence-transformers` já invalidou os vetores antigos **em
-      silêncio** — o carimbo do worker é o hash do texto, não da versão do modelo, então ele não
-      recoloca esses documentos na fila sozinho.
-- [ ] **Decidir a ordem:** rodar a IA (tipologia, embedding, quality-validator) **antes ou depois** de
-      decidir os 81 rungs. Enquanto não rodar, a UI mostra menos do que o sistema sabe. É decisão de
-      produto, não de engenharia.
-- [ ] **Cortar o primeiro Release.** A versão já está em **1.0.0** (`pyproject.toml`, `uv.lock`,
-      `CITATION.cff`, `CHANGELOG.md`, `apps/curator/package.json` e `README.md`), então falta rodar o
-      workflow (`Actions → Release`): com `dry_run: true` ele valida e builda **sem** criar a tag, e
-      imprime no resumo o que os Conventional Commits sugerem.
+O software saiu na **1.0.0**; **o acervo continua parcialmente processado**. Re-medido no banco de
+desenvolvimento em **2026-10-09** (`DB_NAME=memoriacuritibana`; o comando está no Handoff) — não
+confie em número congelado:
+
+| # | Medida | 2026-10-06 | **2026-10-09** |
+| --- | --- | ---: | ---: |
+| 1 | Descrições | 4.844 | **4.844** |
+| 2 | Com pai (árvore materializada) | 4.826 | **4.826** |
+| 3 | Tags / sem gaveta de assunto | 8.155 / 7.461 | **8.154 / 7.460** |
+| 4 | Propostas de merge: sugeridas / aplicadas | 748 / 127 | **747 / 127** |
+| 5 | Rungs decididos / total | 24 / 81 | **24 / 81** |
+| 6 | Carimbos `ner_v2` / `typology_v2` | 4.826 / 0 | **4.826 / 0** |
+| 7 | Carimbos `macro_category_v1` (tags) | 957 | **957** |
+| 8 | Carimbos `embedding_v1` | 41 | **4.844** (vetor não nulo em todos) |
+| 9 | Carimbos `quality_validator_v1` | — | **4.826** (4.596 com `anomaly_reasons`) |
+| 10 | Publicados / revisões humanas | 0 / 0 | **0 / 0** |
+
+- [ ] **Rodar a tipologia — é a única IA que falta.** `typology_v2` está em **0**, e o ledger explica:
+      a execução de `typology` está **INTERRUPTED** desde 2026-10-06 ("O processo anterior terminou
+      antes do fim desta execução" — o `lifespan.py` marcando o órfão). `embedding` (4.844/4.844, 76 s,
+      2026-10-08) e `quality-validator` (4.826, 4.596 com anomalia) já rodaram inteiros.
+- [ ] **O carimbo do `embedding` não guarda a identidade do modelo.** O bump de
+      `torch`/`sentence-transformers` invalidou os vetores antigos **em silêncio**: o carimbo é o MD5
+      do texto, não a versão do modelo, então o worker não recoloca ninguém na fila sozinho. Re-rodar
+      resolveu desta vez (item 8), mas o próximo bump repete o problema — **incluir a identidade do
+      modelo no carimbo é item de código**, não de operação.
+- [ ] **Decidir a ordem:** rodar a tipologia **antes ou depois** de decidir os 81 rungs. Enquanto não
+      roda, a UI mostra menos do que o sistema sabe. É decisão de produto, não de engenharia.
+- [ ] **Higiene de catálogo que a medição deixou visível:** há **1 regra de limpeza, e ela está
+      inativa** (`REWRITE`) — o `cleaning` não tem o que fazer, e as 41 descrições que carregam carimbo
+      de limpeza vieram de quando ela estava ativa. Como não há `LLM_CHECK` ativa, o
+      `quality-validator` rodou **sem etapa de LLM**. E `thumbnail` está em **0**: nenhuma descrição
+      tem `storage_thumbnail_uri` (falta o endpoint S3 do operador).
+- [ ] **As 18 fichas `HUMAN_APPROVED`** são os nós de arranjo (níveis 1–4, criados em 2026-10-06):
+      **são exatamente as 18 sem carimbo `ner_v2`** (medido: nenhuma descrição não aprovada está sem o
+      carimbo) — a janela de reprocessamento **já fechou** para elas. E **nenhuma tem linha em
+      `archive_document_revisions`**, porque não passaram pelo `PATCH /documents/{id}`. Vale saber
+      antes de rodar IA em lote.
 
 **O que não pode rodar no acervo real sem decisão do dono:**
 
@@ -93,12 +115,15 @@ O software está pronto; **o acervo de referência está parcialmente processado
 - `DELETE /documents/{id}` — exclusão definitiva (trilha, não lixeira).
 - Os workers de IA — **a janela de reprocessamento fecha na primeira ficha aprovada por humano**.
 
-### 3. Fechar a 1.0 — o que é **código**, e é pequeno
+### 3. Pós-1.0 — o que é **código**, e é pequeno
 
 - [ ] **Teste de fumaça `e2e`** (marcado `slow`) exercitando um pipeline com engines reais. A suíte usa
       `mock_registry` (correto) e por isso a classe de bug do `suggest-macro` fica invisível.
-- [ ] **Publicar o site** e decidir se versiona por release (`mike`). **Não bloqueia a 1.0**: o build
-      com `--strict` já é o gate e o site é gerado do repositório; hospedagem é uma decisão separada.
+- [~] **Publicar o site pela CI** — o site **já está no ar** (<https://cassiodalla.github.io/Scrinalia/>),
+      mas por `mkdocs gh-deploy` manual, com `build_type: legacy` sobre o branch `gh-pages`. Falta o job
+      que publica a cada merge (o `docs` do CI hoje só builda com `--strict`) e a decisão de versionar
+      por release (`mike`). **Não bloqueou a 1.0**: o build com `--strict` é o gate, e o site é gerado
+      do repositório.
 - [ ] **Adotar pandas 3 e SQLAlchemy 2.1 de propósito.** Os dois estão segurados no `pyproject.toml`
       (`pandas<3`, `sqlalchemy<2.1`) porque o Dependabot os trouxe num PR de grupo com 12 outros bumps.
       O SQLAlchemy 2.1 **troca o driver padrão de `postgresql://` de psycopg2 para psycopg (v3)**, e o
@@ -108,6 +133,8 @@ O software está pronto; **o acervo de referência está parcialmente processado
       tipagem de `Row` (6 pontos) e a de pandas (`int(row[...])`, 2 pontos) e re-rodar a suíte. O
       pandas 3 muda a tipagem de `Series.__getitem__` e traz mudanças de comportamento (string dtype,
       copy-on-write) que a suíte atual não exercita.
+- [ ] **A identidade do modelo dentro do carimbo do `embedding`** — é o item de código escondido na
+      seção 2: hoje o carimbo é só o MD5 do texto, então uma troca de modelo não invalida vetor nenhum.
 
 ---
 
@@ -121,8 +148,8 @@ O software está pronto; **o acervo de referência está parcialmente processado
 | 2.5 | Hierarquia das descrições | ✅ **Fechada** (H1–H8, com tela) |
 | 3 | Descoberta, performance e observabilidade | 🟡 **Quase** — `/health` e o rastreamento de erros fechados; o agendador é pós-1.0 |
 | 3.5 | Qualidade do dado de entrada | ✅ **Fechada** |
-| 4 | UI, BFF e publicação | 🟡 **Curador completo** (24 telas) e **auth entregue (B9.1–B9.3)**; falta o **site público** |
-| **5** | **Release 1.0** | 🟡 **Iniciada** — licença (0006), nome (0007), desacoplamento (0008), auth (0009) e **documentação (0010)** fechados; falta **abrir o repositório** e publicar o site |
+| 4 | UI, BFF e publicação | 🟡 **Curador completo** (24 telas) e **auth entregue (B9.1–B9.3)**; falta o **site público** (o `/api/v1/public/*` já existe; **0 de 4.844** publicados) |
+| **5** | **Release 1.0** | ✅ **Fechada em 2026-10-09** — licença (0006), nome (0007), desacoplamento (0008), auth (0009), documentação (0010), repositório público e **`v1.0.0` publicada**. Sobra `dev protect` (regra de PR), higiene do repositório e o deploy do site pela CI |
 
 ---
 
@@ -145,6 +172,7 @@ O software está pronto; **o acervo de referência está parcialmente processado
 | Autenticação | Sessão por cookie no banco (só o sha256 do token), argon2id com hash-isca, três papéis, **cada operação declara a sua permissão** (teste de partição); `/api/v1/users` com tela; bloqueio com backoff gravado **fora** da transação do request, rate-limit por endereço e `origin_guard` nas mutações. | ADR 0009 |
 | Documentação | Quatro guias em inglês e português, índice, ADRs, **cobertura como gate** (worker/setting/tela/tabela/ADR) e **frescor como relatório** com ledger de triagem; job `docs` no CI com `--strict`. | ADR 0010 |
 | Endurecimento do repositório | CI com lint, testes, front, docs, segredos, auditoria, `zizmor` e DCO; Actions pinadas por SHA e imagens por digest; CodeQL; Dependabot; SBOM e proveniência no release; comunidade completa (`CONTRIBUTING`, COC, templates, `CHANGELOG`, `CITATION`). | — |
+| **Repositório público e `v1.0.0`** | **Aberto em 2026-10-09**: `main` recebeu o `dev` (eram **206 commits** de distância, medidos antes do merge), a tag `v1.0.0` saiu pelo workflow `Release` com SBOM e proveniência, o site está no ar em <https://cassiodalla.github.io/Scrinalia/> (com `/pt/`), e os dois rulesets exigem assinatura — o `dev` também exige os três checks do CI. | ADR 0006, 0007 |
 | Curadoria de código | Os quatro itens que a escrita da documentação abriu, mais o `thumbnail`: reativação da regra de limpeza, `suggest-macro` como leitura, caixa de entrada abrindo as telas que existem, e `validate_engine_choice` valendo também no CLI. | ADR 0010 |
 
 ### 🐞 Modos de falha já aprendidos (valem para código novo)
@@ -174,6 +202,10 @@ O software está pronto; **o acervo de referência está parcialmente processado
   (pandas 3, SQLAlchemy 2.1 e transformers 5.18 no mesmo PR). Major se adota de propósito, com o
   lock rebaseado e a suíte rodada — o lock que o Dependabot testou não é o que o rebase produz
   (o PR trazia SQLAlchemy 2.1.3; o rebase resolveu 2.1.4).
+- **Um carimbo que não identifica o produtor não invalida nada.** O `worker_embedding` grava o **MD5 do
+  texto**, então trocar `torch`/`sentence-transformers` deixa 4.844 vetores velhos com o carimbo em
+  dia: a fila fica vazia e a busca semântica serve um vetor que nenhum modelo atual geraria. Um carimbo
+  de worker tem de nomear **o que o produziu** (versão do modelo/preset), não só a entrada.
 
 ---
 
@@ -187,6 +219,9 @@ O software está pronto; **o acervo de referência está parcialmente processado
 | Hierarquia em escala | `apply` 1,7 s; 1 raiz; profundidade 5; `undo` com 3.619 linhas restauradas |
 | Undo de merge ao vivo | `vendas ← venda` desfeito e reaplicado: tag, id e vínculo restaurados exatamente |
 | Worker `embedding` | 3.608/3.608 em ~1 min; `cos(guardado, recalculado) = 1.0` |
+| `embedding` sobre o acervo inteiro | **4.844/4.844 em 76,5 s** (2026-10-08, pelo ledger; vetor não nulo em todos) |
+| `quality-validator` sobre o acervo | **4.826 em 6,3 s**, 4.596 com `anomaly_reasons` (2026-10-08) |
+| Tipologia interrompida | a única IA em falta: `typology_v2 = 0` e a execução **INTERRUPTED** desde 2026-10-06 |
 | Banco reconstruído | 15 tabelas copiadas; `alembic check` sem drift |
 | Execução real da auth | sessão de outra conta responde 404; 3 falhas de senha → a senha **correta** responde **423**; rate-limit 429; mutação de origem estranha **403** e leitura **200** |
 | `/health/live` e `/health/ready` | 200 com o banco de pé, **503** com o banco parado |
@@ -206,7 +241,7 @@ O software está pronto; **o acervo de referência está parcialmente processado
 | Auth com limites conscientes | rate-limit **por processo**, sessão revogada não registra **quem** revogou, e 2FA/SSO/recuperação por e-mail estão fora de propósito (ADR 0009) |
 | **7 nós** com `LEVEL_NOT_ALLOWED_AS_CHILD` | a família SMU não cabe na escada de 6 níveis sem repetir ordinal |
 | Premissa de **processo único** | o executor na API e a recuperação de órfãos assumem `uvicorn --workers 1` (ADR 0004); `--workers > 1` corrompe o estado das execuções |
-| Acervo parcialmente processado | tipologia e embedding pendentes — seção 2 acima |
+| Acervo parcialmente processado | **a tipologia** é a IA que falta (`typology_v2 = 0`), e **0 de 4.844** publicados — seção 2 acima |
 
 ### 1. Processamento fora da API, agendador e IA em outra máquina
 
@@ -314,15 +349,23 @@ uv run python -m http.server -d site 8080   # servir o build estático
 > export PRE_COMMIT_HOME=.cache-pre-commit UV_CACHE_DIR=.cache-uv
 > .venv/bin/mkdocs serve -a 127.0.0.1:8080
 > ```
+>
+> **E o cache somente-leitura já custou um arquivo:** `bun run contract` redireciona com `>` para
+> `packages/api-contract/openapi.json`, então o redirect **trunca o arquivo antes de o `uv` falhar** —
+> o `openapi.json` fica com **0 byte** e o `git status` mostra `M`, como se fosse uma mudança de
+> conteúdo. O `git checkout --` restaura (426 KB); com `UV_CACHE_DIR` exportado, não acontece.
 
 **Nunca** rode `alembic upgrade head` no banco de **teste**: o `create_all` do conftest pula o que já
 existe e a suíte passa a rodar contra o schema migrado (53 falhas + 42 erros que parecem regressão).
 
 ### Medir o acervo (não confie em número congelado)
 
+O banco de desenvolvimento deste checkout é o `memoriacuritibana` (é o nome que está no `.env`;
+`scrinalia` **não existe** mais — a versão antiga vive em `memoriacuritibana_legacy`).
+
 ```bash
-docker exec scrinalia_db psql -U admin -d scrinalia -c "
-SELECT 'descrições' AS medida, count(*)::text AS valor FROM archive_documents
+docker exec scrinalia_db psql -U admin -d memoriacuritibana -t -A -F' | ' -c "
+SELECT 'descrições', count(*)::text FROM archive_documents
 UNION ALL SELECT 'com pai', count(*)::text FROM archive_documents WHERE parent_id IS NOT NULL
 UNION ALL SELECT 'sem nível', count(*)::text FROM archive_documents WHERE level_id IS NULL
 UNION ALL SELECT 'tags', count(*)::text FROM archive_tags
@@ -331,9 +374,20 @@ UNION ALL SELECT 'propostas sugeridas', count(*)::text FROM archive_tag_merge_pr
 UNION ALL SELECT 'propostas aplicadas', count(*)::text FROM archive_tag_merge_proposals WHERE status='APPLIED'
 UNION ALL SELECT 'rungs decididos', count(*)::text FROM archive_hierarchy_node_plans WHERE status <> 'SUGGESTED'
 UNION ALL SELECT 'rungs no total', count(*)::text FROM archive_hierarchy_node_plans
-UNION ALL SELECT 'carimbos ner/tipo/macro/emb', (SELECT count(*) FROM archive_documents WHERE execution_log ? 'worker_ner_v2')::text || '/' || (SELECT count(*) FROM archive_documents WHERE execution_log ? 'worker_typology_classifier_v2')::text || '/' || (SELECT count(*) FROM archive_tags WHERE execution_log ? 'worker_macro_category_v1')::text || '/' || (SELECT count(*) FROM archive_documents WHERE execution_log ? 'worker_embedding_v1')::text
-UNION ALL SELECT 'publicados', count(*)::text FROM archive_documents WHERE is_published;"
+UNION ALL SELECT 'ner_v2', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_ner_v2'
+UNION ALL SELECT 'typology_v2', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_typology_classifier_v2'
+UNION ALL SELECT 'macro_v1 (tags)', count(*)::text FROM archive_tags WHERE execution_log ? 'worker_macro_category_v1'
+UNION ALL SELECT 'embedding_v1', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_embedding_v1'
+UNION ALL SELECT 'quality_validator_v1', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_quality_validator_v1'
+UNION ALL SELECT 'publicados', count(*)::text FROM archive_documents WHERE is_published
+UNION ALL SELECT 'revisões humanas', count(*)::text FROM archive_document_revisions
+UNION ALL SELECT 'HUMAN_APPROVED', count(*)::text FROM archive_documents WHERE review_status='HUMAN_APPROVED';"
 ```
+
+Os carimbos dizem **o que rodou**, mas não com que modelo: `embedding_v1` é o MD5 do texto. Para saber
+o que executou e quando, o ledger é a fonte (`archive_worker_runs`, com `status`, `engine_name`,
+`preset`, `duration_ms` e `error`) — é lá que está o `typology` **INTERRUPTED** que explica o
+`typology_v2 = 0`.
 
 ---
 
