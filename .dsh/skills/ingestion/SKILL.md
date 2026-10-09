@@ -1,0 +1,21 @@
+---
+name: ingestion
+description: "The origin and the language: SourceSchema labels as validation context, no default origin, the false-null vocabulary, the staging -> archive key and the language profile."
+whenToUse: "When touching a scraper, the staging transform or the collection vocabulary."
+---
+
+# ingestion
+
+## The staging -> archive key
+
+- The staging -> archive CDC key is the **hash of the parsed record** (`StagingRecord.parsed_content_hash()`), not of the raw payload. A parser change leaves the payload byte-identical, so `run_staging_pipeline(force=True)` re-parses and the transfer then sees a real difference. Keep it that way or parser fixes will never reach the archive.
+
+## Language and the collection vocabulary
+
+- **The language is code; the collection vocabulary is data.** `core/language/` holds one frozen `LanguageProfile` per language — stopwords, date grammar, street/placeholder/measure patterns, plural rules, the FTS dictionary, the spaCy model — and `ACERVO_LANGUAGE` selects it. The *rules* stay where they were (`staging/dates.py`, `domain/vocabulary.py`, `domain/normalization.py`) and read the profile instead of carrying its data, so a second language is a module and not a second parser. Everything the *collection* declares is a row: `archive_arrangement_vocabulary` (token, or whole code, to the name the proposal suggests — the whole code wins over the last token) and `archive_collection_terms` (typed by `CollectionTermKind`; a place kind claims the PLACE facet, `PERSON` goes nowhere), served by `/api/v1/vocabulary` and edited at `/vocabulario`. Three rules hold it: (1) the guard is **pure** and receives a `CollectionVocabulary`; an empty catalogue refuses nothing of its own and there is **no fallback to the reference collection**, or every other institution would silently inherit the reference collection's vocabulary; (2) `PT_BR.stopwords` is what the clustering engines discard and `domain_stopwords` is a curator's decision about the subject axis — **never collapse the two**, or a NER veto silences a tag the curator kept; (3) the FTS dictionary reaches the generated `search_vector`, so changing `ACERVO_LANGUAGE` is a **migration**, not a reboot, and `alembic check` reports the drift. The selectors and the Portuguese field names of a scraper stay **inside the adapter** — `SourceConfig` carries the origin, and an HTML layout is not configuration. See ADR 0008.
+
+## The origin's vocabulary
+
+- **The origin's field vocabulary is a parameter, and the transform knows no site.** `SourceSchema` (`domains/ingestion/ports.py`) declares which of an origin's labels fills which staging column, the keys the adapter itself writes and which fields carry the date; the concrete one lives next to the adapter (`PMC_SOURCE_SCHEMA`), `ACERVO_SOURCE` selects it through `get_source_schema()`, and it reaches the transform as **Pydantic validation context** (`StagingDocumentDTO.model_validate(data, context={SOURCE_SCHEMA_CONTEXT_KEY: schema})`). Three rules: (1) the labels are the site's own and are **never translated** — they are payload keys, and translating one silently empties the column; (2) there is **no default origin**, because a fallback would make an installation that never declared its origin read the reference site's vocabulary (the ADR 0008 defect, one layer down) — `get_source_schema()` raises instead, and `run_staging_pipeline` fails fast; (3) the map's values are staging attributes, so a typo there files a column as unknown without failing — `testing/unit/ingestion/test_sources.py` checks every value against `StagingDocumentDTO.model_fields`.
+- **"The origin wrote nothing" has one definition, in the language profile.** `PT_BR.false_null_values` owns the spellings; `empty_date_values` (the date set) and `placeholder_pattern` (the subject guard) are **declared views** of it, so a spelling added in one place is honoured everywhere. The subject view is deliberately a **subset**: the guard's verdicts are a measured behaviour on the reference collection, and widening them would change which tags reach the classifier — a classification decision, not a cleanup. A `title` is never cleaned to `None`: it is required, and doing so dropped the whole document (measured). It falls back to `PT_BR.untitled_title` instead.
+
