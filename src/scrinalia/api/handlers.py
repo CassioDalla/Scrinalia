@@ -64,6 +64,7 @@ from scrinalia.domains.identity.exceptions import (
     InvalidEmailError,
     LastAdminError,
     SessionNotFoundError,
+    SetupAlreadyCompleteError,
     TooManyLoginAttemptsError,
     UserNotFoundError,
     WeakPasswordError,
@@ -123,6 +124,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             WorkerRunAlreadyActiveError,
             DuplicateUserEmailError,
             LastAdminError,
+            SetupAlreadyCompleteError,
         ),
     ):
         status_code = HTTP_409_CONFLICT

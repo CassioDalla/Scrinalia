@@ -19,12 +19,15 @@ sources:
   - src/scrinalia/domains/archive/services/failure_service.py
   - src/scrinalia/api/controllers/system_controller.py
   - src/scrinalia/api/controllers/health_controller.py
+  - src/scrinalia/api/controllers/setup_controller.py
   - src/scrinalia/api/worker_runtime.py
   - src/scrinalia/api/lifespan.py
   - src/scrinalia/api/middleware.py
   - src/scrinalia/api/system_health.py
   - src/scrinalia/core/logger.py
   - src/scrinalia/core/config.py
+  - docs/adr/0009-authentication-and-authorization.md
+  - docs/adr/0011-first-run-setup-without-an-open-door.md
   - apps/curator/src/router.tsx
   - apps/curator/src/routes/SystemWorkersRoute.tsx
   - apps/curator/src/routes/SystemRunsRoute.tsx
@@ -496,6 +499,11 @@ behaviour to expect, and so that a limit already paid for is not read as a defec
   restart, which is why the durable defence is the per-account lockout column; revoking a session
   records that it was revoked, not **who** revoked it; and OIDC/SSO, second factors and e-mail
   recovery are out of scope (ADR 0009). Recovery is the administrator, or the CLI on the host.
+  **The first account is a window.** While `auth_users` is empty, `POST /api/v1/setup/admin` is
+  public and whoever reaches the instance first may create the administrator; the table lock makes
+  two simultaneous attempts safe, and nothing makes the window safe (ADR 0011). Configure the
+  instance before exposing it, and read `GET /api/v1/setup/status` — `{"needs_setup": true}` on a
+  reachable instance is an invitation.
 - **The contract does not declare the session cookie.** The OpenAPI document carries no `security`
   scheme for it, because a global requirement would also mark the diffusion routes and the health
   probes as protected (ADR 0009). A generated client cannot discover the requirement; it answers 401

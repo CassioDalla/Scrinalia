@@ -147,17 +147,33 @@ respondendo; só não serve interface nenhuma.
 
 ### 6. Crie o primeiro administrador
 
+Uma instalação vazia tem duas portas para a mesma conta, e as duas se fecham atrás dela: a tela de
+primeiro acesso na interface, ou a CLI na máquina. Cada uma cria um `ADMIN` com uma senha que alguém
+escolheu, e depois que a primeira conta existe as duas recusam.
+
 ```bash
 uv run python -m scrinalia.domains.identity.cli create \
   --email voce@instituicao.org --name "Seu Nome" --role ADMIN
 ```
 
-A CLI é a única forma de dar vida a uma instalação: nenhuma rota cria um administrador quando não
-existe conta alguma, porque isso seria uma porta aberta cuja única defesa é uma corrida no primeiro
-deploy. Sem `--password`, a CLI gera uma senha, imprime e a marca como temporária — a conta a troca
-no primeiro acesso. Os papéis são `ADMIN`, `CURATOR` e `VIEWER`. A mesma CLI é o caminho de volta
-para uma senha esquecida e tem `list`, `reset-password`, `activate`, `deactivate` e `set-role` além
-de `create`.
+A CLI é o caminho que funciona antes de a API subir, e o que uma instalação sem interface usa. Sem
+`--password` ela gera uma senha, imprime e marca a conta como **temporária**, para que a senha no
+histórico do terminal deixe de ser uma credencial — a conta a troca no primeiro acesso. Os papéis
+são `ADMIN`, `CURATOR` e `VIEWER`, e a CLI ainda tem `list`, `reset-password`, `activate`,
+`deactivate` e `set-role`.
+
+Com a API no ar (passo 7), uma instalação cuja `auth_users` ainda está vazia responde à primeira
+visita com **Primeiro acesso da instalação** em vez do formulário de entrada: e-mail, nome e a
+senha, pedida duas vezes. Ela cria o primeiro `ADMIN` e entra com essa pessoa, então não há segunda
+entrada nem senha temporária. A tela pergunta a `GET /api/v1/setup/status`, que é pública porque uma
+instalação sem conta nenhuma não tem segredo a proteger.
+
+As duas portas se fecham **para sempre** depois que a primeira conta existe — desativada ou não,
+porque o predicado é a tabela estar vazia, e uma regra que uma desativação pudesse reabrir seria um
+caminho de volta para uma porta aberta. Até lá, quem alcançar a instância primeiro pode criar essa
+conta; o `POST /api/v1/setup/admin` é serializado por um lock de tabela, então duas tentativas
+simultâneas não podem dar certo as duas, mas o lock não fecha a janela (ADR 0011). **Configure a
+instância antes de expô-la.**
 
 ### 7. Suba a API
 
@@ -339,6 +355,10 @@ docker compose --profile app exec app \
   python -m scrinalia.domains.identity.cli create \
   --email voce@instituicao.org --name "Seu Nome" --role ADMIN
 ```
+
+Não precisa ser por aí: com o contêiner já servindo a interface, uma instalação que ainda não tem
+conta nenhuma responde à primeira visita com a tela de primeiro acesso (passo 6), e a conta criada
+ali é a mesma. O `exec` acima é o caminho que funciona também quando nada está acessível ainda.
 
 ### `docker-compose.test.yml` não é para produção
 

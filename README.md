@@ -105,7 +105,9 @@ uv run uvicorn main:app --reload
 ```
 
 The API is then available at `http://localhost:8000/`, with the OpenAPI schema at
-`/schema/swagger`.
+`/schema/swagger`. An installation that still has no account answers the first visit with the
+first-run screen instead of the sign-in form; both doors close forever once the first account exists
+(ADR 0011).
 
 ### Running the whole system in a container
 
@@ -139,6 +141,10 @@ docker compose --profile app exec app \
   python -m scrinalia.domains.identity.cli create \
   --email voce@instituicao.org --name "Seu Nome" --role ADMIN
 ```
+
+Or skip it: with the container serving the UI, an installation with no account at all answers the
+first visit with the first-run screen — the same account, chosen by the person who will use it
+(ADR 0011).
 
 Two properties of the image are load-bearing before changing it. It runs **one** API process on
 purpose: the worker executor lives inside the API and `api/lifespan.py` marks any `QUEUED`/`RUNNING`

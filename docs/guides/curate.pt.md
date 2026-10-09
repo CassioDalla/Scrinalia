@@ -743,3 +743,8 @@ Não há exclusão. Uma conta é desativada, porque os ledgers carregam o nome e
 cujo autor não existe mais é um registro pior do que uma conta fechada. Revogar uma sessão que
 pertence a outra conta responde 404 e não 200, porque só o id não pode enumerar os acessos de outras
 pessoas; a linha que é a própria sessão do arquivista fica marcada como "esta sessão".
+
+A conta desta tela **nunca é a primeira**. Uma instalação sem conta nenhuma é criada pela tela de
+primeiro acesso, que ela responde à primeira visita, ou pela CLI na máquina, e as duas se fecham para
+sempre quando uma conta existe — inclusive uma desativada (ADR 0011). Depois disso, esta é a única
+superfície que cria contas.

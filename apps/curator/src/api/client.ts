@@ -57,6 +57,8 @@ async function unwrap<T>(result: ApiResult): Promise<T> {
 
 export type AuthUser = components["schemas"]["AuthUserDTO"];
 export type RouteResponse = components["schemas"]["RouteResponse"];
+/** The one fact the API tells an anonymous client about the installation (ADR 0011). */
+export type SetupStatusResponse = components["schemas"]["SetupStatusResponse"];
 
 // --- Types the screens use, taken from the contract itself -------------------------------------
 
@@ -1378,6 +1380,31 @@ export async function fetchWorkerSettingsRevisions(params: {
 /** Database, Ollama (with the models the presets need), object storage and the process. */
 export async function fetchSystemHealth(): Promise<SystemHealth> {
   return unwrap<SystemHealth>(await client.GET("/api/v1/system/health"));
+}
+
+// --- The first run ------------------------------------------------------------------------------
+
+/**
+ * Whether this installation still has to be brought to life.
+ *
+ * Public, and answerable without a cookie: the shell has to decide which form to draw *before* it
+ * can ask who the person is. The API says nothing else — an installation with no accounts has no
+ * secret to protect (ADR 0011).
+ */
+export async function fetchSetupStatus(): Promise<SetupStatusResponse> {
+  return unwrap<SetupStatusResponse>(await client.GET("/api/v1/setup/status"));
+}
+
+/**
+ * Creates the installation's first administrator and signs them in.
+ *
+ * It answers the account exactly like ``login``, cookie included, and it answers 409 forever once
+ * any account exists — so the only way to see this succeed is to be the first one there.
+ */
+export async function createFirstAdmin(email: string, name: string, password: string): Promise<AuthUser> {
+  return unwrap<AuthUser>(
+    await client.POST("/api/v1/setup/admin", { body: { email, name, password } }),
+  );
 }
 
 // --- The session -------------------------------------------------------------------------------

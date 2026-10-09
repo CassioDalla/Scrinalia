@@ -5321,6 +5321,46 @@
         "title": "SetPasswordCommand",
         "type": "object"
       },
+      "SetupFirstAdminCommand": {
+        "properties": {
+          "email": {
+            "description": "Identificador da conta; normalizado para minúsculas.",
+            "maxLength": 320,
+            "minLength": 3,
+            "type": "string"
+          },
+          "name": {
+            "description": "Como o nome aparece nos ledgers e na tela.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "password": {
+            "description": "A senha escolhida pela pessoa; a política é verificada no domínio.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "name",
+          "password"
+        ],
+        "title": "SetupFirstAdminCommand",
+        "type": "object"
+      },
+      "SetupStatusResponse": {
+        "properties": {
+          "needs_setup": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "needs_setup"
+        ],
+        "title": "SetupStatusResponse",
+        "type": "object"
+      },
       "StopwordBanResponse": {
         "properties": {
           "code": {
@@ -11323,6 +11363,100 @@
         "summary": "UpdateTemplate",
         "tags": [
           "Data Quality"
+        ]
+      }
+    },
+    "/api/v1/setup/admin": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1SetupAdminCreateAdmin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupFirstAdminCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthUserDTO"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "CreateAdmin",
+        "tags": [
+          "Setup"
+        ]
+      }
+    },
+    "/api/v1/setup/status": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SetupStatusStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupStatusResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "Status",
+        "tags": [
+          "Setup"
         ]
       }
     },

@@ -34,6 +34,19 @@ class DuplicateUserEmailError(DomainException):
     pass
 
 
+class SetupAlreadyCompleteError(DomainException):
+    """Raised when the first-run route is asked for an installation that already has an account.
+
+    The predicate is "``auth_users`` is empty", and it is false **forever** once any account exists: a
+    rule that deactivating every account could reopen would be a way back to the open door ADR 0011
+    closes. It is a business refusal and not a defect, so the API answers 409 and the unhandled-failure
+    ledger is not written.
+    """
+
+    # Ideal translation in Litestar: HTTP 409 (Conflict)
+    pass
+
+
 class InvalidCredentialsError(DomainException):
     """Raised when a login cannot be granted.
 

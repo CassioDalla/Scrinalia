@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-import { fetchCurrentUser, logout, type AuthUser } from "@/api/client";
+import { fetchCurrentUser, fetchSetupStatus, logout, type AuthUser } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Feedback";
 import { ATTRIBUTION } from "@/lib/attribution";
@@ -36,6 +36,7 @@ import { SETTINGS_PATHS, SETTINGS_PERMISSIONS } from "@/lib/settings";
 import { AttributionFooter } from "./AttributionFooter";
 import { LoginForm } from "./LoginForm";
 import { PasswordChangeForm } from "./PasswordChangeForm";
+import { SetupForm } from "./SetupForm";
 
 /**
  * Navigation mirrors the sitemap.
@@ -245,17 +246,57 @@ export function AppShell() {
   const [collapsed, setCollapsed] = useState(readCollapsed);
 
   /*
+    The installation, before the session.
+
+    This is the first question the shell asks, and it has to be: while `auth_users` is empty there is
+    nobody to sign in, and `/setup/status` is the one thing an anonymous client may read about the
+    installation (ADR 0011). It is not retried, for the same reason the session query is not.
+  */
+  const setup = useQuery({
+    queryKey: ["setup-status"],
+    queryFn: fetchSetupStatus,
+    retry: false,
+  });
+
+  /*
+    Only a positive `true` counts, so an error can never open the form that creates an administrator.
+
+    If `/setup/status` fails the shell falls back to the sign-in form — the screen it drew before this
+    route existed — and a genuinely empty installation whose own API cannot answer it has a bigger
+    problem than which form it is showing.
+  */
+  const needsSetup = setup.data?.needs_setup === true;
+
+  /*
     The session, and the whole gate.
 
     ``retry: false`` is not a detail: the global default retries twice, and retrying a 401 asks the API
     the same question three times to get the same answer — while the archivist watches a spinner
     instead of the sign-in form.
+
+    It is also not asked while the installation is empty: there is no account it could resolve to, and
+    the 401 would be a request whose answer is already known.
   */
   const session = useQuery({
     queryKey: ["current-user"],
     queryFn: fetchCurrentUser,
     retry: false,
+    enabled: !needsSetup,
   });
+
+  if (setup.isPending) {
+    return (
+      <div className="flex min-h-full items-center justify-center">
+        <Skeleton className="h-9 w-56" />
+      </div>
+    );
+  }
+
+  // An installation with no account: the screen that creates the first one, and the only time it can
+  // ever be reached.
+  if (needsSetup) {
+    return <SetupForm />;
+  }
 
   if (session.isPending) {
     return (

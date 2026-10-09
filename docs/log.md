@@ -146,3 +146,48 @@ with short or full shas, and part of a `## <date> — <title>` entry.
 - **Deliberately not documented as done:** the worker settings split, the issue's second bullet. The
   panel still mixes configuration and the machine view; that work is issue #53, and the pages describe
   the screen as it is today.
+
+## 2026-10-09 — the first administrator, and the window the lock cannot close
+
+- **Range:** `bec40af..8dde39f`
+- **Pages:**
+  - `adr/0011-first-run-setup-without-an-open-door.md` — created. It amends ADR 0009 §4, §6 and the
+    operational consequence on the first administrator, and it records the measurement the issue's
+    proposed guard did not survive: `INSERT … SELECT … WHERE NOT EXISTS` **is not atomic** under READ
+    COMMITTED (two sessions, two rows), while `LOCK TABLE auth_users IN EXCLUSIVE MODE` before the same
+    predicate serializes the decision (the second call waits, inserts nothing, answers 409). It also
+    records why the steady state must answer before hashing — `needs_setup` is public, and the hash is
+    ~42 ms measured — and the accepted cost: the lock closes the race, not the window.
+  - `adr/index.md`, `adr/0009-authentication-and-authorization.md` — **updated**: the index row, and
+    three "amended by" pointers where ADR 0009 states the rule that changed (§4's open surface, §6's
+    first administrator, the "what an installer must read" consequence). The old text stays: an ADR is
+    the record of what was decided, not the current count.
+  - `guides/install.md` — **updated**: step 6 is now both doors to the same account (the first-run
+    screen and the CLI), says why the CLI's password is temporary and the screen's is not, that both
+    close forever once any account exists, and names the window; the container section gained the
+    alternative to `exec`. Two sources were added so the claim is trackable —
+    `setup_controller.py` and ADR 0011 — plus `SetupForm.tsx`.
+  - `guides/install.pt.md` — **updated**: the same step and the same container paragraph.
+  - `guides/operate.md` — **updated**: one clause in the authentication-limits bullet — the first
+    account is a window, and `{"needs_setup": true}` on a reachable instance is an invitation. ADR 0009
+    and ADR 0011 were added to its `sources:` (the bullet cites both, and neither was declared).
+  - `guides/operate.pt.md` — **updated**: the same clause.
+  - `guides/curate.md` — **updated**: one paragraph at the end of *Usuários*, because that section owns
+    the account surface and claimed nothing about how the first account appears: it says the account on
+    that screen is never the first one, and that after the first account the screen is the only surface
+    that creates accounts. ADR 0011 joined its `sources:`.
+  - `guides/curate.pt.md` — **updated**: the same paragraph.
+- **The sentences that did not move:** the curation guide's screen count and menu count — the setup
+  form is not a route (`SetupForm` renders in the shell's slot, like `LoginForm`), so the router still
+  declares 25 screens and the menu 16 entries. No table, no column and no migration landed: the route
+  reads `auth_users`, which the data-model page already documents, and the settings are unchanged.
+- **Verified rather than assumed:** the two new operations were exercised end to end against a
+  throwaway database with `curl` — 422 on a weak password, 201 with `role: ADMIN`,
+  `must_change_password: false` and a `HttpOnly; SameSite=lax` cookie, `/auth/me` answering with that
+  cookie, 409 with `SetupAlreadyCompleteError` on the second call, and `needs_setup` flipping to
+  false. The steady-state 409 costs ~1.7 ms, which is the cheap-read path and not a hash. A
+  cross-origin POST to the setup route is refused 403 by `origin_guard`.
+- **Not verified, and named here so nobody assumes otherwise:** the setup screen itself was not looked
+  at in a browser. Headless Chromium in this environment dumps core before rendering, so the evidence
+  is `tsc`, ESLint, the Vite build and the bundle carrying the screen's text — not pixels. The Tailwind
+  tokens used are the ones `LoginForm` already uses.
