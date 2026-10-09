@@ -16,6 +16,7 @@ import { LevelsRoute } from "@/routes/LevelsRoute";
 import { NerExclusionsRoute } from "@/routes/NerExclusionsRoute";
 import { NotFoundRoute } from "@/routes/NotFoundRoute";
 import { PlanRoute, validatePlanSearch } from "@/routes/PlanRoute";
+import { SettingsRoute, validateSettingsSearch } from "@/routes/SettingsRoute";
 import { SubjectExclusionsRoute } from "@/routes/SubjectExclusionsRoute";
 import { SystemHealthRoute } from "@/routes/SystemHealthRoute";
 import { SystemRunsRoute, validateSystemRunsSearch } from "@/routes/SystemRunsRoute";
@@ -222,11 +223,26 @@ const systemHealthRoute = createRoute({
 });
 
 /**
+ * Configurações: the landing that gathers the screens nobody opens in the middle of cataloguing.
+ *
+ * A route of its own, beside `/configuracoes/usuarios` and not above it: the accounts screen is one
+ * of the cards and keeps the route it always had. The page writes nothing — every card leads to a
+ * screen that already existed — so this is the one route whose whole job is to be a signpost, and
+ * the card catalogue (`lib/settings.ts`) is what it and the nav entry both read.
+ */
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/configuracoes",
+  component: SettingsRoute,
+  validateSearch: validateSettingsSearch,
+});
+
+/**
  * The installation's own settings: the accounts first.
  *
- * A section of its own at the end of the menu, and not a corner of "Sistema": the operations panel
- * is what the *machine* is doing (workers, runs, probes) and the accounts are what the installation
- * *is*. Both are administrative; only one of them is about the collection.
+ * Reached from the Configurações landing, not from the menu: the accounts are a card like the worker
+ * panel and the catalogues, and what the installation *is* — as opposed to what the machine is doing
+ * — is exactly what that landing gathers.
  */
 const usersRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -259,6 +275,7 @@ export const router = createRouter({
     systemWorkersRoute,
     systemRunsRoute,
     systemHealthRoute,
+    settingsRoute,
     usersRoute,
   ]),
   defaultPreload: "intent",
