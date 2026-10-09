@@ -1,0 +1,3119 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Archival description cataloguing and AI-driven enrichment (ISAD(G))">
+      
+      
+      
+      
+        <link rel="prev" href="../operate/">
+      
+      
+        <link rel="next" href="../data-model/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../../pt/guides/curate/" hreflang="pt">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Curation - Scrinalia</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#curation" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Scrinalia" class="md-header__button md-logo" aria-label="Scrinalia" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Scrinalia
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Curation
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../pt/guides/curate/" hreflang="pt" class="md-select__link">
+              Português (Brasil)
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Scrinalia" class="md-nav__button md-logo" aria-label="Scrinalia" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Scrinalia
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation and deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curation
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-one-rule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The one rule
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-has-no-way-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What has no way back
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What has no way back">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-batch-that-does-have-an-undo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The batch that does have an undo
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#review-diffusion-and-what-the-ai-may-not-rewrite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review, diffusion and what the AI may not rewrite
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Review, diffusion and what the AI may not rewrite">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-review-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The review lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-two-documented-exceptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The two documented exceptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#diffusion-is-not-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diffusion is not review
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#who-may-decide-what" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Who may decide what
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Who may decide what">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-menu-hides-it-never-grants" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The menu hides; it never grants
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#curadoria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Curadoria
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Curadoria">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#inicio" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Início — /
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#acervo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Acervo
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Acervo">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#lista-e-busca-acervolista" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lista e busca — /acervo/lista
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arvore-acervoarvore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Árvore — /acervo/arvore
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#excluidas-acervoexcluidas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Excluídas — /acervo/excluidas
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#descricao-acervodescriptionid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Descrição — /acervo/$descriptionId
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Descrição — /acervo/$descriptionId">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#descricao" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Descrição
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assuntos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assuntos
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arranjo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Arranjo
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#historico" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Histórico
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#arranjo_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Arranjo
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Arranjo">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#plano-de-arranjo-arranjoplano" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plano de arranjo — /arranjo/plano
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#diagnostico-arranjodiagnostico" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diagnóstico — /arranjo/diagnostico
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#catalogos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Catálogos
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Catálogos">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#niveis-de-descricao-arranjoniveis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Níveis de descrição — /arranjo/niveis
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tipologias-arranjotipologias" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tipologias — /arranjo/tipologias
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vocabulario-do-acervo-vocabulario" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Vocabulário do acervo — /vocabulario
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#assuntos_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assuntos
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Assuntos">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tags-assuntostags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tags — /assuntos/tags
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tags — /assuntos/tags">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#relevancia" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relevância
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#similaridade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Similaridade
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#propostas-de-merge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Propostas de merge
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stopwords" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stopwords
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#categorias-assuntoscategorias" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Categorias — /assuntos/categorias
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#descobrir-gavetas-assuntosdescobrir" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Descobrir gavetas — /assuntos/descobrir
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nao-e-assunto-assuntosexcecoes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Não é assunto — /assuntos/excecoes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#entidades" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Entidades
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Entidades">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#entidades-entidadeslista" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Entidades — /entidades/lista
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exclusoes-de-ner-entidadesexcecoes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exclusões de NER — /entidades/excecoes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#conflitos-entidadesconflitos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conflitos — /entidades/conflitos
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qualidade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Qualidade
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Qualidade">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trechos-qualidadetrechos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trechos — /qualidade/trechos
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#regras-qualidaderegras" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Regras — /qualidade/regras
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#anomalias-qualidadeanomalias" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Anomalias — /qualidade/anomalias
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sistema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sistema
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sistema">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#workers-de-ia-sistemaworkers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workers de IA — /sistema/workers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#execucoes-sistemaexecucoes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execuções — /sistema/execucoes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#diagnostico-sistemadiagnostico" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diagnóstico — /sistema/diagnostico
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuracoes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configurações
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configurações">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#usuarios-configuracoesusuarios" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Usuários — /configuracoes/usuarios
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0001-litestar-as-http-framework/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0001 Litestar as the HTTP framework
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0002-src-layout-and-internal-namespace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0002 src layout and internal namespace
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0003-monorepo-and-curator-frontend-stack/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0003 Monorepo and curator frontend stack
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0004-worker-execution-from-the-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0004 Worker execution from the API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0005-observability-without-an-external-service/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0005 Observability without an external service
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0006-license-and-author-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0006 License and author attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0007-project-name-scrinalia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0007 Project name Scrinalia
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0008-language-in-code-and-collection-vocabulary-in-the-database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0008 Language in code, collection vocabulary in the database
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0009-authentication-and-authorization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0009 Authentication and authorization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0010-documentation-coverage-and-freshness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0010 Documentation coverage and freshness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../log/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-one-rule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The one rule
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-has-no-way-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What has no way back
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What has no way back">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-batch-that-does-have-an-undo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The batch that does have an undo
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#review-diffusion-and-what-the-ai-may-not-rewrite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review, diffusion and what the AI may not rewrite
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Review, diffusion and what the AI may not rewrite">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-review-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The review lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-two-documented-exceptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The two documented exceptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#diffusion-is-not-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diffusion is not review
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#who-may-decide-what" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Who may decide what
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Who may decide what">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-menu-hides-it-never-grants" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The menu hides; it never grants
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#curadoria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Curadoria
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Curadoria">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#inicio" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Início — /
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#acervo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Acervo
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Acervo">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#lista-e-busca-acervolista" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lista e busca — /acervo/lista
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arvore-acervoarvore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Árvore — /acervo/arvore
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#excluidas-acervoexcluidas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Excluídas — /acervo/excluidas
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#descricao-acervodescriptionid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Descrição — /acervo/$descriptionId
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Descrição — /acervo/$descriptionId">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#descricao" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Descrição
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assuntos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assuntos
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arranjo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Arranjo
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#historico" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Histórico
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#arranjo_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Arranjo
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Arranjo">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#plano-de-arranjo-arranjoplano" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plano de arranjo — /arranjo/plano
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#diagnostico-arranjodiagnostico" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diagnóstico — /arranjo/diagnostico
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#catalogos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Catálogos
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Catálogos">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#niveis-de-descricao-arranjoniveis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Níveis de descrição — /arranjo/niveis
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tipologias-arranjotipologias" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tipologias — /arranjo/tipologias
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vocabulario-do-acervo-vocabulario" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Vocabulário do acervo — /vocabulario
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#assuntos_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assuntos
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Assuntos">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tags-assuntostags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tags — /assuntos/tags
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tags — /assuntos/tags">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#relevancia" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relevância
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#similaridade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Similaridade
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#propostas-de-merge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Propostas de merge
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stopwords" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stopwords
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#categorias-assuntoscategorias" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Categorias — /assuntos/categorias
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#descobrir-gavetas-assuntosdescobrir" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Descobrir gavetas — /assuntos/descobrir
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nao-e-assunto-assuntosexcecoes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Não é assunto — /assuntos/excecoes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#entidades" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Entidades
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Entidades">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#entidades-entidadeslista" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Entidades — /entidades/lista
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exclusoes-de-ner-entidadesexcecoes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exclusões de NER — /entidades/excecoes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#conflitos-entidadesconflitos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conflitos — /entidades/conflitos
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qualidade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Qualidade
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Qualidade">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trechos-qualidadetrechos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trechos — /qualidade/trechos
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#regras-qualidaderegras" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Regras — /qualidade/regras
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#anomalias-qualidadeanomalias" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Anomalias — /qualidade/anomalias
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sistema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sistema
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sistema">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#workers-de-ia-sistemaworkers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workers de IA — /sistema/workers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#execucoes-sistemaexecucoes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execuções — /sistema/execucoes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#diagnostico-sistemadiagnostico" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diagnóstico — /sistema/diagnostico
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuracoes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configurações
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configurações">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#usuarios-configuracoesusuarios" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Usuários — /configuracoes/usuarios
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="curation">Curation<a class="headerlink" href="#curation" title="Permanent link">&para;</a></h1>
+<p>This page is for the archivist who works in the curator SPA. It says, screen by screen, <strong>which
+decision is taken there, what the click writes, and whether it can be undone</strong> — and it names what
+has no way back at all.</p>
+<p>The SPA is served by the API itself (one origin, no CORS), and every screen reads and writes through
+the client generated from the OpenAPI contract. The screens are declared in
+<code>apps/curator/src/router.tsx</code> and the navigation in <code>apps/curator/src/components/layout/AppShell.tsx</code>.
+The menu has <strong>23 entries</strong> because one route is not a menu entry: the description's own dossier,
+<code>/acervo/$descriptionId</code>, is reached from the list and from the tree. The router therefore declares
+24 screens.</p>
+<p>Two cross-cutting pages are worth reading with this one: <a href="../data-model/">Data model</a> for what the
+ledgers and the tables mean, and <a href="../install/">Installation and deployment</a> for the schema, the
+accounts and the deployment around the screens.</p>
+<h2 id="the-one-rule">The one rule<a class="headerlink" href="#the-one-rule" title="Permanent link">&para;</a></h2>
+<p>Every write either has an undo, or it announces that it does not. The merge keeps a ledger; the
+purge has a preview and no undo; editing a description keeps the before and after. When a screen has
+neither, this page says so in bold.</p>
+<p>Read-only work declares no permission: reading is what an authenticated session is. The screens that
+decide carry the area they write to, and the API refuses with a 403 and a sentence when the account
+does not carry it.</p>
+<h2 id="what-has-no-way-back">What has no way back<a class="headerlink" href="#what-has-no-way-back" title="Permanent link">&para;</a></h2>
+<div class="admonition warning">
+<p class="admonition-title">These writes have no undo</p>
+<p>The operations below delete or dissolve a row that nothing else rebuilds. The stopwords purge
+shows a preview; the deletion asks you to type the reference code; the entity merge has neither
+— its panel warns instead. Read the confirmation.</p>
+</div>
+<ul>
+<li>
+<p><strong>Stopwords purge</strong> — <code>POST /api/v1/taxonomy/tags/stopwords/purge</code>. Deletes every tag whose name
+  is a banned term on the <code>TAG</code> or <code>ALL</code> axis. The links cascade and the tag's classification goes
+  with it. It has a preview (<code>POST /api/v1/taxonomy/tags/stopwords/purge/preview</code>, which lists the
+  tags that would die) and <strong>no undo</strong>: the merge keeps the previous state and restores it, the
+  purge does not. Banning (<code>POST /api/v1/taxonomy/tags/stopwords</code>) deletes nothing; only the purge
+  does, and the success message says it does not appear in the merge ledger.</p>
+</li>
+<li>
+<p><strong>Excluding a description</strong> — <code>DELETE /api/v1/documents/{description_id}</code>. Definitive. The API
+  writes an ISAD(G) snapshot of the whole row into the deletion ledger first, and that snapshot is a
+  <strong>trail, not a bin</strong>: <code>/acervo/excluidas</code> shows it and nothing restores it. The revision ledger
+  does not survive (it cascades with the description), which is why the snapshot exists. A
+  description with children cannot be excluded — the service refuses and says how many are below;
+  exclude or move the children first. The screen asks the archivist to type the reference code (or
+  the id, when there is no code) before the button unlocks.</p>
+</li>
+<li>
+<p><strong>Unifying entities</strong> — <code>POST /api/v1/taxonomy/entities/merge</code>. The absorbed entities stop
+  existing, their links move to the canonical one, and their spellings become synonyms so the
+  extractor keeps recognising them. Entities have <strong>no proposal catalogue and no ledger</strong>, so this
+  is the one merge with no undo — the tags' privilege is a ledger. The panel warns instead of
+  offering a button back, and there is no preview route: the screen states the documented effect
+  rather than inventing numbers. Renaming the canonical is part of the same write, and the old name
+  becomes a synonym.</p>
+</li>
+<li>
+<p><strong>Deleting or purging entities without links</strong> — <code>DELETE /api/v1/taxonomy/entities/{entity_id}</code>
+  and <code>POST /api/v1/taxonomy/entities/orphans/purge</code>. The screen offers the delete only on a row
+  whose use count is zero, and the purge removes every entity no description carries, so no link is
+  lost — but the row is gone and there is no ledger to restore it.</p>
+</li>
+</ul>
+<p>There is also one write whose effect reaches backwards: <strong>an NER veto</strong> (<code>POST
+/api/v1/taxonomy/entities/ner-exclusions</code>) purges the entities already extracted from that spelling,
+with their links. Removing the veto (<code>DELETE</code>, the screen's "remover veto") re-opens the term for
+future extractions; it <strong>does not bring back</strong> what the veto already deleted.</p>
+<h3 id="the-batch-that-does-have-an-undo">The batch that does have an undo<a class="headerlink" href="#the-batch-that-does-have-an-undo" title="Permanent link">&para;</a></h3>
+<p>Materialising the arrangement from the plan (<code>POST /api/v1/hierarchy/materialisation/apply</code>) is
+reversible, and the reversal is on the screen. It runs only after a preview
+(<code>POST /api/v1/hierarchy/materialisation/preview</code>, computed by the same planner) and writes a ledger
+entry per run (<code>GET /api/v1/hierarchy/materialisation/log</code>). The undo is
+<code>DELETE /api/v1/hierarchy/materialisation/log/{materialisation_id}</code>, and it restores exactly what the
+run changed:</p>
+<ul>
+<li>every description it moved goes back to the <strong>parent and level it had before</strong>;</li>
+<li>the nodes the run <strong>created</strong> are deleted — made possible by restoring first, because the
+  self-reference is <code>RESTRICT</code>;</li>
+<li>the plans that pointed at a deleted node go back to "not materialised", so the next apply does not
+  attach descriptions to a row that no longer exists.</li>
+</ul>
+<p>The undo <strong>refuses</strong> when a later run attached descriptions the ledger does not know about, because
+reversing then would silently detach work that was never part of this decision. Reversing a finished
+run is a new, recorded fact: the entry keeps <code>undone_at</code> and who did it.</p>
+<h2 id="review-diffusion-and-what-the-ai-may-not-rewrite">Review, diffusion and what the AI may not rewrite<a class="headerlink" href="#review-diffusion-and-what-the-ai-may-not-rewrite" title="Permanent link">&para;</a></h2>
+<h3 id="the-review-lifecycle">The review lifecycle<a class="headerlink" href="#the-review-lifecycle" title="Permanent link">&para;</a></h3>
+<p><code>review_status</code> is the lifecycle of the human validation over the AI's work. The five values are
+<code>PENDING_AI</code>, <code>AI_APPROVED</code>, <code>NEEDS_REVIEW</code>, <code>HUMAN_APPROVED</code> and <code>REJECTED</code>. <code>HUMAN_APPROVED</code> is
+the shield: the AI pipeline's write predicate excludes it, so no report worker silently rewrites a
+description the archivist validated. Editing any ISAD(G) field, or the description's tags and
+entities, sets <code>HUMAN_APPROVED</code> through <code>PATCH /api/v1/documents/{description_id}</code> (or the link
+routes), records the before and after in <code>archive_document_revisions</code>, and takes the description out
+of the AI's queue.</p>
+<h3 id="the-two-documented-exceptions">The two documented exceptions<a class="headerlink" href="#the-two-documented-exceptions" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>worker_embedding</code></strong> deliberately does not use the AI write predicate. The embedding is a derived
+  index of the text, not archival content: a <code>HUMAN_APPROVED</code> description whose text changed must be
+  re-embedded, or semantic search would serve a stale vector. It writes only the <code>embedding</code> column
+  and its own stamp (the MD5 of the effective text), and it skips <code>REJECTED</code> descriptions.</li>
+<li><strong>Publishing is not a lock.</strong> <code>is_published</code> is chosen through the same <code>PATCH</code> as any ISAD(G)
+  field, and it does <strong>not</strong> freeze the description against the AI. The write predicate reads
+  <code>review_status</code> only. Reusing the review status for diffusion would have made a typo fix equivalent
+  to publishing, and would have locked every published description against AI improvement.</li>
+</ul>
+<p>The other AI workers are excluded from a <code>HUMAN_APPROVED</code> description; what a human decided is not
+rewritten by the pipeline.</p>
+<h3 id="diffusion-is-not-review">Diffusion is not review<a class="headerlink" href="#diffusion-is-not-review" title="Permanent link">&para;</a></h3>
+<p>Review is a claim about the record; publication is a decision about what to expose.
+<code>is_published</code> is its own column, edited with the "Publicar na difusão" checkbox on the dossier's
+<code>Descrição</code> tab, and the public predicate is exactly <code>is_published</code>. Nothing is published by default,
+so the diffusion surface is born empty.</p>
+<p>Publishing exposes the description through the open, unauthenticated surface:</p>
+<ul>
+<li><code>GET /api/v1/public/documents</code> and <code>GET /api/v1/public/documents/{description_id}</code>.</li>
+</ul>
+<p>Two rules hold there. The <code>published_only</code> filter is set <strong>server-side</strong> and is not a client
+parameter, so no query string can ask for an unpublished record; and an unpublished id answers 404,
+never 403, because a distinct status would confirm that the description exists.</p>
+<p>The public projection is narrower than the curator's, field by field. It carries the ISAD(G) fields
+<code>original_title</code>, <code>final_title</code>, <code>document_date</code>, <code>reference_code</code>, <code>level</code>, <code>scope_content</code>,
+<code>language_name</code> and <code>producers</code>; the enrichment <code>typology</code>, the tags (name), the entities (name and
+type) and the subject drawers (name and count); the thumbnail; the branch (<code>ancestors</code>) and the
+<code>children_count</code>. It deliberately does <strong>not</strong> carry the curation process or the unpublished
+narrative: <code>review_status</code>, <code>is_anomaly</code>, <code>anomaly_reasons</code>, <code>archivist_notes</code>, <code>provenance</code>,
+<code>suggested_final_title</code>, <code>admin_bio_history</code>, <code>admin_archival_history</code> and <code>access_conditions</code>. The
+public facet set is also narrower — <code>anomaly_reason</code> is not published.</p>
+<h2 id="who-may-decide-what">Who may decide what<a class="headerlink" href="#who-may-decide-what" title="Permanent link">&para;</a></h2>
+<p>Authorization is a declared level per operation, enforced by one guard. The four write permissions
+are areas, not buttons:</p>
+<table>
+<thead>
+<tr>
+<th>Permission</th>
+<th>The area</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CURATE</code></td>
+<td>the record and its subjects: the ISAD(G) fields, links, tags, entities, conflicts and the taxonomies that move them</td>
+</tr>
+<tr>
+<td><code>CATALOGUE</code></td>
+<td>the closed catalogues: levels, typologies, collection vocabulary, subject drawers, cleaning rules and text excerpts</td>
+</tr>
+<tr>
+<td><code>OPERATE</code></td>
+<td>the AI workers: running one, changing its persisted default, and the health panel</td>
+</tr>
+<tr>
+<td><code>ADMIN</code></td>
+<td>accounts and sessions</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Carries</th>
+<th>Reads</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VIEWER</code></td>
+<td>nothing</td>
+<td>everything an authenticated session reaches</td>
+</tr>
+<tr>
+<td><code>CURATOR</code></td>
+<td><code>CURATE</code>, <code>CATALOGUE</code></td>
+<td>the same, plus the screens that decide the record and the catalogues</td>
+</tr>
+<tr>
+<td><code>ADMIN</code></td>
+<td><code>CURATE</code>, <code>CATALOGUE</code>, <code>OPERATE</code>, <code>ADMIN</code></td>
+<td>everything, including the workers and the accounts</td>
+</tr>
+</tbody>
+</table>
+<p>Reading is not a permission: it is what an authenticated session is, and a pure read declares
+nothing.</p>
+<h3 id="the-menu-hides-it-never-grants">The menu hides; it never grants<a class="headerlink" href="#the-menu-hides-it-never-grants" title="Permanent link">&para;</a></h3>
+<p>The shell filters its entries by the area the screen <strong>writes</strong> (<code>apps/curator/src/lib/permissions.ts</code>,
+a mirror of the server's role map), and an empty group is not rendered at all. The screens that only
+read carry no permission and stay visible to every role: Início, the collection list, the tree, the
+exclusions trail and the arrangement diagnostics. A <code>VIEWER</code> therefore sees the "Curadoria" and
+"Acervo" groups and, under "Arranjo", only "Diagnóstico" — every other group exists to decide, and
+is hidden.</p>
+<p>The mirror is one-way on purpose. It can make the menu shorter; it can never make the API accept a
+request. A direct URL to a screen the account cannot work in still reaches the API, and the API
+answers 403 with a sentence — that is the truth, and the hidden entry is a courtesy.</p>
+<h2 id="curadoria">Curadoria<a class="headerlink" href="#curadoria" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Screen</th>
+<th>Decision</th>
+<th>Reversible?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Início — <code>/</code></td>
+<td>which pending queue to open</td>
+<td>yes (read only)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="inicio">Início — <code>/</code><a class="headerlink" href="#inicio" title="Permanent link">&para;</a></h3>
+<p>The work list. It answers "what needs me today?" with one card per queue and the route that resolves
+it, already filtered. It is a <strong>read view of existing predicates</strong> (<code>GET /api/v1/curation/inbox</code>):
+nothing is written. A card the shell does not recognise as openable shows "tela pendente" instead of
+linking.</p>
+<h2 id="acervo">Acervo<a class="headerlink" href="#acervo" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Screen</th>
+<th>Decision</th>
+<th>Reversible?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lista e busca — <code>/acervo/lista</code></td>
+<td>how to slice the collection</td>
+<td>yes (read only)</td>
+</tr>
+<tr>
+<td>Árvore — <code>/acervo/arvore</code></td>
+<td>where a description sits in the arrangement</td>
+<td>yes, by moving it; removing the node means excluding the description</td>
+</tr>
+<tr>
+<td>Excluídas — <code>/acervo/excluidas</code></td>
+<td>none (the ledger of what left)</td>
+<td>yes (read only)</td>
+</tr>
+<tr>
+<td>Descrição — <code>/acervo/$descriptionId</code></td>
+<td>the record, its subjects and its place</td>
+<td>mostly yes; the exclusion does not</td>
+</tr>
+</tbody>
+</table>
+<h3 id="lista-e-busca-acervolista">Lista e busca — <code>/acervo/lista</code><a class="headerlink" href="#lista-e-busca-acervolista" title="Permanent link">&para;</a></h3>
+<p>The faceted search over the collection: the term (lexical or semantic), typology, subject drawer,
+entity type, level, a branch of the arrangement and a date range. The URL is the state, so a filtered
+list is shareable and the back button works. Nothing is written. The semantic mode carries an honest
+note: its measured quality is weak (Hit@10 0.625), so prefer lexical when the term is known.</p>
+<h3 id="arvore-acervoarvore">Árvore — <code>/acervo/arvore</code><a class="headerlink" href="#arvore-acervoarvore" title="Permanent link">&para;</a></h3>
+<p>The arrangement as navigation. Selecting a node shows its branch, its children and the descriptions
+inside it, all read-only. The screen's one write is "Criar nó" (<code>POST /api/v1/hierarchy/nodes</code>,
+<code>CURATE</code>): it declares a Fundo, Seção or Série that the origin never delivered and that the slicer
+therefore cannot propose. The new description is born <code>HUMAN_APPROVED</code>, and the level ladder is
+validated against the chosen parent by the same rule a move uses. Its placement is reversible by
+moving the description; removing the node means excluding the description, which is definitive.</p>
+<div class="admonition note">
+<p class="admonition-title">Arranjo is not assunto</p>
+<p>This is the objective axis — where a description sits in the provenance. The subject badges live
+in the list and in the dossier; mixing them here would teach the archivist to "fix" a subject by
+dragging a description into another branch.</p>
+</div>
+<h3 id="excluidas-acervoexcluidas">Excluídas — <code>/acervo/excluidas</code><a class="headerlink" href="#excluidas-acervoexcluidas" title="Permanent link">&para;</a></h3>
+<p>The trail of the deletions, read-only (<code>GET /api/v1/documents/deletions</code>), with a server-side search
+and pagination because the trail has no ceiling. It is <strong>not a recycle bin</strong>: each entry is the
+ISAD(G) snapshot the API wrote before deleting, and nothing here restores anything. It answers "did I
+delete this?" — code, title, level, who excluded it, when, how many children it had, and the whole
+snapshot on demand.</p>
+<h3 id="descricao-acervodescriptionid">Descrição — <code>/acervo/$descriptionId</code><a class="headerlink" href="#descricao-acervodescriptionid" title="Permanent link">&para;</a></h3>
+<p>The dossier, with four tabs in the URL. The suggested title is shown <strong>next to</strong> the field it
+proposes and is never the stored value: it is derived on read from the <code>TITLE</code>-scoped excerpts, and
+only the archivist writes <code>final_title</code>.</p>
+<h4 id="descricao">Descrição<a class="headerlink" href="#descricao" title="Permanent link">&para;</a></h4>
+<p>The decision is the record itself: any ISAD(G) field, the level, the typology, <code>access_conditions</code>
+and <code>is_published</code>, with a note on why. The write is <code>PATCH /api/v1/documents/{description_id}</code>
+(<code>CURATE</code>). It records the before and after of what changed in <code>archive_document_revisions</code>, writes
+the author from the session, and sets <code>HUMAN_APPROVED</code> — which takes the description out of the AI's
+queue. Reversible: another edit records a new revision; the history is append-only and the earlier
+value is visible in the <code>Histórico</code> tab. Publishing and withdrawing use the same command and are
+equally reversible.</p>
+<h4 id="assuntos">Assuntos<a class="headerlink" href="#assuntos" title="Permanent link">&para;</a></h4>
+<p>The decision is which tags and entities this description carries, and which drawer each tag belongs
+to. The writes are <code>POST</code>/<code>DELETE /api/v1/documents/{description_id}/tags[/{tag_id}]</code> and the entity
+pair (<code>CURATE</code>), plus <code>PATCH /api/v1/taxonomy/tags/{tag_id}</code> for the drawer. Linking and unlinking
+are reversible: the revision stores the <strong>whole list of names</strong> on each side, and calling the same
+route twice writes no revision.</p>
+<div class="admonition warning">
+<p class="admonition-title">The drawer is a decision about the vocabulary, not about this description</p>
+<p>Changing a tag's drawer moves it for <strong>every</strong> description that carries the tag, and the screen
+says so next to the select. Choosing "sem gaveta" gives the tag back to the AI classifier, which
+will try to file it again on the next run.</p>
+</div>
+<h4 id="arranjo">Arranjo<a class="headerlink" href="#arranjo" title="Permanent link">&para;</a></h4>
+<p>The decision is where this description sits and at which level. The write is
+<code>POST /api/v1/hierarchy/nodes/{description_id}/move</code> (<code>CURATE</code>), and the route states where the node
+goes: <code>new_parent_id=null</code> means "to the root", so there is no way to change only the level — the
+screen always sends the parent it is showing. The API validates before writing (an Item cannot have
+children, a Dossiê cannot be left without a parent, moving into its own subtree is refused), and
+moving a unit takes the whole subtree: the path is rewritten in one statement. The change is recorded
+in this description's history and is reversible by moving the unit back.</p>
+<h4 id="historico">Histórico<a class="headerlink" href="#historico" title="Permanent link">&para;</a></h4>
+<p>The revisions of this description, read-only, field by field with the old and the new value. At the
+end of the history sits the exclusion, away from the page header on purpose — it is the one action
+that removes a record for good, and the confirmation (type the reference code) is what separates
+"excluir" from "excluir <em>esta</em> descrição". See <strong>what has no way back</strong> above.</p>
+<h2 id="arranjo_1">Arranjo<a class="headerlink" href="#arranjo_1" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Screen</th>
+<th>Decision</th>
+<th>Reversible?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Plano de arranjo — <code>/arranjo/plano</code></td>
+<td>approve or reject each proposed rung, and materialise the tree</td>
+<td>yes — a decision can be reopened, and the materialisation has an undo</td>
+</tr>
+<tr>
+<td>Diagnóstico — <code>/arranjo/diagnostico</code></td>
+<td>none (the evidence; the fix is elsewhere)</td>
+<td>yes (read only)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="plano-de-arranjo-arranjoplano">Plano de arranjo — <code>/arranjo/plano</code><a class="headerlink" href="#plano-de-arranjo-arranjoplano" title="Permanent link">&para;</a></h3>
+<p>The machine reads the reference codes and proposes the rungs; the decision is the archivist's. For
+each rung the evidence comes first — the document count, the declared levels, the samples — and the
+form last:</p>
+<ul>
+<li><strong>Propor níveis</strong> — <code>POST /api/v1/hierarchy/plans/suggest</code> (<code>CURATE</code>). It writes the questions. It
+  is idempotent by code and never rewrites a rung that left <code>SUGGESTED</code>, so the same question is not
+  asked again.</li>
+<li><strong>Aprovar</strong> a rung — <code>PATCH /api/v1/hierarchy/plans/{plan_id}</code> (<code>CURATE</code>) with <code>APPROVED</code>, the
+  chosen level, an optional title, an optional "fundir em" code and a note. Approving <strong>requires</strong>
+  the level: it is the decision the code cannot take.</li>
+<li><strong>Rejeitar</strong> — the same route with <code>REJECTED</code>. A rejected rung leaves its descriptions orphan on
+  purpose: they fall to the nearest approved rung above.</li>
+<li><strong>Reabrir decisão</strong> — the same route with <code>SUGGESTED</code>. Reversible: the decision returns to the
+  queue and the next proposal may refresh its evidence. The decision is never overwritten by a new
+  proposal.</li>
+</ul>
+<p>The side panel materialises the tree: it always offers "Conferir o que será feito" first, and the
+apply button stays disabled until the preview exists. Only approved rungs are materialised. The
+preview and the apply share one planner, so the approved number is the written number. What the undo
+restores is described under <strong>the batch that does have an undo</strong>.</p>
+<h3 id="diagnostico-arranjodiagnostico">Diagnóstico — <code>/arranjo/diagnostico</code><a class="headerlink" href="#diagnostico-arranjodiagnostico" title="Permanent link">&para;</a></h3>
+<p>The structural diagnosis, one section per issue, each with its count and its evidence (a section with
+zero stays visible, because knowing the check ran matters). It offers <strong>no silent correction</strong>: every
+row links to the screen where the fix is a recorded decision — the plan, the tree, or the
+description's arrangement tab. The counts overlap deliberately (a Dossiê at the root is both <code>ORPHAN</code>
+and <code>DOSSIER_WITHOUT_PARENT</code>), so there is no grand total.</p>
+<h2 id="catalogos">Catálogos<a class="headerlink" href="#catalogos" title="Permanent link">&para;</a></h2>
+<p>The two closed catalogues the archivist maintains and the collection vocabulary. None of them
+deletes: a row retires with <code>is_active=false</code>, because the foreign keys are <code>SET NULL</code> and removing a
+row would unclassify every description pointing at it while erasing the fact that it ever existed.</p>
+<table>
+<thead>
+<tr>
+<th>Screen</th>
+<th>Decision</th>
+<th>Reversible?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Níveis de descrição — <code>/arranjo/niveis</code></td>
+<td>the ladder the arrangement is written against</td>
+<td>yes (retire and reactivate)</td>
+</tr>
+<tr>
+<td>Tipologias — <code>/arranjo/tipologias</code></td>
+<td>the diplomatic form the classifier proposes</td>
+<td>yes (retire and reactivate)</td>
+</tr>
+<tr>
+<td>Vocabulário do acervo — <code>/vocabulario</code></td>
+<td>what this collection's codes and terms mean</td>
+<td>yes (retire and reactivate)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="niveis-de-descricao-arranjoniveis">Níveis de descrição — <code>/arranjo/niveis</code><a class="headerlink" href="#niveis-de-descricao-arranjoniveis" title="Permanent link">&para;</a></h3>
+<p>The catalogue of levels. Creating a rung is <code>POST /api/v1/hierarchy/levels</code> and editing one is
+<code>PATCH /api/v1/hierarchy/levels/{level_id}</code> (<code>CATALOGUE</code>): name, description, accepted spellings,
+whether it requires a parent and whether it allows children. Two rules the screen states rather than
+works around:</p>
+<ul>
+<li><strong>there is no delete.</strong> <code>is_active=false</code> is the way out, and the weight of a retired rung stays
+  visible;</li>
+<li><strong>the ordinal is not editable.</strong> Changing it would renumber the tree the past was decided against;
+  a wrong ordinal is a new rung, not a rename.</li>
+</ul>
+<p>The asymmetry is deliberate: an unknown level arriving from the origin enters as unclassified and
+the description carries on, while the archivist cannot store a level that does not exist.</p>
+<h3 id="tipologias-arranjotipologias">Tipologias — <code>/arranjo/tipologias</code><a class="headerlink" href="#tipologias-arranjotipologias" title="Permanent link">&para;</a></h3>
+<p>The catalogue of documental typologies — the diplomatic form (ata, ofício, planta), neither
+arrangement nor subject. <code>POST /api/v1/typologies</code> and <code>PATCH /api/v1/typologies/{typology_id}</code>
+(<code>CATALOGUE</code>) maintain the name and the context description. The classifier receives <strong>only the
+name</strong>: appending the context makes the model lose the entailment and collapse the collection onto
+one typology (measured), so the context is documentation for the reader. Retiring a typology is the
+only lever that reaches the model — it stops being proposed without a single classified description
+being touched, which is why the weight of the retired ones stays on screen.</p>
+<h3 id="vocabulario-do-acervo-vocabulario">Vocabulário do acervo — <code>/vocabulario</code><a class="headerlink" href="#vocabulario-do-acervo-vocabulario" title="Permanent link">&para;</a></h3>
+<p>What <em>this</em> collection declares, as opposed to what the language or the software fixes. Two lists:</p>
+<ul>
+<li><strong>arrangement names</strong> — <code>POST</code>/<code>PATCH /api/v1/vocabulary/arrangement-terms</code> (<code>CATALOGUE</code>): a token
+  (<code>SMU</code>) or a whole code (<code>BR PRADAP</code>) mapped to the name the arrangement proposal suggests; the
+  whole code wins over the last token;</li>
+<li><strong>collection terms</strong> — <code>POST</code>/<code>PATCH /api/v1/vocabulary/collection-terms</code> (<code>CATALOGUE</code>): the
+  spellings the collection carries and that are not subjects, typed so the PLACE facet can claim a
+  place while a person's name goes nowhere.</li>
+</ul>
+<p>What belongs to the Portuguese language itself — <em>rua</em>, <em>não identificado</em>, <em>303 anos</em>, a bare year
+— lives in the language profile and does <strong>not</strong> appear here: changing it would change the meaning
+the software gives to a word. Withdrawing a term does not delete it, and a withdrawn term is treated
+as a subject again on the next classifier run.</p>
+<h2 id="assuntos_1">Assuntos<a class="headerlink" href="#assuntos_1" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Screen</th>
+<th>Decision</th>
+<th>Reversible?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tags — <code>/assuntos/tags</code></td>
+<td>the weight, the duplicates, the merge queue and the banned terms</td>
+<td>the merge yes (ledger); the purge <strong>no</strong></td>
+</tr>
+<tr>
+<td>Categorias — <code>/assuntos/categorias</code></td>
+<td>the subject drawers the classifier reads</td>
+<td>yes (retire and reactivate)</td>
+</tr>
+<tr>
+<td>Descobrir gavetas — <code>/assuntos/descobrir</code></td>
+<td>whether a proposed theme deserves a drawer</td>
+<td>yes (the proposal writes nothing)</td>
+</tr>
+<tr>
+<td>Não é assunto — <code>/assuntos/excecoes</code></td>
+<td>which terms leave the subject axis</td>
+<td>yes (banning deletes nothing)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tags-assuntostags">Tags — <code>/assuntos/tags</code><a class="headerlink" href="#tags-assuntostags" title="Permanent link">&para;</a></h3>
+<p>One route, four questions, one conversation: the archivist sees that <code>alvenarias</code> weighs little,
+finds its near-duplicate and decides whether to absorb it. The active tab is in the URL.</p>
+<h4 id="relevancia">Relevância<a class="headerlink" href="#relevancia" title="Permanent link">&para;</a></h4>
+<p>Read-only: <code>GET /api/v1/taxonomy/tags/relevance/{method}</code>. The count shows what dominates the
+collection; TF-IDF shows what is specific, punishing what appears everywhere. The two lists answer
+different questions on purpose.</p>
+<h4 id="similaridade">Similaridade<a class="headerlink" href="#similaridade" title="Permanent link">&para;</a></h4>
+<p>Pairs by trigram similarity, shown raw with the similarity score and both ids. The read is
+<code>GET /api/v1/taxonomy/tags/similar</code>. The similarity does not say which spelling is the good one:
+<code>'alameda cabral'</code> and <code>'al. alameda cabral'</code> score 1.000.</p>
+<p>The decision is to unify: <code>POST /api/v1/taxonomy/tags/merge</code> (<code>CURATE</code>), after a dry run
+(<code>POST /api/v1/taxonomy/tags/merge/preview</code>, a read that computes the same plan the write executes).
+The panel always opens with the impact first: documents updated, links rewritten, tags absorbed,
+spellings registered and repointed, and the one warning that must be read before the click —
+<code>category_would_be_lost</code>, when the canonical has no drawer and an absorbed tag does, so the merge
+would erase a subject classification.</p>
+<p>The merge is <strong>reversible</strong>: the write is logged per absorbed tag in the merge ledger before
+anything changes, and the undo (<code>DELETE /api/v1/taxonomy/tags/merge-log/{merge_id}</code>, <code>CURATE</code>)
+restores the row, the links, the classification and the spelling state. The undo deletes only the
+links the merge created, so it cannot detach a document that already carried the canonical. Rows can
+also be marked across lines and unified as a cluster, which is how one merge spans several pairs
+(<code>carlos de carvalho</code> appears in more than one row).</p>
+<h4 id="propostas-de-merge">Propostas de merge<a class="headerlink" href="#propostas-de-merge" title="Permanent link">&para;</a></h4>
+<p>The machine's clusters, with the decision kept apart from the write:</p>
+<ul>
+<li><strong>Propor clusters</strong> — <code>POST /api/v1/taxonomy/tags/merge-proposals/suggest</code> (<code>CURATE</code>) registers
+  the question. A verdict already taken is never overwritten.</li>
+<li><strong>Conferir impacto</strong> — <code>POST /api/v1/taxonomy/tags/merge/preview</code> with the proposal id, the same
+  planner.</li>
+<li><strong>Aprovar</strong> / <strong>Rejeitar</strong> — <code>PATCH /api/v1/taxonomy/tags/merge-proposals/{proposal_id}</code>
+  (<code>CURATE</code>). Approving records the <strong>intent</strong>; it does not absorb anything. The status goes
+  <code>SUGGESTED</code> → <code>APPROVED</code>/<code>REJECTED</code> → <code>APPLIED</code>.</li>
+<li><strong>Aplicar em lote</strong> — <code>POST /api/v1/taxonomy/tags/merge/batch</code> (<code>CURATE</code>) absorbs the selected
+  clusters and writes <code>APPLIED</code> in the same savepoint. The screen refuses a batch over 200 clusters
+  (the API refuses it too). A cluster whose members already left is reported as <code>skipped</code>, never as
+  a failure.</li>
+<li><strong>Editar</strong> a cluster — marks the tags that do not belong out of the set, chooses the canonical and
+  applies the revised selection through the same planner; the machine's proposal is then closed as
+  rejected, because the question was answered another way.</li>
+</ul>
+<p>The <strong>ledger</strong> below lists only applied merges, each with the absorbed name, the canonical, the
+document count, the author and the time. Its undo is the exact restoration described above, and the
+screen's "desfazer" is the same route. A merge made here also works through a proposal, so the
+ledger is the write's history and the status is the decision's.</p>
+<h4 id="stopwords">Stopwords<a class="headerlink" href="#stopwords" title="Permanent link">&para;</a></h4>
+<p>The banned terms, and the one destructive write in the taxonomy. The screen keeps three things
+apart:</p>
+<ul>
+<li><strong>Banir</strong> — <code>POST /api/v1/taxonomy/tags/stopwords</code> (<code>CURATE</code>) records that a term is not worth
+  considering on one axis: <code>TAG</code> (the subject axis), <code>ENTITY</code> (NER) or <code>ALL</code>. A word has exactly one
+  scope — re-banning it <strong>moves</strong> it — and banning <strong>deletes nothing</strong>.</li>
+<li><strong>Desbanir</strong> — <code>DELETE /api/v1/taxonomy/tags/stopwords</code> (<code>CURATE</code>). Reversible.</li>
+<li><strong>Purgar</strong> — <code>POST /api/v1/taxonomy/tags/stopwords/purge</code> (<code>CURATE</code>), after
+  <code>POST /api/v1/taxonomy/tags/stopwords/purge/preview</code>. This is the write that deletes the tags, and
+  it has <strong>no undo</strong>. The preview lists the tags that would die, with their document count and
+  drawer, and the apply button is disabled until the preview exists.</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">The scope protects the other axis</p>
+<p>The purge reads only <code>TAG</code>/<code>ALL</code>. A term banned on the <code>ENTITY</code> axis is a NER veto and can never
+make the subject purge delete a tag the curator kept — the two are stored in different places on
+purpose.</p>
+</div>
+<h3 id="categorias-assuntoscategorias">Categorias — <code>/assuntos/categorias</code><a class="headerlink" href="#categorias-assuntoscategorias" title="Permanent link">&para;</a></h3>
+<p>The drawers the subject classifier reads. <code>POST /api/v1/taxonomy/macro-categories</code> and
+<code>PATCH /api/v1/taxonomy/macro-categories/{category_id}</code> (<code>CATALOGUE</code>) create, rename, describe,
+retire and reactivate them; a retired drawer keeps its weight visible. Two honest notes the screen
+gives: the <strong>classifier label</strong> is a curator override, not an improvement — measured on 44
+hand-labelled tags, a phrase instead of a bare name scores 0.000 with 65% of the tags in one drawer
+— and a <strong>new drawer only takes effect when the classifier runs again</strong>, because the worker's stamp
+is the hash of the label set, which returns the tags to the queue on its own.</p>
+<h3 id="descobrir-gavetas-assuntosdescobrir">Descobrir gavetas — <code>/assuntos/descobrir</code><a class="headerlink" href="#descobrir-gavetas-assuntosdescobrir" title="Permanent link">&para;</a></h3>
+<p>Runs the real clustering engine (<code>POST /api/v1/taxonomy/tags/suggest-macro</code>, read-only:
+<code>AUTHENTICATED</code>) over the tags or the documents to find a theme the vocabulary does not cover yet. It
+is a deliberate click and not a page load: the engine takes seconds and may run in a subprocess. The
+clusters are <strong>proposals</strong> — nothing enters the vocabulary until the archivist registers it, which is
+<code>POST /api/v1/taxonomy/macro-categories</code> (<code>CATALOGUE</code>). Discarding a proposal is local to the screen.
+A corpus too small answers an empty suggestion with a message, not an error.</p>
+<h3 id="nao-e-assunto-assuntosexcecoes">Não é assunto — <code>/assuntos/excecoes</code><a class="headerlink" href="#nao-e-assunto-assuntosexcecoes" title="Permanent link">&para;</a></h3>
+<p>The curated half of "this is not a subject at all". The deterministic guard catches what has a shape
+— a date, a placeholder, a street name, a bare number — and on the real measurement it caught 1 of 4
+of the hand-labelled non-subjects; the rest are semantic calls no rule resolves (<code>pessoas</code>,
+<code>vista aérea</code>, <code>capanema</code>). The screen shows the guard's candidates with their evidence (weight,
+whether the PLACE facet claims the term, whether the same spelling is also an entity), and offers to
+register them with <code>source=RULE</code> or one at a time.</p>
+<p>The write is <code>POST /api/v1/taxonomy/tags/subject-exclusions</code> (<code>CURATE</code>) and the reversal is
+<code>DELETE</code> (<code>CURATE</code>, the screen's "restaurar"). <strong>Banning here deletes nothing</strong>: the tag stays in the
+collection, stays linked and stays reachable by search — only the subject classification stops
+guessing at it. The route deliberately proposes nothing for the semantic half: the available signals
+lie, and a model that does not know how to abstain would answer confidently and wrongly.</p>
+<h2 id="entidades">Entidades<a class="headerlink" href="#entidades" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Screen</th>
+<th>Decision</th>
+<th>Reversible?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Entidades — <code>/entidades/lista</code></td>
+<td>the type of a name, and whether two names are one</td>
+<td>the type yes; the merge <strong>no</strong></td>
+</tr>
+<tr>
+<td>Exclusões de NER — <code>/entidades/excecoes</code></td>
+<td>which spellings are subjects, not proper names</td>
+<td>the veto row yes; the entities it purged <strong>no</strong></td>
+</tr>
+<tr>
+<td>Conflitos — <code>/entidades/conflitos</code></td>
+<td>whether a collision belongs to the subject axis or to the names</td>
+<td>yes (ledger and undo)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="entidades-entidadeslista">Entidades — <code>/entidades/lista</code><a class="headerlink" href="#entidades-entidadeslista" title="Permanent link">&para;</a></h3>
+<p>The named-entity vocabulary, by weight or by similarity. Three decisions:</p>
+<ul>
+<li><strong>Reclassify the type</strong> — <code>PATCH /api/v1/taxonomy/entities/{entity_id}/reclassify</code> (<code>CURATE</code>),
+  only between <code>ORG</code>, <code>PER</code> and <code>LOC</code>. This is not renaming a label: the service also writes the
+  anchoring synonym, so the extractor returns that spelling with the new type in every future run.</li>
+<li><strong>Excluir</strong> an entity — <code>DELETE /api/v1/taxonomy/entities/{entity_id}</code> (<code>CURATE</code>), offered only on
+  a row no description carries, where deleting loses no link. No undo.</li>
+<li><strong>Purgar órfãs</strong> — <code>POST /api/v1/taxonomy/entities/orphans/purge</code> (<code>CURATE</code>): the same decision in
+  batch. No undo.</li>
+<li><strong>Unificar</strong> — <code>POST /api/v1/taxonomy/entities/merge</code> (<code>CURATE</code>): the absorbed entities stop
+  existing, their links move to the canonical, their spellings become synonyms, and an optional new
+  name for the canonical makes the old one a synonym too. Entities have no proposal catalogue and
+  <strong>no ledger</strong>: there is no undo, and the panel says so instead of offering a button back. There is
+  no preview route either — the screen states the documented effect rather than inventing numbers.
+  The pair list is raw evidence, with both ids, because two rows can read the same name and the
+  canonical is a choice the archivist has to be able to tell apart.</li>
+</ul>
+<h3 id="exclusoes-de-ner-entidadesexcecoes">Exclusões de NER — <code>/entidades/excecoes</code><a class="headerlink" href="#exclusoes-de-ner-entidadesexcecoes" title="Permanent link">&para;</a></h3>
+<p>The veto "this spelling is a subject, not a proper name". The write is <code>POST
+/api/v1/taxonomy/entities/ner-exclusions</code> (<code>CURATE</code>), with a reason kept for audit; the reversal is
+<code>DELETE</code> (the screen's "remover veto"). Two behaviours the screen states because neither is visible
+in the list: the block is <strong>by token boundary</strong>, not by exact name (spaCy merges neighbouring tokens,
+so a banned <code>iptu</code> would not stop <code>"IPTU do Batel"</code> under an exact comparison), and it <strong>applies to
+the past</strong> — the entities already extracted from that spelling are deleted, with their links, and
+removing the veto does not bring them back.</p>
+<p>This is the other half of the bidirectional governance: it records the curator or the judge saying
+"this belongs to the subject axis", and it is stored apart from the subject-axis stopwords on
+purpose, so a veto here can never make the subject purge delete a tag the curator kept.</p>
+<h3 id="conflitos-entidadesconflitos">Conflitos — <code>/entidades/conflitos</code><a class="headerlink" href="#conflitos-entidadesconflitos" title="Permanent link">&para;</a></h3>
+<p>The same spelling on both axes: "is this a subject or a proper name?". Three reads answer three
+questions, and reading only the first is what used to hide the judge's work:</p>
+<ul>
+<li><strong>Pendentes</strong> — the live trigram scan (<code>GET /api/v1/taxonomy/conflicts/cross-domain</code>), annotated
+  with the judge's verdict where there is one and separated by <code>pair_kind</code>: "grafias diferentes" (a
+  spelling question) and "nomes idênticos" (a structural question) are not the same list, and mixed
+  together neither is visible.</li>
+<li><strong>Decididos pelo juiz</strong> — the review queue (<code>GET /api/v1/taxonomy/conflicts/judged</code>). An
+  auto-resolution deletes the losing row, so most of the judge's decisions cannot appear in the live
+  scan at all.</li>
+<li><strong>Resoluções</strong> — the ledger (<code>GET /api/v1/taxonomy/conflicts/resolutions</code>), with the undo.</li>
+</ul>
+<p>The decision is preceded by the preview (<code>POST /api/v1/taxonomy/conflicts/resolve/preview</code>, a read):
+it returns <strong>both verdicts</strong> with what each one transfers, deletes and blocks, computed by the same
+planner the write executes. The two verdicts are stored in <strong>different places on purpose</strong>:</p>
+<ul>
+<li><strong>the tag wins</strong> — the entity's links move to the tag, the entity row is deleted and the term is
+  recorded in <code>domain_ner_exclusions</code>, carrying the reason, the source and the tag that justifies it;</li>
+<li><strong>the entity wins</strong> — the tag's links move to the entity, the tag row is deleted and the tag name
+  joins the tag-scoped stopwords.</li>
+</ul>
+<p>Collapsing the two would let a NER veto make the subject purge delete the winning tag.</p>
+<p>Resolving is <code>POST /api/v1/taxonomy/conflicts/resolve</code> (<code>CURATE</code>) and the undo is
+<code>DELETE /api/v1/taxonomy/conflicts/resolutions/{resolution_id}</code> (<code>CURATE</code>). The undo is exact
+because the ledger records <code>created_link_ids</code> and <code>ban_created</code>: both writes use
+<code>ON CONFLICT DO NOTHING</code>, so reversing a later resolution must not lift a ban an earlier one planted,
+nor delete a link that predated it. The ledger restores the losing row from its snapshot. A pair
+already resolved can be decided again — the second resolution is independent, and each has its own
+undo.</p>
+<div class="admonition note">
+<p class="admonition-title">A resolved pair leaves the live scan</p>
+<p>The resolution deletes the losing row, so the trigram join cannot return it and the live list has
+nothing to annotate. That is why the work survives in the judge's queue and in the ledger, and
+why the <code>Decididos</code> and <code>Resoluções</code> tabs exist.</p>
+</div>
+<h2 id="qualidade">Qualidade<a class="headerlink" href="#qualidade" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Screen</th>
+<th>Decision</th>
+<th>Reversible?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Trechos — <code>/qualidade/trechos</code></td>
+<td>which consumer stops reading a repeated excerpt</td>
+<td>yes (retire or remove from the catalogue)</td>
+</tr>
+<tr>
+<td>Regras — <code>/qualidade/regras</code></td>
+<td>whether a rule rewrites the text or only flags it</td>
+<td>yes: deactivating has a route back, and the retired rule stays on the screen</td>
+</tr>
+<tr>
+<td>Anomalias — <code>/qualidade/anomalias</code></td>
+<td>none (the correction is the record's review)</td>
+<td>yes (read only)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="trechos-qualidadetrechos">Trechos — <code>/qualidade/trechos</code><a class="headerlink" href="#trechos-qualidadetrechos" title="Permanent link">&para;</a></h3>
+<p>The catalogue of repeated excerpts. This is the largest measured gain of the project: 53% of the
+collection shared the same <code>scope_content</code> block, and a repeated title prefix dominated the
+embeddings and degraded the search. The decision that matters is the <strong>scope</strong>: which consumer stops
+reading the excerpt — <code>EMBEDDING</code> (the vector), <code>NER</code> (the names) or <code>TITLE</code> (the suggested title).
+The same block is dropped from the consumers it damages and kept where it helps: approving
+everything the machine suggested worsened the ranking (Hit@10 0.562 → 0.500), which is why there is
+no "approve all" button on this screen.</p>
+<ul>
+<li><strong>Procurar</strong> — <code>POST /api/v1/quality/text-templates/suggest</code> (<code>CATALOGUE</code>) registers the candidates
+  as <strong>inactive suggestions</strong>: nothing enters the AI text before an archivist approves a scope.</li>
+<li><strong>Escrever um trecho</strong> — <code>POST /api/v1/quality/text-templates</code> (<code>CATALOGUE</code>). It is born approved
+  and applied and returns the affected descriptions to the AI queue; the create button only unlocks
+  after the impact is seen.</li>
+<li><strong>Aprovar / rejeitar / desativar / salvar escopo / remover</strong> —
+  <code>PATCH</code>/<code>DELETE /api/v1/quality/text-templates/{template_id}</code> (<code>CATALOGUE</code>). Removing takes the
+  excerpt out of the catalogue and returns the affected descriptions to the AI queue.</li>
+</ul>
+<h3 id="regras-qualidaderegras">Regras — <code>/qualidade/regras</code><a class="headerlink" href="#regras-qualidaderegras" title="Permanent link">&para;</a></h3>
+<p>The one place a regular expression can rewrite the collection. <code>rule_kind</code> is the difference between
+cleaning and destroying, and the screen makes the choice explicit:</p>
+<ul>
+<li><code>REWRITE</code> replaces every match in the target column on the next run — the cleaning worker filters
+  it explicitly, so a validation rule never rewrites;</li>
+<li><code>VALIDATE</code> and <code>LLM_CHECK</code> only flag; the flag becomes an anomaly reason on the description.</li>
+</ul>
+<p>The writes are <code>POST /api/v1/quality/cleaning-rules</code> (<code>CATALOGUE</code>) — saved only after a preview, for
+a rule that rewrites — <code>PATCH /api/v1/quality/cleaning-rules/{rule_id}/deactivate</code> and
+<code>PATCH /api/v1/quality/cleaning-rules/{rule_id}/activate</code>, both <code>CATALOGUE</code>. A rule is never
+deleted, and the way back is a route rather than a new rule: the listing takes
+<code>include_inactive=true</code>, which is what puts the retired rules at the bottom of the screen with the
+button that returns them to the queue. Reactivating keeps the id and the history that re-creating
+the rule would have lost. Deactivation is the safe half of the pair — it is what you reach for when
+a rule is wrong, so the way out of it has to exist.</p>
+<p>An active <code>REWRITE</code> rule is the loudest thing on the screen, and the preview is what makes it
+visible: a test rule once sat active and stamped the whole collection without matching anything.</p>
+<h3 id="anomalias-qualidadeanomalias">Anomalias — <code>/qualidade/anomalias</code><a class="headerlink" href="#anomalias-qualidadeanomalias" title="Permanent link">&para;</a></h3>
+<p>What the quality validator marked, read-only (<code>GET /api/v1/documents</code> filtered to <code>NEEDS_REVIEW</code>,
+optionally by anomaly reason). The counts by reason are the search's own facet over the whole
+filtered set, and clicking one narrows the list. An empty queue has two very different causes and
+the screen tells them apart: the collection is clean, or no rule that flags (a <code>VALIDATE</code> or
+<code>LLM_CHECK</code> rule) is active — a <code>REWRITE</code> rule changes the text and never flags. The correction is
+the human review of the record, in the dossier.</p>
+<h2 id="sistema">Sistema<a class="headerlink" href="#sistema" title="Permanent link">&para;</a></h2>
+<p>The machine, not the collection. Everything here belongs to whoever operates the installation.</p>
+<table>
+<thead>
+<tr>
+<th>Screen</th>
+<th>Decision</th>
+<th>Reversible?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Workers de IA — <code>/sistema/workers</code></td>
+<td>which model a worker runs with, and whether to run it now</td>
+<td>the configured default yes; a run's effects follow what it wrote</td>
+</tr>
+<tr>
+<td>Execuções — <code>/sistema/execucoes</code></td>
+<td>none (the ledger and the grouped failures)</td>
+<td>yes (read only)</td>
+</tr>
+<tr>
+<td>Diagnóstico — <code>/sistema/diagnostico</code></td>
+<td>none (database, models, storage, process)</td>
+<td>yes (read only)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="workers-de-ia-sistemaworkers">Workers de IA — <code>/sistema/workers</code><a class="headerlink" href="#workers-de-ia-sistemaworkers" title="Permanent link">&para;</a></h3>
+<p>The catalogue of the nine workers, in pipeline order, with the effective engine, preset and config on
+the collapsed row — "with which model is this running?" is the question the screen exists to answer.
+Two writes per worker, both <code>OPERATE</code>:</p>
+<ul>
+<li><strong>Rodar agora</strong> — <code>POST /api/v1/system/workers/{worker_name}/runs</code>. The run uses the effective
+  configuration, adjusted only for this execution; nothing in the panel becomes the default. Every
+  run leaves a row in the run ledger, and a worker with a run in flight disables both buttons — the
+  guarantee is the partial unique index in the database, and the screen only avoids offering what
+  the database would reject.</li>
+<li><strong>Configurar</strong> — <code>PUT /api/v1/system/workers/{worker_name}/settings</code> sets the persisted default
+  (partial on purpose: an empty field keeps following the code), and
+  <code>DELETE /api/v1/system/workers/{worker_name}/settings</code> removes it. Every write leaves a revision
+  (<code>GET /api/v1/system/workers/{worker_name}/settings/revisions</code>), so the default is reversible: the
+  revision list is right there, and "Voltar ao padrão do código" removes the row.</li>
+</ul>
+<p>The panel itself offers no undo for a run. The reversibility of a run is the reversibility of what it
+wrote — a merge undo, a materialisation undo, a conflict undo — and a worker that stamps its queue
+does not redo its work just because it is run again. A worker marked as not respecting the human
+review block is <code>worker_embedding</code>, the documented exception.</p>
+<h3 id="execucoes-sistemaexecucoes">Execuções — <code>/sistema/execucoes</code><a class="headerlink" href="#execucoes-sistemaexecucoes" title="Permanent link">&para;</a></h3>
+<p>The run ledger, read-only: one row per execution, from the command line and from the panel, carrying
+the <strong>resolved</strong> configuration the run used (so it stays readable after a preset changes in code),
+the duration, the outcome and who asked. Above it, the failures of the last 30 days grouped by root
+cause (<code>GET /api/v1/system/failures</code>), which answer the question the ledger cannot: forty rows saying
+the same sentence are one cause. Clicking a group filters the ledger below instead of opening a
+second list, and a failure's reference is what is searched in the log.</p>
+<h3 id="diagnostico-sistemadiagnostico">Diagnóstico — <code>/sistema/diagnostico</code><a class="headerlink" href="#diagnostico-sistemadiagnostico" title="Permanent link">&para;</a></h3>
+<p>Four independent probes (<code>GET /api/v1/system/health</code>, <code>OPERATE</code>): the database with its counts, the
+Ollama server with the models the presets require and which of them are missing, the thumbnail
+storage, and the effective process configuration. Each probe answers on its own — a database that is
+offline must not hide that Ollama is fine — and no secret value is ever shown: the process card
+reports that a secret exists, never what it is. Nothing here writes.</p>
+<h2 id="configuracoes">Configurações<a class="headerlink" href="#configuracoes" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Screen</th>
+<th>Decision</th>
+<th>Reversible?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Usuários — <code>/configuracoes/usuarios</code></td>
+<td>who exists, what they may do, and where they are signed in</td>
+<td>yes (deactivate and reactivate)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="usuarios-configuracoesusuarios">Usuários — <code>/configuracoes/usuarios</code><a class="headerlink" href="#usuarios-configuracoesusuarios" title="Permanent link">&para;</a></h3>
+<p>The accounts of the installation, the <code>ADMIN</code> surface. The writes are <code>POST /api/v1/users</code> (create),
+<code>PATCH /api/v1/users/{user_id}</code> (name, role, active), <code>POST /api/v1/users/{user_id}/password</code> (reset)
+and the session routes <code>GET</code>/<code>DELETE /api/v1/users/{user_id}/sessions[/{session_id}]</code> — all <code>ADMIN</code>.
+Four facts the API enforces and the screen states:</p>
+<ul>
+<li><strong>the password created here is temporary.</strong> The administrator typed it, so the account replaces it
+  at the first sign-in, exactly like the CLI bootstrap;</li>
+<li><strong>deactivating ends every session of the account immediately</strong>, which is what makes the flag real;</li>
+<li><strong>resetting the password ends every session</strong> and lifts a lockout caused by failed attempts;</li>
+<li><strong>the last active administrator cannot be deactivated or demoted</strong> (<code>LastAdminError</code>, 409). It is
+  the one lockout with no way back through the screen; the way in is the CLI on the host.</li>
+</ul>
+<p>There is no delete. An account is deactivated, because the ledgers carry its name and its id, and a
+decision whose author no longer exists is a worse record than a closed account. Revoking a session id
+that belongs to another account answers 404 and not 200, because the id alone must not enumerate
+other people's sign-ins; the row that is the archivist's own session is marked "esta sessão".</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../operate/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Operations">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Operations
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../data-model/" class="md-footer__link md-footer__link--next" aria-label="Next: Data model">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Data model
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "navigation.footer", "content.code.copy", "search.highlight", "search.suggest"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

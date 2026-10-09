@@ -1,0 +1,2395 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Archival description cataloguing and AI-driven enrichment (ISAD(G))">
+      
+      
+      
+      
+        <link rel="prev" href="../..">
+      
+      
+        <link rel="next" href="../operate/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../../pt/guides/install/" hreflang="pt">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Installation and deployment - Scrinalia</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#installing-and-deploying" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Scrinalia" class="md-header__button md-logo" aria-label="Scrinalia" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Scrinalia
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Installation and deployment
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../pt/guides/install/" hreflang="pt" class="md-select__link">
+              Português (Brasil)
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Scrinalia" class="md-nav__button md-logo" aria-label="Scrinalia" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Scrinalia
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation and deployment
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation and deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-you-are-installing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What you are installing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prerequisites">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#software" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Software
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#disk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disk
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#external-services" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        External services
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-single-process-premise" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The single-process premise
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#install-the-ordered-sequence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install: the ordered sequence
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Install: the ordered sequence">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-get-the-code-and-declare-the-environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Get the code and declare the environment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-start-the-database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Start the database
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-install-the-python-environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Install the Python environment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-create-the-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Create the schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-build-the-curator-ui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Build the curator UI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-create-the-first-administrator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Create the first administrator
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-start-the-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Start the API
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment variables
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Environment variables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#envexample-and-coreconfigpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        .env.example and core/config.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cpu-and-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CPU and GPU
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#https" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HTTPS
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deploying-the-container-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deploying the container image
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Deploying the container image">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#docker-composetestyml-is-not-for-production" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        docker-compose.test.yml is not for production
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#object-storage-is-not-shipped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Object storage is not shipped
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#backup-and-restore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backup and restore
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Backup and restore">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-is-not-recoverable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is not recoverable
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#minimum-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Minimum operations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Minimum operations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#three-health-answers-three-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three health answers, three questions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#healthready-answers-503" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        /health/ready answers 503
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ollama-is-down" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ollama is down
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-bucket-does-not-answer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The bucket does not answer
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Next steps
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../curate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0001-litestar-as-http-framework/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0001 Litestar as the HTTP framework
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0002-src-layout-and-internal-namespace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0002 src layout and internal namespace
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0003-monorepo-and-curator-frontend-stack/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0003 Monorepo and curator frontend stack
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0004-worker-execution-from-the-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0004 Worker execution from the API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0005-observability-without-an-external-service/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0005 Observability without an external service
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0006-license-and-author-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0006 License and author attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0007-project-name-scrinalia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0007 Project name Scrinalia
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0008-language-in-code-and-collection-vocabulary-in-the-database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0008 Language in code, collection vocabulary in the database
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0009-authentication-and-authorization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0009 Authentication and authorization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0010-documentation-coverage-and-freshness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0010 Documentation coverage and freshness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../log/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-you-are-installing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What you are installing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prerequisites">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#software" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Software
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#disk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disk
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#external-services" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        External services
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-single-process-premise" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The single-process premise
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#install-the-ordered-sequence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install: the ordered sequence
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Install: the ordered sequence">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-get-the-code-and-declare-the-environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Get the code and declare the environment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-start-the-database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Start the database
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-install-the-python-environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Install the Python environment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-create-the-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Create the schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-build-the-curator-ui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Build the curator UI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-create-the-first-administrator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Create the first administrator
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-start-the-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Start the API
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment variables
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Environment variables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#envexample-and-coreconfigpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        .env.example and core/config.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cpu-and-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CPU and GPU
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#https" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HTTPS
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deploying-the-container-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deploying the container image
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Deploying the container image">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#docker-composetestyml-is-not-for-production" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        docker-compose.test.yml is not for production
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#object-storage-is-not-shipped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Object storage is not shipped
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#backup-and-restore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backup and restore
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Backup and restore">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-is-not-recoverable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is not recoverable
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#minimum-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Minimum operations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Minimum operations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#three-health-answers-three-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three health answers, three questions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#healthready-answers-503" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        /health/ready answers 503
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ollama-is-down" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ollama is down
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-bucket-does-not-answer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The bucket does not answer
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Next steps
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="installing-and-deploying">Installing and deploying<a class="headerlink" href="#installing-and-deploying" title="Permanent link">&para;</a></h1>
+<p>Scrinalia is installed by the institution that keeps the collection, on its own infrastructure, and
+runs there without a hosted service. This page is the ordered sequence for a third-party
+installation: what has to be installed, which variable changes what, and the operations the
+deployment owns afterwards. It describes the code as it ships.</p>
+<p>The operator reads this page; the archivist's screens are in <a href="../curate/">Curation</a> and the worker
+pipeline is in <a href="../operate/">Operations</a>.</p>
+<h2 id="what-you-are-installing">What you are installing<a class="headerlink" href="#what-you-are-installing" title="Permanent link">&para;</a></h2>
+<p>The installation is four pieces. Only the first two are in this repository.</p>
+<table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>Runs as</th>
+<th>Where it comes from</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>API and curator UI</td>
+<td>one process (<code>uvicorn</code>, one worker)</td>
+<td>this repository</td>
+</tr>
+<tr>
+<td>PostgreSQL 15 with <code>pgvector</code></td>
+<td>a container or a server you manage</td>
+<td><code>docker-compose.yml</code> builds one; a stock server works if it has the extension</td>
+</tr>
+<tr>
+<td>S3-compatible object storage</td>
+<td>any endpoint speaking S3</td>
+<td><strong>you bring it</strong> — see <a href="#object-storage-is-not-shipped">Object storage is not shipped</a></td>
+</tr>
+<tr>
+<td>Ollama host</td>
+<td>a server serving the LLM models</td>
+<td><strong>you bring it</strong>; only the Ollama-backed engines need it</td>
+</tr>
+</tbody>
+</table>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
+<h3 id="software">Software<a class="headerlink" href="#software" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Version used here</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Docker Engine with the Compose v2 plugin (<code>docker compose</code>)</td>
+<td>Docker 29.1.3, Compose 2.40.3</td>
+<td>PostgreSQL comes from <code>docker-compose.yml</code>, which pins the project <code>name:</code> and uses the <code>env_file: {path, required: false}</code> form — the Compose implementation has to accept it</td>
+</tr>
+<tr>
+<td><a href="https://docs.astral.sh/uv/"><code>uv</code></a></td>
+<td>0.11.14</td>
+<td>manages Python 3.12 and the lockfile; the <code>Dockerfile</code> pins the <code>uv</code> image to 0.11.14</td>
+</tr>
+<tr>
+<td><a href="https://bun.sh/">Bun</a></td>
+<td>1.3.14</td>
+<td>installs the front-end workspace and runs <code>curator:build</code>; Bun manages packages and scripts, Vite bundles (ADR 0003)</td>
+</tr>
+<tr>
+<td>Python</td>
+<td>3.12</td>
+<td><code>requires-python = "&gt;=3.12"</code>; <code>uv</code> provides it, no system Python is needed</td>
+</tr>
+</tbody>
+</table>
+<p>The versions above are the ones the repository was built and checked against; a newer patch release
+of any of them is expected to work. All commands in this page run from the repository root.</p>
+<h3 id="disk">Disk<a class="headerlink" href="#disk" title="Permanent link">&para;</a></h3>
+<p>The Python environment and the model caches are the large items. Measured in a working checkout:</p>
+<table>
+<thead>
+<tr>
+<th>What</th>
+<th>Measured</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python environment (<code>.venv</code>), including torch, transformers, spaCy and the 602 MB <code>pt_core_news_lg</code> model</td>
+<td>6.6 GB</td>
+<td><code>du -sh .venv</code></td>
+</tr>
+<tr>
+<td>Hugging Face model cache after the first classification and NER run</td>
+<td>4.6 GB</td>
+<td><code>du -sh .cache-hf</code></td>
+</tr>
+<tr>
+<td>Front-end dependencies</td>
+<td>268 MB</td>
+<td><code>du -sh node_modules</code></td>
+</tr>
+<tr>
+<td>Ollama models (the presets name <code>granite4.1:3b</code> and <code>gemma4:e4b</code>)</td>
+<td>not measured</td>
+<td>fetched by Ollama, not by this repository</td>
+</tr>
+<tr>
+<td>PostgreSQL data</td>
+<td>depends on the collection</td>
+<td>grows with the descriptions, not with the software</td>
+</tr>
+</tbody>
+</table>
+<p>Plan for roughly 12 GB free for the Python stack, the model cache and the front-end dependencies,
+plus room for the database. If you also build the container image, add the image itself — the
+<code>Dockerfile</code> notes its virtualenv alone is about 6 GB.</p>
+<h3 id="memory">Memory<a class="headerlink" href="#memory" title="Permanent link">&para;</a></h3>
+<p><strong>This page does not state a minimum RAM, because it was not measured.</strong> As a reference for what was
+observed while writing it: the development host reports 15 GiB total and 8.3 GiB available
+(<code>free -h</code>). The memory a run needs is driven by the models held in the process — the classification
+and NER engines load a transformer or a spaCy pipeline each — and by Ollama holding its own model at
+the same time. Measure on the target machine with the model loaded before sizing a server; a machine
+that is comfortable for the API can still be short for a worker run.</p>
+<h3 id="external-services">External services<a class="headerlink" href="#external-services" title="Permanent link">&para;</a></h3>
+<ul>
+<li>A PostgreSQL 15 server with <code>pgvector</code>. Alembic creates the extensions the schema needs
+  (<code>pg_trgm</code>, <code>unaccent</code>, <code>vector</code>), but it cannot install the extension <em>packages</em>: on a stock
+  PostgreSQL without pgvector, <code>alembic upgrade head</code> fails at the embeddings migration. The image
+  in <code>docker/postgres/Dockerfile</code> starts from pgvector and adds PostGIS, so both are available;
+  PostGIS is installed but not enabled by any migration yet.</li>
+<li>An S3-compatible endpoint reachable from the API process, with a bucket that <strong>already exists</strong>.</li>
+<li>An Ollama host, if you will use the Ollama-backed engines. <code>OLLAMA_HOST_URL</code> is where every
+  preset-backed engine resolves its host; <code>http://localhost:11434</code> is the fallback when it is unset.</li>
+</ul>
+<h2 id="the-single-process-premise">The single-process premise<a class="headerlink" href="#the-single-process-premise" title="Permanent link">&para;</a></h2>
+<div class="admonition danger">
+<p class="admonition-title">Run exactly one API process</p>
+<p>Start the API with <code>--workers 1</code>, always. The worker executor lives <strong>inside</strong> the API process
+and accepts one worker at a time (<code>WORKER_RUNTIME_MAX_WORKERS</code>, default 1); at start-up
+<code>api/lifespan.py</code> marks every run row still <code>QUEUED</code>/<code>RUNNING</code> as <code>INTERRUPTED</code>, because it
+assumes those rows belong to a process that is no longer alive. With <code>uvicorn --workers &gt; 1</code>, a
+second process would kill a sibling's live run at every restart. The database concurrency guard
+(<code>uq_worker_run_active</code>, a partial unique index on the active rows) stays correct; the recovery
+does not. Scaling out means moving the executor and the recovery out of the API first
+(ADR 0004).</p>
+</div>
+<h2 id="install-the-ordered-sequence">Install: the ordered sequence<a class="headerlink" href="#install-the-ordered-sequence" title="Permanent link">&para;</a></h2>
+<h3 id="1-get-the-code-and-declare-the-environment">1. Get the code and declare the environment<a class="headerlink" href="#1-get-the-code-and-declare-the-environment" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>&lt;repository-url&gt;<span class="w"> </span>scrinalia
+<span class="nb">cd</span><span class="w"> </span>scrinalia
+cp<span class="w"> </span>.env.example<span class="w"> </span>.env
+<span class="c1"># edit .env for your infrastructure</span>
+</code></pre></div>
+<p><code>.env</code> is gitignored. <code>Settings</code> reads it (<code>env_file=".env"</code>), a real environment variable wins over
+it, and <code>docker compose</code> reads the same file for its interpolation. Start from <code>.env.example</code>, but
+read <a href="#envexample-and-coreconfigpy">how the two files line up</a> — nothing there needs changing.</p>
+<h3 id="2-start-the-database">2. Start the database<a class="headerlink" href="#2-start-the-database" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d
+</code></pre></div>
+<p>This starts PostgreSQL 15 on port 5432 and nothing else. The application service sits behind the
+<code>app</code> profile, so this command never builds or starts it.</p>
+<h3 id="3-install-the-python-environment">3. Install the Python environment<a class="headerlink" href="#3-install-the-python-environment" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>sync
+</code></pre></div>
+<p>Heavy: <code>torch</code>, <code>transformers</code>, <code>spacy</code> and <code>bertopic</code> are in the default dependency set.</p>
+<h3 id="4-create-the-schema">4. Create the schema<a class="headerlink" href="#4-create-the-schema" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>alembic<span class="w"> </span>upgrade<span class="w"> </span>head
+</code></pre></div>
+<p>The schema is owned by Alembic and nothing else creates it; there is no <code>db-init</code>. The same command
+creates the <code>pg_trgm</code>, <code>unaccent</code> and <code>vector</code> extensions the schema depends on. Confirm the result
+with <code>uv run alembic check</code>, which reports no drift on a healthy installation.</p>
+<p>The order matters: this step needs a reachable database, which is why the container comes first.</p>
+<h3 id="5-build-the-curator-ui">5. Build the curator UI<a class="headerlink" href="#5-build-the-curator-ui" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>bun<span class="w"> </span>install
+bun<span class="w"> </span>run<span class="w"> </span>curator:build
+</code></pre></div>
+<p><code>bun install</code> runs once at the repository root (it is a workspace). The build writes
+<code>apps/curator/dist</code>, and <code>create_app()</code> mounts that directory at <code>/</code> when it exists — which is what
+keeps the browser on the same origin as the API and the project free of CORS. Without the build the
+API still answers; it just serves no UI.</p>
+<h3 id="6-create-the-first-administrator">6. Create the first administrator<a class="headerlink" href="#6-create-the-first-administrator" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scrinalia.domains.identity.cli<span class="w"> </span>create<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--email<span class="w"> </span>voce@instituicao.org<span class="w"> </span>--name<span class="w"> </span><span class="s2">&quot;Seu Nome&quot;</span><span class="w"> </span>--role<span class="w"> </span>ADMIN
+</code></pre></div>
+<p>The CLI is the only way to bring an installation to life: no route creates an administrator when
+none exists, because that would be an open door whose only defence is a race on the first deploy.
+Without <code>--password</code> the CLI generates one, prints it, and marks it temporary — the account replaces
+it at the first sign-in. The roles are <code>ADMIN</code>, <code>CURATOR</code> and <code>VIEWER</code>. The same CLI is the way back
+in for a forgotten password and has <code>list</code>, <code>reset-password</code>, <code>activate</code>, <code>deactivate</code> and
+<code>set-role</code> alongside <code>create</code>.</p>
+<h3 id="7-start-the-api">7. Start the API<a class="headerlink" href="#7-start-the-api" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>uvicorn<span class="w"> </span>main:app<span class="w"> </span>--host<span class="w"> </span><span class="m">0</span>.0.0.0<span class="w"> </span>--port<span class="w"> </span><span class="m">8000</span><span class="w"> </span>--workers<span class="w"> </span><span class="m">1</span>
+</code></pre></div>
+<p>The API is then at <code>http://localhost:8000/</code>, the UI at the same address and the OpenAPI document at
+<code>/schema/swagger</code>. <code>--reload</code> belongs to development (<code>bun run api:dev</code>), not to an installation.
+Before exposing the instance, set <code>AUTH_COOKIE_SECURE</code> — see <a href="#https">HTTPS</a>.</p>
+<h2 id="environment-variables">Environment variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
+<p>Every setting is defined once in <code>src/scrinalia/core/config.py</code> (<code>Settings</code>). All of them have a
+default, so the API boots with an empty <code>.env</code>; what fails fast without configuration is the
+pipeline, not the boot — <code>ACERVO_SOURCE</code> is required by the staging transform and
+<code>PUBLIC_SCRAPE_*</code> by the ingestion adapter.</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>What it changes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DB_USER</code></td>
+<td><code>admin</code></td>
+<td>database user; must match the server or the <code>db</code> service</td>
+</tr>
+<tr>
+<td><code>DB_PASS</code></td>
+<td><code>admin123</code></td>
+<td>database password; a secret, unwrapped only where the driver needs it</td>
+</tr>
+<tr>
+<td><code>DB_HOST</code></td>
+<td><code>localhost</code></td>
+<td>database host: <code>db</code> inside the compose network, the server's address on bare metal</td>
+</tr>
+<tr>
+<td><code>DB_PORT</code></td>
+<td><code>5432</code></td>
+<td>database port</td>
+</tr>
+<tr>
+<td><code>DB_NAME</code></td>
+<td><code>scrinalia</code></td>
+<td>database name; the compose service creates it on first boot</td>
+</tr>
+<tr>
+<td><code>PUBLIC_SCRAPE_URL</code></td>
+<td>unset</td>
+<td>base URL of the source site the ingestion worker lists; required to scrape</td>
+</tr>
+<tr>
+<td><code>PUBLIC_SCRAPE_DETAIL_URL</code></td>
+<td>unset</td>
+<td>detail-page URL prefix the ingestion adapter builds each record from; required to scrape</td>
+</tr>
+<tr>
+<td><code>ACERVO_SOURCE</code></td>
+<td>unset</td>
+<td>names the origin whose field labels the staging transform reads (the only one shipped is <code>pmc</code>); <strong>no default</strong>, and a staging run fails fast without it</td>
+</tr>
+<tr>
+<td><code>ACERVO_LANGUAGE</code></td>
+<td><code>pt-BR</code></td>
+<td>selects the language profile — stopwords, date grammar, plural rules, the full-text dictionary and the spaCy model. The full-text dictionary reaches a generated column, so changing it is a <strong>migration</strong>, not a restart</td>
+</tr>
+<tr>
+<td><code>S3_ENDPOINT_URL</code></td>
+<td>unset</td>
+<td>the S3-compatible endpoint (MinIO, Ceph, SeaweedFS, a cloud bucket); from a container, <code>localhost</code> is the container itself</td>
+</tr>
+<tr>
+<td><code>S3_BUCKET_NAME</code></td>
+<td>unset</td>
+<td>the bucket the thumbnails go to; it must already exist</td>
+</tr>
+<tr>
+<td><code>S3_ACCESS_KEY</code></td>
+<td>unset</td>
+<td>credential with read/write on the bucket; a secret</td>
+</tr>
+<tr>
+<td><code>S3_SECRET_KEY</code></td>
+<td>unset</td>
+<td>credential secret; a secret</td>
+</tr>
+<tr>
+<td><code>OLLAMA_HOST_URL</code></td>
+<td>unset → <code>http://localhost:11434</code></td>
+<td>the Ollama host every preset-backed engine resolves; an explicit <code>--option host=...</code> still wins</td>
+</tr>
+<tr>
+<td><code>AUTH_SESSION_COOKIE_NAME</code></td>
+<td><code>scrinalia_session</code></td>
+<td>name of the first-party session cookie</td>
+</tr>
+<tr>
+<td><code>AUTH_SESSION_TTL_MINUTES</code></td>
+<td><code>720</code></td>
+<td>how long a session lives; sliding, pushed forward by activity</td>
+</tr>
+<tr>
+<td><code>AUTH_SESSION_TOUCH_MINUTES</code></td>
+<td><code>15</code></td>
+<td>how long a session may sit idle before its expiry is pushed forward</td>
+</tr>
+<tr>
+<td><code>AUTH_COOKIE_SECURE</code></td>
+<td><code>false</code></td>
+<td>adds <code>Secure</code> to the session cookie; <strong>set it <code>true</code> behind HTTPS</strong> — see <a href="#https">HTTPS</a></td>
+</tr>
+<tr>
+<td><code>AUTH_PASSWORD_MIN_LENGTH</code></td>
+<td><code>12</code></td>
+<td>minimum password length, enforced in the domain so the CLI obeys it too</td>
+</tr>
+<tr>
+<td><code>AUTH_PASSWORD_MEMORY_KIB</code></td>
+<td><code>65536</code></td>
+<td>argon2id memory cost (64 MiB); raising it does not invalidate existing hashes</td>
+</tr>
+<tr>
+<td><code>AUTH_PASSWORD_TIME_COST</code></td>
+<td><code>3</code></td>
+<td>argon2id iterations</td>
+</tr>
+<tr>
+<td><code>AUTH_PASSWORD_PARALLELISM</code></td>
+<td><code>4</code></td>
+<td>argon2id lanes</td>
+</tr>
+<tr>
+<td><code>AUTH_LOGIN_MAX_ATTEMPTS</code></td>
+<td><code>5</code></td>
+<td>failed sign-ins that lock an account</td>
+</tr>
+<tr>
+<td><code>AUTH_LOGIN_LOCKOUT_MINUTES</code></td>
+<td><code>15</code></td>
+<td>first lockout window; each further lockout doubles it up to the ceiling</td>
+</tr>
+<tr>
+<td><code>AUTH_LOGIN_LOCKOUT_MAX_MINUTES</code></td>
+<td><code>240</code></td>
+<td>ceiling of the lockout window, so a guesser has no fixed retry schedule</td>
+</tr>
+<tr>
+<td><code>AUTH_LOGIN_RATE_MAX</code></td>
+<td><code>20</code></td>
+<td>sign-in attempts allowed per client address in the window; a process-local brake, not the durable defence</td>
+</tr>
+<tr>
+<td><code>AUTH_LOGIN_RATE_WINDOW_SECONDS</code></td>
+<td><code>300</code></td>
+<td>the window those attempts are counted over</td>
+</tr>
+<tr>
+<td><code>AUTH_TRUSTED_ORIGINS</code></td>
+<td>empty</td>
+<td>extra origins accepted on a mutating request, comma-separated; needed when a reverse proxy rewrites <code>Host</code></td>
+</tr>
+<tr>
+<td><code>LOG_DIR</code></td>
+<td><code>logs</code></td>
+<td>directory of the loguru sinks (<code>critical.log</code>, <code>ui_stream.jsonl</code>); created if missing</td>
+</tr>
+<tr>
+<td><code>LOG_LEVEL</code></td>
+<td><code>INFO</code></td>
+<td>console and structured-stream level</td>
+</tr>
+<tr>
+<td><code>DEBUG</code></td>
+<td><code>false</code></td>
+<td>reports the debug flag on the system diagnostic; it is shown, not used to switch logging</td>
+</tr>
+<tr>
+<td><code>WORKER_RUNTIME_MAX_WORKERS</code></td>
+<td><code>1</code></td>
+<td>how many runs the API's executor accepts at once; the workers are CPU-bound, so a second one slows the first</td>
+</tr>
+</tbody>
+</table>
+<p><code>DATABASE_URL</code> is <strong>not</strong> in this table: it is a derived property that percent-encodes the
+credentials from <code>DB_*</code>, not a value you set.</p>
+<h3 id="envexample-and-coreconfigpy"><code>.env.example</code> and <code>core/config.py</code><a class="headerlink" href="#envexample-and-coreconfigpy" title="Permanent link">&para;</a></h3>
+<p>They line up, and the check is worth knowing: every name in <code>.env.example</code> is a field of <code>Settings</code>
+<strong>except one</strong>. <code>APP_OLLAMA_HOST_URL</code> is not a setting — it exists only for the container, where
+<code>docker-compose.yml</code> maps it onto <code>OLLAMA_HOST_URL</code>, because an <code>environment:</code> entry wins over
+<code>env_file</code>. It is explained under <a href="#deploying-the-container-image">Deploying the container image</a>.</p>
+<p><code>DB_NAME</code> is <code>scrinalia</code> in all three places — <code>core/config.py</code>, <code>.env.example</code> and the compose
+interpolation. That is deliberate rather than cosmetic: the name used to be the reference
+collection's database name, which made a fresh clone default to somebody else's catalogue, the same
+defect ADR 0008 removed one layer up. A deployment that wants another name sets it in its own
+<code>.env</code>, where its own configuration belongs.</p>
+<h2 id="cpu-and-gpu">CPU and GPU<a class="headerlink" href="#cpu-and-gpu" title="Permanent link">&para;</a></h2>
+<p>CPU is the shape the shipped process assumes, not a limitation of the code, and it is enforced in two
+places. <code>pyproject.toml</code> points <code>torch</code> at the <strong>CPU-only PyTorch index</strong>, so no CUDA runtime is
+installed at all; and <code>Procfile</code> starts the API as <code>CUDA_VISIBLE_DEVICES="" uv run uvicorn main:app
+--reload</code>, with the runtime stage of the <code>Dockerfile</code> setting the same variable as an <code>ENV</code>, so the
+process cannot see a GPU even on a host that has one.</p>
+<p>The index is worth more than it looks. Measured on this lock, the default wheel resolves <strong>3.46 GB</strong>,
+of which <strong>2.19 GB are <code>nvidia-*</code> packages</strong> and 248 MB <code>triton</code> — a runtime a CPU process never
+executes, downloaded and cached by every installation and by CI. With the CPU index the same lock
+resolves to <strong>0.66 GB</strong>. The variable covers the other direction: it keeps a re-locked CUDA
+installation from failing on a host without the NVIDIA driver, and it hides the GPU from the parts of
+the stack that reach CUDA by another route (<code>spaCy</code> only reaches one through <code>cupy</code>, the <code>spacy[gpu]</code>
+extra, which this project does not declare).</p>
+<p>To use a GPU instead, the wheel has to be there first:</p>
+<ol>
+<li>Remove the <code>torch = { index = "pytorch-cpu" }</code> line and the <code>[[tool.uv.index]]</code> block for
+   <code>pytorch-cpu</code> from <code>pyproject.toml</code>, then run <code>uv lock &amp;&amp; uv sync</code>. The default PyPI wheel carries
+   the CUDA runtime on Linux and Windows; macOS keeps its own build either way.</li>
+<li>Do not set <code>CUDA_VISIBLE_DEVICES=""</code> for the process; start it without the variable, or name the
+   device you mean (<code>CUDA_VISIBLE_DEVICES=0</code>).</li>
+<li>Choose a configuration that uses the GPU. The typology engine (also used by the macro-category
+   worker) has a <code>gpu_cloud</code> preset with <code>device: "cuda"</code>; NER's default preset is already <code>gpu</code>,
+   which calls <code>spacy.prefer_gpu()</code> — note that spaCy reaches the GPU only through its CUDA runtime
+   (<code>cupy</code>, the <code>spacy[gpu]</code> extra), which this project does not declare, so install it separately
+   if you want the entities on the GPU; the embedding engine has a single <code>multilingual_minilm</code>
+   preset on <code>device: "cpu"</code> and takes an override.</li>
+<li>Run through the unified runner, which forwards <code>--option key=value</code> to the worker and from there
+   to the engine factory:</li>
+</ol>
+<div class="highlight"><pre><span></span><code><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="m">0</span><span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scrinalia.domains.archive.workers.runner<span class="w"> </span>typology<span class="w"> </span>--preset<span class="w"> </span>gpu_cloud
+<span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="m">0</span><span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scrinalia.domains.archive.workers.runner<span class="w"> </span>embedding<span class="w"> </span>--option<span class="w"> </span><span class="nv">device</span><span class="o">=</span>cuda
+</code></pre></div>
+<p>Two consequences to keep in mind. A run triggered from the panel (<code>Sistema › Workers de IA</code>)
+inherits the API process's environment, so an API started with <code>CUDA_VISIBLE_DEVICES=""</code> runs
+CPU-only whatever preset the panel selects. And the effective configuration follows
+<code>explicit argument &gt; persisted override &gt; signature default</code>, so a preset chosen in the panel can be
+overridden by a row in <code>archive_worker_settings</code> — <a href="../operate/">Operations</a> owns that precedence.</p>
+<h2 id="https">HTTPS<a class="headerlink" href="#https" title="Permanent link">&para;</a></h2>
+<p>Set <code>AUTH_COOKIE_SECURE=true</code> when the instance is reached over HTTPS, and only then.</p>
+<p>The session is a first-party cookie whose row lives in <code>auth_sessions</code>; the server stores only the
+SHA-256 of the token. With <code>AUTH_COOKIE_SECURE</code> left at its default <code>false</code>, the <code>Secure</code> attribute
+is absent, so the browser will also send the cookie over plain HTTP — over an open network the
+session token travels in clear text and can be read from the wire. That is what the flag prevents.</p>
+<p>The default is <code>false</code> on purpose, and it is the reason a LAN installation over <code>http://</code> must not
+turn it on: the browser drops a <code>Secure</code> cookie over plain HTTP <strong>silently</strong>, so the login would
+look like it worked while nothing was stored, and the next request would be anonymous again. The
+failure mode of getting this backwards is a login that appears to succeed and never sticks
+(ADR 0009).</p>
+<p><code>AUTH_TRUSTED_ORIGINS</code> is the companion setting. Mutating requests are checked against their
+<code>Origin</code>: same-origin is accepted by comparing the origin's authority with the request <code>Host</code>, and a
+reverse proxy that rewrites <code>Host</code> makes every mutation look cross-origin unless the public origin
+is listed there, comma-separated. Reads are never checked, and a request with no <code>Origin</code> (curl, the
+CLI) is accepted. Because the API serves the UI from its own origin there is no CORS configuration
+to write; forward the original <code>Host</code> through the proxy, or declare the public origin here.</p>
+<h2 id="deploying-the-container-image">Deploying the container image<a class="headerlink" href="#deploying-the-container-image" title="Permanent link">&para;</a></h2>
+<p>The container is the alternative to the bare-metal sequence above, and it packages what the code
+already assumes: one image containing the API <strong>and</strong> the curator UI, running one process.</p>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>--profile<span class="w"> </span>app<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>--build<span class="w">   </span><span class="c1"># application + PostgreSQL</span>
+docker<span class="w"> </span>compose<span class="w"> </span>--profile<span class="w"> </span>app<span class="w"> </span>logs<span class="w"> </span>-f<span class="w"> </span>app
+<span class="c1"># → http://localhost:8000</span>
+</code></pre></div>
+<p>The <code>app</code> service is behind the <code>app</code> profile on purpose, so <code>docker compose up -d</code> — and therefore
+<code>bun run dev</code> — keeps starting the infrastructure alone.</p>
+<p>What the entrypoint does for you:</p>
+<ul>
+<li><code>docker/entrypoint.sh</code> runs <code>alembic upgrade head</code> before the server starts, retrying while the
+  database is unreachable and giving up with a non-zero exit after <code>SCRINALIA_DB_WAIT_SECONDS</code>
+  (default 60). Set <code>SCRINALIA_RUN_MIGRATIONS=false</code> when migrations are a separate step, or when
+  several replicas start at once: Alembic takes no distributed lock, so concurrent runs race.</li>
+<li>The runtime command is <code>uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1</code>, and the image's
+  own <code>HEALTHCHECK</code> reads <code>/health/live</code>, which touches nothing.</li>
+</ul>
+<p>Configuration inside the container:</p>
+<ul>
+<li>The compose <code>environment:</code> block re-points <code>DB_HOST</code> at the <code>db</code> service and defaults
+  <code>S3_ENDPOINT_URL</code> to <code>http://host.docker.internal:9000</code>.</li>
+<li><code>OLLAMA_HOST_URL</code> <strong>inside the container</strong> is set from a different variable:
+  <code>OLLAMA_HOST_URL: ${APP_OLLAMA_HOST_URL:-http://host.docker.internal:11434}</code>. A compose
+  <code>environment:</code> entry wins over <code>env_file</code>, so setting <code>OLLAMA_HOST_URL</code> in <code>.env</code> does not reach
+  the application container — set <code>APP_OLLAMA_HOST_URL</code> as well. That name is a Compose
+  interpolation variable, not a <code>Settings</code> field; it exists only for this file. Confirm what the
+  container will actually receive with <code>docker compose --profile app config</code>, which resolves the
+  interpolation before anything starts.</li>
+<li>Volumes <code>pgdata</code>, <code>app_logs</code> and <code>hf_cache</code> survive a rebuild: the database, the loguru sinks
+  (<code>LOG_DIR</code>) and the Hugging Face cache the models are downloaded into. The UI bundle comes from the
+  build stage, never from the host: <code>apps/curator/dist</code> is gitignored and is excluded from the build
+  context.</li>
+</ul>
+<p>The first administrator is created from inside the container:</p>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>--profile<span class="w"> </span>app<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>app<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>python<span class="w"> </span>-m<span class="w"> </span>scrinalia.domains.identity.cli<span class="w"> </span>create<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--email<span class="w"> </span>voce@instituicao.org<span class="w"> </span>--name<span class="w"> </span><span class="s2">&quot;Seu Nome&quot;</span><span class="w"> </span>--role<span class="w"> </span>ADMIN
+</code></pre></div>
+<h3 id="docker-composetestyml-is-not-for-production"><code>docker-compose.test.yml</code> is not for production<a class="headerlink" href="#docker-composetestyml-is-not-for-production" title="Permanent link">&para;</a></h3>
+<p><code>docker-compose.test.yml</code> describes the <strong>test</strong> database and nothing else: user <code>test_user</code>,
+database <code>test_db</code>, the data directory on <code>tmpfs</code> (in RAM, so it is lost when the container stops),
+and a published port <code>${TEST_DB_PORT:-5433}</code>. Its schema is built by <code>Base.metadata.create_all</code> in
+<code>testing/conftest.py</code>, not by Alembic, and the suite drops it on teardown. Never point an
+installation at it, and never run <code>alembic upgrade head</code> against it: <code>create_all</code> then skips the
+tables it finds, the suite runs against a migrated schema instead of the models, and the result
+reads as a regression rather than as the mistake it is.</p>
+<h2 id="object-storage-is-not-shipped">Object storage is not shipped<a class="headerlink" href="#object-storage-is-not-shipped" title="Permanent link">&para;</a></h2>
+<p><code>docker compose up -d</code> starts PostgreSQL and nothing else. The project needs an S3-compatible
+endpoint and does not care which product serves it — MinIO, Ceph, SeaweedFS or a cloud bucket are
+infrastructure the operator brings, not something this repository ships.</p>
+<p>The settings are <code>S3_ENDPOINT_URL</code>, <code>S3_BUCKET_NAME</code>, <code>S3_ACCESS_KEY</code> and <code>S3_SECRET_KEY</code>; the
+client is boto3 with signature v4. Two requirements come from the code: the bucket must already
+exist (the worker uploads into it and never creates it), and the credentials need read/write on it.
+From inside the <code>app</code> container <code>localhost</code> is the container itself, so point the endpoint at the
+service's address on your network (<code>host.docker.internal</code> reaches a service running on the host).</p>
+<p>What lives there today is the <code>thumbnail</code> worker's JPEGs, under <code>thumbnails/</code>. The database stores
+the resulting <code>s3://bucket/key</code> reference in <code>storage_thumbnail_uri</code>.</p>
+<h2 id="backup-and-restore">Backup and restore<a class="headerlink" href="#backup-and-restore" title="Permanent link">&para;</a></h2>
+<p>Two pieces of state, and only two: the database and the bucket.</p>
+<p>Database dump and restore, using the <code>DB_USER</code>/<code>DB_NAME</code> you configured (<code>admin</code>/<code>scrinalia</code> by
+default):</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># dump, custom format</span>
+docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>scrinalia_db<span class="w"> </span>pg_dump<span class="w"> </span>-U<span class="w"> </span>admin<span class="w"> </span>-d<span class="w"> </span>scrinalia<span class="w"> </span>-Fc<span class="w"> </span>&gt;<span class="w"> </span>scrinalia-<span class="k">$(</span>date<span class="w"> </span>+%F<span class="k">)</span>.dump
+
+<span class="c1"># restore into a fresh database, leaving the current one intact</span>
+docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>scrinalia_db<span class="w"> </span>createdb<span class="w"> </span>-U<span class="w"> </span>admin<span class="w"> </span>scrinalia_restore
+docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-i<span class="w"> </span>scrinalia_db<span class="w"> </span>pg_restore<span class="w"> </span>-U<span class="w"> </span>admin<span class="w"> </span>-d<span class="w"> </span>scrinalia_restore<span class="w"> </span>&lt;<span class="w"> </span>scrinalia-2026-10-08.dump
+<span class="c1"># then point DB_NAME at scrinalia_restore and start the API</span>
+</code></pre></div>
+<p>Bucket: copy it with whatever the provider gives you; any S3 client works, and the generic form is
+<code>aws s3 sync --endpoint-url &lt;url&gt; s3://&lt;bucket&gt; ./bucket-backup</code>.</p>
+<p>Restore the two <strong>as a pair</strong>. This is the trap: the <code>thumbnail</code> worker's queue is
+<code>storage_thumbnail_uri IS NULL</code>, so a database restored without its bucket has every reference set
+and no object behind it. The worker will not re-upload anything — the queue is empty — and the UI
+serves broken images. Back them up together and restore them together.</p>
+<h3 id="what-is-not-recoverable">What is not recoverable<a class="headerlink" href="#what-is-not-recoverable" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Nothing beyond those two pieces, and the sentence is literal: the application keeps no other
+  state. <code>LOG_DIR</code> (<code>logs/</code>) is operational history rather than archival record, the Hugging Face
+  cache and <code>apps/curator/dist</code> are rebuildable, and the schema comes from <code>migrations/</code> in the
+  repository. Keep a copy of your <code>.env</code> with the dump; it is not inside it, and a restore without it
+  points at the defaults.</li>
+<li><strong>Everything written between the last dump and the failure.</strong> The project configures no continuous
+  archiving or WAL shipping; the recovery point is the dump.</li>
+<li><strong>A deleted description.</strong> <code>DELETE /api/v1/documents/{id}</code> is the one operation that removes a
+  record. It snapshots the whole row into <code>archive_document_deletions</code> — reference code, title,
+  level, the full ISAD(G) payload, who deleted it and why — but the <code>Acervo › Excluídas</code> screen is a
+  trail, not a recycle bin: there is no restore. A node with children is refused outright, because
+  the self-referencing foreign key is <code>RESTRICT</code>.</li>
+<li><strong>Thumbnails, if the bucket is lost.</strong> The database still names them, and the worker could
+  re-derive one from <code>original_thumbnail_url</code> while the origin site still serves the image — but it
+  will not, because the queue only contains documents whose <code>storage_thumbnail_uri</code> is <code>NULL</code>.
+  Re-deriving them is a deliberate operation, not something the next run does by itself.</li>
+<li>The Ollama models and the Hugging Face cache are downloads, not state: they can be fetched again,
+  which costs time and bandwidth, not data.</li>
+</ul>
+<h2 id="minimum-operations">Minimum operations<a class="headerlink" href="#minimum-operations" title="Permanent link">&para;</a></h2>
+<h3 id="three-health-answers-three-questions">Three health answers, three questions<a class="headerlink" href="#three-health-answers-three-questions" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Question it answers</th>
+<th>What it touches</th>
+<th>Answer</th>
+<th>Access</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /health/live</code></td>
+<td>is the process answering?</td>
+<td>nothing</td>
+<td>200 while the process answers</td>
+<td>none</td>
+</tr>
+<tr>
+<td><code>GET /health/ready</code></td>
+<td>may this instance receive traffic?</td>
+<td>one <code>SELECT 1</code> on its own engine</td>
+<td>200, or <strong>503</strong> when the database does not answer</td>
+<td>none</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/system/health</code></td>
+<td>which piece is down?</td>
+<td>table counts, Ollama <code>/api/tags</code>, a bucket <code>HEAD</code>, the effective process configuration</td>
+<td>200 either way, with one verdict per piece</td>
+<td><code>OPERATE</code> permission (ADMIN)</td>
+</tr>
+</tbody>
+</table>
+<p>The two probes sit outside <code>/api/v1</code> and outside the OpenAPI document on purpose, so an orchestrator
+does not have to know the API version. Do not merge them: a liveness probe that consulted the
+database would make the orchestrator restart the API every time the database restarted. The human
+panel is the third question and the expensive one, and it is the one that names the broken piece;
+in the UI it is <code>Sistema › Diagnóstico</code>.</p>
+<h3 id="healthready-answers-503"><code>/health/ready</code> answers 503<a class="headerlink" href="#healthready-answers-503" title="Permanent link">&para;</a></h3>
+<p>The process is alive and the database did not answer a trivial query. The readiness probe owns a
+dedicated engine with a 2-second <code>connect_timeout</code> and <code>statement_timeout</code> and no pooled connection,
+so the answer comes back quickly and cannot be inherited from a stale connection; the failure detail
+goes to the log rather than the response body, because the route is unauthenticated and a connection
+error echoes host and port. Check that the <code>db</code> service is running (<code>docker compose ps</code>), that
+<code>DB_HOST</code>/<code>DB_PORT</code>/<code>DB_USER</code>/<code>DB_PASS</code>/<code>DB_NAME</code> point at it, and that PostgreSQL accepts
+connections. Restarting the API is the wrong reflex: the process is fine.</p>
+<h3 id="ollama-is-down">Ollama is down<a class="headerlink" href="#ollama-is-down" title="Permanent link">&para;</a></h3>
+<p><code>GET /api/v1/system/health</code> reports <code>ollama.ok = false</code> with the host it used, whether that host
+came from <code>OLLAMA_HOST_URL</code> or from the default, and the models the presets require next to the ones
+the server has — so the missing list is the fix list. Only the Ollama-backed engines are affected:
+the tag × entity judge (<code>conflict-judge</code>, default preset <code>gemma_4b_local</code>), the quality validator,
+which takes its engine from the active <code>LLM_CHECK</code> cleaning rule, and the alternative typology
+engine <code>ollama_typology</code> when you select it instead of the default <code>deberta_typology</code>. The rest of
+the pipeline — transfer, cleaning, NER, typology on the default engine, thumbnail, macro-category,
+embedding — runs without Ollama.</p>
+<p>Start the host and pull the tags the panel lists as missing; <code>OLLAMA_HOST_URL</code> is what reaches the
+engines, and an explicit <code>--option host=...</code> still overrides it for a single run.</p>
+<h3 id="the-bucket-does-not-answer">The bucket does not answer<a class="headerlink" href="#the-bucket-does-not-answer" title="Permanent link">&para;</a></h3>
+<p>The panel distinguishes the two cases: <code>storage.configured = false</code> means endpoint, bucket or
+credentials are missing, and <code>configured = true, ok = false</code> means the configuration is there and
+<code>HEAD</code> on the bucket failed. The <code>thumbnail</code> worker is the only consumer of the bucket, so the rest
+of the pipeline continues. Bring the bucket up <strong>before</strong> running that worker: a document whose
+upload raises is stamped <code>thumbnail_failed</code>, a permanent-failure mark the queue honours, so a
+transient storage outage during a run leaves those documents excluded from every later run. Correct
+<code>S3_ENDPOINT_URL</code>/<code>S3_BUCKET_NAME</code>/<code>S3_ACCESS_KEY</code>/<code>S3_SECRET_KEY</code>, confirm the bucket exists, and
+check reachability from the process doing the upload — inside a container, <code>localhost</code> is the
+container.</p>
+<h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../operate/">Operations</a> — the nine workers and their order, presets and overrides, the run ledger
+  and how to reprocess a document or a batch.</li>
+<li><a href="../curate/">Curation</a> — what the archivist decides on each screen, and which writes have no undo.</li>
+<li><a href="../data-model/">Data model</a> — the three layers plus <code>identity</code>, the stamps and the ledgers.</li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../.." class="md-footer__link md-footer__link--prev" aria-label="Previous: Home">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Home
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../operate/" class="md-footer__link md-footer__link--next" aria-label="Next: Operations">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Operations
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "navigation.footer", "content.code.copy", "search.highlight", "search.suggest"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,2228 @@
+
+<!doctype html>
+<html lang="pt" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Archival description cataloguing and AI-driven enrichment (ISAD(G))">
+      
+      
+      
+      
+        <link rel="prev" href="../curate/">
+      
+      
+        <link rel="next" href="../../adr/">
+      
+      
+        
+          <link rel="alternate" href="../../../guides/data-model/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="pt">
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Modelo de dados - Scrinalia</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#modelo-de-dados" class="md-skip">
+          Ir para o conteúdo
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Cabeçalho">
+    <a href="../../" title="Scrinalia" class="md-header__button md-logo" aria-label="Scrinalia" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Scrinalia
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Modelo de dados
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Selecione o idioma">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../../guides/data-model/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="pt" class="md-select__link">
+              Português (Brasil)
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Buscar" placeholder="Buscar" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Pesquisar">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Limpar" aria-label="Limpar" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Inicializando a pesquisa
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navegação" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../" title="Scrinalia" class="md-nav__button md-logo" aria-label="Scrinalia" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Scrinalia
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Início
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guias
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guias
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Instalação e implantação
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operação
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../curate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curadoria
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modelo de dados
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modelo de dados
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Índice">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Índice
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#dominios-e-camadas-do-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Domínios e camadas do pipeline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tabelas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tabelas
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tabelas">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ingestao-o-que-a-origem-enviou-sem-tratamento" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingestão — o que a origem enviou, sem tratamento
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#staging-o-registro-parseado" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Staging — o registro parseado
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#archive-a-descricao-e-tudo-ao-redor-dela" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Archive — a descrição e tudo ao redor dela
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Archive — a descrição e tudo ao redor dela">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-descricao" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A descrição
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assuntos-gavetas-e-entidades" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assuntos, gavetas e entidades
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#o-arranjo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O arranjo
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-trilha-de-curadoria-da-descricao" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A trilha de curadoria da descrição
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tabelas-de-governanca" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tabelas de governança
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#o-vocabulario-do-acervo-dado-nao-codigo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O vocabulário do acervo (dado, não código)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operacao" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operação
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#identity-a-instalacao-nao-o-acervo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identity — a instalação, não o acervo
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#idempotencia-execution_log-e-carimbos-versionados" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Idempotência: execution_log e carimbos versionados
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#governanca-bidirecional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Governança bidirecional
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#os-ledgers-um-a-um" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Os ledgers, um a um
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#colunas-geradas-uma-definicao-no-banco" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Colunas geradas: uma definição, no banco
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#propostas-que-sobrevivem-ao-que-nomeiam" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Propostas que sobrevivem ao que nomeiam
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#catalogos-se-aposentam-nao-se-apagam" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Catálogos se aposentam, não se apagam
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-superficie-publica-uma-particao-exata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A superfície pública: uma partição exata
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-trilha-de-revisao-da-curadoria-humana" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A trilha de revisão da curadoria humana
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisões de arquitetura
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisões de arquitetura
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Índice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0001-litestar-as-http-framework/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0001 Litestar as the HTTP framework
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0002-src-layout-and-internal-namespace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0002 src layout and internal namespace
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0003-monorepo-and-curator-frontend-stack/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0003 Monorepo and curator frontend stack
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0004-worker-execution-from-the-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0004 Worker execution from the API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0005-observability-without-an-external-service/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0005 Observability without an external service
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0006-license-and-author-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0006 License and author attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0007-project-name-scrinalia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0007 Project name Scrinalia
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0008-language-in-code-and-collection-vocabulary-in-the-database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0008 Language in code, collection vocabulary in the database
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0009-authentication-and-authorization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0009 Authentication and authorization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0010-documentation-coverage-and-freshness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0010 Documentation coverage and freshness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../log/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Registro da documentação
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Índice">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Índice
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#dominios-e-camadas-do-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Domínios e camadas do pipeline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tabelas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tabelas
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tabelas">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ingestao-o-que-a-origem-enviou-sem-tratamento" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingestão — o que a origem enviou, sem tratamento
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#staging-o-registro-parseado" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Staging — o registro parseado
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#archive-a-descricao-e-tudo-ao-redor-dela" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Archive — a descrição e tudo ao redor dela
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Archive — a descrição e tudo ao redor dela">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-descricao" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A descrição
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assuntos-gavetas-e-entidades" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assuntos, gavetas e entidades
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#o-arranjo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O arranjo
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-trilha-de-curadoria-da-descricao" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A trilha de curadoria da descrição
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tabelas-de-governanca" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tabelas de governança
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#o-vocabulario-do-acervo-dado-nao-codigo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O vocabulário do acervo (dado, não código)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operacao" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operação
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#identity-a-instalacao-nao-o-acervo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identity — a instalação, não o acervo
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#idempotencia-execution_log-e-carimbos-versionados" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Idempotência: execution_log e carimbos versionados
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#governanca-bidirecional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Governança bidirecional
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#os-ledgers-um-a-um" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Os ledgers, um a um
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#colunas-geradas-uma-definicao-no-banco" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Colunas geradas: uma definição, no banco
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#propostas-que-sobrevivem-ao-que-nomeiam" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Propostas que sobrevivem ao que nomeiam
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#catalogos-se-aposentam-nao-se-apagam" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Catálogos se aposentam, não se apagam
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-superficie-publica-uma-particao-exata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A superfície pública: uma partição exata
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-trilha-de-revisao-da-curadoria-humana" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A trilha de revisão da curadoria humana
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="modelo-de-dados">Modelo de dados<a class="headerlink" href="#modelo-de-dados" title="Permanent link">&para;</a></h1>
+<p>Esta página trata do que os dados <strong>significam</strong>: qual camada é dona de qual fato, para que serve
+cada tabela e quais escritas são decisões que uma pessoa pode desfazer. Não é um guia de instalação —
+para o ciclo de vida do schema veja <a href="../install/">Instalação e implantação</a>, para executar os workers
+veja <a href="../operate/">Operação</a> e para as telas sobre essas tabelas veja <a href="../curate/">Curadoria</a>.</p>
+<p>O schema é propriedade do <strong>Alembic</strong> (<code>migrations/</code>), e os modelos SQLAlchemy em
+<code>src/scrinalia/domains/*/models/</code> são a fonte única de verdade. <code>uv run alembic check</code> não pode
+acusar drift; uma tabela que existe apenas em uma migration é um defeito.</p>
+<h2 id="dominios-e-camadas-do-pipeline">Domínios e camadas do pipeline<a class="headerlink" href="#dominios-e-camadas-do-pipeline" title="Permanent link">&para;</a></h2>
+<p>O sistema tem quatro domínios em <code>src/scrinalia/domains/</code>. Três deles são as camadas que um registro
+atravessa, nesta ordem:</p>
+<ul>
+<li><code>ingestion</code> — a fila de coleta e o payload intocado (<code>scraping_queue</code>, <code>raw_data</code>);</li>
+<li><code>staging</code> — o payload convertido em colunas ISAD(G) tipadas e higienizadas (<code>staging_documents</code>);</li>
+<li><code>archive</code> — a descrição final enriquecida, os catálogos, os ledgers da IA e a revisão humana
+  (<code>archive_*</code>, <code>domain_*</code>).</li>
+</ul>
+<p>O quarto domínio, <code>identity</code>, <strong>não</strong> é uma camada desse pipeline (ADR 0009). Ele é dono das contas,
+das sessões e do mapa de papéis — as tabelas que descrevem a instalação, não o acervo. Um registro
+nunca "passa por" identity.</p>
+<div class="highlight"><pre><span></span><code>site de origem
+    │  coleta              │  parse + limpeza           │  enriquecimento + revisão
+    ▼                       ▼                            ▼
+ingestion ───────────▶ staging ───────────────────▶ archive
+(scraping_queue,        (staging_documents)          (archive_documents, …)
+ raw_data)
+
+identity ── contas, sessões, papéis (não é camada do pipeline)
+</code></pre></div>
+<p>Cada camada identifica um registro por um hash do que leu por último, para que uma nova execução
+saiba se algo mudou: <code>raw_data.content_hash</code>, <code>staging_documents.raw_content_hash</code> e
+<code>archive_documents.staging_content_hash</code>. A chave de staging → archive é o hash do registro
+<strong>parseado</strong>, não do payload bruto, então uma correção no parser chega ao archive mesmo quando os
+bytes da origem não mudaram.</p>
+<h2 id="tabelas">Tabelas<a class="headerlink" href="#tabelas" title="Permanent link">&para;</a></h2>
+<p>Todas as tabelas de <code>Base.metadata</code>. Para enumerá-las a partir do código:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from scrinalia.core.base import Base; import scrinalia.domains.archive.models, scrinalia.domains.identity.models, scrinalia.domains.ingestion.models, scrinalia.domains.staging.models; print(&#39;\n&#39;.join(sorted(Base.metadata.tables)))&quot;</span>
+</code></pre></div>
+<h3 id="ingestao-o-que-a-origem-enviou-sem-tratamento">Ingestão — o que a origem enviou, sem tratamento<a class="headerlink" href="#ingestao-o-que-a-origem-enviou-sem-tratamento" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>Para que serve</th>
+<th>Colunas principais</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>scraping_queue</code></td>
+<td>Uma linha por identificador descoberto na origem, com seu estado de extração e contagem de tentativas.</td>
+<td><code>description_id</code> (chave de negócio, única), <code>scrape_status</code> (<code>ScrapeStatus</code>), <code>discovered_at</code>, <code>last_scraped_at</code>, <code>retry_count</code>, <code>last_error_message</code></td>
+</tr>
+<tr>
+<td><code>raw_data</code></td>
+<td>O payload exato devolvido pelo adaptador, sem tipagem nem limpeza.</td>
+<td><code>description_id</code> (único), <code>content_hash</code>, <code>raw_title</code>, <code>payload</code> (JSONB)</td>
+</tr>
+</tbody>
+</table>
+<p><code>scrape_status</code> distingue uma falha transitória (<code>NETWORK_ERROR</code>, com nova tentativa) de uma
+permanente (<code>NOT_FOUND</code>, <code>FATAL_ERROR</code>). <code>raw_data.payload</code> é a evidência do que a origem realmente
+enviou; nada a jusante o lê diretamente.</p>
+<h3 id="staging-o-registro-parseado">Staging — o registro parseado<a class="headerlink" href="#staging-o-registro-parseado" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>Para que serve</th>
+<th>Colunas principais</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>staging_documents</code></td>
+<td>A descrição higienizada e tipada antes de qualquer IA tocar nela: a fonte única de verdade higienizada.</td>
+<td><code>description_id</code> (chave primária), <code>raw_content_hash</code>, <code>title</code>, <code>document_date</code>, <code>reference_code</code>, <code>parent_reference_code</code>, <code>hierarchy_path</code>, <code>level</code>, as colunas de texto ISAD(G), <code>raw_metadata</code> (JSONB), <code>created_at</code>, <code>updated_at</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>parent_reference_code</code> é opcional de propósito: uma origem que entrega um filho antes do pai deixa a
+descrição órfã e <em>marcada</em> em vez de derrubar o lote. <code>raw_metadata</code> guarda as chaves que não foram
+mapeadas para uma coluna.</p>
+<h3 id="archive-a-descricao-e-tudo-ao-redor-dela">Archive — a descrição e tudo ao redor dela<a class="headerlink" href="#archive-a-descricao-e-tudo-ao-redor-dela" title="Permanent link">&para;</a></h3>
+<h4 id="a-descricao">A descrição<a class="headerlink" href="#a-descricao" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>Para que serve</th>
+<th>Colunas principais</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>archive_documents</code></td>
+<td>A descrição final, limpa e enriquecida, servida aos usuários e enriquecida pelos workers de IA.</td>
+<td><code>description_id</code> (chave primária), <code>original_title</code>, <code>final_title</code>, <code>document_date</code>, <code>summary</code>, <code>staging_content_hash</code>, <code>reference_code</code>, <code>level_id</code>, <code>typology_id</code>, <code>parent_id</code>, <code>path</code>, <code>review_status</code>, <code>is_anomaly</code>, <code>anomaly_reasons</code>, <code>is_published</code>, <code>execution_log</code> (JSONB), <code>embedding</code> (<code>vector(384)</code>), <code>search_vector</code> (gerada), timestamps</td>
+</tr>
+</tbody>
+</table>
+<p>Três propriedades desta tabela sustentam o modelo:</p>
+<ul>
+<li><code>parent_id</code> é uma autorreferência com <code>ON DELETE RESTRICT</code>. Um fundo é uma descrição arquivística
+  como qualquer outra, então não ganha tabela própria; e um nó com filhos não é apagável de passagem,
+  porque o <code>path</code> de cada descendente carrega os ids dos seus ancestrais.</li>
+<li><code>path</code> é o conjunto materializado de ids dos ancestrais (<code>2368.2732.51931</code>), mantido pelo serviço e
+  nunca pela IA. Ele transforma "todos os descendentes de X" em um único <code>LIKE 'x.%'</code> indexado.</li>
+<li><code>review_status</code> (<code>ArchiveReviewStatus</code>) é o ciclo de vida IA/humano: <code>PENDING_AI</code>, <code>AI_APPROVED</code>,
+  <code>NEEDS_REVIEW</code>, <code>HUMAN_APPROVED</code>, <code>REJECTED</code>. <code>HUMAN_APPROVED</code> bloqueia reescritas da IA.</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Difusão não é revisão</p>
+<p><code>is_published</code> é coluna própria, deliberadamente não <code>review_status = HUMAN_APPROVED</code>. Revisão é
+uma afirmação sobre o registro; publicação é uma decisão sobre o que expor. Reutilizar o status
+faria uma correção de errinho equivaler a publicar, e travaria todo documento publicado contra a
+reescrita da IA. Nada é publicado por padrão, então a superfície de difusão nasce vazia.</p>
+</div>
+<h4 id="assuntos-gavetas-e-entidades">Assuntos, gavetas e entidades<a class="headerlink" href="#assuntos-gavetas-e-entidades" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>Para que serve</th>
+<th>Colunas principais</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>archive_tags</code></td>
+<td>Um termo de assunto do acervo.</td>
+<td><code>tag_id</code>, <code>name</code> (único), <code>macro_category_id</code>, <code>ai_confidence_score</code>, <code>execution_log</code> (JSONB)</td>
+</tr>
+<tr>
+<td><code>archive_macro_categories</code></td>
+<td>A gaveta de assunto (o eixo do "sobre o quê").</td>
+<td><code>category_id</code>, <code>name</code> (único), <code>description</code>, <code>classifier_label</code>, <code>is_active</code></td>
+</tr>
+<tr>
+<td><code>archive_tag_facets</code></td>
+<td>O eixo não-assunto de uma tag: o que ela <em>é</em> quando não é um <em>sobre</em>.</td>
+<td>chave composta <code>(tag_id, facet_type)</code>, <code>value</code>, <code>created_by</code>, <code>created_by_user_id</code></td>
+</tr>
+<tr>
+<td><code>archive_entities</code></td>
+<td>Uma entidade nomeada (pessoa, organização, lugar) encontrada por NER ou inserida à mão.</td>
+<td><code>entity_id</code>, <code>name</code> (único), <code>entity_type</code></td>
+</tr>
+<tr>
+<td><code>archive_document_tags</code></td>
+<td>Quais tags uma descrição carrega.</td>
+<td>chave composta <code>(description_id, tag_id)</code></td>
+</tr>
+<tr>
+<td><code>archive_document_entities</code></td>
+<td>Quais entidades uma descrição carrega.</td>
+<td>chave composta <code>(description_id, entity_id)</code></td>
+</tr>
+<tr>
+<td><code>archive_ai_review_queue</code></td>
+<td>A fila de auditoria da IA; o lado da <em>decisão</em> de uma colisão tag × entidade.</td>
+<td><code>anomaly_type</code> (<code>AnomalyType</code>), <code>status</code> (<code>ArchiveReviewStatus</code>), <code>context_payload</code> (JSONB), <code>llm_decision</code>, <code>llm_confidence</code>, <code>llm_reason</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>archive_tags.macro_category_id</code> guarda no máximo uma gaveta de assunto; <code>archive_tag_facets</code> é uma
+tabela separada porque uma tag carrega no máximo um assunto, mas pode ser lugar <em>e</em> instituição ao
+mesmo tempo. <code>facet_type</code> é restrito a <code>INSTITUTION</code> ou <code>PLACE</code>, e nada grava uma faceta
+automaticamente — faceta é ato de curadoria, nunca inferência da IA.</p>
+<h4 id="o-arranjo">O arranjo<a class="headerlink" href="#o-arranjo" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>Para que serve</th>
+<th>Colunas principais</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>archive_description_levels</code></td>
+<td>A escada de níveis de descrição (os degraus NOBRADE/ISAD(G)), propriedade do arquivista.</td>
+<td><code>level_id</code>, <code>ordinal</code> (único), <code>code</code> (único), <code>name</code> (único), <code>description</code>, <code>aliases</code>, <code>requires_parent</code>, <code>allows_children</code>, <code>is_active</code></td>
+</tr>
+<tr>
+<td><code>archive_hierarchy_node_plans</code></td>
+<td>Um degrau que os códigos de referência implicam, e a decisão do arquivista sobre ele: proposta, não escrita.</td>
+<td><code>plan_id</code>, <code>code</code> (impressão digital única), <code>depth</code>, <code>parent_code</code>, <code>document_count</code>, <code>declared_levels</code>, <code>flags</code>, <code>existing_description_id</code>, <code>level_id</code>, <code>title</code>, <code>reference_code</code>, <code>status</code>, <code>collapse_into_code</code>, <code>materialised_description_id</code>, <code>decided_by</code>, <code>decided_at</code></td>
+</tr>
+<tr>
+<td><code>archive_hierarchy_materialisation_log</code></td>
+<td>O ledger de uma execução de materialização, com detalhe suficiente para revertê-la.</td>
+<td><code>materialisation_id</code>, <code>created_nodes</code> (JSONB), <code>rung_map</code> (JSONB), <code>previous_state</code> (JSONB), <code>changed_by</code>, <code>changed_by_user_id</code>, <code>undone_at</code>, <code>undone_by</code>, <code>undone_by_user_id</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>requires_parent</code> significa "um nó neste nível não pode ser raiz"; <code>allows_children</code> significa "um nó
+neste nível é folha". A carga de staging registra um nível desconhecido como não classificado e
+segue; já uma tipologia escolhida por uma pessoa é uma afirmação que o catálogo precisa responder.</p>
+<h4 id="a-trilha-de-curadoria-da-descricao">A trilha de curadoria da descrição<a class="headerlink" href="#a-trilha-de-curadoria-da-descricao" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>Para que serve</th>
+<th>Colunas principais</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>archive_document_revisions</code></td>
+<td>Toda edição humana de uma descrição, antes e depois.</td>
+<td><code>revision_id</code>, <code>description_id</code>, <code>changed_by</code>, <code>changed_by_user_id</code>, <code>changes</code> (JSONB), <code>note</code>, <code>created_at</code></td>
+</tr>
+<tr>
+<td><code>archive_document_deletions</code></td>
+<td>O ledger da única escrita destrutiva sobre o acervo.</td>
+<td><code>deletion_id</code>, <code>description_id</code>, <code>reference_code</code>, <code>title</code>, <code>level_name</code>, <code>snapshot</code> (JSONB), <code>children_count</code>, <code>deleted_by</code>, <code>deleted_by_user_id</code>, <code>note</code>, <code>deleted_at</code></td>
+</tr>
+</tbody>
+</table>
+<p>O <code>description_id</code> em <code>archive_document_revisions</code> é <code>ON DELETE CASCADE</code>, então uma revisão escrita
+para um documento apagado morre com ele. Por isso <code>archive_document_deletions</code> <strong>não tem chave
+estrangeira</strong> para <code>archive_documents</code>: a linha que ela nomeia sumiu por definição, e este ledger é o
+que sobrevive. Ele não é caminho de restauração — não existe código que grave o snapshot de volta.</p>
+<h4 id="tabelas-de-governanca">Tabelas de governança<a class="headerlink" href="#tabelas-de-governanca" title="Permanent link">&para;</a></h4>
+<p>Estas tabelas se chamam <code>domain_*</code> embora vivam em <code>domains/archive/</code>: são afirmações sobre o domínio
+do acervo, não sobre a instalação.</p>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>Para que serve</th>
+<th>Colunas principais</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>domain_stopwords</code></td>
+<td>Termos banidos pela curadoria, com o eixo que eles deixam.</td>
+<td><code>id</code>, <code>word</code> (único), <code>word_scope</code> (<code>StopwordsScope</code>: <code>TAG</code>, <code>ENTITY</code>, <code>ALL</code>)</td>
+</tr>
+<tr>
+<td><code>domain_ner_exclusions</code></td>
+<td>Termos que a curadoria decidiu pertencerem ao eixo TAG, não a entidades nomeadas.</td>
+<td><code>id</code>, <code>term</code> (único), <code>reason</code>, <code>source</code> (<code>JUDGE</code>/<code>HUMAN</code>), <code>tag_id</code></td>
+</tr>
+<tr>
+<td><code>domain_subject_exclusions</code></td>
+<td>Termos que a curadoria decidiu não serem assunto de forma alguma.</td>
+<td><code>id</code>, <code>term</code> (único), <code>reason</code>, <code>source</code> (<code>HUMAN</code>/<code>RULE</code>)</td>
+</tr>
+<tr>
+<td><code>domain_synonyms</code></td>
+<td>Grafias mapeadas para uma tag ou entidade canônica.</td>
+<td><code>id</code>, <code>synonym_name</code>, <code>category</code> (<code>TAG</code>/<code>ORG</code>/<code>LOC</code>/<code>PER</code>), <code>canonical_tag_id</code>, <code>canonical_entity_id</code></td>
+</tr>
+<tr>
+<td><code>domain_text_templates</code></td>
+<td>Trechos repetidos que a curadoria mantém fora do texto da IA.</td>
+<td><code>template_id</code>, <code>text</code>, <code>fingerprint</code> (único), <code>variants</code>, <code>action</code>, <code>replacement</code>, <code>scope</code>, <code>status</code>, <code>occurrence_count</code>, <code>sample_document_ids</code></td>
+</tr>
+<tr>
+<td><code>archive_cleaning_rules</code></td>
+<td>Regras de regex cadastradas por um arquivista.</td>
+<td><code>rule_id</code>, <code>rule_name</code>, <code>rule_kind</code> (<code>REWRITE</code>/<code>VALIDATE</code>/<code>LLM_CHECK</code>), <code>target_column</code>, <code>regex_pattern</code>, <code>replacement_string</code>, <code>anomaly_reason</code>, <code>engine_name</code>, <code>preset</code>, <code>is_active</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>domain_synonyms</code> tem uma checagem de arco exclusivo: uma linha <code>TAG</code> aponta para uma tag e não para
+uma entidade, e as outras categorias apontam para uma entidade e não para uma tag. Canonicalizar uma
+grafia apaga a linha antiga, e é por isso que a busca da taxonomia lê esta tabela também.</p>
+<p><code>domain_text_templates.scope</code> (<code>EMBEDDING</code>, <code>NER</code>, <code>TITLE</code>) diz qual consumidor deixa de ler um
+trecho. A separação existe porque a medição mostrou que um trecho pode ajudar um consumidor e
+prejudicar outro: remover um prefixo de título do texto <em>embutido</em> piorou o ranking, sendo exatamente
+o que a sugestão de título precisa.</p>
+<p><code>archive_cleaning_rules.rule_kind</code> separa <code>REWRITE</code> (o worker de limpeza substitui a ocorrência) de
+<code>VALIDATE</code>/<code>LLM_CHECK</code> (o validador de qualidade apenas sinaliza). O worker de limpeza filtra
+<code>REWRITE</code> explicitamente; sem isso, uma regra de validação reescreveria o texto.</p>
+<h4 id="o-vocabulario-do-acervo-dado-nao-codigo">O vocabulário do acervo (dado, não código)<a class="headerlink" href="#o-vocabulario-do-acervo-dado-nao-codigo" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>Para que serve</th>
+<th>Colunas principais</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>archive_arrangement_vocabulary</code></td>
+<td>Um token de arranjo e o nome que a proposta de hierarquia sugere para o seu degrau.</td>
+<td><code>term_id</code>, <code>token</code> (único, normalizado), <code>display_name</code>, <code>is_active</code></td>
+</tr>
+<tr>
+<td><code>archive_collection_terms</code></td>
+<td>Um termo que o acervo carrega e que não é assunto, com o eixo para onde ele vai.</td>
+<td><code>term_id</code>, <code>(term, kind)</code> único, <code>kind</code> (<code>CollectionTermKind</code>), <code>is_active</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>token</code> é tanto um token de código único (<code>ED</code>, <code>ALFA</code>) quanto um código inteiro (<code>ACERVO RAIZ</code>). A
+proposta lê o código inteiro primeiro e recorre ao seu último token, então uma linha de código
+completo vence uma linha de último token. <code>CollectionTermKind</code> é <code>DISTRICT</code>, <code>MUNICIPALITY</code>, <code>STATE</code>,
+<code>REGION</code>, <code>COUNTRY</code> ou <code>PERSON</code>; um tipo de lugar reivindica a faceta <code>PLACE</code>, e <code>PERSON</code> não vai a
+lugar nenhum — é o produtor, não um assunto.</p>
+<h4 id="operacao">Operação<a class="headerlink" href="#operacao" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>Para que serve</th>
+<th>Colunas principais</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>archive_worker_settings</code></td>
+<td>A configuração padrão persistida de um worker.</td>
+<td><code>worker_name</code> (chave primária), <code>engine_name</code>, <code>preset</code>, <code>db_batch_size</code>, <code>options</code> (JSONB), <code>updated_by</code>, <code>updated_at</code></td>
+</tr>
+<tr>
+<td><code>archive_worker_settings_revisions</code></td>
+<td>Trilha de auditoria das escritas de configuração, uma linha por escrita.</td>
+<td><code>id</code>, <code>worker_name</code>, <code>before</code> (JSONB), <code>after</code> (JSONB), <code>changed_by</code>, <code>changed_by_user_id</code>, <code>changed_at</code></td>
+</tr>
+<tr>
+<td><code>archive_worker_runs</code></td>
+<td>Uma linha por execução de worker, tanto pela CLI quanto pelo painel.</td>
+<td><code>id</code>, <code>worker_name</code>, <code>status</code> (<code>WorkerRunStatus</code>), <code>trigger</code> (<code>WorkerRunTrigger</code>), <code>requested_by</code>, <code>requested_by_user_id</code>, <code>engine_name</code>, <code>preset</code>, <code>config</code> (JSONB), <code>queued_at</code>, <code>started_at</code>, <code>finished_at</code>, <code>duration_ms</code>, <code>error</code>, <code>error_fingerprint</code> (gerada)</td>
+</tr>
+<tr>
+<td><code>archive_api_errors</code></td>
+<td>As falhas HTTP inesperadas da própria API.</td>
+<td><code>id</code>, <code>occurred_at</code>, <code>request_id</code>, <code>method</code>, <code>path</code>, <code>status_code</code>, <code>message</code>, <code>error_fingerprint</code> (gerada)</td>
+</tr>
+</tbody>
+</table>
+<p><code>archive_worker_settings</code> é uma linha <strong>parcial</strong> de propósito: um campo deixado <code>NULL</code> continua
+seguindo o código, então a precedência é <code>argumento explícito &gt; esta linha &gt; o default da assinatura</code>.
+<code>archive_worker_runs</code> guarda a configuração <strong>resolvida</strong>, então a linha mantém o sentido quando um
+preset muda no código. Deliberadamente não há chave estrangeira de nenhuma das duas para uma tabela
+de workers: workers são código, não linhas. <code>archive_api_errors</code> registra apenas falhas
+<em>inesperadas</em> — um 404, um 409 e um 422 são respostas que a API deve a um cliente, e registrá-las
+enterra os defeitos de verdade.</p>
+<h3 id="identity-a-instalacao-nao-o-acervo">Identity — a instalação, não o acervo<a class="headerlink" href="#identity-a-instalacao-nao-o-acervo" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>Para que serve</th>
+<th>Colunas principais</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>auth_users</code></td>
+<td>Uma pessoa que pode entrar no sistema.</td>
+<td><code>user_id</code>, <code>email</code> (normalizado, único), <code>name</code>, <code>password_hash</code> (argon2id), <code>role</code> (<code>Role</code>), <code>is_active</code>, <code>must_change_password</code>, <code>failed_attempts</code>, <code>locked_until</code>, <code>last_login_at</code></td>
+</tr>
+<tr>
+<td><code>auth_sessions</code></td>
+<td>Um login vivo, revogável.</td>
+<td><code>session_id</code>, <code>user_id</code>, <code>token_hash</code> (SHA-256, único), <code>created_at</code>, <code>last_seen_at</code>, <code>expires_at</code>, <code>revoked_at</code>, <code>user_agent</code>, <code>ip_address</code></td>
+</tr>
+</tbody>
+</table>
+<p>Uma conta é desativada (<code>is_active</code>), nunca apagada: todo ledger do acervo guarda quem decidiu o quê,
+e as colunas <code>*_user_id</code> são <code>ON DELETE SET NULL</code>, então apagar a conta apagaria o <em>quem</em> de decisões
+que continuam valendo. <code>auth_sessions</code> guarda apenas o SHA-256 do token, nunca o token, então um dump
+do banco não pode ser reexecutado como cookie. O <code>ON DELETE CASCADE</code> de <code>auth_sessions</code> para
+<code>auth_users</code> é correto aqui e em nenhum outro lugar deste domínio: uma sessão não tem sentido sem a
+sua conta.</p>
+<h2 id="idempotencia-execution_log-e-carimbos-versionados">Idempotência: <code>execution_log</code> e carimbos versionados<a class="headerlink" href="#idempotencia-execution_log-e-carimbos-versionados" title="Permanent link">&para;</a></h2>
+<p>Todo worker de IA é reexecutável. Em vez de deixar uma coluna de negócio nula e torcer, cada worker
+grava uma <strong>chave versionada</strong> em um <code>execution_log</code> JSONB, e sua consulta de pendentes filtra pela
+<em>ausência</em> (ou diferença) dessa chave:</p>
+<ul>
+<li>workers de documento carimbam <code>archive_documents.execution_log</code>;</li>
+<li><code>worker_macro_category</code> carimba <code>archive_tags.execution_log</code>, porque sua unidade de trabalho é a tag.</li>
+</ul>
+<p>As chaves canônicas, definidas uma única vez em <code>worker_stamp.py</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Chave do carimbo</th>
+<th>Gravada em</th>
+<th>Significado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>worker_ner_v2</code></td>
+<td><code>archive_documents</code></td>
+<td>Extração NER feita</td>
+</tr>
+<tr>
+<td><code>worker_typology_classifier_v2</code></td>
+<td><code>archive_documents</code></td>
+<td>Classificação de tipologia feita</td>
+</tr>
+<tr>
+<td><code>cleaning_rule_{id}</code></td>
+<td><code>archive_documents</code></td>
+<td>A regra dinâmica de limpeza com aquele id já rodou</td>
+</tr>
+<tr>
+<td><code>worker_macro_category_v1</code></td>
+<td><code>archive_tags</code></td>
+<td>A decisão de gaveta da tag foi tentada</td>
+</tr>
+<tr>
+<td><code>worker_quality_validator_v1</code></td>
+<td><code>archive_documents</code></td>
+<td>Validação estrutural feita</td>
+</tr>
+<tr>
+<td><code>worker_embedding_v1</code></td>
+<td><code>archive_documents</code></td>
+<td>O valor é o MD5 do texto embutido</td>
+</tr>
+</tbody>
+</table>
+<p>As consultas de polling são servidas por índices GIN sobre a coluna JSONB: <code>ix_archive_exec_log</code> em
+<code>archive_documents</code> e <code>ix_archive_tags_exec_log</code> em <code>archive_tags</code>. Um worker altera o dicionário e
+precisa chamar <code>flag_modified</code> para que o SQLAlchemy perceba a mudança em vigor; esquecer isso é como
+um carimbo é gravado em memória e nunca no banco.</p>
+<p>A maioria dos carimbos guarda um status (<code>DONE</code>, <code>ERROR</code>). Dois são <strong>chaveados por valor</strong>:</p>
+<ul>
+<li><code>worker_embedding_v1</code> guarda o <strong>MD5 do texto embutido</strong>, calculado pelo PostgreSQL (<code>func.md5(...)</code>
+  sobre o texto efetivo) e gravado com <code>WorkerStamp.mark_value</code>. Seu predicado de pendência é
+  <code>execution_log[key] IS DISTINCT FROM &lt;md5&gt;</code>, então uma mudança de texto — inclusive uma edição
+  humana — devolve o documento à fila sozinho.</li>
+<li><code>worker_macro_category_v1</code> guarda o hash do conjunto de rótulos contra o qual a tag foi
+  classificada, então reescrever o rótulo de um curador reenfileira a tag.</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Uma exceção documentada</p>
+<p><code>worker_embedding</code> deliberadamente não usa <code>ai_writable_documents()</code>. O embedding é um índice
+derivado do texto, e não conteúdo arquivístico, então um documento <code>HUMAN_APPROVED</code> cujo texto
+mudou precisa ser re-embutido, ou a busca semântica serviria um vetor velho. Ele grava apenas a
+coluna <code>embedding</code> e o seu próprio carimbo, e documentos <code>REJECTED</code> são pulados.</p>
+</div>
+<h2 id="governanca-bidirecional">Governança bidirecional<a class="headerlink" href="#governanca-bidirecional" title="Permanent link">&para;</a></h2>
+<p>Uma colisão tag × entidade tem dois veredictos possíveis, e as duas direções são guardadas em
+<strong>tabelas diferentes de propósito</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Veredicto</th>
+<th>Onde a decisão é guardada</th>
+<th>O que significa</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A favor da <strong>entidade</strong></td>
+<td><code>domain_stopwords</code> (escopo de tag)</td>
+<td>O nome da tag é ruído no eixo de assunto e é retirado dele</td>
+</tr>
+<tr>
+<td>A favor da <strong>tag</strong></td>
+<td><code>domain_ner_exclusions</code></td>
+<td>O termo é um assunto legítimo; uma extração NER dele é falso positivo</td>
+</tr>
+</tbody>
+</table>
+<p><code>domain_stopwords.word</code> é <strong>único</strong>, então um termo vive em exatamente um eixo. Banir de novo um termo
+o <em>move</em> (<code>save_stopwords</code> é um upsert em <code>word</code>) em vez de deixar a tela mostrando um eixo do qual o
+arquivista acabou de sair. <code>word_scope</code> é <code>TAG</code>, <code>ENTITY</code> ou <code>ALL</code>.</p>
+<p><code>TagRepository.get_stopwords()</code> lê <strong>somente</strong> o escopo <code>TAG</code>/<code>ALL</code>. Um veto com escopo <code>ENTITY</code> é um
+banimento da extração NER, não uma afirmação sobre o eixo de assunto; lê-lo ali já fez a purga da
+curadoria apagar tags que o curador tinha mantido de propósito. É por isso que as duas direções não
+podem ser colapsadas em uma tabela ou um escopo só.</p>
+<p><code>domain_ner_exclusions</code> é uma <em>decisão</em>, não ruído: carrega <code>reason</code>, <code>source</code> (<code>JUDGE</code> para o juiz
+de conflito por LLM, <code>HUMAN</code> para um curador) e o <code>tag_id</code> que a justifica. O <code>tag_id</code> é
+<code>ON DELETE SET NULL</code>, então apagar a tag não reabre silenciosamente o falso positivo que esta linha
+existe para evitar.</p>
+<p><code>domain_subject_exclusions</code> tem a mesma forma para o outro eixo: um termo que a curadoria decidiu não
+ser assunto de forma alguma. O guardião determinístico cobre o que tem forma reconhecível (um ano
+solto, um placeholder, uma rua, uma medida); a metade semântica (<code>pessoas</code>, <code>vista aérea</code>) é uma
+decisão, e vive aqui com <code>source</code> (<code>HUMAN</code> ou <code>RULE</code>). Um termo excluído continua sendo uma tag do
+acervo, alcançável pela busca — a exclusão silencia o classificador de assunto, não o termo.</p>
+<h2 id="os-ledgers-um-a-um">Os ledgers, um a um<a class="headerlink" href="#os-ledgers-um-a-um" title="Permanent link">&para;</a></h2>
+<p>Um ledger é uma tabela cujo trabalho é tornar uma escrita explicável ou reversível. Eles não são
+intercambiáveis, e só alguns têm desfazer.</p>
+<table>
+<thead>
+<tr>
+<th>Ledger</th>
+<th>O que registra</th>
+<th>O seu desfazer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>archive_taxonomy_merge_log</code></td>
+<td>Uma linha <strong>por tag absorvida</strong>, fotografada antes de qualquer mudança.</td>
+<td><code>undo_merge</code> restaura a linha, os seus vínculos, a sua classificação e o estado das grafias.</td>
+</tr>
+<tr>
+<td><code>archive_hierarchy_materialisation_log</code></td>
+<td>Uma linha por execução de materialização: os nós que ela criou e o pai/caminho anterior de cada linha que ela mudou.</td>
+<td>O desfazer restaura <code>previous_state</code> e então remove <code>created_nodes</code>.</td>
+</tr>
+<tr>
+<td><code>archive_conflict_resolution_log</code></td>
+<td>Uma linha por resolução tag × entidade: o snapshot do perdedor, os vínculos transferidos, o banimento que ela plantou.</td>
+<td><code>DELETE /conflicts/resolutions/{id}</code>.</td>
+</tr>
+<tr>
+<td><code>archive_document_deletions</code></td>
+<td>Uma linha por descrição apagada, com todo o snapshot ISAD(G).</td>
+<td><strong>Sem desfazer.</strong> O snapshot é evidência; nada o grava de volta.</td>
+</tr>
+<tr>
+<td><code>archive_worker_runs</code></td>
+<td>Uma linha por execução de worker, CLI e painel igualmente.</td>
+<td><strong>Sem desfazer</strong> — é um histórico de execução, não uma mudança no acervo.</td>
+</tr>
+<tr>
+<td><code>archive_api_errors</code></td>
+<td>Uma linha por falha HTTP inesperada.</td>
+<td><strong>Sem desfazer</strong> — um ledger de erros é um rastro.</td>
+</tr>
+</tbody>
+</table>
+<p>Dois detalhes tornam os ledgers reversíveis exatos em vez de aproximados. <code>created_link_ids</code> registra
+os vínculos que a operação <em>criou</em>; tanto o merge quanto a resolução de conflito vinculam com
+<code>ON CONFLICT DO NOTHING</code>, então um desfazer que apagasse todo vínculo removeria vínculos que já
+existiam antes dele. <code>ban_created</code> cumpre o mesmo papel para a escrita de governança: o desfazer só
+pode remover o banimento quando esta resolução é a que o plantou, senão reverter uma decisão levantaria
+um banimento que uma decisão anterior fez. Para o merge, <code>synonym_created</code> e <code>synonym_previous_tag_id</code>
+capturam o estado das grafias antes do merge, e <code>repointed_synonym_names</code> registra as grafias que
+apontavam para a tag absorvida e foram movidas para a canônica. <code>undone_at</code> mantém o desfazer de uso
+único e mantém o rastro legível depois: a linha nunca é apagada.</p>
+<p><code>archive_ai_review_queue</code> é a companheira de <code>archive_conflict_resolution_log</code>, não um ledger de
+escritas: ela guarda a <em>decisão</em> (o veredicto do juiz ou o do humano), enquanto o log de resolução
+guarda a <em>escrita</em>. Ela também carrega <code>AnomalyType.SUBJECT_LOW_CONFIDENCE</code> para tags que o
+classificador de assunto não conseguiu posicionar.</p>
+<p><code>archive_worker_settings_revisions</code> é um ledger de revisão no mesmo espírito: a decisão e a escrita
+são fatos diferentes, e toda mudança de configuração deixa uma linha <code>before</code>/<code>after</code>.</p>
+<h2 id="colunas-geradas-uma-definicao-no-banco">Colunas geradas: uma definição, no banco<a class="headerlink" href="#colunas-geradas-uma-definicao-no-banco" title="Permanent link">&para;</a></h2>
+<p>Duas colunas são calculadas pelo PostgreSQL e nunca escritas pelo código da aplicação.</p>
+<table>
+<thead>
+<tr>
+<th>Coluna</th>
+<th>Tabela(s)</th>
+<th>Definição</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>search_vector</code></td>
+<td><code>archive_documents</code></td>
+<td><code>setweight(to_tsvector(&lt;dicionário&gt;, public.immutable_unaccent(colunas de título)), 'A')</code> concatenado com o corpo no peso <code>'B'</code></td>
+</tr>
+<tr>
+<td><code>error_fingerprint</code></td>
+<td><code>archive_worker_runs</code> (sobre <code>error</code>), <code>archive_api_errors</code> (sobre <code>message</code>)</td>
+<td><code>public.archive_error_fingerprint(&lt;coluna&gt;)</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>search_vector</code> é contra o que a busca lexical roda, com o índice GIN
+<code>ix_archive_documents_search_vector</code>. O dicionário vem do perfil de idioma
+(<code>get_language().fts_dictionary</code>), e <code>immutable_unaccent</code> o torna insensível a acento, então <code>gaucho</code>
+encontra <code>Gaúcho</code>. Como a coluna é <strong>armazenada</strong>, mudar <code>ACERVO_LANGUAGE</code> é uma migration que a
+reconstrói, não um reboot — e <code>alembic check</code> relata exatamente esse drift em vez de deixar o modelo
+e a expressão armazenada discordarem em silêncio.</p>
+<p><code>archive_error_fingerprint(text)</code> é <code>IMMUTABLE</code> e reduz uma mensagem de erro à sua causa raiz: a
+primeira linha, em minúsculas, com uuids, hashes, números e caminhos substituídos por placeholders.
+Ela é criada pela migration <code>fe7fcab37207</code> e <strong>espelhada em <code>testing/conftest.py</code></strong>, porque o schema
+de teste é construído por <code>Base.metadata.create_all</code> e a função precisa existir antes de <code>create_all</code>
+emitir a coluna gerada que a chama — exatamente como <code>immutable_unaccent</code>. O prefixo <code>public.</code> faz
+parte da expressão porque é assim que o PostgreSQL a reflete de volta.</p>
+<p>A razão de as duas serem geradas e não escritas pela aplicação é que uma coluna gerada preenche as
+linhas existentes com a mesma expressão que as novas recebem. Existe exatamente uma definição, ela
+não pode divergir do código que escreve a mensagem, e o texto do erro é gravado com a sua classe de
+exceção (<code>KeyError: 'nome'</code>) justamente para que a impressão digital distinga duas falhas.</p>
+<h2 id="propostas-que-sobrevivem-ao-que-nomeiam">Propostas que sobrevivem ao que nomeiam<a class="headerlink" href="#propostas-que-sobrevivem-ao-que-nomeiam" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>Para que serve</th>
+<th>Colunas principais</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>archive_tag_merge_proposals</code></td>
+<td>Um agrupamento de tags que a rotina propõe unificar, e a decisão humana sobre ele.</td>
+<td><code>proposal_id</code>, <code>fingerprint</code> (único), <code>canonical_id</code>, <code>canonical_name</code>, <code>members</code> (JSONB), <code>reason</code>, <code>review_flags</code>, <code>total_documents</code>, <code>status</code>, <code>decided_by</code>, <code>decided_by_user_id</code>, <code>decided_at</code>, <code>decision_note</code></td>
+</tr>
+<tr>
+<td><code>archive_hierarchy_node_plans</code></td>
+<td>Um degrau que os códigos de referência implicam, e a decisão do arquivista sobre ele.</td>
+<td>veja "O arranjo" acima</td>
+</tr>
+</tbody>
+</table>
+<p>Uma proposta é <strong>evidência mais decisão, nunca uma escrita</strong>. A escada de status é
+<code>SUGGESTED → APPROVED/REJECTED → APPLIED</code>: um veredicto humano é uma intenção durável que a execução
+de sugestão nunca sobrescreve (<code>fingerprint</code> torna a sugestão idempotente), e aplicar o agrupamento
+grava <code>APPLIED</code> no mesmo savepoint que absorve as tags. <code>decided_by</code>/<code>decided_at</code> guardam o
+<em>veredicto</em>; o ledger de merge guarda o <em>quando</em>.</p>
+<p><code>canonical_id</code> e <code>members</code> são <strong>snapshots sem chave estrangeira</strong>, de propósito: aplicar a proposta
+apaga aquelas tags, e a proposta precisa sobreviver como o registro do que foi decidido. O
+agrupamento é identificado pelas suas grafias, não pelos seus ids. Como os membros podem morrer, a
+leitura calcula <code>members_alive</code>, <code>canonical_alive</code> e <code>applicable</code> (canônica viva <strong>e</strong> mais de um
+membro vivo) em uma consulta por página; <code>applicable</code> é a definição única de "ainda há trabalho".</p>
+<h2 id="catalogos-se-aposentam-nao-se-apagam">Catálogos se aposentam, não se apagam<a class="headerlink" href="#catalogos-se-aposentam-nao-se-apagam" title="Permanent link">&para;</a></h2>
+<p>Os três catálogos que o arquivista estende sem deploy são <code>archive_description_levels</code> (a escada de
+níveis), <code>archive_macro_categories</code> mais <code>archive_tags</code> (as gavetas de assunto) e <code>archive_typologies</code>
+(as tipologias documentais — a <em>forma diplomática</em>: ata, ofício, planta). O vocabulário do acervo
+acrescenta <code>archive_arrangement_vocabulary</code> e <code>archive_collection_terms</code>. Todos são tabelas em vez de
+enums para que um nome possa mudar sem uma release.</p>
+<p>Nenhum deles apaga. As chaves estrangeiras são <code>SET NULL</code> (<code>archive_documents.level_id</code>,
+<code>archive_documents.typology_id</code>, <code>archive_tags.macro_category_id</code>), então remover uma linha
+desclassificaria toda descrição que aponta para ela e ainda apagaria o registro de que um dia ela
+existiu. Uma linha se aposenta com <code>is_active=false</code>, e essa é também a única alavanca que alcança o
+classificador: aposentar uma tipologia a remove dos rótulos candidatos sem tocar em nenhuma descrição
+classificada, então a tela do catálogo continua mostrando o peso das aposentadas.</p>
+<p>Duas regras sustentam o catálogo de tipologias: <code>get_active_typologies()</code> projeta <strong>apenas</strong>
+<code>(typology_id, name)</code> e filtra <code>is_active</code> — o nome puro é o rótulo, porque acrescentar
+<code>context_description</code> faz o modelo perder a inferência conforme o rótulo cresce — e um arquivista
+escolhendo uma tipologia faz uma afirmação que o catálogo precisa responder, então um id desconhecido
+é recusado com 422 em vez de gravado como <code>NULL</code>.</p>
+<p>O idioma é <strong>código</strong>, não dado: <code>core/language/</code> guarda um perfil congelado por idioma (stopwords,
+gramática de datas, padrões de rua e placeholder, regras de plural, o dicionário de busca textual, o
+modelo spaCy) e <code>ACERVO_LANGUAGE</code> o seleciona. O vocabulário do acervo é linha justamente porque o
+acervo de outra instituição carrega outros nomes. Veja o ADR 0008.</p>
+<h2 id="a-superficie-publica-uma-particao-exata">A superfície pública: uma partição exata<a class="headerlink" href="#a-superficie-publica-uma-particao-exata" title="Permanent link">&para;</a></h2>
+<p>A superfície de difusão reutiliza <code>DocumentService</code> e difere apenas na projeção. A visão de leitura
+interna é <code>DocumentSummary</code>; a pública é <code>PublicDocumentSummary</code>, construída <strong>campo a campo</strong> e nunca
+com <code>model_validate</code> sobre o DTO interno — validá-lo tornaria público automaticamente todo campo que a
+visão interna ganhasse.</p>
+<p>Dois frozensets em <code>api/schemas/public.py</code> tornam o padrão privado:</p>
+<ul>
+<li><code>NOT_PUBLIC_FIELDS</code> — campos de <code>DocumentSummary</code> deliberadamente não publicados. Contém
+  <code>review_status</code>, <code>is_anomaly</code>, <code>anomaly_reasons</code>, <code>archivist_notes</code>, <code>provenance</code>,
+  <code>suggested_final_title</code>, <code>rank</code>, <code>path</code>, <code>parent_id</code>, <code>level_id</code>, <code>typology_id</code>, <code>is_published</code>,
+  <code>original_thumbnail_url</code>, <code>admin_bio_history</code>, <code>admin_archival_history</code> e <code>access_conditions</code>.</li>
+<li><code>NOT_PUBLIC_FACETS</code> — atualmente apenas <code>anomaly_reason</code>.</li>
+</ul>
+<p>Junto com os campos e facetas publicados, eles precisam permanecer uma <strong>partição exata</strong> da leitura
+interna: todo campo ou é publicado ou está listado, e nenhum é as duas coisas. Um teste falha quando
+um novo campo ou faceta fica sem classificação, então o padrão para o que a visão interna ganhar a
+seguir é privado.</p>
+<p>Mais duas regras completam a superfície. <code>published_only</code> é definido <strong>no servidor</strong> e não é parâmetro
+de cliente, então nenhuma query string pode pedir um registro não publicado. Um id não publicado
+responde <strong>404, não 403</strong>: um status distinto confirmaria que a descrição existe. E <code>published_only</code>
+é um filtro que nunca é excluído da contagem de facetas — nenhuma faceta pode levantar o portão da
+difusão.</p>
+<h2 id="a-trilha-de-revisao-da-curadoria-humana">A trilha de revisão da curadoria humana<a class="headerlink" href="#a-trilha-de-revisao-da-curadoria-humana" title="Permanent link">&para;</a></h2>
+<p><code>archive_document_revisions</code> é onde as edições de uma pessoa viram evidência. <code>PATCH
+/api/v1/documents/{id}</code> grava uma linha com o antes/depois de cada campo que realmente mudou, em
+<code>changes</code> (JSONB), e marca o documento como <code>HUMAN_APPROVED</code>. Vincular e desvincular tags e entidades
+grava o mesmo tipo de linha, guardando a lista inteira de nomes de cada lado em vez de um diff de
+ids; uma chamada repetida que não muda nada não grava revisão.</p>
+<p>A autoria são <strong>duas colunas, nunca uma</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Coluna</th>
+<th>O que guarda</th>
+<th>Ao apagar a conta</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>changed_by</code></td>
+<td>O nome que o histórico imprime — um retrato de quem a pessoa era.</td>
+<td>Mantido; renomear alguém não reescreve o que ela decidiu.</td>
+</tr>
+<tr>
+<td><code>changed_by_user_id</code></td>
+<td>A conta por trás do nome, como chave estrangeira.</td>
+<td><code>SET NULL</code>; a decisão sobrevive com o nome do seu autor.</td>
+</tr>
+</tbody>
+</table>
+<p>O mesmo par aparece onde quer que uma pessoa decida algo: <code>archive_document_deletions</code> (<code>deleted_by</code> /
+<code>deleted_by_user_id</code>), <code>archive_taxonomy_merge_log</code> (<code>changed_by</code>, <code>undone_by</code>),
+<code>archive_conflict_resolution_log</code> (<code>decided_by</code>, <code>undone_by</code>), <code>archive_hierarchy_node_plans</code> e
+<code>archive_tag_merge_proposals</code> (<code>decided_by</code>), <code>archive_tag_facets</code>, <code>archive_cleaning_rules</code> e
+<code>domain_text_templates</code> (<code>created_by</code>), <code>archive_hierarchy_materialisation_log</code> (<code>changed_by</code>),
+<code>archive_worker_runs</code> (<code>requested_by</code>) e <code>archive_worker_settings_revisions</code> (<code>changed_by</code>). O autor é
+gravado por <code>author_columns</code>/<code>assign_author</code> a partir da sessão, nunca tomado da requisição.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Voltar ao topo
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Rodapé" >
+        
+          
+          <a href="../curate/" class="md-footer__link md-footer__link--prev" aria-label="Anterior: Curadoria">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Anterior
+              </span>
+              <div class="md-ellipsis">
+                Curadoria
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../../adr/" class="md-footer__link md-footer__link--next" aria-label="Próximo: Índice">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Próximo
+              </span>
+              <div class="md-ellipsis">
+                Índice
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "navigation.footer", "content.code.copy", "search.highlight", "search.suggest"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copiado para \u00e1rea de transfer\u00eancia", "clipboard.copy": "Copiar para \u00e1rea de transfer\u00eancia", "search.result.more.one": "Mais 1 nesta p\u00e1gina", "search.result.more.other": "Mais # nesta p\u00e1gina", "search.result.none": "Nenhum resultado encontrado", "search.result.one": "1 resultado encontrado", "search.result.other": "# resultados encontrados", "search.result.placeholder": "Digite para iniciar a busca", "search.result.term.missing": "Ausente", "select.version": "Selecione a vers\u00e3o"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+    <url>
+        <loc>None./</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="None"/>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/"/>
+    </url>
+    <url>
+        <loc>Nonelog/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="Nonelog/"/>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/log/"/>
+    </url>
+    <url>
+        <loc>Noneadr/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/"/>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/"/>
+    </url>
+    <url>
+        <loc>Noneadr/0001-litestar-as-http-framework/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0001-litestar-as-http-framework/"/>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0001-litestar-as-http-framework/"/>
+    </url>
+    <url>
+        <loc>Noneadr/0002-src-layout-and-internal-namespace/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0002-src-layout-and-internal-namespace/"/>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0002-src-layout-and-internal-namespace/"/>
+    </url>
+    <url>
+        <loc>Noneadr/0003-monorepo-and-curator-frontend-stack/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0003-monorepo-and-curator-frontend-stack/"/>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0003-monorepo-and-curator-frontend-stack/"/>
+    </url>
+    <url>
+        <loc>Noneadr/0004-worker-execution-from-the-api/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0004-worker-execution-from-the-api/"/>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0004-worker-execution-from-the-api/"/>
+    </url>
+    <url>
+        <loc>Noneadr/0005-observability-without-an-external-service/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0005-observability-without-an-external-service/"/>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0005-observability-without-an-external-service/"/>
+    </url>
+    <url>
+        <loc>Noneadr/0006-license-and-author-attribution/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0006-license-and-author-attribution/"/>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0006-license-and-author-attribution/"/>
+    </url>
+    <url>
+        <loc>Noneadr/0007-project-name-scrinalia/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0007-project-name-scrinalia/"/>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0007-project-name-scrinalia/"/>
+    </url>
+    <url>
+        <loc>Noneadr/0008-language-in-code-and-collection-vocabulary-in-the-database/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0008-language-in-code-and-collection-vocabulary-in-the-database/"/>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0008-language-in-code-and-collection-vocabulary-in-the-database/"/>
+    </url>
+    <url>
+        <loc>Noneadr/0009-authentication-and-authorization/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0009-authentication-and-authorization/"/>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0009-authentication-and-authorization/"/>
+    </url>
+    <url>
+        <loc>Noneadr/0010-documentation-coverage-and-freshness/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0010-documentation-coverage-and-freshness/"/>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0010-documentation-coverage-and-freshness/"/>
+    </url>
+    <url>
+        <loc>Noneguides/curate/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneguides/curate/"/>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/guides/curate/"/>
+    </url>
+    <url>
+        <loc>Noneguides/data-model/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneguides/data-model/"/>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/guides/data-model/"/>
+    </url>
+    <url>
+        <loc>Noneguides/install/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneguides/install/"/>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/guides/install/"/>
+    </url>
+    <url>
+        <loc>Noneguides/operate/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneguides/operate/"/>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/guides/operate/"/>
+    </url>
+    <url>
+        <loc>Nonept/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="None"/>
+    </url>
+    <url>
+        <loc>Nonept/log/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/log/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="Nonelog/"/>
+    </url>
+    <url>
+        <loc>Nonept/adr/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/"/>
+    </url>
+    <url>
+        <loc>Nonept/adr/0001-litestar-as-http-framework/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0001-litestar-as-http-framework/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0001-litestar-as-http-framework/"/>
+    </url>
+    <url>
+        <loc>Nonept/adr/0002-src-layout-and-internal-namespace/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0002-src-layout-and-internal-namespace/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0002-src-layout-and-internal-namespace/"/>
+    </url>
+    <url>
+        <loc>Nonept/adr/0003-monorepo-and-curator-frontend-stack/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0003-monorepo-and-curator-frontend-stack/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0003-monorepo-and-curator-frontend-stack/"/>
+    </url>
+    <url>
+        <loc>Nonept/adr/0004-worker-execution-from-the-api/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0004-worker-execution-from-the-api/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0004-worker-execution-from-the-api/"/>
+    </url>
+    <url>
+        <loc>Nonept/adr/0005-observability-without-an-external-service/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0005-observability-without-an-external-service/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0005-observability-without-an-external-service/"/>
+    </url>
+    <url>
+        <loc>Nonept/adr/0006-license-and-author-attribution/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0006-license-and-author-attribution/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0006-license-and-author-attribution/"/>
+    </url>
+    <url>
+        <loc>Nonept/adr/0007-project-name-scrinalia/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0007-project-name-scrinalia/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0007-project-name-scrinalia/"/>
+    </url>
+    <url>
+        <loc>Nonept/adr/0008-language-in-code-and-collection-vocabulary-in-the-database/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0008-language-in-code-and-collection-vocabulary-in-the-database/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0008-language-in-code-and-collection-vocabulary-in-the-database/"/>
+    </url>
+    <url>
+        <loc>Nonept/adr/0009-authentication-and-authorization/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0009-authentication-and-authorization/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0009-authentication-and-authorization/"/>
+    </url>
+    <url>
+        <loc>Nonept/adr/0010-documentation-coverage-and-freshness/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/adr/0010-documentation-coverage-and-freshness/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneadr/0010-documentation-coverage-and-freshness/"/>
+    </url>
+    <url>
+        <loc>Nonept/guides/curate/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/guides/curate/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneguides/curate/"/>
+    </url>
+    <url>
+        <loc>Nonept/guides/data-model/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/guides/data-model/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneguides/data-model/"/>
+    </url>
+    <url>
+        <loc>Nonept/guides/install/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/guides/install/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneguides/install/"/>
+    </url>
+    <url>
+        <loc>Nonept/guides/operate/</loc>
+        <lastmod>2026-10-09</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="pt" href="Nonept/guides/operate/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="Noneguides/operate/"/>
+    </url>
+</urlset>

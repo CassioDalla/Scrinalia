@@ -1,0 +1,2225 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Archival description cataloguing and AI-driven enrichment (ISAD(G))">
+      
+      
+      
+      
+        <link rel="prev" href="../curate/">
+      
+      
+        <link rel="next" href="../../adr/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../../pt/guides/data-model/" hreflang="pt">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Data model - Scrinalia</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#data-model" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Scrinalia" class="md-header__button md-logo" aria-label="Scrinalia" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Scrinalia
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Data model
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../pt/guides/data-model/" hreflang="pt" class="md-select__link">
+              Português (Brasil)
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Scrinalia" class="md-nav__button md-logo" aria-label="Scrinalia" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Scrinalia
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation and deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../curate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data model
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#domains-and-pipeline-layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Domains and pipeline layers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tables
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ingestion-what-the-origin-sent-untouched" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingestion — what the origin sent, untouched
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#staging-the-parsed-record" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Staging — the parsed record
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#archive-the-description-and-everything-around-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Archive — the description and everything around it
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Archive — the description and everything around it">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-description" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The description
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#subjects-drawers-and-entities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subjects, drawers and entities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-arrangement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The arrangement
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-curation-trail-of-the-description" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The curation trail of the description
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#governance-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Governance tables
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-collection-vocabulary-data-not-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The collection vocabulary (data, not code)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operations
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#identity-the-installation-not-the-collection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identity — the installation, not the collection
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#idempotency-execution_log-and-versioned-stamps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Idempotency: execution_log and versioned stamps
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bidirectional-governance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bidirectional governance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ledgers-one-by-one" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ledgers, one by one
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#generated-columns-one-definition-in-the-database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generated columns: one definition, in the database
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proposals-that-outlive-what-they-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proposals that outlive what they name
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#catalogues-retire-they-do-not-delete" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Catalogues retire, they do not delete
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-public-surface-an-exact-partition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The public surface: an exact partition
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-revision-trail-of-human-curation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The revision trail of human curation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0001-litestar-as-http-framework/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0001 Litestar as the HTTP framework
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0002-src-layout-and-internal-namespace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0002 src layout and internal namespace
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0003-monorepo-and-curator-frontend-stack/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0003 Monorepo and curator frontend stack
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0004-worker-execution-from-the-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0004 Worker execution from the API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0005-observability-without-an-external-service/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0005 Observability without an external service
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0006-license-and-author-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0006 License and author attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0007-project-name-scrinalia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0007 Project name Scrinalia
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0008-language-in-code-and-collection-vocabulary-in-the-database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0008 Language in code, collection vocabulary in the database
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0009-authentication-and-authorization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0009 Authentication and authorization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0010-documentation-coverage-and-freshness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0010 Documentation coverage and freshness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../log/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#domains-and-pipeline-layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Domains and pipeline layers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tables
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ingestion-what-the-origin-sent-untouched" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingestion — what the origin sent, untouched
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#staging-the-parsed-record" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Staging — the parsed record
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#archive-the-description-and-everything-around-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Archive — the description and everything around it
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Archive — the description and everything around it">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-description" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The description
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#subjects-drawers-and-entities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subjects, drawers and entities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-arrangement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The arrangement
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-curation-trail-of-the-description" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The curation trail of the description
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#governance-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Governance tables
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-collection-vocabulary-data-not-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The collection vocabulary (data, not code)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operations
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#identity-the-installation-not-the-collection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identity — the installation, not the collection
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#idempotency-execution_log-and-versioned-stamps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Idempotency: execution_log and versioned stamps
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bidirectional-governance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bidirectional governance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ledgers-one-by-one" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ledgers, one by one
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#generated-columns-one-definition-in-the-database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generated columns: one definition, in the database
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proposals-that-outlive-what-they-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proposals that outlive what they name
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#catalogues-retire-they-do-not-delete" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Catalogues retire, they do not delete
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-public-surface-an-exact-partition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The public surface: an exact partition
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-revision-trail-of-human-curation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The revision trail of human curation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="data-model">Data model<a class="headerlink" href="#data-model" title="Permanent link">&para;</a></h1>
+<p>This page is about what the data <em>means</em>: which layer owns which fact, what each table is for, and
+which writes are decisions a person can undo. It is not an install guide — see
+<a href="../install/">Installation and deployment</a> for the schema lifecycle, <a href="../operate/">Operations</a> for
+running the workers and <a href="../curate/">Curation</a> for the screens over these tables.</p>
+<p>The schema is owned by <strong>Alembic</strong> (<code>migrations/</code>), and the SQLAlchemy models under
+<code>src/scrinalia/domains/*/models/</code> are the single source of truth. <code>uv run alembic check</code> must report
+no drift; a table that exists only in a migration is a defect.</p>
+<h2 id="domains-and-pipeline-layers">Domains and pipeline layers<a class="headerlink" href="#domains-and-pipeline-layers" title="Permanent link">&para;</a></h2>
+<p>The system has four domains under <code>src/scrinalia/domains/</code>. Three of them are the layers a record
+crosses, in order:</p>
+<ul>
+<li><code>ingestion</code> — the scraping queue and the untouched payload (<code>scraping_queue</code>, <code>raw_data</code>);</li>
+<li><code>staging</code> — the payload parsed into typed, sanitised ISAD(G) columns (<code>staging_documents</code>);</li>
+<li><code>archive</code> — the final, enriched description, the catalogues, the AI ledgers and the human review
+  (<code>archive_*</code>, <code>domain_*</code>).</li>
+</ul>
+<p>The fourth domain, <code>identity</code>, is <strong>not</strong> a layer of that pipeline (ADR 0009). It owns the accounts,
+the sessions and the role map — the tables that describe the installation rather than the collection.
+A record never "passes through" identity.</p>
+<div class="highlight"><pre><span></span><code>source site
+    │  scrape             │  parse + clean            │  enrich + review
+    ▼                     ▼                           ▼
+ingestion ──────────▶ staging ──────────────────▶ archive
+(scraping_queue,      (staging_documents)         (archive_documents, …)
+ raw_data)
+
+identity ── accounts, sessions, roles (not a pipeline layer)
+</code></pre></div>
+<p>Each layer keys a record on a hash of what it last read, so a re-run knows whether anything moved:
+<code>raw_data.content_hash</code>, <code>staging_documents.raw_content_hash</code> and
+<code>archive_documents.staging_content_hash</code>. The staging → archive key is the hash of the <strong>parsed</strong>
+record, not of the raw payload, so a parser fix reaches the archive even when the origin's bytes did
+not change.</p>
+<h2 id="tables">Tables<a class="headerlink" href="#tables" title="Permanent link">&para;</a></h2>
+<p>Every table of <code>Base.metadata</code>. To enumerate them from the code:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from scrinalia.core.base import Base; import scrinalia.domains.archive.models, scrinalia.domains.identity.models, scrinalia.domains.ingestion.models, scrinalia.domains.staging.models; print(&#39;\n&#39;.join(sorted(Base.metadata.tables)))&quot;</span>
+</code></pre></div>
+<h3 id="ingestion-what-the-origin-sent-untouched">Ingestion — what the origin sent, untouched<a class="headerlink" href="#ingestion-what-the-origin-sent-untouched" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Purpose</th>
+<th>Key columns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>scraping_queue</code></td>
+<td>One row per identifier discovered at the origin, with its extraction state and retry count.</td>
+<td><code>description_id</code> (business key, unique), <code>scrape_status</code> (<code>ScrapeStatus</code>), <code>discovered_at</code>, <code>last_scraped_at</code>, <code>retry_count</code>, <code>last_error_message</code></td>
+</tr>
+<tr>
+<td><code>raw_data</code></td>
+<td>The exact payload returned by the adapter, with no typing or cleaning.</td>
+<td><code>description_id</code> (unique), <code>content_hash</code>, <code>raw_title</code>, <code>payload</code> (JSONB)</td>
+</tr>
+</tbody>
+</table>
+<p><code>scrape_status</code> distinguishes a transient failure (<code>NETWORK_ERROR</code>, retried) from a permanent one
+(<code>NOT_FOUND</code>, <code>FATAL_ERROR</code>). <code>raw_data.payload</code> is the evidence of what the origin actually sent;
+nothing downstream reads it directly.</p>
+<h3 id="staging-the-parsed-record">Staging — the parsed record<a class="headerlink" href="#staging-the-parsed-record" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Purpose</th>
+<th>Key columns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>staging_documents</code></td>
+<td>The sanitised, typed description before any AI touches it: the single source of sanitised truth.</td>
+<td><code>description_id</code> (primary key), <code>raw_content_hash</code>, <code>title</code>, <code>document_date</code>, <code>reference_code</code>, <code>parent_reference_code</code>, <code>hierarchy_path</code>, <code>level</code>, the ISAD(G) text columns, <code>raw_metadata</code> (JSONB), <code>created_at</code>, <code>updated_at</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>parent_reference_code</code> is optional on purpose: an origin that delivers a child before its parent
+leaves the description orphan and <em>marked</em> instead of failing the batch. <code>raw_metadata</code> keeps the
+keys that did not map to a column.</p>
+<h3 id="archive-the-description-and-everything-around-it">Archive — the description and everything around it<a class="headerlink" href="#archive-the-description-and-everything-around-it" title="Permanent link">&para;</a></h3>
+<h4 id="the-description">The description<a class="headerlink" href="#the-description" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Purpose</th>
+<th>Key columns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>archive_documents</code></td>
+<td>The final cleaned and enriched description, served to users and enriched by the AI workers.</td>
+<td><code>description_id</code> (primary key), <code>original_title</code>, <code>final_title</code>, <code>document_date</code>, <code>summary</code>, <code>staging_content_hash</code>, <code>reference_code</code>, <code>level_id</code>, <code>typology_id</code>, <code>parent_id</code>, <code>path</code>, <code>review_status</code>, <code>is_anomaly</code>, <code>anomaly_reasons</code>, <code>is_published</code>, <code>execution_log</code> (JSONB), <code>embedding</code> (<code>vector(384)</code>), <code>search_vector</code> (generated), timestamps</td>
+</tr>
+</tbody>
+</table>
+<p>Three properties of this table carry the model:</p>
+<ul>
+<li><code>parent_id</code> is a self-reference with <code>ON DELETE RESTRICT</code>. A fund is an archival description like
+  any other, so it does not get its own table; and a node with children is not deletable in passing,
+  because every descendant's <code>path</code> carries its ancestors' ids.</li>
+<li><code>path</code> is the materialised set of ancestor ids (<code>2368.2732.51931</code>), maintained by the service and
+  never by the AI. It turns "every descendant of X" into one indexed <code>LIKE 'x.%'</code>.</li>
+<li><code>review_status</code> (<code>ArchiveReviewStatus</code>) is the AI/human lifecycle: <code>PENDING_AI</code>, <code>AI_APPROVED</code>,
+  <code>NEEDS_REVIEW</code>, <code>HUMAN_APPROVED</code>, <code>REJECTED</code>. <code>HUMAN_APPROVED</code> blocks AI rewrites.</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Diffusion is not review</p>
+<p><code>is_published</code> is its own column, deliberately not <code>review_status = HUMAN_APPROVED</code>. Review is a
+claim about the record; publication is a decision about what to expose. Reusing the status would
+make a typo fix equivalent to publishing, and would lock every published document against AI
+rewriting. Nothing is published by default, so the diffusion surface is born empty.</p>
+</div>
+<h4 id="subjects-drawers-and-entities">Subjects, drawers and entities<a class="headerlink" href="#subjects-drawers-and-entities" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Purpose</th>
+<th>Key columns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>archive_tags</code></td>
+<td>A subject term of the collection.</td>
+<td><code>tag_id</code>, <code>name</code> (unique), <code>macro_category_id</code>, <code>ai_confidence_score</code>, <code>execution_log</code> (JSONB)</td>
+</tr>
+<tr>
+<td><code>archive_macro_categories</code></td>
+<td>The subject drawer (the "about" axis).</td>
+<td><code>category_id</code>, <code>name</code> (unique), <code>description</code>, <code>classifier_label</code>, <code>is_active</code></td>
+</tr>
+<tr>
+<td><code>archive_tag_facets</code></td>
+<td>The non-subject axis of a tag: what it <em>is</em> when it is not an <em>about</em>.</td>
+<td><code>(tag_id, facet_type)</code> composite key, <code>value</code>, <code>created_by</code>, <code>created_by_user_id</code></td>
+</tr>
+<tr>
+<td><code>archive_entities</code></td>
+<td>A named entity (person, organisation, place) found by NER or inserted by hand.</td>
+<td><code>entity_id</code>, <code>name</code> (unique), <code>entity_type</code></td>
+</tr>
+<tr>
+<td><code>archive_document_tags</code></td>
+<td>Which tags a description carries.</td>
+<td><code>(description_id, tag_id)</code> composite key</td>
+</tr>
+<tr>
+<td><code>archive_document_entities</code></td>
+<td>Which entities a description carries.</td>
+<td><code>(description_id, entity_id)</code> composite key</td>
+</tr>
+<tr>
+<td><code>archive_ai_review_queue</code></td>
+<td>The AI auditing queue; the decision side of a tag × entity collision.</td>
+<td><code>anomaly_type</code> (<code>AnomalyType</code>), <code>status</code> (<code>ArchiveReviewStatus</code>), <code>context_payload</code> (JSONB), <code>llm_decision</code>, <code>llm_confidence</code>, <code>llm_reason</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>archive_tags.macro_category_id</code> holds at most one subject drawer; <code>archive_tag_facets</code> is a separate
+table because a tag carries at most one subject but can be a place <em>and</em> an institution at once.
+<code>facet_type</code> is checked to <code>INSTITUTION</code> or <code>PLACE</code>, and nothing writes a facet automatically — a
+facet is a curation act, never an AI inference.</p>
+<h4 id="the-arrangement">The arrangement<a class="headerlink" href="#the-arrangement" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Purpose</th>
+<th>Key columns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>archive_description_levels</code></td>
+<td>The description-level ladder (the NOBRADE/ISAD(G) rungs), owned by the archivist.</td>
+<td><code>level_id</code>, <code>ordinal</code> (unique), <code>code</code> (unique), <code>name</code> (unique), <code>description</code>, <code>aliases</code>, <code>requires_parent</code>, <code>allows_children</code>, <code>is_active</code></td>
+</tr>
+<tr>
+<td><code>archive_hierarchy_node_plans</code></td>
+<td>One rung the reference codes imply, and the archivist's decision about it: a proposal, not a write.</td>
+<td><code>plan_id</code>, <code>code</code> (unique fingerprint), <code>depth</code>, <code>parent_code</code>, <code>document_count</code>, <code>declared_levels</code>, <code>flags</code>, <code>existing_description_id</code>, <code>level_id</code>, <code>title</code>, <code>reference_code</code>, <code>status</code>, <code>collapse_into_code</code>, <code>materialised_description_id</code>, <code>decided_by</code>, <code>decided_at</code></td>
+</tr>
+<tr>
+<td><code>archive_hierarchy_materialisation_log</code></td>
+<td>The ledger of one materialisation run, with enough detail to reverse it.</td>
+<td><code>materialisation_id</code>, <code>created_nodes</code> (JSONB), <code>rung_map</code> (JSONB), <code>previous_state</code> (JSONB), <code>changed_by</code>, <code>changed_by_user_id</code>, <code>undone_at</code>, <code>undone_by</code>, <code>undone_by_user_id</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>requires_parent</code> means "a node at this level may not be a root"; <code>allows_children</code> means "a node at
+this level is a leaf". The staging load records an unknown level as unclassified and carries on; a
+typology chosen by a person is a claim the catalogue must answer.</p>
+<h4 id="the-curation-trail-of-the-description">The curation trail of the description<a class="headerlink" href="#the-curation-trail-of-the-description" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Purpose</th>
+<th>Key columns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>archive_document_revisions</code></td>
+<td>Every human edit of a description, before and after.</td>
+<td><code>revision_id</code>, <code>description_id</code>, <code>changed_by</code>, <code>changed_by_user_id</code>, <code>changes</code> (JSONB), <code>note</code>, <code>created_at</code></td>
+</tr>
+<tr>
+<td><code>archive_document_deletions</code></td>
+<td>The ledger of the one destructive write over the collection.</td>
+<td><code>deletion_id</code>, <code>description_id</code>, <code>reference_code</code>, <code>title</code>, <code>level_name</code>, <code>snapshot</code> (JSONB), <code>children_count</code>, <code>deleted_by</code>, <code>deleted_by_user_id</code>, <code>note</code>, <code>deleted_at</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>description_id</code> in <code>archive_document_revisions</code> is <code>ON DELETE CASCADE</code>, so a revision written for a
+deleted document dies with it. <code>archive_document_deletions</code> therefore carries <strong>no foreign key</strong> to
+<code>archive_documents</code>: the row it names is gone by design, and this ledger is what outlives it. It is
+not a restore path — there is no code that writes the snapshot back.</p>
+<h4 id="governance-tables">Governance tables<a class="headerlink" href="#governance-tables" title="Permanent link">&para;</a></h4>
+<p>These tables are named <code>domain_*</code> although they live under <code>domains/archive/</code>: they are statements
+about the domain of the archive, not about the installation.</p>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Purpose</th>
+<th>Key columns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>domain_stopwords</code></td>
+<td>Terms the curation banned, with the axis they leave.</td>
+<td><code>id</code>, <code>word</code> (unique), <code>word_scope</code> (<code>StopwordsScope</code>: <code>TAG</code>, <code>ENTITY</code>, <code>ALL</code>)</td>
+</tr>
+<tr>
+<td><code>domain_ner_exclusions</code></td>
+<td>Terms the curation decided belong to the TAG axis, not to named entities.</td>
+<td><code>id</code>, <code>term</code> (unique), <code>reason</code>, <code>source</code> (<code>JUDGE</code>/<code>HUMAN</code>), <code>tag_id</code></td>
+</tr>
+<tr>
+<td><code>domain_subject_exclusions</code></td>
+<td>Terms the curation decided are not a subject at all.</td>
+<td><code>id</code>, <code>term</code> (unique), <code>reason</code>, <code>source</code> (<code>HUMAN</code>/<code>RULE</code>)</td>
+</tr>
+<tr>
+<td><code>domain_synonyms</code></td>
+<td>Spellings mapped to a canonical tag or entity.</td>
+<td><code>id</code>, <code>synonym_name</code>, <code>category</code> (<code>TAG</code>/<code>ORG</code>/<code>LOC</code>/<code>PER</code>), <code>canonical_tag_id</code>, <code>canonical_entity_id</code></td>
+</tr>
+<tr>
+<td><code>domain_text_templates</code></td>
+<td>Repeated excerpts the curation keeps out of the AI text.</td>
+<td><code>template_id</code>, <code>text</code>, <code>fingerprint</code> (unique), <code>variants</code>, <code>action</code>, <code>replacement</code>, <code>scope</code>, <code>status</code>, <code>occurrence_count</code>, <code>sample_document_ids</code></td>
+</tr>
+<tr>
+<td><code>archive_cleaning_rules</code></td>
+<td>Regex rules an archivist registered.</td>
+<td><code>rule_id</code>, <code>rule_name</code>, <code>rule_kind</code> (<code>REWRITE</code>/<code>VALIDATE</code>/<code>LLM_CHECK</code>), <code>target_column</code>, <code>regex_pattern</code>, <code>replacement_string</code>, <code>anomaly_reason</code>, <code>engine_name</code>, <code>preset</code>, <code>is_active</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>domain_synonyms</code> has an exclusive-arc check: a <code>TAG</code> row points at a tag and not at an entity, and
+the other categories point at an entity and not at a tag. Canonicalising a spelling deletes the old
+row, which is why the taxonomy search reads this table too.</p>
+<p><code>domain_text_templates.scope</code> (<code>EMBEDDING</code>, <code>NER</code>, <code>TITLE</code>) says which consumer stops reading an
+excerpt. The split exists because measurement showed one excerpt can help one consumer and hurt
+another: removing a title prefix from the <em>embedded</em> text hurt the ranking while being exactly what
+the title suggestion needs.</p>
+<p><code>archive_cleaning_rules.rule_kind</code> separates <code>REWRITE</code> (the cleaning worker replaces the match) from
+<code>VALIDATE</code>/<code>LLM_CHECK</code> (the quality validator only flags). The cleaning worker filters <code>REWRITE</code>
+explicitly; without it a validation rule would rewrite the text.</p>
+<h4 id="the-collection-vocabulary-data-not-code">The collection vocabulary (data, not code)<a class="headerlink" href="#the-collection-vocabulary-data-not-code" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Purpose</th>
+<th>Key columns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>archive_arrangement_vocabulary</code></td>
+<td>One arrangement token and the name the hierarchy proposal suggests for its rung.</td>
+<td><code>term_id</code>, <code>token</code> (unique, normalised), <code>display_name</code>, <code>is_active</code></td>
+</tr>
+<tr>
+<td><code>archive_collection_terms</code></td>
+<td>A term the collection carries that is not a subject, with the axis it goes to instead.</td>
+<td><code>term_id</code>, <code>(term, kind)</code> unique, <code>kind</code> (<code>CollectionTermKind</code>), <code>is_active</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>token</code> is either a single code token (<code>ED</code>, <code>ALFA</code>) or a whole code (<code>ACERVO RAIZ</code>). The proposal
+reads the whole code first and falls back to its last token, so a full-code row wins over a
+last-token row. <code>CollectionTermKind</code> is <code>DISTRICT</code>, <code>MUNICIPALITY</code>, <code>STATE</code>, <code>REGION</code>, <code>COUNTRY</code> or
+<code>PERSON</code>; a place kind claims the <code>PLACE</code> facet, and <code>PERSON</code> goes nowhere — it is the producer, not
+a subject.</p>
+<h4 id="operations">Operations<a class="headerlink" href="#operations" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Purpose</th>
+<th>Key columns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>archive_worker_settings</code></td>
+<td>The persisted default configuration of one worker.</td>
+<td><code>worker_name</code> (primary key), <code>engine_name</code>, <code>preset</code>, <code>db_batch_size</code>, <code>options</code> (JSONB), <code>updated_by</code>, <code>updated_at</code></td>
+</tr>
+<tr>
+<td><code>archive_worker_settings_revisions</code></td>
+<td>Audit trail of configuration writes, one row per write.</td>
+<td><code>id</code>, <code>worker_name</code>, <code>before</code> (JSONB), <code>after</code> (JSONB), <code>changed_by</code>, <code>changed_by_user_id</code>, <code>changed_at</code></td>
+</tr>
+<tr>
+<td><code>archive_worker_runs</code></td>
+<td>One row per worker execution, from the CLI and from the panel alike.</td>
+<td><code>id</code>, <code>worker_name</code>, <code>status</code> (<code>WorkerRunStatus</code>), <code>trigger</code> (<code>WorkerRunTrigger</code>), <code>requested_by</code>, <code>requested_by_user_id</code>, <code>engine_name</code>, <code>preset</code>, <code>config</code> (JSONB), <code>queued_at</code>, <code>started_at</code>, <code>finished_at</code>, <code>duration_ms</code>, <code>error</code>, <code>error_fingerprint</code> (generated)</td>
+</tr>
+<tr>
+<td><code>archive_api_errors</code></td>
+<td>The API's own unexpected HTTP failures.</td>
+<td><code>id</code>, <code>occurred_at</code>, <code>request_id</code>, <code>method</code>, <code>path</code>, <code>status_code</code>, <code>message</code>, <code>error_fingerprint</code> (generated)</td>
+</tr>
+</tbody>
+</table>
+<p><code>archive_worker_settings</code> is a <strong>partial</strong> row on purpose: a field left <code>NULL</code> keeps following the
+code, so the precedence is <code>explicit argument &gt; this row &gt; the signature default</code>. <code>archive_worker_runs</code>
+carries the <strong>resolved</strong> configuration, so the row keeps its meaning when a preset changes in code.
+There is deliberately no foreign key from either table to a worker table: workers are code, not rows.
+<code>archive_api_errors</code> records only <em>unexpected</em> failures — a 404, a 409 and a 422 are answers the API
+owes a client, and recording them buries the real defects.</p>
+<h3 id="identity-the-installation-not-the-collection">Identity — the installation, not the collection<a class="headerlink" href="#identity-the-installation-not-the-collection" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Purpose</th>
+<th>Key columns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>auth_users</code></td>
+<td>One person who can sign in.</td>
+<td><code>user_id</code>, <code>email</code> (normalised, unique), <code>name</code>, <code>password_hash</code> (argon2id), <code>role</code> (<code>Role</code>), <code>is_active</code>, <code>must_change_password</code>, <code>failed_attempts</code>, <code>locked_until</code>, <code>last_login_at</code></td>
+</tr>
+<tr>
+<td><code>auth_sessions</code></td>
+<td>One live sign-in, revocable.</td>
+<td><code>session_id</code>, <code>user_id</code>, <code>token_hash</code> (SHA-256, unique), <code>created_at</code>, <code>last_seen_at</code>, <code>expires_at</code>, <code>revoked_at</code>, <code>user_agent</code>, <code>ip_address</code></td>
+</tr>
+</tbody>
+</table>
+<p>An account is deactivated (<code>is_active</code>), never deleted: every ledger in the archive stores who
+decided what, and the <code>*_user_id</code> columns are <code>ON DELETE SET NULL</code>, so deleting the account would
+erase the <em>who</em> of decisions that still stand. <code>auth_sessions</code> stores only the SHA-256 of the token,
+never the token, so a database dump cannot be replayed as a cookie. <code>ON DELETE CASCADE</code> from
+<code>auth_sessions</code> to <code>auth_users</code> is right here and nowhere else in this domain: a session has no
+meaning without its account.</p>
+<h2 id="idempotency-execution_log-and-versioned-stamps">Idempotency: <code>execution_log</code> and versioned stamps<a class="headerlink" href="#idempotency-execution_log-and-versioned-stamps" title="Permanent link">&para;</a></h2>
+<p>Every AI worker is re-runnable. Instead of leaving a business column nullable and hoping, each worker
+writes a <strong>versioned key</strong> into a JSONB <code>execution_log</code>, and its pending query filters on the
+<em>absence</em> (or difference) of that key:</p>
+<ul>
+<li>document workers stamp <code>archive_documents.execution_log</code>;</li>
+<li><code>worker_macro_category</code> stamps <code>archive_tags.execution_log</code>, because its unit of work is the tag.</li>
+</ul>
+<p>The canonical keys, defined once in <code>worker_stamp.py</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Stamp key</th>
+<th>Written on</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>worker_ner_v2</code></td>
+<td><code>archive_documents</code></td>
+<td>NER extraction done</td>
+</tr>
+<tr>
+<td><code>worker_typology_classifier_v2</code></td>
+<td><code>archive_documents</code></td>
+<td>Typology classification done</td>
+</tr>
+<tr>
+<td><code>cleaning_rule_{id}</code></td>
+<td><code>archive_documents</code></td>
+<td>The dynamic cleaning rule with that id has run</td>
+</tr>
+<tr>
+<td><code>worker_macro_category_v1</code></td>
+<td><code>archive_tags</code></td>
+<td>The tag's drawer decision was attempted</td>
+</tr>
+<tr>
+<td><code>worker_quality_validator_v1</code></td>
+<td><code>archive_documents</code></td>
+<td>Structural validation done</td>
+</tr>
+<tr>
+<td><code>worker_embedding_v1</code></td>
+<td><code>archive_documents</code></td>
+<td>Value is the MD5 of the embedded text</td>
+</tr>
+</tbody>
+</table>
+<p>The polling queries are served by GIN indexes on the JSONB column: <code>ix_archive_exec_log</code> on
+<code>archive_documents</code> and <code>ix_archive_tags_exec_log</code> on <code>archive_tags</code>. A worker mutates the dict and
+must call <code>flag_modified</code> so SQLAlchemy notices the in-place change; skipping it is how a stamp is
+written in memory and never in the database.</p>
+<p>Most stamps hold a status (<code>DONE</code>, <code>ERROR</code>). Two are <strong>value-keyed</strong> instead:</p>
+<ul>
+<li><code>worker_embedding_v1</code> stores the <strong>MD5 of the embedded text</strong>, computed by PostgreSQL
+  (<code>func.md5(...)</code> over the effective text) and written with <code>WorkerStamp.mark_value</code>. Its pending
+  predicate is <code>execution_log[key] IS DISTINCT FROM &lt;md5&gt;</code>, so a text change — including a human
+  edit — puts the document back in the queue by itself.</li>
+<li><code>worker_macro_category_v1</code> stores the hash of the label set the tag was classified against, so
+  rewriting a curator's label re-queues the tag.</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">One documented exception</p>
+<p><code>worker_embedding</code> deliberately does not use <code>ai_writable_documents()</code>. The embedding is a
+derived index of the text rather than archival content, so a <code>HUMAN_APPROVED</code> document whose text
+changed must be re-embedded or semantic search would serve a stale vector. It writes only the
+<code>embedding</code> column and its own stamp, and <code>REJECTED</code> documents are skipped.</p>
+</div>
+<h2 id="bidirectional-governance">Bidirectional governance<a class="headerlink" href="#bidirectional-governance" title="Permanent link">&para;</a></h2>
+<p>A tag × entity collision has two possible verdicts, and the two directions are stored in <strong>different
+tables on purpose</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Verdict</th>
+<th>Where the decision is stored</th>
+<th>What it means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>In favour of the <strong>entity</strong></td>
+<td><code>domain_stopwords</code> (tag-scoped)</td>
+<td>The tag name is noise on the subject axis and is dropped from it</td>
+</tr>
+<tr>
+<td>In favour of the <strong>tag</strong></td>
+<td><code>domain_ner_exclusions</code></td>
+<td>The term is a legitimate subject; a NER extraction of it is a false positive</td>
+</tr>
+</tbody>
+</table>
+<p><code>domain_stopwords.word</code> is <strong>unique</strong>, so a term lives on exactly one axis. Re-banning a term <em>moves</em>
+it (<code>save_stopwords</code> is an upsert on <code>word</code>) rather than leaving the screen showing an axis the
+archivist just changed away from. <code>word_scope</code> is <code>TAG</code>, <code>ENTITY</code> or <code>ALL</code>.</p>
+<p><code>TagRepository.get_stopwords()</code> reads <strong>only</strong> <code>TAG</code>/<code>ALL</code> scope. An <code>ENTITY</code>-scoped veto is a ban on
+NER extraction, not a statement about the subject axis; reading it there once made the curation purge
+delete tags the curator had deliberately kept. That is the reason the two directions cannot be
+collapsed into one table or one scope.</p>
+<p><code>domain_ner_exclusions</code> is a <em>decision</em>, not noise: it carries <code>reason</code>, <code>source</code> (<code>JUDGE</code> for the
+LLM conflict judge, <code>HUMAN</code> for a curator) and the <code>tag_id</code> that justifies it. The <code>tag_id</code> is
+<code>ON DELETE SET NULL</code>, so deleting the tag does not silently re-open the false positive this row
+exists to prevent.</p>
+<p><code>domain_subject_exclusions</code> is the same shape for the other axis: a term the curation decided is not a
+subject at all. The deterministic guard covers what has a recognisable form (a bare year, a
+placeholder, a street, a measure); the semantic half (<code>pessoas</code>, <code>vista aérea</code>) is a decision, and it
+lives here with <code>source</code> (<code>HUMAN</code> or <code>RULE</code>). An excluded term is still a tag of the collection,
+reachable by search — the exclusion silences the subject classifier, not the term.</p>
+<h2 id="ledgers-one-by-one">Ledgers, one by one<a class="headerlink" href="#ledgers-one-by-one" title="Permanent link">&para;</a></h2>
+<p>A ledger is a table whose job is to make a write explainable or reversible. They are not
+interchangeable, and only some of them have an undo.</p>
+<table>
+<thead>
+<tr>
+<th>Ledger</th>
+<th>What it records</th>
+<th>Its undo</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>archive_taxonomy_merge_log</code></td>
+<td>One row <strong>per absorbed tag</strong>, snapshotted before anything changes.</td>
+<td><code>undo_merge</code> restores the row, its links, its classification and the spelling state.</td>
+</tr>
+<tr>
+<td><code>archive_hierarchy_materialisation_log</code></td>
+<td>One row per materialisation run: the nodes it created and the previous parent/path of every row it changed.</td>
+<td>The undo restores <code>previous_state</code> and then removes <code>created_nodes</code>.</td>
+</tr>
+<tr>
+<td><code>archive_conflict_resolution_log</code></td>
+<td>One row per tag × entity resolution: the loser's snapshot, the transferred links, the ban it planted.</td>
+<td><code>DELETE /conflicts/resolutions/{id}</code>.</td>
+</tr>
+<tr>
+<td><code>archive_document_deletions</code></td>
+<td>One row per deleted description, with the whole ISAD(G) snapshot.</td>
+<td><strong>No undo.</strong> The snapshot is evidence; nothing writes it back.</td>
+</tr>
+<tr>
+<td><code>archive_worker_runs</code></td>
+<td>One row per worker execution, CLI and panel alike.</td>
+<td><strong>No undo</strong> — it is an execution history, not a change to the collection.</td>
+</tr>
+<tr>
+<td><code>archive_api_errors</code></td>
+<td>One row per unexpected HTTP failure.</td>
+<td><strong>No undo</strong> — an error ledger is a trace.</td>
+</tr>
+</tbody>
+</table>
+<p>Two details make the reversible ledgers exact rather than approximate. <code>created_link_ids</code> records the
+links the operation <em>created</em>; both the merge and the conflict resolution link with
+<code>ON CONFLICT DO NOTHING</code>, so an undo that deleted every link would remove links that existed before
+it. <code>ban_created</code> plays the same role for the governance write: the undo must remove the ban only
+when this resolution is the one that planted it, or reversing one decision would lift a ban an
+earlier one made. For the merge, <code>synonym_created</code> and <code>synonym_previous_tag_id</code> capture the spelling
+state before the merge, and <code>repointed_synonym_names</code> records the spellings that pointed at the
+absorbed tag and were moved to the canonical. <code>undone_at</code> keeps the undo single-shot and keeps the
+trail readable afterwards: the row is never deleted.</p>
+<p><code>archive_ai_review_queue</code> is the companion of <code>archive_conflict_resolution_log</code>, not a ledger of
+writes: it keeps the <em>decision</em> (the judge's verdict or the human's), while the resolution log keeps
+the <em>write</em>. It also carries <code>AnomalyType.SUBJECT_LOW_CONFIDENCE</code> for tags the subject classifier
+could not place.</p>
+<p><code>archive_worker_settings_revisions</code> is a revision ledger in the same spirit: the decision and the
+write are different facts, and every configuration change leaves a <code>before</code>/<code>after</code> row.</p>
+<h2 id="generated-columns-one-definition-in-the-database">Generated columns: one definition, in the database<a class="headerlink" href="#generated-columns-one-definition-in-the-database" title="Permanent link">&para;</a></h2>
+<p>Two columns are computed by PostgreSQL and never written by application code.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Table(s)</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>search_vector</code></td>
+<td><code>archive_documents</code></td>
+<td><code>setweight(to_tsvector(&lt;dictionary&gt;, public.immutable_unaccent(title columns)), 'A')</code> concatenated with the body at weight <code>'B'</code></td>
+</tr>
+<tr>
+<td><code>error_fingerprint</code></td>
+<td><code>archive_worker_runs</code> (over <code>error</code>), <code>archive_api_errors</code> (over <code>message</code>)</td>
+<td><code>public.archive_error_fingerprint(&lt;column&gt;)</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>search_vector</code> is what lexical search runs against, with the GIN index
+<code>ix_archive_documents_search_vector</code>. The dictionary comes from the language profile
+(<code>get_language().fts_dictionary</code>), and <code>immutable_unaccent</code> makes it accent-insensitive, so <code>gaucho</code>
+finds <code>Gaúcho</code>. Because the column is <strong>stored</strong>, changing <code>ACERVO_LANGUAGE</code> is a migration that
+rebuilds it, not a reboot — and <code>alembic check</code> reports exactly that drift instead of letting the
+model and the stored expression disagree in silence.</p>
+<p><code>archive_error_fingerprint(text)</code> is <code>IMMUTABLE</code> and reduces an error message to its root cause: the
+first line, lowercased, with uuids, hashes, numbers and paths replaced by placeholders. It is created
+by the migration <code>fe7fcab37207</code> and <strong>mirrored in <code>testing/conftest.py</code></strong>, because the test schema is
+built by <code>Base.metadata.create_all</code> and the function has to exist before <code>create_all</code> emits the
+generated column that calls it — exactly like <code>immutable_unaccent</code>. The <code>public.</code> prefix is part of
+the expression because that is how PostgreSQL reflects it back.</p>
+<p>The reason both are generated and not application writes is that a generated column backfills the
+existing rows with the very expression the new rows get. There is exactly one definition, it cannot
+drift from the code that writes the message, and the error text is written with its exception class
+(<code>KeyError: 'nome'</code>) precisely so the fingerprint can tell two failures apart.</p>
+<h2 id="proposals-that-outlive-what-they-name">Proposals that outlive what they name<a class="headerlink" href="#proposals-that-outlive-what-they-name" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Purpose</th>
+<th>Key columns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>archive_tag_merge_proposals</code></td>
+<td>A cluster of tags the routine proposes to unify, and the human decision about it.</td>
+<td><code>proposal_id</code>, <code>fingerprint</code> (unique), <code>canonical_id</code>, <code>canonical_name</code>, <code>members</code> (JSONB), <code>reason</code>, <code>review_flags</code>, <code>total_documents</code>, <code>status</code>, <code>decided_by</code>, <code>decided_by_user_id</code>, <code>decided_at</code>, <code>decision_note</code></td>
+</tr>
+<tr>
+<td><code>archive_hierarchy_node_plans</code></td>
+<td>One rung the reference codes imply, and the archivist's decision about it.</td>
+<td>see "The arrangement" above</td>
+</tr>
+</tbody>
+</table>
+<p>A proposal is <strong>evidence plus a decision, never a write</strong>. The status ladder is
+<code>SUGGESTED → APPROVED/REJECTED → APPLIED</code>: a human verdict is a durable intent that the suggestion
+run never overwrites (<code>fingerprint</code> makes the suggestion idempotent), and applying the cluster writes
+<code>APPLIED</code> in the same savepoint that absorbs the tags. <code>decided_by</code>/<code>decided_at</code> keep the <em>verdict</em>;
+the merge ledger keeps the <em>when</em>.</p>
+<p><code>canonical_id</code> and <code>members</code> are <strong>snapshots without a foreign key</strong>, deliberately: applying the
+proposal deletes those tags, and the proposal has to survive as the record of what was decided. The
+cluster is identified by its spellings, not by its ids. Because the members can die, the read
+computes <code>members_alive</code>, <code>canonical_alive</code> and <code>applicable</code> (canonical alive <strong>and</strong> more than one
+member alive) in one query per page; <code>applicable</code> is the single definition of "there is still work".</p>
+<h2 id="catalogues-retire-they-do-not-delete">Catalogues retire, they do not delete<a class="headerlink" href="#catalogues-retire-they-do-not-delete" title="Permanent link">&para;</a></h2>
+<p>The three catalogues the archivist extends without a deploy are <code>archive_description_levels</code> (the
+level ladder), <code>archive_macro_categories</code> plus <code>archive_tags</code> (the subject drawers) and
+<code>archive_typologies</code> (the documental typologies — the <em>diplomatic form</em>: ata, ofício, planta). The
+collection vocabulary adds <code>archive_arrangement_vocabulary</code> and <code>archive_collection_terms</code>. All of
+them are tables instead of enums so a name can change without a release.</p>
+<p>None of them deletes. The foreign keys are <code>SET NULL</code> (<code>archive_documents.level_id</code>,
+<code>archive_documents.typology_id</code>, <code>archive_tags.macro_category_id</code>), so removing a row would
+unclassify every description pointing at it while erasing the record that it ever existed. A row
+retires with <code>is_active=false</code>, and that is also the only lever that reaches the classifier: retiring
+a typology removes it from the candidate labels without touching a single classified description, so
+the catalogue screen keeps showing the weight of the retired ones.</p>
+<p>Two rules hold the typology catalogue: <code>get_active_typologies()</code> projects <strong>only</strong>
+<code>(typology_id, name)</code> and filters <code>is_active</code> — the bare name is the label, because appending
+<code>context_description</code> makes the model lose the entailment as the label grows — and an archivist
+choosing a typology is making a claim the catalogue has to answer, so an unknown id is refused with
+422 rather than stored as <code>NULL</code>.</p>
+<p>The language is <strong>code</strong>, not data: <code>core/language/</code> holds one frozen profile per language
+(stopwords, date grammar, street and placeholder patterns, plural rules, the FTS dictionary, the spaCy
+model) and <code>ACERVO_LANGUAGE</code> selects it. The collection vocabulary is a row precisely because another
+institution's collection carries other names. See ADR 0008.</p>
+<h2 id="the-public-surface-an-exact-partition">The public surface: an exact partition<a class="headerlink" href="#the-public-surface-an-exact-partition" title="Permanent link">&para;</a></h2>
+<p>The diffusion surface reuses <code>DocumentService</code> and differs only in projection. The internal read view
+is <code>DocumentSummary</code>; the public one is <code>PublicDocumentSummary</code>, built <strong>field by field</strong> and never
+with <code>model_validate</code> on the internal DTO — validating it would make every field the internal view
+gains automatically public.</p>
+<p>Two frozensets in <code>api/schemas/public.py</code> make the default private:</p>
+<ul>
+<li><code>NOT_PUBLIC_FIELDS</code> — fields of <code>DocumentSummary</code> that are deliberately not published. It contains
+  <code>review_status</code>, <code>is_anomaly</code>, <code>anomaly_reasons</code>, <code>archivist_notes</code>, <code>provenance</code>,
+  <code>suggested_final_title</code>, <code>rank</code>, <code>path</code>, <code>parent_id</code>, <code>level_id</code>, <code>typology_id</code>, <code>is_published</code>,
+  <code>original_thumbnail_url</code>, <code>admin_bio_history</code>, <code>admin_archival_history</code> and <code>access_conditions</code>.</li>
+<li><code>NOT_PUBLIC_FACETS</code> — currently just <code>anomaly_reason</code>.</li>
+</ul>
+<p>Together with the published fields and facets they must remain an <strong>exact partition</strong> of the internal
+read: every field is either published or listed, and none is both. A test fails when a new field or
+facet is left unclassified, so the default for whatever the internal view gains next is private.</p>
+<p>Two more rules complete the surface. <code>published_only</code> is set <strong>server-side</strong> and is not a client
+parameter, so no query string can ask for an unpublished record. An unpublished id answers <strong>404, not
+403</strong>: a distinct status would confirm that the description exists. And <code>published_only</code> is a filter
+that is never excluded from facet counting — no facet may lift the diffusion gate.</p>
+<h2 id="the-revision-trail-of-human-curation">The revision trail of human curation<a class="headerlink" href="#the-revision-trail-of-human-curation" title="Permanent link">&para;</a></h2>
+<p><code>archive_document_revisions</code> is where a person's edits become evidence. <code>PATCH /api/v1/documents/{id}</code>
+writes one row holding the before/after of every field that actually changed, in <code>changes</code> (JSONB),
+and sets the document to <code>HUMAN_APPROVED</code>. Linking and unlinking tags and entities writes the same
+kind of row, storing the whole list of names on each side rather than a diff of ids; a repeated call
+that changes nothing writes no revision.</p>
+<p>Authorship is <strong>two columns, never one</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>What it holds</th>
+<th>On account deletion</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>changed_by</code></td>
+<td>The name the history prints — a snapshot of who they were.</td>
+<td>Kept; renaming somebody does not rewrite what they decided.</td>
+</tr>
+<tr>
+<td><code>changed_by_user_id</code></td>
+<td>The account behind the name, as a foreign key.</td>
+<td><code>SET NULL</code>; the decision survives with its author's name.</td>
+</tr>
+</tbody>
+</table>
+<p>The same pair appears wherever a person decides something: <code>archive_document_deletions</code> (<code>deleted_by</code>
+/ <code>deleted_by_user_id</code>), <code>archive_taxonomy_merge_log</code> (<code>changed_by</code>, <code>undone_by</code>),
+<code>archive_conflict_resolution_log</code> (<code>decided_by</code>, <code>undone_by</code>), <code>archive_hierarchy_node_plans</code> and
+<code>archive_tag_merge_proposals</code> (<code>decided_by</code>), <code>archive_tag_facets</code> and <code>archive_cleaning_rules</code> and
+<code>domain_text_templates</code> (<code>created_by</code>), <code>archive_hierarchy_materialisation_log</code> (<code>changed_by</code>),
+<code>archive_worker_runs</code> (<code>requested_by</code>) and <code>archive_worker_settings_revisions</code> (<code>changed_by</code>). The
+author is written by <code>author_columns</code>/<code>assign_author</code> from the session, never taken from the request.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../curate/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Curation">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Curation
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../../adr/" class="md-footer__link md-footer__link--next" aria-label="Next: Index">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Index
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "navigation.footer", "content.code.copy", "search.highlight", "search.suggest"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

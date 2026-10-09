@@ -1,0 +1,2007 @@
+
+<!doctype html>
+<html lang="pt" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Archival description cataloguing and AI-driven enrichment (ISAD(G))">
+      
+      
+      
+      
+        <link rel="prev" href="../install/">
+      
+      
+        <link rel="next" href="../curate/">
+      
+      
+        
+          <link rel="alternate" href="../../../guides/operate/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="pt">
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Operação - Scrinalia</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#operacao" class="md-skip">
+          Ir para o conteúdo
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Cabeçalho">
+    <a href="../../" title="Scrinalia" class="md-header__button md-logo" aria-label="Scrinalia" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Scrinalia
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Operação
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Selecione o idioma">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../../guides/operate/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="pt" class="md-select__link">
+              Português (Brasil)
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Buscar" placeholder="Buscar" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Pesquisar">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Limpar" aria-label="Limpar" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Inicializando a pesquisa
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navegação" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../" title="Scrinalia" class="md-nav__button md-logo" aria-label="Scrinalia" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Scrinalia
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Início
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guias
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guias
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Instalação e implantação
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operação
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operação
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Índice">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Índice
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#os-workers-e-a-ordem-do-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Os workers e a ordem do pipeline
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Os workers e a ordem do pipeline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#o-que-cada-fila-significa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O que cada fila significa
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#executando-um-worker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executando um worker
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Executando um worker">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#o-runner-unificado" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O runner unificado
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#executando-o-modulo-de-um-worker-diretamente" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executando o módulo de um worker diretamente
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuracao-o-que-uma-execucao-realmente-usa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuração: o que uma execução realmente usa
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#o-painel-de-operacao-sistema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O painel de operação (Sistema)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="O painel de operação (Sistema)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#saude-tres-endpoints-tres-perguntas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Saúde: três endpoints, três perguntas
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#o-ledger-de-execucoes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O ledger de execuções
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reprocessar-um-documento-ou-um-lote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reprocessar um documento ou um lote
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#execucoes-interrupted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execuções INTERRUPTED
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agendamento" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agendamento
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lendo-as-falhas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lendo as falhas
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logs
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../curate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curadoria
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modelo de dados
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisões de arquitetura
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisões de arquitetura
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Índice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0001-litestar-as-http-framework/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0001 Litestar as the HTTP framework
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0002-src-layout-and-internal-namespace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0002 src layout and internal namespace
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0003-monorepo-and-curator-frontend-stack/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0003 Monorepo and curator frontend stack
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0004-worker-execution-from-the-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0004 Worker execution from the API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0005-observability-without-an-external-service/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0005 Observability without an external service
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0006-license-and-author-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0006 License and author attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0007-project-name-scrinalia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0007 Project name Scrinalia
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0008-language-in-code-and-collection-vocabulary-in-the-database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0008 Language in code, collection vocabulary in the database
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0009-authentication-and-authorization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0009 Authentication and authorization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0010-documentation-coverage-and-freshness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0010 Documentation coverage and freshness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../log/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Registro da documentação
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Índice">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Índice
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#os-workers-e-a-ordem-do-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Os workers e a ordem do pipeline
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Os workers e a ordem do pipeline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#o-que-cada-fila-significa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O que cada fila significa
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#executando-um-worker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executando um worker
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Executando um worker">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#o-runner-unificado" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O runner unificado
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#executando-o-modulo-de-um-worker-diretamente" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executando o módulo de um worker diretamente
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuracao-o-que-uma-execucao-realmente-usa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuração: o que uma execução realmente usa
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#o-painel-de-operacao-sistema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O painel de operação (Sistema)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="O painel de operação (Sistema)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#saude-tres-endpoints-tres-perguntas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Saúde: três endpoints, três perguntas
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#o-ledger-de-execucoes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        O ledger de execuções
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reprocessar-um-documento-ou-um-lote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reprocessar um documento ou um lote
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#execucoes-interrupted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execuções INTERRUPTED
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agendamento" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agendamento
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lendo-as-falhas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lendo as falhas
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logs
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="operacao">Operação<a class="headerlink" href="#operacao" title="Permanent link">&para;</a></h1>
+<p>Esta página é para quem opera a máquina no dia a dia: quais workers existem, em que ordem rodam,
+como disparar um, como a configuração efetiva é resolvida, o que o painel de sistema mostra e o que
+fazer quando algo quebra. Instalar e configurar o sistema está em
+<a href="../install/">Instalação e implantação</a>; as decisões arquivísticas de cada tela estão em
+<a href="../curate/">Curadoria</a>.</p>
+<h2 id="os-workers-e-a-ordem-do-pipeline">Os workers e a ordem do pipeline<a class="headerlink" href="#os-workers-e-a-ordem-do-pipeline" title="Permanent link">&para;</a></h2>
+<p><code>src/scrinalia/domains/archive/workers/catalogue.py</code> é a definição única de um worker: a posição
+dele no pipeline, a unidade que a fila conta, se ele respeita a governança de revisão e o carimbo
+que escreve. O catálogo não importa nenhum worker — resolve cada módulo sob demanda —, então lê-lo
+é barato.</p>
+<p>Nove workers, na ordem do pipeline:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Nome</th>
+<th>Módulo</th>
+<th>Unidade</th>
+<th>Governança</th>
+<th>Engine efetiva vem de</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>transfer</code></td>
+<td><code>worker_archive_transfer</code></td>
+<td>registro de staging</td>
+<td>não</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>cleaning</code></td>
+<td><code>worker_cleaning_regex</code></td>
+<td>documento × regra <code>REWRITE</code> ativa</td>
+<td>sim</td>
+<td>—</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>ner</code></td>
+<td><code>worker_ner</code></td>
+<td>documento</td>
+<td>sim</td>
+<td>assinatura</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>typology</code></td>
+<td><code>worker_typology</code></td>
+<td>documento</td>
+<td>sim</td>
+<td>assinatura</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>thumbnail</code></td>
+<td><code>worker_thumbnail</code></td>
+<td>documento</td>
+<td>sim</td>
+<td>—</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>conflict-judge</code></td>
+<td><code>worker_resolve_tag_entity_conflict</code></td>
+<td>par tag × entidade</td>
+<td>não</td>
+<td>assinatura</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>macro-category</code></td>
+<td><code>worker_macro_category</code></td>
+<td>tag</td>
+<td>não</td>
+<td>assinatura</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>quality-validator</code></td>
+<td><code>worker_quality_validator</code></td>
+<td>documento</td>
+<td>sim</td>
+<td>regra <code>LLM_CHECK</code> ativa</td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>embedding</code></td>
+<td><code>worker_embedding</code></td>
+<td>documento</td>
+<td>não</td>
+<td>assinatura</td>
+</tr>
+</tbody>
+</table>
+<p>A ordem é a ordem em que as etapas liberam umas às outras, e é a ordem que a seção de pipeline do
+painel mostra:</p>
+<div class="highlight"><pre><span></span><code>transfer -&gt; cleaning -&gt; ner -&gt; typology -&gt; thumbnail -&gt; conflict-judge -&gt; macro-category -&gt; quality-validator -&gt; embedding
+</code></pre></div>
+<ul>
+<li><strong><code>transfer</code></strong> copia o registro estruturado do staging para a descrição do Acervo, tendo como
+  chave o hash do registro interpretado (<code>staging_content_hash</code>). É a única etapa que reescreve
+  conteúdo: quando o hash muda, o <code>execution_log</code> gravado é zerado e os enriquecimentos de IA
+  precisam rodar de novo. Uma descrição que uma pessoa já aprovou nunca é sobrescrita, e um
+  registro de staging com o mesmo hash não é gravado.</li>
+<li><strong><code>cleaning</code></strong> aplica as regras de limpeza ativas do tipo <code>REWRITE</code>, uma passada por regra. Uma
+  regra do tipo <code>VALIDATE</code> ou <code>LLM_CHECK</code> nunca substitui nada — sinalizar é papel do validador de
+  qualidade.</li>
+<li><strong><code>ner</code></strong> extrai nomes próprios, lugares e instituições do texto composto da descrição.</li>
+<li><strong><code>typology</code></strong> classifica cada descrição contra o catálogo de tipologias ativas por zero-shot.</li>
+<li><strong><code>thumbnail</code></strong> baixa a imagem original e guarda uma miniatura no storage de objetos.</li>
+<li><strong><code>conflict-judge</code></strong> compara o vocabulário de tags com o de entidades e consulta o LLM local para
+  decidir se o termo ambíguo é assunto ou nome próprio. Todo veredicto, automático ou enviado a uma
+  pessoa, deixa uma linha em <code>archive_ai_review_queue</code>.</li>
+<li><strong><code>macro-category</code></strong> arquiva cada tag numa gaveta de assunto. A unidade dele é a <strong>tag</strong>, não a
+  descrição, então o carimbo vive no <code>execution_log</code> da própria tag; uma tag que o curador arquivou
+  à mão está fora do alcance dele.</li>
+<li><strong><code>quality-validator</code></strong> marca anomalias estruturais, títulos repetidos e regras <code>VALIDATE</code>. Nunca
+  reescreve um campo. O modelo de linguagem só é construído quando existe uma regra <code>LLM_CHECK</code>
+  ativa.</li>
+<li><strong><code>embedding</code></strong> grava o vetor usado pela busca semântica e lê o texto por último, porque toda
+  mudança de texto precisa acontecer antes dele.</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">O embedding é a exceção de governança documentada</p>
+<p><code>embedding</code> de propósito não usa a proteção de <code>HUMAN_APPROVED</code>. O vetor é um índice derivado do
+texto, não conteúdo arquivístico, então uma descrição aprovada cujo texto mudou precisa ser
+re-embedada, ou a busca semântica serviria um vetor desatualizado. Ele grava apenas a coluna
+<code>embedding</code> e o próprio carimbo, e pula descrições em <code>REJECTED</code>.</p>
+</div>
+<h3 id="o-que-cada-fila-significa">O que cada fila significa<a class="headerlink" href="#o-que-cada-fila-significa" title="Permanent link">&para;</a></h3>
+<p>Uma fila não é uma tabela: é o predicado que o próprio <code>count_pending</code> do worker compartilha com o
+<code>execute</code>. O painel nunca o re-deriva. <code>pending</code> é quantas unidades a próxima execução leria;
+<code>processed</code> é quantas carregam o carimbo do worker; <code>failed</code> conta os carimbos que registram falha
+(<code>ERROR</code>, ou a marca <code>thumbnail_failed</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Worker</th>
+<th>O que está pendente</th>
+<th>Carimbo de idempotência</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>transfer</code></td>
+<td>registros de staging sem linha no Acervo, ou cujo hash do conteúdo interpretado difere do gravado — exceto descrições que uma pessoa aprovou ou rejeitou</td>
+<td>nenhum; um hash do registro de staging, mais <code>hierarchy_parent_v1</code> para um pai declarado</td>
+</tr>
+<tr>
+<td><code>cleaning</code></td>
+<td>documentos que as regras <code>REWRITE</code> ativas ainda não carimbaram; um documento pendente para duas regras conta duas vezes</td>
+<td><code>cleaning_rule_{rule_id}</code></td>
+</tr>
+<tr>
+<td><code>ner</code></td>
+<td>documentos sem o carimbo que têm texto em ao menos uma coluna extraída</td>
+<td><code>worker_ner_v2</code></td>
+</tr>
+<tr>
+<td><code>typology</code></td>
+<td>documentos sem tipologia e sem o carimbo que têm texto</td>
+<td><code>worker_typology_classifier_v2</code></td>
+</tr>
+<tr>
+<td><code>thumbnail</code></td>
+<td>documentos com imagem de origem, sem URI no storage e sem marca de falha — todos os marcados, com <code>force</code></td>
+<td>nenhum; a coluna <code>storage_thumbnail_uri</code>, mais a marca <code>thumbnail_failed</code></td>
+</tr>
+<tr>
+<td><code>conflict-judge</code></td>
+<td><strong>não é mensurável barato</strong>: a fila é o produto trigram de tags × entidades, medido em 53 s no acervo real. O painel mostra o que já foi julgado</td>
+<td>nenhum; a linha em <code>archive_ai_review_queue</code></td>
+</tr>
+<tr>
+<td><code>macro-category</code></td>
+<td>tags sem gaveta de assunto cujo carimbo não carrega o conjunto de rótulos atual</td>
+<td><code>worker_macro_category_v1</code> (na tag; o valor é o hash do conjunto de rótulos)</td>
+</tr>
+<tr>
+<td><code>quality-validator</code></td>
+<td>documentos sem o carimbo, a menos que <code>force</code> esteja ligado</td>
+<td><code>worker_quality_validator_v1</code></td>
+</tr>
+<tr>
+<td><code>embedding</code></td>
+<td>documentos cujo carimbo difere do MD5 do texto efetivo — a primeira execução e toda mudança de texto posterior</td>
+<td><code>worker_embedding_v1</code> (o valor é o MD5 do texto embedado)</td>
+</tr>
+</tbody>
+</table>
+<p>O contador do <code>transfer</code> é o mais pesado: valida a tabela de staging inteira pelo mesmo port que o
+transfer usa. É lido uma vez por carga do painel e não é consultado em laço.</p>
+<h2 id="executando-um-worker">Executando um worker<a class="headerlink" href="#executando-um-worker" title="Permanent link">&para;</a></h2>
+<h3 id="o-runner-unificado">O runner unificado<a class="headerlink" href="#o-runner-unificado" title="Permanent link">&para;</a></h3>
+<p>Prefira o runner unificado, que expõe todos os workers por uma interface só. Rode da raiz do
+repositório:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scrinalia.domains.archive.workers.runner<span class="w"> </span>&lt;name&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="o">[</span>--engine<span class="w"> </span>X<span class="w"> </span>--preset<span class="w"> </span>Y<span class="w"> </span>--batch<span class="w"> </span>N<span class="w"> </span>--option<span class="w"> </span><span class="nv">key</span><span class="o">=</span>value<span class="w"> </span>--by<span class="w"> </span><span class="s2">&quot;quem&quot;</span><span class="o">]</span>
+</code></pre></div>
+<p>Por exemplo:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Classifica a tipologia de toda descrição pendente, em lotes de 100.</span>
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scrinalia.domains.archive.workers.runner<span class="w"> </span>typology<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--engine<span class="w"> </span>deberta_typology<span class="w"> </span>--preset<span class="w"> </span>cpu_local<span class="w"> </span>--batch<span class="w"> </span><span class="m">100</span><span class="w"> </span>--by<span class="w"> </span><span class="s2">&quot;ana&quot;</span>
+
+<span class="c1"># Força o embedding de toda descrição, ignorando o hash do texto.</span>
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scrinalia.domains.archive.workers.runner<span class="w"> </span>embedding<span class="w"> </span>--option<span class="w"> </span><span class="nv">force</span><span class="o">=</span><span class="nb">true</span>
+
+<span class="c1"># Aponta o juiz de conflito para outro host Ollama só nesta execução.</span>
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scrinalia.domains.archive.workers.runner<span class="w"> </span>conflict-judge<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--option<span class="w"> </span><span class="nv">host</span><span class="o">=</span>http://ollama.interno:11434<span class="w"> </span>--by<span class="w"> </span><span class="s2">&quot;ana&quot;</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Significado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt;name&gt;</code></td>
+<td>um dos nove nomes acima; qualquer outro valor é recusado com a lista de opções</td>
+</tr>
+<tr>
+<td><code>--engine X</code></td>
+<td>uma engine registrada do eixo do worker, por exemplo <code>spacy_ner</code>, <code>deberta_typology</code>, <code>ollama_judge</code></td>
+</tr>
+<tr>
+<td><code>--preset Y</code></td>
+<td>um preset desse eixo, por exemplo <code>gpu</code>, <code>lemmatizer</code>, <code>cpu_local</code>, <code>gpu_cloud</code>, <code>granite_local</code>, <code>multilingual_minilm</code></td>
+</tr>
+<tr>
+<td><code>--batch N</code></td>
+<td>tamanho do lote por transação, repassado aos workers que declaram <code>db_batch_size</code></td>
+</tr>
+<tr>
+<td><code>--option key=value</code></td>
+<td>parâmetro extra, repetível; <code>key</code> sem <code>=</code> é recusado</td>
+</tr>
+<tr>
+<td><code>--by "quem"</code></td>
+<td>texto livre com quem está executando; a CLI roda no host e não tem sessão, então isso continua sendo um nome sem conta por trás</td>
+</tr>
+</tbody>
+</table>
+<p>O <code>--option</code> converte exatamente dois valores: <code>true</code> e <code>false</code> viram booleanos. Qualquer outro valor
+continua string, então uma opção que espera número ou lista não é configurável pela linha de comando.
+A flag é validada contra a assinatura do <code>execute</code> do worker: uma opção que o worker não declara é
+recusada, a menos que o worker termine em <code>**engine_kwargs</code>, que é a forma documentada de
+sobrescrever <code>device</code>, <code>host</code> e parâmetros parecidos da engine em uma execução.</p>
+<p>Duas coisas são sempre recusadas:</p>
+<ul>
+<li><code>config</code> é recusado porque é um dataclass do runner (<code>NerRunnerConfig</code> e os irmãos), não um valor
+  que uma linha de comando ou um corpo JSON possa carregar; um dicionário chegando ao <code>execute</code>
+  falharia com erro de atributo em vez de uma frase. Passe os campos individuais.</li>
+<li><code>--engine</code>/<code>--preset</code> só fazem sentido para os workers cuja configuração vem da própria assinatura
+  (<code>ner</code>, <code>typology</code>, <code>conflict-judge</code>, <code>macro-category</code>, <code>embedding</code>). <code>transfer</code>, <code>cleaning</code> e
+  <code>thumbnail</code> não carregam modelo, e <code>quality-validator</code> tira a engine da regra <code>LLM_CHECK</code> ativa.</li>
+</ul>
+<p>Toda execução pelo runner grava uma linha em <code>archive_worker_runs</code> (veja
+<a href="#o-ledger-de-execucoes">o ledger de execuções</a>).</p>
+<h3 id="executando-o-modulo-de-um-worker-diretamente">Executando o módulo de um worker diretamente<a class="headerlink" href="#executando-o-modulo-de-um-worker-diretamente" title="Permanent link">&para;</a></h3>
+<p>Cada <code>worker_*.py</code> também traz uma função <code>execute(db, ...)</code> e um bloco <code>__main__</code>, então um worker
+isolado pode ser rodado durante o desenvolvimento:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scrinalia.domains.archive.workers.worker_ner
+</code></pre></div>
+<p>Uma execução direta é ferramenta de depuração, não o caminho de operação. Ela ignora o ledger, os
+overrides persistidos, a trava de concorrência e a conversão de <code>--option</code>, e usa o <code>engine_name</code> e
+o <code>preset</code> que o bloco <code>__main__</code> do módulo fixa (para <code>ner</code>, <code>db_batch_size=100</code> e, no resto, os
+padrões da assinatura). Nada aparece no histórico de execuções, então nada avisa que ela aconteceu.</p>
+<h2 id="configuracao-o-que-uma-execucao-realmente-usa">Configuração: o que uma execução realmente usa<a class="headerlink" href="#configuracao-o-que-uma-execucao-realmente-usa" title="Permanent link">&para;</a></h2>
+<p>A configuração efetiva segue uma precedência:</p>
+<div class="highlight"><pre><span></span><code>argumento explícito  &gt;  linha em archive_worker_settings  &gt;  o padrão da assinatura do worker
+</code></pre></div>
+<p>A linha persistida (<code>archive_worker_settings</code>, uma por worker, com chave <code>worker_name</code>) é <strong>parcial
+de propósito</strong>: um campo deixado <code>NULL</code> continua seguindo o código, então um preset renomeado numa
+versão nova ainda alcança todo worker que ninguém sobrescreveu. Seus campos são <code>engine_name</code>,
+<code>preset</code>, <code>db_batch_size</code>, <code>options</code>, <code>updated_by</code> e <code>updated_at</code>.</p>
+<p>Toda escrita deixa uma revisão em <code>archive_worker_settings_revisions</code> (<code>before</code>, <code>after</code>,
+<code>changed_by</code>, <code>changed_by_user_id</code>, <code>changed_at</code>), gravada na mesma transação da linha. Você pode
+lê-las em <code>GET /api/v1/system/workers/{worker_name}/settings/revisions</code>. Apagar a linha
+(<code>DELETE /api/v1/system/workers/{worker_name}/settings</code>) faz o worker voltar a seguir o código, e é
+idempotente.</p>
+<p><code>GET /api/v1/system/workers</code> é a forma de ver a configuração efetiva sem rodar nada. Cada worker
+traz o <code>engine_name</code>, o <code>preset</code>, o <code>db_batch_size</code> e as <code>options</code> resolvidos, o <code>overridden</code> (se
+existe linha — um campo pode ser <code>None</code> de propósito), o dicionário <code>config</code> resolvido, os
+<code>available_engines</code> com seus presets e uma <code>note</code>. Esse dicionário vem do <code>describe_config</code> de cada
+registro de engine, o <strong>gêmeo somente-leitura do <code>get_engine</code></strong>: resolve o preset e os overrides e
+devolve o dicionário sem instanciar a engine, então o painel consegue responder "com qual modelo
+isto vai rodar?" para um worker que nunca rodou — sem carregar o modelo.</p>
+<p>Para <code>quality-validator</code>, o <code>engine_source</code> é <code>llm_check_rule</code>: a engine e o preset vêm da regra
+<code>LLM_CHECK</code> ativa, e as rotas de configuração e de disparo recusam defini-las ali, porque um segundo
+lugar para escolher a mesma engine seria uma segunda fonte de verdade. Sem regra ativa, o worker roda
+apenas a validação determinística, e o painel diz isso na <code>note</code>.</p>
+<h2 id="o-painel-de-operacao-sistema">O painel de operação (Sistema)<a class="headerlink" href="#o-painel-de-operacao-sistema" title="Permanent link">&para;</a></h2>
+<p>O painel é a superfície <code>/api/v1/system/*</code> e a seção <code>Sistema</code> da SPA.</p>
+<table>
+<thead>
+<tr>
+<th>Rota</th>
+<th>Método</th>
+<th>Permissão</th>
+<th>O que faz</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/api/v1/system/workers</code></td>
+<td><code>GET</code></td>
+<td>autenticado</td>
+<td>os nove workers com configuração, números de fila e última execução/execução ativa, numa requisição só</td>
+</tr>
+<tr>
+<td><code>/api/v1/system/workers/{worker_name}/runs</code></td>
+<td><code>POST</code></td>
+<td><code>OPERATE</code></td>
+<td>enfileira uma execução com overrides só para ela e responde <code>201</code> na hora</td>
+</tr>
+<tr>
+<td><code>/api/v1/system/workers/{worker_name}/settings</code></td>
+<td><code>PUT</code></td>
+<td><code>OPERATE</code></td>
+<td>persiste o padrão de engine/preset/batch/options</td>
+</tr>
+<tr>
+<td><code>/api/v1/system/workers/{worker_name}/settings</code></td>
+<td><code>DELETE</code></td>
+<td><code>OPERATE</code></td>
+<td>apaga o override para o worker voltar a seguir o código</td>
+</tr>
+<tr>
+<td><code>/api/v1/system/workers/{worker_name}/settings/revisions</code></td>
+<td><code>GET</code></td>
+<td>autenticado</td>
+<td>quem mudou o quê, quando</td>
+</tr>
+<tr>
+<td><code>/api/v1/system/runs</code></td>
+<td><code>GET</code></td>
+<td>autenticado</td>
+<td>o ledger de execuções, mais recente primeiro; filtros <code>worker</code>, <code>status</code>, <code>fingerprint</code>, <code>limit</code>, <code>offset</code></td>
+</tr>
+<tr>
+<td><code>/api/v1/system/failures</code></td>
+<td><code>GET</code></td>
+<td>autenticado</td>
+<td>as causas raiz agrupadas; filtros <code>days</code> (padrão 30), <code>worker</code>, <code>limit</code></td>
+</tr>
+<tr>
+<td><code>/api/v1/system/health</code></td>
+<td><code>GET</code></td>
+<td><code>OPERATE</code></td>
+<td>banco, modelos do Ollama, storage de objetos e o processo</td>
+</tr>
+</tbody>
+</table>
+<p>Só o <code>ADMIN</code> carrega <code>OPERATE</code>; <code>CURATOR</code> e <code>VIEWER</code> leem os workers, o ledger e as falhas, mas não
+disparam execução nem mudam padrão.</p>
+<p>A seção da SPA espelha isso:</p>
+<table>
+<thead>
+<tr>
+<th>Tela</th>
+<th>Mostra</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/sistema/workers</code></td>
+<td>os nove workers: engine, preset e modelo, a fila, o padrão persistido e um botão de execução</td>
+</tr>
+<tr>
+<td><code>/sistema/execucoes</code></td>
+<td>o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela</td>
+</tr>
+<tr>
+<td><code>/sistema/diagnostico</code></td>
+<td>banco, modelos do Ollama, storage das miniaturas e a configuração efetiva do processo</td>
+</tr>
+</tbody>
+</table>
+<p>A tela só fica consultando enquanto algo está rodando, porque o contador do <code>transfer</code> faz uma
+chamada a <code>/system/workers</code> custar cerca de dois segundos no acervo real.</p>
+<h3 id="saude-tres-endpoints-tres-perguntas">Saúde: três endpoints, três perguntas<a class="headerlink" href="#saude-tres-endpoints-tres-perguntas" title="Permanent link">&para;</a></h3>
+<p>Eles não são intercambiáveis, e juntá-los é o erro a evitar.</p>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Pergunta</th>
+<th>Comportamento</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /health/live</code></td>
+<td>o processo está vivo?</td>
+<td>não toca em nada, sempre <code>200</code> enquanto o processo responde; fora do documento OpenAPI</td>
+</tr>
+<tr>
+<td><code>GET /health/ready</code></td>
+<td>esta instância pode receber tráfego?</td>
+<td>roda <code>SELECT 1</code>; <code>200</code>, ou <code>503</code> quando o banco não responde; também fora de <code>/api/v1</code> e fora do contrato</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/system/health</code></td>
+<td>qual peça está fora?</td>
+<td>o painel humano: contagens do banco, os modelos do Ollama que os presets exigem e quais faltam, o bucket do storage e a configuração efetiva do processo — segredos como presença, nunca como valor</td>
+</tr>
+</tbody>
+</table>
+<p>Uma sonda de liveness que consulta o banco reiniciaria a API sempre que o banco reiniciasse, e é por
+isso que <code>live</code> não toca em nada. A sonda de readiness tem engine própria, com timeout de conexão e
+de statement, então uma sonda contra um host inalcançável falha rápido em vez de pendurar pelo
+timeout de TCP do sistema operacional.</p>
+<h2 id="o-ledger-de-execucoes">O ledger de execuções<a class="headerlink" href="#o-ledger-de-execucoes" title="Permanent link">&para;</a></h2>
+<p><code>archive_worker_runs</code> tem uma linha por execução, tanto da CLI quanto do painel: o ledger é sobre o
+worker, não sobre o botão que o iniciou. Uma linha carrega <code>worker_name</code>, <code>status</code>, <code>trigger</code> (<code>CLI</code>
+ou <code>API</code>), <code>requested_by</code> (e <code>requested_by_user_id</code>), <code>engine_name</code>, <code>preset</code>, o <code>config</code> resolvido,
+<code>queued_at</code>, <code>started_at</code>, <code>finished_at</code>, <code>duration_ms</code>, <code>error</code> e o <code>error_fingerprint</code> gerado.</p>
+<p>Os status são <code>QUEUED</code>, <code>RUNNING</code>, <code>SUCCESS</code>, <code>FAILED</code> e <code>INTERRUPTED</code>. A linha <code>QUEUED</code> é comitada
+pela <strong>sessão própria do ledger antes</strong> de a thread do executor receber o id; uma linha ainda dentro
+da transação da requisição ficaria invisível para essa thread e a execução ficaria em <code>QUEUED</code> para
+sempre.</p>
+<p><code>uq_worker_run_active</code> é um <strong>índice único parcial</strong> sobre <code>(worker_name)</code> quando o status é <code>QUEUED</code>
+ou <code>RUNNING</code>. É ele, e não um lock de processo, a trava de concorrência: no máximo uma execução por
+worker em andamento, entre processos e através de um reload. Um segundo envio vira um
+<code>IntegrityError</code> que a API transforma em <code>409</code> com uma frase ("Já existe uma execução em andamento
+para o worker '…'"), e que a CLI expõe do mesmo jeito.</p>
+<p>O executor do painel roda <strong>um worker por vez</strong> (<code>WORKER_RUNTIME_MAX_WORKERS</code>, padrão 1) porque os
+workers são limitados por CPU — dois modelos torch na mesma CPU se atrasam sem produzir mais. Ele
+<strong>não é um agendador</strong>: sem retry, sem cron, sem prioridade. Existe para uma pessoa apertar um botão.</p>
+<h2 id="reprocessar-um-documento-ou-um-lote">Reprocessar um documento ou um lote<a class="headerlink" href="#reprocessar-um-documento-ou-um-lote" title="Permanent link">&para;</a></h2>
+<p>Rodar um worker de novo é seguro e incremental: a fila dele é a ausência do carimbo, então uma
+segunda execução toca só o que ainda está pendente. O que devolve uma unidade à fila:</p>
+<ul>
+<li><strong>o texto mudou</strong> — uma edição humana ou um trecho de texto aprovado/editado/desfeito. O
+  <code>embedding</code> se re-enfileira sozinho, porque o carimbo dele <em>é</em> o MD5 do texto efetivo; os carimbos
+  dependentes do texto (<code>worker_ner_v2</code>, <code>worker_typology_classifier_v2</code>,
+  <code>worker_quality_validator_v1</code>) são invalidados pelo serviço de qualidade de texto.</li>
+<li><strong>a origem mudou</strong> — o <code>transfer</code> reescreve a descrição quando o hash do conteúdo interpretado
+  muda, e a escrita zera os carimbos de IA, então os enriquecimentos precisam rodar de novo.</li>
+<li><strong>o catálogo mudou</strong> — reescrever um rótulo de assunto muda o hash do conjunto de rótulos, então
+  as tags afetadas voltam à fila do <code>macro-category</code>. Os motivos do validador de qualidade também
+  dependem do catálogo.</li>
+<li><strong><code>force=true</code></strong> — <code>embedding</code>, <code>macro-category</code>, <code>thumbnail</code> e <code>quality-validator</code> aceitam e
+  ignoram o próprio carimbo; o <code>macro-category</code> continua sem tocar numa tag que já tem gaveta. No
+  <code>thumbnail</code> ele também traz de volta os documentos marcados como <code>thumbnail_failed</code>, que é a saída
+  de um bucket que estava fora durante uma execução: a marca existe para um link morto não ficar em
+  laço, não para tornar a queda permanente.</li>
+</ul>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scrinalia.domains.archive.workers.runner<span class="w"> </span>embedding<span class="w"> </span>--option<span class="w"> </span><span class="nv">force</span><span class="o">=</span><span class="nb">true</span>
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scrinalia.domains.archive.workers.runner<span class="w"> </span>quality-validator<span class="w"> </span>--option<span class="w"> </span><span class="nv">force</span><span class="o">=</span><span class="nb">true</span>
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scrinalia.domains.archive.workers.runner<span class="w"> </span>thumbnail<span class="w"> </span>--option<span class="w"> </span><span class="nv">force</span><span class="o">=</span><span class="nb">true</span>
+</code></pre></div>
+<div class="admonition warning">
+<p class="admonition-title">A janela de reprocessamento fecha no primeiro registro aprovado por uma pessoa</p>
+<p><code>HUMAN_APPROVED</code> é a proteção: <code>ai_writable_documents()</code> a exclui, e <code>cleaning</code>, <code>ner</code>,
+<code>typology</code>, <code>thumbnail</code> e <code>quality-validator</code> filtram por ela. O <code>transfer</code> se recusa a
+sobrescrever uma descrição aprovada mesmo quando o hash da origem mudou. As duas exceções
+documentadas são o trabalho derivado — o <code>embedding</code>, que re-embeda um texto mudado, e o
+<code>macro-category</code>, cuja unidade é a tag e cuja fila é "ainda sem gaveta", então a gaveta de um
+curador nunca é reescrita.</p>
+</div>
+<p>Não há <strong>rota nem flag que limpe um carimbo</strong>: para devolver um documento à fila de um worker que não
+aceita <code>force</code>, é preciso remover aquela chave do <code>execution_log</code> dele no banco. Trate isso como
+reparo, não como operação de rotina.</p>
+<h2 id="execucoes-interrupted">Execuções INTERRUPTED<a class="headerlink" href="#execucoes-interrupted" title="Permanent link">&para;</a></h2>
+<p>Uma execução deixada em <code>QUEUED</code> ou <code>RUNNING</code> por um processo que morreu é pior que uma errada: o
+índice único parcial bloquearia aquele worker para sempre. No boot, <code>api/lifespan.py</code> marca toda
+linha assim como <code>INTERRUPTED</code>, com <code>finished_at</code> e o texto de erro "O processo anterior terminou
+antes do fim desta execução."</p>
+<p>Nada é retentado automaticamente. Depois de uma execução <code>INTERRUPTED</code>:</p>
+<ol>
+<li>Leia <code>GET /api/v1/system/runs?status=INTERRUPTED</code> (ou o painel) e abra o erro da linha.</li>
+<li>Corrija a causa — um modelo do Ollama faltando, um bucket inalcançável, um banco que estava fora.</li>
+<li>Dispare o worker de novo. Os carimbos por unidade são o que torna isso seguro: a nova execução lê
+   só o que a interrompida não terminou.</li>
+</ol>
+<p>A recuperação assume <strong>um único processo da API</strong>. Com <code>uvicorn --workers &gt; 1</code>, o boot de um processo
+marcaria a execução viva de um irmão como interrompida, então escalar exige tirar o executor (e a
+recuperação) de dentro da API antes. O índice único parcial continua válido nos dois casos.</p>
+<h2 id="agendamento">Agendamento<a class="headerlink" href="#agendamento" title="Permanent link">&para;</a></h2>
+<p>Hoje não existe agendador. Na prática, isso significa que um cron externo — ou qualquer orquestrador
+que você já opere — tem de pendurar em uma das duas entradas:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># No host, a partir da raiz do repositório.</span>
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scrinalia.domains.archive.workers.runner<span class="w"> </span>embedding<span class="w"> </span>--by<span class="w"> </span><span class="s2">&quot;cron&quot;</span>
+
+<span class="c1"># Ou pela API, que enfileira a execução e retorna na hora.</span>
+curl<span class="w"> </span>-sS<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span><span class="s2">&quot;http://localhost:8000/api/v1/system/workers/embedding/runs&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Origin: http://localhost:8000&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-b<span class="w"> </span><span class="s2">&quot;scrinalia_session=&lt;cookie&gt;&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;db_batch_size&quot;: 100}&#39;</span>
+</code></pre></div>
+<p>Dois avisos que o desenho deixa explícitos:</p>
+<ul>
+<li><strong>Uma execução pode durar mais que o intervalo do cron.</strong> A rota responde <code>201</code> assim que a
+  execução entra na fila, então o cron não tem como saber se a anterior terminou. Agende num período
+  maior que uma execução, ou leia o ledger antes de disparar.</li>
+<li><strong>A concorrência é recusada pelo banco, não por um lock.</strong> O índice único parcial rejeita a segunda
+  execução em andamento do mesmo worker; a API responde <code>409</code> e a CLI levanta a mesma recusa. Nada no
+  processo serializa as chamadas, então a garantia vale entre processos, através de um reload e mesmo
+  quando a CLI e o painel discordam sobre quem manda. Disparar um worker <strong>diferente</strong> é aceito
+  mesmo com outro rodando — ele entra na fila atrás dos demais — porque o índice limita a uma
+  execução por worker; <code>WORKER_RUNTIME_MAX_WORKERS</code> decide quantos o painel mesmo roda de uma vez.</li>
+</ul>
+<p>A rota da API é uma mutação, então também exige sessão de <code>ADMIN</code> autenticada e cabeçalho <code>Origin</code> de
+mesma origem. Um cron em host remoto é mais simples pela CLI.</p>
+<h2 id="lendo-as-falhas">Lendo as falhas<a class="headerlink" href="#lendo-as-falhas" title="Permanent link">&para;</a></h2>
+<p><code>GET /api/v1/system/failures</code> agrupa <strong>os dois</strong> ledgers de erro pela mesma chave: a coluna gerada
+<code>error_fingerprint</code>, calculada pelo PostgreSQL a partir do texto de erro em <code>archive_worker_runs</code> e
+em <code>archive_api_errors</code>. Uma causa raiz que quebrou uma execução de worker e uma requisição HTTP
+aparece uma vez, com <code>sources</code> (<code>WORKER</code>, <code>API</code> ou os dois) dizendo onde foi vista.</p>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>Significado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fingerprint</code></td>
+<td>a identidade do grupo e o filtro que leva de volta às ocorrências</td>
+</tr>
+<tr>
+<td><code>sample</code></td>
+<td>a ocorrência mais recente, sem normalização — o fingerprint lê como chave, não como frase</td>
+</tr>
+<tr>
+<td><code>occurrences</code></td>
+<td>quantas vezes aconteceu na janela</td>
+</tr>
+<tr>
+<td><code>first_seen</code>, <code>last_seen</code></td>
+<td>a janela em que aconteceu</td>
+</tr>
+<tr>
+<td><code>sources</code></td>
+<td>de qual(is) ledger(s) veio</td>
+</tr>
+<tr>
+<td><code>worker_names</code></td>
+<td>os workers que quebrou, quando houver</td>
+</tr>
+<tr>
+<td><code>last_path</code>, <code>last_request_id</code></td>
+<td>a rota e a referência da requisição da última ocorrência de <strong>API</strong> do grupo</td>
+</tr>
+</tbody>
+</table>
+<p>O <code>total</code> da resposta é o número de <strong>grupos</strong> na janela, não a soma das ocorrências. De propósito
+<strong>não há total geral</strong> entre os grupos: uma execução de worker e uma requisição HTTP são unidades
+diferentes, e somá-las produziria um número sobre o qual ninguém age.</p>
+<p>Os dois detalhes que tornam a leitura útil:</p>
+<ul>
+<li><code>last_path</code>/<code>last_request_id</code> vêm da última ocorrência de <strong>API</strong> do grupo, não da última
+  ocorrência de qualquer tipo. Um grupo misto cuja linha mais nova é uma execução de worker ainda
+  tem uma rota e uma referência que vale mostrar.</li>
+<li>O filtro <code>worker</code> recorta as <strong>linhas</strong>, não os grupos. Um grupo que também quebrou a API mantém só
+  as ocorrências de worker, que é o sentido de "este worker falhou"; um grupo só de API sai fora.</li>
+</ul>
+<p>O <code>last_request_id</code> é a costura com o log: o mesmo valor está no registro de <code>ui_stream.jsonl</code> da
+requisição, então um grupo leva ao traceback.</p>
+<h2 id="logs">Logs<a class="headerlink" href="#logs" title="Permanent link">&para;</a></h2>
+<p>O logging é configurado por dois ajustes:</p>
+<table>
+<thead>
+<tr>
+<th>Ajuste</th>
+<th>Padrão</th>
+<th>Significado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LOG_DIR</code></td>
+<td><code>logs</code></td>
+<td>o diretório onde os sinks de arquivo são escritos</td>
+</tr>
+<tr>
+<td><code>LOG_LEVEL</code></td>
+<td><code>INFO</code></td>
+<td>o nível do sink de console e do stream estruturado</td>
+</tr>
+</tbody>
+</table>
+<p>Três sinks são instalados:</p>
+<ul>
+<li>o terminal, em <code>LOG_LEVEL</code>;</li>
+<li><code>logs/critical.log</code>, em <code>ERROR</code>, rotacionado em 10 MB e mantido por 30 dias — o arquivo de
+  post-mortem;</li>
+<li><code>logs/ui_stream.jsonl</code>, em <code>LOG_LEVEL</code>, JSON serializado, rotacionado em 50 MB e mantido por 7
+  dias — o stream estruturado que carrega o id da requisição em todo registro.</li>
+</ul>
+<p>Toda requisição sai com um <code>X-Request-ID</code>: o que o cliente mandou (aceito só quando tem no máximo 64
+caracteres de <code>[A-Za-z0-9._:-]</code>) ou um gerado. Ele é devolvido no cabeçalho da resposta e amarrado ao
+contexto de log, então todo registro escrito enquanto aquela requisição era servida o carrega —
+inclusive o que o handler de exceção não tratada escreve. A SPA o mostra como "referência" ao lado de
+um erro.</p>
+<p>A linha de acesso é escrita pelo mesmo middleware, não pelo uvicorn, porque o registro do uvicorn não
+tem id de requisição:</p>
+<div class="highlight"><pre><span></span><code>↔️ GET /api/v1/system/workers -&gt; 200 em 1842.3 ms
+❌ POST /api/v1/system/workers/ner/runs -&gt; 500 em 12.4 ms
+</code></pre></div>
+<p>Um <code>5xx</code> é aviso, o resto é linha de informação. As duas sondas do orquestrador (<code>/health/live</code> e
+<code>/health/ready</code>) ficam fora da linha de acesso — um orquestrador pergunta a cada poucos segundos e
+rotacionaria um arquivo de 50 MB só com "200 OK" — mas não ficam fora da correlação.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Voltar ao topo
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Rodapé" >
+        
+          
+          <a href="../install/" class="md-footer__link md-footer__link--prev" aria-label="Anterior: Instalação e implantação">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Anterior
+              </span>
+              <div class="md-ellipsis">
+                Instalação e implantação
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../curate/" class="md-footer__link md-footer__link--next" aria-label="Próximo: Curadoria">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Próximo
+              </span>
+              <div class="md-ellipsis">
+                Curadoria
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "navigation.footer", "content.code.copy", "search.highlight", "search.suggest"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copiado para \u00e1rea de transfer\u00eancia", "clipboard.copy": "Copiar para \u00e1rea de transfer\u00eancia", "search.result.more.one": "Mais 1 nesta p\u00e1gina", "search.result.more.other": "Mais # nesta p\u00e1gina", "search.result.none": "Nenhum resultado encontrado", "search.result.one": "1 resultado encontrado", "search.result.other": "# resultados encontrados", "search.result.placeholder": "Digite para iniciar a busca", "search.result.term.missing": "Ausente", "select.version": "Selecione a vers\u00e3o"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

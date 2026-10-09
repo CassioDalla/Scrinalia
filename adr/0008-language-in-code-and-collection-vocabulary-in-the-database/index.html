@@ -1,0 +1,1509 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Archival description cataloguing and AI-driven enrichment (ISAD(G))">
+      
+      
+      
+      
+        <link rel="prev" href="../0007-project-name-scrinalia/">
+      
+      
+        <link rel="next" href="../0009-authentication-and-authorization/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../../pt/adr/0008-language-in-code-and-collection-vocabulary-in-the-database/" hreflang="pt">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>0008 Language in code, collection vocabulary in the database - Scrinalia</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#adr-0008-the-language-lives-in-code-the-collection-vocabulary-lives-in-the-database" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Scrinalia" class="md-header__button md-logo" aria-label="Scrinalia" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Scrinalia
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              0008 Language in code, collection vocabulary in the database
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../pt/adr/0008-language-in-code-and-collection-vocabulary-in-the-database/" hreflang="pt" class="md-select__link">
+              Português (Brasil)
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Scrinalia" class="md-nav__button md-logo" aria-label="Scrinalia" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Scrinalia
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation and deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/operate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/curate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/data-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../0001-litestar-as-http-framework/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0001 Litestar as the HTTP framework
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../0002-src-layout-and-internal-namespace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0002 src layout and internal namespace
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../0003-monorepo-and-curator-frontend-stack/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0003 Monorepo and curator frontend stack
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../0004-worker-execution-from-the-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0004 Worker execution from the API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../0005-observability-without-an-external-service/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0005 Observability without an external service
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../0006-license-and-author-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0006 License and author attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../0007-project-name-scrinalia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0007 Project name Scrinalia
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0008 Language in code, collection vocabulary in the database
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0008 Language in code, collection vocabulary in the database
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decision
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Decision">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-the-language-is-code-one-profile-per-language" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. The language is code: one profile per language
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-the-collection-vocabulary-is-data-two-catalogues-one-screen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. The collection vocabulary is data: two catalogues, one screen
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-the-origin-is-a-parameter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. The origin is a parameter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-dead-configuration-is-removed-not-deprecated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Dead configuration is removed, not deprecated
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rationale" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rationale
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consequences" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consequences
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#alternatives-considered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternatives considered
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#addendum-2026-10-07-the-origins-field-vocabulary-moves-with-the-origin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Addendum (2026-10-07): the origin's field vocabulary moves with the origin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#revisit-trigger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Revisit trigger
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../0009-authentication-and-authorization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0009 Authentication and authorization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../0010-documentation-coverage-and-freshness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    0010 Documentation coverage and freshness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../log/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decision
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Decision">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-the-language-is-code-one-profile-per-language" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. The language is code: one profile per language
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-the-collection-vocabulary-is-data-two-catalogues-one-screen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. The collection vocabulary is data: two catalogues, one screen
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-the-origin-is-a-parameter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. The origin is a parameter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-dead-configuration-is-removed-not-deprecated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Dead configuration is removed, not deprecated
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rationale" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rationale
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consequences" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consequences
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#alternatives-considered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternatives considered
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#addendum-2026-10-07-the-origins-field-vocabulary-moves-with-the-origin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Addendum (2026-10-07): the origin's field vocabulary moves with the origin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#revisit-trigger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Revisit trigger
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="adr-0008-the-language-lives-in-code-the-collection-vocabulary-lives-in-the-database">ADR 0008: The language lives in code, the collection vocabulary lives in the database<a class="headerlink" href="#adr-0008-the-language-lives-in-code-the-collection-vocabulary-lives-in-the-database" title="Permanent link">&para;</a></h1>
+<ul>
+<li><strong>Status:</strong> Accepted</li>
+<li><strong>Date:</strong> 2026-10-07</li>
+<li><strong>Applies to:</strong> the commits that removed the dead ArqDoc settings, moved the Portuguese data
+  into <code>core/language</code>, added the two vocabulary catalogues and made the scraper adapter receive
+  its origin.</li>
+</ul>
+<h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
+<p>Phase 5 listed "decouple what is specific to one institution" among the 1.0 blockers, with three
+measured items: the dead <code>ARQDOC_*</code> settings, the <code>VOCABULARY_BY_TOKEN</code> map of IPPUC/SMU
+secretariats, and the <code>_PLACE_NAME</code> regex holding the bairros of Curitiba. The post-1.0 backlog
+extended the same question to the whole Portuguese language: a 573-line stopword list inside the
+clustering engine, the date grammar inside the staging parser, the street and measure patterns
+inside the subject guard, and the plural rules inside the normaliser.</p>
+<p>Every one of those was a constant read at runtime. For another institution to install the system,
+each had to be replaced without editing the software.</p>
+<p><code>TODO.md</code> left the design question open: <strong>database (table + routes + screen) or a versioned
+configuration file?</strong> The note observed that the three catalogues already in the system — the
+NOBRADE ladder, the subject drawers and the documental typologies — are tables, so consistency
+pulled toward the database.</p>
+<p><strong>The question as posed was the wrong shape, because it treated one class of data as two.</strong>
+Looking at what each artefact actually decides, the artefacts fall into three families with
+different owners and different lifecycles:</p>
+<ol>
+<li><strong>The language.</strong> <code>STOPWORDS_BR</code> (573 lines, zero test coverage), the date expressions
+   (<code>década de</code>, <code>anos</code>, <code>a</code>/<code>até</code>), the street prefixes (<code>rua</code>, <code>avenida</code>, <code>praça</code>), the
+   placeholder spellings (<code>não identificado</code>), the measure units (<code>anos</code>, <code>meses</code>, <code>metros</code>) and
+   the plural endings (<code>ões</code>→<code>ão</code>). These are properties of Portuguese, not of the archive.</li>
+<li><strong>The collection.</strong> The arrangement token map (<code>SMU</code>, <code>ED</code>, <code>AL</code>) and the non-subject terms the
+   guard recognises: the bairros of Curitiba and the person names. These are statements about
+   <em>this</em> archive; another institution's collection has other names.</li>
+<li><strong>The origin.</strong> The scraped site's URLs, which are already configuration — but the adapter read
+   them from the global <code>settings</code> singleton instead of receiving them.</li>
+</ol>
+<p>Two facts forced the split rather than a preference:</p>
+<ul>
+<li><strong>The full-text dictionary reaches a generated column.</strong> <code>search_vector</code> is built with
+  <code>to_tsvector('portuguese', …)</code>. A language cannot be switched by an environment variable alone,
+  because the column is stored. Putting the language in the database would have made a language a
+  row that the schema still would not follow.</li>
+<li><strong>A person's name and a street are answered differently.</strong> <code>is_subject_candidate</code> refuses a
+  street <em>and</em> <code>is_place_term</code> claims it for the PLACE facet, while a person's name goes nowhere.
+  The collection's two families have destinations; the language's three are refusals with no
+  destination. Mixing them in one table would erase that distinction.</li>
+</ul>
+<h2 id="decision">Decision<a class="headerlink" href="#decision" title="Permanent link">&para;</a></h2>
+<p><strong>Three families, three homes.</strong></p>
+<h3 id="1-the-language-is-code-one-profile-per-language">1. The language is code: one profile per language<a class="headerlink" href="#1-the-language-is-code-one-profile-per-language" title="Permanent link">&para;</a></h3>
+<p><code>src/scrinalia/core/language/</code> holds a frozen <code>LanguageProfile</code> stating everything a language
+contributes — stopwords, date grammar, term shapes, plural rules, the full-text dictionary and the
+spaCy model — and <code>pt_BR</code> is the profile the deployment ships. <code>ACERVO_LANGUAGE</code> selects it.</p>
+<p>The <strong>rules did not move</strong>: <code>staging/dates.py</code> still parses dates, <code>domain/vocabulary.py</code> still
+guards terms, <code>domain/normalization.py</code> still singularises. They now read the profile instead of
+carrying a copy of its data, so a second language adds a profile rather than a second parser.</p>
+<h3 id="2-the-collection-vocabulary-is-data-two-catalogues-one-screen">2. The collection vocabulary is data: two catalogues, one screen<a class="headerlink" href="#2-the-collection-vocabulary-is-data-two-catalogues-one-screen" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>archive_arrangement_vocabulary</code> — token (or whole code) to the name the hierarchy proposal
+  suggests. The whole code wins over its last token, which is what lets <code>BR PRADAP</code> have a name of
+  its own next to <code>SMU</code>.</li>
+<li><code>archive_collection_terms</code> — the non-subject terms, typed by <code>CollectionTermKind</code>
+  (<code>DISTRICT</code>, <code>MUNICIPALITY</code>, <code>STATE</code>, <code>REGION</code>, <code>COUNTRY</code>, <code>PERSON</code>). A place kind claims the
+  PLACE facet; <code>PERSON</code> goes nowhere.</li>
+</ul>
+<p><code>GET/POST/PATCH /api/v1/vocabulary</code> exposes both and <code>apps/curator</code> renders them at
+<code>/vocabulario</code>. Like the other three catalogues, <strong>neither deletes</strong>: <code>is_active=false</code> retires a
+row, because removing an arrangement name would make the proposal suggest nothing again and
+removing a collection term would make a term the archivist refused come back into the subject axis.</p>
+<p>The guard stays <strong>pure and deterministic</strong>: it is handed a <code>CollectionVocabulary</code> value object
+instead of reading a constant, and an installation whose catalogue is empty refuses nothing of its
+own. There is deliberately <strong>no fallback to the reference collection</strong> — a fallback would make
+every other institution's installation silently Curitiba.</p>
+<p>The migration seeds the reference collection, so the deployment's behaviour is unchanged: 38
+arrangement terms and 71 collection terms (55 places and 16 person names). The seed is duplicated
+in the migration on purpose — a migration must keep describing the state it produced — and pinned
+against the domain mirror by a test, the pattern the NOBRADE ladder and the subject drawers already
+follow.</p>
+<h3 id="3-the-origin-is-a-parameter">3. The origin is a parameter<a class="headerlink" href="#3-the-origin-is-a-parameter" title="Permanent link">&para;</a></h3>
+<p><code>SourceConfig</code> (<code>domains/ingestion/ports.py</code>) carries what a scraping adapter needs to reach its
+origin, and <code>PMCScraperAdapter</code> takes it as a parameter. <code>build_scraper_adapter()</code> in the ingestion
+worker is the only place that reads <code>PUBLIC_SCRAPE_*</code>, and it fails fast on a missing URL.</p>
+<p><strong>The selectors and the Portuguese field names scraped from the page stay inside the adapter.</strong>
+They are the contract with <em>that</em> site; no configuration value abstracts an HTML layout. This is
+the line between "the adapter declares what it needs" and "the adapter is generic", and only the
+first was the goal.</p>
+<p><code>SourceSchema</code> (same module) carries the other half of the origin's contract: which of the site's
+labels fills which staging column, the keys the adapter itself writes, and which fields carry the
+date. It reaches the transform as <strong>validation context</strong> (<code>StagingDocumentDTO.model_validate(data,
+context={...})</code>) and <code>ACERVO_SOURCE</code> names it. There is <strong>no default</strong> — see the addendum below,
+which corrects the first version of this ADR.</p>
+<h3 id="4-dead-configuration-is-removed-not-deprecated">4. Dead configuration is removed, not deprecated<a class="headerlink" href="#4-dead-configuration-is-removed-not-deprecated" title="Permanent link">&para;</a></h3>
+<p><code>ARQDOC_BASE_URL</code> and <code>ARQDOC_VIEW_ENDPOINT</code> existed in <code>config.py</code>, were read by nothing but the
+health panel, and are gone — along with <code>arqdoc_configured</code> from <code>ProcessHealthDTO</code>, which took the
+OpenAPI document and the generated client with it.</p>
+<h2 id="rationale">Rationale<a class="headerlink" href="#rationale" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>The owner decides the split, and the split follows the owner.</strong> The archivist owns the names of
+  their collection and must edit them without a deploy; nobody owns the Portuguese plural rules, and
+  a curator editing them would be changing what the software means by a word.</li>
+<li><strong>A language is not a row.</strong> A profile is a constant of the process, testable in isolation, and a
+  second language is a module — the alternative is a database that must be populated correctly
+  before the parser works at all.</li>
+<li><strong>The database gives the catalogue the same properties as the three that exist</strong>: no deploy to
+  change a name, retirement instead of deletion, and one place the read model comes from.</li>
+<li><strong>The system is single-institution by construction, and the ADR says so rather than inventing a
+  tenant.</strong> Measured across all 30 tables, there is no <code>institution_id</code>, <code>collection_id</code> or
+  <code>organization_id</code> anywhere; the deployment <em>is</em> the institution. The catalogues are therefore
+  global, and plural institutions in one installation is a separate decision that would need a
+  scope column on every reader — not something to smuggle in through the vocabulary.</li>
+</ul>
+<h2 id="consequences">Consequences<a class="headerlink" href="#consequences" title="Permanent link">&para;</a></h2>
+<p>Positive:</p>
+<ul>
+<li>Another institution replaces the names it disagrees with through the screen, and the software
+  carries no Curitiba constant that reaches a worker.</li>
+<li>The Portuguese data has one home, which is what makes a second language a module instead of an
+  audit.</li>
+<li>The guard is more testable than before: <code>testing/unit/archive/domain/test_vocabulary.py</code> pins the
+  language's verdicts, <code>test_collection_vocabulary.py</code> pins the seed mirror and the lookup rule, and
+  <code>testing/unit/core/test_language.py</code> proves the rules <em>read</em> the profile by swapping it for a fake
+  one.</li>
+<li><code>ACERVO_LANGUAGE</code> is a real seam: the FTS dictionary and the NER model come from the profile, so a
+  language change surfaces as <code>alembic check</code> drift instead of a silently mixed installation.</li>
+</ul>
+<p>Negative, and accepted:</p>
+<ul>
+<li><strong>Changing the language is a schema change, not a reboot.</strong> The generated <code>search_vector</code> is built
+  with the profile's dictionary, so a new language needs a migration that rebuilds it. This is
+  stated in <code>config.py</code>, in <code>.env.example</code> and here, because it is the one place where the profile
+  reaches stored data.</li>
+<li><strong>The seed mirror is a second copy of the reference vocabulary</strong>, kept honest only by a test. That
+  is the same trade the three existing catalogues made, and the alternative — importing application
+  code into a migration — would make replaying history depend on the current constants.</li>
+<li><strong>The language pack does not make the product multilingual.</strong> Prompts written to reason about
+  Portuguese text and the ~334 Portuguese strings in the SPA are untouched: the first is deliberate
+  (<code>AGENTS.md</code>), the second is the i18n item in the post-1.0 backlog and <code>routeMessage()</code> remains
+  the seam where it lands. The origin's field labels were the third item in this list and moved —
+  see the addendum.</li>
+<li><strong><code>domain_stopwords</code> is not the language's stopword list and must never become it.</strong>
+  <code>domain_stopwords</code> is a curator's decision about the <em>subject axis</em>, scoped by <code>word_scope</code>;
+  <code>PT_BR.stopwords</code> is what the clustering engines discard before vectorising. Collapsing them would
+  let a NER veto silence a tag the curator kept.</li>
+<li><strong>The database name <code>memoriacuritibana</code> still carries the city.</strong> It is data identity, and ADR
+  0007 already decided it stays. <strong>Resolved for a fresh install:</strong> the <em>default</em> in <code>core/config.py</code>
+  and in both <code>docker-compose.yml</code> stanzas is now <code>scrinalia</code>, so a clone no longer points at somebody
+  else's catalogue. An installation that already has the old database keeps its name — renaming a
+  database is a data operation, not a code one — and says so in its own <code>.env</code>.</li>
+</ul>
+<h2 id="alternatives-considered">Alternatives considered<a class="headerlink" href="#alternatives-considered" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Everything in the database</strong> — one settings table for the language, one for the collection. The
+  consistency argument was real, and it was rejected on two grounds: the FTS dictionary cannot be a
+  row without the schema following it, and a parser that needs a populated table to work is a
+  bootstrap problem the project does not have today.</li>
+<li><strong>Everything in a versioned configuration file</strong> (TOML/YAML per institution). Simpler to audit and
+  version, and rejected because it moves the edit the archivist most needs — a name their collection
+  carries — behind a deploy, which is exactly the property the three existing catalogues were built
+  to avoid.</li>
+<li><strong>A hybrid: defaults in code plus a database override</strong>, like <code>archive_worker_settings</code>. Rejected
+  because the default would then be the reference collection, and "the default is Curitiba" is the
+  defect this ADR exists to remove.</li>
+<li><strong>Keeping the constants and documenting them as the reference profile.</strong> Rejected: the reference
+  collection is data, and the code would still be the only way to change it.</li>
+<li><strong>A <code>SourceConfig</code> that also carries the selectors</strong>, so the adapter becomes fully generic.
+  Rejected as a fiction: an HTML layout is not configuration, and a config file that pretends to
+  describe one would break on the first redesign of the site.</li>
+</ul>
+<h2 id="addendum-2026-10-07-the-origins-field-vocabulary-moves-with-the-origin">Addendum (2026-10-07): the origin's <em>field vocabulary</em> moves with the origin<a class="headerlink" href="#addendum-2026-10-07-the-origins-field-vocabulary-moves-with-the-origin" title="Permanent link">&para;</a></h2>
+<p>The first version of this ADR listed "the ISAD(G) keys that must match the external payload" among
+the things that stay untouched. That was <strong>half right, and the wrong half was load-bearing</strong>: the
+keys stay <em>untranslated</em>, but they were living in the wrong place.</p>
+<p><code>StagingDocumentDTO.map_raw_to_staging</code> carried a 28-entry map of the site's Portuguese labels
+(<code>Código de Referência</code>, <code>Âmbito e Conteúdo</code>, …) to the ISAD(G) attributes, plus the keys the PMC
+adapter writes (<code>_url_origem</code>, <code>attch_down_link</code>, <code>title</code>, <code>thumb_down_link</code>) and the two date
+fields. The staging domain — which is domain logic, and belongs to no institution — knew one site's
+vocabulary, and a second origin would have had to edit the transform.</p>
+<p>The map is now a <code>SourceSchema</code> declared next to the adapter that reads the page, selected by
+<code>ACERVO_SOURCE</code>, and handed to the transform as validation context. Three consequences worth
+recording:</p>
+<ol>
+<li><strong>The labels are still never translated.</strong> They are the keys of the payload; translating one
+   would make it stop matching. The move is about <em>where they live</em>, not about the language.</li>
+<li><strong>The transform is now source-agnostic</strong>, including the adapter's private keys: a source whose
+   thumbnail key is <code>thumb_url</code> declares it and lands on the <code>thumb_down_link</code> column.</li>
+<li><strong>There is no default origin.</strong> A fallback would make an installation that never declared its
+   origin read the reference site's labels — the same defect this ADR removed from the collection
+   vocabulary, repeated one layer down. <code>get_source_schema()</code> raises instead.</li>
+</ol>
+<p>The same pass unified a defect the review surfaced: <strong>"the origin wrote nothing" was declared four
+times</strong> (the date parser, the subject guard's regex, the staging text cleaner and the title
+validator), and <code>não informado</code> alone was in three of them. The spellings now live in the language
+profile as <code>false_null_values</code>, with the date set and the subject pattern as declared views of it.
+The subject view is deliberately a <strong>subset</strong>: the guard's verdicts are a measured behaviour (1.489
+of the 8.155 real tags) and widening them would change which tags reach the classifier, which is a
+classification decision and not a cleanup.</p>
+<p><strong>One behaviour changed, and it is a fix.</strong> A record whose payload title was a placeholder
+(<code>não informado</code>) was <strong>rejected by staging</strong>, because <code>title</code> is required and the false-null
+cleaning turned it into <code>None</code> — the whole document was lost to a placeholder. The title now falls
+back to the profile's <code>untitled_title</code> (<code>SEM TÍTULO</code>), which is what the quality validator already
+recognises as an empty title.</p>
+<h2 id="revisit-trigger">Revisit trigger<a class="headerlink" href="#revisit-trigger" title="Permanent link">&para;</a></h2>
+<p>Revisit if a single installation ever has to serve <strong>two institutions or two collections at once</strong>.
+The catalogues are global precisely because the deployment is the institution, and the first real
+requirement for plural collections invalidates that premise everywhere — not only in the vocabulary,
+but in every reader that today assumes one collection. Also revisit if a second language is added:
+that is the moment to check whether the profile contract is complete, and the first profile written
+after <code>pt_BR</code> is the only honest test of it.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../0007-project-name-scrinalia/" class="md-footer__link md-footer__link--prev" aria-label="Previous: 0007 Project name Scrinalia">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                0007 Project name Scrinalia
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../0009-authentication-and-authorization/" class="md-footer__link md-footer__link--next" aria-label="Next: 0009 Authentication and authorization">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                0009 Authentication and authorization
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "navigation.footer", "content.code.copy", "search.highlight", "search.suggest"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
