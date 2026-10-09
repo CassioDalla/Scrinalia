@@ -967,7 +967,7 @@ function ProposalsTab({
         <Notice tone="warn" as="div" className="flex flex-wrap items-center gap-3">
           <span className="text-xs text-(--color-warn)">
             <strong>{formatCount(approvedNotSelected.length)}</strong> cluster(s) aprovado(s) nesta página{" "}
-            <strong>ainda não foram mesclados</strong>: aprovar registra a intenção, e só o apply absorve as tags.
+            <strong>ainda não foram mesclados</strong>: aprovar registra a intenção, e só a aplicação absorve as tags.
             Enquanto ele não roda, o ledger abaixo não muda.
           </span>
           <Button

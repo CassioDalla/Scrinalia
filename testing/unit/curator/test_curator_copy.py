@@ -81,7 +81,11 @@ ALLOWED: tuple[tuple[str, str, str], ...] = ()
 
 #: A double-quoted literal, and a JSX text node. Both are what a person can read on the screen.
 LITERAL = re.compile(r'"([^"\n]{2,})"')
-JSX_TEXT = re.compile(r'>\s*([A-Za-zÀ-ÿ][^<>{}"\n]{2,}?)\s*<')
+#: The text node allows **newlines**, and that is not a detail: a sentence the formatter wrapped
+#: across two lines is one string, and a pattern that stopped at the newline read only its first
+#: half. `só o apply absorve as tags` sat on the second line and went unseen by the whole review
+#: pass *and* by the first version of this gate — the rendered screen is what showed it.
+JSX_TEXT = re.compile(r'>([^<>{}"]{2,})<')
 COMMENT = re.compile(r"/\*.*?\*/|^\s*//[^\n]*", re.M | re.S)
 
 #: A path — a contract route or a front-end one — which is an identifier and never copy. It is why
@@ -96,12 +100,14 @@ def visible_strings(path: Path) -> list[str]:
     """Every string of a source file that can reach the screen.
 
     Comments are read out first: they are English, they carry `rung` and `apply` on purpose, and a
-    comment is not copy. The extraction is a scan and not a parser — it takes every double-quoted
-    literal and every JSX text node — which is why a legitimate use of a retired word needs an entry
-    in `ALLOWED` instead of a cleverer pattern.
+    comment is not copy. The extraction is a scan and not a parser — every double-quoted literal and
+    every JSX text node, the latter with its whitespace collapsed — which is why a legitimate use of
+    a retired word needs an entry in `ALLOWED` instead of a cleverer pattern.
     """
     body = COMMENT.sub("", text(path))
-    return [value for value in LITERAL.findall(body) + JSX_TEXT.findall(body) if not PATH.match(value)]
+    nodes = [" ".join(node.split()) for node in JSX_TEXT.findall(body)]
+    found = LITERAL.findall(body) + [node for node in nodes if re.search(r"[A-Za-zÀ-ÿ]", node)]
+    return [value for value in found if not PATH.match(value)]
 
 
 def test_no_retired_word_is_visible() -> None:
@@ -129,6 +135,14 @@ def test_the_extractor_sees_strings() -> None:
     assert len(seen) > 20, f"the extractor found {len(seen)} strings in `lib/screens.ts`; the pattern is broken."
     assert any(value == "As gavetas de assunto" for value in seen), (
         "the extractor no longer reads a plain literal from `lib/screens.ts`."
+    )
+    # A sentence the formatter wrapped across two lines is one string. The first version of this
+    # pattern stopped at the newline and read only its first half, which is how `só o apply absorve
+    # as tags` survived the review pass and the gate both.
+    tags = visible_strings(SRC / "routes" / "TagsRoute.tsx")
+    assert any("só a aplicação absorve as tags" in value for value in tags), (
+        "the extractor no longer joins a JSX text node across lines; the retired-word rule has a "
+        "hole for every sentence the formatter wrapped."
     )
 
 
