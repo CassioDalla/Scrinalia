@@ -129,18 +129,43 @@ def test_no_retired_word_is_visible() -> None:
     )
 
 
-def test_the_extractor_sees_strings() -> None:
-    """A sanity check on the scan itself, so a broken pattern fails instead of passing silently."""
+def test_the_extractor_sees_strings(tmp_path: Path) -> None:
+    """A sanity check on the scan itself, so a broken pattern fails instead of passing silently.
+
+    The input is **synthetic**: the behaviour under test is the scan, not the copy of the day. The
+    first version of this test pinned the hint "As gavetas de assunto" and broke the day the copy
+    was rewritten — a test failing for doing its job. Copy changes; the scan must not care.
+    """
+    sample = tmp_path / "Sample.tsx"
+    sample.write_text('export const SAMPLE = { label: "Um rótulo qualquer" };\n', encoding="utf-8")
+    assert any(value == "Um rótulo qualquer" for value in visible_strings(sample)), (
+        "the extractor no longer reads a double-quoted literal."
+    )
+
     seen = visible_strings(SCREENS)
     assert len(seen) > 20, f"the extractor found {len(seen)} strings in `lib/screens.ts`; the pattern is broken."
-    assert any(value == "As gavetas de assunto" for value in seen), (
-        "the extractor no longer reads a plain literal from `lib/screens.ts`."
+
+
+def test_the_extractor_joins_a_wrapped_text_node(tmp_path: Path) -> None:
+    """A sentence the formatter wrapped across two lines is **one** string.
+
+    The first version of the pattern stopped at the newline and read only the first half, which is
+    how `só o apply absorve as tags` survived the whole review pass *and* the gate — the rendered
+    screen is what showed it. Synthetic input, for the same reason as above.
+    """
+    sample = tmp_path / "Sample.tsx"
+    sample.write_text(
+        "export function Sample() {\n"
+        "  return (\n"
+        "    <p>\n"
+        "      primeira linha da frase\n"
+        "      segunda linha com apply dentro\n"
+        "    </p>\n"
+        "  );\n"
+        "}\n",
+        encoding="utf-8",
     )
-    # A sentence the formatter wrapped across two lines is one string. The first version of this
-    # pattern stopped at the newline and read only its first half, which is how `só o apply absorve
-    # as tags` survived the review pass and the gate both.
-    tags = visible_strings(SRC / "routes" / "TagsRoute.tsx")
-    assert any("só a aplicação absorve as tags" in value for value in tags), (
+    assert any("segunda linha com apply dentro" in value for value in visible_strings(sample)), (
         "the extractor no longer joins a JSX text node across lines; the retired-word rule has a "
         "hole for every sentence the formatter wrapped."
     )
