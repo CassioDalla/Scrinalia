@@ -12,7 +12,6 @@ import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
 import { LedgerList } from "@/components/ui/LedgerList";
-import { Notice } from "@/components/ui/Notice";
 import { PageBody } from "@/components/layout/PageBody";
 import { ACTION } from "@/lib/copy";
 import { descricoes, formatCount } from "@/lib/format";
@@ -94,13 +93,6 @@ export function SubjectExclusionsRoute() {
       />
 
       <PageBody className="max-w-4xl">
-        <Notice tone="accent">
-          O guard determinístico pega o que tem forma — data, placeholder, logradouro, número — e na
-          medição real ele pegou <strong>1 de 4</strong> dos não-assuntos do gabarito. O resto é
-          julgamento semântico que nenhuma regra resolve. <strong>Banir não exclui nada:</strong> a tag
-          continua no acervo e alcançável pela busca; só a classificação de assunto para de adivinhar.
-        </Notice>
-
         {/*
           The computed candidates, not three hardcoded examples.
 

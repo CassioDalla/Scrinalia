@@ -78,27 +78,27 @@ export const SCREENS: Record<ScreenId, Screen> = {
   },
   collection: {
     path: "/acervo/lista",
-    label: "Lista e busca",
-    hint: "Facetas e ranking",
-    description: "Busca lexical e semântica do acervo, com as facetas e o ranking na URL.",
+    label: "Lista e Busca",
+    hint: "Facetas e Filtros",
+    description: "Busca lexical e semântica do acervo.",
   },
   tree: {
     path: "/acervo/arvore",
     label: "Árvore",
-    hint: "Navegar pelo arranjo",
+    hint: "Hierarquia do Acervo",
     description:
       "Navegação pelo arranjo materializado. Escolher um nó mostra o ramo e as descrições que ele contém.",
   },
   deletions: {
     path: "/acervo/excluidas",
     label: "Excluídas",
-    hint: "A trilha do que saiu",
+    hint: "A trilha do que foi excluído",
     description:
       "O retrato do que saiu — código, título, nível e o conteúdo ISAD(G) inteiro — porque a exclusão é definitiva e nada aqui restaura.",
   },
   diagnostics: {
     path: "/arranjo/diagnostico",
-    label: "Diagnóstico do arranjo",
+    label: "Diagnóstico do Arranjo",
     hint: "Onde está incoerente",
     description:
       "Onde o acervo está incoerente. Nenhuma correção acontece sozinha: cada linha mostra a evidência e leva ao lugar onde se decide.",
@@ -106,31 +106,31 @@ export const SCREENS: Record<ScreenId, Screen> = {
   tags: {
     path: "/assuntos/tags",
     label: "Tags",
-    hint: "Peso, duplicatas e merges",
-    description: "Peso, duplicatas e a fila de merges — a decisão é sempre sua, e o merge é reversível.",
+    hint: "Peso, Duplicatas e Mesclagem",
+    description: "Peso, duplicatas e a fila de mesclagem.",
   },
   categories: {
     path: "/assuntos/categorias",
     label: "Categorias",
-    hint: "As gavetas de assunto",
+    hint: "Organização dos Assuntos",
   },
   discover: {
     path: "/assuntos/descobrir",
-    label: "Descobrir gavetas",
-    hint: "Clusters por tema",
-    description: "Agrupa o vocabulário por tema para achar o assunto que ainda não tem gaveta.",
+    label: "Descobrir Categorias",
+    hint: "Agrupamentos por tema",
+    description: "Agrupa o vocabulário por tema para achar o assunto que ainda não foi classificado.",
   },
   subjectExclusions: {
     path: "/assuntos/excecoes",
-    label: "Não é assunto",
-    hint: "O que a regra não pega",
+    label: "Não é Assunto",
+    hint: "O que a regra não considera",
     description:
-      "Os termos que a classificação de assunto não deve adivinhar. Banir não exclui a tag: ela continua no acervo e alcançável pela busca.",
+      "Os termos que a classificação de assunto não deve adivinhar. Banir não exclui a Tag: ela continua no acervo e alcançável pela busca.",
   },
   entities: {
     path: "/entidades/lista",
-    label: "Entidades",
-    hint: "NER: peso, tipo e merge",
+    label: "Entidades Nomeadas (NER)",
+    hint: "Relevância, Tipo e Mesclagem",
   },
   nerExclusions: {
     path: "/entidades/excecoes",
@@ -140,7 +140,7 @@ export const SCREENS: Record<ScreenId, Screen> = {
   conflicts: {
     path: "/entidades/conflitos",
     label: "Conflitos",
-    hint: "Assunto x nome próprio",
+    hint: "Assunto x Nome Próprio",
   },
   textTemplates: {
     path: "/qualidade/trechos",

@@ -103,11 +103,11 @@ export function NerExclusionsRoute() {
           read, and the labelled button is what makes it findable.
         */}
         <Disclosure
-          triggerLabel="+ Vetar termos"
+          triggerLabel="+ Vetar Termos"
           toggleLabel="Vetar termos"
           header={
             <div className="grid gap-1">
-              <span className="text-sm font-semibold">Vetar termos</span>
+              <span className="text-sm font-semibold">Vetar Termos</span>
               <span className="text-xs text-(--color-muted)">
                 O veto vale para o termo inteiro e exclui as entidades já extraídas dessa grafia.
               </span>
@@ -211,105 +211,6 @@ export function NerExclusionsRoute() {
             </CardBody>
           </Card>
         ) : null}
-
-        <Disclosure
-          triggerLabel="+ Vetar termos"
-          toggleLabel="Vetar termos"
-          header={
-            <div className="grid gap-1">
-              <span className="text-sm font-semibold">Vetar termos</span>
-              <span className="text-xs text-(--color-muted)">
-                O veto vale para o termo inteiro e exclui as entidades já extraídas dessa grafia.
-              </span>
-            </div>
-          }
-        >
-          <div className="grid gap-2">
-            <p className="text-xs text-(--color-muted)">
-              Separe por vírgula ou quebra de linha. O motivo é guardado para auditoria — e ele é o que
-              explica a decisão para quem abrir a lista depois.
-            </p>
-            <Input
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="termos, separados por vírgula"
-            />
-            <Textarea
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              placeholder="por que este termo é assunto e não nome próprio"
-              rows={2}
-            />
-            <div>
-              <Button
-                variant="primary"
-                disabled={draft.trim().length === 0 || ban.isPending}
-                onClick={() => ban.mutate()}
-              >
-                {ban.isPending ? "Vetando…" : "Vetar e expurgar do passado"}
-              </Button>
-            </div>
-            {ban.data ? (
-              <p className="text-xs text-(--color-muted)">
-                {routeMessage(ban.data)} {formatCount(ban.data.entities_deleted)} entidades excluídas.
-              </p>
-            ) : null}
-            {ban.error ? <ErrorState error={ban.error} /> : null}
-            {unban.error ? <ErrorState error={unban.error} /> : null}
-          </div>
-        </Disclosure>
-
-        {exclusions.error ? <ErrorState error={exclusions.error} /> : null}
-        {exclusions.isPending ? <Spinner /> : null}
-
-        {exclusions.data && rows.length === 0 ? (
-          <EmptyState
-            title="Nenhum termo vetado"
-            hint={
-              <>
-                O veto é a decisão “isto é assunto, não nome próprio”. Ele é escrito pelo juiz de
-                conflitos em <Link to="/entidades/conflitos" className="underline">/entidades/conflitos</Link>{" "}
-                ou por você aqui. Enquanto o NER não rodar no acervo, esta lista nasce vazia.
-              </>
-            }
-          />
-        ) : null}
-
-        <ul className="grid gap-2">
-          {rows.map((row) => (
-            <li key={row.term}>
-              <Card>
-                <CardBody className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium">{row.term}</span>
-                    <Badge tone={row.source === "JUDGE" ? "accent" : "ok"} title={EXCLUSION_SOURCE_HINT[row.source]}>
-                      {labelOf(EXCLUSION_SOURCE_LABEL, row.source)}
-                    </Badge>
-                    {row.tag_id !== null ? (
-                      <Badge tone="neutral" title="A tag que justifica a decisão">
-                        tag #{row.tag_id}
-                      </Badge>
-                    ) : null}
-                    <span className="text-xs text-(--color-muted)">{formatDateTime(row.created_at)}</span>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={unban.isPending}
-                    title="O extrator volta a considerar o termo"
-                    onClick={() => unban.mutate(row.term)}
-                  >
-                    {ACTION.remove.label}
-                  </Button>
-                </CardBody>
-                {row.reason ? (
-                  <CardBody className="pt-0 text-xs text-(--color-muted)">{row.reason}</CardBody>
-                ) : null}
-              </Card>
-            </li>
-          ))}
-        </ul>
-
       </PageBody>
     </>
   );

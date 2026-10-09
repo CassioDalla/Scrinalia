@@ -47,26 +47,18 @@ export function DiscoverRoute() {
         screen="discover"
         actions={
           <Link to="/assuntos/categorias">
-            <Button size="sm">Categorias atuais</Button>
+            <Button size="sm">Categorias Atuais</Button>
           </Link>
         }
       />
 
       <PageBody className="max-w-4xl">
-        <Notice tone="accent">
-          O vocabulário cresceu de 5 para 8 gavetas porque a medição pediu: <code>igrejas</code> alcança
-          <strong> 2.467 documentos</strong> — a maior tag do acervo — e não havia "Religião" para ela.
-          Nenhum rótulo conserta uma gaveta inexistente. As gavetas que saíram (<em>Instituição</em>,{" "}
-          <em>Localidade</em>, <em>Pessoa</em>) não eram ruins: são proveniência e geografia, não assunto.
-        </Notice>
-
         <Card>
           <CardHeader className="text-sm font-semibold">Agrupar por tema</CardHeader>
           <CardBody className="grid gap-2">
             <p className="text-xs text-(--color-muted)">
               Roda o motor de agrupamento de verdade: leva alguns segundos e é um clique deliberado. Os
-              clusters abaixo são só <strong>propostas</strong> — nada entra no vocabulário sem você
-              criar.
+              agrupamentos abaixo são só <strong>propostas</strong> — nada entra no vocabulário sem aprovação.
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -74,17 +66,17 @@ export function DiscoverRoute() {
                 variant={sourceType === "tags" ? "primary" : "secondary"}
                 onClick={() => setSourceType("tags")}
               >
-                a partir das tags
+                A partir das Tags
               </Button>
               <Button
                 size="sm"
                 variant={sourceType === "documents" ? "primary" : "secondary"}
                 onClick={() => setSourceType("documents")}
               >
-                a partir dos documentos
+                A partir dos Documentos
               </Button>
               <Button variant="primary" disabled={suggest.isPending} onClick={() => suggest.mutate()}>
-                {suggest.isPending ? "Agrupando… (pode levar alguns segundos)" : "Propor gavetas"}
+                {suggest.isPending ? "Agrupando… (pode levar alguns segundos)" : "Propor Categorias"}
               </Button>
             </div>
             {suggest.error ? <ErrorState error={suggest.error} /> : null}
@@ -101,7 +93,7 @@ export function DiscoverRoute() {
 
             {suggestions.length === 0 && !routeMessage(suggest.data) ? (
               <EmptyState
-                title="Nenhum cluster novo"
+                title="Nenhum agrupamento novo"
                 hint="O agrupamento não encontrou tema que já não esteja coberto pelas gavetas atuais."
               />
             ) : null}
@@ -181,8 +173,7 @@ function SuggestionCard({
         ) : null}
 
         <p className="text-xs text-(--color-muted)">
-          A gaveta só passa a valer quando o classificador rodar de novo: o carimbo do worker é o hash
-          do conjunto de rótulos.
+          A Categoria só passa a valer quando o classificador rodar de novo.
         </p>
 
         {create.error ? <ErrorState error={create.error} /> : null}

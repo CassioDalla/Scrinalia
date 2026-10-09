@@ -120,9 +120,9 @@ export function EntitiesRoute() {
         pending={relevance.isPending}
         status={
           relevance.data
-            ? `${formatCount(rows.length)} nomes por peso · ${formatCount(
-                rows.reduce((sum, row) => sum + row.total_usage, 0),
-              )} vínculos entre os listados`
+            ? `${formatCount(rows.length)} nomes por relvância · ${formatCount(
+              rows.reduce((sum, row) => sum + row.total_usage, 0),
+            )} vínculos entre os listados`
             : undefined
         }
         actions={
@@ -133,7 +133,7 @@ export function EntitiesRoute() {
             title="Exclui as entidades que nenhuma descrição carrega"
             onClick={() => purgeOrphans.mutate()}
           >
-            {purgeOrphans.isPending ? ACTION.exclude.pending : "Excluir órfãs"}
+            {purgeOrphans.isPending ? ACTION.exclude.pending : "Excluir Órfãs"}
           </Button>
         }
       />
@@ -143,7 +143,7 @@ export function EntitiesRoute() {
           <strong>Reclassificar não é renomear um rótulo.</strong> Ao corrigir o tipo, o serviço grava
           também o sinônimo de ancoragem: o extrator passa a devolver aquela grafia com o tipo novo, em
           toda execução futura. E <strong>mesclar não tem desfazer</strong> — só as tags têm ledger; a
-          entidade absorvida vira sinônimo e não volta.
+          entidade absorvida vira sinônimo e não volta  - TODO arrumar no futuro.
         </Notice>
 
         {purgeOrphans.data ? (
@@ -534,88 +534,88 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
       <ul className="grid gap-2">
         {mode === "specific"
           ? (data as EntitySimilarity[]).map((neighbour) => (
-              <li key={neighbour.entity_id}>
-                <Card>
-                  <CardBody className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="flex items-center gap-2 text-sm">
-                      <span className="font-medium">{neighbour.name}</span>
-                      <Badge tone={ENTITY_TYPE_TONE[neighbour.entity_type] ?? "neutral"}>
-                        {labelOf(ENTITY_TYPE_LABEL, neighbour.entity_type)}
-                      </Badge>
-                      <Badge tone="neutral">{neighbour.similarity.toFixed(3)}</Badge>
-                    </span>
-                    {/*
+            <li key={neighbour.entity_id}>
+              <Card>
+                <CardBody className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="flex items-center gap-2 text-sm">
+                    <span className="font-medium">{neighbour.name}</span>
+                    <Badge tone={ENTITY_TYPE_TONE[neighbour.entity_type] ?? "neutral"}>
+                      {labelOf(ENTITY_TYPE_LABEL, neighbour.entity_type)}
+                    </Badge>
+                    <Badge tone="neutral">{neighbour.similarity.toFixed(3)}</Badge>
+                  </span>
+                  {/*
                       A neighbour row carries no second id: the target is the term that was typed, and
                       the answer does not include its id. Unifying needs both sides, so this list links
                       to the one that has them instead of offering a button it cannot honour.
                     */}
-                    <span className="text-xs text-(--color-muted)">
-                      vizinho de “{target}” — para mesclar, abra a lista de pares (esta resposta não traz o
-                      id do alvo)
-                    </span>
-                  </CardBody>
-                </Card>
-              </li>
-            ))
+                  <span className="text-xs text-(--color-muted)">
+                    vizinho de “{target}” — para mesclar, abra a lista de pares (esta resposta não traz o
+                    id do alvo)
+                  </span>
+                </CardBody>
+              </Card>
+            </li>
+          ))
           : (data as EntityPairSimilarity[]).map((pair) => (
-              <li key={`${pair.id_1}-${pair.id_2}`} className="grid gap-2">
-                <Card>
-                  <CardBody className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={rowMarked(pair)}
-                        onChange={() => toggleRow(pair)}
-                        title="Marcar as duas entidades desta linha para mesclar em conjunto"
-                        aria-label={`Marcar ${pair.name_1} e ${pair.name_2}`}
-                      />
-                      <span className="font-medium">{pair.name_1}</span>
-                      <span className="text-(--color-muted)">({pair.type_1})</span>
-                      {/*
+            <li key={`${pair.id_1}-${pair.id_2}`} className="grid gap-2">
+              <Card>
+                <CardBody className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={rowMarked(pair)}
+                      onChange={() => toggleRow(pair)}
+                      title="Marcar as duas entidades desta linha para mesclar em conjunto"
+                      aria-label={`Marcar ${pair.name_1} e ${pair.name_2}`}
+                    />
+                    <span className="font-medium">{pair.name_1}</span>
+                    <span className="text-(--color-muted)">({pair.type_1})</span>
+                    {/*
                         The identifiers are not decoration: the real vocabulary carries pairs whose
                         two names are *identical* ("Cia." twice, similarity 1.000), and without the
                         ids the confirmation says "mesclar Cia. → Cia." and the archivist cannot
                         tell which row is which.
                       */}
-                      <code className="text-[10px] text-(--color-muted)">#{pair.id_1}</code>
-                      <span className="text-(--color-muted)">≈</span>
-                      <span className="font-medium">{pair.name_2}</span>
-                      <span className="text-(--color-muted)">({pair.type_2})</span>
-                      <code className="text-[10px] text-(--color-muted)">#{pair.id_2}</code>
-                      <Badge tone="neutral">{pair.similarity.toFixed(3)}</Badge>
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => setOpenPair(openPair === pair ? null : pair)}
-                    >
-                      {openPair === pair ? ACTION.close.label : "Mesclar ↦"}
-                    </Button>
-                  </CardBody>
-                </Card>
-                {/*
+                    <code className="text-[10px] text-(--color-muted)">#{pair.id_1}</code>
+                    <span className="text-(--color-muted)">≈</span>
+                    <span className="font-medium">{pair.name_2}</span>
+                    <span className="text-(--color-muted)">({pair.type_2})</span>
+                    <code className="text-[10px] text-(--color-muted)">#{pair.id_2}</code>
+                    <Badge tone="neutral">{pair.similarity.toFixed(3)}</Badge>
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setOpenPair(openPair === pair ? null : pair)}
+                  >
+                    {openPair === pair ? ACTION.close.label : "Mesclar ↦"}
+                  </Button>
+                </CardBody>
+              </Card>
+              {/*
                   In the row's own place, with the canonical choice the button never had — it used to
                   merge ``id_1`` into ``id_1`` by default and say the canonical had to be chosen "noutra
                   aba", which was the screen admitting the decision was not on it.
                 */}
-                {openPair === pair ? (
-                  <MergePanel
-                    members={[
-                      { entity_id: pair.id_1, name: pair.name_1 },
-                      { entity_id: pair.id_2, name: pair.name_2 },
-                    ]}
-                    title="Escolher a canônica e mesclar"
-                    hint={
-                      pair.name_1 === pair.name_2
-                        ? "Os dois nomes são idênticos nesta linha: confira os identificadores antes de decidir."
-                        : undefined
-                    }
-                    onDone={afterMerge}
-                    onCancel={() => setOpenPair(null)}
-                  />
-                ) : null}
-              </li>
-            ))}
+              {openPair === pair ? (
+                <MergePanel
+                  members={[
+                    { entity_id: pair.id_1, name: pair.name_1 },
+                    { entity_id: pair.id_2, name: pair.name_2 },
+                  ]}
+                  title="Escolher a canônica e mesclar"
+                  hint={
+                    pair.name_1 === pair.name_2
+                      ? "Os dois nomes são idênticos nesta linha: confira os identificadores antes de decidir."
+                      : undefined
+                  }
+                  onDone={afterMerge}
+                  onCancel={() => setOpenPair(null)}
+                />
+              ) : null}
+            </li>
+          ))}
       </ul>
 
       {marked.length >= 2 && !clusterOpen ? (
