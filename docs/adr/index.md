@@ -20,3 +20,4 @@ because the obvious alternative was measured and lost.
 | [0008](0008-language-in-code-and-collection-vocabulary-in-the-database.md) | The language is code, the collection vocabulary is data, and the origin is a parameter with no default. |
 | [0009](0009-authentication-and-authorization.md) | First-party sessions in the database, argon2id, three roles, and one access level declared per operation. |
 | [0010](0010-documentation-coverage-and-freshness.md) | The documentation is versioned with the code: coverage is a gate, freshness is a report recorded in a ledger. |
+| [0011](0011-first-run-setup-without-an-open-door.md) | First-run setup: an empty installation creates its first administrator once, under a table lock, and answers 409 forever after. Amends ADR 0009. |
