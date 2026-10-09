@@ -466,7 +466,11 @@ comportamento esperar, e para um limite já pago não ser lido como defeito.
   zera no restart, e é por isso que a defesa durável é a coluna de bloqueio por conta; revogar uma
   sessão registra que ela foi revogada, não **quem** revogou; e OIDC/SSO, segundo fator e recuperação
   de senha por e-mail estão fora de escopo (ADR 0009). A recuperação é o administrador, ou o CLI no
-  host.
+  host. **A primeira conta é uma janela.** Enquanto a `auth_users` estiver vazia, o
+  `POST /api/v1/setup/admin` é público e quem alcançar a instância primeiro pode criar o
+  administrador; o lock de tabela torna duas tentativas simultâneas seguras, e nada torna a janela
+  segura (ADR 0011). Configure a instância antes de expô-la, e leia o `GET /api/v1/setup/status` —
+  `{"needs_setup": true}` numa instância acessível é um convite.
 - **O contrato não declara o cookie de sessão.** O documento OpenAPI não carrega um esquema
   `security` para ele, porque uma exigência global também marcaria as rotas de difusão e as sondas de
   saúde como protegidas (ADR 0009). Um cliente gerado não consegue descobrir a exigência; ele recebe

@@ -17,6 +17,7 @@ sources:
   - src/scrinalia/domains/archive/workers/catalogue.py
   - src/scrinalia/domains/identity/domain/permissions.py
   - packages/api-contract/openapi.json
+  - docs/adr/0011-first-run-setup-without-an-open-door.md
 ---
 
 # Curation
@@ -761,3 +762,8 @@ There is no delete. An account is deactivated, because the ledgers carry its nam
 decision whose author no longer exists is a worse record than a closed account. Revoking a session id
 that belongs to another account answers 404 and not 200, because the id alone must not enumerate
 other people's sign-ins; the row that is the archivist's own session is marked "esta sessão".
+
+The account on this screen is **never the first one**. An installation with no account at all is
+brought to life by the first-run screen it answers to the first visit, or by the CLI on the host, and
+both of those close forever once an account exists — including a deactivated one (ADR 0011). After
+that, this is the only surface that creates accounts.
