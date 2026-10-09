@@ -191,3 +191,45 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   at in a browser. Headless Chromium in this environment dumps core before rendering, so the evidence
   is `tsc`, ESLint, the Vite build and the bundle carrying the screen's text — not pixels. The Tailwind
   tokens used are the ones `LoginForm` already uses.
+
+## 2026-10-09 — recovery gets a front door
+
+- **Range:** `71781bf..6118170`
+- **Pages:**
+  - `guides/operate.md` — **updated**: a new *Recovering access* section, because the page owned the
+    path in a single bullet of its known limits — "the administrator, or the CLI on the host" — which
+    names it without saying how to walk it. The section states which door applies, the administrator's
+    route on the accounts screen (temporary password, sessions ended, lockout lifted, no undo) and the
+    host's route with the four CLI commands, and it records the two absences (no e-mail, no
+    reset-token table). `domains/identity/cli.py`, `domains/identity/services/auth_service.py` and
+    `api/controllers/users_controller.py` joined its `sources:`: the section is a claim about them and
+    they were untracked.
+  - `guides/operate.pt.md` — **updated**: the translation, same commands, and the two in-page anchors
+    rewritten to the Portuguese the build emits (`#recuperar-acesso`).
+  - `guides/curate.md` — **updated**: the page described the accounts screen and never the sign-in
+    screen, which is where recovery now begins. A new *Signing in, and forgetting the password* says
+    the form is not a route, that a failure is one sentence on purpose, and that the disclosure states
+    the path without promising a message. The accounts section went from four facts to five, adding the
+    self-reset that signs the administrator out and the row action that reaches the reset at all.
+    `components/layout/LoginForm.tsx` and `PasswordChangeForm.tsx` joined its `sources:` — the `routes/**`
+    glob already covered `UsersRoute.tsx`.
+  - `guides/curate.pt.md` — **updated**: both, in the SPA's vocabulary.
+- **Verified rather than assumed:** the two screens were **rendered**, not merely built — the API on a
+  throwaway database, the built SPA served at the same origin, driven through CDP. The disclosure's
+  four sentences are legible and the recovery line wraps cleanly; the accounts row shows the new
+  *redefinir senha* beside *desativar*; clicking it opens the card and `document.activeElement` is the
+  password input, so the focus claim in the code comment is measured and not asserted; the self-reset
+  warning renders in the warn tone for the account's own row; and `bg-(--color-warn)/5` is in the
+  emitted CSS as `color-mix(… var(--color-warn) 5% …)`, not as the invalid bracket form.
+- **A method note for the next round:** the full `chromium-<n>/chrome-linux64/chrome` renders here once
+  `HOME`, `TMPDIR` and the two `XDG_*` variables point **inside the workspace**; pointed at the real
+  `$HOME` it dumps core, which is the failure the previous entry recorded. The screenshots came from
+  that binary, not from `chrome-headless-shell`.
+- **What did not move:** the screen count (25) and the menu count (16) — no route was added, and
+  `LoginForm` renders in the shell's slot; the settings table — the issue forbids a new setting and none
+  was added; the data model — no table, no column and no migration; and the API contract, which has
+  carried the reset operation since ADR 0009.
+- **Not carried, on purpose:** the CLI's own `list`/`activate` behaviour beyond the two commands the
+  recovery path needs. The install guide already owns the CLI as the bootstrap, and duplicating its
+  whole surface here would create a second place to correct.
+
