@@ -21,6 +21,7 @@ from scrinalia.api.dependencies import (
 )
 from scrinalia.api.login_rate_limit import LoginRateLimiter
 from scrinalia.api.security import Access, AuthenticatedUser
+from scrinalia.api.session_cookie import write_session_cookie
 from scrinalia.core.config import get_settings
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode, RouteResponse
 from scrinalia.domains.identity.schemas.auth_schema import LoginCommand
@@ -64,7 +65,7 @@ class AuthController(Controller):
             ip_address=request.client.host if request.client else None,
         )
         response: Response[AuthUserDTO] = Response(AuthUserDTO.model_validate(user), status_code=200)
-        self._write_session_cookie(response, token)
+        write_session_cookie(response, token)
         return response
 
     @post(
@@ -143,17 +144,4 @@ class AuthController(Controller):
                 code=RouteMessageCode.PASSWORD_CHANGED,
                 message="Senha alterada. As outras sessões desta conta foram encerradas.",
             )
-        )
-
-    def _write_session_cookie(self, response: Response, token: str) -> None:
-        """Puts the token in the cookie, with the attributes the deployment declares."""
-        current = get_settings()
-        response.set_cookie(
-            key=current.AUTH_SESSION_COOKIE_NAME,
-            value=token,
-            max_age=current.AUTH_SESSION_TTL_MINUTES * 60,
-            path="/",
-            httponly=True,
-            secure=current.AUTH_COOKIE_SECURE,
-            samesite="lax",
         )

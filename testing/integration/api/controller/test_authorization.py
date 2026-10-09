@@ -1,4 +1,4 @@
-"""Who may reach what, end to end: the anonymous client, the three roles, and the two open surfaces.
+"""Who may reach what, end to end: the anonymous client, the three roles, and the open surfaces.
 
 The classification itself is pinned structurally in ``testing/unit/api/test_route_access.py``. What
 this file adds is the *behaviour*: that the guard actually refuses, that it refuses with the right
@@ -44,6 +44,11 @@ def test_the_refusal_carries_the_request_id(api_client: TestClient) -> None:
 def test_the_diffusion_surface_answers_without_a_session(api_client: TestClient) -> None:
     """Open by design (ADR 0003): the boundary here is *what data exists*, not who is asking."""
     assert api_client.get("/api/v1/public/documents").status_code == 200
+
+
+def test_the_first_run_surface_answers_without_a_session(api_client: TestClient) -> None:
+    """Open while the installation has no account, and 409 forever after (ADR 0011)."""
+    assert api_client.get("/api/v1/setup/status").status_code == 200
 
 
 def test_the_health_probes_answer_without_a_session(api_client: TestClient, monkeypatch) -> None:

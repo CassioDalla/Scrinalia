@@ -724,6 +724,40 @@ export interface paths {
         patch: operations["ApiV1QualityTextTemplatesTemplateIdUpdateTemplate"];
         trace?: never;
     };
+    "/api/v1/setup/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CreateAdmin */
+        post: operations["ApiV1SetupAdminCreateAdmin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/setup/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Status */
+        get: operations["ApiV1SetupStatusStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/failures": {
         parameters: {
             query?: never;
@@ -2982,6 +3016,19 @@ export interface components {
             must_change: boolean;
             /** @description Nova senha; a política é verificada no domínio. */
             password: string;
+        };
+        /** SetupFirstAdminCommand */
+        SetupFirstAdminCommand: {
+            /** @description Identificador da conta; normalizado para minúsculas. */
+            email: string;
+            /** @description Como o nome aparece nos ledgers e na tela. */
+            name: string;
+            /** @description A senha escolhida pela pessoa; a política é verificada no domínio. */
+            password: string;
+        };
+        /** SetupStatusResponse */
+        SetupStatusResponse: {
+            needs_setup: boolean;
         };
         /** StopwordBanResponse */
         StopwordBanResponse: {
@@ -5318,6 +5365,65 @@ export interface operations {
                         } | unknown[];
                         status_code: number;
                     };
+                };
+            };
+        };
+    };
+    ApiV1SetupAdminCreateAdmin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetupFirstAdminCommand"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthUserDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1SetupStatusStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupStatusResponse"];
                 };
             };
         };

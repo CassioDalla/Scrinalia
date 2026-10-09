@@ -32,12 +32,14 @@ from scrinalia.domains.identity.exceptions import (
     InvalidCurrentPasswordError,
     LastAdminError,
     SessionNotFoundError,
+    SetupAlreadyCompleteError,
     UserNotFoundError,
 )
 from scrinalia.domains.identity.models import AuthSession, AuthUser
 from scrinalia.domains.identity.repository.login_attempt_repo import LoginAttemptRecorder
 from scrinalia.domains.identity.repository.session_repo import SessionRepository
 from scrinalia.domains.identity.repository.user_repo import UserRepository
+from scrinalia.domains.identity.schemas.setup_schema import SetupFirstAdminCommand
 from scrinalia.domains.identity.schemas.user_schema import (
     CreateUserCommand,
     UpdateUserCommand,
@@ -53,6 +55,15 @@ INVALID_CREDENTIALS_MESSAGE = "E-mail ou senha inválidos."
 ACCOUNT_LOCKED_MESSAGE = (
     "Conta temporariamente bloqueada por tentativas de acesso. Tente novamente mais tarde "
     "ou peça ao administrador uma nova senha."
+)
+
+
+#: The one refusal the first-run route has. One sentence for both paths that can reach it — the
+#: installation already has an account — because "somebody created it a second before you" and
+#: "somebody created it last month" are the same fact to the person reading it.
+SETUP_ALREADY_COMPLETE_MESSAGE = (
+    "Esta instalação já tem uma conta. O primeiro acesso só pode ser criado uma vez; "
+    "peça a quem administra que crie a sua conta."
 )
 
 
@@ -136,15 +147,32 @@ class AuthService:
         user.locked_until = None
         self.users.save(user)
 
+        return self.start_session(user, user_agent=user_agent, ip_address=ip_address), user
+
+    def start_session(
+        self,
+        user: AuthUser,
+        *,
+        user_agent: str | None = None,
+        ip_address: str | None = None,
+    ) -> str:
+        """
+        Opens a session for an account that was just authenticated **or just created**, and returns
+        the raw token exactly once, for the caller to put in the cookie.
+
+        It is shared with the first-run route (ADR 0011) so that the installation's first
+        administrator does not travel through a second path into ``auth_sessions``: the sliding
+        expiry, the digest and the bookkeeping of a sign-in are the same code either way.
+        """
         token = generate_session_token()
         self.sessions.issue(
             user_id=user.user_id,
             token_hash=hash_session_token(token),
-            expires_at=self._expiry(now),
+            expires_at=self._expiry(datetime.now(UTC)),
             user_agent=user_agent,
             ip_address=ip_address,
         )
-        return token, user
+        return token
 
     def resolve_session(self, token: str) -> AuthUser | None:
         """
@@ -169,6 +197,53 @@ class AuthService:
     def logout(self, token: str) -> bool:
         """Ends the session the cookie names. ``False`` when it was already over."""
         return self.sessions.revoke_by_token_hash(hash_session_token(token), datetime.now(UTC))
+
+    # --- The first run --------------------------------------------------------------------------
+
+    def needs_setup(self) -> bool:
+        """
+        Whether this installation still has to be brought to life — what ``GET /setup/status`` says.
+
+        It is the same predicate the write is guarded by (``auth_users`` is empty), read without the
+        lock: a report that the screen acts on, never the guarantee the route relies on.
+        """
+        return not self.users.has_any()
+
+    def create_first_admin(
+        self,
+        command: SetupFirstAdminCommand,
+        *,
+        user_agent: str | None = None,
+        ip_address: str | None = None,
+    ) -> tuple[str, AuthUser]:
+        """
+        Creates the installation's first administrator and signs them in.
+
+        The account is an ``ADMIN`` and does **not** carry ``must_change_password``: the person chose
+        this password, so there is nothing to replace — the flag exists for the CLI, which *generates*
+        the password it prints (ADR 0011). A session is opened with the login's own code because the
+        person has just typed the credentials they would otherwise be asked for again.
+
+        The route is ``PUBLIC``, so this is reachable by anybody until the installation has an account.
+        Hence the order: the cheap read comes **first**, before the password policy and the hash, and
+        the locked insert is the guarantee underneath it.
+        """
+        if self.users.has_any():
+            raise SetupAlreadyCompleteError(SETUP_ALREADY_COMPLETE_MESSAGE)
+
+        email = normalize_email(command.email)
+        check_password_policy(command.password, email=email)
+        user = self.users.create_first_admin(
+            email=email,
+            name=command.name.strip(),
+            password_hash=hash_password(command.password),
+        )
+        if user is None:
+            # The authoritative answer: the table lock was taken, the predicate was read under it, and
+            # another request got there first. Same refusal as the cheap read, one transaction later.
+            raise SetupAlreadyCompleteError(SETUP_ALREADY_COMPLETE_MESSAGE)
+
+        return self.start_session(user, user_agent=user_agent, ip_address=ip_address), user
 
     # --- The account's own password -------------------------------------------------------------
 

@@ -17,6 +17,7 @@ from scrinalia.api.controllers.document_controller import DocumentController
 from scrinalia.api.controllers.health_controller import HealthController
 from scrinalia.api.controllers.hierarchy_controller import HierarchyController
 from scrinalia.api.controllers.public_controller import PublicController
+from scrinalia.api.controllers.setup_controller import SetupController
 from scrinalia.api.controllers.system_controller import SystemController
 from scrinalia.api.controllers.taxonomy_controller import TaxonomyController
 from scrinalia.api.controllers.text_quality_controller import TextQualityController
@@ -66,6 +67,10 @@ def create_app() -> Litestar:
         # is where the session comes from. Registering it early keeps the login out of the reach of
         # anything that might later be added in front of it.
         AuthController,
+        # The other anonymous surface, and the narrower one: it works only while the installation has
+        # no account at all, and answers 409 forever after (ADR 0011). Registered beside the login
+        # because the two are the whole of what an anonymous client can reach on purpose.
+        SetupController,
         TaxonomyController,
         CleaningController,
         CollectionVocabularyController,
