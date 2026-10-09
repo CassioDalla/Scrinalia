@@ -189,9 +189,10 @@ Para `quality-validator`, o `engine_source` é `llm_check_rule`: a engine e o pr
 lugar para escolher a mesma engine seria uma segunda fonte de verdade. Sem regra ativa, o worker roda
 apenas a validação determinística, e o painel diz isso na `note`.
 
-## O painel de operação (Sistema)
+## O painel de operação
 
-O painel é a superfície `/api/v1/system/*` e a seção `Sistema` da SPA.
+O painel é a superfície `/api/v1/system/*` e os três cartões de `/configuracoes`, sob *Operação*, na
+SPA: o menu não os carrega mais (issue #22).
 
 | Rota | Método | Permissão | O que faz |
 | --- | --- | --- | --- |
@@ -207,7 +208,7 @@ O painel é a superfície `/api/v1/system/*` e a seção `Sistema` da SPA.
 Só o `ADMIN` carrega `OPERATE`; `CURATOR` e `VIEWER` leem os workers, o ledger e as falhas, mas não
 disparam execução nem mudam padrão.
 
-A seção da SPA espelha isso:
+A SPA espelha isso, como cartões de `/configuracoes` sob *Operação*:
 
 | Tela | Mostra |
 | --- | --- |

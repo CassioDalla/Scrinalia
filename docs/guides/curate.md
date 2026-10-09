@@ -28,10 +28,13 @@ has no way back at all.
 The SPA is served by the API itself (one origin, no CORS), and every screen reads and writes through
 the client generated from the OpenAPI contract. The screens are declared in
 `apps/curator/src/router.tsx` and the navigation in `apps/curator/src/components/layout/AppShell.tsx`.
-The menu has **23 entries** because one route is not a menu entry: the description's own dossier,
-`/acervo/$descriptionId`, is reached from the list and from the tree. The router therefore declares
-24 screens. The menu itself can be collapsed to icons, which is a presentation choice and not a
-permission one — *The menu collapses to icons*, below.
+The menu has **16 entries**: the screens nobody opens in the middle of cataloguing — the arrangement
+plan, the catalogues, the worker panel, the run ledger, the diagnostics and the accounts — are cards
+of `/configuracoes` rather than menu entries (*Configurações*, below). One route is not reached from
+the menu either: the description's own dossier, `/acervo/$descriptionId`, comes from the list and
+from the tree. The router therefore declares **25 screens**. The menu itself can be collapsed to
+icons, which is a presentation choice and not a permission one — *The menu collapses to icons*,
+below.
 
 Two cross-cutting pages are worth reading with this one: [Data model](data-model.md) for what the
 ledgers and the tables mean, and [Installation and deployment](install.md) for the schema, the
@@ -183,9 +186,15 @@ nothing.
 The shell filters its entries by the area the screen **writes** (`apps/curator/src/lib/permissions.ts`,
 a mirror of the server's role map), and an empty group is not rendered at all. The screens that only
 read carry no permission and stay visible to every role: Início, the collection list, the tree, the
-exclusions trail and the arrangement diagnostics. A `VIEWER` therefore sees the "Curadoria" and
-"Acervo" groups and, under "Arranjo", only "Diagnóstico" — every other group exists to decide, and
-is hidden.
+exclusions trail and the arrangement diagnostic. A `VIEWER` therefore sees exactly the "Curadoria"
+and "Acervo" groups — every other group exists to decide, and is hidden.
+
+The same rule governs the cards of `/configuracoes`, and it is the card catalogue
+(`apps/curator/src/lib/settings.ts`) that both the page and the menu entry read: a card is hidden when
+the account does not carry the area its screen writes, a tab whose cards are all hidden is not
+rendered, and the entry is in the menu while **at least one** card is reachable. So a `VIEWER` has no
+Configurações at all, and a direct URL to it reaches a page that says why it is empty instead of
+pretending to be broken.
 
 The mirror is one-way on purpose. It can make the menu shorter; it can never make the API accept a
 request. A direct URL to a screen the account cannot work in still reaches the API, and the API
@@ -305,6 +314,10 @@ that removes a record for good, and the confirmation (type the reference code) i
 
 ## Arranjo
 
+The plan is reached from `/configuracoes` — deciding the rungs is setup work, not daily curation —
+and the diagnostic stayed in the menu, under "Acervo", beside the tree it reads. With the plan gone,
+the "Arranjo" group would have held a single line, so the group disappeared with it.
+
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
 | Plano de arranjo — `/arranjo/plano` | approve or reject each proposed rung, and materialise the tree | yes — a decision can be reopened, and the materialisation has an undo |
@@ -342,6 +355,9 @@ description's arrangement tab. The counts overlap deliberately (a Dossiê at the
 and `DOSSIER_WITHOUT_PARENT`), so there is no grand total.
 
 ## Catálogos
+
+All three are reached from `/configuracoes`, under *Arranjo e catálogos*: they are the vocabulary the
+work is written against, not the work, which is why the menu no longer carries them.
 
 The two closed catalogues the archivist maintains and the collection vocabulary. None of them
 deletes: a row retires with `is_active=false`, because the foreign keys are `SET NULL` and removing a
@@ -651,7 +667,9 @@ the human review of the record, in the dossier.
 
 ## Sistema
 
-The machine, not the collection. Everything here belongs to whoever operates the installation.
+The machine, not the collection. Everything here belongs to whoever operates the installation, and
+all three screens are reached from `/configuracoes`, under *Operação*: the menu kept what the
+archivist consults while cataloguing, and this is not it.
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
@@ -700,9 +718,30 @@ reports that a secret exists, never what it is. Nothing here writes.
 
 ## Configurações
 
+The landing that gathers what the installation *is*, out of the way of what the archivist does every
+day. It writes nothing of its own.
+
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
+| Configurações — `/configuracoes` | which setup screen to open | yes (read only) |
 | Usuários — `/configuracoes/usuarios` | who exists, what they may do, and where they are signed in | yes (deactivate and reactivate) |
+
+### Configurações — `/configuracoes`
+
+A page of cards, and every card opens a screen that already existed with the route it always had:
+what changed is how it is found. Three tabs, in the order of the permission ladder they walk:
+
+| Tab | Cards |
+| --- | --- |
+| Arranjo e catálogos | Plano de arranjo (`CURATE`), Níveis de descrição, Tipologias and Vocabulário do acervo (`CATALOGUE`) |
+| Operação | Workers de IA, Execuções and Diagnóstico (`OPERATE`) |
+| Acesso | Usuários (`ADMIN`) |
+
+The tab is in the URL (`?aba=`), so "the worker cards" can be sent to somebody. A tab the account
+cannot fill is not rendered, and a `?aba=` naming one falls back to the first tab the account *can*
+fill: a link that was valid for the sender still lands somewhere honest for the reader. Each card
+carries the area its screen writes, and the entry that opens this page follows the same areas — the
+rule is under *The menu hides; it never grants* above.
 
 ### Usuários — `/configuracoes/usuarios`
 

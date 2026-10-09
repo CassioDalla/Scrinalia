@@ -220,7 +220,8 @@ worker runs deterministic validation only, and the panel says so in `note`.
 
 ## The operations panel
 
-The panel is the `/api/v1/system/*` surface and the `Sistema` section of the SPA.
+The panel is the `/api/v1/system/*` surface and the three cards of `/configuracoes`, under *Operação*,
+in the SPA: the menu no longer carries them (issue #22).
 
 | Route | Method | Permission | What it does |
 | --- | --- | --- | --- |
@@ -236,7 +237,7 @@ The panel is the `/api/v1/system/*` surface and the `Sistema` section of the SPA
 Only `ADMIN` carries `OPERATE`; `CURATOR` and `VIEWER` can read the workers, the ledger and the
 failures, but cannot trigger a run or change a default.
 
-The SPA section mirrors it:
+The SPA mirrors it, as cards of `/configuracoes` under *Operação*:
 
 | Screen | Shows |
 | --- | --- |
