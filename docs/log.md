@@ -500,7 +500,7 @@ with short or full shas, and part of a `## <date> — <title>` entry.
 
 ## 2026-10-10 — the pre-release pass for 1.1.0
 
-- **Range:** `89e6a43..7299f67`
+- **Range:** `89e6a43..b291d36`
 - **Pages:**
   - `guides/install.md` — **no-change**: the round moves the version in `pyproject.toml` and the
     curator's `package.json`, and this page documents the versions of the **tools** (Docker, `uv`,
@@ -518,7 +518,11 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   said `1.0.0`; `guides/curate.md` said **25** screens where `router.tsx`, `ScreenId` and `SCREENS`
   all carry **26** (measured: the three sets are equal, and issue #53 added the twenty-sixth while
   the round that landed it recorded the count as unchanged); the documentation index said
-  "Scrinalia is at 1.0".
+  "Scrinalia is at 1.0". The fourth came from the check the ledger of the rename round asked for:
+  `grep -rn "gaveta\|drawer" README.md docs/guides/` — the README still said `drawer` five times
+  (the subject-axis paragraph and two screen rows) because that round swept the guides and stopped
+  there. It is the second time the same rename was finished page by page, and the reason is the
+  same: `drawer` is a word, and no `sources:` list owns a word.
 - **The one number the release moved that no page owned.** `info.version` was Litestar's
   `DEFAULT_OPENAPI_CONFIG` — `title="Litestar API"`, `version="1.0.0"` — because `create_app()`
   never passed an `openapi_config`; measured with the project already at 1.1.0, the served
@@ -531,5 +535,7 @@ with short or full shas, and part of a `## <date> — <title>` entry.
 - **Not carried, on purpose:** the ADRs. `0010` still records "24 screens in `router.tsx`" as the
   measurement it was ratified against, and `0012` still quotes the index's old "at 1.0" as the
   example of a claim about a release. An ADR records the reasoning at the time, and neither number
-  is a rule the code has to satisfy.
+  is a rule the code has to satisfy. `cluster` also stays, in the README's Discover row and in the
+  guide: it is the API's own word for a proposed grouping (`clusters_found`,
+  `TRIGRAM/PLURAL/MIXED`), which is the distinction the rename round drew and this one keeps.
 
