@@ -13,8 +13,10 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton, Spinner } from "@/components/ui/Feedback";
+import { Field } from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
 import { cn } from "@/lib/cn";
+import { ACTION } from "@/lib/copy";
 import { formatCount, formatDate, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
 import { nodeLabel } from "@/lib/hierarchy";
 import { asString } from "@/lib/search";
@@ -72,8 +74,7 @@ export function TreeRoute() {
   return (
     <>
       <PageHeader
-        title="Árvore arquivística"
-        subtitle="Navegação pelo arranjo materializado. Escolher um nó mostra o ramo e as descrições que ele contém."
+        screen="tree"
         actions={
           <div className="flex items-center gap-2">
             <Button
@@ -81,7 +82,7 @@ export function TreeRoute() {
               variant={creating ? "secondary" : "primary"}
               onClick={() => setCreating((current) => !current)}
             >
-              {creating ? "cancelar criação" : "Criar nó"}
+              {creating ? ACTION.cancel.label : "Criar nó"}
             </Button>
             <Link to="/arranjo/plano">
               <Button size="sm">Plano de arranjo</Button>
@@ -94,7 +95,7 @@ export function TreeRoute() {
         <div className="border-b border-(--color-warn)/20 bg-(--color-warn)/5 px-6 py-2 text-xs text-(--color-warn)">
           <strong>{formatCount(orphans)} descrições ainda não têm unidade superior.</strong> O que
           aparece abaixo é só o que já foi materializado — o resto continua na raiz, esperando a decisão
-          das rungs.{" "}
+          dos degraus.{" "}
           <Link to="/arranjo/diagnostico" className="underline">
             Ver o diagnóstico
           </Link>
@@ -248,7 +249,7 @@ function CreateNodePanel({
       <CardBody className="grid gap-3">
         <p className="text-xs text-(--color-muted)">
           Um Fundo, uma Seção ou uma Série <strong>sem documentos</strong> não sai de nenhum código de
-          referência, e o plano só decide as rungs que o fatiador propôs. Declarar aqui é o outro
+          referência, e o plano só decide os degraus que o fatiador propôs. Declarar aqui é o outro
           caminho: a descrição nasce <code>HUMAN_APPROVED</code> e a escada é validada contra o pai
           escolhido pela mesma regra do mover.
         </p>
@@ -277,21 +278,18 @@ function CreateNodePanel({
         </div>
 
         <div className="grid gap-2 sm:grid-cols-3">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Código de referência</span>
+          <Field label="Código de referência">
             <Input
               value={referenceCode}
               onChange={(event) => setReferenceCode(event.target.value)}
               placeholder="ex.: BR PRADAP SMU ED"
               maxLength={500}
             />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Título</span>
+          </Field>
+          <Field label="Título">
             <Input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={300} />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Nível de descrição</span>
+          </Field>
+          <Field label="Nível de descrição">
             <Select
               value={levelId ?? ""}
               onChange={(event) => setLevelId(event.target.value ? Number(event.target.value) : null)}
@@ -303,23 +301,22 @@ function CreateNodePanel({
                 </option>
               ))}
             </Select>
-          </label>
+          </Field>
         </div>
 
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-(--color-muted)">Escopo e conteúdo (opcional)</span>
+        <Field label="Escopo e conteúdo (opcional)">
           <Input value={scopeContent} onChange={(event) => setScopeContent(event.target.value)} />
-        </label>
+        </Field>
 
         {levels.error ? <ErrorState error={levels.error} /> : null}
         {parent.error ? <ErrorState error={parent.error} /> : null}
 
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="primary" disabled={!valid || create.isPending} onClick={() => create.mutate()}>
-            {create.isPending ? "Criando…" : "Criar nó"}
+            {create.isPending ? ACTION.create.pending : "Criar nó"}
           </Button>
           <Button variant="ghost" onClick={onClose}>
-            cancelar
+            {ACTION.cancel.label}
           </Button>
           {!valid ? (
             <span className="text-xs text-(--color-muted)">

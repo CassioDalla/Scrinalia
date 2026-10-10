@@ -9,7 +9,9 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
+import { Field } from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
 import { formatCount, formatDate, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE, subjectBadge } from "@/lib/format";
 import { asBoolean, asEnum, asNumber, asString } from "@/lib/search";
 
@@ -173,24 +175,22 @@ function DateRange({
     <div className="border-b border-(--color-line) px-4 py-3">
       <p className="pb-2 text-[11px] font-semibold tracking-wide text-(--color-muted) uppercase">Data</p>
       <div className="grid gap-2">
-        <label className="grid gap-1 text-xs">
-          <span className="text-(--color-muted)">de</span>
+        <Field label="de">
           <Input
             type="date"
             value={from ?? ""}
             max={to}
             onChange={(event) => onChange({ date_from: event.target.value || undefined })}
           />
-        </label>
-        <label className="grid gap-1 text-xs">
-          <span className="text-(--color-muted)">até</span>
+        </Field>
+        <Field label="até">
           <Input
             type="date"
             value={to ?? ""}
             min={from}
             onChange={(event) => onChange({ date_to: event.target.value || undefined })}
           />
-        </label>
+        </Field>
         {active ? (
           <Button size="sm" variant="ghost" onClick={() => onChange({ date_from: undefined, date_to: undefined })}>
             limpar datas
@@ -265,17 +265,16 @@ export function CollectionRoute() {
   return (
     <>
       <PageHeader
-        title="Acervo"
-        subtitle={
+        screen="collection"
+        pending={isPending}
+        status={
           data ? (
             <>
               {formatCount(total)} descrições
               {search.term ? ` para “${search.term}”` : ""}
-              {isFetching ? <span className="ml-2 text-xs">atualizando…</span> : null}
+              {isFetching ? <span className="ml-2">atualizando…</span> : null}
             </>
-          ) : (
-            "Buscando…"
-          )
+          ) : undefined
         }
       />
 
@@ -330,10 +329,10 @@ export function CollectionRoute() {
 
           {/* The honest note the sitemap asks for: the semantic ranking is measured as weak. */}
           {search.mode === "semantic" ? (
-            <p className="mb-3 rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
+            <Notice tone="warn" className="mb-3">
               A busca semântica tem qualidade medida fraca (Hit@10 0.625). Prefira o modo lexical quando
               souber o termo.
-            </p>
+            </Notice>
           ) : null}
 
           {filters.length > 0 ? (

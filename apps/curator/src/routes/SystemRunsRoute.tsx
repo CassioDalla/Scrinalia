@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Select } from "@/components/ui/Input";
+import { PageBody } from "@/components/layout/PageBody";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { asEnum, asNumber, asString } from "@/lib/search";
@@ -79,11 +80,12 @@ export function SystemRunsRoute() {
   return (
     <>
       <PageHeader
-        title="Execuções"
-        subtitle={page.data ? `${formatCount(total)} execução(ões) registrada(s)` : "Lendo o ledger…"}
+        screen="runs"
+        pending={page.isPending}
+        status={page.data ? `${formatCount(total)} execução(ões) registrada(s)` : undefined}
       />
 
-      <div className="grid max-w-5xl gap-4 px-6 py-5">
+      <PageBody>
         <p className="text-xs text-(--color-muted)">
           Toda execução entra aqui — pela linha de comando ou pelo painel. O registro guarda a configuração já
           resolvida (preset e modelo), então ele continua legível depois que um preset mudar no código.
@@ -223,7 +225,7 @@ export function SystemRunsRoute() {
             </div>
           </div>
         ) : null}
-      </div>
+      </PageBody>
     </>
   );
 }

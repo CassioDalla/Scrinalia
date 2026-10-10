@@ -12,6 +12,8 @@ import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
 import { LedgerList } from "@/components/ui/LedgerList";
+import { PageBody } from "@/components/layout/PageBody";
+import { ACTION } from "@/lib/copy";
 import { descricoes, formatCount } from "@/lib/format";
 import { SIGNAL_HINT, SIGNAL_LABEL } from "@/lib/quality";
 import { routeMessage } from "@/lib/messages";
@@ -80,25 +82,17 @@ export function SubjectExclusionsRoute() {
   return (
     <>
       <PageHeader
-        title="Não é assunto"
-        subtitle={
-          exclusions.data ? `${formatCount(words.length)} termos fora do eixo de assunto` : "Lendo as exclusões…"
-        }
+        screen="subjectExclusions"
+        pending={exclusions.isPending}
+        status={exclusions.data ? `${formatCount(words.length)} termos fora do eixo de assunto` : undefined}
         actions={
           <Link to="/assuntos/tags">
-            <Button size="sm">Vocabulário de tags</Button>
+            <Button size="sm">Tags</Button>
           </Link>
         }
       />
 
-      <div className="grid max-w-4xl gap-4 px-6 py-5">
-        <p className="rounded-md bg-(--color-accent)/5 px-3 py-2 text-xs text-(--color-accent) ring-1 ring-(--color-accent)/20">
-          O guard determinístico pega o que tem forma — data, placeholder, logradouro, número — e na
-          medição real ele pegou <strong>1 de 4</strong> dos não-assuntos do gabarito. O resto é
-          julgamento semântico que nenhuma regra resolve. <strong>Banir não apaga nada:</strong> a tag
-          continua no acervo e alcançável pela busca; só a classificação de assunto para de adivinhar.
-        </p>
-
+      <PageBody>
         {/*
           The computed candidates, not three hardcoded examples.
 
@@ -246,7 +240,7 @@ export function SubjectExclusionsRoute() {
             <div className="grid gap-1">
               <span className="text-sm font-semibold">Vetar termos</span>
               <span className="text-xs text-(--color-muted)">
-                Banir não apaga nada: a tag continua no acervo, só a classificação de assunto para de adivinhar.
+                Banir não exclui nada: a tag continua no acervo, só a classificação de assunto para de adivinhar.
               </span>
             </div>
           }
@@ -329,7 +323,7 @@ export function SubjectExclusionsRoute() {
                       title="O classificador volta a considerar o termo"
                       onClick={() => restore.mutate(word)}
                     >
-                      restaurar
+                      {ACTION.remove.label}
                     </Button>
                   </div>
                 )}
@@ -340,7 +334,7 @@ export function SubjectExclusionsRoute() {
 
         {restore.error ? <ErrorState error={restore.error} /> : null}
 
-      </div>
+      </PageBody>
     </>
   );
 }

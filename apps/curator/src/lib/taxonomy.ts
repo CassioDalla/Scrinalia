@@ -23,14 +23,14 @@ export const MERGE_REASON_TONE: Record<string, BadgeTone> = {
 /**
  * The review flags are **warnings, not blocks** — the screen must not turn them into a refusal.
  *
- * The collection settled that: 58 clusters carry ``MEMBER_WITH_DIGITS`` and both directions are real
+ * The collection settled that: 58 agrupamentos carry ``MEMBER_WITH_DIGITS`` and both directions are real
  * (``br-116 ← br 116`` is right, ``rua ← rua 7`` is wrong). The archivist decides; the flag only says
  * where to look.
  */
 export const REVIEW_FLAG_LABEL: Record<string, string> = {
   MEMBER_WITH_DIGITS: "membro com número",
   WEAK_MEMBER: "membro fraco",
-  CATEGORY_WOULD_BE_LOST: "gaveta seria perdida",
+  CATEGORY_WOULD_BE_LOST: "categoria seria perdida",
   MEMBER_IS_SYNONYM: "membro é grafia absorvida",
 };
 
@@ -38,18 +38,18 @@ export const REVIEW_FLAG_HINT: Record<string, string> = {
   MEMBER_WITH_DIGITS:
     "Algum membro tem número no nome. Pode ser a mesma coisa (br-116 / br 116) ou outra (rua / rua 7): o número não decide.",
   WEAK_MEMBER:
-    "A similaridade de algum membro com a canônica é baixa; o cluster pode estar juntando coisas diferentes.",
+    "A similaridade de algum membro com a canônica é baixa; o agrupamento pode estar juntando coisas diferentes.",
   CATEGORY_WOULD_BE_LOST:
-    "Um dos membros está numa gaveta de assunto que a canônica não tem. Unificar apaga essa classificação.",
+    "Um dos membros está numa categoria de assunto que a canônica não tem. Mesclar exclui essa classificação.",
   MEMBER_IS_SYNONYM:
-    "Algum membro é uma grafia que já foi absorvida por um merge anterior — o cluster pode ser reflexo de uma decisão antiga.",
+    "Algum membro é uma grafia que já foi absorvida por um merge anterior — o agrupamento pode ser reflexo de uma decisão antiga.",
 };
 
 export const PROPOSAL_STATUS_LABEL: Record<string, string> = {
   SUGGESTED: "sugerida",
   APPROVED: "aprovada",
   REJECTED: "rejeitada",
-  // The write happened. Not a verdict the archivist has to revisit: a settled cluster.
+  // The write happened. Not a verdict the archivist has to revisit: a settled agrupamento.
   APPLIED: "aplicada",
 };
 
@@ -79,7 +79,7 @@ export const STOPWORD_SCOPE_LABEL: Record<string, string> = {
 };
 
 export const STOPWORD_SCOPE_HINT: Record<string, string> = {
-  TAG: "O termo sai do eixo de assunto. A purga apaga as tags com esse nome — e a purga não tem undo.",
+  TAG: "O termo sai do eixo de assunto. A purga exclui as tags com esse nome — e a purga não tem desfazer.",
   ENTITY: "O termo sai da extração de nomes próprios. Não afeta tag nenhuma.",
   ALL: "O termo sai dos dois eixos, e a purga o alcança.",
 };

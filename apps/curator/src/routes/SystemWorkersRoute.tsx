@@ -17,6 +17,10 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Input, Select, Textarea } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
+import { PageBody } from "@/components/layout/PageBody";
+import { Field } from "@/components/ui/Field";
+import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
 import {
   describeConfig,
@@ -48,11 +52,8 @@ export function SystemWorkersRoute() {
 
   return (
     <>
-      <PageHeader
-        title="Workers de IA"
-        subtitle="O que roda, com qual preset e modelo, o que está na fila e o que já rodou."
-      />
-      <div className="grid gap-3 px-6 py-5">
+      <PageHeader screen="workers" />
+      <PageBody className="gap-3">
         {error ? <ErrorState error={error} /> : null}
 
         {isPending ? (
@@ -64,7 +65,7 @@ export function SystemWorkersRoute() {
         ) : null}
 
         {(data?.workers ?? []).map((worker) => <WorkerCard key={worker.name} worker={worker} />)}
-      </div>
+      </PageBody>
     </>
   );
 }
@@ -89,7 +90,7 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
         setOpen(next);
         if (!next) setPanel("none");
       }}
-      toggleLabel="Ver detalhes, configurar e executar"
+      toggleLabel="Ver detalhes, configurar e rodar"
       className={active ? "ring-(--color-accent)/40" : undefined}
       header={<WorkerHeader worker={worker} />}
       actions={
@@ -108,9 +109,9 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
             variant="primary"
             onClick={() => openPanel("run")}
             disabled={active}
-            title={active ? "Há uma execução em andamento" : "Executar agora com a configuração efetiva"}
+            title={active ? "Há uma execução em andamento" : "Rodar agora com a configuração efetiva"}
           >
-            {active ? "Em execução…" : "Rodar agora"}
+            {active ? "Em execução…" : ACTION.run.label}
           </Button>
         </>
       }
@@ -165,9 +166,9 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
         </div>
 
         {worker.pending_reason ? (
-          <p className="rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
+          <Notice tone="warn">
             {worker.pending_reason}
-          </p>
+          </Notice>
         ) : null}
 
         {worker.settings.note ? (
@@ -181,9 +182,9 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
         ) : null}
 
         {feedback ? (
-          <p className="rounded-md bg-(--color-ok)/5 px-3 py-2 text-xs text-(--color-ok) ring-1 ring-(--color-ok)/20">
+          <Notice tone="ok">
             {feedback}
-          </p>
+          </Notice>
         ) : null}
 
         {panel === "run" ? <RunPanel worker={worker} onDone={setFeedback} /> : null}
@@ -271,7 +272,7 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
 
         {settings.engine_source === "signature" ? (
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="grid gap-1 text-xs">
+            <label className="flex flex-col gap-1 text-xs">
               Engine
               <Select
                 value={engine}
@@ -287,7 +288,7 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
                 ))}
               </Select>
             </label>
-            <label className="grid gap-1 text-xs">
+            <label className="flex flex-col gap-1 text-xs">
               Preset
               <Select value={preset} onChange={(event) => setPreset(event.target.value)}>
                 <option value="">(o do código)</option>
@@ -308,7 +309,7 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
         )}
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="grid gap-1 text-xs">
+          <label className="flex flex-col gap-1 text-xs">
             Tamanho do lote (vazio = o do código)
             <Input
               type="number"
@@ -320,7 +321,7 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
           </label>
         </div>
 
-        <label className="grid gap-1 text-xs">
+        <label className="flex flex-col gap-1 text-xs">
           Opções (JSON; ex.: {"{\"force\": true}"})
           <Textarea
             rows={2}
@@ -334,7 +335,7 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
 
         <div className="flex items-center gap-2">
           <Button variant="primary" onClick={() => run.mutate()} disabled={run.isPending}>
-            {run.isPending ? "Enviando…" : "Executar agora"}
+            {run.isPending ? "Enviando…" : ACTION.run.label}
           </Button>
           <span className="text-xs text-(--color-muted)">
             {worker.pending == null
@@ -400,7 +401,7 @@ function SettingsPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (mess
 
         {settings.engine_source === "signature" ? (
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="grid gap-1 text-xs">
+            <label className="flex flex-col gap-1 text-xs">
               Engine
               <Select
                 value={engine}
@@ -417,7 +418,7 @@ function SettingsPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (mess
                 ))}
               </Select>
             </label>
-            <label className="grid gap-1 text-xs">
+            <label className="flex flex-col gap-1 text-xs">
               Preset
               <Select value={preset} onChange={(event) => setPreset(event.target.value)}>
                 <option value="">(o do código)</option>
@@ -437,9 +438,13 @@ function SettingsPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (mess
           </p>
         )}
 
+        {/*
+          One field, and it used to be two: the other was a label for a "who is changing this" input
+          that no longer exists — the API takes the actor from the session since ADR 0009 — so the
+          card showed a field title with nothing under it.
+        */}
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="grid gap-1 text-xs">
-            Tamanho do lote (vazio = o do código)
+          <Field label="Tamanho do lote (vazio = o do código)">
             <Input
               type="number"
               min={1}
@@ -447,14 +452,10 @@ function SettingsPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (mess
               onChange={(event) => setBatch(event.target.value)}
               placeholder={String(settings.db_batch_size ?? "")}
             />
-          </label>
-          <label className="grid gap-1 text-xs">
-            Quem está alterando (opcional)
-            
-          </label>
+          </Field>
         </div>
 
-        <label className="grid gap-1 text-xs">
+        <label className="flex flex-col gap-1 text-xs">
           Opções (JSON; ex.: {"{\"force\": true}"})
           <Textarea rows={2} value={optionsText} onChange={(event) => setOptionsText(event.target.value)} placeholder="{}" />
         </label>
@@ -464,7 +465,7 @@ function SettingsPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (mess
 
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="primary" onClick={() => save.mutate()} disabled={save.isPending}>
-            Salvar padrão
+            {ACTION.save.label} padrão
           </Button>
           <Button
             variant="secondary"

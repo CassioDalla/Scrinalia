@@ -243,7 +243,7 @@ def execute(
                                 llm_confidence=confidence_score,
                                 llm_reason=(
                                     f"A classificação de assunto não atingiu o limiar "
-                                    f"({config.confidence_threshold:.2f}); a tag ficou sem gaveta."
+                                    f"({config.confidence_threshold:.2f}); a tag ficou sem categoria."
                                 ),
                             )
                         )

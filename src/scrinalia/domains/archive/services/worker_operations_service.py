@@ -183,7 +183,7 @@ class WorkerOperationsService:
         """Dynamic notes the catalogue cannot carry, because they depend on the collection."""
         notes = [spec.note, resolved.note]
         if spec.name == "macro-category" and not TagRepository(self.db).get_active_macro_categories():
-            notes.append("Nenhuma gaveta de assunto ativa: o worker não tem o que classificar.")
+            notes.append("Nenhuma categoria de assunto ativa: o worker não tem o que classificar.")
         present = [note for note in notes if note]
         return " ".join(present) if present else None
 

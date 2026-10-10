@@ -2,9 +2,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { ApiError, createFirstAdmin } from "@/api/client";
+import { Lockup } from "@/components/brand/Lockup";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { ATTRIBUTION } from "@/lib/attribution";
+import { PRODUCT } from "@/lib/copy";
 
 /**
  * The first screen of an installation that has no account at all.
@@ -52,8 +53,18 @@ export function SetupForm() {
           create.mutate();
         }}
       >
-        <p className="text-lg font-semibold">{ATTRIBUTION.name}</p>
-        <p className="pb-5 text-sm text-(--color-muted)">Primeiro acesso da instalação</p>
+        {/*
+          The identity, centred at the top of the card, where this screen used to type the name as
+          plain text. The same plate as the sign-in card and the same motif as the app's header: the
+          navy surface, the full lockup, the 2px terracotta rule. The heading below stays — it says
+          what this screen *is*, which the brand cannot.
+        */}
+        <div className="mb-5 rounded-md border-b-2 border-(--color-brand) bg-(--color-rail) px-4 py-4 text-center">
+          <Lockup className="mx-auto h-10 w-auto text-(--color-rail-ink)" />
+          <p className="pt-1 text-xs text-(--color-rail-muted)">{PRODUCT.tagline}</p>
+        </div>
+
+        <p className="pb-3 text-base font-semibold">Primeiro acesso da instalação</p>
 
         <p className="pb-4 text-xs text-(--color-muted)">
           Esta instalação ainda não tem contas, e esta só pode ser criada uma vez. A conta criada aqui

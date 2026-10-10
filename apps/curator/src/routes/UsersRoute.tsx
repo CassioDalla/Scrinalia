@@ -17,7 +17,11 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
+import { Field } from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
+import { PageBody } from "@/components/layout/PageBody";
+import { ACTION } from "@/lib/copy";
 import { formatDateTime } from "@/lib/format";
 import { routeMessage } from "@/lib/messages";
 import { ROLE_LABEL, ROLES } from "@/lib/permissions";
@@ -59,20 +63,19 @@ export function UsersRoute() {
   return (
     <>
       <PageHeader
-        title="Contas"
-        subtitle={
-          users.data ? `${rows.length} contas · ${active} ativas` : "Lendo as contas…"
-        }
+        screen="users"
+        pending={users.isPending}
+        status={users.data ? `${rows.length} contas · ${active} ativas` : undefined}
       />
 
-      <div className="grid max-w-5xl gap-4 px-6 py-5">
-        <p className="rounded-md bg-(--color-accent)/5 px-3 py-2 text-xs text-(--color-accent) ring-1 ring-(--color-accent)/20">
+      <PageBody>
+        <Notice tone="accent">
           A senha criada aqui é <strong>temporária</strong>: a conta troca no primeiro acesso. Desativar
           encerra todas as sessões na hora, e a última conta de administrador ativa não pode ser
           desativada nem rebaixada — é o único beco sem saída que não tem volta pela tela. Tentativas
           repetidas <strong>bloqueiam a conta</strong> por um tempo crescente; redefinir a senha
           destrava e encerra as sessões.
-        </p>
+        </Notice>
 
         {users.error ? <ErrorState error={users.error} /> : null}
         {users.isPending ? (
@@ -95,7 +98,7 @@ export function UsersRoute() {
             />
           ))}
         </section>
-      </div>
+      </PageBody>
     </>
   );
 }
@@ -144,12 +147,10 @@ function CreateUserCard({ onCreated }: { onCreated: () => void }) {
               placeholder="nome@instituicao.org"
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Nome</span>
+          <Field label="Nome">
             <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Papel</span>
+          </Field>
+          <Field label="Papel">
             <Select value={role} onChange={(event) => setRole(event.target.value as AuthUser["role"])}>
               {ROLES.map((value) => (
                 <option key={value} value={value}>
@@ -157,20 +158,19 @@ function CreateUserCard({ onCreated }: { onCreated: () => void }) {
                 </option>
               ))}
             </Select>
-          </label>
+          </Field>
         </div>
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-(--color-muted)">Senha temporária</span>
+        <Field label="Senha temporária">
           <Input
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             autoComplete="new-password"
           />
-        </label>
+        </Field>
         <div className="flex items-center gap-3">
           <Button variant="primary" disabled={!valid || create.isPending} onClick={() => create.mutate()}>
-            {create.isPending ? "Criando…" : "Criar conta"}
+            {create.isPending ? ACTION.create.pending : `${ACTION.create.label} conta`}
           </Button>
           {create.data ? (
             <span className="text-xs text-(--color-ok)">Conta {create.data.email} criada.</span>
@@ -274,7 +274,7 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
               setOpen(true);
             }}
           >
-            redefinir senha
+            Redefinir senha
           </Button>
           <Button
             size="sm"
@@ -282,19 +282,17 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
             disabled={toggleActive.isPending}
             onClick={() => toggleActive.mutate()}
           >
-            {user.is_active ? "desativar" : "reativar"}
+            {user.is_active ? ACTION.deactivate.label : ACTION.reactivate.label}
           </Button>
         </div>
       }
     >
       <div className="grid gap-4">
         <div className="grid gap-2 sm:grid-cols-3">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Nome</span>
+          <Field label="Nome">
             <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Papel</span>
+          </Field>
+          <Field label="Papel">
             <Select value={role} onChange={(event) => setRole(event.target.value as AuthUser["role"])}>
               {ROLES.map((value) => (
                 <option key={value} value={value}>
@@ -302,14 +300,14 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
                 </option>
               ))}
             </Select>
-          </label>
+          </Field>
           <div className="flex items-end">
             <Button
               variant="primary"
               disabled={!dirty || save.isPending || name.trim().length === 0}
               onClick={() => save.mutate({ name: name.trim(), role })}
             >
-              {save.isPending ? "Salvando…" : "Salvar"}
+              {save.isPending ? ACTION.save.pending : ACTION.save.label}
             </Button>
           </div>
         </div>
@@ -328,11 +326,11 @@ function UserCard({ user, isSelf, onChanged }: { user: AuthUser; isSelf: boolean
             ordinary way to replace your own password is "Trocar senha", which keeps this session.
           */}
           {isSelf ? (
-            <p className="rounded-md bg-(--color-warn)/5 px-2 py-1.5 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
+            <Notice tone="warn">
               Esta é a sua conta: redefinir aqui <strong>encerra a sua própria sessão</strong> e desconecta
               você. Para trocar a sua senha sabendo a atual, use <strong>Trocar senha</strong> no rodapé do
               menu — com o menu recolhido, o ícone de chave — que mantém esta sessão aberta.
-            </p>
+            </Notice>
           ) : null}
           <div className="flex flex-wrap items-end gap-2">
             <label className="flex min-w-56 flex-1 flex-col gap-1 text-xs">

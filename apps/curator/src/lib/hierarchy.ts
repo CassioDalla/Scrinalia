@@ -32,7 +32,7 @@ export const PLAN_FLAG_LABEL: Record<string, string> = {
   ORDINAL_INFERRED: "nível inferido",
   RECORD_WITHOUT_DOCUMENTS: "registro sem documentos",
   DUPLICATE_REFERENCE_CODE: "código duplicado",
-  NEAR_DUPLICATE_NODE: "sósia de outra rung",
+  NEAR_DUPLICATE_NODE: "sósia de outro degrau",
   LEVEL_NOT_ALLOWED_AS_CHILD: "nível não cabe sob o pai",
   MID_CODE_IDENTIFIER: "identificador no meio do código",
   UNPARSED_TAIL: "final do código ilegível",
@@ -47,17 +47,17 @@ export const PLAN_FLAG_HINT: Record<string, string> = {
   DUPLICATE_REFERENCE_CODE:
     "Mais de um registro reivindica este código, então 'o' nó existente é ambíguo: decida qual deles é a unidade.",
   NEAR_DUPLICATE_NODE:
-    "Um irmão difere por uma letra (FOTOGRAFIA x FOTOGRAFIAS). Nenhuma similaridade resolve isso: decida se esta rung existe ou se funde na outra.",
+    "Um irmão difere por uma letra (FOTOGRAFIA x FOTOGRAFIAS). Nenhuma similaridade resolve isso: decida se este degrau existe ou se funde no outro.",
   LEVEL_NOT_ALLOWED_AS_CHILD:
-    "O nível proposto não é posterior ao do pai na escada, então a materialização o recusaria. Funda numa rung existente ou escolha outro nível.",
+    "O nível proposto não é posterior ao do pai na escada, então a materialização o recusaria. Funda num degrau existente ou escolha outro nível.",
   MID_CODE_IDENTIFIER:
     "Há um identificador antes do último token de vocabulário: a segmentação do código é um palpite.",
   UNPARSED_TAIL:
     "O final do código não é número puro (ex.: '(1)', '369B'). O código é listado, nunca adivinhado.",
-  NO_STRUCTURAL_TOKEN: "O código não carrega vocabulário de arranjo nenhum: não há rung a propor.",
+  NO_STRUCTURAL_TOKEN: "O código não carrega vocabulário de arranjo nenhum: não há degrau a propor.",
 };
 
-/** Qual código de ação o materializador propõe para uma rung. */
+/** Qual código de ação o materializador propõe para um degrau. */
 export const ACTION_LABEL: Record<string, string> = {
   CREATE: "criar",
   ADOPT: "adotar",
@@ -80,7 +80,7 @@ export const ISSUE_LABEL: Record<string, string> = {
 
 export const ISSUE_HINT: Record<string, string> = {
   ORPHAN:
-    "Descrição sem pai cujo nível exige uma unidade superior, mais as que não têm nível algum e por isso não podem ser julgadas. A correção é o arranjo ser materializado — ou este ramo não ter nenhuma rung aprovada.",
+    "Descrição sem pai cujo nível exige uma unidade superior, mais as que não têm nível algum e por isso não podem ser julgadas. A correção é o arranjo ser materializado — ou este ramo não ter nenhum degrau aprovado.",
   DOSSIER_WITHOUT_PARENT:
     "O caso nomeado e mais estreito do anterior: um Dossiê (nível que exige pai) parado na raiz.",
   UNKNOWN_LEVEL:
@@ -111,12 +111,12 @@ export const ISSUE_ACTION: Record<string, { label: string; to: string; hint: str
   ORPHAN: {
     label: "ir para o plano de arranjo",
     to: "/arranjo/plano",
-    hint: "O arranjo é materializado a partir das rungs aprovadas.",
+    hint: "O arranjo é materializado a partir dos degraus aprovados.",
   },
   DOSSIER_WITHOUT_PARENT: {
     label: "ir para o plano de arranjo",
     to: "/arranjo/plano",
-    hint: "Um Dossiê exige uma unidade superior: aprove a rung acima dele.",
+    hint: "Um Dossiê exige uma unidade superior: aprove o degrau acima dele.",
   },
   UNKNOWN_LEVEL: {
     label: "corrigir no dossiê",

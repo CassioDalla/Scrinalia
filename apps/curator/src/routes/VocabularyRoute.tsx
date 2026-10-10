@@ -18,7 +18,12 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
+import { Field } from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
+import { PageBody } from "@/components/layout/PageBody";
+import { SectionTitle } from "@/components/ui/SectionTitle";
+import { ACTION } from "@/lib/copy";
 import { formatCount } from "@/lib/format";
 import { TERM_KIND_HINT, TERM_KIND_TONE, termKindLabel } from "@/lib/vocabulary";
 
@@ -51,22 +56,23 @@ export function VocabularyRoute() {
   return (
     <>
       <PageHeader
-        title="Vocabulário do acervo"
-        subtitle={
+        screen="vocabulary"
+        pending={vocabulary.isPending}
+        status={
           vocabulary.data
             ? `${arrangement.length} nomes de arranjo · ${terms.length} termos do acervo (${active} ativos)`
-            : "Lendo o vocabulário…"
+            : undefined
         }
       />
 
-      <div className="grid max-w-5xl gap-4 px-6 py-5">
-        <p className="rounded-md bg-(--color-accent)/5 px-3 py-2 text-xs text-(--color-accent) ring-1 ring-(--color-accent)/20">
+      <PageBody>
+        <Notice tone="accent">
           Estas duas listas são <strong>dados do acervo</strong>, não regras do sistema. O que é
           propriedade da língua portuguesa — <em>rua</em>, <em>avenida</em>, <em>não identificado</em>,{" "}
           <em>303 anos</em>, um ano solto — fica no perfil de idioma e <strong>não</strong> aparece aqui:
-          mudá-lo seria mudar o significado que o sistema dá à palavra. Retirar um termo não o apaga, e
-          um termo retirado volta a ser tratado como assunto na próxima execução do classificador.
-        </p>
+          mudá-lo seria mudar o significado que o sistema dá à palavra. Aposentar um termo não o exclui, e
+          um termo aposentado volta a ser tratado como assunto na próxima execução do classificador.
+        </Notice>
 
         {vocabulary.error ? <ErrorState error={vocabulary.error} /> : null}
         {vocabulary.isPending ? (
@@ -78,7 +84,7 @@ export function VocabularyRoute() {
         ) : null}
 
         <section className="grid gap-2">
-          <h2 className="text-sm font-semibold">Vocabulário de arranjo</h2>
+          <SectionTitle>Vocabulário de arranjo</SectionTitle>
           <p className="text-xs text-(--color-muted)">
             O nome que a proposta de arranjo sugere para um degrau do código de referência. O código
             inteiro tem precedência sobre o último token, então <code>BR PRADAP</code> pode ter um nome
@@ -91,7 +97,7 @@ export function VocabularyRoute() {
         </section>
 
         <section className="grid gap-2">
-          <h2 className="text-sm font-semibold">Termos do acervo</h2>
+          <SectionTitle>Termos do acervo</SectionTitle>
           <p className="text-xs text-(--color-muted)">
             O que o acervo carrega e <strong>não</strong> é assunto. Um lugar continua alcançável pela
             faceta Lugar; um nome de pessoa é o produtor e não vai a lugar nenhum. É essa diferença que o
@@ -102,7 +108,7 @@ export function VocabularyRoute() {
             <CollectionTermCard key={term.term_id} term={term} kinds={kinds} />
           ))}
         </section>
-      </div>
+      </PageBody>
     </>
   );
 }
@@ -134,7 +140,7 @@ function ArrangementTermCard({ term }: { term: ArrangementTerm }) {
         <div className="flex flex-wrap items-center gap-2">
           <code className="rounded bg-black/[0.05] px-1.5 py-0.5 text-xs">{term.token}</code>
           <span className="text-sm font-medium">{term.display_name}</span>
-          {term.is_active ? <Badge tone="ok">ativo</Badge> : <Badge tone="neutral">retirado</Badge>}
+          {term.is_active ? <Badge tone="ok">ativo</Badge> : <Badge tone="neutral">aposentado</Badge>}
         </div>
       }
       actions={
@@ -149,19 +155,18 @@ function ArrangementTermCard({ term }: { term: ArrangementTerm }) {
           }
           onClick={() => save.mutate({ is_active: !term.is_active })}
         >
-          {term.is_active ? "retirar" : "reativar"}
+          {term.is_active ? ACTION.retire.label : ACTION.reactivate.label}
         </Button>
       }
     >
       <div className="grid gap-2">
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-(--color-muted)">Nome sugerido</span>
+        <Field label="Nome sugerido">
           <Input
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
             maxLength={200}
           />
-        </label>
+        </Field>
         <div className="flex items-center gap-2">
           <Button
             size="sm"
@@ -169,7 +174,7 @@ function ArrangementTermCard({ term }: { term: ArrangementTerm }) {
             disabled={!dirty || save.isPending || displayName.trim().length === 0}
             onClick={() => save.mutate({ display_name: displayName.trim() })}
           >
-            {save.isPending ? "Salvando…" : "Salvar"}
+            {save.isPending ? ACTION.save.pending : ACTION.save.label}
           </Button>
           {dirty ? <span className="text-xs text-(--color-muted)">alterações não salvas</span> : null}
         </div>
@@ -198,10 +203,10 @@ function CreateArrangementTermCard() {
     <Disclosure
       triggerLabel="+ Novo nome"
       triggerCloseLabel="fechar"
-      toggleLabel="Cadastrar um nome de arranjo"
+      toggleLabel="Criar um nome de arranjo"
       header={
         <div className="grid gap-1">
-          <span className="text-sm font-semibold">Cadastrar um nome de arranjo</span>
+          <span className="text-sm font-semibold">Criar um nome de arranjo</span>
           <span className="text-xs text-(--color-muted)">
             Um token do código (<code>SMU</code>) ou o código inteiro (<code>BR PRADAP</code>).
           </span>
@@ -210,28 +215,26 @@ function CreateArrangementTermCard() {
     >
       <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Token ou código</span>
+          <Field label="Token ou código">
             <Input
               value={draft.token}
               onChange={(event) => setDraft({ ...draft, token: event.target.value })}
               placeholder="ex.: SMU"
               maxLength={100}
             />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Nome sugerido</span>
+          </Field>
+          <Field label="Nome sugerido">
             <Input
               value={draft.display_name}
               onChange={(event) => setDraft({ ...draft, display_name: event.target.value })}
               placeholder="ex.: SMU - Secretaria Municipal de Urbanismo"
               maxLength={200}
             />
-          </label>
+          </Field>
         </div>
         <div>
           <Button variant="primary" disabled={!valid || create.isPending} onClick={() => create.mutate()}>
-            {create.isPending ? "Cadastrando…" : "Cadastrar nome"}
+            {create.isPending ? ACTION.create.pending : `${ACTION.create.label} nome`}
           </Button>
         </div>
         {create.error ? <ErrorState error={create.error} /> : null}
@@ -261,7 +264,7 @@ function CollectionTermCard({ term, kinds }: { term: CollectionTerm; kinds: Coll
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">{term.term}</span>
           <Badge tone={TERM_KIND_TONE[term.kind] ?? "neutral"}>{termKindLabel(term.kind)}</Badge>
-          {term.is_active ? <Badge tone="ok">ativo</Badge> : <Badge tone="neutral">retirado</Badge>}
+          {term.is_active ? <Badge tone="ok">ativo</Badge> : <Badge tone="neutral">aposentado</Badge>}
           <Badge tone="neutral" title="Tags com exatamente esta grafia">
             {formatCount(term.tag_count ?? 0)} tags
           </Badge>
@@ -279,22 +282,20 @@ function CollectionTermCard({ term, kinds }: { term: CollectionTerm; kinds: Coll
           }
           onClick={() => save.mutate({ is_active: !term.is_active })}
         >
-          {term.is_active ? "retirar" : "reativar"}
+          {term.is_active ? ACTION.retire.label : ACTION.reactivate.label}
         </Button>
       }
     >
       <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Grafia como aparece no acervo</span>
+          <Field label="Grafia como aparece no acervo">
             <Input
               value={spelling}
               onChange={(event) => setSpelling(event.target.value)}
               maxLength={200}
             />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Tipo</span>
+          </Field>
+          <Field label="Tipo">
             <Select
               value={kind}
               onChange={(event) => setKind(event.target.value as CollectionTermKind)}
@@ -305,7 +306,7 @@ function CollectionTermCard({ term, kinds }: { term: CollectionTerm; kinds: Coll
                 </option>
               ))}
             </Select>
-          </label>
+          </Field>
         </div>
         <p className="text-xs text-(--color-muted)">{TERM_KIND_HINT[kind] ?? ""}</p>
         <div className="flex items-center gap-2">
@@ -315,7 +316,7 @@ function CollectionTermCard({ term, kinds }: { term: CollectionTerm; kinds: Coll
             disabled={!dirty || save.isPending || spelling.trim().length === 0}
             onClick={() => save.mutate({ term: spelling.trim(), kind })}
           >
-            {save.isPending ? "Salvando…" : "Salvar"}
+            {save.isPending ? ACTION.save.pending : ACTION.save.label}
           </Button>
           {dirty ? <span className="text-xs text-(--color-muted)">alterações não salvas</span> : null}
         </div>
@@ -344,10 +345,10 @@ function CreateCollectionTermCard({ kinds }: { kinds: CollectionTermKind[] }) {
     <Disclosure
       triggerLabel="+ Novo termo"
       triggerCloseLabel="fechar"
-      toggleLabel="Cadastrar um termo do acervo"
+      toggleLabel="Criar um termo do acervo"
       header={
         <div className="grid gap-1">
-          <span className="text-sm font-semibold">Cadastrar um termo do acervo</span>
+          <span className="text-sm font-semibold">Criar um termo do acervo</span>
           <span className="text-xs text-(--color-muted)">
             Uma grafia que o acervo carrega e que não é assunto.
           </span>
@@ -356,17 +357,15 @@ function CreateCollectionTermCard({ kinds }: { kinds: CollectionTermKind[] }) {
     >
       <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Grafia</span>
+          <Field label="Grafia">
             <Input
               value={draft.term}
               onChange={(event) => setDraft({ ...draft, term: event.target.value })}
               placeholder="ex.: batel"
               maxLength={200}
             />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Tipo</span>
+          </Field>
+          <Field label="Tipo">
             <Select
               value={draft.kind}
               onChange={(event) => setDraft({ ...draft, kind: event.target.value as CollectionTermKind })}
@@ -377,12 +376,12 @@ function CreateCollectionTermCard({ kinds }: { kinds: CollectionTermKind[] }) {
                 </option>
               ))}
             </Select>
-          </label>
+          </Field>
         </div>
         <p className="text-xs text-(--color-muted)">{TERM_KIND_HINT[draft.kind] ?? ""}</p>
         <div>
           <Button variant="primary" disabled={!valid || create.isPending} onClick={() => create.mutate()}>
-            {create.isPending ? "Cadastrando…" : "Cadastrar termo"}
+            {create.isPending ? ACTION.create.pending : `${ACTION.create.label} termo`}
           </Button>
         </div>
         {create.error ? <ErrorState error={create.error} /> : null}

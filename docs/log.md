@@ -233,3 +233,194 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   recovery path needs. The install guide already owns the CLI as the bootstrap, and duplicating its
   whole surface here would create a second place to correct.
 
+## 2026-10-09 — the interface gets one name per screen and one verb per action
+
+- **Range:** `6118170..f731d2e`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the page named screens by their old headings, and the headings
+    are now the menu's labels — `Diagnóstico` split into *Diagnóstico do arranjo* and *Saúde do
+    sistema*, which is the ambiguity issue #23 was filed for. A new *One name per screen, one verb per
+    action* states the copy canon the page now uses: `lib/screens.ts` as the one record per screen
+    (route, label, hint) that the menu, the settings card and the `<h1>` all read, the header's four
+    slots with the status line under the subtitle, and the verb table of `lib/copy.ts` — including
+    why `Aposentar` (a catalogue row) and `Desativar` (an account) are deliberately two words. The
+    prose followed the verbs: `Unificar` → `Mesclar`, `desativar` → `aposentar` for the `is_active`
+    catalogues. `components/layout/PageHeader.tsx`, `lib/screens.ts` and `lib/copy.ts` joined its
+    `sources:` — the section is a claim about all three and none was tracked.
+  - `guides/curate.pt.md` — **updated**: the translation, same canon, in the SPA's vocabulary.
+  - `guides/operate.md` — **no-change**: the report named it because its `sources:` carry the three
+    `System*Route.tsx` files, and this round moved the health screen's label to *Saúde do sistema* and
+    the run button's word to `Rodar agora`. The page names those screens by **route**
+    (`/sistema/diagnostico`, `/sistema/workers`), never by label, so no claim in it stopped being
+    true; the field the worker panel lost ("Quem está alterando") was never documented there. Nothing
+    was edited to quiet the report.
+- **Verified rather than assumed:** every one of the 25 routes was **rendered**, not merely built —
+  the API on a throwaway copy of the development database, the built SPA served from the same origin,
+  screenshotted through CDP at 1440px. The screens show the heading equal to the menu label
+  (`Categorias` / *As gavetas de assunto* / the count, in that order), the two renamed screens
+  (`Saúde do sistema`, `Nível de descrição` → `Níveis de descrição` on the settings card and the
+  heading), `Aposentar` where the catalogue row was `desativar`, `Rodar agora` where the same panel
+  had `Executar agora` beside it, `Mesclar` where the merge panel said `Unificar`, and the notices
+  drawing their ring and background after the move to `Notice`. The dossier renders its badges in the
+  status slot with the record's own title above them.
+- **Measured, not assumed:** the tags screen was the only user of `bg-(--color-surface-2)`, a token
+  `styles.css` does not define — 1 of the 9 tokens in use — and the box had no background; the two
+  dead form labels (`Quem decide`, `Quem está alterando`) were labels with no field under them, left
+  over from before the API took the actor from the session (ADR 0009). Both are gone, and the token
+  one is now a gate.
+- **What did not move:** the screen count (25), the menu count (16) and the settings tables — no route
+  and no setting was added; the data model — no table, no column and no migration; and the API
+  contract, whose only change in this range is a Portuguese hint the inbox renders
+  (`services/curation_service.py`), which is not part of the document.
+- **Not carried, on purpose:** the `words` field of the ban request is still documented in the
+  contract as "normalizados ao gravar", the one place the old save verb survives. Changing it
+  regenerates `openapi.json` and `schema.d.ts` for a description no screen renders — a decision of
+  its own, recorded in the commit that left it.
+
+## 2026-10-09 — the copy pass closes its own gap
+
+- **Range:** `f731d2e..24ba826`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the page quoted the materialisation panel's button as
+    "Conferir o que será feito", and the panel now says **"Conferir impacto"** like every other
+    preview in the interface. One line, and it is the report's whole reason for naming the page.
+  - `guides/curate.pt.md` — **updated**: the same quote, plus the words the page had carried in
+    English all along — `rungs` (nine times) is now **degraus**, `apply` is **aplicação**, and
+    `dry-run` is **prévia**. The Portuguese page is the archivist's, and the SPA now names those
+    things in Portuguese; a term in English that the interface already names in Portuguese is the
+    defect the documenter rule names. The English page keeps `rung` and `apply`: they are the
+    project's English words, the ones the API docstrings and `lib/hierarchy.ts` use.
+- **Why this round exists:** the previous entry closed the range with the copy pass declared
+  complete, and it was not. `components/hierarchy/MaterialisationPanel.tsx` — a component and not a
+  screen — kept `rung`, `apply` and `dry-run` through all of it, because the per-screen review never
+  opened it and no gate looked. The commit that fixes it also adds the gate
+  (`test_curator_copy.py`'s retired-word rule), which is why the page's quoted string is the only
+  thing the report could see: the panel is not a `sources:` entry of any page.
+- **What did not move:** the screen count (25), the menu count (16), the settings tables and the
+  data model — no route, no setting, no table and no migration; and the API contract, untouched by
+  this range.
+- **Not carried, on purpose:** the retired-word list is deliberately short and its two omissions are
+  documented in the test — `gravar` in the sense of *recording*, which is not the `Salvar` action,
+  and `desativar`, which is right for an account and wrong for a catalogue row. Neither can be
+  decided from the text, and a pattern that guessed would fail on correct prose.
+- **The round found a hole in itself, by rendering.** The gate's extractor read a JSX text node only
+  up to the first newline, so a sentence the formatter wrapped was read as half a sentence:
+  `só o apply absorve as tags`, on the second line of the proposals tab's warning, survived the
+  review pass, the sweep and the gate's first version. The rendered screen showed it, the pattern now
+  joins a wrapped node, and the extractor's sanity test asserts it does — so the hole is closed by a
+  test rather than by a memory. Two states were rendered for this round and are the evidence for it:
+  the plan screen's materialisation panel (`Conferir impacto`, `de 81 degraus decididos`, `degraus
+  aprovados`, `a aplicação segue o vínculo`) and the tags proposals tab (`incluir no lote de
+  aplicação`).
+
+
+## 2026-10-09 — the shell stops scrolling the menu away, and the footer reaches the public
+
+- **Range:** `24ba826..05819cd`
+- **Pages:**
+  - `guides/curate.md` — **updated**: a new *The screen is one window tall* states the layout the
+    archivist now reads in — the shell is one viewport, only the content column scrolls, the header is
+    sticky so the actions stay in reach, and the menu folds into one open section plus the one you are
+    standing in, with `Início` standing outside any heading. *The menu collapses to icons* gained the
+    one thing the accordion changes about it (collapsed, the accordion is off and all sixteen entries
+    show) and the corrected claim about the footer: it renders at the foot of every screen **including
+    the three that come before a session**, which was false when it was written.
+  - `guides/curate.pt.md` — **updated**: the same two sections, in the SPA's vocabulary.
+- **Why the round exists, and what it measured rather than assumed:** the rail used to grow to the
+  height of the *page* (`min-h-full`), so on a long screen the whole menu scrolled out of view — at
+  1440x900 at the foot of `/entidades/lista`, a blank rail column and no menu at all — and the
+  `overflow-y-auto` on the nav never engaged. After the fix, from the DOM: the document is 900px in a
+  900px window, the content column 3299px in 867px, and the nav 975px in 734px — which is what proved
+  the accordion was still needed. After the accordion, the nav is **734 in 734**: the menu fits, and
+  the active group is the one expanded.
+- **The footer claim was false and is now true.** `AttributionFooter`'s own docstring says a notice
+  hidden behind a login is not a notice to the users of a network service, and the three screens
+  before a session returned from `AppShell` before the shell existed — so the four §7(b) elements,
+  and the version added in this range, were invisible to anyone without an account. Measured with the
+  browser's cookies cleared: `/` now renders all four elements and `v1.0.0`.
+- **What did not move:** the screen count (25), the settings tables, the data model and the API
+  contract — no route, no setting, no table, no migration and no contract change in this range. The
+  menu keeps its **16 entries**; the accordion changed how they are shown, not how many there are.
+- **Not carried, on purpose:** the version comes from `pyproject.toml` and not from the API, because
+  the built SPA is served by the API from the same commit — so the number is known when the bundle is
+  written and a request would buy nothing. The API's own `info.version` is Litestar's default
+  (`{"title": "Litestar API", "version": "1.0.0"}`) and was not a candidate.
+
+## 2026-10-09 — one width for every screen
+
+- **Range:** `05819cd..HEAD`
+- **Pages:**
+  - `guides/curate.md` — **updated**: *The screen is one window tall* gains the width, because the
+    width is part of the shell now: the column has **no maximum**, and what keeps a cap is the content
+    (a paragraph's measure, a field's width).
+  - `guides/curate.pt.md` — **updated**: the same paragraph.
+- **Why:** the per-screen caps had drifted — `max-w-5xl` on most screens, `max-w-4xl` on five,
+  `max-w-6xl` on one, and four of the dossier's panels carried their own — so on a wide monitor two
+  screens stopped growing at different points. That is not a decision, it is drift, and the report of
+  it came from looking at the screens side by side. Measured after the change: at 1280 the content
+  column is 1024 and the widest child is **1024**; at 1920 both are **1664**, on the four screens that
+  used to differ (categories, anomalies, entities and the dossier).
+- **What did not move:** the text measure (`max-w-prose`, `max-w-3xl`) and the control widths
+  (`max-w-md`, `max-w-xs`, the login forms' `max-w-sm`) — those are decisions about a paragraph and a
+  field, not about a screen, and they are the same on every screen. The screen count, the menu count,
+  the settings tables, the data model and the API contract are untouched.
+
+## 2026-10-09 — the identity enters the interface
+
+- **Range:** `05819cd..86796d0`
+- **Pages:**
+  - `guides/curate.md` — **updated**: a new *The identity is on screen* states the rail's navy, the
+    logomark in both rail states (and that the cropped mark is the control that expands it), the 2px
+    terracotta rule under a screen's header, and the plate on the two cards before a session. It also
+    records **why the accent stayed blue**: the terracotta is `oklch(… 31)` and `--color-danger` is
+    `oklch(… 25)`, six degrees apart, so a terracotta button and "Excluir" would have been one colour.
+  - `guides/curate.pt.md` — **updated**: the same section.
+  - `guides/install.md` — **updated**: the first-run card carries the logomark, because it is the
+    first screen an installer sees. One sentence, and it is what the report's second page was for.
+  - `guides/install.pt.md` — **updated**: the same sentence.
+- **Why:** the interface and the logomark shared no colour. Measured before the change: the identity
+  is terracotta on navy (`#C4503F` on `#14202B` = `oklch(0.580 0.152 31)` on `oklch(0.238 0.027 247)`)
+  and the theme's accent was `oklch(0.52 0.13 250)`, a blue. The navy turned out to share the
+  accent's **hue** (247 against 250), which is what let the rail take the identity's dark without
+  re-tuning the semantic colours.
+- **Verified, rendered:** the rail expanded and collapsed and the sign-in card at 1440x900; the tab
+  computes to `oklch(0.58 0.152 31)`, the rail to `oklch(0.238 0.027 247)`, the wordmark to `"PT Serif"`
+  at 45px with `document.fonts.check('400 45px "PT Serif"')` true, the header rule to
+  `2px oklch(0.58 0.152 31)`, and `/favicon.svg` answers 200 and is in `dist`.
+- **What did not move:** the screen count (25), the menu count (16), the settings tables, the data
+  model and the API contract — no route, no setting, no table, no migration and no contract change.
+  The accent, the danger, the warn and the ok colours are unchanged: the identity's terracotta is a
+  brand colour, and the copy gate still holds every string.
+- **Not carried, on purpose:** the four identity SVGs stay as design sources under
+  `apps/curator/src/assets/brand/` while `Mark`/`Lockup` inline the two shapes the SPA renders. The
+  geometry is therefore written twice — a file for the designer and a component for the page — and
+  the alternative, generating the components from the files, would put a build step in the middle of a
+  logo. `marca-escura.svg` was reconstructed from the family's geometry and is the one file a person
+  should look at rather than trust.
+
+## 2026-10-09 — the drawer and the cluster become the words the contract already used
+
+- **Range:** `86796d0..HEAD`
+- **Pages:**
+  - `guides/curate.md` — **updated**: `drawer` is **category** (16 times) and the screen is
+    `Descobrir Categorias`, which is what the rail says. `cluster` stays: it is the API's own word for
+    a proposed grouping (`clusters_found`, `TRIGRAM/PLURAL/MIXED`).
+  - `guides/curate.pt.md` — **updated**: `gaveta` is **categoria** (17 times), the same rename.
+- **Why:** the interface had its own metaphor for a concept the contract had already named. The API's
+  field is `category` — `category_would_be_lost`, `macro_category_name`, `CATEGORY` — and the drawer
+  was the interface's word for it, so a reader of both had two names for one thing. Measured before the
+  change: **34 visible strings** in the SPA used `gaveta`/`cluster` (Categories 9, Tags 11, Document 7,
+  taxonomy 4, Discover 3). None remain, and the gate now holds both words out.
+- **The API was split too, and is now aligned:** `hierarchy_requests.py` described a field as
+  "Documentação da gaveta para o curador" (a Portuguese `description` in the contract) and two worker
+  messages said "formar clusters semânticos". Both say `categoria`/`agrupamentos` now, and the contract
+  was regenerated — `openapi.json` and `schema.d.ts` change by exactly that one description.
+- **What did not move:** the screen count, the menu count, the settings tables, the data model and the
+  API's *shape* — no route, no setting, no table, no migration and no field renamed. The change is a
+  word, and the only contract diff is a description's text.
+- **Not carried, on purpose:** the **casing of the labels and hints**. The pass over them is half
+  applied — some are English-style Title Case ("Lista e Busca", "Facetas e Filtros") and most are
+  sentence case ("Onde está incoerente", "A trilha do que foi excluído") — and finishing it one way or
+  the other is 25 strings. English-style Title Case applied to Portuguese capitalises verbs
+  ("O que **P**recisa de **M**im **H**oje", "Não **É** Assunto"), which the pt-BR convention does not;
+  the preview of that direction is in the pull request rather than in this commit.

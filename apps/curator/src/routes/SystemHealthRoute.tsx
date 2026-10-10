@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
+import { PageBody } from "@/components/layout/PageBody";
+import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
 
 /**
@@ -21,16 +23,15 @@ export function SystemHealthRoute() {
   return (
     <>
       <PageHeader
-        title="Diagnóstico"
-        subtitle="Banco, modelos do Ollama, storage de miniaturas e a configuração efetiva do processo."
+        screen="health"
         actions={
           <Button size="sm" variant="secondary" onClick={() => void health.refetch()} disabled={health.isFetching}>
-            {health.isFetching ? "Verificando…" : "Verificar de novo"}
+            {health.isFetching ? ACTION.recheck.pending : ACTION.recheck.label}
           </Button>
         }
       />
 
-      <div className="grid max-w-5xl gap-4 px-6 py-5">
+      <PageBody>
         {health.error ? <ErrorState error={health.error} /> : null}
 
         {health.isPending ? (
@@ -112,7 +113,7 @@ export function SystemHealthRoute() {
             </div>
           </>
         ) : null}
-      </div>
+      </PageBody>
     </>
   );
 }

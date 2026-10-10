@@ -7,7 +7,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { EmptyState, Skeleton } from "@/components/ui/Feedback";
 import { Tabs } from "@/components/ui/Tabs";
 import { asEnum } from "@/lib/search";
-import { SETTINGS_TAB_IDS, visibleSettingsTabs, type SettingsCard } from "@/lib/settings";
+import { SETTINGS_TAB_IDS, visibleSettingsTabs, type ResolvedSettingsCard } from "@/lib/settings";
 
 const routeApi = getRouteApi("/configuracoes");
 
@@ -42,15 +42,13 @@ export function SettingsRoute() {
 
   return (
     <>
-      <PageHeader
-        title="Configurações"
-        /*
-          Deliberately without the list of areas: the page shows each account only the cards its role
-          carries, so a subtitle naming "contas, catálogos, arranjo e operação" would enumerate what a
-          curator cannot have and would still announce accounts on the empty page a viewer lands on.
-        */
-        subtitle="As telas que se decidem uma vez, longe da curadoria do dia a dia."
-      />
+      {/*
+        The subtitle comes from the screens catalogue, and it stays a sentence rather than the list of
+        areas: the page shows each account only the cards its role carries, so naming "contas,
+        catálogos, arranjo e operação" would enumerate what a curator cannot have and would still
+        announce accounts on the empty page a viewer lands on.
+      */}
+      <PageHeader screen="settings" />
 
       {current.isPending ? (
         <div className="grid gap-3 px-6 py-5 sm:grid-cols-2 xl:grid-cols-3">
@@ -87,7 +85,7 @@ export function SettingsRoute() {
 
           <div className="grid gap-3 px-6 py-5 sm:grid-cols-2 xl:grid-cols-3">
             {cards.map((card) => (
-              <SettingsCardLink key={card.to} card={card} />
+              <SettingsCardLink key={card.path} card={card} />
             ))}
           </div>
         </>
@@ -102,10 +100,10 @@ export function SettingsRoute() {
  * The same shape as the work list's cards on purpose — the archivist already reads "nome, uma frase,
  * abrir" everywhere else — with the icon the entry used to carry in the menu.
  */
-function SettingsCardLink({ card }: { card: SettingsCard }) {
+function SettingsCardLink({ card }: { card: ResolvedSettingsCard }) {
   const Icon = card.icon;
   return (
-    <Link to={card.to} className="transition hover:ring-(--color-accent)/40">
+    <Link to={card.path} className="transition hover:ring-(--color-accent)/40">
       <Card className="h-full hover:ring-(--color-accent)/40">
         <CardBody className="flex h-full flex-col gap-2">
           <div className="flex items-center gap-2">

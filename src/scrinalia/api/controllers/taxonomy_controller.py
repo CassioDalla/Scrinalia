@@ -428,7 +428,7 @@ class TaxonomyController(Controller):
                 total_suggestions=0,
                 categories=[],
                 code=RouteMessageCode.MACRO_CLUSTERING_INSUFFICIENT_TEXTS,
-                message="⚠️ Textos insuficientes para formar clusters semânticos.",
+                message="⚠️ Textos insuficientes para formar agrupamentos semânticos.",
             )
 
         # anyio.to_process.run_sync receives the function and then its positional arguments.

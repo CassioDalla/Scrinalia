@@ -22,9 +22,12 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
+import { Field } from "@/components/ui/Field";
 import { Input, Select, Textarea } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
 import { Tabs } from "@/components/ui/Tabs";
 import { Typeahead } from "@/components/ui/Typeahead";
+import { ACTION } from "@/lib/copy";
 import { formatCount, formatDate, formatDateTime, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
 
 const routeApi = getRouteApi("/acervo/$descriptionId");
@@ -59,7 +62,15 @@ export function DocumentRoute() {
             <span className="text-(--color-muted)">{descriptionId}</span>
           )
         }
-        subtitle={
+        /*
+          The badges are the *status* and not a subtitle: the dossier's heading is the record's own
+          title, and the line under it reports what was read — the review state, whether it is
+          published, whether the validator flagged it. `SCREENS.dossier` carries the flag that exempts
+          this route from taking its heading from the catalogue, and the anatomy below is the same one
+          every other screen has.
+        */
+        pending={document.isPending}
+        status={
           document.data ? (
             <span className="flex flex-wrap items-center gap-2">
               <Badge tone={REVIEW_STATUS_TONE[document.data.review_status]}>
@@ -70,7 +81,7 @@ export function DocumentRoute() {
               <span>{formatDate(document.data.document_date)}</span>
               {document.data.level ? <span>· {document.data.level}</span> : null}
             </span>
-          ) : null
+          ) : undefined
         }
         actions={
           <Link to="/acervo/lista" className="text-sm text-(--color-muted) hover:underline">
@@ -165,7 +176,7 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
   };
 
   return (
-    <div className="grid max-w-5xl gap-4">
+    <div className="grid gap-4">
       {/*
         The proposal is shown *next to* the field it proposes, and is never the stored value: the
         machine proposes the title, only the archivist writes ``final_title``.
@@ -334,17 +345,17 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
   const drawers = macroCategories.data ?? [];
 
   return (
-    <div className="grid max-w-5xl gap-4">
-      <p className="rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
+    <div className="grid gap-4">
+      <Notice tone="warn">
         Editar os assuntos marca o documento como <strong>revisado por humano</strong>, o que impede a IA de
         reescrevê-lo daqui em diante. É a mesma regra da edição de campos.
-      </p>
+      </Notice>
 
       <Card>
         <CardHeader className="flex items-center justify-between">
           <span className="text-sm font-semibold">Tags e assunto</span>
           <span className="text-xs text-(--color-muted)">
-            {document.macro_categories?.length ?? 0} gaveta(s) votada(s)
+            {document.macro_categories?.length ?? 0} categoria(s) votada(s)
           </span>
         </CardHeader>
         <CardBody className="grid gap-2">
@@ -365,8 +376,8 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                       {tag.macro_category_name}
                     </Badge>
                   ) : (
-                    <Badge tone="neutral" title="O classificador não arquivou esta tag numa gaveta">
-                      sem gaveta
+                    <Badge tone="neutral" title="O classificador não arquivou esta tag numa categoria">
+                      sem categoria
                     </Badge>
                   )}
                   {tag.ai_confidence_score !== null && tag.ai_confidence_score !== undefined ? (
@@ -378,10 +389,10 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                 <span className="flex items-center gap-2">
                   <Select
                     className="w-44"
-                    aria-label={`Gaveta da tag ${tag.name}`}
+                    aria-label={`Categoria da tag ${tag.name}`}
                     value={tag.macro_category_id ?? ""}
                     disabled={reclassify.isPending}
-                    title="Muda a gaveta desta tag em TODAS as descrições que a carregam, não só nesta."
+                    title="Muda a categoria desta tag em TODAS as descrições que a carregam, não só nesta."
                     onChange={(event) =>
                       reclassify.mutate({
                         tagId: tag.tag_id,
@@ -389,7 +400,7 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                       })
                     }
                   >
-                    <option value="">sem gaveta (não é assunto)</option>
+                    <option value="">sem categoria (não é assunto)</option>
                     {drawers.map((category) => (
                       <option key={category.category_id} value={category.category_id}>
                         {category.name}
@@ -403,7 +414,7 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                     disabled={removeTag.isPending}
                     onClick={() => removeTag.mutate(tag.tag_id)}
                   >
-                    remover
+                    {ACTION.remove.label}
                   </Button>
                 </span>
               </li>
@@ -427,7 +438,7 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                     value: String(result.tag_id),
                     label: result.name,
                     hint: `${formatCount(result.document_count)} doc${
-                      result.macro_category_name ? ` · ${result.macro_category_name}` : " · sem gaveta"
+                      result.macro_category_name ? ` · ${result.macro_category_name}` : " · sem categoria"
                     }`,
                   }))
                 }
@@ -436,8 +447,8 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
             </label>
           </div>
           <p className="text-xs text-(--color-muted)">
-            A gaveta escolhida ao lado vale para <strong>todas</strong> as descrições que carregam a tag: é uma
-            decisão sobre o vocabulário, não sobre este documento. O selo <em>sem gaveta</em> devolve a tag ao
+            A categoria escolhida ao lado vale para <strong>todas</strong> as descrições que carregam a tag: é uma
+            decisão sobre o vocabulário, não sobre este documento. O selo <em>sem categoria</em> devolve a tag ao
             classificador.
           </p>
           {addTag.error ? <ErrorState error={addTag.error} /> : null}
@@ -463,7 +474,7 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                   disabled={removeEntity.isPending}
                   onClick={() => removeEntity.mutate(entity.entity_id)}
                 >
-                  remover
+                  {ACTION.remove.label}
                 </Button>
               </li>
             ))}
@@ -532,7 +543,7 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
   const currentParentTitle = parentLabel ?? parent?.title ?? parent?.description_id ?? null;
 
   return (
-    <div className="grid max-w-5xl gap-4">
+    <div className="grid gap-4">
       <Card>
         <CardHeader className="text-sm font-semibold">Caminho até a raiz</CardHeader>
         <CardBody>
@@ -576,10 +587,7 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
           </p>
 
           <div className="grid gap-2 sm:grid-cols-2">
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="text-(--color-muted)">
-                Unidade superior atual: {currentParentTitle ?? "raiz"}
-              </span>
+            <Field label={<>Unidade superior atual: {currentParentTitle ?? "raiz"}</>}>
               <Typeahead
                 placeholder="buscar a nova unidade superior…"
                 disabled={move.isPending}
@@ -599,10 +607,9 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
                   setParentLabel(option.label);
                 }}
               />
-            </label>
+            </Field>
 
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="text-(--color-muted)">Nível de descrição</span>
+            <Field label="Nível de descrição">
               <Select
                 value={levelId ?? ""}
                 onChange={(event) => setLevelId(event.target.value ? Number(event.target.value) : null)}
@@ -614,17 +621,16 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
                   </option>
                 ))}
               </Select>
-            </label>
+            </Field>
 
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="text-(--color-muted)">Quem decide (texto livre até existir auth)</span>
-              
-            </label>
-
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="text-(--color-muted)">Nota da decisão</span>
+            {/*
+              One field, and it used to be two: the other was a label for a "who decides" input that
+              no longer exists — the API takes the actor from the session since ADR 0009 — so the form
+              showed a field title with nothing under it.
+            */}
+            <Field label="Nota da decisão">
               <Input value={note} onChange={(event) => setNote(event.target.value)} />
-            </label>
+            </Field>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -649,10 +655,10 @@ function ArrangementTab({ document }: { document: DocumentSummary }) {
 
           {move.error ? <ErrorState error={move.error} /> : null}
           {move.data ? (
-            <p className="rounded-md bg-(--color-ok)/5 px-3 py-2 text-xs text-(--color-ok) ring-1 ring-(--color-ok)/25">
+            <Notice tone="ok">
               Movido: agora pende de {move.data.parent_id ?? "ninguém (raiz)"} e o caminho é{" "}
               <code>{move.data.path}</code>.
-            </p>
+            </Notice>
           ) : null}
         </CardBody>
       </Card>
@@ -700,7 +706,7 @@ function HistoryTab({ document }: { document: DocumentSummary }) {
   if (isPending) return <Spinner />;
 
   return (
-    <div className="grid max-w-4xl gap-4">
+    <div className="grid gap-4">
       {!data || data.length === 0 ? (
         <EmptyState
           title="Nenhuma revisão humana"
@@ -799,42 +805,39 @@ function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
             </p>
           </div>
           <Button size="sm" variant="danger" onClick={() => setOpen((current) => !current)}>
-            {open ? "cancelar" : "Excluir descrição…"}
+            {open ? ACTION.cancel.label : "Excluir descrição…"}
           </Button>
         </div>
 
         {open ? (
-          <div className="grid gap-3 rounded-md bg-(--color-danger)/5 p-3 ring-1 ring-(--color-danger)/20">
+          <Notice tone="danger" as="div" className="grid gap-3">
             <p className="text-xs text-(--color-danger)">
               Uma descrição com filhos <strong>não pode</strong> ser excluída: a árvore ficaria apontando para um
               ramo que não existe. O serviço recusa e diz quantos filhos estão no caminho.
             </p>
 
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="text-(--color-muted)">
-                Escreva <code>{expected}</code> para confirmar
-              </span>
+            <Field label={<>Escreva <code>{expected}</code> para confirmar</>}>
               <Input
                 value={confirmation}
                 onChange={(event) => setConfirmation(event.target.value)}
                 placeholder={expected}
                 className="max-w-md font-mono"
               />
-            </label>
+            </Field>
 
-            <div className="grid gap-2 sm:grid-cols-2">
-              <label className="flex flex-col gap-1 text-xs">
-                <span className="text-(--color-muted)">Quem exclui (texto livre até existir auth)</span>
-                
-              </label>
-              <label className="flex flex-col gap-1 text-xs">
-                <span className="text-(--color-muted)">Motivo (guardado na trilha)</span>
+            {/*
+              One field, and it used to be two: the other was a label for a "who deletes" input that
+              no longer exists — the API takes the actor from the session since ADR 0009 — so the form
+              showed a field title with nothing under it.
+            */}
+            <div className="grid gap-2">
+              <Field label="Motivo (guardado na trilha)">
                 <Input
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
                   placeholder="ex.: duplicata da descrição 00574"
                 />
-              </label>
+              </Field>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -844,7 +847,7 @@ function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
                 title={matches ? undefined : "O código precisa bater com o da descrição."}
                 onClick={() => remove.mutate()}
               >
-                {remove.isPending ? "Excluindo…" : "Excluir definitivamente"}
+                {remove.isPending ? ACTION.exclude.pending : "Excluir definitivamente"}
               </Button>
               <span className="text-xs text-(--color-muted)">
                 {matches ? "o código confere" : "o botão libera quando o código bater"}
@@ -857,7 +860,7 @@ function DeleteDocumentCard({ document }: { document: DocumentSummary }) {
                 “{done.title}” foi excluída. A trilha guarda o retrato dela.
               </p>
             ) : null}
-          </div>
+          </Notice>
         ) : null}
       </CardBody>
     </Card>

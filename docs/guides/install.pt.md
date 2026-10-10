@@ -166,7 +166,9 @@ Com a API no ar (passo 7), uma instalação cuja `auth_users` ainda está vazia 
 visita com **Primeiro acesso da instalação** em vez do formulário de entrada: e-mail, nome e a
 senha, pedida duas vezes. Ela cria o primeiro `ADMIN` e entra com essa pessoa, então não há segunda
 entrada nem senha temporária. A tela pergunta a `GET /api/v1/setup/status`, que é pública porque uma
-instalação sem conta nenhuma não tem segredo a proteger.
+instalação sem conta nenhuma não tem segredo a proteger. O cartão carrega a logomarca do produto no
+topo, a mesma placa do cartão de entrada: é a primeira tela que quem instala vê, e é o lugar onde vale
+mostrar o nome inteiro.
 
 As duas portas se fecham **para sempre** depois que a primeira conta existe — desativada ou não,
 porque o predicado é a tabela estar vazia, e uma regra que uma desativação pudesse reabrir seria um
