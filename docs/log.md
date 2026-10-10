@@ -345,3 +345,22 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   the built SPA is served by the API from the same commit — so the number is known when the bundle is
   written and a request would buy nothing. The API's own `info.version` is Litestar's default
   (`{"title": "Litestar API", "version": "1.0.0"}`) and was not a candidate.
+
+## 2026-10-09 — one width for every screen
+
+- **Range:** `05819cd..HEAD`
+- **Pages:**
+  - `guides/curate.md` — **updated**: *The screen is one window tall* gains the width, because the
+    width is part of the shell now: the column has **no maximum**, and what keeps a cap is the content
+    (a paragraph's measure, a field's width).
+  - `guides/curate.pt.md` — **updated**: the same paragraph.
+- **Why:** the per-screen caps had drifted — `max-w-5xl` on most screens, `max-w-4xl` on five,
+  `max-w-6xl` on one, and four of the dossier's panels carried their own — so on a wide monitor two
+  screens stopped growing at different points. That is not a decision, it is drift, and the report of
+  it came from looking at the screens side by side. Measured after the change: at 1280 the content
+  column is 1024 and the widest child is **1024**; at 1920 both are **1664**, on the four screens that
+  used to differ (categories, anomalies, entities and the dossier).
+- **What did not move:** the text measure (`max-w-prose`, `max-w-3xl`) and the control widths
+  (`max-w-md`, `max-w-xs`, the login forms' `max-w-sm`) — those are decisions about a paragraph and a
+  field, not about a screen, and they are the same on every screen. The screen count, the menu count,
+  the settings tables, the data model and the API contract are untouched.

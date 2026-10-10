@@ -271,6 +271,12 @@ status and **the actions** in reach: "Propor níveis", "Rodar agora" and "Exclui
 the window with the content. Measured at 1440x900 on the entities list: the document is 900px in a
 900px window, the content is 3299px in an 867px column, and the menu is 734px in a 734px box.
 
+The column has **no maximum width**: it fills whatever the window gives it, so the same screen is the
+same width on every monitor. Before this, each screen carried its own cap and they had drifted —
+`max-w-5xl` on most, `max-w-4xl` on five, `max-w-6xl` on one — so two screens side by side on a wide
+display stopped growing at different points. What keeps its own cap is the *content*: a paragraph
+keeps a readable measure, a text field keeps a field's width.
+
 The menu **folds into one open section**, plus the section the archivist is standing in — that one is
 open by construction, because an active entry hidden inside a collapsed group is a menu that hides
 where you are. Clicking a heading opens it and closes the one opened by hand; navigating closes that

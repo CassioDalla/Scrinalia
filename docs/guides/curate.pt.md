@@ -249,6 +249,12 @@ alcance: "Propor níveis", "Rodar agora" e "Excluir órfãs" saíam da janela ju
 a 1440x900 na lista de entidades: o documento tem 900px numa janela de 900px, o conteúdo tem 3299px
 numa coluna de 867px e o menu tem 734px numa caixa de 734px.
 
+A coluna **não tem largura máxima**: ela preenche o que a janela der, então a mesma tela tem a mesma
+largura em qualquer monitor. Antes disso cada tela carregava o próprio teto e eles tinham divergido —
+`max-w-5xl` na maioria, `max-w-4xl` em cinco, `max-w-6xl` em uma — então duas telas lado a lado num
+monitor largo paravam de crescer em pontos diferentes. Quem mantém o próprio teto é o **conteúdo**: um
+parágrafo mantém a medida legível, um campo de texto mantém a largura de campo.
+
 O menu **se dobra numa seção aberta**, mais a seção em que o arquivista está — essa fica aberta por
 construção, porque uma entrada ativa escondida dentro de um grupo recolhido é um menu que esconde onde
 você está. Clicar num título abre o grupo e fecha o que foi aberto à mão; navegar fecha esse, então o
