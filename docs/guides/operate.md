@@ -86,7 +86,7 @@ transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-
 - **`conflict-judge`** compares the tag vocabulary with the entity vocabulary and asks the local
   LLM whether an ambiguous term is a subject or a proper name. Every verdict, auto-resolved or sent
   to a human, leaves a row in `archive_ai_review_queue`.
-- **`macro-category`** files each tag into a subject drawer. Its unit is the **tag**, not the
+- **`macro-category`** files each tag into a subject category. Its unit is the **tag**, not the
   document, so its stamp lives in the tag's own `execution_log`; a tag a curator filed by hand is
   out of its reach.
 - **`quality-validator`** marks structural anomalies, repeated titles and `VALIDATE` rules. It never
@@ -115,7 +115,7 @@ how many carry the worker's stamp; `failed` counts the stamps that record a fail
 | `typology` | documents with no typology and no stamp that have text | `worker_typology_classifier_v2` |
 | `thumbnail` | documents with a source image, no storage URI and no failure mark — every marked one, with `force` | none; the `storage_thumbnail_uri` column, plus the `thumbnail_failed` mark |
 | `conflict-judge` | **not measurable cheaply**: the queue is the trigram product of tags × entities, measured at 53 s on the real collection. The panel shows what was already judged | none; the `archive_ai_review_queue` row |
-| `macro-category` | tags with no subject drawer whose stamp does not carry the current label set | `worker_macro_category_v1` (on the tag; value is the hash of the label set) |
+| `macro-category` | tags with no subject category whose stamp does not carry the current label set | `worker_macro_category_v1` (on the tag; value is the hash of the label set) |
 | `quality-validator` | documents without the stamp, unless `force` is on | `worker_quality_validator_v1` |
 | `embedding` | documents whose stamp differs from the MD5 of the effective text — the first run and every later text change | `worker_embedding_v1` (value is the MD5 of the embedded text) |
 
@@ -308,7 +308,7 @@ touches only what is still pending. What puts a unit back in the queue:
   affected tags return to the `macro-category` queue. The quality validator's reasons depend on the
   catalog too.
 - **`force=true`** — `embedding`, `macro-category`, `thumbnail` and `quality-validator` accept it and
-  ignore their own stamp; `macro-category` still never touches a tag that already has a drawer. For
+  ignore their own stamp; `macro-category` still never touches a tag that already has a category. For
   `thumbnail` it also means the documents marked `thumbnail_failed` come back, which is the way out
   of a bucket that was down during a run: the mark exists to stop a dead link from looping, not to
   make an outage permanent.
@@ -324,7 +324,7 @@ uv run python -m scrinalia.domains.archive.workers.runner thumbnail --option for
     `typology`, `thumbnail` and `quality-validator` all filter by it. `transfer` refuses to overwrite
     an approved description even when the source hash changed. The two documented exceptions are the
     derived work — `embedding`, which re-embeds a changed text, and `macro-category`, whose unit is
-    the tag and whose queue is "no drawer yet", so a curator's drawer is never rewritten.
+    the tag and whose queue is "no category yet", so a curator's category is never rewritten.
 
 There is **no route and no flag that clears a stamp**: to put a single document back in the queue for
 a worker that does not accept `force`, you have to remove that key from its `execution_log` in the
@@ -503,7 +503,7 @@ SELECT 'descrições', count(*)::text FROM archive_documents
 UNION ALL SELECT 'com pai', count(*)::text FROM archive_documents WHERE parent_id IS NOT NULL
 UNION ALL SELECT 'sem nível', count(*)::text FROM archive_documents WHERE level_id IS NULL
 UNION ALL SELECT 'tags', count(*)::text FROM archive_tags
-UNION ALL SELECT 'tags sem gaveta', count(*)::text FROM archive_tags WHERE macro_category_id IS NULL
+UNION ALL SELECT 'tags sem categoria', count(*)::text FROM archive_tags WHERE macro_category_id IS NULL
 UNION ALL SELECT 'propostas sugeridas', count(*)::text FROM archive_tag_merge_proposals WHERE status='SUGGESTED'
 UNION ALL SELECT 'propostas aplicadas', count(*)::text FROM archive_tag_merge_proposals WHERE status='APPLIED'
 UNION ALL SELECT 'rungs decididos', count(*)::text FROM archive_hierarchy_node_plans WHERE status <> 'SUGGESTED'
