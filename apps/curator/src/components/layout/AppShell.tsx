@@ -10,7 +10,6 @@ import {
   LogOut,
   Network,
   PanelLeftClose,
-  PanelLeftOpen,
   Ruler,
   Scissors,
   Search,
@@ -26,6 +25,8 @@ import {
 import { useState, type ReactNode } from "react";
 
 import { fetchCurrentUser, fetchSetupStatus, logout, type AuthUser } from "@/api/client";
+import { Lockup } from "@/components/brand/Lockup";
+import { Mark } from "@/components/brand/Mark";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Feedback";
 import { cn } from "@/lib/cn";
@@ -395,42 +396,51 @@ export function AppShell() {
     <div className="flex h-dvh overflow-hidden">
       <aside
         className={cn(
-          "flex shrink-0 flex-col border-r border-(--color-line) bg-(--color-surface) transition-[width] duration-150",
+          "flex shrink-0 flex-col border-r border-(--color-rail) bg-(--color-rail) transition-[width] duration-150",
           collapsed ? "w-16" : "w-64",
         )}
       >
-        <div className={cn("shrink-0 border-b border-(--color-line)", collapsed ? "px-2 py-2" : "px-4 py-4")}>
-          <div className="flex items-center justify-between gap-2">
-            {/*
-              The brand leaves the rail when it collapses; the attribution itself does not.
-              ``AttributionFooter`` renders it at the foot of every screen (ADR 0006), so the rail can
-              trade the name for the width without the license term leaving the page.
-            */}
-            {collapsed ? null : (
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{PRODUCT.name}</p>
-                <p className="truncate text-xs text-(--color-muted)">{PRODUCT.tagline}</p>
-              </div>
-            )}
+        {/*
+          The brand block is the identity's dark surface, and the whole rail with it — a dark band
+          over a light menu would be two backgrounds meeting for no reason, and would draw a seam
+          right under the name.
+
+          The mark is **always on screen**: expanded it is the lockup, collapsed it is the mark
+          itself, and there it is also the control that expands the rail — the brand is the thing
+          you click to get the words back, which is what makes it worth keeping at 64px.
+        */}
+        <div className={cn("shrink-0 border-b border-(--color-rail-line)", collapsed ? "px-2 py-3" : "px-4 py-3")}>
+          {collapsed ? (
             <button
               type="button"
               onClick={toggleSidebar}
-              aria-expanded={!collapsed}
+              aria-expanded={false}
               aria-controls="app-nav"
-              aria-label={collapsed ? "Expandir o menu" : "Recolher o menu"}
-              title={collapsed ? "Expandir o menu" : "Recolher o menu"}
-              className={cn(
-                "grid size-8 shrink-0 place-items-center rounded-md text-(--color-muted) transition hover:bg-black/5 hover:text-(--color-ink)",
-                collapsed && "mx-auto",
-              )}
+              aria-label="Expandir o menu"
+              title="Expandir o menu"
+              className="mx-auto grid size-9 place-items-center rounded-md transition hover:bg-(--color-rail-hover)"
             >
-              {collapsed ? (
-                <PanelLeftOpen className="size-4" aria-hidden />
-              ) : (
-                <PanelLeftClose className="size-4" aria-hidden />
-              )}
+              <Mark className="h-7 w-auto text-(--color-rail-ink)" />
             </button>
-          </div>
+          ) : (
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <Lockup className="h-8 w-auto text-(--color-rail-ink)" />
+                <p className="truncate text-xs text-(--color-rail-muted)">{PRODUCT.tagline}</p>
+              </div>
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                aria-expanded
+                aria-controls="app-nav"
+                aria-label="Recolher o menu"
+                title="Recolher o menu"
+                className="grid size-8 shrink-0 place-items-center rounded-md text-(--color-rail-muted) transition hover:bg-(--color-rail-hover) hover:text-(--color-rail-ink)"
+              >
+                <PanelLeftClose className="size-4" aria-hidden />
+              </button>
+            </div>
+          )}
         </div>
         <nav
           id="app-nav"
@@ -468,7 +478,7 @@ export function AppShell() {
                     }
                     aria-expanded={open}
                     aria-controls={panelId}
-                    className="flex w-full items-center justify-between rounded-md px-2 pb-1 text-[11px] font-semibold tracking-wide text-(--color-muted) uppercase transition hover:text-(--color-ink)"
+                    className="flex w-full items-center justify-between rounded-md px-2 pb-1 text-[11px] font-semibold tracking-wide text-(--color-rail-muted) uppercase transition hover:text-(--color-rail-ink)"
                   >
                     {group.section}
                     <span aria-hidden className="text-[9px]">
@@ -494,9 +504,14 @@ export function AppShell() {
                         className={cn(
                           "rounded-md text-sm transition",
                           collapsed ? "grid place-items-center py-2.5" : "flex items-start gap-2 px-2 py-1.5",
+                          /*
+                            The accent cannot carry the active entry here: it is `oklch(… 250)` and the
+                            rail is `oklch(… 247)`, the same hue, so blue on navy is a highlight nobody
+                            can see. The active entry is the surface's own ink on a lighter surface.
+                          */
                           active
-                            ? "bg-(--color-accent)/10 font-medium text-(--color-accent)"
-                            : "text-(--color-ink) hover:bg-black/[0.04]",
+                            ? "bg-(--color-rail-active) font-medium text-(--color-rail-ink)"
+                            : "text-(--color-rail-ink) hover:bg-(--color-rail-hover)",
                         )}
                       >
                         <Icon className={cn("shrink-0", collapsed ? "size-5" : "mt-0.5 size-4")} aria-hidden />
@@ -505,7 +520,7 @@ export function AppShell() {
                         ) : (
                           <span className="min-w-0 flex-1">
                             <span className="block">{item.label}</span>
-                            <span className="block text-[11px] font-normal text-(--color-muted)">{item.hint}</span>
+                            <span className="block text-[11px] font-normal text-(--color-rail-muted)">{item.hint}</span>
                           </span>
                         )}
                         </Link>
@@ -595,18 +610,18 @@ function SessionFooter({
   if (collapsed) {
     const identity = `${user.name} · ${ROLE_LABEL[user.role]} · ${user.email}`;
     return (
-      <div className="flex shrink-0 flex-col items-center gap-2 border-t border-(--color-line) px-1.5 py-3">
+      <div className="flex shrink-0 flex-col items-center gap-2 border-t border-(--color-rail-line) px-1.5 py-3">
         <span
           title={identity}
           aria-label={identity}
-          className="grid size-8 place-items-center rounded-full bg-(--color-accent)/10 text-xs font-semibold text-(--color-accent)"
+          className="grid size-8 place-items-center rounded-full bg-(--color-rail-active) text-xs font-semibold text-(--color-rail-ink)"
         >
           {user.name.trim().slice(0, 1).toUpperCase() || "?"}
         </span>
         <Button
           variant="ghost"
           size="sm"
-          className="size-8 px-0"
+          className="size-8 px-0 text-(--color-rail-muted) hover:bg-(--color-rail-hover) hover:text-(--color-rail-ink)"
           title={changing ? "Fechar" : "Trocar senha"}
           aria-label={changing ? "Fechar" : "Trocar senha"}
           onClick={onTogglePassword}
@@ -616,7 +631,7 @@ function SessionFooter({
         <Button
           variant="ghost"
           size="sm"
-          className="size-8 px-0"
+          className="size-8 px-0 text-(--color-rail-muted) hover:bg-(--color-rail-hover) hover:text-(--color-rail-ink)"
           title={signOut.isPending ? "Saindo…" : "Sair"}
           aria-label={signOut.isPending ? "Saindo…" : "Sair"}
           disabled={signOut.isPending}
@@ -629,16 +644,27 @@ function SessionFooter({
   }
 
   return (
-    <div className="shrink-0 border-t border-(--color-line) px-4 py-3">
-      <p className="truncate text-sm font-medium">{user.name}</p>
-      <p className="truncate text-xs text-(--color-muted)">
+    <div className="shrink-0 border-t border-(--color-rail-line) px-4 py-3">
+      <p className="truncate text-sm font-medium text-(--color-rail-ink)">{user.name}</p>
+      <p className="truncate text-xs text-(--color-rail-muted)">
         {ROLE_LABEL[user.role]} · {user.email}
       </p>
       <div className="flex items-center gap-1 pt-2">
-        <Button variant="ghost" size="sm" onClick={onTogglePassword}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-(--color-rail-muted) hover:bg-(--color-rail-hover) hover:text-(--color-rail-ink)"
+          onClick={onTogglePassword}
+        >
           {changing ? "Fechar" : "Trocar senha"}
         </Button>
-        <Button variant="ghost" size="sm" disabled={signOut.isPending} onClick={() => signOut.mutate()}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-(--color-rail-muted) hover:bg-(--color-rail-hover) hover:text-(--color-rail-ink)"
+          disabled={signOut.isPending}
+          onClick={() => signOut.mutate()}
+        >
           {signOut.isPending ? "Saindo…" : "Sair"}
         </Button>
       </div>

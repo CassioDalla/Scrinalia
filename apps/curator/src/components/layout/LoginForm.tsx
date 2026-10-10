@@ -2,9 +2,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { ApiError, login } from "@/api/client";
+import { Lockup } from "@/components/brand/Lockup";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { ATTRIBUTION } from "@/lib/attribution";
+import { PRODUCT } from "@/lib/copy";
 
 /**
  * The way in.
@@ -48,8 +49,19 @@ export function LoginForm() {
           signIn.mutate();
         }}
       >
-        <p className="text-lg font-semibold">{ATTRIBUTION.name}</p>
-        <p className="pb-5 text-sm text-(--color-muted)">Curadoria do acervo</p>
+        {/*
+          The identity, centred where the name used to be typed as plain text.
+
+          The plate carries the same motif as the app's own header — the navy surface, the full
+          lockup, the 2px terracotta rule — and it sits **inside the card**: this card is the whole
+          screen, so a band across the window would have drawn a second frame around the one the card
+          already draws. The name and the tagline come from `PRODUCT`, the same two values the rail
+          reads, so the front door cannot drift from the inside.
+        */}
+        <div className="mb-5 rounded-md border-b-2 border-(--color-brand) bg-(--color-rail) px-4 py-4 text-center">
+          <Lockup className="mx-auto h-10 w-auto text-(--color-rail-ink)" />
+          <p className="pt-1 text-xs text-(--color-rail-muted)">{PRODUCT.tagline}</p>
+        </div>
 
         <label className="block pb-3 text-sm">
           <span className="pb-1 block text-(--color-muted)">E-mail</span>
