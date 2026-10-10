@@ -29,7 +29,7 @@ dependencies = [
     "requests>=2.34.2",
     "scikit-learn>=1.8.0",
     "spacy>=3.8.14",
-    "sqlalchemy>=2.0.50,<2.1",  # held: 2.1 switches the default driver to psycopg3
+    "sqlalchemy>=2.0.50,<2.2",  # held: 2.1 switches the default driver to psycopg3
     "torch>=2.12.0",
     "transformers>=5.9.0",
 ]
