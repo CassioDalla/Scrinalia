@@ -58,7 +58,7 @@ re-queues the affected tags by itself. The quality validator grades the record (
 suspicious title, scope that was only boilerplate) and sends it to human review, and the embedding
 runs last because every text mutation has to happen before it.
 
-The subject axis reads a **vocabulary**, not the raw tag list: eight drawers, plus two kinds of "this
+The subject axis reads a **vocabulary**, not the raw tag list: eight categories, plus two kinds of "this
 is not a subject". The split follows what owns each piece. What is a property of **Portuguese** —
 `rua`, `não identificado`, a bare year, `303 anos` — lives in a language profile (`core/language`,
 selected by `ACERVO_LANGUAGE`): it is not a curation decision, and a second language is a module
@@ -69,9 +69,9 @@ installation loads from its own file (`python -m scrinalia.domains.archive.cli i
 replace without a deploy: a fresh clone starts with an empty catalogue and never inherits another
 institution's vocabulary. On top of the deterministic guard sits the curated
 `domain_subject_exclusions` catalogue, for the judgements no rule reaches. Below 0.55 confidence a
-tag is left without a drawer **and** queued for review rather than guessed at. A tag whose axis is
+tag is left without a category **and** queued for review rather than guessed at. A tag whose axis is
 provenance or geography carries an `archive_tag_facets` row instead of competing for a subject
-drawer.
+category.
 
 ## Requirements
 
@@ -259,8 +259,8 @@ The screens that exist today, in the order the work happens:
 | `/arranjo/tipologias` | the documental typologies the classifier proposes: active ones are the labels, retired ones keep their weight |
 | `/vocabulario` | the collection's own vocabulary: the arrangement tokens and the terms the guards and the classifier read |
 | `/assuntos/tags` | the tag catalog: weight, near-duplicates and the merge queue with undo |
-| `/assuntos/categorias` | the subject drawers the classifier reads, with their weight |
-| `/assuntos/descobrir` | cluster the vocabulary to discover a drawer it does not have |
+| `/assuntos/categorias` | the subject categories the classifier reads, with their weight |
+| `/assuntos/descobrir` | cluster the vocabulary to discover a category it does not have |
 | `/assuntos/excecoes` | "this is not a subject at all": the terms the deterministic guard already refuses, with the evidence, plus the field for the judgements no rule reaches |
 | `/entidades/lista` | named entities: weight by type, merge and reclassification |
 | `/entidades/excecoes` | the NER veto: "this spelling is a subject, not a proper name" |
