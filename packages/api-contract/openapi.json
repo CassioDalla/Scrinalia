@@ -1448,7 +1448,7 @@
             "type": "string"
           },
           "description": {
-            "description": "Documentação da gaveta para o curador.",
+            "description": "Documentação da categoria para o curador.",
             "oneOf": [
               {
                 "type": "string"

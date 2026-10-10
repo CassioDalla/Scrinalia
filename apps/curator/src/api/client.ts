@@ -200,7 +200,7 @@ export type ConflictPairKind = CrossDomainConflict["pair_kind"];
  */
 export type ConflictPairKindFilter = "all" | "exact_name" | "near_duplicate";
 
-// --- The subject vocabulary: exclusions and the cluster discovery ------------------------------
+// --- The subject vocabulary: exclusions and the agrupamento discovery ------------------------------
 export type SubjectExclusionBanResponse = components["schemas"]["SubjectExclusionBanResponse"];
 export type SubjectExclusionSuggestion = components["schemas"]["SubjectExclusionSuggestion"];
 export type SubjectExclusionSuggestionResponse =
@@ -246,7 +246,7 @@ export type ProposalStatus = TagMergeProposal["status"];
 export type StopwordsScope = NonNullable<Stopword["scope"]>;
 
 /**
- * How a cluster was formed, taken from the **request** the API accepts.
+ * How a agrupamento was formed, taken from the **request** the API accepts.
  *
  * The DTO carries ``reason`` as a plain string (it is read from storage), while the filter is an
  * enum — so deriving this from the DTO would give ``string`` and let the screen send a reason the
@@ -655,7 +655,7 @@ export async function fetchSimilarTags(params: {
 
 export async function fetchMergeProposals(params: {
   status?: ProposalStatus;
-  /** The cluster's reason, as the contract enumerates it: TRIGRAM, PLURAL or MIXED. */
+  /** The agrupamento's reason, as the contract enumerates it: TRIGRAM, PLURAL or MIXED. */
   reason?: MergeReason;
   min_documents?: number;
   flagged_only?: boolean;
@@ -691,7 +691,7 @@ export async function previewMerge(proposalId: number): Promise<MergePreview> {
   );
 }
 
-/** Applies the approved clusters, each in its own savepoint: one failure does not roll back the rest. */
+/** Applies the approved agrupamentos, each in its own savepoint: one failure does not roll back the rest. */
 export async function applyMergeBatch(body: {
   proposal_ids: number[];
   note?: string | null;
@@ -939,7 +939,7 @@ export async function restoreToSubjects(body: {
 }
 
 /**
- * Clusters the collection so a drawer the vocabulary lacks can be discovered.
+ * Agrupamentos the collection so a drawer the vocabulary lacks can be discovered.
  *
  * It drags the real clustering engine into the process, so it is a deliberate click and never a
  * page load. Below the engine's own floor it answers ``total_suggestions: 0`` with a message,

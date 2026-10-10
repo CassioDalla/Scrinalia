@@ -2080,7 +2080,7 @@ export interface components {
             allows_children: boolean;
             /** @description Chave de máquina estável, ex.: 'serie'. */
             code: string;
-            /** @description Documentação da gaveta para o curador. */
+            /** @description Documentação da categoria para o curador. */
             description?: string | null;
             /** @description O que o arquivista lê. */
             name: string;

@@ -65,7 +65,7 @@ export function CategoriesRoute() {
         pending={categories.isPending}
         status={
           categories.data
-            ? `${active.length} ativas · ${retired.length} aposentadas · ${formatCount(totalDocuments)} descrições com gaveta`
+            ? `${active.length} ativas · ${retired.length} aposentadas · ${formatCount(totalDocuments)} descrições com categoria`
             : undefined
         }
       />
@@ -73,7 +73,7 @@ export function CategoriesRoute() {
       <PageBody>
         <Notice tone="warn">
           <strong>A frase não melhora a classificação.</strong> Medido em 44 tags rotuladas à mão: dar uma frase ao
-          modelo em vez do nome nu leva a acurácia a <strong>0.000</strong>, com 65% das tags numa única gaveta. O
+          modelo em vez do nome nu leva a acurácia a <strong>0.000</strong>, com 65% das tags numa única categoria. O
           rótulo existe para o curador ajustar a redação sem deploy — não espere ganho dele.
         </Notice>
 
@@ -88,20 +88,20 @@ export function CategoriesRoute() {
 
         {/* The write first, the catalogue after — and every drawer opens on demand. */}
         <Disclosure
-          triggerLabel="+ Nova gaveta"
-          toggleLabel="Criar uma gaveta"
+          triggerLabel="+ Nova Categoria"
+          toggleLabel="Criar uma Categoria"
           header={
             <div className="grid gap-1">
-              <span className="text-sm font-semibold">Criar uma gaveta</span>
+              <span className="text-sm font-semibold">Criar uma Categoria</span>
               <span className="text-xs text-(--color-muted)">
-                Uma gaveta nova só passa a valer quando o classificador rodar de novo.
+                Uma categoria nova só passa a valer quando o classificador rodar de novo.
               </span>
             </div>
           }
         >
           <div className="grid gap-2">
             <p className="text-xs text-(--color-muted)">
-              Uma gaveta nova só passa a valer quando o classificador rodar de novo: o carimbo do worker é o
+              Uma categoria nova só passa a valer quando o classificador rodar de novo: o carimbo do worker é o
               <strong> hash do conjunto de rótulos</strong>, então mudar o vocabulário devolve as tags à fila sozinho.
             </p>
             <Input
@@ -143,7 +143,7 @@ export function CategoriesRoute() {
             <SectionTitle>Aposentadas</SectionTitle>
             <p className="text-xs text-(--color-muted)">
               Saíram do eixo de assunto porque são proveniência e geografia, não assunto. Nunca foram excluídas: a
-              chave estrangeira é <code>SET NULL</code>, e excluir uma gaveta excluiria o registro de que ela existiu.
+              chave estrangeira é <code>SET NULL</code>, e excluir uma categoria excluiria o registro de que ela existiu.
             </p>
             {retired.map((category) => (
               <CategoryCard key={category.category_id} category={category} onChanged={invalidate} />
@@ -181,13 +181,13 @@ function CategoryCard({ category, onChanged }: { category: MacroCategory; onChan
 
   return (
     <Disclosure
-      toggleLabel="Editar esta gaveta"
+      toggleLabel="Editar esta Categoria"
       className={category.is_active ? undefined : "opacity-80"}
       header={
         <div className="flex flex-wrap items-center gap-2">
           <span className="truncate text-sm font-medium">{category.name}</span>
           {category.is_active ? <Badge tone="ok">ativa</Badge> : <Badge tone="neutral">aposentada</Badge>}
-          <Badge tone="accent" title="Descrições com pelo menos uma tag nesta gaveta">
+          <Badge tone="accent" title="Descrições com pelo menos uma tag nesta categoria">
             {formatCount(category.document_count ?? 0)} descrições
           </Badge>
           {category.description ? (

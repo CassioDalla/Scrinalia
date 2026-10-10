@@ -355,7 +355,7 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
         <CardHeader className="flex items-center justify-between">
           <span className="text-sm font-semibold">Tags e assunto</span>
           <span className="text-xs text-(--color-muted)">
-            {document.macro_categories?.length ?? 0} gaveta(s) votada(s)
+            {document.macro_categories?.length ?? 0} categoria(s) votada(s)
           </span>
         </CardHeader>
         <CardBody className="grid gap-2">
@@ -376,8 +376,8 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                       {tag.macro_category_name}
                     </Badge>
                   ) : (
-                    <Badge tone="neutral" title="O classificador não arquivou esta tag numa gaveta">
-                      sem gaveta
+                    <Badge tone="neutral" title="O classificador não arquivou esta tag numa categoria">
+                      sem categoria
                     </Badge>
                   )}
                   {tag.ai_confidence_score !== null && tag.ai_confidence_score !== undefined ? (
@@ -389,10 +389,10 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                 <span className="flex items-center gap-2">
                   <Select
                     className="w-44"
-                    aria-label={`Gaveta da tag ${tag.name}`}
+                    aria-label={`Categoria da tag ${tag.name}`}
                     value={tag.macro_category_id ?? ""}
                     disabled={reclassify.isPending}
-                    title="Muda a gaveta desta tag em TODAS as descrições que a carregam, não só nesta."
+                    title="Muda a categoria desta tag em TODAS as descrições que a carregam, não só nesta."
                     onChange={(event) =>
                       reclassify.mutate({
                         tagId: tag.tag_id,
@@ -400,7 +400,7 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                       })
                     }
                   >
-                    <option value="">sem gaveta (não é assunto)</option>
+                    <option value="">sem categoria (não é assunto)</option>
                     {drawers.map((category) => (
                       <option key={category.category_id} value={category.category_id}>
                         {category.name}
@@ -438,7 +438,7 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                     value: String(result.tag_id),
                     label: result.name,
                     hint: `${formatCount(result.document_count)} doc${
-                      result.macro_category_name ? ` · ${result.macro_category_name}` : " · sem gaveta"
+                      result.macro_category_name ? ` · ${result.macro_category_name}` : " · sem categoria"
                     }`,
                   }))
                 }
@@ -447,8 +447,8 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
             </label>
           </div>
           <p className="text-xs text-(--color-muted)">
-            A gaveta escolhida ao lado vale para <strong>todas</strong> as descrições que carregam a tag: é uma
-            decisão sobre o vocabulário, não sobre este documento. O selo <em>sem gaveta</em> devolve a tag ao
+            A categoria escolhida ao lado vale para <strong>todas</strong> as descrições que carregam a tag: é uma
+            decisão sobre o vocabulário, não sobre este documento. O selo <em>sem categoria</em> devolve a tag ao
             classificador.
           </p>
           {addTag.error ? <ErrorState error={addTag.error} /> : null}

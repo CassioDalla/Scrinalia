@@ -279,7 +279,7 @@ function SimilarityTab({
 
   /**
    * A merge touches four screens at once: the pairs it just changed, the ledger it writes, the
-   * clusters a future suggestion may re-propose, and every description that carried either spelling.
+   * agrupamentos a future suggestion may re-propose, and every description that carried either spelling.
    */
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["taxonomy", "tags"] });
@@ -295,7 +295,7 @@ function SimilarityTab({
    * A row is marked as a whole.
    *
    * The unit the archivist reads is the pair — "these two are the same thing" — so ticking it has to
-   * add *both* sides; adding only one would build a cluster out of half of what was on screen. Two
+   * add *both* sides; adding only one would build a agrupamento out of half of what was on screen. Two
    * rows that share a side (`carlos de carvalho` ↔ X and `carlos de carvalho` ↔ Y) therefore merge
    * into three tags, which is exactly the case the pair list cannot express and the reason marking a
    * row exists at all.
@@ -394,7 +394,7 @@ function SimilarityTab({
       {similar.data && pairs.length === 0 ? (
         <EmptyState
           title="Nenhum par acima do limiar"
-          hint="Baixe o limiar para ver pares mais distantes, ou rode uma proposta de merge para registrar os clusters."
+          hint="Baixe o limiar para ver pares mais distantes, ou rode uma proposta de merge para registrar os agrupamentos."
         />
       ) : null}
 
@@ -501,7 +501,7 @@ function SimilarityTab({
 /**
  * The report of a merge, rendered by the **screen** and not by the row that started it.
  *
- * A merge is a write over the vocabulary, so the pair or the cluster that triggered it usually stops
+ * A merge is a write over the vocabulary, so the pair or the agrupamento that triggered it usually stops
  * existing in the very refetch that follows: the row disappears and any message living inside it
  * disappears with it. The archivist clicked, the panel vanished and nothing said whether it had
  * worked — which is the one thing a destructive-looking operation must never do.
@@ -553,9 +553,9 @@ function TagMergePanel({
   const first = members[0];
   const [canonicalId, setCanonicalId] = useState(initialCanonicalId ?? first?.tag_id ?? 0);
   /**
-   * Members the archivist took out of the cluster.
+   * Members the archivist took out of the agrupamento.
    *
-   * This is the whole point of editing a proposal: a machine cluster is usually *nearly* right — the
+   * This is the whole point of editing a proposal: a machine agrupamento is usually *nearly* right — the
    * report is explicit about it ("289 anos é diferente de 294") — and without a way to drop one tag the
    * only options were to accept a wrong merge or reject a good one. Leaving a member out is also how
    * the pair panel says "actually, only this one".
@@ -583,11 +583,11 @@ function TagMergePanel({
     // Deliberately **not** under ``["taxonomy", "tags"]``: the merge invalidates that prefix, and a
     // preview keyed inside it would refetch itself with the tags it just absorbed — turning a
     // successful merge into a red panel. The key carries the *kept* set, so unchecking a tag
-    // recomputes the impact instead of showing the previous cluster's numbers.
+    // recomputes the impact instead of showing the previous agrupamento's numbers.
     queryKey: ["taxonomy", "merge-preview", canonicalId, included.map((m) => m.tag_id).join(",")],
     queryFn: () => previewTagPair({ canonical_id: canonicalId, ids_to_merge: absorbedIds }),
     staleTime: 30_000,
-    // A cluster with nothing to absorb has no impact to compute, and the write is refused below.
+    // A agrupamento with nothing to absorb has no impact to compute, and the write is refused below.
     enabled: absorbedIds.length > 0,
   });
 
@@ -653,8 +653,8 @@ function TagMergePanel({
                   checked={!out}
                   disabled={outcome !== null}
                   onChange={() => toggleMember(member.tag_id)}
-                  title={out ? "Trazer de volta para o cluster" : "Tirar do cluster"}
-                  aria-label={`Incluir ${member.name} no cluster`}
+                  title={out ? "Trazer de volta para o agrupamento" : "Tirar do agrupamento"}
+                  aria-label={`Incluir ${member.name} no agrupamento`}
                 />
                 <input
                   type="radio"
@@ -670,7 +670,7 @@ function TagMergePanel({
                 <span className={isCanonical ? "font-medium" : "text-(--color-muted)"}>
                   {member.name} <code className="text-[10px]">#{member.tag_id}</code>
                   {out
-                    ? " — fora do cluster"
+                    ? " — fora do agrupamento"
                     : isCanonical
                       ? " — mantida (canônica)"
                       : " — absorvida"}
@@ -701,7 +701,7 @@ function TagMergePanel({
                 <li key={impact.tag_id}>
                   {impact.name} <code className="text-[10px]">#{impact.tag_id}</code> (
                   {formatCount(impact.document_count)} doc
-                  {impact.macro_category_id ? `, gaveta ${categoryName(impact.macro_category_id)}` : ""})
+                  {impact.macro_category_id ? `, categoria ${categoryName(impact.macro_category_id)}` : ""})
                 </li>
               ))}
             </ul>
@@ -717,8 +717,8 @@ function TagMergePanel({
             ) : null}
             {preview.data.category_would_be_lost ? (
               <Notice tone="danger">
-                Esta mesclagem <strong>exclui uma classificação de assunto</strong>: a tag absorvida está na gaveta{" "}
-                <strong>{lostDrawers.join(", ") || "—"}</strong> e a canônica não tem gaveta.
+                Esta mesclagem <strong>exclui uma classificação de assunto</strong>: a tag absorvida está na categoria{" "}
+                <strong>{lostDrawers.join(", ") || "—"}</strong> e a canônica não tem categoria.
               </Notice>
             ) : null}
           </div>
@@ -735,7 +735,7 @@ function TagMergePanel({
             disabled={!preview.data || merge.isPending || outcome !== null || included.length < 2}
             title={
               included.length < 2
-                ? "Um cluster precisa de ao menos duas tags: uma canônica e uma absorvida."
+                ? "Um agrupamento precisa de ao menos duas tags: uma canônica e uma absorvida."
                 : preview.data
                   ? undefined
                   : "O impacto é obrigatório: conferir o impacto vem antes de mesclar."
@@ -784,7 +784,7 @@ function ProposalsTab({
   const [batch, setBatch] = useState<BatchMergeResponse | null>(null);
   const [logLimit, setLogLimit] = useState(MERGE_LOG_PAGE_SIZE);
   const [logTerm, setLogTerm] = useState("");
-  /** The cluster the archivist is editing before applying — "tira o '289 anos' do meio". */
+  /** The agrupamento the archivist is editing before applying — "tira o '289 anos' do meio". */
   const [editing, setEditing] = useState<TagMergeProposal | null>(null);
   const [lastEdited, setLastEdited] = useState<{ proposalId: number; outcome: MergeResponse } | null>(null);
 
@@ -793,7 +793,7 @@ function ProposalsTab({
    *
    * Passing the search object straight through looked equivalent and was not: the route's keys are
    * ``motivo``/``min``/``flag`` while the request expects ``reason``/``min_documents``/``flagged_only``,
-   * so three of the four controls answered "every cluster" no matter what the archivist chose. A
+   * so three of the four controls answered "every agrupamento" no matter what the archivist chose. A
    * mismatch the type checker cannot see, because the query builder receives an object either way.
    */
   const proposals = useQuery(
@@ -831,14 +831,14 @@ function ProposalsTab({
   });
 
   /**
-   * Brings every approved cluster into the selection, across pages.
+   * Brings every approved agrupamento into the selection, across pages.
    *
-   * Without it the archivist with 92 approved clusters would have to page through five screens and
+   * Without it the archivist with 92 approved agrupamentos would have to page through five screens and
    * tick a box in each. The selection is what the batch sends, so this only fills it — the write is
    * still the explicit "Aplicar em lote" below.
    */
   /**
-   * Files away the clusters that have nothing left to absorb.
+   * Files away the agrupamentos that have nothing left to absorb.
    *
    * Rejecting is the only verdict the catalogue has for "this is not work any more", and the note
    * records why — the alternative is a queue that keeps offering an apply which cannot succeed.
@@ -869,13 +869,13 @@ function ProposalsTab({
   });
 
   /**
-   * Files away the machine's cluster after the archivist applied their own version of it.
+   * Files away the machine's agrupamento after the archivist applied their own version of it.
    *
    * Rejecting is the only verdict the catalogue has for "this question is answered", and it is what
-   * keeps the cluster from coming back: the suggestion run re-proposes a fingerprint whose row is
+   * keeps the agrupamento from coming back: the suggestion run re-proposes a fingerprint whose row is
    * still ``SUGGESTED``, and a row that left ``SUGGESTED`` is never rewritten. Editing the members in
    * place was the alternative and it does not work — the fingerprint *is* the member list, so the next
-   * run would insert the original cluster again as brand-new work.
+   * run would insert the original agrupamento again as brand-new work.
    */
   const closeEdited = useMutation({
     mutationFn: (proposal: TagMergeProposal) =>
@@ -900,7 +900,7 @@ function ProposalsTab({
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="primary" disabled={suggest.isPending} onClick={() => suggest.mutate()}>
-          {suggest.isPending ? "Propondo…" : "Propor clusters"}
+          {suggest.isPending ? "Propondo…" : "Propor Agrupamentos"}
         </Button>
         <label className="flex items-center gap-2 text-xs">
           <span className="text-(--color-muted)">limiar</span>
@@ -956,7 +956,7 @@ function ProposalsTab({
 
       {suggest.data ? (
         <Notice tone="ok">
-          Proposta: {formatCount(suggest.data.clusters_found)} cluster(s) encontrados, {formatCount(suggest.data.persisted)}{" "}
+          Proposta: {formatCount(suggest.data.clusters_found)} agrupamento(s) encontrados, {formatCount(suggest.data.persisted)}{" "}
           registrados, {formatCount(suggest.data.pending)} pendentes, {formatCount(suggest.data.flagged)} com aviso. Uma
           decisão já tomada não é sobrescrita.
         </Notice>
@@ -966,7 +966,7 @@ function ProposalsTab({
       {approvedNotSelected.length > 0 ? (
         <Notice tone="warn" as="div" className="flex flex-wrap items-center gap-3">
           <span className="text-xs text-(--color-warn)">
-            <strong>{formatCount(approvedNotSelected.length)}</strong> cluster(s) aprovado(s) nesta página{" "}
+            <strong>{formatCount(approvedNotSelected.length)}</strong> agrupamento(s) aprovado(s) nesta página{" "}
             <strong>ainda não foram mesclados</strong>: aprovar registra a intenção, e só a aplicação absorve as tags.
             Enquanto ele não roda, o ledger abaixo não muda.
           </span>
@@ -986,7 +986,7 @@ function ProposalsTab({
       {fulfilled.length > 0 ? (
         <div className="flex flex-wrap items-center gap-3 rounded-md bg-black/[0.02] px-3 py-2 ring-1 ring-(--color-line)">
           <span className="text-xs text-(--color-muted)">
-            <strong>{formatCount(fulfilled.length)}</strong> cluster(s) aprovado(s) nesta página{" "}
+            <strong>{formatCount(fulfilled.length)}</strong> agrupamento(s) aprovado(s) nesta página{" "}
             <strong>já não têm o que absorver</strong>: os membros foram mesclados por outra mesclagem (ou excluídos por
             uma purga). Não são falhas — não há nada a aplicar.
           </span>
@@ -1004,13 +1004,13 @@ function ProposalsTab({
       {selected.length > 0 ? (
         <Notice tone="accent" as="div" className="flex flex-wrap items-center gap-2">
           <span className="text-xs">
-            {formatCount(selected.length)} cluster(s) selecionado(s) para aplicar
+            {formatCount(selected.length)} agrupamento(s) selecionado(s) para aplicar
           </span>
           <Button
             size="sm"
             variant="primary"
             disabled={apply.isPending || selected.length > MAX_BATCH}
-            title={selected.length > MAX_BATCH ? `O lote aceita no máximo ${MAX_BATCH} clusters.` : undefined}
+            title={selected.length > MAX_BATCH ? `O lote aceita no máximo ${MAX_BATCH} agrupamentos.` : undefined}
             onClick={() => apply.mutate()}
           >
             {apply.isPending ? "Aplicando…" : "Aplicar em lote"}
@@ -1030,7 +1030,7 @@ function ProposalsTab({
       {batch ? (
         <Notice tone="ok" as="div" className="grid gap-1">
           <p className="font-medium text-(--color-ok)">
-            {formatCount((batch.applied ?? []).length)} cluster(s) aplicado(s)
+            {formatCount((batch.applied ?? []).length)} agrupamento(s) aplicado(s)
             {(batch.skipped ?? []).length > 0
               ? `, ${formatCount((batch.skipped ?? []).length)} já aplicado(s) antes (ignorados)`
               : ""}
@@ -1068,10 +1068,10 @@ function ProposalsTab({
       {proposals.data && total === 0 ? (
         <EmptyState
           title="Nenhuma proposta com este filtro"
-          hint="Rode 'Propor clusters' para registrar os pares acima do limiar. A proposta não mescla nada: ela só escreve a pergunta."
+          hint="Rode 'Propor Agrupamentos' para registrar os pares acima do limiar. A proposta não mescla nada: ela só escreve a pergunta."
           action={
             <Button onClick={() => suggest.mutate()} disabled={suggest.isPending}>
-              Propor clusters
+              Propor Agrupamentos
             </Button>
           }
         />
@@ -1080,7 +1080,7 @@ function ProposalsTab({
       {closeEdited.error ? <ErrorState error={closeEdited.error} /> : null}
       {lastEdited ? (
         <MergeOutcome
-          label={`Cluster #${lastEdited.proposalId} editado e fechado como rejeitado`}
+          label={`Agrupamento #${lastEdited.proposalId} editado e fechado como rejeitado`}
           outcome={lastEdited.outcome}
         />
       ) : null}
@@ -1109,13 +1109,13 @@ function ProposalsTab({
             {/*
               The editor is a *hand merge* of the members that survived the edit, run by the same
               planner the batch uses — so the numbers do not change depending on which door was used.
-              The preview inside the panel is the dry run; the machine's cluster is closed afterwards.
+              The preview inside the panel is the dry run; the machine's agrupamento is closed afterwards.
             */}
             {editing?.proposal_id === proposal.proposal_id ? (
               <TagMergePanel
                 members={(proposal.members ?? []).map((member) => ({ tag_id: member.tag_id, name: member.name }))}
                 initialCanonicalId={proposal.canonical_id ?? undefined}
-                title={`Editar e aplicar o cluster #${proposal.proposal_id}`}
+                title={`Editar e aplicar o agrupamento #${proposal.proposal_id}`}
                 hint="Desmarque a tag que não pertence ao conjunto e escolha a canônica. Aplicar mescla a seleção revisada pelo mesmo planejador do lote, registra no ledger — e fecha esta proposta como rejeitada, porque a pergunta da máquina foi respondida de outro jeito."
                 onMerged={(outcome) => {
                   // The report goes to the screen: this row is about to leave the SUGGESTED filter.
@@ -1237,7 +1237,7 @@ function ProposalsTab({
 }
 
 /**
- * One cluster, with the evidence and the two decisions that are possible about it.
+ * One agrupamento, with the evidence and the two decisions that are possible about it.
  *
  * The preview is a step, not a decoration: ``category_would_be_lost`` is the only warning that the
  * merge would destroy a classification, and it has to be seen **before** the verdict, because
@@ -1351,7 +1351,7 @@ function ProposalCard({
             Rejeitar
           </Button>
           {/*
-            Editing is offered only while there is still a member to absorb: an applied cluster has no
+            Editing is offered only while there is still a member to absorb: an applied agrupamento has no
             tags left to unify, and "editar" there would open a panel over names that no longer exist.
           */}
           {proposal.applicable ? (
@@ -1359,7 +1359,7 @@ function ProposalCard({
               size="sm"
               variant={editing ? "primary" : "secondary"}
               onClick={onEdit}
-              title="Tirar membros do cluster antes de mesclar"
+              title="Tirar membros do agrupamento antes de mesclar"
             >
               {editing ? "fechando edição" : "editar"}
             </Button>
@@ -1387,7 +1387,7 @@ function ProposalCard({
               {(preview.tags_deleted ?? []).map((impact) => (
                 <li key={impact.tag_id}>
                   {impact.name} ({formatCount(impact.document_count)} doc
-                  {impact.macro_category_id ? `, gaveta ${impact.macro_category_id}` : ""})
+                  {impact.macro_category_id ? `, categoria ${impact.macro_category_id}` : ""})
                 </li>
               ))}
             </ul>
@@ -1403,7 +1403,7 @@ function ProposalCard({
             ) : null}
             {preview.category_would_be_lost ? (
               <Notice tone="danger">
-                Esta mesclagem <strong>exclui uma classificação de assunto</strong>: um dos membros está numa gaveta que
+                Esta mesclagem <strong>exclui uma classificação de assunto</strong>: um dos membros está numa categoria que
                 a canônica não tem.
               </Notice>
             ) : null}

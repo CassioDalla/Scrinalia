@@ -440,7 +440,7 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
 
   /**
    * A row is marked as a whole: the unit the archivist reads is the pair ("these two are the same
-   * name"), and half of it is not a cluster. Two rows sharing a side therefore merge into three
+   * name"), and half of it is not a agrupamento. Two rows sharing a side therefore merge into three
    * entities, which is the case the pair list cannot express on its own.
    */
   const toggleRow = (pair: EntityPairSimilarity) => {

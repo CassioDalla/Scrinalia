@@ -94,7 +94,7 @@ export function DiscoverRoute() {
             {suggestions.length === 0 && !routeMessage(suggest.data) ? (
               <EmptyState
                 title="Nenhum agrupamento novo"
-                hint="O agrupamento não encontrou tema que já não esteja coberto pelas gavetas atuais."
+                hint="O agrupamento não encontrou tema que já não esteja coberto pelas categorias atuais."
               />
             ) : null}
           </>
@@ -112,7 +112,7 @@ export function DiscoverRoute() {
   );
 }
 
-/** One cluster: an editable name, the weight and the real samples it was formed from. */
+/** One agrupamento: an editable name, the weight and the real samples it was formed from. */
 function SuggestionCard({
   category,
   onDismiss,
@@ -128,12 +128,12 @@ function SuggestionCard({
 
   return (
     /*
-      Each cluster collapses to its weight and its proposed name. The proposal is a *question* ("chamar
-      esta gaveta de X?"), and a screen of five open forms answers questions the archivist has not
+      Each agrupamento collapses to its weight and its proposed name. The proposal is a *question* ("chamar
+      esta categoria de X?"), and a screen of five open forms answers questions the archivist has not
       asked yet; the samples that justify the name are one click away, next to the button.
     */
     <Disclosure
-      toggleLabel="Ver as amostras do cluster"
+      toggleLabel="Ver as amostras do Agrupamento"
       header={
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone="accent">{formatCount(category.estimate_count)} estimativas</Badge>
@@ -149,7 +149,7 @@ function SuggestionCard({
             disabled={name.trim().length === 0 || create.isPending || create.isSuccess}
             onClick={() => create.mutate()}
           >
-            {create.isSuccess ? "criada" : create.isPending ? ACTION.create.pending : `${ACTION.create.label} gaveta`}
+            {create.isSuccess ? "criada" : create.isPending ? ACTION.create.pending : `${ACTION.create.label} categoria`}
           </Button>
           <Button size="sm" variant="ghost" onClick={onDismiss}>
             {ACTION.discard.label}
@@ -158,7 +158,7 @@ function SuggestionCard({
       }
     >
       <div className="grid gap-2">
-        <Field label="Nome da gaveta">
+        <Field label="Nome da Categoria">
           <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={100} />
         </Field>
 
