@@ -498,3 +498,38 @@ with short or full shas, and part of a `## <date> — <title>` entry.
 - **Not carried, on purpose:** `guides/install.md`, `index.md` and `guides/data-model.md` — the round
   adds no setting field, no table and no install step, and install's sources did not move.
 
+## 2026-10-10 — the pre-release pass for 1.1.0
+
+- **Range:** `89e6a43..7299f67`
+- **Pages:**
+  - `guides/install.md` — **no-change**: the round moves the version in `pyproject.toml` and the
+    curator's `package.json`, and this page documents the versions of the **tools** (Docker, `uv`,
+    Bun, Python) and the settings — never the release the checkout is on. Nothing it states stopped
+    being true: the version an installation runs is read from `pyproject.toml` at build time and
+    shown in the page footer, not written into this page.
+- **Why the round exists:** milestone 1.1 closed, so this is the release preparation the release
+  section of `CONTRIBUTING.md` asks for in one pull request — the version, the changelog, and the
+  claims that had drifted while no gate looked at them.
+- **What the report cannot see, and what found it.** The freshness report is computed from
+  `sources:`, so it saw `pyproject.toml` move under `install.md`; it cannot see a page with no
+  `sources:` (`README.md`, `docs/index.md`) and it cannot see a **number** inside a page whose
+  sources did not move. The three that were wrong came from reading the claims against the code:
+  the README's screen table listed 24 of the 26 routes of `router.tsx` and its status line still
+  said `1.0.0`; `guides/curate.md` said **25** screens where `router.tsx`, `ScreenId` and `SCREENS`
+  all carry **26** (measured: the three sets are equal, and issue #53 added the twenty-sixth while
+  the round that landed it recorded the count as unchanged); the documentation index said
+  "Scrinalia is at 1.0".
+- **The one number the release moved that no page owned.** `info.version` was Litestar's
+  `DEFAULT_OPENAPI_CONFIG` — `title="Litestar API"`, `version="1.0.0"` — because `create_app()`
+  never passed an `openapi_config`; measured with the project already at 1.1.0, the served
+  configuration was unchanged. `api/openapi.py` now derives both from the project, and
+  `testing/unit/api/test_openapi_metadata.py` fails when the served document, the installed
+  distribution, `pyproject.toml` and the committed `openapi.json` disagree. `guides/curate.md` is
+  the page that declares the contract as a source, and it was touched in this round for the screen
+  count, so the report stayed quiet — correctly: the route delta was empty, because the change adds
+  no route and removes none.
+- **Not carried, on purpose:** the ADRs. `0010` still records "24 screens in `router.tsx`" as the
+  measurement it was ratified against, and `0012` still quotes the index's old "at 1.0" as the
+  example of a claim about a release. An ADR records the reasoning at the time, and neither number
+  is a rule the code has to satisfy.
+
