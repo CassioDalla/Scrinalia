@@ -21,6 +21,7 @@ from scrinalia.domains.archive.models.enums import WorkerRunStatus
 from scrinalia.domains.archive.schemas.system_schema import (
     FailureGroupListResponse,
     SystemHealthResponse,
+    SystemWorkerSettingsResponse,
     SystemWorkersResponse,
     WorkerRunDTO,
     WorkerRunListResponse,
@@ -54,6 +55,19 @@ class SystemController(Controller):
         ends up showing numbers from seven different moments.
         """
         return operations_service.list_workers()
+
+    @get("/workers/settings", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
+    def list_worker_settings(
+        self, operations_service: NamedDependency[WorkerOperationsService]
+    ) -> SystemWorkerSettingsResponse:
+        """
+        The persisted defaults of every worker — the configuration screen's read.
+
+        Declared before ``/workers/{worker_name}/settings/revisions`` on purpose, and apart from
+        ``/workers``: this route answers *what the installation is set to do*, and the panel answers
+        *what the machine is doing*, with nine queue counts this one does not pay for.
+        """
+        return operations_service.list_settings()
 
     @get("/runs", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_runs(

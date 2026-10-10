@@ -5,6 +5,7 @@ import {
   HeartPulse,
   History,
   Layers,
+  SlidersHorizontal,
   UserCog,
   Waypoints,
   type LucideIcon,
@@ -56,9 +57,10 @@ export type SettingsCard = {
 /**
  * The screens reachable from the landing.
  *
- * A subset of `ScreenId` and not a bare string: the eight screens that left the menu are the ones
- * that live here, and narrowing the type means a card cannot be added for a screen that has no name
- * — or for one that is already an entry in the rail.
+ * A subset of `ScreenId` and not a bare string: every screen the landing offers is one of them — the
+ * eight that left the menu, plus the worker configuration the split of issue #53 added — and
+ * narrowing the type means a card cannot be added for a screen that has no name, or for one that is
+ * already an entry in the rail.
  */
 export type SettingsScreenId = Extract<
   ScreenId,
@@ -67,6 +69,7 @@ export type SettingsScreenId = Extract<
   | "typologies"
   | "vocabulary"
   | "workers"
+  | "workerSettings"
   | "runs"
   | "health"
   | "users"
@@ -98,6 +101,14 @@ export const SETTINGS_TABS: SettingsTab[] = [
     label: "Operação",
     cards: [
       { screen: "workers", icon: Cpu, permission: "OPERATE" },
+      /*
+        The configuration sits beside the panel it configures, and the two are separate cards
+        because they answer different questions: the panel says what the machine is *doing* (queues,
+        pending counters, a run in flight), and this one says what the installation is *set* to do
+        (the persisted default and its history). Both declare `OPERATE` — the split moved where the
+        write is made, not who may make it.
+      */
+      { screen: "workerSettings", icon: SlidersHorizontal, permission: "OPERATE" },
       { screen: "runs", icon: History, permission: "OPERATE" },
       { screen: "health", icon: HeartPulse, permission: "OPERATE" },
     ],

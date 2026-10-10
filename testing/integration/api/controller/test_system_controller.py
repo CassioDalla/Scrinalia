@@ -21,10 +21,12 @@ from scrinalia.domains.archive.schemas.system_schema import (
     ProcessHealthDTO,
     StorageHealthDTO,
     SystemHealthResponse,
+    SystemWorkerSettingsResponse,
     SystemWorkersResponse,
     WorkerRunDTO,
     WorkerRunListResponse,
     WorkerSettingsDTO,
+    WorkerSettingsItemDTO,
     WorkerSettingsRevisionListResponse,
     WorkerStatusDTO,
 )
@@ -82,6 +84,37 @@ def test_the_panel_lists_every_worker(client: TestClient, mocker) -> None:
     assert body["workers"][0]["name"] == "ner"
     assert body["workers"][0]["settings"]["config"]["model"] == "pt_core_news_lg"
     assert body["workers"][0]["pending"] == 10
+    assert body["generated_at"]
+
+
+def test_the_settings_read_carries_the_configuration_and_no_queue(client: TestClient, mocker) -> None:
+    """The configuration screen has its own read, and the panel's counters stay out of it.
+
+    The ``pending`` assertion is the split's own: the two screens answer different questions, and a
+    configuration read that started carrying queue numbers would be paying for the staging scan the
+    panel pays for.
+    """
+    mock = mocker.patch.object(WorkerOperationsService, "list_settings")
+    mock.return_value = SystemWorkerSettingsResponse(
+        workers=[
+            WorkerSettingsItemDTO(
+                name="ner",
+                label="Extração de entidades (NER)",
+                description="d",
+                order=2,
+                settings=_settings(),
+            )
+        ],
+        generated_at=datetime.now(UTC),
+    )
+
+    response = client.get("/api/v1/system/workers/settings")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["workers"][0]["label"] == "Extração de entidades (NER)"
+    assert body["workers"][0]["settings"]["preset"] == "gpu"
+    assert "pending" not in body["workers"][0]
     assert body["generated_at"]
 
 

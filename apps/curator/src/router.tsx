@@ -27,6 +27,7 @@ import { TreeRoute, validateTreeSearch } from "@/routes/TreeRoute";
 import { TypologiesRoute } from "@/routes/TypologiesRoute";
 import { UsersRoute } from "@/routes/UsersRoute";
 import { VocabularyRoute } from "@/routes/VocabularyRoute";
+import { WorkerSettingsRoute } from "@/routes/WorkerSettingsRoute";
 
 /**
  * Routes are declared in code, not derived from the filesystem.
@@ -197,11 +198,12 @@ const anomaliesRoute = createRoute({
 });
 
 /**
- * The operational face of the system: which workers exist, how they are configured, what ran.
+ * The operational face of the system: what each worker is doing, and what ran.
  *
  * A section of its own, not a corner of another screen: the person asking "with which model is this
  * running?" is not doing archival curation, and mixing the two would put engine names in the middle
- * of the collection.
+ * of the collection. Since issue #53 the configuration is a screen of its own
+ * (`/configuracoes/workers`, below); this one keeps the machine.
  */
 const systemWorkersRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -250,6 +252,20 @@ const usersRoute = createRoute({
   component: UsersRoute,
 });
 
+/**
+ * What the workers are configured to be, apart from what they are doing.
+ *
+ * The other half of the split: `/sistema/workers` answers the machine's question (queues, pending
+ * counters, a run in flight) and this one answers the installation's (the persisted default of each
+ * worker, its revisions, the engine and preset choice). Both are cards of the Configurações landing
+ * under *Operação*, and both declare `OPERATE` — the precedence it writes under is unchanged.
+ */
+const workerSettingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/configuracoes/workers",
+  component: WorkerSettingsRoute,
+});
+
 export const router = createRouter({
   routeTree: rootRoute.addChildren([
     inboxRoute,
@@ -277,6 +293,7 @@ export const router = createRouter({
     systemHealthRoute,
     settingsRoute,
     usersRoute,
+    workerSettingsRoute,
   ]),
   defaultPreload: "intent",
 });

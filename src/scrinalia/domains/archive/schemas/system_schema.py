@@ -131,6 +131,22 @@ class WorkerSettingsDTO(BaseModel):
     note: str | None = None
 
 
+class WorkerSettingsItemDTO(BaseModel):
+    """
+    One row of the configuration screen: who the worker is, and its effective configuration.
+
+    The identity travels with the settings so the screen can be drawn from one read: the label and
+    the description live in the catalogue (`workers/catalogue.py`), and asking the machine panel for
+    them would make this screen pay for nine queue counts to render a heading.
+    """
+
+    name: str
+    label: str
+    description: str
+    order: int = Field(ge=0, description="Posição na ordem do pipeline.")
+    settings: WorkerSettingsDTO
+
+
 class WorkerStatusDTO(BaseModel):
     """One row of the panel: identity, effective configuration and the queue it addresses."""
 
@@ -156,6 +172,19 @@ class SystemWorkersResponse(BaseModel):
     """The whole panel in one request: nine workers, their configuration and their queues."""
 
     workers: list[WorkerStatusDTO] = Field(default_factory=list)
+    generated_at: datetime
+
+
+class SystemWorkerSettingsResponse(BaseModel):
+    """
+    The configuration screen in one request: nine workers and their persisted defaults.
+
+    Apart from ``SystemWorkersResponse`` on purpose. Same catalogue, no queue: the panel's counters
+    are the expensive half (the transfer's validates the whole staging table), and this screen shows
+    none of them.
+    """
+
+    workers: list[WorkerSettingsItemDTO] = Field(default_factory=list)
     generated_at: datetime
 
 

@@ -35,6 +35,7 @@ import {
   fetchSystemFailures,
   fetchSystemHealth,
   fetchSystemRuns,
+  fetchSystemWorkerSettings,
   fetchSystemWorkers,
   fetchTagRelevance,
   fetchTextTemplates,
@@ -493,6 +494,19 @@ export const queries = {
     queryOptions({
       queryKey: ["system", "workers"],
       queryFn: fetchSystemWorkers,
+      staleTime: 30_000,
+    }),
+
+  /**
+   * The persisted defaults of the nine workers, without the queues.
+   *
+   * A read of its own and not a filter over `systemWorkers`: that one carries the counts, and this
+   * screen shows none of them — it would be paying the staging scan to render a form.
+   */
+  systemWorkerSettings: () =>
+    queryOptions({
+      queryKey: ["system", "workers", "settings"],
+      queryFn: fetchSystemWorkerSettings,
       staleTime: 30_000,
     }),
 

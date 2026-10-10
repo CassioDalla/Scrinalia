@@ -757,25 +757,23 @@ por `/configuracoes`, sob *Operação*: o menu ficou com o que o arquivista cons
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Workers de IA — `/sistema/workers` | com qual modelo um worker roda, e se rodá-lo agora | o padrão configurado sim; os efeitos de uma execução seguem o que ela escreveu |
+| Workers de IA — `/sistema/workers` | se roda um worker agora | sim (a configuração da própria execução); os efeitos de uma execução seguem o que ela escreveu |
 | Execuções — `/sistema/execucoes` | nenhuma (o ledger e as falhas agrupadas) | sim (só leitura) |
 | Saúde do sistema — `/sistema/diagnostico` | nenhuma (banco, modelos, storage, processo) | sim (só leitura) |
 
 ### Workers de IA — `/sistema/workers`
 
 O catálogo dos nove workers, na ordem do pipeline, com a engine, o preset e a configuração efetiva na
-linha recolhida — "com qual modelo isto está rodando?" é a pergunta que a tela existe para responder.
-Duas escritas por worker, ambas `OPERATE`:
+linha recolhida — "com qual modelo isto está rodando?" é a pergunta que a tela existe para responder,
+e aqui a resposta é **só leitura**. O que a instalação está *configurada* a fazer é uma tela própria
+(*Configuração dos Workers*, abaixo), porque são perguntas diferentes: esta é o que a máquina está
+fazendo. A linha carrega a fila — pendentes, processados, falhas, última execução — e a única escrita
+é `OPERATE`:
 
 - **Rodar agora** — `POST /api/v1/system/workers/{worker_name}/runs`. A execução usa a configuração
-  efetiva, ajustada só para esta vez; nada no painel vira padrão. Toda execução deixa uma linha no
-  ledger de execuções, e um worker com execução em andamento desabilita os dois botões — a garantia é
-  o índice único parcial no banco, e a tela só evita oferecer o que o banco recusaria.
-- **Configurar** — `PUT /api/v1/system/workers/{worker_name}/settings` define o padrão persistido
-  (parcial de propósito: um campo vazio continua seguindo o código), e
-  `DELETE /api/v1/system/workers/{worker_name}/settings` o remove. Toda escrita deixa uma revisão
-  (`GET /api/v1/system/workers/{worker_name}/settings/revisions`), então o padrão é reversível: a
-  lista de revisões está ali, e "Voltar ao padrão do código" remove a linha.
+  efetiva, ajustada só para esta vez; nada ajustado aqui vira padrão. Toda execução deixa uma linha no
+  ledger de execuções, e um worker com execução em andamento desabilita o botão — a garantia é o
+  índice único parcial no banco, e a tela só evita oferecer o que o banco recusaria.
 
 O painel em si não oferece desfazer para uma execução. A reversibilidade de uma execução é a
 reversibilidade do que ela escreveu — um desfazer de merge, de materialização, de conflito — e um
@@ -808,6 +806,7 @@ mesma não escreve nada.
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
 | Configurações — `/configuracoes` | qual tela de montagem abrir | sim (só leitura) |
+| Configuração dos Workers — `/configuracoes/workers` | o padrão persistido de cada worker, e o histórico dele | sim (remover a linha) |
 | Usuários — `/configuracoes/usuarios` | quem existe, o que pode fazer e onde está conectado | sim (desativar e reativar) |
 
 ### Configurações — `/configuracoes`
@@ -818,7 +817,7 @@ mudou foi como se chega até ela. Três abas, na ordem da escada de permissões 
 | Aba | Cartões |
 | --- | --- |
 | Arranjo e catálogos | Plano de arranjo (`CURATE`), Níveis de descrição, Tipologias e Vocabulário do acervo (`CATALOGUE`) |
-| Operação | Workers de IA, Execuções e Saúde do sistema (`OPERATE`) |
+| Operação | Workers de IA, Configuração dos Workers, Execuções e Saúde do sistema (`OPERATE`) |
 | Acesso | Usuários (`ADMIN`) |
 
 A aba fica na URL (`?aba=`), então dá para mandar alguém direto aos "cartões dos workers". Uma aba que
@@ -826,6 +825,27 @@ a conta não pode preencher não é renderizada, e um `?aba=` que a nomeie cai n
 conta *pode* preencher: um link válido para quem mandou ainda aterrissa em algo honesto para quem lê.
 Cada cartão carrega a área em que a sua tela escreve, e a entrada que abre esta página segue as mesmas
 áreas — a regra está em *O menu esconde; nunca concede*, acima.
+
+### Configuração dos Workers — `/configuracoes/workers`
+
+O que a instalação está *configurada* a fazer, separado do que a máquina está fazendo (issue #53). Um
+cartão por worker, na ordem do pipeline, cada um com a linha persistida de `archive_worker_settings` e
+suas revisões — as duas escritas são `OPERATE`:
+
+- **Salvar padrão** — `PUT /api/v1/system/workers/{worker_name}/settings` grava o padrão. É parcial de
+  propósito: um campo vazio continua seguindo o código, e a precedência não muda —
+  `argumento explícito > a linha de archive_worker_settings > o default da assinatura`. `config`
+  continua recusado como opção, porque é um dataclass do runner e não um valor JSON.
+- **Voltar ao padrão do código** — `DELETE /api/v1/system/workers/{worker_name}/settings` remove a
+  linha. Toda escrita deixa uma revisão
+  (`GET /api/v1/system/workers/{worker_name}/settings/revisions`), listada no cartão, então o padrão é
+  reversível e quem o alterou fica nomeado.
+
+Um worker cuja engine vive na regra `LLM_CHECK` ativa (`quality-validator`) não oferece a escolha de
+engine/preset aqui: um segundo lugar para escolher a mesma engine seria uma segunda fonte de verdade,
+então o cartão diz onde ela vive e oferece só os parâmetros de execução. A tela lê
+`GET /api/v1/system/workers/settings`, que não é o `GET /api/v1/system/workers` do painel — o painel
+conta nove filas, e esta tela não mostra nenhuma delas.
 
 ### Usuários — `/configuracoes/usuarios`
 

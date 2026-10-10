@@ -779,26 +779,24 @@ archivist consults while cataloguing, and this is not it.
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
-| Workers de IA — `/sistema/workers` | which model a worker runs with, and whether to run it now | the configured default yes; a run's effects follow what it wrote |
+| Workers de IA — `/sistema/workers` | whether to run a worker now | yes (the run's own configuration); a run's effects follow what it wrote |
 | Execuções — `/sistema/execucoes` | none (the ledger and the grouped failures) | yes (read only) |
 | Saúde do sistema — `/sistema/diagnostico` | none (database, models, storage, process) | yes (read only) |
 
 ### Workers de IA — `/sistema/workers`
 
 The catalogue of the nine workers, in pipeline order, with the effective engine, preset and config on
-the collapsed row — "with which model is this running?" is the question the screen exists to answer.
-Two writes per worker, both `OPERATE`:
+the collapsed row — "with which model is this running?" is the question the screen exists to answer,
+and here the answer is **read only**. What the installation is *set* to do is a screen of its own
+(*Configuração dos Workers*, below), because the two questions are different: this one is what the
+machine is doing. The row carries the queue — pending, processed, failed, last run — and the one
+write is `OPERATE`:
 
 - **Rodar agora** — `POST /api/v1/system/workers/{worker_name}/runs`. The run uses the effective
-  configuration, adjusted only for this execution; nothing in the panel becomes the default. Every
-  run leaves a row in the run ledger, and a worker with a run in flight disables both buttons — the
+  configuration, adjusted only for this execution; nothing adjusted here becomes the default. Every
+  run leaves a row in the run ledger, and a worker with a run in flight disables the button — the
   guarantee is the partial unique index in the database, and the screen only avoids offering what
   the database would reject.
-- **Configurar** — `PUT /api/v1/system/workers/{worker_name}/settings` sets the persisted default
-  (partial on purpose: an empty field keeps following the code), and
-  `DELETE /api/v1/system/workers/{worker_name}/settings` removes it. Every write leaves a revision
-  (`GET /api/v1/system/workers/{worker_name}/settings/revisions`), so the default is reversible: the
-  revision list is right there, and "Voltar ao padrão do código" removes the row.
 
 The panel itself offers no undo for a run. The reversibility of a run is the reversibility of what it
 wrote — a merge undo, a materialisation undo, a conflict undo — and a worker that stamps its queue
@@ -830,6 +828,7 @@ day. It writes nothing of its own.
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
 | Configurações — `/configuracoes` | which setup screen to open | yes (read only) |
+| Configuração dos Workers — `/configuracoes/workers` | the persisted default of each worker, and its history | yes (remove the row) |
 | Usuários — `/configuracoes/usuarios` | who exists, what they may do, and where they are signed in | yes (deactivate and reactivate) |
 
 ### Configurações — `/configuracoes`
@@ -840,7 +839,7 @@ what changed is how it is found. Three tabs, in the order of the permission ladd
 | Tab | Cards |
 | --- | --- |
 | Arranjo e catálogos | Plano de arranjo (`CURATE`), Níveis de descrição, Tipologias and Vocabulário do acervo (`CATALOGUE`) |
-| Operação | Workers de IA, Execuções and Saúde do sistema (`OPERATE`) |
+| Operação | Workers de IA, Configuração dos Workers, Execuções and Saúde do sistema (`OPERATE`) |
 | Acesso | Usuários (`ADMIN`) |
 
 The tab is in the URL (`?aba=`), so "the worker cards" can be sent to somebody. A tab the account
@@ -848,6 +847,27 @@ cannot fill is not rendered, and a `?aba=` naming one falls back to the first ta
 fill: a link that was valid for the sender still lands somewhere honest for the reader. Each card
 carries the area its screen writes, and the entry that opens this page follows the same areas — the
 rule is under *The menu hides; it never grants* above.
+
+### Configuração dos Workers — `/configuracoes/workers`
+
+What the installation is *set* to do, apart from what the machine is doing (issue #53). One card per
+worker, in pipeline order, each carrying the persisted row of `archive_worker_settings` and its
+revisions — both writes `OPERATE`:
+
+- **Salvar padrão** — `PUT /api/v1/system/workers/{worker_name}/settings` writes the default. It is
+  partial on purpose: an empty field keeps following the code, and the precedence is unchanged —
+  `explicit argument > the archive_worker_settings row > the signature default`. `config` is still
+  refused as an option, because it is a runner dataclass and not a JSON value.
+- **Voltar ao padrão do código** — `DELETE /api/v1/system/workers/{worker_name}/settings` removes the
+  row. Every write leaves a revision
+  (`GET /api/v1/system/workers/{worker_name}/settings/revisions`), listed on the card, so the default
+  is reversible and the person who changed it is named.
+
+A worker whose engine lives in the active `LLM_CHECK` rule (`quality-validator`) does not offer the
+engine/preset choice here: a second place to choose the same engine would be a second source of
+truth, so the card says where it lives and offers only the run parameters. The screen reads
+`GET /api/v1/system/workers/settings`, which is not the panel's `GET /api/v1/system/workers` — the
+panel counts nine queues, and this screen shows none of them.
 
 ### Usuários — `/configuracoes/usuarios`
 

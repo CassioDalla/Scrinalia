@@ -273,6 +273,8 @@ export type DiagnosticIssue = NonNullable<
 // --- The operations panel: the AI workers, their configuration and the execution ledger --------
 
 export type SystemWorkers = components["schemas"]["SystemWorkersResponse"];
+export type SystemWorkerSettings = components["schemas"]["SystemWorkerSettingsResponse"];
+export type WorkerSettingsItem = components["schemas"]["WorkerSettingsItemDTO"];
 export type WorkerStatus = components["schemas"]["WorkerStatusDTO"];
 export type WorkerSettings = components["schemas"]["WorkerSettingsDTO"];
 export type WorkerSettingsRequest = components["schemas"]["WorkerSettingsRequest"];
@@ -1297,6 +1299,16 @@ export async function createHierarchyNode(body: HierarchyNodeCreateRequest): Pro
  */
 export async function fetchSystemWorkers(): Promise<SystemWorkers> {
   return unwrap<SystemWorkers>(await client.GET("/api/v1/system/workers"));
+}
+
+/**
+ * The persisted defaults of every worker — the configuration screen's own read.
+ *
+ * Apart from ``fetchSystemWorkers`` on purpose: that one carries the nine queue counts, and the
+ * configuration screen shows none of them.
+ */
+export async function fetchSystemWorkerSettings(): Promise<SystemWorkerSettings> {
+  return unwrap<SystemWorkerSettings>(await client.GET("/api/v1/system/workers/settings"));
 }
 
 /** The execution ledger, newest first; the filters are applied server-side. */
