@@ -186,7 +186,9 @@ Once the API is up (step 7), an installation whose `auth_users` is still empty a
 visit with **Primeiro acesso da instalação** instead of the sign-in form: e-mail, name and the
 password, asked twice. It creates the first `ADMIN` and signs that person in, so there is no second
 sign-in and no temporary password. The screen asks `GET /api/v1/setup/status`, which is public
-because an installation with no accounts has no secret to protect.
+because an installation with no accounts has no secret to protect. The card carries the product's
+logomark at its top, the same plate the sign-in card has: this is the first screen an installer sees,
+and it is the one place the name is worth showing in full.
 
 Both doors close **forever** after the first account exists — deactivated or not, because the
 predicate is that the table is empty, and a rule a deactivation could reopen would be a way back to

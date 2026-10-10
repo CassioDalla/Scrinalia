@@ -284,6 +284,22 @@ one, so the menu never drifts into three. A heading carries no icon: the glyph b
 `Início` stands at the top with no heading, like the landing at the foot, because a section that
 gathers one line is a line of chrome.
 
+### The identity is on screen
+
+The rail is the identity's navy (`#14202B`), and the logomark is in it in both states: expanded it is
+the full lockup — the card with its terracotta tab, then **Scrinalia** in PT Serif — and collapsed it
+is the cropped mark alone. Collapsed, that mark is **also the control that expands the rail**: the
+brand is the thing you click to get the words back, which is what makes it worth keeping at 64px.
+
+A 2px terracotta rule closes the screen's header, and the two cards that come before a session — the
+sign-in form and the first-run setup — carry the same motif at their top, centred, where the name
+used to be plain text.
+
+The accent is still the blue it was, and the terracotta is a **brand** colour and not an interactive
+one: the terracotta is `oklch(… 31)` and the danger colour is `oklch(… 25)`, six degrees apart, so a
+terracotta button and "Excluir" would have been the same colour. The navy, on the other hand, shares
+the accent's hue on purpose — which is why the rail and the buttons look like one thing.
+
 ### The menu collapses to icons
 
 A control in the menu's own header folds it into a 64px column of icons and back, and the browser

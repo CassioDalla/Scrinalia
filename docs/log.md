@@ -364,3 +364,36 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   (`max-w-md`, `max-w-xs`, the login forms' `max-w-sm`) — those are decisions about a paragraph and a
   field, not about a screen, and they are the same on every screen. The screen count, the menu count,
   the settings tables, the data model and the API contract are untouched.
+
+## 2026-10-09 — the identity enters the interface
+
+- **Range:** `05819cd..86796d0`
+- **Pages:**
+  - `guides/curate.md` — **updated**: a new *The identity is on screen* states the rail's navy, the
+    logomark in both rail states (and that the cropped mark is the control that expands it), the 2px
+    terracotta rule under a screen's header, and the plate on the two cards before a session. It also
+    records **why the accent stayed blue**: the terracotta is `oklch(… 31)` and `--color-danger` is
+    `oklch(… 25)`, six degrees apart, so a terracotta button and "Excluir" would have been one colour.
+  - `guides/curate.pt.md` — **updated**: the same section.
+  - `guides/install.md` — **updated**: the first-run card carries the logomark, because it is the
+    first screen an installer sees. One sentence, and it is what the report's second page was for.
+  - `guides/install.pt.md` — **updated**: the same sentence.
+- **Why:** the interface and the logomark shared no colour. Measured before the change: the identity
+  is terracotta on navy (`#C4503F` on `#14202B` = `oklch(0.580 0.152 31)` on `oklch(0.238 0.027 247)`)
+  and the theme's accent was `oklch(0.52 0.13 250)`, a blue. The navy turned out to share the
+  accent's **hue** (247 against 250), which is what let the rail take the identity's dark without
+  re-tuning the semantic colours.
+- **Verified, rendered:** the rail expanded and collapsed and the sign-in card at 1440x900; the tab
+  computes to `oklch(0.58 0.152 31)`, the rail to `oklch(0.238 0.027 247)`, the wordmark to `"PT Serif"`
+  at 45px with `document.fonts.check('400 45px "PT Serif"')` true, the header rule to
+  `2px oklch(0.58 0.152 31)`, and `/favicon.svg` answers 200 and is in `dist`.
+- **What did not move:** the screen count (25), the menu count (16), the settings tables, the data
+  model and the API contract — no route, no setting, no table, no migration and no contract change.
+  The accent, the danger, the warn and the ok colours are unchanged: the identity's terracotta is a
+  brand colour, and the copy gate still holds every string.
+- **Not carried, on purpose:** the four identity SVGs stay as design sources under
+  `apps/curator/src/assets/brand/` while `Mark`/`Lockup` inline the two shapes the SPA renders. The
+  geometry is therefore written twice — a file for the designer and a component for the page — and
+  the alternative, generating the components from the files, would put a build step in the middle of a
+  logo. `marca-escura.svg` was reconstructed from the family's geometry and is the one file a person
+  should look at rather than trust.

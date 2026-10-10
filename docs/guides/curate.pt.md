@@ -261,6 +261,22 @@ você está. Clicar num título abre o grupo e fecha o que foi aberto à mão; n
 menu nunca escorrega para três. O título não carrega ícone: o glifo é da entrada. `Início` fica no topo
 sem título, como a entrada do pé, porque uma seção que junta uma linha é uma linha de cromo.
 
+### A identidade está na tela
+
+A rail é o navy da identidade (`#14202B`), e a logomarca está nela nos dois estados: expandida é o
+lockup completo — a ficha com a aba terracota e **Scrinalia** em PT Serif — e recolhida é só a marca
+recortada. Recolhida, essa marca é **também o controle que expande a rail**: a marca é o que se clica
+para trazer as palavras de volta, e é isso que faz valer a pena mantê-la em 64px.
+
+Um filete de 2px de terracota fecha o cabeçalho da tela, e os dois cartões que vêm antes de uma sessão
+— o formulário de entrada e a configuração inicial — carregam o mesmo motivo no topo, centralizado,
+onde antes estava o nome em texto simples.
+
+O accent continua o azul que era, e a terracota é cor de **marca** e não de interação: a terracota é
+`oklch(… 31)` e a cor de perigo é `oklch(… 25)`, seis graus de distância, então um botão terracota e
+"Excluir" seriam da mesma cor. O navy, por outro lado, compartilha a matiz do accent de propósito — e
+é por isso que a rail e os botões parecem uma coisa só.
+
 ### O menu se recolhe a ícones
 
 Um controle no cabeçalho do próprio menu o dobra numa coluna de ícones de 64px e o devolve, e o
