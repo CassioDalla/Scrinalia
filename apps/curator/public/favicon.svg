@@ -1,0 +1,21 @@
+<!--
+  The identity's round mark: the catalogue card with its coloured tab, on the navy tile. It is the
+  same geometry as `src/components/brand/Mark.tsx` at 32px — this file exists because a favicon has
+  to be a file the browser can fetch, and it is the only place the mark cannot be inlined.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <clipPath id="scr-fav-clip">
+      <rect x="28" y="10" width="40" height="76" rx="10" />
+    </clipPath>
+  </defs>
+  <rect width="32" height="32" rx="7" fill="#14202B" />
+  <g transform="translate(4.148 4.148) scale(0.2469)">
+    <rect x="28" y="10" width="40" height="25.333" fill="#C4503F" clip-path="url(#scr-fav-clip)" />
+    <g fill="none" stroke="#F4EFE4" stroke-width="5">
+      <rect x="28" y="10" width="40" height="76" rx="10" />
+      <path d="M28 35.333H68" />
+      <path d="M28 60.667H68" />
+    </g>
+  </g>
+</svg>

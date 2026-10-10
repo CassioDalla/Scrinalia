@@ -1,10 +1,33 @@
 @import "tailwindcss";
 
 /*
+  The logomark's serif. PT Serif 400, subsetted to latin by Google Fonts (33KB), self-hosted and not
+  fetched from a CDN: an institution runs this system on its own network, and a page that reaches a
+  third party to draw its own name is a page that draws nothing when that party is unreachable. The
+  licence travels with the file (`assets/fonts/OFL.txt`) — PT Serif is OFL-1.1 with Reserved Font
+  Names, so the name stays as it is.
+*/
+@font-face {
+  font-family: "PT Serif";
+  src: url("./assets/fonts/pt-serif-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
   Design tokens, not a design system. A warm neutral palette on purpose: this is a reading and
   deciding tool, and the archivist looks at it for hours. The subject colours are the only
   saturated thing on the screen, because the subject badge is the one thing that has to be
   scannable at a glance.
+
+  Two colours come from the identity files (`#14202B` and `#C4503F`) and they do not compete with
+  that rule: the navy is the rail — a **surface**, not a signal — and the terracotta appears in the
+  logomark and in one rule under the screen's header. `--color-accent` stays the blue it was, and it
+  is not an oversight that it shares the navy's hue: the identity's dark and the interface's
+  interactive colour are the same family, which is what makes the rail and the buttons look like one
+  thing. The terracotta could not have taken that role — it is `oklch(… 31)`, six degrees from
+  `--color-danger`'s 25, so "Excluir" and every button would have been the same colour.
 */
 @theme {
   --color-paper: oklch(0.985 0.004 85);
@@ -16,6 +39,16 @@
   --color-warn: oklch(0.62 0.15 55);
   --color-danger: oklch(0.55 0.18 25);
   --color-ok: oklch(0.55 0.12 155);
+
+  /* The identity. `--color-rail` is the logo's `#14202B`, `--color-brand` its `#C4503F`. */
+  --color-brand: oklch(0.58 0.152 31);
+  --color-rail: oklch(0.238 0.027 247);
+  --color-rail-ink: oklch(0.953 0.016 86);
+  --color-rail-muted: oklch(0.953 0.016 86 / 0.62);
+  --color-rail-line: oklch(1 0 0 / 0.14);
+  --color-rail-hover: oklch(1 0 0 / 0.08);
+  --color-rail-active: oklch(1 0 0 / 0.13);
+  --font-brand: "PT Serif", Georgia, "Times New Roman", serif;
 }
 
 html,
