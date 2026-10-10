@@ -251,10 +251,15 @@ export function CollectionRoute() {
 
   // Built from the search this render already has instead of a reducer over the router's whole
   // search schema: the collection's filters are the only ones that belong in this URL.
+  //
+  // ``offset: changes.offset`` and never a literal: a filter change returns to the first page by
+  // sending no page at all, while "Próxima" keeps the page it just set. A literal here sits *after*
+  // the spread, so it overwrote the page the button had just handed over and the list never left
+  // page 1 — see ``testing/unit/curator/test_curator_search_state.py``.
   const patch = (changes: Partial<CollectionSearch>) =>
     navigate({
       to: "/acervo/lista",
-      search: { ...search, ...changes, offset: 0 },
+      search: { ...search, ...changes, offset: changes.offset },
     });
 
   const facets = data?.facets;

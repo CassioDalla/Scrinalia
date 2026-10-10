@@ -51,7 +51,7 @@ export function DiagnosticsRoute() {
   const page = useQuery(queries.diagnostics(issue, offset));
 
   const go = (changes: Partial<DiagnosticsSearch>) =>
-    navigate({ to: "/arranjo/diagnostico", search: { ...search, ...changes, offset: undefined } });
+    navigate({ to: "/arranjo/diagnostico", search: { ...search, ...changes, offset: changes.offset } });
 
   const action = ISSUE_ACTION[issue];
 
