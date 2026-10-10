@@ -138,7 +138,7 @@ publicado responde 404, nunca 403, porque um status distinto confirmaria que a d
 A projeção pública é mais estreita que a do curador, campo a campo. Ela carrega os campos ISAD(G)
 `original_title`, `final_title`, `document_date`, `reference_code`, `level`, `scope_content`,
 `language_name` e `producers`; o enriquecimento `typology`, as tags (nome), as entidades (nome e
-tipo) e as gavetas de assunto (nome e contagem); a miniatura; o ramo (`ancestors`) e o
+tipo) e as categorias de assunto (nome e contagem); a miniatura; o ramo (`ancestors`) e o
 `children_count`. Ela deliberadamente **não** carrega o processo de curadoria nem a narrativa não
 publicada: `review_status`, `is_anomaly`, `anomaly_reasons`, `archivist_notes`, `provenance`,
 `suggested_final_title`, `admin_bio_history`, `admin_archival_history` e `access_conditions`. O
@@ -152,7 +152,7 @@ escrita são áreas, não botões:
 | Permissão | A área |
 | --- | --- |
 | `CURATE` | o registro e seus assuntos: os campos ISAD(G), vínculos, tags, entidades, conflitos e as taxonomias que os movem |
-| `CATALOGUE` | os catálogos fechados: níveis, tipologias, vocabulário do acervo, gavetas de assunto, regras de limpeza e trechos |
+| `CATALOGUE` | os catálogos fechados: níveis, tipologias, vocabulário do acervo, categorias de assunto, regras de limpeza e trechos |
 | `OPERATE` | os workers de IA: rodar um, mudar o padrão persistido dele e o painel de saúde |
 | `ADMIN` | contas e sessões |
 
@@ -229,7 +229,7 @@ verbos que esta página usa são os desse arquivo:
 | trazer uma linha à existência | **Criar** (o gatilho ao lado diz *+ Nova…*) |
 | tirar um termo de uma lista — um veto, uma exclusão | **Remover** |
 | destruir um registro, sempre atrás de uma prévia ou de uma confirmação digitada | **Excluir** |
-| a chave `is_active` de uma **linha de catálogo** — um nível, uma tipologia, uma gaveta, uma regra de limpeza, um termo do acervo | **Aposentar** / **Reativar** |
+| a chave `is_active` de uma **linha de catálogo** — um nível, uma tipologia, uma categoria, uma regra de limpeza, um termo do acervo | **Aposentar** / **Reativar** |
 | desativar uma **conta** | **Desativar** / **Reativar** |
 | disparar uma execução de worker | **Rodar agora** |
 | unificar duas entradas de vocabulário | **Mesclar** |
@@ -318,7 +318,7 @@ mostra "tela pendente" em vez de apontar para o vazio.
 
 ### Lista e busca — `/acervo/lista`
 
-A busca facetada do acervo: o termo (lexical ou semântica), tipologia, gaveta de assunto, tipo de
+A busca facetada do acervo: o termo (lexical ou semântica), tipologia, categoria de assunto, tipo de
 entidade, nível, um ramo do arranjo e um intervalo de datas. A URL é o estado, então uma lista
 filtrada é compartilhável e o botão voltar funciona. Nada é escrito. O modo semântico traz uma nota
 honesta: a qualidade medida dele é fraca (Hit@10 0,625), então prefira o lexical quando souber o
@@ -365,16 +365,16 @@ reversíveis.
 
 #### Assuntos
 
-A decisão é quais tags e entidades esta descrição carrega e em que gaveta cada tag fica. As escritas
+A decisão é quais tags e entidades esta descrição carrega e em que categoria cada tag fica. As escritas
 são `POST`/`DELETE /api/v1/documents/{description_id}/tags[/{tag_id}]` e o par de entidades
-(`CURATE`), mais `PATCH /api/v1/taxonomy/tags/{tag_id}` para a gaveta. Associar e desassociar são
+(`CURATE`), mais `PATCH /api/v1/taxonomy/tags/{tag_id}` para a categoria. Associar e desassociar são
 reversíveis: a revisão guarda a **lista inteira de nomes** de cada lado, e chamar a mesma rota duas
 vezes não escreve revisão nenhuma.
 
-!!! warning "A gaveta é uma decisão sobre o vocabulário, não sobre esta descrição"
+!!! warning "A categoria é uma decisão sobre o vocabulário, não sobre esta descrição"
 
-    Mudar a gaveta de uma tag move a tag em **todas** as descrições que a carregam, e a tela diz
-    isso ao lado do seletor. Escolher "sem gaveta" devolve a tag ao classificador de assunto, que
+    Mudar a categoria de uma tag move a tag em **todas** as descrições que a carregam, e a tela diz
+    isso ao lado do seletor. Escolher "sem categoria" devolve a tag ao classificador de assunto, que
     vai tentar arquivá-la de novo na próxima execução.
 
 #### Arranjo
@@ -497,8 +497,8 @@ próxima execução do classificador.
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
 | Tags — `/assuntos/tags` | o peso, as duplicatas, a fila de merges e os termos banidos | o merge sim (ledger); a purga **não** |
-| Categorias — `/assuntos/categorias` | as gavetas de assunto que o classificador lê | sim (aposentar e reativar) |
-| Descobrir gavetas — `/assuntos/descobrir` | se um tema proposto merece uma gaveta | sim (a proposta não escreve nada) |
+| Categorias — `/assuntos/categorias` | as categorias de assunto que o classificador lê | sim (aposentar e reativar) |
+| Descobrir Categorias — `/assuntos/descobrir` | se um tema proposto merece uma categoria | sim (a proposta não escreve nada) |
 | Não é assunto — `/assuntos/excecoes` | quais termos saem do eixo de assunto | sim (banir não apaga nada) |
 
 ### Tags — `/assuntos/tags`
@@ -522,7 +522,7 @@ A decisão é unificar: `POST /api/v1/taxonomy/tags/merge` (`CURATE`), depois de
 (`POST /api/v1/taxonomy/tags/merge/preview`, uma leitura que calcula o mesmo plano que a escrita
 executa). O painel abre sempre com o impacto na frente: documentos atualizados, vínculos reescritos,
 tags absorvidas, grafias registradas e reapontadas, e o aviso que precisa ser lido antes do clique —
-`category_would_be_lost`, quando a canônica não tem gaveta e uma absorvida tem, o que faria o merge
+`category_would_be_lost`, quando a canônica não tem categoria e uma absorvida tem, o que faria o merge
 excluir uma classificação de assunto.
 
 O merge é **reversível**: a escrita é registrada por tag absorvida no ledger de merges antes de
@@ -566,7 +566,7 @@ Os termos banidos, e a única escrita destrutiva da taxonomia. A tela separa tr�
 - **Purgar** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), depois de
   `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. Esta é a escrita que apaga as tags, e ela
   **não tem desfazer**. A prévia lista as tags que morreriam, com a contagem de documentos e a
-  gaveta, e o botão de aplicar fica desabilitado até a prévia existir.
+  categoria, e o botão de aplicar fica desabilitado até a prévia existir.
 
 !!! warning "O escopo protege o outro eixo"
 
@@ -576,15 +576,15 @@ Os termos banidos, e a única escrita destrutiva da taxonomia. A tela separa tr�
 
 ### Categorias — `/assuntos/categorias`
 
-As gavetas que o classificador de assunto lê. `POST /api/v1/taxonomy/macro-categories` e
+As categorias que o classificador de assunto lê. `POST /api/v1/taxonomy/macro-categories` e
 `PATCH /api/v1/taxonomy/macro-categories/{category_id}` (`CATALOGUE`) as criam, renomeiam, descrevem,
-aposentam e reativam; uma gaveta aposentada mantém o peso visível. Duas notas honestas da tela: o
+aposentam e reativam; uma categoria aposentada mantém o peso visível. Duas notas honestas da tela: o
 **rótulo do classificador** é um ajuste do curador, não uma melhoria — medido em 44 tags rotuladas à
-mão, uma frase em vez do nome nu leva a 0,000 com 65% das tags numa única gaveta — e uma **gaveta nova
+mão, uma frase em vez do nome nu leva a 0,000 com 65% das tags numa única categoria — e uma **categoria nova
 só passa a valer quando o classificador rodar de novo**, porque o carimbo do worker é o hash do
 conjunto de rótulos, o que devolve as tags à fila sozinho.
 
-### Descobrir gavetas — `/assuntos/descobrir`
+### Descobrir Categorias — `/assuntos/descobrir`
 
 Roda o motor de agrupamento de verdade (`POST /api/v1/taxonomy/tags/suggest-macro`, só leitura:
 `AUTHENTICATED`) sobre as tags ou os documentos para achar um tema que o vocabulário ainda não cobre.

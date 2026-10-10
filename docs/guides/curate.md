@@ -162,7 +162,7 @@ never 403, because a distinct status would confirm that the description exists.
 The public projection is narrower than the curator's, field by field. It carries the ISAD(G) fields
 `original_title`, `final_title`, `document_date`, `reference_code`, `level`, `scope_content`,
 `language_name` and `producers`; the enrichment `typology`, the tags (name), the entities (name and
-type) and the subject drawers (name and count); the thumbnail; the branch (`ancestors`) and the
+type) and the subject categories (name and count); the thumbnail; the branch (`ancestors`) and the
 `children_count`. It deliberately does **not** carry the curation process or the unpublished
 narrative: `review_status`, `is_anomaly`, `anomaly_reasons`, `archivist_notes`, `provenance`,
 `suggested_final_title`, `admin_bio_history`, `admin_archival_history` and `access_conditions`. The
@@ -176,7 +176,7 @@ are areas, not buttons:
 | Permission | The area |
 | --- | --- |
 | `CURATE` | the record and its subjects: the ISAD(G) fields, links, tags, entities, conflicts and the taxonomies that move them |
-| `CATALOGUE` | the closed catalogues: levels, typologies, collection vocabulary, subject drawers, cleaning rules and text excerpts |
+| `CATALOGUE` | the closed catalogues: levels, typologies, collection vocabulary, subject categories, cleaning rules and text excerpts |
 | `OPERATE` | the AI workers: running one, changing its persisted default, and the health panel |
 | `ADMIN` | accounts and sessions |
 
@@ -251,7 +251,7 @@ verbs this page uses are that file's:
 | bringing a row into existence | **Criar** (the trigger beside it reads *+ Nova…*) |
 | taking a term off a list — a veto, an exclusion | **Remover** |
 | destroying a record, always behind a preview or a typed confirmation | **Excluir** |
-| the `is_active` switch on a **catalogue row** — a level, a typology, a drawer, a cleaning rule, a collection term | **Aposentar** / **Reativar** |
+| the `is_active` switch on a **catalogue row** — a level, a typology, a category, a cleaning rule, a collection term | **Aposentar** / **Reativar** |
 | disabling an **account** | **Desativar** / **Reativar** |
 | launching one worker run | **Rodar agora** |
 | unifying two vocabulary entries | **Mesclar** |
@@ -341,7 +341,7 @@ linking.
 
 ### Lista e busca — `/acervo/lista`
 
-The faceted search over the collection: the term (lexical or semantic), typology, subject drawer,
+The faceted search over the collection: the term (lexical or semantic), typology, subject category,
 entity type, level, a branch of the arrangement and a date range. The URL is the state, so a filtered
 list is shareable and the back button works. Nothing is written. The semantic mode carries an honest
 note: its measured quality is weak (Hit@10 0.625), so prefer lexical when the term is known.
@@ -387,15 +387,15 @@ equally reversible.
 
 #### Assuntos
 
-The decision is which tags and entities this description carries, and which drawer each tag belongs
+The decision is which tags and entities this description carries, and which category each tag belongs
 to. The writes are `POST`/`DELETE /api/v1/documents/{description_id}/tags[/{tag_id}]` and the entity
-pair (`CURATE`), plus `PATCH /api/v1/taxonomy/tags/{tag_id}` for the drawer. Linking and unlinking
+pair (`CURATE`), plus `PATCH /api/v1/taxonomy/tags/{tag_id}` for the category. Linking and unlinking
 are reversible: the revision stores the **whole list of names** on each side, and calling the same
 route twice writes no revision.
 
-!!! warning "The drawer is a decision about the vocabulary, not about this description"
+!!! warning "The category is a decision about the vocabulary, not about this description"
 
-    Changing a tag's drawer moves it for **every** description that carries the tag, and the screen
+    Changing a tag's category moves it for **every** description that carries the tag, and the screen
     says so next to the select. Choosing "sem gaveta" gives the tag back to the AI classifier, which
     will try to file it again on the next run.
 
@@ -519,8 +519,8 @@ as a subject again on the next classifier run.
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
 | Tags — `/assuntos/tags` | the weight, the duplicates, the merge queue and the banned terms | the merge yes (ledger); the purge **no** |
-| Categorias — `/assuntos/categorias` | the subject drawers the classifier reads | yes (retire and reactivate) |
-| Descobrir gavetas — `/assuntos/descobrir` | whether a proposed theme deserves a drawer | yes (the proposal writes nothing) |
+| Categorias — `/assuntos/categorias` | the subject categories the classifier reads | yes (retire and reactivate) |
+| Descobrir Categorias — `/assuntos/descobrir` | whether a proposed theme deserves a category | yes (the proposal writes nothing) |
 | Não é assunto — `/assuntos/excecoes` | which terms leave the subject axis | yes (banning deletes nothing) |
 
 ### Tags — `/assuntos/tags`
@@ -544,7 +544,7 @@ The decision is to merge: `POST /api/v1/taxonomy/tags/merge` (`CURATE`), after a
 (`POST /api/v1/taxonomy/tags/merge/preview`, a read that computes the same plan the write executes).
 The panel always opens with the impact first: documents updated, links rewritten, tags absorbed,
 spellings registered and repointed, and the one warning that must be read before the click —
-`category_would_be_lost`, when the canonical has no drawer and an absorbed tag does, so the merge
+`category_would_be_lost`, when the canonical has no category and an absorbed tag does, so the merge
 would erase a subject classification.
 
 The merge is **reversible**: the write is logged per absorbed tag in the merge ledger before
@@ -590,7 +590,7 @@ apart:
 - **Purgar** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), after
   `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. This is the write that deletes the tags, and
   it has **no undo**. The preview lists the tags that would die, with their document count and
-  drawer, and the apply button is disabled until the preview exists.
+  category, and the apply button is disabled until the preview exists.
 
 !!! warning "The scope protects the other axis"
 
@@ -600,15 +600,15 @@ apart:
 
 ### Categorias — `/assuntos/categorias`
 
-The drawers the subject classifier reads. `POST /api/v1/taxonomy/macro-categories` and
+The categories the subject classifier reads. `POST /api/v1/taxonomy/macro-categories` and
 `PATCH /api/v1/taxonomy/macro-categories/{category_id}` (`CATALOGUE`) create, rename, describe,
-retire and reactivate them; a retired drawer keeps its weight visible. Two honest notes the screen
+retire and reactivate them; a retired category keeps its weight visible. Two honest notes the screen
 gives: the **classifier label** is a curator override, not an improvement — measured on 44
-hand-labelled tags, a phrase instead of a bare name scores 0.000 with 65% of the tags in one drawer
-— and a **new drawer only takes effect when the classifier runs again**, because the worker's stamp
+hand-labelled tags, a phrase instead of a bare name scores 0.000 with 65% of the tags in one category
+— and a **new category only takes effect when the classifier runs again**, because the worker's stamp
 is the hash of the label set, which returns the tags to the queue on its own.
 
-### Descobrir gavetas — `/assuntos/descobrir`
+### Descobrir Categorias — `/assuntos/descobrir`
 
 Runs the real clustering engine (`POST /api/v1/taxonomy/tags/suggest-macro`, read-only:
 `AUTHENTICATED`) over the tags or the documents to find a theme the vocabulary does not cover yet. It

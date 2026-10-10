@@ -397,3 +397,30 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   the alternative, generating the components from the files, would put a build step in the middle of a
   logo. `marca-escura.svg` was reconstructed from the family's geometry and is the one file a person
   should look at rather than trust.
+
+## 2026-10-09 — the drawer and the cluster become the words the contract already used
+
+- **Range:** `86796d0..HEAD`
+- **Pages:**
+  - `guides/curate.md` — **updated**: `drawer` is **category** (16 times) and the screen is
+    `Descobrir Categorias`, which is what the rail says. `cluster` stays: it is the API's own word for
+    a proposed grouping (`clusters_found`, `TRIGRAM/PLURAL/MIXED`).
+  - `guides/curate.pt.md` — **updated**: `gaveta` is **categoria** (17 times), the same rename.
+- **Why:** the interface had its own metaphor for a concept the contract had already named. The API's
+  field is `category` — `category_would_be_lost`, `macro_category_name`, `CATEGORY` — and the drawer
+  was the interface's word for it, so a reader of both had two names for one thing. Measured before the
+  change: **34 visible strings** in the SPA used `gaveta`/`cluster` (Categories 9, Tags 11, Document 7,
+  taxonomy 4, Discover 3). None remain, and the gate now holds both words out.
+- **The API was split too, and is now aligned:** `hierarchy_requests.py` described a field as
+  "Documentação da gaveta para o curador" (a Portuguese `description` in the contract) and two worker
+  messages said "formar clusters semânticos". Both say `categoria`/`agrupamentos` now, and the contract
+  was regenerated — `openapi.json` and `schema.d.ts` change by exactly that one description.
+- **What did not move:** the screen count, the menu count, the settings tables, the data model and the
+  API's *shape* — no route, no setting, no table, no migration and no field renamed. The change is a
+  word, and the only contract diff is a description's text.
+- **Not carried, on purpose:** the **casing of the labels and hints**. The pass over them is half
+  applied — some are English-style Title Case ("Lista e Busca", "Facetas e Filtros") and most are
+  sentence case ("Onde está incoerente", "A trilha do que foi excluído") — and finishing it one way or
+  the other is 25 strings. English-style Title Case applied to Portuguese capitalises verbs
+  ("O que **P**recisa de **M**im **H**oje", "Não **É** Assunto"), which the pt-BR convention does not;
+  the preview of that direction is in the pull request rather than in this commit.
