@@ -60,7 +60,7 @@ body:
     attributes:
       label: Version or commit
       description: A release tag, or the output of `git rev-parse HEAD`.
-      placeholder: "e.g. v1.0.0 or 2292970"
+      placeholder: "e.g. v1.1.0 or 2292970"
     validations:
       required: true
 

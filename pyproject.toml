@@ -1,6 +1,6 @@
 [project]
 name = "scrinalia"
-version = "1.0.0"
+version = "1.1.0"
 description = "Archival description cataloguing and AI-driven enrichment system (ISAD(G))"
 readme = "README.md"
 requires-python = ">=3.12"
