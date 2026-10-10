@@ -94,7 +94,7 @@ export function DeletionsRoute() {
   const page = useQuery(queries.deletions(search.termo, offset));
 
   const patch = (changes: Partial<DeletionsSearch>) =>
-    navigate({ to: "/acervo/excluidas", search: { ...search, ...changes, offset: 0 } });
+    navigate({ to: "/acervo/excluidas", search: { ...search, ...changes, offset: changes.offset } });
 
   const total = page.data?.total ?? 0;
   const items = page.data?.items ?? [];

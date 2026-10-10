@@ -539,3 +539,25 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   guide: it is the API's own word for a proposed grouping (`clusters_found`,
   `TRIGRAM/PLURAL/MIXED`), which is the distinction the rename round drew and this one keeps.
 
+## 2026-10-10 — the collection pagination
+
+- **Range:** `b291d36..b99408e`
+- **Pages:**
+  - `guides/curate.md` — **no-change**: the *Lista e busca — `/acervo/lista`* section says "the URL is
+    the state, so a filtered list is shareable and the back button works", lists the facets and
+    states that nothing is written. It never describes the page buttons, and the fix makes "Próxima"
+    obey the sentence that was already there — a screen changed one expression, not a decision.
+  - `guides/operate.md` — **no-change**: the `/sistema/execucoes` row describes the ledger, the
+    failures of the last 30 days grouped by root cause and the click that filters the ledger to its
+    occurrences; it never states how the ledger pages. The expression that moved keeps the page a
+    caller sends and returns to the first page for a filter, which is what the row already implies.
+- **Why the round exists:** the freshness report named both pages after `e89bfbb`/`b99408e` touched
+  four route files. Two `no-change` verdicts are the honest outcome here: a defect that stopped a
+  documented behaviour from happening is repaired in the code, and a page does not change because the
+  code started keeping a promise the page already made.
+- **What the round measured.** `/acervo/lista` builds its request from the URL (`CollectionRoute.tsx`,
+  `toRequest`), so the page's claim was true of the read and false of the two buttons; the gate that
+  keeps it true is `testing/unit/curator/test_curator_search_state.py`, which fails on an object that
+  spreads `changes` and then writes a literal `offset`. The three other screens with the same fold
+  (`DeletionsRoute`, `SystemRunsRoute`, `DiagnosticsRoute`) are normalized in the same change.
+
