@@ -35,6 +35,8 @@ sources:
   - apps/curator/src/routes/SystemWorkersRoute.tsx
   - apps/curator/src/routes/SystemRunsRoute.tsx
   - apps/curator/src/routes/SystemHealthRoute.tsx
+  - .github/workflows/ci.yml
+  - mkdocs.yml
 ---
 
 # Operations
@@ -521,6 +523,32 @@ One stamp carries a trap worth knowing before reading the number: `embedding_v1`
 effective text**, not the identity of the model, so it stays up to date when the vectors do not —
 changing `torch`, `sentence-transformers` or the preset does not put a single description back in the
 queue. When the embedding model changes, the vector has to be rebuilt explicitly.
+
+## The documentation site
+
+These guides are published at <https://cassiodalla.github.io/Scrinalia/> — English at the root,
+Portuguese under `/pt/` — and **CI publishes them; no person does.** The `docs` job builds the site
+with `mkdocs build --strict` on a full-history checkout (the freshness report is a report *against
+git*, ADR 0010), uploads `site/` as the Pages artifact, and the `docs-publish` job deploys exactly
+that artifact. The decision, and the alternatives it rejected, are in
+[ADR 0012](../adr/0012-the-documentation-site-is-published-by-ci.md).
+
+Three consequences are worth knowing before touching a workflow or the theme:
+
+- **Only a push to `main` publishes.** A merge into `dev` builds the site and publishes nothing: the
+  site is the documentation of the **release**, and `main` is the branch that moves at a release.
+  The `github-pages` environment trusts `main` — and the `gh-pages` branch the old manual build used
+  — so a deploy from `dev` would need that policy changed first.
+- **Re-running the workflow run is the recovery.** The deploy takes the artifact the same run built,
+  so a transient failure is fixed with "re-run jobs". There is no `mkdocs gh-deploy` step and
+  `gh-pages` is not the source of the site any more: publishing by hand is no longer a path, which is
+  what stops the published site from being a release older than the tag.
+- **The theme is the system's identity**, and it lives in two places that are pinned to each other:
+  `docs/assets/` (the mark, the favicon, the self-hosted PT Serif with its licence) and
+  `docs/assets/stylesheets/scrinalia.css`, which carries the tokens of
+  `apps/curator/src/styles.css`. `testing/unit/docs/test_docs_brand.py` fails when an asset
+  `mkdocs.yml` names is missing — `--strict` does **not** catch that — or when a copy drifts from the
+  curator's own file.
 
 ## Known limits and accepted trade-offs
 

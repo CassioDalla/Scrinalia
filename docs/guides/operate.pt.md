@@ -486,6 +486,31 @@ efetivo**, não a identidade do modelo, então ele fica em dia mesmo quando os v
 trocar `torch`, `sentence-transformers` ou o preset não devolve uma única descrição para a fila.
 Quando o modelo de embedding muda, o vetor precisa ser reconstruído de propósito.
 
+## O site da documentação
+
+Estes guias são publicados em <https://cassiodalla.github.io/Scrinalia/> — inglês na raiz, português
+em `/pt/` — e **quem publica é a CI; não é uma pessoa.** O job `docs` constrói o site com
+`mkdocs build --strict` sobre o histórico completo (o relatório de freshness é um relatório *contra o
+git*, ADR 0010), envia `site/` como artefato do Pages, e o job `docs-publish` publica exatamente esse
+artefato. A decisão, e as alternativas que ela recusou, estão na
+[ADR 0012](../adr/0012-the-documentation-site-is-published-by-ci.md).
+
+Três consequências valem antes de mexer num workflow ou no tema:
+
+- **Só um push para `main` publica.** Um merge em `dev` constrói o site e não publica nada: o site é
+  a documentação da **versão**, e `main` é o ramo que se move numa versão. O ambiente `github-pages`
+  confia em `main` — e no ramo `gh-pages` que a publicação manual usava — então um deploy a partir de
+  `dev` exigiria mudar essa política antes.
+- **Repetir a execução do workflow é a recuperação.** O deploy pega o artefato que a mesma execução
+  construiu, então uma falha passageira se resolve com "re-run jobs". Não existe passo
+  `mkdocs gh-deploy` e `gh-pages` não é mais a origem do site: publicar à mão deixou de ser um
+  caminho, que é o que impede o site publicado de ser uma versão mais velha que a tag.
+- **O tema é a identidade do sistema**, e vive em dois lugares presos um ao outro: `docs/assets/` (a
+  marca, o favicon, a PT Serif auto-hospedada com a licença) e
+  `docs/assets/stylesheets/scrinalia.css`, que carrega os tokens de `apps/curator/src/styles.css`.
+  `testing/unit/docs/test_docs_brand.py` falha quando falta um arquivo que o `mkdocs.yml` nomeia — o
+  `--strict` **não** pega isso — ou quando uma cópia se afasta do arquivo original do curador.
+
 ## Limites conhecidos e trade-offs aceitos
 
 São medidos, aceitos e não estão esperando correção. Estão aqui para o operador saber que

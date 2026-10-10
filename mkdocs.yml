@@ -126,4 +126,5 @@ nav:
       - 0009 Authentication and authorization: adr/0009-authentication-and-authorization.md
       - 0010 Documentation coverage and freshness: adr/0010-documentation-coverage-and-freshness.md
       - 0011 First-run setup without an open door: adr/0011-first-run-setup-without-an-open-door.md
+      - 0012 The documentation site is published by CI: adr/0012-the-documentation-site-is-published-by-ci.md
   - Documentation log: log.md
