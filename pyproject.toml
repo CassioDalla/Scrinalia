@@ -103,6 +103,10 @@ dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
+    # `testing/unit/docs/test_docs_brand.py` reads `mkdocs.yml` to check that every asset the theme
+    # names exists. It was already in the environment through `jupyterlab`, which is a dependency to
+    # borrow a YAML parser from and not to declare one.
+    "pyyaml>=6.0.3",
     "ruff>=0.16.10",
     # Only for `testing/evaluation/macro_category_quality.py`: transformers 5.x needs it
     # to convert the sentencepiece tokenizer of the alternate zero-shot model. Never

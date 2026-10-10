@@ -270,3 +270,54 @@ jobs:
             --with 'mkdocs-material==9.7.7' \
             --with 'mkdocs-static-i18n==1.3.1' \
             mkdocs build --strict
+
+      # Publishing is the **artifact** path (ADR 0012), not ``mkdocs gh-deploy`` pushing the built
+      # site into a branch: GitHub Pages takes the ``site/`` directory as an uploaded artifact, so
+      # no build output is committed, the ``gh-pages`` branch the site used to live in disappears
+      # from the repository, and the deploy job needs no ``contents: write`` — only ``pages: write``
+      # and an OIDC token, in a job that does nothing else.
+      #
+      # Only a push to ``main`` publishes. CI builds the site on every push and every pull request,
+      # but the public site documents the **release**, and ``main`` is the branch that moves at a
+      # release (CONTRIBUTING.md). The ``github-pages`` environment allows ``main`` and the old
+      # ``gh-pages`` (measured: `gh api repos/:owner/:repo/environments/github-pages/deployment-branch-policies`),
+      # so publishing from ``dev`` would need that policy loosened first — a deliberate act, not a
+      # side effect of merging a typo fix.
+      # ``actions/configure-pages`` is deliberately **not** here, although every Pages recipe has it.
+      # It reads the Pages API (``octokit.rest.repos.getPages``) and its own manifest asks for a
+      # token with Pages permissions — the workflow-level token is ``contents: read``, so the step
+      # would answer 403 on the one push that publishes. Nothing needs it either: it exists to enable
+      # Pages, to configure a static-site generator, and to expose the site's base URL as an output,
+      # and this repository has Pages enabled, configures MkDocs from ``mkdocs.yml`` (which owns
+      # ``site_url``, one definition), and consumes no output.
+      - name: Upload the site as the Pages artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+
+  docs-publish:
+    name: Publish the documentation site
+    needs: docs
+    # The same condition as the upload above, on purpose: this job publishes exactly the artifact
+    # the ``docs`` job built and verified, and it is the only job in this workflow that holds a
+    # write permission. Re-running the workflow run is the way to publish again after a transient
+    # failure — there is no manual step and no second build.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write # deploy the artifact to Pages
+      id-token: write # prove to Pages that this run is the one that built it
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    # Deployments are a sequence: a second push to ``main`` waits for the first deploy instead of
+    # cancelling it mid-flight and leaving the environment in whatever state the cancel found.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

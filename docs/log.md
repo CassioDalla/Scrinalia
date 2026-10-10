@@ -400,7 +400,7 @@ with short or full shas, and part of a `## <date> — <title>` entry.
 
 ## 2026-10-09 — the drawer and the cluster become the words the contract already used
 
-- **Range:** `86796d0..HEAD`
+- **Range:** `86796d0..571c6cb`
 - **Pages:**
   - `guides/curate.md` — **updated**: `drawer` is **category** (16 times) and the screen is
     `Descobrir Categorias`, which is what the rail says. `cluster` stays: it is the API's own word for
@@ -424,3 +424,41 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   the other is 25 strings. English-style Title Case applied to Portuguese capitalises verbs
   ("O que **P**recisa de **M**im **H**oje", "Não **É** Assunto"), which the pt-BR convention does not;
   the preview of that direction is in the pull request rather than in this commit.
+
+## 2026-10-10 — the documentation site, published from CI and dressed in the identity
+
+- **Range:** `571c6cb..236bc58`
+- **Pages:**
+  - `guides/operate.md` — **updated**: the new *The documentation site* section (the deploy path and
+    the recovery, ADR 0012), plus the vocabulary the drawer round left behind — `drawer` four times
+    and one `gaveta` inside the measurement SQL of an English page. `ci.yml` and `mkdocs.yml` joined
+    its `sources:`, so a change to the publish path reports the page stale.
+  - `guides/operate.pt.md` — **updated**: the same section, and the same five `gaveta`.
+  - `guides/curate.md` — **updated**: the sign-in plate is no longer centred and carries no tagline
+    (`bd89df2`, in this range), and the warning still said `"sem gaveta"` in the **canonical** page
+    while its own translation said `"sem categoria"`.
+  - `guides/curate.pt.md` — **updated**: the identity paragraph, which carried the same "centralizado"
+    that stopped being true, in the same sentence.
+  - `guides/data-model.md` — **updated**: `drawer` in five places, including the section heading and
+    the `archive_macro_categories` row.
+  - `guides/data-model.pt.md` — **updated**: the same five, in Portuguese.
+- **The report named two pages; the round touched six, and that is the finding.** The freshness report
+  is computed from `sources:`, so it can see `LoginForm.tsx` moving under `curate.md` and the worker
+  strings moving under `operate.md` — it cannot see a **word** that no source file owns. The previous
+  round renamed the concept in `curate.md` and its translation and stopped there: `operate.md`,
+  `data-model.md` and both translations still said `drawer`/`gaveta`, and one line of `curate.md` kept
+  the old string after the paragraph around it was rewritten. The check that found them was
+  `grep -rn "gaveta\|drawer" docs/guides/`, run by hand, and it is worth running after the next
+  rename — nothing in the suite would have failed.
+- **A correction in the ledger itself, in this diff.** The entry above ended its range at `HEAD`,
+  which `_RANGE` cannot parse, so `ledger_floor` fell back to the range before it and the report
+  re-flagged pages that round had already triaged. It now names the commit it meant (`571c6cb`), and
+  this entry starts where it ends.
+- **The gate this change adds, and why it is a test.** `mkdocs build --strict` exits 0 when
+  `theme.logo`, `theme.favicon` and `extra_css` all point at files that do not exist — measured, not
+  assumed. `testing/unit/docs/test_docs_brand.py` therefore pins the wiring (an asset named and not
+  present fails), the copies (byte for byte against `apps/curator/`, so the identity cannot drift),
+  the palette (against the tokens of `apps/curator/src/styles.css`, read out of that file rather than
+  repeated) and the `url(...)` the stylesheet reaches for.
+- **Not carried, on purpose:** `guides/install.md`, `index.md` and the guides not named above —
+  nothing in the range touches what they document, and `adr/` is not a sourced surface (ADR 0010).

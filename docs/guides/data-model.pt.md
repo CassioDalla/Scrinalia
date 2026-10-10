@@ -97,19 +97,19 @@ Três propriedades desta tabela sustentam o modelo:
     faria uma correção de errinho equivaler a publicar, e travaria todo documento publicado contra a
     reescrita da IA. Nada é publicado por padrão, então a superfície de difusão nasce vazia.
 
-#### Assuntos, gavetas e entidades
+#### Assuntos, categorias e entidades
 
 | Tabela | Para que serve | Colunas principais |
 | --- | --- | --- |
 | `archive_tags` | Um termo de assunto do acervo. | `tag_id`, `name` (único), `macro_category_id`, `ai_confidence_score`, `execution_log` (JSONB) |
-| `archive_macro_categories` | A gaveta de assunto (o eixo do "sobre o quê"). | `category_id`, `name` (único), `description`, `classifier_label`, `is_active` |
+| `archive_macro_categories` | A categoria de assunto (o eixo do "sobre o quê"). | `category_id`, `name` (único), `description`, `classifier_label`, `is_active` |
 | `archive_tag_facets` | O eixo não-assunto de uma tag: o que ela *é* quando não é um *sobre*. | chave composta `(tag_id, facet_type)`, `value`, `created_by`, `created_by_user_id` |
 | `archive_entities` | Uma entidade nomeada (pessoa, organização, lugar) encontrada por NER ou inserida à mão. | `entity_id`, `name` (único), `entity_type` |
 | `archive_document_tags` | Quais tags uma descrição carrega. | chave composta `(description_id, tag_id)` |
 | `archive_document_entities` | Quais entidades uma descrição carrega. | chave composta `(description_id, entity_id)` |
 | `archive_ai_review_queue` | A fila de auditoria da IA; o lado da *decisão* de uma colisão tag × entidade. | `anomaly_type` (`AnomalyType`), `status` (`ArchiveReviewStatus`), `context_payload` (JSONB), `llm_decision`, `llm_confidence`, `llm_reason` |
 
-`archive_tags.macro_category_id` guarda no máximo uma gaveta de assunto; `archive_tag_facets` é uma
+`archive_tags.macro_category_id` guarda no máximo uma categoria de assunto; `archive_tag_facets` é uma
 tabela separada porque uma tag carrega no máximo um assunto, mas pode ser lugar *e* instituição ao
 mesmo tempo. `facet_type` é restrito a `INSTITUTION` ou `PLACE`, e nada grava uma faceta
 automaticamente — faceta é ato de curadoria, nunca inferência da IA.
@@ -225,7 +225,7 @@ As chaves canônicas, definidas uma única vez em `worker_stamp.py`:
 | `worker_ner_v2` | `archive_documents` | Extração NER feita |
 | `worker_typology_classifier_v2` | `archive_documents` | Classificação de tipologia feita |
 | `cleaning_rule_{id}` | `archive_documents` | A regra dinâmica de limpeza com aquele id já rodou |
-| `worker_macro_category_v1` | `archive_tags` | A decisão de gaveta da tag foi tentada |
+| `worker_macro_category_v1` | `archive_tags` | A decisão de categoria da tag foi tentada |
 | `worker_quality_validator_v1` | `archive_documents` | Validação estrutural feita |
 | `worker_embedding_v1` | `archive_documents` | O valor é o MD5 do texto embutido |
 
@@ -361,7 +361,7 @@ membro vivo) em uma consulta por página; `applicable` é a definição única d
 ## Catálogos se aposentam, não se apagam
 
 Os três catálogos que o arquivista estende sem deploy são `archive_description_levels` (a escada de
-níveis), `archive_macro_categories` mais `archive_tags` (as gavetas de assunto) e `archive_typologies`
+níveis), `archive_macro_categories` mais `archive_tags` (as categorias de assunto) e `archive_typologies`
 (as tipologias documentais — a *forma diplomática*: ata, ofício, planta). O vocabulário do acervo
 acrescenta `archive_arrangement_vocabulary` e `archive_collection_terms`. Todos são tabelas em vez de
 enums para que um nome possa mudar sem uma release.

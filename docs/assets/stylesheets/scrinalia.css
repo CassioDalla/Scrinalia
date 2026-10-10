@@ -1,0 +1,124 @@
+/*
+  The documentation site draws with the curator's identity, and the numbers below are the ones
+  `apps/curator/src/styles.css` defines — the same tokens, not a second palette that resembles them.
+  What the site cannot share is the *build*: the SPA's Tailwind theme and this stylesheet are two
+  roots, so `testing/unit/docs/test_docs_brand.py` pins the files and the values that must not drift.
+
+  Four decisions are worth stating, because each one could have gone the other way:
+
+  * the **paper** is the curator's (`oklch(0.985 0.004 85)`), not the cream `#f4efe4` of the identity
+    files: the cream is the plate the mark sits on, and a page of body text is not a plate;
+  * **links are the accent blue**, never the terracotta. On this paper the terracotta measures
+    4.40:1 — under the 4.5:1 a paragraph of link text needs — and the identity's own light variant,
+    `#a8342a`, measures 6.31:1 but is the *danger* family's neighbour (`oklch` hue 31 against the
+    danger colour's 25), which is why the SPA keeps it out of the interactive role too;
+  * the **navy is a surface**: the header and the foot, exactly like the SPA's rail, and the
+    terracotta appears as the 2px rule that closes the header — the motif the SPA's own header and
+    its two pre-session cards carry;
+  * **no font is fetched from a third party.** Material loads Roboto from Google Fonts by default;
+    `theme.font: false` in `mkdocs.yml` stops that, the wordmark uses the PT Serif the curator
+    already self-hosts (copied here with its licence), and everything else uses the system stack the
+    curator's `body` declares. An institution reads this site on its own network, and a page that
+    reaches a third party to draw its own name is a page that draws nothing when that party is
+    unreachable.
+
+  Nothing here overrides a template: the theme is re-coloured through Material's own `--md-*`
+  variables and one `extra_css` entry, with no `overrides/partials/` copy of the theme. ADR 0010's
+  note on the MkDocs 2.0 notice — the theming overrides are what it breaks — therefore costs this
+  file and `mkdocs.yml`, not a forked theme.
+*/
+
+/* The logomark's serif. PT Serif 400, the same 33KB subset the curator ships
+   (`apps/curator/src/assets/fonts/pt-serif-400.woff2`), with its OFL-1.1 licence beside it —
+   Reserved Font Names, so the name stays as it is. */
+@font-face {
+  font-family: "PT Serif";
+  src: url("../fonts/pt-serif-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+body {
+  /* The curator's body stack. Material's own fallback chain is the system stack too, so this
+     changes little — it is stated so the two surfaces cannot quietly stop matching. */
+  --md-text-font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* The light scheme — Material's `default`. The light palette lives in `:root`, so this rule wins on
+   specificity as well as on order. */
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #14202b; /* the rail */
+  --md-primary-fg-color--light: #14202b;
+  --md-primary-fg-color--dark: #14202b;
+  --md-primary-bg-color: oklch(0.953 0.016 86); /* --color-rail-ink */
+  --md-primary-bg-color--light: oklch(0.953 0.016 86 / 0.62); /* --color-rail-muted */
+
+  --md-accent-fg-color: oklch(0.52 0.13 250); /* --color-accent: hover, focus, search hits */
+  --md-accent-fg-color--transparent: oklch(0.52 0.13 250 / 0.1);
+  --md-accent-bg-color: oklch(1 0 0);
+  --md-accent-bg-color--light: oklch(1 0 0 / 0.7);
+
+  --md-default-bg-color: oklch(0.985 0.004 85); /* --color-paper */
+  --md-default-fg-color: oklch(0.24 0.012 60); /* --color-ink */
+  --md-default-fg-color--light: oklch(0.52 0.01 60); /* --color-muted */
+
+  --md-typeset-a-color: oklch(0.52 0.13 250); /* --color-accent */
+  --md-typeset-table-color: oklch(0.9 0.006 80); /* --color-line */
+  --md-code-bg-color: oklch(0.96 0.005 85);
+
+  --md-footer-bg-color: #14202b; /* the rail again, at the other end of the page */
+  --md-footer-bg-color--dark: #101a23;
+  --md-footer-fg-color: oklch(0.953 0.016 86);
+  --md-footer-fg-color--light: oklch(0.953 0.016 86 / 0.62);
+  --md-footer-fg-color--lighter: oklch(0.953 0.016 86 / 0.4);
+}
+
+/* The dark scheme — Material's `slate`. `--md-hue` is the whole trick: the slate greys are all
+   `hsla(var(--md-hue), 15%, …)`, so moving the hue to the navy's own (208°) turns the dark page into
+   the identity's surface instead of a neutral grey. Measured: the navy header sits 1.07:1 against
+   that background — the two surfaces are the same family, and the mark's cream is what separates
+   them. */
+[data-md-color-scheme="slate"] {
+  --md-hue: 208;
+
+  --md-primary-fg-color: #14202b;
+  --md-primary-fg-color--light: #14202b;
+  --md-primary-fg-color--dark: #14202b;
+  --md-primary-bg-color: oklch(0.953 0.016 86);
+  --md-primary-bg-color--light: oklch(0.953 0.016 86 / 0.62);
+
+  --md-accent-fg-color: oklch(0.72 0.11 250); /* 7.18:1 on the dark paper */
+  --md-accent-fg-color--transparent: oklch(0.72 0.11 250 / 0.1);
+  --md-accent-bg-color: #13191f;
+  --md-accent-bg-color--light: #13191fb3;
+
+  --md-typeset-a-color: oklch(0.72 0.11 250);
+}
+
+/* The header is the rail, and the terracotta rule closes it. The rule is 2px, the width the SPA's
+   own header and its two pre-session cards draw. */
+.md-header {
+  border-bottom: 2px solid oklch(0.58 0.152 31); /* --color-brand */
+}
+
+/* The wordmark. Material bolds the header's first topic (`.md-header__topic:first-child`) and the
+   drawer's title, and the only PT Serif on either side is 400: left bold, the browser synthesises a
+   weight the SPA never draws — its lockup is the same 400. The selector has to out-specify Material's
+   `:first-child` rule, which is why it repeats the topic class. */
+.md-header__title,
+.md-header__title .md-header__topic,
+.md-nav__title {
+  font-family: "PT Serif", Georgia, "Times New Roman", serif;
+  font-weight: 400;
+}
+
+/* Material gives the logo a fixed 1.2rem box. The tile is a 512px square with the mark inset, so
+   the box has to be a little larger than the mark should look; the tile's navy is the header's own
+   navy, which is the point — the plate disappears into the rail and only the mark is left, the way
+   `Mark.tsx` describes a surface drawing the tile behind the crop. */
+.md-header__button.md-logo img {
+  height: 1.9rem;
+  width: 1.9rem;
+  border-radius: 0.2rem;
+}

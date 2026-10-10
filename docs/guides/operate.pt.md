@@ -52,7 +52,7 @@ transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-
 - **`conflict-judge`** compara o vocabulário de tags com o de entidades e consulta o LLM local para
   decidir se o termo ambíguo é assunto ou nome próprio. Todo veredicto, automático ou enviado a uma
   pessoa, deixa uma linha em `archive_ai_review_queue`.
-- **`macro-category`** arquiva cada tag numa gaveta de assunto. A unidade dele é a **tag**, não a
+- **`macro-category`** arquiva cada tag numa categoria de assunto. A unidade dele é a **tag**, não a
   descrição, então o carimbo vive no `execution_log` da própria tag; uma tag que o curador arquivou
   à mão está fora do alcance dele.
 - **`quality-validator`** marca anomalias estruturais, títulos repetidos e regras `VALIDATE`. Nunca
@@ -82,7 +82,7 @@ Uma fila não é uma tabela: é o predicado que o próprio `count_pending` do wo
 | `typology` | documentos sem tipologia e sem o carimbo que têm texto | `worker_typology_classifier_v2` |
 | `thumbnail` | documentos com imagem de origem, sem URI no storage e sem marca de falha — todos os marcados, com `force` | nenhum; a coluna `storage_thumbnail_uri`, mais a marca `thumbnail_failed` |
 | `conflict-judge` | **não é mensurável barato**: a fila é o produto trigram de tags × entidades, medido em 53 s no acervo real. O painel mostra o que já foi julgado | nenhum; a linha em `archive_ai_review_queue` |
-| `macro-category` | tags sem gaveta de assunto cujo carimbo não carrega o conjunto de rótulos atual | `worker_macro_category_v1` (na tag; o valor é o hash do conjunto de rótulos) |
+| `macro-category` | tags sem categoria de assunto cujo carimbo não carrega o conjunto de rótulos atual | `worker_macro_category_v1` (na tag; o valor é o hash do conjunto de rótulos) |
 | `quality-validator` | documentos sem o carimbo, a menos que `force` esteja ligado | `worker_quality_validator_v1` |
 | `embedding` | documentos cujo carimbo difere do MD5 do texto efetivo — a primeira execução e toda mudança de texto posterior | `worker_embedding_v1` (o valor é o MD5 do texto embedado) |
 
@@ -271,7 +271,7 @@ segunda execução toca só o que ainda está pendente. O que devolve uma unidad
   as tags afetadas voltam à fila do `macro-category`. Os motivos do validador de qualidade também
   dependem do catálogo.
 - **`force=true`** — `embedding`, `macro-category`, `thumbnail` e `quality-validator` aceitam e
-  ignoram o próprio carimbo; o `macro-category` continua sem tocar numa tag que já tem gaveta. No
+  ignoram o próprio carimbo; o `macro-category` continua sem tocar numa tag que já tem categoria. No
   `thumbnail` ele também traz de volta os documentos marcados como `thumbnail_failed`, que é a saída
   de um bucket que estava fora durante uma execução: a marca existe para um link morto não ficar em
   laço, não para tornar a queda permanente.
@@ -287,7 +287,7 @@ uv run python -m scrinalia.domains.archive.workers.runner thumbnail --option for
     `typology`, `thumbnail` e `quality-validator` filtram por ela. O `transfer` se recusa a
     sobrescrever uma descrição aprovada mesmo quando o hash da origem mudou. As duas exceções
     documentadas são o trabalho derivado — o `embedding`, que re-embeda um texto mudado, e o
-    `macro-category`, cuja unidade é a tag e cuja fila é "ainda sem gaveta", então a gaveta de um
+    `macro-category`, cuja unidade é a tag e cuja fila é "ainda sem categoria", então a categoria de um
     curador nunca é reescrita.
 
 Não há **rota nem flag que limpe um carimbo**: para devolver um documento à fila de um worker que não
@@ -467,7 +467,7 @@ SELECT 'descrições', count(*)::text FROM archive_documents
 UNION ALL SELECT 'com pai', count(*)::text FROM archive_documents WHERE parent_id IS NOT NULL
 UNION ALL SELECT 'sem nível', count(*)::text FROM archive_documents WHERE level_id IS NULL
 UNION ALL SELECT 'tags', count(*)::text FROM archive_tags
-UNION ALL SELECT 'tags sem gaveta', count(*)::text FROM archive_tags WHERE macro_category_id IS NULL
+UNION ALL SELECT 'tags sem categoria', count(*)::text FROM archive_tags WHERE macro_category_id IS NULL
 UNION ALL SELECT 'propostas sugeridas', count(*)::text FROM archive_tag_merge_proposals WHERE status='SUGGESTED'
 UNION ALL SELECT 'propostas aplicadas', count(*)::text FROM archive_tag_merge_proposals WHERE status='APPLIED'
 UNION ALL SELECT 'rungs decididos', count(*)::text FROM archive_hierarchy_node_plans WHERE status <> 'SUGGESTED'
@@ -485,6 +485,31 @@ Um carimbo tem uma armadilha que vale saber antes de ler o número: `embedding_v
 efetivo**, não a identidade do modelo, então ele fica em dia mesmo quando os vetores não estão —
 trocar `torch`, `sentence-transformers` ou o preset não devolve uma única descrição para a fila.
 Quando o modelo de embedding muda, o vetor precisa ser reconstruído de propósito.
+
+## O site da documentação
+
+Estes guias são publicados em <https://cassiodalla.github.io/Scrinalia/> — inglês na raiz, português
+em `/pt/` — e **quem publica é a CI; não é uma pessoa.** O job `docs` constrói o site com
+`mkdocs build --strict` sobre o histórico completo (o relatório de freshness é um relatório *contra o
+git*, ADR 0010), envia `site/` como artefato do Pages, e o job `docs-publish` publica exatamente esse
+artefato. A decisão, e as alternativas que ela recusou, estão na
+[ADR 0012](../adr/0012-the-documentation-site-is-published-by-ci.md).
+
+Três consequências valem antes de mexer num workflow ou no tema:
+
+- **Só um push para `main` publica.** Um merge em `dev` constrói o site e não publica nada: o site é
+  a documentação da **versão**, e `main` é o ramo que se move numa versão. O ambiente `github-pages`
+  confia em `main` — e no ramo `gh-pages` que a publicação manual usava — então um deploy a partir de
+  `dev` exigiria mudar essa política antes.
+- **Repetir a execução do workflow é a recuperação.** O deploy pega o artefato que a mesma execução
+  construiu, então uma falha passageira se resolve com "re-run jobs". Não existe passo
+  `mkdocs gh-deploy` e `gh-pages` não é mais a origem do site: publicar à mão deixou de ser um
+  caminho, que é o que impede o site publicado de ser uma versão mais velha que a tag.
+- **O tema é a identidade do sistema**, e vive em dois lugares presos um ao outro: `docs/assets/` (a
+  marca, o favicon, a PT Serif auto-hospedada com a licença) e
+  `docs/assets/stylesheets/scrinalia.css`, que carrega os tokens de `apps/curator/src/styles.css`.
+  `testing/unit/docs/test_docs_brand.py` falha quando falta um arquivo que o `mkdocs.yml` nomeia — o
+  `--strict` **não** pega isso — ou quando uma cópia se afasta do arquivo original do curador.
 
 ## Limites conhecidos e trade-offs aceitos
 

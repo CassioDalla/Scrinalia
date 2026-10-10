@@ -269,8 +269,10 @@ recortada. Recolhida, essa marca é **também o controle que expande a rail**: a
 para trazer as palavras de volta, e é isso que faz valer a pena mantê-la em 64px.
 
 Um filete de 2px de terracota fecha o cabeçalho da tela, e os dois cartões que vêm antes de uma sessão
-— o formulário de entrada e a configuração inicial — carregam o mesmo motivo no topo, centralizado,
-onde antes estava o nome em texto simples.
+— o formulário de entrada e a configuração inicial — carregam o mesmo motivo no topo, onde antes
+estava o nome em texto simples. As duas fichas não são iguais: a configuração inicial centraliza o
+lockup sob a tagline, e o formulário de entrada põe um lockup maior à direita e não carrega tagline
+nenhuma — ali a ficha é só a marca.
 
 O accent continua o azul que era, e a terracota é cor de **marca** e não de interação: a terracota é
 `oklch(… 31)` e a cor de perigo é `oklch(… 25)`, seis graus de distância, então um botão terracota e

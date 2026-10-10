@@ -291,9 +291,11 @@ the full lockup — the card with its terracotta tab, then **Scrinalia** in PT S
 is the cropped mark alone. Collapsed, that mark is **also the control that expands the rail**: the
 brand is the thing you click to get the words back, which is what makes it worth keeping at 64px.
 
-A 2px terracotta rule closes the screen's header, and the two cards that come before a session — the
-sign-in form and the first-run setup — carry the same motif at their top, centred, where the name
-used to be plain text.
+A 2px terracotta rule closes the screen's header, and the two cards that come before a session —
+the sign-in form and the first-run setup — carry the same motif at their top, where the name used to
+be plain text. The two are not the same plate: the setup card centres the lockup under the tagline,
+and the sign-in card sets a larger lockup to the right and carries no tagline at all — there the
+plate is the mark alone.
 
 The accent is still the blue it was, and the terracotta is a **brand** colour and not an interactive
 one: the terracotta is `oklch(… 31)` and the danger colour is `oklch(… 25)`, six degrees apart, so a
@@ -396,7 +398,7 @@ route twice writes no revision.
 !!! warning "The category is a decision about the vocabulary, not about this description"
 
     Changing a tag's category moves it for **every** description that carries the tag, and the screen
-    says so next to the select. Choosing "sem gaveta" gives the tag back to the AI classifier, which
+    says so next to the select. Choosing "sem categoria" gives the tag back to the AI classifier, which
     will try to file it again on the next run.
 
 #### Arranjo
