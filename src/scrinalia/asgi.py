@@ -17,6 +17,7 @@ from scrinalia.api.controllers.document_controller import DocumentController
 from scrinalia.api.controllers.health_controller import HealthController
 from scrinalia.api.controllers.hierarchy_controller import HierarchyController
 from scrinalia.api.controllers.public_controller import PublicController
+from scrinalia.api.controllers.setup_controller import SetupController
 from scrinalia.api.controllers.system_controller import SystemController
 from scrinalia.api.controllers.taxonomy_controller import TaxonomyController
 from scrinalia.api.controllers.text_quality_controller import TextQualityController
@@ -32,6 +33,7 @@ from scrinalia.api.handlers import (
 )
 from scrinalia.api.lifespan import application_lifespan
 from scrinalia.api.middleware import RequestContextMiddleware
+from scrinalia.api.openapi import openapi_config
 from scrinalia.api.security import access_guard, origin_guard
 from scrinalia.api.spa import curator_spa_router
 from scrinalia.core.config import settings
@@ -66,6 +68,10 @@ def create_app() -> Litestar:
         # is where the session comes from. Registering it early keeps the login out of the reach of
         # anything that might later be added in front of it.
         AuthController,
+        # The other anonymous surface, and the narrower one: it works only while the installation has
+        # no account at all, and answers 409 forever after (ADR 0011). Registered beside the login
+        # because the two are the whole of what an anonymous client can reach on purpose.
+        SetupController,
         TaxonomyController,
         CleaningController,
         CollectionVocabularyController,
@@ -116,6 +122,11 @@ def create_app() -> Litestar:
             HTTP_500_INTERNAL_SERVER_ERROR: unhandled_exception_handler,
         },
         lifespan=[application_lifespan],
+        # The contract's ``info`` block. Litestar's default names the framework and its own version,
+        # and an unset ``openapi_config`` is how the committed document served ``title="Litestar API"``
+        # through a release: the project's version lives in ``pyproject.toml`` and reaches this through
+        # the installed distribution (`api/openapi.py`).
+        openapi_config=openapi_config(),
         logging_config=_logging_config(),
         debug=settings.DEBUG,
     )

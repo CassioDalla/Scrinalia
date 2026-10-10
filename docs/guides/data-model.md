@@ -108,19 +108,19 @@ Three properties of this table carry the model:
     make a typo fix equivalent to publishing, and would lock every published document against AI
     rewriting. Nothing is published by default, so the diffusion surface is born empty.
 
-#### Subjects, drawers and entities
+#### Subjects, categories and entities
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
 | `archive_tags` | A subject term of the collection. | `tag_id`, `name` (unique), `macro_category_id`, `ai_confidence_score`, `execution_log` (JSONB) |
-| `archive_macro_categories` | The subject drawer (the "about" axis). | `category_id`, `name` (unique), `description`, `classifier_label`, `is_active` |
+| `archive_macro_categories` | The subject category (the "about" axis). | `category_id`, `name` (unique), `description`, `classifier_label`, `is_active` |
 | `archive_tag_facets` | The non-subject axis of a tag: what it *is* when it is not an *about*. | `(tag_id, facet_type)` composite key, `value`, `created_by`, `created_by_user_id` |
 | `archive_entities` | A named entity (person, organisation, place) found by NER or inserted by hand. | `entity_id`, `name` (unique), `entity_type` |
 | `archive_document_tags` | Which tags a description carries. | `(description_id, tag_id)` composite key |
 | `archive_document_entities` | Which entities a description carries. | `(description_id, entity_id)` composite key |
 | `archive_ai_review_queue` | The AI auditing queue; the decision side of a tag × entity collision. | `anomaly_type` (`AnomalyType`), `status` (`ArchiveReviewStatus`), `context_payload` (JSONB), `llm_decision`, `llm_confidence`, `llm_reason` |
 
-`archive_tags.macro_category_id` holds at most one subject drawer; `archive_tag_facets` is a separate
+`archive_tags.macro_category_id` holds at most one subject category; `archive_tag_facets` is a separate
 table because a tag carries at most one subject but can be a place *and* an institution at once.
 `facet_type` is checked to `INSTITUTION` or `PLACE`, and nothing writes a facet automatically — a
 facet is a curation act, never an AI inference.
@@ -235,7 +235,7 @@ The canonical keys, defined once in `worker_stamp.py`:
 | `worker_ner_v2` | `archive_documents` | NER extraction done |
 | `worker_typology_classifier_v2` | `archive_documents` | Typology classification done |
 | `cleaning_rule_{id}` | `archive_documents` | The dynamic cleaning rule with that id has run |
-| `worker_macro_category_v1` | `archive_tags` | The tag's drawer decision was attempted |
+| `worker_macro_category_v1` | `archive_tags` | The tag's category decision was attempted |
 | `worker_quality_validator_v1` | `archive_documents` | Structural validation done |
 | `worker_embedding_v1` | `archive_documents` | Value is the MD5 of the embedded text |
 
@@ -371,7 +371,7 @@ member alive) in one query per page; `applicable` is the single definition of "t
 ## Catalogues retire, they do not delete
 
 The three catalogues the archivist extends without a deploy are `archive_description_levels` (the
-level ladder), `archive_macro_categories` plus `archive_tags` (the subject drawers) and
+level ladder), `archive_macro_categories` plus `archive_tags` (the subject categories) and
 `archive_typologies` (the documental typologies — the *diplomatic form*: ata, ofício, planta). The
 collection vocabulary adds `archive_arrangement_vocabulary` and `archive_collection_terms`. All of
 them are tables instead of enums so a name can change without a release.

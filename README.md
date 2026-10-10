@@ -15,12 +15,12 @@ three-layer pipeline, and enriches them with named entities, typologies and subj
 categories. Every AI decision is advisory: an archivist reviews and approves, and approved
 documents are locked against further automatic rewrites.
 
-> **Status:** `1.0.0` — the first release. The curator surface is complete: the pipeline, the AI
-> workers, the review governance, the authentication and the 24 screens are in place, and the
-> documentation covers install, operation, curation and the data model. The curator UI is a React SPA
-> (`apps/curator/`) served by the API; the HTTP API is the stable contract, and the TypeScript client
-> is generated from it. The public diffusion site (`apps/public/`) is planned —
-> the public projection and its routes already exist on the API, and nothing is published by default.
+> **Status:** `1.1.0`. The curator surface is complete: the pipeline, the AI workers, the review
+> governance, the authentication and the 26 screens are in place, and the documentation covers
+> install, operation, curation and the data model. The curator UI is a React SPA (`apps/curator/`)
+> served by the API; the HTTP API is the stable contract, and the TypeScript client is generated from
+> it. The public diffusion site (`apps/public/`) is planned — the public projection and its routes
+> already exist on the API, and nothing is published by default.
 
 ## How it works
 
@@ -58,7 +58,7 @@ re-queues the affected tags by itself. The quality validator grades the record (
 suspicious title, scope that was only boilerplate) and sends it to human review, and the embedding
 runs last because every text mutation has to happen before it.
 
-The subject axis reads a **vocabulary**, not the raw tag list: eight drawers, plus two kinds of "this
+The subject axis reads a **vocabulary**, not the raw tag list: eight categories, plus two kinds of "this
 is not a subject". The split follows what owns each piece. What is a property of **Portuguese** —
 `rua`, `não identificado`, a bare year, `303 anos` — lives in a language profile (`core/language`,
 selected by `ACERVO_LANGUAGE`): it is not a curation decision, and a second language is a module
@@ -69,9 +69,9 @@ installation loads from its own file (`python -m scrinalia.domains.archive.cli i
 replace without a deploy: a fresh clone starts with an empty catalogue and never inherits another
 institution's vocabulary. On top of the deterministic guard sits the curated
 `domain_subject_exclusions` catalogue, for the judgements no rule reaches. Below 0.55 confidence a
-tag is left without a drawer **and** queued for review rather than guessed at. A tag whose axis is
+tag is left without a category **and** queued for review rather than guessed at. A tag whose axis is
 provenance or geography carries an `archive_tag_facets` row instead of competing for a subject
-drawer.
+category.
 
 ## Requirements
 
@@ -105,7 +105,9 @@ uv run uvicorn main:app --reload
 ```
 
 The API is then available at `http://localhost:8000/`, with the OpenAPI schema at
-`/schema/swagger`.
+`/schema/swagger`. An installation that still has no account answers the first visit with the
+first-run screen instead of the sign-in form; both doors close forever once the first account exists
+(ADR 0011).
 
 ### Running the whole system in a container
 
@@ -139,6 +141,10 @@ docker compose --profile app exec app \
   python -m scrinalia.domains.identity.cli create \
   --email voce@instituicao.org --name "Seu Nome" --role ADMIN
 ```
+
+Or skip it: with the container serving the UI, an installation with no account at all answers the
+first visit with the first-run screen — the same account, chosen by the person who will use it
+(ADR 0011).
 
 Two properties of the image are load-bearing before changing it. It runs **one** API process on
 purpose: the worker executor lives inside the API and `api/lifespan.py` marks any `QUEUED`/`RUNNING`
@@ -253,8 +259,8 @@ The screens that exist today, in the order the work happens:
 | `/arranjo/tipologias` | the documental typologies the classifier proposes: active ones are the labels, retired ones keep their weight |
 | `/vocabulario` | the collection's own vocabulary: the arrangement tokens and the terms the guards and the classifier read |
 | `/assuntos/tags` | the tag catalog: weight, near-duplicates and the merge queue with undo |
-| `/assuntos/categorias` | the subject drawers the classifier reads, with their weight |
-| `/assuntos/descobrir` | cluster the vocabulary to discover a drawer it does not have |
+| `/assuntos/categorias` | the subject categories the classifier reads, with their weight |
+| `/assuntos/descobrir` | cluster the vocabulary to discover a category it does not have |
 | `/assuntos/excecoes` | "this is not a subject at all": the terms the deterministic guard already refuses, with the evidence, plus the field for the judgements no rule reaches |
 | `/entidades/lista` | named entities: weight by type, merge and reclassification |
 | `/entidades/excecoes` | the NER veto: "this spelling is a subject, not a proper name" |
@@ -262,9 +268,11 @@ The screens that exist today, in the order the work happens:
 | `/qualidade/trechos` | repeated excerpts, the scope that drops them and the mandatory dry run |
 | `/qualidade/regras` | cleaning rules: `REWRITE` replaces, `VALIDATE`/`LLM_CHECK` only flag |
 | `/qualidade/anomalias` | what the quality validator marked, with the reason counts over the whole filtered set and each reason as the filter |
-| `/sistema/workers` | the AI workers: engine, preset and model, the queue, the persisted default and a run button |
+| `/sistema/workers` | the AI workers as the machine sees them: the queue, the pending and failed counters, the effective configuration read only, and a run button |
 | `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage and the effective process configuration |
+| `/configuracoes` | the landing: one card per screen nobody opens in the middle of cataloguing, on three tabs |
+| `/configuracoes/workers` | what each worker is configured to be: the persisted default per worker, its revisions, and the engine and preset choice |
 | `/configuracoes/usuarios` | the accounts: create, change a role, deactivate, reset a password, and the active sessions of each account (`ADMIN`) |
 
 The arrangement screens offer no silent correction: every write is a decision taken on a screen
@@ -377,7 +385,8 @@ port is the API's; CI builds the site with `--strict` and fails on a broken link
 - [Documentation log](docs/log.md) — the pages reviewed against the code, and when.
 
 In the repository: [`AGENTS.md`](AGENTS.md) — conventions and the architectural rules that are easy
-to get wrong — and [`TODO.md`](TODO.md) — the roadmap.
+to get wrong. The work that is left is in the
+[open issues](https://github.com/CassioDalla/Scrinalia/issues) and their milestones.
 
 Two rules hold the documentation to the code, and both matter before touching a documented surface
 (ADR 0010). **Coverage is a gate**: `testing/unit/docs/test_documentation_coverage.py` fails when a

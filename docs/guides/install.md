@@ -15,12 +15,15 @@ sources:
   - src/scrinalia/api/health_probe.py
   - src/scrinalia/api/system_health.py
   - src/scrinalia/api/controllers/health_controller.py
+  - src/scrinalia/api/controllers/setup_controller.py
   - src/scrinalia/api/lifespan.py
   - src/scrinalia/api/spa.py
   - src/scrinalia/domains/identity/cli.py
   - src/scrinalia/domains/ingestion/sources.py
+  - apps/curator/src/components/layout/SetupForm.tsx
   - docs/adr/0004-worker-execution-from-the-api.md
   - docs/adr/0009-authentication-and-authorization.md
+  - docs/adr/0011-first-run-setup-without-an-open-door.md
 ---
 
 # Installing and deploying
@@ -164,17 +167,35 @@ API still answers; it just serves no UI.
 
 ### 6. Create the first administrator
 
+An empty installation has two doors to the same account, and both close behind it: the first-run
+screen in the UI, or the CLI on the host. Each creates an `ADMIN` whose password somebody chose, and
+after the first account exists both are refused.
+
 ```bash
 uv run python -m scrinalia.domains.identity.cli create \
   --email voce@instituicao.org --name "Seu Nome" --role ADMIN
 ```
 
-The CLI is the only way to bring an installation to life: no route creates an administrator when
-none exists, because that would be an open door whose only defence is a race on the first deploy.
-Without `--password` the CLI generates one, prints it, and marks it temporary — the account replaces
-it at the first sign-in. The roles are `ADMIN`, `CURATOR` and `VIEWER`. The same CLI is the way back
-in for a forgotten password and has `list`, `reset-password`, `activate`, `deactivate` and
-`set-role` alongside `create`.
+The CLI is the path that works before the API is running, and the one a headless install uses.
+Without `--password` it generates one, prints it, and marks the account **temporary**, so the
+password in the terminal's scrollback stops being a credential — the account replaces it at the
+first sign-in. The roles are `ADMIN`, `CURATOR` and `VIEWER`, and the CLI also has `list`,
+`reset-password`, `activate`, `deactivate` and `set-role`.
+
+Once the API is up (step 7), an installation whose `auth_users` is still empty answers the first
+visit with **Primeiro acesso da instalação** instead of the sign-in form: e-mail, name and the
+password, asked twice. It creates the first `ADMIN` and signs that person in, so there is no second
+sign-in and no temporary password. The screen asks `GET /api/v1/setup/status`, which is public
+because an installation with no accounts has no secret to protect. The card carries the product's
+logomark at its top, the same plate the sign-in card has: this is the first screen an installer sees,
+and it is the one place the name is worth showing in full.
+
+Both doors close **forever** after the first account exists — deactivated or not, because the
+predicate is that the table is empty, and a rule a deactivation could reopen would be a way back to
+an open door. Until then, whoever reaches the instance first can create that account;
+`POST /api/v1/setup/admin` is serialized by a table lock so two simultaneous attempts cannot both
+succeed, but the lock cannot close the window (ADR 0011). **Configure the instance before exposing
+it.**
 
 ### 7. Start the API
 
@@ -355,6 +376,10 @@ docker compose --profile app exec app \
   python -m scrinalia.domains.identity.cli create \
   --email voce@instituicao.org --name "Seu Nome" --role ADMIN
 ```
+
+It does not have to be: with the container already serving the UI, an installation that still has no
+account answers the first visit with the first-run screen (step 6), and the account created there is
+the same one. The `exec` above is the path that also works when nothing is reachable yet.
 
 ### `docker-compose.test.yml` is not for production
 

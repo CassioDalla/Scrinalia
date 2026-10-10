@@ -11,7 +11,7 @@ class DescriptionLevelCreateRequest(BaseModel):
     ordinal: int = Field(ge=0, description="Posição na escada.")
     code: str = Field(min_length=1, max_length=20, description="Chave de máquina estável, ex.: 'serie'.")
     name: str = Field(min_length=1, max_length=60, description="O que o arquivista lê.")
-    description: str | None = Field(default=None, description="Documentação da gaveta para o curador.")
+    description: str | None = Field(default=None, description="Documentação da categoria para o curador.")
     aliases: list[str] = Field(default_factory=list, description="Grafias equivalentes aceitas no casamento.")
     requires_parent: bool = Field(default=False, description="Um nó deste nível não pode ser raiz.")
     allows_children: bool = Field(default=True, description="Um nó deste nível pode ter filhos.")

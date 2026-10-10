@@ -1,4 +1,5 @@
 import { ATTRIBUTION } from "@/lib/attribution";
+import { PRODUCT } from "@/lib/copy";
 
 /**
  * The page footer.
@@ -14,7 +15,7 @@ import { ATTRIBUTION } from "@/lib/attribution";
  */
 export function AttributionFooter() {
   return (
-    <footer className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-(--color-line) bg-(--color-surface) px-4 py-2 text-[11px] text-(--color-muted)">
+    <footer className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-t border-(--color-line) bg-(--color-surface) px-4 py-2 text-[11px] text-(--color-muted)">
       <span>{ATTRIBUTION.name}</span>
       <Separator />
       <span>
@@ -30,6 +31,17 @@ export function AttributionFooter() {
       <a className="underline hover:text-(--color-ink)" href={ATTRIBUTION.sourceUrl} target="_blank" rel="noreferrer">
         Código-fonte
       </a>
+      {/*
+        The installation's version, alone at the far right and deliberately quiet.
+
+        It is not attribution and it is not a link: it is the answer to "which build is this?", the
+        question an operator asks when a screen behaves differently from the one in the issue. Quiet
+        because it is read once and then never again — `opacity-60` on an 11px line — and separated
+        by `ml-auto` so it cannot be read as part of the license notice beside it.
+      */}
+      <span className="ml-auto tabular-nums opacity-60" title="Versão da instalação">
+        v{PRODUCT.version}
+      </span>
     </footer>
   );
 }

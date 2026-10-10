@@ -57,6 +57,8 @@ async function unwrap<T>(result: ApiResult): Promise<T> {
 
 export type AuthUser = components["schemas"]["AuthUserDTO"];
 export type RouteResponse = components["schemas"]["RouteResponse"];
+/** The one fact the API tells an anonymous client about the installation (ADR 0011). */
+export type SetupStatusResponse = components["schemas"]["SetupStatusResponse"];
 
 // --- Types the screens use, taken from the contract itself -------------------------------------
 
@@ -198,7 +200,7 @@ export type ConflictPairKind = CrossDomainConflict["pair_kind"];
  */
 export type ConflictPairKindFilter = "all" | "exact_name" | "near_duplicate";
 
-// --- The subject vocabulary: exclusions and the cluster discovery ------------------------------
+// --- The subject vocabulary: exclusions and the agrupamento discovery ------------------------------
 export type SubjectExclusionBanResponse = components["schemas"]["SubjectExclusionBanResponse"];
 export type SubjectExclusionSuggestion = components["schemas"]["SubjectExclusionSuggestion"];
 export type SubjectExclusionSuggestionResponse =
@@ -244,7 +246,7 @@ export type ProposalStatus = TagMergeProposal["status"];
 export type StopwordsScope = NonNullable<Stopword["scope"]>;
 
 /**
- * How a cluster was formed, taken from the **request** the API accepts.
+ * How a agrupamento was formed, taken from the **request** the API accepts.
  *
  * The DTO carries ``reason`` as a plain string (it is read from storage), while the filter is an
  * enum — so deriving this from the DTO would give ``string`` and let the screen send a reason the
@@ -271,6 +273,8 @@ export type DiagnosticIssue = NonNullable<
 // --- The operations panel: the AI workers, their configuration and the execution ledger --------
 
 export type SystemWorkers = components["schemas"]["SystemWorkersResponse"];
+export type SystemWorkerSettings = components["schemas"]["SystemWorkerSettingsResponse"];
+export type WorkerSettingsItem = components["schemas"]["WorkerSettingsItemDTO"];
 export type WorkerStatus = components["schemas"]["WorkerStatusDTO"];
 export type WorkerSettings = components["schemas"]["WorkerSettingsDTO"];
 export type WorkerSettingsRequest = components["schemas"]["WorkerSettingsRequest"];
@@ -653,7 +657,7 @@ export async function fetchSimilarTags(params: {
 
 export async function fetchMergeProposals(params: {
   status?: ProposalStatus;
-  /** The cluster's reason, as the contract enumerates it: TRIGRAM, PLURAL or MIXED. */
+  /** The agrupamento's reason, as the contract enumerates it: TRIGRAM, PLURAL or MIXED. */
   reason?: MergeReason;
   min_documents?: number;
   flagged_only?: boolean;
@@ -689,7 +693,7 @@ export async function previewMerge(proposalId: number): Promise<MergePreview> {
   );
 }
 
-/** Applies the approved clusters, each in its own savepoint: one failure does not roll back the rest. */
+/** Applies the approved agrupamentos, each in its own savepoint: one failure does not roll back the rest. */
 export async function applyMergeBatch(body: {
   proposal_ids: number[];
   note?: string | null;
@@ -937,7 +941,7 @@ export async function restoreToSubjects(body: {
 }
 
 /**
- * Clusters the collection so a drawer the vocabulary lacks can be discovered.
+ * Agrupamentos the collection so a drawer the vocabulary lacks can be discovered.
  *
  * It drags the real clustering engine into the process, so it is a deliberate click and never a
  * page load. Below the engine's own floor it answers ``total_suggestions: 0`` with a message,
@@ -1297,6 +1301,16 @@ export async function fetchSystemWorkers(): Promise<SystemWorkers> {
   return unwrap<SystemWorkers>(await client.GET("/api/v1/system/workers"));
 }
 
+/**
+ * The persisted defaults of every worker — the configuration screen's own read.
+ *
+ * Apart from ``fetchSystemWorkers`` on purpose: that one carries the nine queue counts, and the
+ * configuration screen shows none of them.
+ */
+export async function fetchSystemWorkerSettings(): Promise<SystemWorkerSettings> {
+  return unwrap<SystemWorkerSettings>(await client.GET("/api/v1/system/workers/settings"));
+}
+
 /** The execution ledger, newest first; the filters are applied server-side. */
 export async function fetchSystemRuns(params: {
   worker?: string;
@@ -1378,6 +1392,31 @@ export async function fetchWorkerSettingsRevisions(params: {
 /** Database, Ollama (with the models the presets need), object storage and the process. */
 export async function fetchSystemHealth(): Promise<SystemHealth> {
   return unwrap<SystemHealth>(await client.GET("/api/v1/system/health"));
+}
+
+// --- The first run ------------------------------------------------------------------------------
+
+/**
+ * Whether this installation still has to be brought to life.
+ *
+ * Public, and answerable without a cookie: the shell has to decide which form to draw *before* it
+ * can ask who the person is. The API says nothing else — an installation with no accounts has no
+ * secret to protect (ADR 0011).
+ */
+export async function fetchSetupStatus(): Promise<SetupStatusResponse> {
+  return unwrap<SetupStatusResponse>(await client.GET("/api/v1/setup/status"));
+}
+
+/**
+ * Creates the installation's first administrator and signs them in.
+ *
+ * It answers the account exactly like ``login``, cookie included, and it answers 409 forever once
+ * any account exists — so the only way to see this succeed is to be the first one there.
+ */
+export async function createFirstAdmin(email: string, name: string, password: string): Promise<AuthUser> {
+  return unwrap<AuthUser>(
+    await client.POST("/api/v1/setup/admin", { body: { email, name, password } }),
+  );
 }
 
 // --- The session -------------------------------------------------------------------------------

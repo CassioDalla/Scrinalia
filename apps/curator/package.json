@@ -1,7 +1,7 @@
 {
   "name": "@scrinalia/curator",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
@@ -16,6 +16,7 @@
     "@tanstack/react-query": "^5.104.1",
     "@tanstack/react-router": "^1.170.41",
     "clsx": "^2.1.1",
+    "lucide-react": "^1.54.0",
     "openapi-fetch": "^0.17.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -36,6 +37,7 @@
     "tailwindcss": "^4.3.3",
     "typescript": "5",
     "typescript-eslint": "^8.71.1",
-    "vite": "^8.3.2"
+    "vite": "^8.3.2",
+    "vite-plugin-react-click-to-component": "^4.2.3"
   }
 }

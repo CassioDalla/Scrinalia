@@ -8,6 +8,7 @@ that needs seven requests is a home screen that lies about being instant.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from inspect import signature
 from typing import Any
@@ -22,10 +23,12 @@ from scrinalia.domains.archive.repository.tag_repo import TagRepository
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
 from scrinalia.domains.archive.repository.worker_settings_repo import WorkerSettingsRepository
 from scrinalia.domains.archive.schemas.system_schema import (
+    SystemWorkerSettingsResponse,
     SystemWorkersResponse,
     WorkerEngineDTO,
     WorkerPresetDTO,
     WorkerSettingsDTO,
+    WorkerSettingsItemDTO,
     WorkerSettingsRequest,
     WorkerSettingsRevisionDTO,
     WorkerSettingsRevisionListResponse,
@@ -59,14 +62,11 @@ class WorkerOperationsService:
     # --- reads -----------------------------------------------------------------------------------
 
     def list_workers(self) -> SystemWorkersResponse:
-        settings = self.settings.get_all()
         last_runs = self.runs.last_by_worker()
         active_runs = self.runs.active_by_worker()
 
         workers = []
-        for order, spec in enumerate(WORKER_CATALOGUE.values()):
-            setting = settings.get(spec.name)
-            resolved = resolve_configuration(self.db, spec, setting)
+        for order, spec, setting, resolved in self._resolved_workers():
             # Counted once: the transfer's counter validates the whole staging table, so asking it
             # twice (once for the number and once for the reason) would double the panel's cost.
             pending, pending_reason = self._pending(spec, resolved)
@@ -88,6 +88,26 @@ class WorkerOperationsService:
                 )
             )
         return SystemWorkersResponse(workers=workers, generated_at=datetime.now(UTC))
+
+    def list_settings(self) -> SystemWorkerSettingsResponse:
+        """
+        The persisted defaults of every worker, assembled without touching a queue.
+
+        A reader of its own and not a filter over ``list_workers``: that one counts nine queues, and
+        the transfer's counter validates the whole staging table. The configuration screen shows no
+        queue, so paying for them would be paying for what it deliberately does not say.
+        """
+        workers = [
+            WorkerSettingsItemDTO(
+                name=spec.name,
+                label=spec.label,
+                description=spec.description,
+                order=order,
+                settings=self._settings_dto(spec, setting, resolved),
+            )
+            for order, spec, setting, resolved in self._resolved_workers()
+        ]
+        return SystemWorkerSettingsResponse(workers=workers, generated_at=datetime.now(UTC))
 
     def get_settings(self, worker_name: str) -> WorkerSettingsDTO:
         spec = self._spec(worker_name)
@@ -140,6 +160,19 @@ class WorkerOperationsService:
 
     # --- internals -------------------------------------------------------------------------------
 
+    def _resolved_workers(self) -> Iterator[tuple[int, WorkerSpec, WorkerSetting | None, ResolvedWorkerConfig]]:
+        """
+        The catalogue in order: each worker with its persisted row and its resolved configuration.
+
+        One traversal for both readers. The panel and the configuration screen differ in what they do
+        with the pair, not in how it is resolved, and a second copy would be a second place to forget
+        a worker that stopped following the code.
+        """
+        settings = self.settings.get_all()
+        for order, spec in enumerate(WORKER_CATALOGUE.values()):
+            setting = settings.get(spec.name)
+            yield order, spec, setting, resolve_configuration(self.db, spec, setting)
+
     def _spec(self, worker_name: str) -> WorkerSpec:
         spec = WORKER_CATALOGUE.get(worker_name)
         if spec is None:
@@ -183,7 +216,7 @@ class WorkerOperationsService:
         """Dynamic notes the catalogue cannot carry, because they depend on the collection."""
         notes = [spec.note, resolved.note]
         if spec.name == "macro-category" and not TagRepository(self.db).get_active_macro_categories():
-            notes.append("Nenhuma gaveta de assunto ativa: o worker não tem o que classificar.")
+            notes.append("Nenhuma categoria de assunto ativa: o worker não tem o que classificar.")
         present = [note for note in notes if note]
         return " ".join(present) if present else None
 

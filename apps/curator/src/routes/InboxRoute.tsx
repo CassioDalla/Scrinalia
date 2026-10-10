@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardBody } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
+import { PageBody } from "@/components/layout/PageBody";
 import { formatCount } from "@/lib/format";
 
 /**
@@ -98,11 +99,8 @@ export function InboxRoute() {
 
   return (
     <>
-      <PageHeader
-        title="O que precisa de mim hoje"
-        subtitle="Cada cartão leva à tela que resolve a pendência, já filtrada."
-      />
-      <div className="px-6 py-5">
+      <PageHeader screen="inbox" />
+      <PageBody>
         {error ? <ErrorState error={error} /> : null}
 
         {isPending ? (
@@ -133,7 +131,7 @@ export function InboxRoute() {
             Contagens geradas em {new Date(data.generated_at).toLocaleString("pt-BR")}.
           </p>
         ) : null}
-      </div>
+      </PageBody>
     </>
   );
 }

@@ -253,6 +253,25 @@ def test_resetting_a_password_clears_the_lockout_state_and_ends_every_session(
     assert auth_service.resolve_session(token) is None
 
 
+def test_the_administrator_who_resets_their_own_account_signs_themselves_out(auth_service, generate_user) -> None:
+    """
+    The asymmetry the accounts screen states **before** the click (#26).
+
+    ``change_password`` takes a ``keep_token`` and spares the device that made the change, because
+    replacing your own password is not asking to be logged out. The administrative reset has no such
+    argument: it is the operation for "somebody lost access", and there is no caller whose session it
+    owes anything to. So an administrator who resets **their own** account ends the session the request
+    arrived on — which is why the screen points that case at "Trocar senha" instead, and why removing the
+    sentence from the screen has to fail here first.
+    """
+    admin = generate_user(role=Role.ADMIN)
+    own_token, _ = auth_service.login("maria@arquivo.org", PASSWORD)
+
+    auth_service.reset_password(admin, NEW_PASSWORD)
+
+    assert auth_service.resolve_session(own_token) is None
+
+
 # ==========================================
 # ADMINISTERING ACCOUNTS
 # ==========================================

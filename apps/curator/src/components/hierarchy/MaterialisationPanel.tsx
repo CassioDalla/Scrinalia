@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Input } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
+import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
 import { ACTION_LABEL, ACTION_TONE, PLAN_STATUS_LABEL, PLAN_STATUS_TONE, labelOf } from "@/lib/hierarchy";
@@ -96,7 +98,7 @@ export function MaterialisationPanel({
           <div>
             <div className="flex items-baseline justify-between">
               <span className="text-2xl font-semibold tabular-nums">{formatCount(decided)}</span>
-              <span className="text-xs text-(--color-muted)">de {formatCount(totalPlans)} rungs decididos</span>
+              <span className="text-xs text-(--color-muted)">de {formatCount(totalPlans)} degraus decididos</span>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/10">
               <div
@@ -115,8 +117,8 @@ export function MaterialisationPanel({
             ))}
           </ul>
           <p className="text-xs text-(--color-muted)">
-            Só as rungs <strong>aprovadas</strong> são materializadas. Uma rung rejeitada deixa suas descrições
-            órfãs de propósito: elas caem na rung aprovada mais próxima acima.
+            Só os degraus <strong>aprovados</strong> são materializados. Um degrau rejeitado deixa suas descrições
+            órfãs de propósito: elas caem no degrau aprovado mais próximo acima.
           </p>
         </CardBody>
       </Card>
@@ -135,9 +137,9 @@ export function MaterialisationPanel({
           </div>
 
           {approved === 0 ? (
-            <p className="rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
-              Nenhuma rung aprovada: aprove ao menos uma antes de materializar a árvore.
-            </p>
+            <Notice tone="warn">
+              Nenhum degrau aprovado: aprove ao menos um antes de materializar a árvore.
+            </Notice>
           ) : null}
 
           <div className="flex flex-wrap gap-2">
@@ -146,12 +148,12 @@ export function MaterialisationPanel({
               disabled={approved === 0 || dryRun.isPending || apply.isPending}
               variant={preview ? "secondary" : "primary"}
             >
-              {dryRun.isPending ? "Conferindo…" : "Conferir o que será feito"}
+              {dryRun.isPending ? ACTION.preview.pending : ACTION.preview.label}
             </Button>
             <Button
               onClick={() => apply.mutate()}
               disabled={!preview || apply.isPending}
-              title={preview ? undefined : "O dry-run é obrigatório: confira o impacto primeiro."}
+              title={preview ? undefined : "A prévia é obrigatória: confira o impacto primeiro."}
             >
               {apply.isPending ? "Materializando…" : "Materializar"}
             </Button>
@@ -162,7 +164,7 @@ export function MaterialisationPanel({
 
           {preview ? (
             <div className="flex flex-col gap-3 rounded-md bg-black/[0.02] p-3 ring-1 ring-(--color-line)">
-              <p className="text-xs font-medium">Nada foi escrito ainda. O apply usa este mesmo planejador.</p>
+              <p className="text-xs font-medium">Nada foi escrito ainda. A aplicação usa este mesmo planejador.</p>
               <ul className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                 <PreviewNumber label="nós a criar" value={preview.nodes_to_create} />
                 <PreviewNumber label="nós a adotar" value={preview.nodes_to_adopt} />
@@ -173,10 +175,10 @@ export function MaterialisationPanel({
               </ul>
 
               {items.some((item) => item.rooted_early) ? (
-                <p className="rounded-md bg-(--color-warn)/5 px-2 py-1.5 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
-                  {items.filter((item) => item.rooted_early).length} rung(s) ficariam na raiz porque a rung acima delas
-                  não foi aprovada.
-                </p>
+                <Notice tone="warn">
+                  {items.filter((item) => item.rooted_early).length} degrau(s) ficariam na raiz porque o degrau acima deles
+                  não foi aprovado.
+                </Notice>
               ) : null}
 
               <ul className="divide-y divide-(--color-line) text-xs">
@@ -192,14 +194,14 @@ export function MaterialisationPanel({
               </ul>
               {items.length > visibleItems.length ? (
                 <Button size="sm" variant="ghost" onClick={() => setShowAllItems(true)}>
-                  ver as {formatCount(items.length)} rungs
+                  ver os {formatCount(items.length)} degraus
                 </Button>
               ) : null}
             </div>
           ) : null}
 
           {result ? (
-            <div className="flex flex-col gap-2 rounded-md bg-(--color-ok)/5 p-3 text-xs ring-1 ring-(--color-ok)/25">
+            <Notice tone="ok" as="div" className="flex flex-col gap-2">
               <p className="font-medium text-(--color-ok)">
                 Materialização {result.materialisation_id}: {formatCount(result.created_nodes)} nó(s) criado(s),{" "}
                 {formatCount(result.adopted_nodes)} adotado(s), {formatCount(result.documents_attached)} descrição(ões)
@@ -219,7 +221,7 @@ export function MaterialisationPanel({
                   {undo.isPending ? "Desfazendo…" : "Desfazer esta materialização"}
                 </Button>
               </div>
-            </div>
+            </Notice>
           ) : null}
 
           {undo.error ? <ErrorState error={undo.error} /> : null}
@@ -248,7 +250,7 @@ export function MaterialisationPanel({
               hint={
                 term
                   ? "A busca cobre quem autorizou e a nota da decisão."
-                  : "Cada apply grava uma entrada aqui, com o estado anterior das linhas que mudou."
+                  : "Cada aplicação grava uma entrada aqui, com o estado anterior das linhas que mudou."
               }
             />
           ) : null}

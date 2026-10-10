@@ -91,6 +91,10 @@ ADR 0003's argument applied to authorization: security by field omission is audi
 
 ### 4. The open surface is exactly four things
 
+> **Amended by [ADR 0011](0011-first-run-setup-without-an-open-door.md):** the open surface is now
+> **five** operations — the login, the two diffusion routes, and the two first-run setup routes. The
+> paragraph below is the record of what was decided in this ADR, not the current count.
+
 `PUBLIC` is declared on three operations — the login and the two diffusion routes — and the routes
 outside `/api/v1` are not the guard's business at all: `/health/live`, `/health/ready`, `/schema*` and
 the SPA shell. The health probes stay outside the version prefix **and** outside the session, which is
@@ -107,6 +111,11 @@ decisions that still stand. (The foreign keys and the removal from the schemas a
 this cycle; the tables are created by the first.)
 
 ### 6. Out of scope for 1.0, deliberately
+
+> **Amended by [ADR 0011](0011-first-run-setup-without-an-open-door.md):** the first administrator can
+> now also come from the first-run screen, guarded by a table lock rather than by the absence of a
+> route. The objection below was about the race, and the race is what ADR 0011 closes. Recovery stays
+> where this section puts it: the CLI on the host, with no e-mail and no SMTP.
 
 OIDC/SSO, second factors, e-mail and self-service password recovery. Recovery is the CLI on the host,
 which is also how the first administrator is created: a route that creates an administrator when no
@@ -157,7 +166,8 @@ are B9.2. Lockout/backoff, rate limiting, `Origin` checking on mutations and an 
 The OpenAPI document does **not** declare the cookie security scheme: a global `security` requirement
 would also mark the diffusion routes and the health probes as protected, and per-route declarations are
 a larger change than this cycle. The contract therefore understates the requirement rather than
-stating it wrongly; it is recorded in `TODO.md` as a known gap.
+stating it wrongly; the gap is known and accepted, and it is named among the accepted limits in the
+[operations guide](../guides/operate.md).
 
 **Operational.** A session lookup is one indexed query per authenticated request, on its own short
 session; the sliding renewal only writes when the session has been idle (`AUTH_SESSION_TOUCH_MINUTES`),
@@ -169,7 +179,9 @@ answers 401.
 **What an installer must read.** `AUTH_COOKIE_SECURE` must be true behind HTTPS; leaving it false on a
 public deployment sends the session token in clear text. And the first administrator comes from
 `uv run python -m scrinalia.domains.identity.cli create --email … --role ADMIN`, which prints a
-temporary password and flags the account to change it.
+temporary password and flags the account to change it — or, since
+[ADR 0011](0011-first-run-setup-without-an-open-door.md), from the first-run screen while the
+installation has no account at all.
 
 ## Alternatives considered
 

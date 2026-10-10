@@ -58,8 +58,7 @@ export function DiagnosticsRoute() {
   return (
     <>
       <PageHeader
-        title="Diagnóstico do arranjo"
-        subtitle="Onde o acervo está incoerente. Nenhuma correção acontece sozinha: cada linha mostra a evidência e leva ao lugar onde se decide."
+        screen="diagnostics"
         actions={
           <Link to="/arranjo/plano">
             <Button size="sm">Plano de arranjo</Button>

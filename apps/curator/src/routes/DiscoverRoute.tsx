@@ -9,7 +9,11 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState } from "@/components/ui/Feedback";
+import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
+import { PageBody } from "@/components/layout/PageBody";
+import { ACTION } from "@/lib/copy";
 import { formatCount } from "@/lib/format";
 import { routeMessage } from "@/lib/messages";
 
@@ -40,30 +44,21 @@ export function DiscoverRoute() {
   return (
     <>
       <PageHeader
-        title="Descobrir gavetas"
-        subtitle="Agrupa o vocabulário por tema para achar o assunto que ainda não tem gaveta."
+        screen="discover"
         actions={
           <Link to="/assuntos/categorias">
-            <Button size="sm">Gavetas atuais</Button>
+            <Button size="sm">Categorias Atuais</Button>
           </Link>
         }
       />
 
-      <div className="grid max-w-4xl gap-4 px-6 py-5">
-        <p className="rounded-md bg-(--color-accent)/5 px-3 py-2 text-xs text-(--color-accent) ring-1 ring-(--color-accent)/20">
-          O vocabulário cresceu de 5 para 8 gavetas porque a medição pediu: <code>igrejas</code> alcança
-          <strong> 2.467 documentos</strong> — a maior tag do acervo — e não havia "Religião" para ela.
-          Nenhum rótulo conserta uma gaveta inexistente. As gavetas que saíram (<em>Instituição</em>,{" "}
-          <em>Localidade</em>, <em>Pessoa</em>) não eram ruins: são proveniência e geografia, não assunto.
-        </p>
-
+      <PageBody>
         <Card>
           <CardHeader className="text-sm font-semibold">Agrupar por tema</CardHeader>
           <CardBody className="grid gap-2">
             <p className="text-xs text-(--color-muted)">
               Roda o motor de agrupamento de verdade: leva alguns segundos e é um clique deliberado. Os
-              clusters abaixo são só <strong>propostas</strong> — nada entra no vocabulário sem você
-              cadastrar.
+              agrupamentos abaixo são só <strong>propostas</strong> — nada entra no vocabulário sem aprovação.
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -71,17 +66,17 @@ export function DiscoverRoute() {
                 variant={sourceType === "tags" ? "primary" : "secondary"}
                 onClick={() => setSourceType("tags")}
               >
-                a partir das tags
+                A partir das Tags
               </Button>
               <Button
                 size="sm"
                 variant={sourceType === "documents" ? "primary" : "secondary"}
                 onClick={() => setSourceType("documents")}
               >
-                a partir dos documentos
+                A partir dos Documentos
               </Button>
               <Button variant="primary" disabled={suggest.isPending} onClick={() => suggest.mutate()}>
-                {suggest.isPending ? "Agrupando… (pode levar alguns segundos)" : "Propor gavetas"}
+                {suggest.isPending ? "Agrupando… (pode levar alguns segundos)" : "Propor Categorias"}
               </Button>
             </div>
             {suggest.error ? <ErrorState error={suggest.error} /> : null}
@@ -91,15 +86,15 @@ export function DiscoverRoute() {
         {suggest.data ? (
           <>
             {routeMessage(suggest.data) ? (
-              <p className="rounded-md bg-(--color-warn)/5 px-3 py-2 text-xs text-(--color-warn) ring-1 ring-(--color-warn)/20">
+              <Notice tone="warn">
                 {routeMessage(suggest.data)}
-              </p>
+              </Notice>
             ) : null}
 
             {suggestions.length === 0 && !routeMessage(suggest.data) ? (
               <EmptyState
-                title="Nenhum cluster novo"
-                hint="O agrupamento não encontrou tema que já não esteja coberto pelas gavetas atuais."
+                title="Nenhum agrupamento novo"
+                hint="O agrupamento não encontrou tema que já não esteja coberto pelas categorias atuais."
               />
             ) : null}
           </>
@@ -112,12 +107,12 @@ export function DiscoverRoute() {
             </li>
           ))}
         </ul>
-      </div>
+      </PageBody>
     </>
   );
 }
 
-/** One cluster: an editable name, the weight and the real samples it was formed from. */
+/** One agrupamento: an editable name, the weight and the real samples it was formed from. */
 function SuggestionCard({
   category,
   onDismiss,
@@ -133,12 +128,12 @@ function SuggestionCard({
 
   return (
     /*
-      Each cluster collapses to its weight and its proposed name. The proposal is a *question* ("chamar
-      esta gaveta de X?"), and a screen of five open forms answers questions the archivist has not
+      Each agrupamento collapses to its weight and its proposed name. The proposal is a *question* ("chamar
+      esta categoria de X?"), and a screen of five open forms answers questions the archivist has not
       asked yet; the samples that justify the name are one click away, next to the button.
     */
     <Disclosure
-      toggleLabel="Ver as amostras do cluster"
+      toggleLabel="Ver as amostras do Agrupamento"
       header={
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone="accent">{formatCount(category.estimate_count)} estimativas</Badge>
@@ -154,19 +149,18 @@ function SuggestionCard({
             disabled={name.trim().length === 0 || create.isPending || create.isSuccess}
             onClick={() => create.mutate()}
           >
-            {create.isSuccess ? "cadastrada" : create.isPending ? "Cadastrando…" : "Cadastrar como gaveta"}
+            {create.isSuccess ? "criada" : create.isPending ? ACTION.create.pending : `${ACTION.create.label} categoria`}
           </Button>
           <Button size="sm" variant="ghost" onClick={onDismiss}>
-            descartar
+            {ACTION.discard.label}
           </Button>
         </div>
       }
     >
       <div className="grid gap-2">
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-(--color-muted)">Nome da gaveta</span>
+        <Field label="Nome da Categoria">
           <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={100} />
-        </label>
+        </Field>
 
         {(category.real_samples ?? []).length > 0 ? (
           <div className="flex flex-wrap gap-1">
@@ -179,8 +173,7 @@ function SuggestionCard({
         ) : null}
 
         <p className="text-xs text-(--color-muted)">
-          A gaveta só passa a valer quando o classificador rodar de novo: o carimbo do worker é o hash
-          do conjunto de rótulos.
+          A Categoria só passa a valer quando o classificador rodar de novo.
         </p>
 
         {create.error ? <ErrorState error={create.error} /> : null}

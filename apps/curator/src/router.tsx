@@ -16,6 +16,7 @@ import { LevelsRoute } from "@/routes/LevelsRoute";
 import { NerExclusionsRoute } from "@/routes/NerExclusionsRoute";
 import { NotFoundRoute } from "@/routes/NotFoundRoute";
 import { PlanRoute, validatePlanSearch } from "@/routes/PlanRoute";
+import { SettingsRoute, validateSettingsSearch } from "@/routes/SettingsRoute";
 import { SubjectExclusionsRoute } from "@/routes/SubjectExclusionsRoute";
 import { SystemHealthRoute } from "@/routes/SystemHealthRoute";
 import { SystemRunsRoute, validateSystemRunsSearch } from "@/routes/SystemRunsRoute";
@@ -26,6 +27,7 @@ import { TreeRoute, validateTreeSearch } from "@/routes/TreeRoute";
 import { TypologiesRoute } from "@/routes/TypologiesRoute";
 import { UsersRoute } from "@/routes/UsersRoute";
 import { VocabularyRoute } from "@/routes/VocabularyRoute";
+import { WorkerSettingsRoute } from "@/routes/WorkerSettingsRoute";
 
 /**
  * Routes are declared in code, not derived from the filesystem.
@@ -196,11 +198,12 @@ const anomaliesRoute = createRoute({
 });
 
 /**
- * The operational face of the system: which workers exist, how they are configured, what ran.
+ * The operational face of the system: what each worker is doing, and what ran.
  *
  * A section of its own, not a corner of another screen: the person asking "with which model is this
  * running?" is not doing archival curation, and mixing the two would put engine names in the middle
- * of the collection.
+ * of the collection. Since issue #53 the configuration is a screen of its own
+ * (`/configuracoes/workers`, below); this one keeps the machine.
  */
 const systemWorkersRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -222,16 +225,45 @@ const systemHealthRoute = createRoute({
 });
 
 /**
+ * Configurações: the landing that gathers the screens nobody opens in the middle of cataloguing.
+ *
+ * A route of its own, beside `/configuracoes/usuarios` and not above it: the accounts screen is one
+ * of the cards and keeps the route it always had. The page writes nothing — every card leads to a
+ * screen that already existed — so this is the one route whose whole job is to be a signpost, and
+ * the card catalogue (`lib/settings.ts`) is what it and the nav entry both read.
+ */
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/configuracoes",
+  component: SettingsRoute,
+  validateSearch: validateSettingsSearch,
+});
+
+/**
  * The installation's own settings: the accounts first.
  *
- * A section of its own at the end of the menu, and not a corner of "Sistema": the operations panel
- * is what the *machine* is doing (workers, runs, probes) and the accounts are what the installation
- * *is*. Both are administrative; only one of them is about the collection.
+ * Reached from the Configurações landing, not from the menu: the accounts are a card like the worker
+ * panel and the catalogues, and what the installation *is* — as opposed to what the machine is doing
+ * — is exactly what that landing gathers.
  */
 const usersRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/configuracoes/usuarios",
   component: UsersRoute,
+});
+
+/**
+ * What the workers are configured to be, apart from what they are doing.
+ *
+ * The other half of the split: `/sistema/workers` answers the machine's question (queues, pending
+ * counters, a run in flight) and this one answers the installation's (the persisted default of each
+ * worker, its revisions, the engine and preset choice). Both are cards of the Configurações landing
+ * under *Operação*, and both declare `OPERATE` — the precedence it writes under is unchanged.
+ */
+const workerSettingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/configuracoes/workers",
+  component: WorkerSettingsRoute,
 });
 
 export const router = createRouter({
@@ -259,7 +291,9 @@ export const router = createRouter({
     systemWorkersRoute,
     systemRunsRoute,
     systemHealthRoute,
+    settingsRoute,
     usersRoute,
+    workerSettingsRoute,
   ]),
   defaultPreload: "intent",
 });

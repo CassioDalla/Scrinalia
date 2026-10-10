@@ -1,6 +1,6 @@
 [project]
 name = "scrinalia"
-version = "1.0.0"
+version = "1.1.0"
 description = "Archival description cataloguing and AI-driven enrichment system (ISAD(G))"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -21,7 +21,7 @@ dependencies = [
     "litestar[standard]>=2.24.0",
     "loguru>=0.7.3",
     "numpy>=2.3.5",
-    "pandas>=2.3.3,<3",  # held: 3.x is a deliberate adoption, see TODO.md
+    "pandas>=2.3.3,<3",  # held: 3.x is a deliberate adoption
     "pillow>=12.2.0",
     "psycopg2==2.9.13",
     "pt-core-news-lg",
@@ -29,7 +29,7 @@ dependencies = [
     "requests>=2.34.2",
     "scikit-learn>=1.8.0",
     "spacy>=3.8.14",
-    "sqlalchemy>=2.0.50,<2.1",  # held: 2.1 switches the default driver to psycopg3, see TODO.md
+    "sqlalchemy>=2.0.50,<2.1",  # held: 2.1 switches the default driver to psycopg3
     "torch>=2.12.0",
     "transformers>=5.9.0",
 ]
@@ -103,6 +103,10 @@ dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
+    # `testing/unit/docs/test_docs_brand.py` reads `mkdocs.yml` to check that every asset the theme
+    # names exists. It was already in the environment through `jupyterlab`, which is a dependency to
+    # borrow a YAML parser from and not to declare one.
+    "pyyaml>=6.0.3",
     "ruff>=0.16.10",
     # Only for `testing/evaluation/macro_category_quality.py`: transformers 5.x needs it
     # to convert the sentencepiece tokenizer of the alternate zero-shot model. Never
@@ -140,4 +144,4 @@ markers = [
 #
 # ``pyrightconfig.json`` is the one file both tools read, so the editor and the gate share a single
 # definition instead of two that drift. Pragmatic baseline: type-check the application code, keep
-# third-party noise and one-off tooling out of the gate, tighten over time (see ``TODO.md``).
+# third-party noise and one-off tooling out of the gate, tighten over time.

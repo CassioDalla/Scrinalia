@@ -152,7 +152,7 @@ WORKER_CATALOGUE: dict[str, WorkerSpec] = {
             name="macro-category",
             label="Categorização de assunto (tags)",
             description=(
-                "Arquiva cada tag numa gaveta de assunto. A unidade é a tag, não a descrição: o "
+                "Arquiva cada tag numa categoria de assunto. A unidade é a tag, não a descrição: o "
                 "carimbo vive no log da tag e é o hash do conjunto de rótulos."
             ),
             module=f"{_WORKERS_PACKAGE}.worker_macro_category",
@@ -162,7 +162,7 @@ WORKER_CATALOGUE: dict[str, WorkerSpec] = {
             engine_source="signature",
             stamp=MACRO_CATEGORY,
             stamp_model="tag",
-            note="Uma tag com gaveta definida pelo curador está fora do alcance deste worker.",
+            note="Uma tag com categoria definida pelo curador está fora do alcance deste worker.",
         ),
         WorkerSpec(
             name="quality-validator",

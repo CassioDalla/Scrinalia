@@ -37,16 +37,19 @@ the OpenAPI contract, which is committed and whose staleness fails the build.
 The fastest path from a fresh clone to a running system is in the
 [`README.md`](https://github.com/CassioDalla/Scrinalia#getting-started). The conventions and the
 architectural traps are in
-[`AGENTS.md`](https://github.com/CassioDalla/Scrinalia/blob/main/AGENTS.md), and the roadmap in
-[`TODO.md`](https://github.com/CassioDalla/Scrinalia/blob/main/TODO.md).
+[`AGENTS.md`](https://github.com/CassioDalla/Scrinalia/blob/main/AGENTS.md), and the work that is left
+in the [open issues](https://github.com/CassioDalla/Scrinalia/issues) and their milestones.
 
 ## Decisions and status
 
 The [architecture decisions](adr/index.md) explain why the system is built the way it is, including
-the alternatives that were measured and rejected. **Scrinalia is at 1.0**: the pipeline, the AI
+the alternatives that were measured and rejected. **Scrinalia is at 1.1**: the pipeline, the AI
 workers, the review governance, the authentication and the curator surface are complete, and the
-public diffusion surface exists with no site in front of it yet. `TODO.md` carries the current state,
-and the [documentation log](log.md) records what was reviewed and when.
+public diffusion surface exists with no site in front of it yet. The
+[open issues](https://github.com/CassioDalla/Scrinalia/issues) carry the work that is left, the limits
+accepted on purpose are in the
+[operations guide](guides/operate.md#known-limits-and-accepted-trade-offs), and the
+[documentation log](log.md) records what was reviewed and when.
 
 ## License
 

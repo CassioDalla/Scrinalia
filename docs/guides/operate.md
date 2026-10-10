@@ -19,16 +19,24 @@ sources:
   - src/scrinalia/domains/archive/services/failure_service.py
   - src/scrinalia/api/controllers/system_controller.py
   - src/scrinalia/api/controllers/health_controller.py
+  - src/scrinalia/api/controllers/setup_controller.py
   - src/scrinalia/api/worker_runtime.py
   - src/scrinalia/api/lifespan.py
   - src/scrinalia/api/middleware.py
   - src/scrinalia/api/system_health.py
   - src/scrinalia/core/logger.py
   - src/scrinalia/core/config.py
+  - src/scrinalia/domains/identity/cli.py
+  - src/scrinalia/domains/identity/services/auth_service.py
+  - src/scrinalia/api/controllers/users_controller.py
+  - docs/adr/0009-authentication-and-authorization.md
+  - docs/adr/0011-first-run-setup-without-an-open-door.md
   - apps/curator/src/router.tsx
   - apps/curator/src/routes/SystemWorkersRoute.tsx
   - apps/curator/src/routes/SystemRunsRoute.tsx
   - apps/curator/src/routes/SystemHealthRoute.tsx
+  - .github/workflows/ci.yml
+  - mkdocs.yml
 ---
 
 # Operations
@@ -80,7 +88,7 @@ transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-
 - **`conflict-judge`** compares the tag vocabulary with the entity vocabulary and asks the local
   LLM whether an ambiguous term is a subject or a proper name. Every verdict, auto-resolved or sent
   to a human, leaves a row in `archive_ai_review_queue`.
-- **`macro-category`** files each tag into a subject drawer. Its unit is the **tag**, not the
+- **`macro-category`** files each tag into a subject category. Its unit is the **tag**, not the
   document, so its stamp lives in the tag's own `execution_log`; a tag a curator filed by hand is
   out of its reach.
 - **`quality-validator`** marks structural anomalies, repeated titles and `VALIDATE` rules. It never
@@ -109,7 +117,7 @@ how many carry the worker's stamp; `failed` counts the stamps that record a fail
 | `typology` | documents with no typology and no stamp that have text | `worker_typology_classifier_v2` |
 | `thumbnail` | documents with a source image, no storage URI and no failure mark — every marked one, with `force` | none; the `storage_thumbnail_uri` column, plus the `thumbnail_failed` mark |
 | `conflict-judge` | **not measurable cheaply**: the queue is the trigram product of tags × entities, measured at 53 s on the real collection. The panel shows what was already judged | none; the `archive_ai_review_queue` row |
-| `macro-category` | tags with no subject drawer whose stamp does not carry the current label set | `worker_macro_category_v1` (on the tag; value is the hash of the label set) |
+| `macro-category` | tags with no subject category whose stamp does not carry the current label set | `worker_macro_category_v1` (on the tag; value is the hash of the label set) |
 | `quality-validator` | documents without the stamp, unless `force` is on | `worker_quality_validator_v1` |
 | `embedding` | documents whose stamp differs from the MD5 of the effective text — the first run and every later text change | `worker_embedding_v1` (value is the MD5 of the embedded text) |
 
@@ -220,11 +228,13 @@ worker runs deterministic validation only, and the panel says so in `note`.
 
 ## The operations panel
 
-The panel is the `/api/v1/system/*` surface and the `Sistema` section of the SPA.
+The panel is the `/api/v1/system/*` surface and the four cards of `/configuracoes`, under *Operação*,
+in the SPA: the menu no longer carries them (issue #22).
 
 | Route | Method | Permission | What it does |
 | --- | --- | --- | --- |
 | `/api/v1/system/workers` | `GET` | authenticated | the nine workers with configuration, queue numbers and last/active run, in one request |
+| `/api/v1/system/workers/settings` | `GET` | authenticated | the persisted defaults of the nine workers, without the queue counters (issue #53) |
 | `/api/v1/system/workers/{worker_name}/runs` | `POST` | `OPERATE` | queues one run with per-run overrides and answers `201` immediately |
 | `/api/v1/system/workers/{worker_name}/settings` | `PUT` | `OPERATE` | persists the default engine/preset/batch/options |
 | `/api/v1/system/workers/{worker_name}/settings` | `DELETE` | `OPERATE` | drops the override so the worker follows the code |
@@ -236,16 +246,19 @@ The panel is the `/api/v1/system/*` surface and the `Sistema` section of the SPA
 Only `ADMIN` carries `OPERATE`; `CURATOR` and `VIEWER` can read the workers, the ledger and the
 failures, but cannot trigger a run or change a default.
 
-The SPA section mirrors it:
+The SPA mirrors it, as cards of `/configuracoes` under *Operação*:
 
 | Screen | Shows |
 | --- | --- |
-| `/sistema/workers` | the nine workers: engine, preset and model, the queue, the persisted default and a run button |
+| `/sistema/workers` | the nine workers: engine, preset and model, the queue, and a run button; the effective configuration is read-only here |
+| `/configuracoes/workers` | the persisted default of each worker and its revisions, with save and remove — the write the panel used to carry |
 | `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage and the effective process configuration |
 
 The screen only polls while something is running, because the `transfer` counter makes one
-`/system/workers` call cost about two seconds on the real collection.
+`/system/workers` call cost about two seconds on the real collection. `/configuracoes/workers` reads
+`/system/workers/settings`, which resolves the same configuration and counts no queue — the split
+exists so that a screen showing no numbers does not pay for them.
 
 ### Health: three endpoints, three questions
 
@@ -301,7 +314,7 @@ touches only what is still pending. What puts a unit back in the queue:
   affected tags return to the `macro-category` queue. The quality validator's reasons depend on the
   catalog too.
 - **`force=true`** — `embedding`, `macro-category`, `thumbnail` and `quality-validator` accept it and
-  ignore their own stamp; `macro-category` still never touches a tag that already has a drawer. For
+  ignore their own stamp; `macro-category` still never touches a tag that already has a category. For
   `thumbnail` it also means the documents marked `thumbnail_failed` come back, which is the way out
   of a bucket that was down during a run: the mark exists to stop a dead link from looping, not to
   make an outage permanent.
@@ -317,7 +330,7 @@ uv run python -m scrinalia.domains.archive.workers.runner thumbnail --option for
     `typology`, `thumbnail` and `quality-validator` all filter by it. `transfer` refuses to overwrite
     an approved description even when the source hash changed. The two documented exceptions are the
     derived work — `embedding`, which re-embeds a changed text, and `macro-category`, whose unit is
-    the tag and whose queue is "no drawer yet", so a curator's drawer is never rewritten.
+    the tag and whose queue is "no category yet", so a curator's category is never rewritten.
 
 There is **no route and no flag that clears a stamp**: to put a single document back in the queue for
 a worker that does not accept `force`, you have to remove that key from its `execution_log` in the
@@ -438,3 +451,137 @@ request id:
 A `5xx` is a warning, everything else is an info line. The two orchestrator probes (`/health/live`
 and `/health/ready`) are excluded from the access line — an orchestrator asks every few seconds and
 would rotate a 50 MB file with nothing but "200 OK" — but they are not excluded from correlation.
+
+## Recovering access
+
+Password recovery is guided by the administrator, and which door applies is the only question:
+
+- **Somebody forgot the password, and an administrator can sign in.** The administrator opens
+  *Configurações → Usuários*, finds the account and uses **redefinir senha** — a button on the
+  account's own row, so the reset is reached without expanding the card. The password typed there is
+  **temporary**: the account replaces it at the next sign-in. The reset also **ends every session of
+  that account** and **lifts a lockout**, which is the one case the screen alone can fix. It has no
+  undo.
+- **No administrator can sign in** — the last active one is locked out, deactivated or gone. Then
+  the operation that would fix it is the thing nobody can reach, and the way in is the host's
+  terminal:
+
+```bash
+# Which accounts exist, and which one is active. The address is what the commands below take.
+uv run python -m scrinalia.domains.identity.cli list
+
+# An explicit password. The account is marked temporary, so it replaces it at the next sign-in.
+uv run python -m scrinalia.domains.identity.cli reset-password --email pessoa@instituicao.org --password 'a nova senha'
+
+# Without --password it generates one, prints it once and marks the account temporary.
+uv run python -m scrinalia.domains.identity.cli reset-password --email pessoa@instituicao.org
+
+# A deactivated account is reactivated before it can sign in again.
+uv run python -m scrinalia.domains.identity.cli activate --email pessoa@instituicao.org
+```
+
+The CLI runs on the host against the same database and calls **the same service** the API calls, so
+the password policy, the session revocation, and the last-administrator guard behind `deactivate` and
+`set-role` are the same code and not a second implementation with fewer checks. It is also how the
+first administrator is created ([Installation and deployment](install.md)).
+
+Two things deliberately do not exist, and the sign-in screen says so rather than pretending
+otherwise: there is **no e-mail reset** (nothing configures SMTP, and ADR 0009 keeps self-service
+recovery out of scope), and there is **no reset-token table** to store, expire or leak. The screen's
+*Esqueci minha senha* states these two paths and promises no message.
+
+## Measuring the collection
+
+Two tables answer two different questions, and a number taken from the wrong one misleads.
+
+`execution_log` says **whether a worker ran over a unit**: it is the stamp the queue is built from.
+`archive_worker_runs` says **what ran, when, with which engine and preset, how long it took and how it
+ended** (`SUCCESS`, `FAILED`, `INTERRUPTED`). An empty stamp count is a fact about the queue; the row
+in the ledger is the fact about the execution that explains it — a stage at zero and one interrupted
+run at start-up are the same event seen from two tables.
+
+This is the query the reference collection was measured with. Run it against the installation's own
+database, and treat every number as a measurement with a date rather than as a constant:
+
+```bash
+docker exec <container> psql -U <user> -d <database> -t -A -F' | ' -c "
+SELECT 'descrições', count(*)::text FROM archive_documents
+UNION ALL SELECT 'com pai', count(*)::text FROM archive_documents WHERE parent_id IS NOT NULL
+UNION ALL SELECT 'sem nível', count(*)::text FROM archive_documents WHERE level_id IS NULL
+UNION ALL SELECT 'tags', count(*)::text FROM archive_tags
+UNION ALL SELECT 'tags sem categoria', count(*)::text FROM archive_tags WHERE macro_category_id IS NULL
+UNION ALL SELECT 'propostas sugeridas', count(*)::text FROM archive_tag_merge_proposals WHERE status='SUGGESTED'
+UNION ALL SELECT 'propostas aplicadas', count(*)::text FROM archive_tag_merge_proposals WHERE status='APPLIED'
+UNION ALL SELECT 'rungs decididos', count(*)::text FROM archive_hierarchy_node_plans WHERE status <> 'SUGGESTED'
+UNION ALL SELECT 'rungs no total', count(*)::text FROM archive_hierarchy_node_plans
+UNION ALL SELECT 'ner_v2', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_ner_v2'
+UNION ALL SELECT 'typology_v2', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_typology_classifier_v2'
+UNION ALL SELECT 'macro_v1 (tags)', count(*)::text FROM archive_tags WHERE execution_log ? 'worker_macro_category_v1'
+UNION ALL SELECT 'embedding_v1', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_embedding_v1'
+UNION ALL SELECT 'quality_validator_v1', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_quality_validator_v1'
+UNION ALL SELECT 'publicados', count(*)::text FROM archive_documents WHERE is_published
+UNION ALL SELECT 'revisões humanas', count(*)::text FROM archive_document_revisions;"
+```
+
+One stamp carries a trap worth knowing before reading the number: `embedding_v1` is the **MD5 of the
+effective text**, not the identity of the model, so it stays up to date when the vectors do not —
+changing `torch`, `sentence-transformers` or the preset does not put a single description back in the
+queue. When the embedding model changes, the vector has to be rebuilt explicitly.
+
+## The documentation site
+
+These guides are published at <https://cassiodalla.github.io/Scrinalia/> — English at the root,
+Portuguese under `/pt/` — and **CI publishes them; no person does.** The `docs` job builds the site
+with `mkdocs build --strict` on a full-history checkout (the freshness report is a report *against
+git*, ADR 0010), uploads `site/` as the Pages artifact, and the `docs-publish` job deploys exactly
+that artifact. The decision, and the alternatives it rejected, are in
+[ADR 0012](../adr/0012-the-documentation-site-is-published-by-ci.md).
+
+Three consequences are worth knowing before touching a workflow or the theme:
+
+- **Only a push to `main` publishes.** A merge into `dev` builds the site and publishes nothing: the
+  site is the documentation of the **release**, and `main` is the branch that moves at a release.
+  The `github-pages` environment trusts `main` — and the `gh-pages` branch the old manual build used
+  — so a deploy from `dev` would need that policy changed first.
+- **Re-running the workflow run is the recovery.** The deploy takes the artifact the same run built,
+  so a transient failure is fixed with "re-run jobs". There is no `mkdocs gh-deploy` step and
+  `gh-pages` is not the source of the site any more: publishing by hand is no longer a path, which is
+  what stops the published site from being a release older than the tag.
+- **The theme is the system's identity**, and it lives in two places that are pinned to each other:
+  `docs/assets/` (the mark, the favicon, the self-hosted PT Serif with its licence) and
+  `docs/assets/stylesheets/scrinalia.css`, which carries the tokens of
+  `apps/curator/src/styles.css`. `testing/unit/docs/test_docs_brand.py` fails when an asset
+  `mkdocs.yml` names is missing — `--strict` does **not** catch that — or when a copy drifts from the
+  curator's own file.
+
+## Known limits and accepted trade-offs
+
+These are measured, accepted, and not waiting for a fix. They are here so that an operator knows which
+behaviour to expect, and so that a limit already paid for is not read as a defect.
+
+- **Nobody is paged.** Observability is the panel, the run ledger and the failure groups; an external
+  alerting service is deliberately not part of the system (ADR 0005). A new root cause is found by
+  somebody opening the screen, not by a notification.
+- **The executor assumes a single API process.** The API runs one worker at a time
+  (`WORKER_RUNTIME_MAX_WORKERS`) and the recovery in `api/lifespan.py` marks what a dead process left
+  behind, which is only correct with `uvicorn --workers 1` (see [Interrupted runs](#interrupted-runs)).
+- **The arrangement `path` is not enforced by the database.** The column is materialised by the
+  service, so a hand-written `UPDATE` can diverge it from the tree; the `PATH_DIVERGENCE` diagnostic
+  is what finds it. Do not write `path` directly — go through the routes that own the move.
+- **Authentication has conscious limits.** The login rate limiter is **process-local** and resets on
+  restart, which is why the durable defence is the per-account lockout column; revoking a session
+  records that it was revoked, not **who** revoked it; and OIDC/SSO, second factors and e-mail
+  recovery are out of scope (ADR 0009). Recovery is the administrator or the CLI on the host (see
+  [Recovering access](#recovering-access)).
+  **The first account is a window.** While `auth_users` is empty, `POST /api/v1/setup/admin` is
+  public and whoever reaches the instance first may create the administrator; the table lock makes
+  two simultaneous attempts safe, and nothing makes the window safe (ADR 0011). Configure the
+  instance before exposing it, and read `GET /api/v1/setup/status` — `{"needs_setup": true}` on a
+  reachable instance is an invitation.
+- **The contract does not declare the session cookie.** The OpenAPI document carries no `security`
+  scheme for it, because a global requirement would also mark the diffusion routes and the health
+  probes as protected (ADR 0009). A generated client cannot discover the requirement; it answers 401
+  like any other anonymous request.
+- **Ranking by semantics alone is weaker than the lexical one.** The vectors work and the order does
+  not: the bench that measures it is `testing/evaluation/retrieval_quality.py`, and combining the two
+  rankings is open work. A semantic search that **finds more** is not a search that **orders better**.

@@ -2,8 +2,13 @@
 sources:
   - apps/curator/src/router.tsx
   - apps/curator/src/components/layout/AppShell.tsx
+  - apps/curator/src/components/layout/PageHeader.tsx
+  - apps/curator/src/components/layout/LoginForm.tsx
+  - apps/curator/src/components/layout/PasswordChangeForm.tsx
   - apps/curator/src/routes/**
   - apps/curator/src/lib/permissions.ts
+  - apps/curator/src/lib/screens.ts
+  - apps/curator/src/lib/copy.ts
   - src/scrinalia/api/controllers/**
   - src/scrinalia/api/schemas/public.py
   - src/scrinalia/api/security.py
@@ -17,6 +22,7 @@ sources:
   - src/scrinalia/domains/archive/workers/catalogue.py
   - src/scrinalia/domains/identity/domain/permissions.py
   - packages/api-contract/openapi.json
+  - docs/adr/0011-first-run-setup-without-an-open-door.md
 ---
 
 # Curation
@@ -27,10 +33,16 @@ has no way back at all.
 
 The SPA is served by the API itself (one origin, no CORS), and every screen reads and writes through
 the client generated from the OpenAPI contract. The screens are declared in
-`apps/curator/src/router.tsx` and the navigation in `apps/curator/src/components/layout/AppShell.tsx`.
-The menu has **23 entries** because one route is not a menu entry: the description's own dossier,
-`/acervo/$descriptionId`, is reached from the list and from the tree. The router therefore declares
-24 screens.
+`apps/curator/src/router.tsx`, and **what each one is called** in
+`apps/curator/src/lib/screens.ts`: one record per screen holds the label the menu, the settings card
+and the page's own heading all read, so the three cannot disagree (*One name per screen, one verb per
+action*, below). The menu has **16 entries**: the screens nobody opens in the middle of cataloguing —
+the arrangement plan, the catalogues, the worker panel, the run ledger, the diagnostics and the
+accounts — are cards of `/configuracoes` rather than menu entries (*Configurações*, below). One route
+is not reached from the menu either: the description's own dossier, `/acervo/$descriptionId`, comes
+from the list and from the tree. The router therefore declares **26 screens**. The menu itself can be
+collapsed to icons, which is a presentation choice and not a permission one — *The menu collapses to
+icons*, below.
 
 Two cross-cutting pages are worth reading with this one: [Data model](data-model.md) for what the
 ledgers and the tables mean, and [Installation and deployment](install.md) for the schema, the
@@ -69,7 +81,7 @@ does not carry it.
   exclude or move the children first. The screen asks the archivist to type the reference code (or
   the id, when there is no code) before the button unlocks.
 
-- **Unifying entities** — `POST /api/v1/taxonomy/entities/merge`. The absorbed entities stop
+- **Merging entities** — `POST /api/v1/taxonomy/entities/merge`. The absorbed entities stop
   existing, their links move to the canonical one, and their spellings become synonyms so the
   extractor keeps recognising them. Entities have **no proposal catalogue and no ledger**, so this
   is the one merge with no undo — the tags' privilege is a ledger. The panel warns instead of
@@ -150,7 +162,7 @@ never 403, because a distinct status would confirm that the description exists.
 The public projection is narrower than the curator's, field by field. It carries the ISAD(G) fields
 `original_title`, `final_title`, `document_date`, `reference_code`, `level`, `scope_content`,
 `language_name` and `producers`; the enrichment `typology`, the tags (name), the entities (name and
-type) and the subject drawers (name and count); the thumbnail; the branch (`ancestors`) and the
+type) and the subject categories (name and count); the thumbnail; the branch (`ancestors`) and the
 `children_count`. It deliberately does **not** carry the curation process or the unpublished
 narrative: `review_status`, `is_anomaly`, `anomaly_reasons`, `archivist_notes`, `provenance`,
 `suggested_final_title`, `admin_bio_history`, `admin_archival_history` and `access_conditions`. The
@@ -164,7 +176,7 @@ are areas, not buttons:
 | Permission | The area |
 | --- | --- |
 | `CURATE` | the record and its subjects: the ISAD(G) fields, links, tags, entities, conflicts and the taxonomies that move them |
-| `CATALOGUE` | the closed catalogues: levels, typologies, collection vocabulary, subject drawers, cleaning rules and text excerpts |
+| `CATALOGUE` | the closed catalogues: levels, typologies, collection vocabulary, subject categories, cleaning rules and text excerpts |
 | `OPERATE` | the AI workers: running one, changing its persisted default, and the health panel |
 | `ADMIN` | accounts and sessions |
 
@@ -177,18 +189,135 @@ are areas, not buttons:
 Reading is not a permission: it is what an authenticated session is, and a pure read declares
 nothing.
 
+### Signing in, and forgetting the password
+
+The sign-in form is not a route: it renders in the shell's own place, so a deep link survives it — an
+archivist who opens `/acervo/lista` while signed out signs in and lands on `/acervo/lista`. A wrong
+password and an address that does not exist answer the same sentence, on purpose: the form is not an
+enumeration of who has an account.
+
+There is **no e-mail recovery** in this installation, and the screen does not pretend otherwise. Under
+the button, *Esqueci minha senha* opens a short explanation of the path that does exist: an
+administrator resets the password on the accounts screen (*Usuários*, below), the password is
+temporary and the account replaces it at the next sign-in, the reset ends every session of that
+account and lifts a lockout — and if the last active administrator is the one who cannot get in, the
+host's terminal is the way back ([Operations](operate.md) owns that procedure). Nothing on the screen
+promises a message, because no message is sent.
+
 ### The menu hides; it never grants
 
 The shell filters its entries by the area the screen **writes** (`apps/curator/src/lib/permissions.ts`,
 a mirror of the server's role map), and an empty group is not rendered at all. The screens that only
 read carry no permission and stay visible to every role: Início, the collection list, the tree, the
-exclusions trail and the arrangement diagnostics. A `VIEWER` therefore sees the "Curadoria" and
-"Acervo" groups and, under "Arranjo", only "Diagnóstico" — every other group exists to decide, and
-is hidden.
+exclusions trail and the arrangement diagnostic. A `VIEWER` therefore sees exactly the "Curadoria"
+and "Acervo" groups — every other group exists to decide, and is hidden.
+
+The same rule governs the cards of `/configuracoes`, and it is the card catalogue
+(`apps/curator/src/lib/settings.ts`) that both the page and the menu entry read: a card is hidden when
+the account does not carry the area its screen writes, a tab whose cards are all hidden is not
+rendered, and the entry is in the menu while **at least one** card is reachable. So a `VIEWER` has no
+Configurações at all, and a direct URL to it reaches a page that says why it is empty instead of
+pretending to be broken.
 
 The mirror is one-way on purpose. It can make the menu shorter; it can never make the API accept a
 request. A direct URL to a screen the account cannot work in still reaches the API, and the API
 answers 403 with a sentence — that is the truth, and the hidden entry is a courtesy.
+
+### One name per screen, one verb per action
+
+The interface grew screen by screen, and so did its vocabulary: the menu said *Tags* while the page
+it opened said "Vocabulário de tags", the settings card said *Usuários* while the page said "Contas",
+and two different screens were both called *Diagnóstico*. Two files now own those words.
+
+`apps/curator/src/lib/screens.ts` holds **one record per screen** — its route, the label, and the hint
+that says what it decides. The label is the same string in the three places that used to disagree:
+the menu entry, the settings card and the page's own `<h1>`, which `PageHeader` resolves from the
+screen id a route declares. A route therefore cannot pass a heading of its own; the dossier is the one
+exception, and the catalogue is what flags it as the screen whose heading is the record's own title.
+
+Under the heading the header has the same four slots on every screen: the label, one line saying what
+the screen decides, the **status** of what was read — a count, a filter, a total — and the actions.
+The count used to compete with the explanatory line for the same slot, which is why some screens
+explained themselves and others only reported totals; while the read is in flight the status slot
+holds a skeleton of its own height, so the header does not jump when the numbers arrive.
+
+`apps/curator/src/lib/copy.ts` holds the product's name — re-exported from `lib/attribution.ts`, which
+owns it for the license notice — and **one verb per action**, with the word for it while it runs. The
+verbs this page uses are that file's:
+
+| Action | The word on the screen |
+| --- | --- |
+| writing an edited row | **Salvar** |
+| bringing a row into existence | **Criar** (the trigger beside it reads *+ Nova…*) |
+| taking a term off a list — a veto, an exclusion | **Remover** |
+| destroying a record, always behind a preview or a typed confirmation | **Excluir** |
+| the `is_active` switch on a **catalogue row** — a level, a typology, a category, a cleaning rule, a collection term | **Aposentar** / **Reativar** |
+| disabling an **account** | **Desativar** / **Reativar** |
+| launching one worker run | **Rodar agora** |
+| unifying two vocabulary entries | **Mesclar** |
+| committing a computed plan | **Aplicar** |
+| computing what a destructive write would do, without writing it | **Conferir impacto** |
+
+`Aposentar` and `Desativar` are deliberately two words: a catalogue row and an account leave the
+system in different ways, and one word for both would say they do not. Banning a term keeps its own
+verb (`Banir` / `Desbanir`), because it is a different flag and it deletes nothing.
+
+### The screen is one window tall
+
+The shell is exactly one viewport and the **page never scrolls**: what scrolls is the content
+column, so the rail — and the entry to `Configurações` at its foot — stays where it is on a long
+screen. The screen's own header is sticky inside that column, which is what keeps the title, the
+status and **the actions** in reach: "Propor níveis", "Rodar agora" and "Excluir órfãs" used to leave
+the window with the content. Measured at 1440x900 on the entities list: the document is 900px in a
+900px window, the content is 3299px in an 867px column, and the menu is 734px in a 734px box.
+
+The column has **no maximum width**: it fills whatever the window gives it, so the same screen is the
+same width on every monitor. Before this, each screen carried its own cap and they had drifted —
+`max-w-5xl` on most, `max-w-4xl` on five, `max-w-6xl` on one — so two screens side by side on a wide
+display stopped growing at different points. What keeps its own cap is the *content*: a paragraph
+keeps a readable measure, a text field keeps a field's width.
+
+The menu **folds into one open section**, plus the section the archivist is standing in — that one is
+open by construction, because an active entry hidden inside a collapsed group is a menu that hides
+where you are. Clicking a heading opens it and closes the one opened by hand; navigating closes that
+one, so the menu never drifts into three. A heading carries no icon: the glyph belongs to the entry.
+`Início` stands at the top with no heading, like the landing at the foot, because a section that
+gathers one line is a line of chrome.
+
+### The identity is on screen
+
+The rail is the identity's navy (`#14202B`), and the logomark is in it in both states: expanded it is
+the full lockup — the card with its terracotta tab, then **Scrinalia** in PT Serif — and collapsed it
+is the cropped mark alone. Collapsed, that mark is **also the control that expands the rail**: the
+brand is the thing you click to get the words back, which is what makes it worth keeping at 64px.
+
+A 2px terracotta rule closes the screen's header, and the two cards that come before a session —
+the sign-in form and the first-run setup — carry the same motif at their top, where the name used to
+be plain text. The two are not the same plate: the setup card centres the lockup under the tagline,
+and the sign-in card sets a larger lockup to the right and carries no tagline at all — there the
+plate is the mark alone.
+
+The accent is still the blue it was, and the terracotta is a **brand** colour and not an interactive
+one: the terracotta is `oklch(… 31)` and the danger colour is `oklch(… 25)`, six degrees apart, so a
+terracotta button and "Excluir" would have been the same colour. The navy, on the other hand, shares
+the accent's hue on purpose — which is why the rail and the buttons look like one thing.
+
+### The menu collapses to icons
+
+A control in the menu's own header folds it into a 64px column of icons and back, and the browser
+remembers the choice: how wide a column of the screen is is presentation state, so it lives in
+`localStorage` and not in the account — the API has no column for it.
+
+Collapsed, every entry keeps its icon; the label stays the link's accessible name and the `title`
+carries label and hint, so the hint is hidden and never truncated. The active entry keeps the accent
+colour, the group headings become hairlines, and the accordion is off — a heading with no label in a
+64px column is a click that says nothing — so all sixteen entries show at once. The session footer
+folds into the account's initial plus two icon buttons.
+
+The wordmark leaves the menu but not the page: the attribution renders at the foot of **every**
+screen (`AttributionFooter`, ADR 0006), including the three that come before a session — the first-run
+setup, the sign-in form and the forced password change — and it ends with the installation's version,
+alone at the right. The icons come from `lucide-react`, one glyph per entry.
 
 ## Curadoria
 
@@ -214,7 +343,7 @@ linking.
 
 ### Lista e busca — `/acervo/lista`
 
-The faceted search over the collection: the term (lexical or semantic), typology, subject drawer,
+The faceted search over the collection: the term (lexical or semantic), typology, subject category,
 entity type, level, a branch of the arrangement and a date range. The URL is the state, so a filtered
 list is shareable and the back button works. Nothing is written. The semantic mode carries an honest
 note: its measured quality is weak (Hit@10 0.625), so prefer lexical when the term is known.
@@ -260,16 +389,16 @@ equally reversible.
 
 #### Assuntos
 
-The decision is which tags and entities this description carries, and which drawer each tag belongs
+The decision is which tags and entities this description carries, and which category each tag belongs
 to. The writes are `POST`/`DELETE /api/v1/documents/{description_id}/tags[/{tag_id}]` and the entity
-pair (`CURATE`), plus `PATCH /api/v1/taxonomy/tags/{tag_id}` for the drawer. Linking and unlinking
+pair (`CURATE`), plus `PATCH /api/v1/taxonomy/tags/{tag_id}` for the category. Linking and unlinking
 are reversible: the revision stores the **whole list of names** on each side, and calling the same
 route twice writes no revision.
 
-!!! warning "The drawer is a decision about the vocabulary, not about this description"
+!!! warning "The category is a decision about the vocabulary, not about this description"
 
-    Changing a tag's drawer moves it for **every** description that carries the tag, and the screen
-    says so next to the select. Choosing "sem gaveta" gives the tag back to the AI classifier, which
+    Changing a tag's category moves it for **every** description that carries the tag, and the screen
+    says so next to the select. Choosing "sem categoria" gives the tag back to the AI classifier, which
     will try to file it again on the next run.
 
 #### Arranjo
@@ -291,10 +420,14 @@ that removes a record for good, and the confirmation (type the reference code) i
 
 ## Arranjo
 
+The plan is reached from `/configuracoes` — deciding the rungs is setup work, not daily curation —
+and the diagnostic stayed in the menu, under "Acervo", beside the tree it reads. With the plan gone,
+the "Arranjo" group would have held a single line, so the group disappeared with it.
+
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
 | Plano de arranjo — `/arranjo/plano` | approve or reject each proposed rung, and materialise the tree | yes — a decision can be reopened, and the materialisation has an undo |
-| Diagnóstico — `/arranjo/diagnostico` | none (the evidence; the fix is elsewhere) | yes (read only) |
+| Diagnóstico do arranjo — `/arranjo/diagnostico` | none (the evidence; the fix is elsewhere) | yes (read only) |
 
 ### Plano de arranjo — `/arranjo/plano`
 
@@ -314,12 +447,12 @@ form last:
   queue and the next proposal may refresh its evidence. The decision is never overwritten by a new
   proposal.
 
-The side panel materialises the tree: it always offers "Conferir o que será feito" first, and the
+The side panel materialises the tree: it always offers "Conferir impacto" first, and the
 apply button stays disabled until the preview exists. Only approved rungs are materialised. The
 preview and the apply share one planner, so the approved number is the written number. What the undo
 restores is described under **the batch that does have an undo**.
 
-### Diagnóstico — `/arranjo/diagnostico`
+### Diagnóstico do arranjo — `/arranjo/diagnostico`
 
 The structural diagnosis, one section per issue, each with its count and its evidence (a section with
 zero stays visible, because knowing the check ran matters). It offers **no silent correction**: every
@@ -328,6 +461,9 @@ description's arrangement tab. The counts overlap deliberately (a Dossiê at the
 and `DOSSIER_WITHOUT_PARENT`), so there is no grand total.
 
 ## Catálogos
+
+All three are reached from `/configuracoes`, under *Arranjo e catálogos*: they are the vocabulary the
+work is written against, not the work, which is why the menu no longer carries them.
 
 The two closed catalogues the archivist maintains and the collection vocabulary. None of them
 deletes: a row retires with `is_active=false`, because the foreign keys are `SET NULL` and removing a
@@ -385,8 +521,8 @@ as a subject again on the next classifier run.
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
 | Tags — `/assuntos/tags` | the weight, the duplicates, the merge queue and the banned terms | the merge yes (ledger); the purge **no** |
-| Categorias — `/assuntos/categorias` | the subject drawers the classifier reads | yes (retire and reactivate) |
-| Descobrir gavetas — `/assuntos/descobrir` | whether a proposed theme deserves a drawer | yes (the proposal writes nothing) |
+| Categorias — `/assuntos/categorias` | the subject categories the classifier reads | yes (retire and reactivate) |
+| Descobrir Categorias — `/assuntos/descobrir` | whether a proposed theme deserves a category | yes (the proposal writes nothing) |
 | Não é assunto — `/assuntos/excecoes` | which terms leave the subject axis | yes (banning deletes nothing) |
 
 ### Tags — `/assuntos/tags`
@@ -406,11 +542,11 @@ Pairs by trigram similarity, shown raw with the similarity score and both ids. T
 `GET /api/v1/taxonomy/tags/similar`. The similarity does not say which spelling is the good one:
 `'alameda cabral'` and `'al. alameda cabral'` score 1.000.
 
-The decision is to unify: `POST /api/v1/taxonomy/tags/merge` (`CURATE`), after a dry run
+The decision is to merge: `POST /api/v1/taxonomy/tags/merge` (`CURATE`), after a dry run
 (`POST /api/v1/taxonomy/tags/merge/preview`, a read that computes the same plan the write executes).
 The panel always opens with the impact first: documents updated, links rewritten, tags absorbed,
 spellings registered and repointed, and the one warning that must be read before the click —
-`category_would_be_lost`, when the canonical has no drawer and an absorbed tag does, so the merge
+`category_would_be_lost`, when the canonical has no category and an absorbed tag does, so the merge
 would erase a subject classification.
 
 The merge is **reversible**: the write is logged per absorbed tag in the merge ledger before
@@ -456,7 +592,7 @@ apart:
 - **Purgar** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), after
   `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. This is the write that deletes the tags, and
   it has **no undo**. The preview lists the tags that would die, with their document count and
-  drawer, and the apply button is disabled until the preview exists.
+  category, and the apply button is disabled until the preview exists.
 
 !!! warning "The scope protects the other axis"
 
@@ -466,15 +602,15 @@ apart:
 
 ### Categorias — `/assuntos/categorias`
 
-The drawers the subject classifier reads. `POST /api/v1/taxonomy/macro-categories` and
+The categories the subject classifier reads. `POST /api/v1/taxonomy/macro-categories` and
 `PATCH /api/v1/taxonomy/macro-categories/{category_id}` (`CATALOGUE`) create, rename, describe,
-retire and reactivate them; a retired drawer keeps its weight visible. Two honest notes the screen
+retire and reactivate them; a retired category keeps its weight visible. Two honest notes the screen
 gives: the **classifier label** is a curator override, not an improvement — measured on 44
-hand-labelled tags, a phrase instead of a bare name scores 0.000 with 65% of the tags in one drawer
-— and a **new drawer only takes effect when the classifier runs again**, because the worker's stamp
+hand-labelled tags, a phrase instead of a bare name scores 0.000 with 65% of the tags in one category
+— and a **new category only takes effect when the classifier runs again**, because the worker's stamp
 is the hash of the label set, which returns the tags to the queue on its own.
 
-### Descobrir gavetas — `/assuntos/descobrir`
+### Descobrir Categorias — `/assuntos/descobrir`
 
 Runs the real clustering engine (`POST /api/v1/taxonomy/tags/suggest-macro`, read-only:
 `AUTHENTICATED`) over the tags or the documents to find a theme the vocabulary does not cover yet. It
@@ -517,7 +653,7 @@ The named-entity vocabulary, by weight or by similarity. Three decisions:
   a row no description carries, where deleting loses no link. No undo.
 - **Purgar órfãs** — `POST /api/v1/taxonomy/entities/orphans/purge` (`CURATE`): the same decision in
   batch. No undo.
-- **Unificar** — `POST /api/v1/taxonomy/entities/merge` (`CURATE`): the absorbed entities stop
+- **Mesclar** — `POST /api/v1/taxonomy/entities/merge` (`CURATE`): the absorbed entities stop
   existing, their links move to the canonical, their spellings become synonyms, and an optional new
   name for the canonical makes the old one a synonym too. Entities have no proposal catalogue and
   **no ledger**: there is no undo, and the panel says so instead of offering a button back. There is
@@ -583,7 +719,7 @@ undo.
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
 | Trechos — `/qualidade/trechos` | which consumer stops reading a repeated excerpt | yes (retire or remove from the catalogue) |
-| Regras — `/qualidade/regras` | whether a rule rewrites the text or only flags it | yes: deactivating has a route back, and the retired rule stays on the screen |
+| Regras — `/qualidade/regras` | whether a rule rewrites the text or only flags it | yes: retiring has a route back, and the retired rule stays on the screen |
 | Anomalias — `/qualidade/anomalias` | none (the correction is the record's review) | yes (read only) |
 
 ### Trechos — `/qualidade/trechos`
@@ -601,7 +737,7 @@ no "approve all" button on this screen.
 - **Escrever um trecho** — `POST /api/v1/quality/text-templates` (`CATALOGUE`). It is born approved
   and applied and returns the affected descriptions to the AI queue; the create button only unlocks
   after the impact is seen.
-- **Aprovar / rejeitar / desativar / salvar escopo / remover** —
+- **Aprovar / rejeitar / aposentar / salvar escopo / remover** —
   `PATCH`/`DELETE /api/v1/quality/text-templates/{template_id}` (`CATALOGUE`). Removing takes the
   excerpt out of the catalogue and returns the affected descriptions to the AI queue.
 
@@ -620,7 +756,7 @@ a rule that rewrites — `PATCH /api/v1/quality/cleaning-rules/{rule_id}/deactiv
 deleted, and the way back is a route rather than a new rule: the listing takes
 `include_inactive=true`, which is what puts the retired rules at the bottom of the screen with the
 button that returns them to the queue. Reactivating keeps the id and the history that re-creating
-the rule would have lost. Deactivation is the safe half of the pair — it is what you reach for when
+the rule would have lost. Retiring is the safe half of the pair — it is what you reach for when
 a rule is wrong, so the way out of it has to exist.
 
 An active `REWRITE` rule is the loudest thing on the screen, and the preview is what makes it
@@ -637,30 +773,30 @@ the human review of the record, in the dossier.
 
 ## Sistema
 
-The machine, not the collection. Everything here belongs to whoever operates the installation.
+The machine, not the collection. Everything here belongs to whoever operates the installation, and
+all three screens are reached from `/configuracoes`, under *Operação*: the menu kept what the
+archivist consults while cataloguing, and this is not it.
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
-| Workers de IA — `/sistema/workers` | which model a worker runs with, and whether to run it now | the configured default yes; a run's effects follow what it wrote |
+| Workers de IA — `/sistema/workers` | whether to run a worker now | yes (the run's own configuration); a run's effects follow what it wrote |
 | Execuções — `/sistema/execucoes` | none (the ledger and the grouped failures) | yes (read only) |
-| Diagnóstico — `/sistema/diagnostico` | none (database, models, storage, process) | yes (read only) |
+| Saúde do sistema — `/sistema/diagnostico` | none (database, models, storage, process) | yes (read only) |
 
 ### Workers de IA — `/sistema/workers`
 
 The catalogue of the nine workers, in pipeline order, with the effective engine, preset and config on
-the collapsed row — "with which model is this running?" is the question the screen exists to answer.
-Two writes per worker, both `OPERATE`:
+the collapsed row — "with which model is this running?" is the question the screen exists to answer,
+and here the answer is **read only**. What the installation is *set* to do is a screen of its own
+(*Configuração dos Workers*, below), because the two questions are different: this one is what the
+machine is doing. The row carries the queue — pending, processed, failed, last run — and the one
+write is `OPERATE`:
 
 - **Rodar agora** — `POST /api/v1/system/workers/{worker_name}/runs`. The run uses the effective
-  configuration, adjusted only for this execution; nothing in the panel becomes the default. Every
-  run leaves a row in the run ledger, and a worker with a run in flight disables both buttons — the
+  configuration, adjusted only for this execution; nothing adjusted here becomes the default. Every
+  run leaves a row in the run ledger, and a worker with a run in flight disables the button — the
   guarantee is the partial unique index in the database, and the screen only avoids offering what
   the database would reject.
-- **Configurar** — `PUT /api/v1/system/workers/{worker_name}/settings` sets the persisted default
-  (partial on purpose: an empty field keeps following the code), and
-  `DELETE /api/v1/system/workers/{worker_name}/settings` removes it. Every write leaves a revision
-  (`GET /api/v1/system/workers/{worker_name}/settings/revisions`), so the default is reversible: the
-  revision list is right there, and "Voltar ao padrão do código" removes the row.
 
 The panel itself offers no undo for a run. The reversibility of a run is the reversibility of what it
 wrote — a merge undo, a materialisation undo, a conflict undo — and a worker that stamps its queue
@@ -676,7 +812,7 @@ cause (`GET /api/v1/system/failures`), which answer the question the ledger cann
 the same sentence are one cause. Clicking a group filters the ledger below instead of opening a
 second list, and a failure's reference is what is searched in the log.
 
-### Diagnóstico — `/sistema/diagnostico`
+### Saúde do sistema — `/sistema/diagnostico`
 
 Four independent probes (`GET /api/v1/system/health`, `OPERATE`): the database with its counts, the
 Ollama server with the models the presets require and which of them are missing, the thumbnail
@@ -686,21 +822,70 @@ reports that a secret exists, never what it is. Nothing here writes.
 
 ## Configurações
 
+The landing that gathers what the installation *is*, out of the way of what the archivist does every
+day. It writes nothing of its own.
+
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
+| Configurações — `/configuracoes` | which setup screen to open | yes (read only) |
+| Configuração dos Workers — `/configuracoes/workers` | the persisted default of each worker, and its history | yes (remove the row) |
 | Usuários — `/configuracoes/usuarios` | who exists, what they may do, and where they are signed in | yes (deactivate and reactivate) |
+
+### Configurações — `/configuracoes`
+
+A page of cards, and every card opens a screen that already existed with the route it always had:
+what changed is how it is found. Three tabs, in the order of the permission ladder they walk:
+
+| Tab | Cards |
+| --- | --- |
+| Arranjo e catálogos | Plano de arranjo (`CURATE`), Níveis de descrição, Tipologias and Vocabulário do acervo (`CATALOGUE`) |
+| Operação | Workers de IA, Configuração dos Workers, Execuções and Saúde do sistema (`OPERATE`) |
+| Acesso | Usuários (`ADMIN`) |
+
+The tab is in the URL (`?aba=`), so "the worker cards" can be sent to somebody. A tab the account
+cannot fill is not rendered, and a `?aba=` naming one falls back to the first tab the account *can*
+fill: a link that was valid for the sender still lands somewhere honest for the reader. Each card
+carries the area its screen writes, and the entry that opens this page follows the same areas — the
+rule is under *The menu hides; it never grants* above.
+
+### Configuração dos Workers — `/configuracoes/workers`
+
+What the installation is *set* to do, apart from what the machine is doing (issue #53). One card per
+worker, in pipeline order, each carrying the persisted row of `archive_worker_settings` and its
+revisions — both writes `OPERATE`:
+
+- **Salvar padrão** — `PUT /api/v1/system/workers/{worker_name}/settings` writes the default. It is
+  partial on purpose: an empty field keeps following the code, and the precedence is unchanged —
+  `explicit argument > the archive_worker_settings row > the signature default`. `config` is still
+  refused as an option, because it is a runner dataclass and not a JSON value.
+- **Voltar ao padrão do código** — `DELETE /api/v1/system/workers/{worker_name}/settings` removes the
+  row. Every write leaves a revision
+  (`GET /api/v1/system/workers/{worker_name}/settings/revisions`), listed on the card, so the default
+  is reversible and the person who changed it is named.
+
+A worker whose engine lives in the active `LLM_CHECK` rule (`quality-validator`) does not offer the
+engine/preset choice here: a second place to choose the same engine would be a second source of
+truth, so the card says where it lives and offers only the run parameters. The screen reads
+`GET /api/v1/system/workers/settings`, which is not the panel's `GET /api/v1/system/workers` — the
+panel counts nine queues, and this screen shows none of them.
 
 ### Usuários — `/configuracoes/usuarios`
 
 The accounts of the installation, the `ADMIN` surface. The writes are `POST /api/v1/users` (create),
 `PATCH /api/v1/users/{user_id}` (name, role, active), `POST /api/v1/users/{user_id}/password` (reset)
 and the session routes `GET`/`DELETE /api/v1/users/{user_id}/sessions[/{session_id}]` — all `ADMIN`.
-Four facts the API enforces and the screen states:
+Five facts the API enforces and the screen states:
 
 - **the password created here is temporary.** The administrator typed it, so the account replaces it
   at the first sign-in, exactly like the CLI bootstrap;
 - **deactivating ends every session of the account immediately**, which is what makes the flag real;
-- **resetting the password ends every session** and lifts a lockout caused by failed attempts;
+- **resetting the password ends every session** and lifts a lockout caused by failed attempts. It is
+  reachable from the account's own row (**redefinir senha**), without expanding the card, and the
+  confirmation names both consequences;
+- **resetting your own account signs you out.** The administrative reset has no "keep this session"
+  the way *Trocar senha* does, so an administrator who targets their own row ends the session they are
+  standing on; the screen says so before the click and points at **Trocar senha** in the session
+  footer, which keeps it;
 - **the last active administrator cannot be deactivated or demoted** (`LastAdminError`, 409). It is
   the one lockout with no way back through the screen; the way in is the CLI on the host.
 
@@ -708,3 +893,8 @@ There is no delete. An account is deactivated, because the ledgers carry its nam
 decision whose author no longer exists is a worse record than a closed account. Revoking a session id
 that belongs to another account answers 404 and not 200, because the id alone must not enumerate
 other people's sign-ins; the row that is the archivist's own session is marked "esta sessão".
+
+The account on this screen is **never the first one**. An installation with no account at all is
+brought to life by the first-run screen it answers to the first visit, or by the CLI on the host, and
+both of those close forever once an account exists — including a deactivated one (ADR 0011). After
+that, this is the only surface that creates accounts.

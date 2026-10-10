@@ -42,6 +42,9 @@ it (a `reviewed: <sha>` field) or **derived** from git.
    `--strict`, so a broken link or a malformed block fails the same way a broken import does. There
    is no hosted deployment yet; publishing is a later decision, and `mike` (per-release versioning)
    is deliberately not adopted until there is a site to version.
+   **Amended by [ADR 0012](0012-the-documentation-site-is-published-by-ci.md):** there is a hosted
+   deployment now — the site is published from CI into the Pages artifact on a push to `main` — and
+   `mike` is still not adopted, for the sharper reason that ADR records.
 2. **English is canonical; Portuguese is a translation.** A page and its translation sit side by
    side as `page.md` and `page.pt.md` (`mkdocs-static-i18n`, suffix structure, fallback to the
    default), so an absent translation serves the English page instead of answering 404. The index
@@ -160,8 +163,10 @@ Negative, and accepted:
 Reconsider the reporting-only freshness when the ledger shows pages surviving several triage
 rounds without being read — that is the signal that a soft report is being ignored, and the answer
 is then a deadline on the ledger (for example, a page may not stay unread past one release) rather
-than a blocking build. Reconsider publishing with `mike` when there is a first release to serve and
-a host to serve it from.
+than a blocking build. ~~Reconsider publishing with `mike` when there is a first release to serve and
+a host to serve it from.~~ **Answered by [ADR 0012](0012-the-documentation-site-is-published-by-ci.md):**
+there is a first release and a host, the site is published from CI, and `mike` waits for a second
+line supported in parallel instead.
 
 One thing to watch, and it came from the build itself rather than from a plan: MkDocs Material
 prints an upstream notice that **MkDocs 2.0 will remove the plugin system and break the theming

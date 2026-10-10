@@ -52,7 +52,7 @@ transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-
 - **`conflict-judge`** compara o vocabulário de tags com o de entidades e consulta o LLM local para
   decidir se o termo ambíguo é assunto ou nome próprio. Todo veredicto, automático ou enviado a uma
   pessoa, deixa uma linha em `archive_ai_review_queue`.
-- **`macro-category`** arquiva cada tag numa gaveta de assunto. A unidade dele é a **tag**, não a
+- **`macro-category`** arquiva cada tag numa categoria de assunto. A unidade dele é a **tag**, não a
   descrição, então o carimbo vive no `execution_log` da própria tag; uma tag que o curador arquivou
   à mão está fora do alcance dele.
 - **`quality-validator`** marca anomalias estruturais, títulos repetidos e regras `VALIDATE`. Nunca
@@ -82,7 +82,7 @@ Uma fila não é uma tabela: é o predicado que o próprio `count_pending` do wo
 | `typology` | documentos sem tipologia e sem o carimbo que têm texto | `worker_typology_classifier_v2` |
 | `thumbnail` | documentos com imagem de origem, sem URI no storage e sem marca de falha — todos os marcados, com `force` | nenhum; a coluna `storage_thumbnail_uri`, mais a marca `thumbnail_failed` |
 | `conflict-judge` | **não é mensurável barato**: a fila é o produto trigram de tags × entidades, medido em 53 s no acervo real. O painel mostra o que já foi julgado | nenhum; a linha em `archive_ai_review_queue` |
-| `macro-category` | tags sem gaveta de assunto cujo carimbo não carrega o conjunto de rótulos atual | `worker_macro_category_v1` (na tag; o valor é o hash do conjunto de rótulos) |
+| `macro-category` | tags sem categoria de assunto cujo carimbo não carrega o conjunto de rótulos atual | `worker_macro_category_v1` (na tag; o valor é o hash do conjunto de rótulos) |
 | `quality-validator` | documentos sem o carimbo, a menos que `force` esteja ligado | `worker_quality_validator_v1` |
 | `embedding` | documentos cujo carimbo difere do MD5 do texto efetivo — a primeira execução e toda mudança de texto posterior | `worker_embedding_v1` (o valor é o MD5 do texto embedado) |
 
@@ -189,13 +189,15 @@ Para `quality-validator`, o `engine_source` é `llm_check_rule`: a engine e o pr
 lugar para escolher a mesma engine seria uma segunda fonte de verdade. Sem regra ativa, o worker roda
 apenas a validação determinística, e o painel diz isso na `note`.
 
-## O painel de operação (Sistema)
+## O painel de operação
 
-O painel é a superfície `/api/v1/system/*` e a seção `Sistema` da SPA.
+O painel é a superfície `/api/v1/system/*` e os quatro cartões de `/configuracoes`, sob *Operação*, na
+SPA: o menu não os carrega mais (issue #22).
 
 | Rota | Método | Permissão | O que faz |
 | --- | --- | --- | --- |
 | `/api/v1/system/workers` | `GET` | autenticado | os nove workers com configuração, números de fila e última execução/execução ativa, numa requisição só |
+| `/api/v1/system/workers/settings` | `GET` | autenticado | os padrões persistidos dos nove workers, sem os contadores de fila (issue #53) |
 | `/api/v1/system/workers/{worker_name}/runs` | `POST` | `OPERATE` | enfileira uma execução com overrides só para ela e responde `201` na hora |
 | `/api/v1/system/workers/{worker_name}/settings` | `PUT` | `OPERATE` | persiste o padrão de engine/preset/batch/options |
 | `/api/v1/system/workers/{worker_name}/settings` | `DELETE` | `OPERATE` | apaga o override para o worker voltar a seguir o código |
@@ -207,16 +209,19 @@ O painel é a superfície `/api/v1/system/*` e a seção `Sistema` da SPA.
 Só o `ADMIN` carrega `OPERATE`; `CURATOR` e `VIEWER` leem os workers, o ledger e as falhas, mas não
 disparam execução nem mudam padrão.
 
-A seção da SPA espelha isso:
+A SPA espelha isso, como cartões de `/configuracoes` sob *Operação*:
 
 | Tela | Mostra |
 | --- | --- |
-| `/sistema/workers` | os nove workers: engine, preset e modelo, a fila, o padrão persistido e um botão de execução |
+| `/sistema/workers` | os nove workers: engine, preset e modelo, a fila e um botão de execução; a configuração efetiva aqui é só leitura |
+| `/configuracoes/workers` | o padrão persistido de cada worker e suas revisões, com salvar e remover — a escrita que o painel carregava |
 | `/sistema/execucoes` | o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela |
 | `/sistema/diagnostico` | banco, modelos do Ollama, storage das miniaturas e a configuração efetiva do processo |
 
 A tela só fica consultando enquanto algo está rodando, porque o contador do `transfer` faz uma
-chamada a `/system/workers` custar cerca de dois segundos no acervo real.
+chamada a `/system/workers` custar cerca de dois segundos no acervo real. A
+`/configuracoes/workers` lê `/system/workers/settings`, que resolve a mesma configuração e não conta
+fila nenhuma — a separação existe para que uma tela que não mostra números não pague por eles.
 
 ### Saúde: três endpoints, três perguntas
 
@@ -270,7 +275,7 @@ segunda execução toca só o que ainda está pendente. O que devolve uma unidad
   as tags afetadas voltam à fila do `macro-category`. Os motivos do validador de qualidade também
   dependem do catálogo.
 - **`force=true`** — `embedding`, `macro-category`, `thumbnail` e `quality-validator` aceitam e
-  ignoram o próprio carimbo; o `macro-category` continua sem tocar numa tag que já tem gaveta. No
+  ignoram o próprio carimbo; o `macro-category` continua sem tocar numa tag que já tem categoria. No
   `thumbnail` ele também traz de volta os documentos marcados como `thumbnail_failed`, que é a saída
   de um bucket que estava fora durante uma execução: a marca existe para um link morto não ficar em
   laço, não para tornar a queda permanente.
@@ -286,7 +291,7 @@ uv run python -m scrinalia.domains.archive.workers.runner thumbnail --option for
     `typology`, `thumbnail` e `quality-validator` filtram por ela. O `transfer` se recusa a
     sobrescrever uma descrição aprovada mesmo quando o hash da origem mudou. As duas exceções
     documentadas são o trabalho derivado — o `embedding`, que re-embeda um texto mudado, e o
-    `macro-category`, cuja unidade é a tag e cuja fila é "ainda sem gaveta", então a gaveta de um
+    `macro-category`, cuja unidade é a tag e cuja fila é "ainda sem categoria", então a categoria de um
     curador nunca é reescrita.
 
 Não há **rota nem flag que limpe um carimbo**: para devolver um documento à fila de um worker que não
@@ -408,3 +413,135 @@ tem id de requisição:
 Um `5xx` é aviso, o resto é linha de informação. As duas sondas do orquestrador (`/health/live` e
 `/health/ready`) ficam fora da linha de acesso — um orquestrador pergunta a cada poucos segundos e
 rotacionaria um arquivo de 50 MB só com "200 OK" — mas não ficam fora da correlação.
+
+## Recuperar acesso
+
+A recuperação de senha é guiada pelo administrador, e qual porta se aplica é a única pergunta:
+
+- **Alguém esqueceu a senha e um administrador consegue entrar.** O administrador abre
+  *Configurações → Usuários*, encontra a conta e usa **redefinir senha** — um botão na própria linha
+  da conta, então a redefinição é alcançada sem expandir a ficha. A senha digitada ali é
+  **temporária**: a conta a troca no primeiro acesso. A redefinição também **encerra todas as sessões**
+  dessa conta e **destrava um bloqueio**, que é o único caso que a tela sozinha resolve. Ela não tem
+  desfazer.
+- **Nenhum administrador consegue entrar** — o último ativo está bloqueado, desativado ou não existe
+  mais. Aí a operação que resolveria é justamente a que ninguém alcança, e a entrada é o terminal do
+  servidor:
+
+```bash
+# Quais contas existem e qual está ativa. O endereço é o que os comandos abaixo recebem.
+uv run python -m scrinalia.domains.identity.cli list
+
+# Uma senha explícita. A conta fica marcada como temporária e a troca no primeiro acesso.
+uv run python -m scrinalia.domains.identity.cli reset-password --email pessoa@instituicao.org --password 'a nova senha'
+
+# Sem --password, ele gera uma, imprime uma vez e marca a conta como temporária.
+uv run python -m scrinalia.domains.identity.cli reset-password --email pessoa@instituicao.org
+
+# Uma conta desativada é reativada antes de conseguir entrar de novo.
+uv run python -m scrinalia.domains.identity.cli activate --email pessoa@instituicao.org
+```
+
+O CLI roda no host contra o mesmo banco e chama **o mesmo serviço** que a API chama, então a política
+de senha, a revogação de sessões e a guarda de último administrador por trás de `deactivate` e
+`set-role` são o mesmo código, e não uma segunda implementação com menos verificações. Ele também é
+como a primeira conta de administrador é criada ([Instalação e implantação](install.md)).
+
+Duas coisas deliberadamente não existem, e a tela de entrada diz isso em vez de fingir o contrário:
+não há **redefinição por e-mail** (nada configura SMTP, e a ADR 0009 deixa a recuperação de
+autosserviço fora de escopo), e não há **tabela de tokens de redefinição** para guardar, expirar ou
+vazar. O *Esqueci minha senha* da tela declara esses dois caminhos e não promete mensagem nenhuma.
+
+## Medir o acervo
+
+Duas tabelas respondem a duas perguntas diferentes, e um número tirado da tabela errada engana.
+
+`execution_log` diz **se um worker passou por uma unidade**: é o carimbo de onde a fila é construída.
+`archive_worker_runs` diz **o que rodou, quando, com que engine e preset, quanto demorou e como
+terminou** (`SUCCESS`, `FAILED`, `INTERRUPTED`). Uma contagem de carimbo vazia é um fato sobre a fila;
+a linha no ledger é o fato sobre a execução que explica a fila — uma etapa em zero e uma execução
+interrompida na subida são o mesmo evento visto de duas tabelas.
+
+Esta é a consulta com que o acervo de referência foi medido. Rode no banco da própria instalação e
+trate todo número como uma medição com data, não como uma constante:
+
+```bash
+docker exec <container> psql -U <user> -d <database> -t -A -F' | ' -c "
+SELECT 'descrições', count(*)::text FROM archive_documents
+UNION ALL SELECT 'com pai', count(*)::text FROM archive_documents WHERE parent_id IS NOT NULL
+UNION ALL SELECT 'sem nível', count(*)::text FROM archive_documents WHERE level_id IS NULL
+UNION ALL SELECT 'tags', count(*)::text FROM archive_tags
+UNION ALL SELECT 'tags sem categoria', count(*)::text FROM archive_tags WHERE macro_category_id IS NULL
+UNION ALL SELECT 'propostas sugeridas', count(*)::text FROM archive_tag_merge_proposals WHERE status='SUGGESTED'
+UNION ALL SELECT 'propostas aplicadas', count(*)::text FROM archive_tag_merge_proposals WHERE status='APPLIED'
+UNION ALL SELECT 'rungs decididos', count(*)::text FROM archive_hierarchy_node_plans WHERE status <> 'SUGGESTED'
+UNION ALL SELECT 'rungs no total', count(*)::text FROM archive_hierarchy_node_plans
+UNION ALL SELECT 'ner_v2', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_ner_v2'
+UNION ALL SELECT 'typology_v2', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_typology_classifier_v2'
+UNION ALL SELECT 'macro_v1 (tags)', count(*)::text FROM archive_tags WHERE execution_log ? 'worker_macro_category_v1'
+UNION ALL SELECT 'embedding_v1', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_embedding_v1'
+UNION ALL SELECT 'quality_validator_v1', count(*)::text FROM archive_documents WHERE execution_log ? 'worker_quality_validator_v1'
+UNION ALL SELECT 'publicados', count(*)::text FROM archive_documents WHERE is_published
+UNION ALL SELECT 'revisões humanas', count(*)::text FROM archive_document_revisions;"
+```
+
+Um carimbo tem uma armadilha que vale saber antes de ler o número: `embedding_v1` é o **MD5 do texto
+efetivo**, não a identidade do modelo, então ele fica em dia mesmo quando os vetores não estão —
+trocar `torch`, `sentence-transformers` ou o preset não devolve uma única descrição para a fila.
+Quando o modelo de embedding muda, o vetor precisa ser reconstruído de propósito.
+
+## O site da documentação
+
+Estes guias são publicados em <https://cassiodalla.github.io/Scrinalia/> — inglês na raiz, português
+em `/pt/` — e **quem publica é a CI; não é uma pessoa.** O job `docs` constrói o site com
+`mkdocs build --strict` sobre o histórico completo (o relatório de freshness é um relatório *contra o
+git*, ADR 0010), envia `site/` como artefato do Pages, e o job `docs-publish` publica exatamente esse
+artefato. A decisão, e as alternativas que ela recusou, estão na
+[ADR 0012](../adr/0012-the-documentation-site-is-published-by-ci.md).
+
+Três consequências valem antes de mexer num workflow ou no tema:
+
+- **Só um push para `main` publica.** Um merge em `dev` constrói o site e não publica nada: o site é
+  a documentação da **versão**, e `main` é o ramo que se move numa versão. O ambiente `github-pages`
+  confia em `main` — e no ramo `gh-pages` que a publicação manual usava — então um deploy a partir de
+  `dev` exigiria mudar essa política antes.
+- **Repetir a execução do workflow é a recuperação.** O deploy pega o artefato que a mesma execução
+  construiu, então uma falha passageira se resolve com "re-run jobs". Não existe passo
+  `mkdocs gh-deploy` e `gh-pages` não é mais a origem do site: publicar à mão deixou de ser um
+  caminho, que é o que impede o site publicado de ser uma versão mais velha que a tag.
+- **O tema é a identidade do sistema**, e vive em dois lugares presos um ao outro: `docs/assets/` (a
+  marca, o favicon, a PT Serif auto-hospedada com a licença) e
+  `docs/assets/stylesheets/scrinalia.css`, que carrega os tokens de `apps/curator/src/styles.css`.
+  `testing/unit/docs/test_docs_brand.py` falha quando falta um arquivo que o `mkdocs.yml` nomeia — o
+  `--strict` **não** pega isso — ou quando uma cópia se afasta do arquivo original do curador.
+
+## Limites conhecidos e trade-offs aceitos
+
+São medidos, aceitos e não estão esperando correção. Estão aqui para o operador saber que
+comportamento esperar, e para um limite já pago não ser lido como defeito.
+
+- **Ninguém é avisado.** A observabilidade é o painel, o ledger de execuções e os grupos de falha; um
+  serviço externo de alerta está deliberadamente fora do sistema (ADR 0005). Uma causa raiz nova é
+  encontrada por quem abre a tela, não por uma notificação.
+- **O executor assume um único processo da API.** A API roda um worker por vez
+  (`WORKER_RUNTIME_MAX_WORKERS`) e a recuperação no `api/lifespan.py` marca o que um processo morto
+  deixou para trás, o que só é correto com `uvicorn --workers 1` (veja *Execuções INTERRUPTED*, acima).
+- **O `path` do arranjo não é garantido pelo banco.** A coluna é materializada pelo serviço, então um
+  `UPDATE` escrito à mão pode divergi-la da árvore; o diagnóstico `PATH_DIVERGENCE` é o que encontra.
+  Não escreva `path` diretamente — passe pelas rotas que são donas da movimentação.
+- **A autenticação tem limites conscientes.** O limitador de tentativas de login é **por processo** e
+  zera no restart, e é por isso que a defesa durável é a coluna de bloqueio por conta; revogar uma
+  sessão registra que ela foi revogada, não **quem** revogou; e OIDC/SSO, segundo fator e recuperação
+  de senha por e-mail estão fora de escopo (ADR 0009). A recuperação é o administrador ou o CLI no
+  host (veja [Recuperar acesso](#recuperar-acesso)). **A primeira conta é uma janela.** Enquanto a `auth_users` estiver vazia, o
+  `POST /api/v1/setup/admin` é público e quem alcançar a instância primeiro pode criar o
+  administrador; o lock de tabela torna duas tentativas simultâneas seguras, e nada torna a janela
+  segura (ADR 0011). Configure a instância antes de expô-la, e leia o `GET /api/v1/setup/status` —
+  `{"needs_setup": true}` numa instância acessível é um convite.
+- **O contrato não declara o cookie de sessão.** O documento OpenAPI não carrega um esquema
+  `security` para ele, porque uma exigência global também marcaria as rotas de difusão e as sondas de
+  saúde como protegidas (ADR 0009). Um cliente gerado não consegue descobrir a exigência; ele recebe
+  401 como qualquer requisição anônima.
+- **Ordenar só pela semântica é pior que pelo lexical.** Os vetores funcionam e a ordem não: a
+  bancada que mede isso é `testing/evaluation/retrieval_quality.py`, e combinar os dois rankings é
+  trabalho aberto. Uma busca semântica que **encontra mais** não é uma busca que **ordena melhor**.

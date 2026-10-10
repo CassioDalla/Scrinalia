@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { ApiError } from "@/api/client";
+import { Notice } from "@/components/ui/Notice";
 import { cn } from "@/lib/cn";
 
 export function Skeleton({ className }: { className?: string }) {
@@ -38,14 +39,18 @@ export function EmptyState({ title, hint, action }: { title: string; hint?: Reac
  * Every response the API produces carries a request id, and the log line of the failing request
  * carries the same one. Showing it turns "a tela quebrou" into something the archivist can copy and
  * someone else can grep, without exposing anything about the internals.
+ *
+ * It is a `Notice` in the `danger` tone, and the three classes it adds back are the ones a failure
+ * needs and a footnote does not: a failure is read at `text-sm`, with the padding of a block and a
+ * larger corner. Sharing the surface is what keeps the red from being spelled four ways.
  */
 export function ErrorState({ error }: { error: unknown }) {
   const message = error instanceof Error ? error.message : "Erro inesperado.";
   const ref = error instanceof ApiError ? error.ref : undefined;
   return (
-    <div className="rounded-lg bg-(--color-danger)/5 px-4 py-3 text-sm text-(--color-danger) ring-1 ring-(--color-danger)/20">
+    <Notice tone="danger" as="div" className="rounded-lg px-4 py-3 text-sm">
       {message}
       {ref ? <span className="mt-1 block text-xs opacity-70">referência: {ref}</span> : null}
-    </div>
+    </Notice>
   );
 }

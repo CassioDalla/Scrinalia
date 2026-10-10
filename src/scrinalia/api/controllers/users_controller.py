@@ -100,8 +100,10 @@ class UsersController(Controller):
 
         Every session of the account ends with it, which is the point: a reset is what an
         administrator does when somebody lost access, and leaving the old devices signed in would
-        answer that with nothing. The account itself is not signed out of anything — it has no session
-        to keep.
+        answer that with nothing. Unlike ``change_password`` there is no ``keep_token`` here, so an
+        administrator who resets **their own** account ends the session the request arrived on — the
+        accounts screen says so before the click, and points at "Trocar senha" for the case where the
+        person does know the current password and merely wants to replace it.
         """
         user = auth_service.get_user(user_id)
         auth_service.reset_password(user, data.password, must_change=data.must_change)

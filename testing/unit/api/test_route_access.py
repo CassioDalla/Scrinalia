@@ -19,10 +19,17 @@ from scrinalia.asgi import create_app
 from scrinalia.domains.identity.domain.permissions import Permission
 
 #: The operations reachable without a session, pinned as a list. This is the open surface of the
-#: installation: the diffusion routes (open by design, ADR 0003) and the login that creates a
-#: session. Anything else appearing here is a decision, not an oversight.
+#: installation: the diffusion routes (open by design, ADR 0003), the login that creates a session,
+#: and the two first-run operations that bring an empty installation to life (ADR 0011). Anything
+#: else appearing here is a decision, not an oversight.
+#:
+#: The setup pair was added **deliberately**: the write is guarded by a table lock and the predicate
+#: "``auth_users`` is empty", so it answers 409 forever once any account exists — the surface grows by
+#: two operations and the growth is this line, in a diff.
 PUBLIC_OPERATIONS = {
     ("POST", "/api/v1/auth/login"),
+    ("GET", "/api/v1/setup/status"),
+    ("POST", "/api/v1/setup/admin"),
     ("GET", "/api/v1/public/documents"),
     ("GET", "/api/v1/public/documents/{description_id:str}"),
 }

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   class="scrinalia-lockup"
+   viewBox="0 0 300 96"
+   width="300"
+   height="96"
+   role="img"
+   aria-labelledby="scr-lock-t"
+   version="1.1"
+   id="svg1064"
+   xmlns="http://www.w3.org/2000/svg">
+  <title id="scr-lock-t">Scrinalia</title>
+  <style id="style1043">
+    .scrinalia-lockup { --scr-accent: #A8342A; }
+    @media (prefers-color-scheme: dark) { .scrinalia-lockup { --scr-accent: #C4503F; } }
+    .scrinalia-lockup .scr-word {
+      font-family: 'Spectral', 'Source Serif 4', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+      font-size: 45px;
+      font-weight: 400;
+      letter-spacing: -0.015em;
+      fill: currentColor;
+    }
+  </style>
+  <defs id="defs1048">
+    <clipPath id="scr-clip-lock">
+      <rect x="28" y="10" width="40" height="76" rx="10" id="rect1045" />
+    </clipPath>
+  </defs>
+  <g transform="translate(-8.148 10.074) scale(0.79012)" id="g1060">
+    <rect x="28" y="10" width="40" height="25.333" fill="var(--scr-accent)" clip-path="url(#scr-clip-lock)" id="rect1050" />
+    <g fill="none" stroke="currentColor" stroke-width="5" id="g1058">
+      <rect x="28" y="10" width="40" height="76" rx="10" id="rect1052" />
+      <path d="M28 35.333H68" id="path1054" />
+      <path d="M28 60.667H68" id="path1056" />
+    </g>
+  </g>
+  <text class="scr-word" x="63.5" y="64" id="text1062">Scrinalia</text>
+</svg>

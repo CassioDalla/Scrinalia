@@ -2,8 +2,9 @@ name: Release
 
 # Cutting a release is a deliberate act, not a side effect of a merge. The workflow takes the version
 # as input, validates it, builds the artifacts, and only then creates the tag and the release — so a
-# failed build leaves no tag behind. The first public release is **1.0.0**; the default below is the
-# one that will be used when the documentation cycle closes.
+# failed build leaves no tag behind. The first public release was **1.0.0**; the default below is the
+# next one, and it stays a human's choice — the workflow prints what Conventional Commits imply, it
+# never infers the version from them.
 #
 # It does not run the test suite: a release is cut from a commit whose CI is already green, and
 # re-running the suite here would only make the release slower than the check that guards it.
@@ -11,9 +12,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release, without the leading 'v' (the first public release is 1.0.0)"
+        description: "Version to release, without the leading 'v' (a semantic MAJOR.MINOR.PATCH, e.g. 1.1.0)"
         required: true
-        default: "1.0.0"
+        default: "1.1.0"
       dry_run:
         description: "Validate and build without creating the tag or the release"
         type: boolean

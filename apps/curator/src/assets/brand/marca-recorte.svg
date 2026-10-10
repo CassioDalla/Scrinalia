@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="scrinalia" viewBox="25.5 7.5 45 81"
+     width="45" height="81" role="img" aria-labelledby="scr-mark-t">
+  <title id="scr-mark-t">Scrinalia</title>
+  <style>
+    .scrinalia { --scr-accent: #A8342A; }
+    @media (prefers-color-scheme: dark) { .scrinalia { --scr-accent: #C4503F; } }
+  </style>
+  <defs>
+    <clipPath id="scr-clip-mark">
+      <rect x="28" y="10" width="40" height="76" rx="10"/>
+    </clipPath>
+  </defs>
+  <rect x="28" y="10" width="40" height="25.333" fill="var(--scr-accent)"
+        clip-path="url(#scr-clip-mark)"/>
+  <g fill="none" stroke="currentColor" stroke-width="5">
+    <rect x="28" y="10" width="40" height="76" rx="10"/>
+    <path d="M28 35.333H68"/>
+    <path d="M28 60.667H68"/>
+  </g>
+</svg>

@@ -13,7 +13,11 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
+import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
+import { PageBody } from "@/components/layout/PageBody";
+import { ACTION } from "@/lib/copy";
 import { descricoes, formatCount } from "@/lib/format";
 
 /**
@@ -47,21 +51,22 @@ export function LevelsRoute() {
   return (
     <>
       <PageHeader
-        title="Catálogo de níveis"
-        subtitle={
+        screen="levels"
+        pending={levels.isPending}
+        status={
           levels.data
             ? `${rows.length} níveis · ${formatCount(withDocuments)} descrições classificadas`
-            : "Lendo a escada…"
+            : undefined
         }
       />
 
-      <div className="grid max-w-5xl gap-4 px-6 py-5">
-        <p className="rounded-md bg-(--color-accent)/5 px-3 py-2 text-xs text-(--color-accent) ring-1 ring-(--color-accent)/20">
+      <PageBody>
+        <Notice tone="accent">
           A norma é o padrão, não a lei — mas ela é a assimetria que sustenta a carga: um nível
           desconhecido que chega da origem <strong>entra</strong> (a descrição fica sem nível e o
-          diagnóstico a lista), enquanto o arquivista <strong>não</strong> pode gravar um nível que
+          diagnóstico a lista), enquanto o arquivista <strong>não</strong> pode salvar um nível que
           não existe. Sem isso, uma lote inteiro falharia por causa de uma grafia nova.
-        </p>
+        </Notice>
 
         {levels.error ? <ErrorState error={levels.error} /> : null}
         {levels.isPending ? (
@@ -88,7 +93,7 @@ export function LevelsRoute() {
             <LevelCard key={level.level_id} level={level} onChanged={invalidate} />
           ))}
         </section>
-      </div>
+      </PageBody>
     </>
   );
 }
@@ -146,30 +151,27 @@ function LevelCard({ level, onChanged }: { level: DescriptionLevel; onChanged: (
           disabled={save.isPending}
           onClick={() => save.mutate({ is_active: !level.is_active })}
         >
-          {level.is_active ? "desativar" : "reativar"}
+          {level.is_active ? ACTION.retire.label : ACTION.reactivate.label}
         </Button>
       }
     >
       <div className="grid gap-2">
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Nome</span>
+          <Field label="Nome">
             <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={60} />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Grafias aceitas (separadas por vírgula)</span>
+          </Field>
+          <Field label="Grafias aceitas (separadas por vírgula)">
             <Input
               value={aliases}
               onChange={(event) => setAliases(event.target.value)}
               placeholder="ex.: subsérie, sub-serie"
             />
-          </label>
+          </Field>
         </div>
 
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-(--color-muted)">Descrição (o que o arquivista lê)</span>
+        <Field label="Descrição (o que o arquivista lê)">
           <Input value={description} onChange={(event) => setDescription(event.target.value)} />
-        </label>
+        </Field>
 
         <div className="flex flex-wrap items-center gap-4 text-xs">
           <label className="flex items-center gap-2">
@@ -208,7 +210,7 @@ function LevelCard({ level, onChanged }: { level: DescriptionLevel; onChanged: (
               })
             }
           >
-            {save.isPending ? "Salvando…" : "Salvar"}
+            {save.isPending ? ACTION.save.pending : ACTION.save.label}
           </Button>
           {dirty ? <span className="text-xs text-(--color-muted)">alterações não salvas</span> : null}
         </div>
@@ -250,7 +252,7 @@ function CreateLevelCard({ onCreated }: { onCreated: () => void }) {
         <div className="grid gap-1">
           <span className="text-sm font-semibold">Acrescentar um degrau</span>
           <span className="text-xs text-(--color-muted)">
-            Um ordinal novo e um código novo são uma rung nova; o ordinal não é editável depois.
+            Um ordinal novo e um código novo são um degrau novo; o ordinal não é editável depois.
           </span>
         </div>
       }
@@ -259,48 +261,43 @@ function CreateLevelCard({ onCreated }: { onCreated: () => void }) {
         <p className="text-xs text-(--color-muted)">
           O ordinal é a posição na escada: um nível só pode ser filho de outro de ordinal menor. Ele
           não é editável depois — mudá-lo renumeraria a árvore, e a árvore passada foi decidida contra
-          estes números. Um ordinal novo e um código novo são uma rung nova.
+          estes números. Um ordinal novo e um código novo são um degrau novo.
         </p>
         <div className="grid gap-2 sm:grid-cols-4">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Ordinal</span>
+          <Field label="Ordinal">
             <Input
               type="number"
               min={0}
               value={draft.ordinal}
               onChange={(event) => setDraft({ ...draft, ordinal: Number(event.target.value) })}
             />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Código</span>
+          </Field>
+          <Field label="Código">
             <Input
               value={draft.code}
               onChange={(event) => setDraft({ ...draft, code: event.target.value })}
               placeholder="ex.: serie"
               maxLength={20}
             />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Nome</span>
+          </Field>
+          <Field label="Nome">
             <Input
               value={draft.name}
               onChange={(event) => setDraft({ ...draft, name: event.target.value })}
               placeholder="ex.: Série"
               maxLength={60}
             />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="text-(--color-muted)">Grafias aceitas</span>
+          </Field>
+          <Field label="Grafias aceitas">
             <Input value={aliases} onChange={(event) => setAliases(event.target.value)} />
-          </label>
+          </Field>
         </div>
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-(--color-muted)">Descrição</span>
+        <Field label="Descrição">
           <Input
             value={draft.description ?? ""}
             onChange={(event) => setDraft({ ...draft, description: event.target.value || null })}
           />
-        </label>
+        </Field>
         <div className="flex flex-wrap items-center gap-4 text-xs">
           <label className="flex items-center gap-2">
             <input
@@ -321,7 +318,7 @@ function CreateLevelCard({ onCreated }: { onCreated: () => void }) {
         </div>
         <div>
           <Button variant="primary" disabled={!valid || create.isPending} onClick={() => create.mutate()}>
-            {create.isPending ? "Cadastrando…" : "Cadastrar nível"}
+            {create.isPending ? ACTION.create.pending : `${ACTION.create.label} nível`}
           </Button>
         </div>
         {create.error ? <ErrorState error={create.error} /> : null}

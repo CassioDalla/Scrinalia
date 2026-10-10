@@ -132,5 +132,5 @@ def run_suggestion_engine(
     return MacroCategoriesSuggestionResponse(
         total_suggestions=0,
         categories=[],
-        message="⚠️ Não foi possível formar clusters semânticos com o volume atual de textos.",
+        message="⚠️ Não foi possível formar agrupamentos semânticos com o volume atual de textos.",
     )

@@ -724,6 +724,40 @@ export interface paths {
         patch: operations["ApiV1QualityTextTemplatesTemplateIdUpdateTemplate"];
         trace?: never;
     };
+    "/api/v1/setup/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CreateAdmin */
+        post: operations["ApiV1SetupAdminCreateAdmin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/setup/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Status */
+        get: operations["ApiV1SetupStatusStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/failures": {
         parameters: {
             query?: never;
@@ -784,6 +818,23 @@ export interface paths {
         };
         /** ListWorkers */
         get: operations["ApiV1SystemWorkersListWorkers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/workers/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListWorkerSettings */
+        get: operations["ApiV1SystemWorkersSettingsListWorkerSettings"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2046,7 +2097,7 @@ export interface components {
             allows_children: boolean;
             /** @description Chave de máquina estável, ex.: 'serie'. */
             code: string;
-            /** @description Documentação da gaveta para o curador. */
+            /** @description Documentação da categoria para o curador. */
             description?: string | null;
             /** @description O que o arquivista lê. */
             name: string;
@@ -2983,6 +3034,19 @@ export interface components {
             /** @description Nova senha; a política é verificada no domínio. */
             password: string;
         };
+        /** SetupFirstAdminCommand */
+        SetupFirstAdminCommand: {
+            /** @description Identificador da conta; normalizado para minúsculas. */
+            email: string;
+            /** @description Como o nome aparece nos ledgers e na tela. */
+            name: string;
+            /** @description A senha escolhida pela pessoa; a política é verificada no domínio. */
+            password: string;
+        };
+        /** SetupStatusResponse */
+        SetupStatusResponse: {
+            needs_setup: boolean;
+        };
         /** StopwordBanResponse */
         StopwordBanResponse: {
             code: components["schemas"]["RouteMessageCode"];
@@ -3158,6 +3222,12 @@ export interface components {
             ollama: components["schemas"]["OllamaHealthDTO"];
             process: components["schemas"]["ProcessHealthDTO"];
             storage: components["schemas"]["StorageHealthDTO"];
+        };
+        /** SystemWorkerSettingsResponse */
+        SystemWorkerSettingsResponse: {
+            /** Format: date-time */
+            generated_at: string;
+            workers?: components["schemas"]["WorkerSettingsItemDTO"][];
         };
         /** SystemWorkersResponse */
         SystemWorkersResponse: {
@@ -3491,6 +3561,15 @@ export interface components {
             updated_at?: string | null;
             updated_by?: string | null;
             worker_name: string;
+        };
+        /** WorkerSettingsItemDTO */
+        WorkerSettingsItemDTO: {
+            description: string;
+            label: string;
+            name: string;
+            /** @description Posição na ordem do pipeline. */
+            order: number;
+            settings: components["schemas"]["WorkerSettingsDTO"];
         };
         /** WorkerSettingsRequest */
         WorkerSettingsRequest: {
@@ -5322,6 +5401,65 @@ export interface operations {
             };
         };
     };
+    ApiV1SetupAdminCreateAdmin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetupFirstAdminCommand"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthUserDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1SetupStatusStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupStatusResponse"];
+                };
+            };
+        };
+    };
     ApiV1SystemFailuresListFailures: {
         parameters: {
             query?: {
@@ -5438,6 +5576,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SystemWorkersResponse"];
+                };
+            };
+        };
+    };
+    ApiV1SystemWorkersSettingsListWorkerSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemWorkerSettingsResponse"];
                 };
             };
         };

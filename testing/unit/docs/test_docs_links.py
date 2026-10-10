@@ -57,12 +57,24 @@ def pages() -> list[Path]:
     return sorted(path for path in DOCS.rglob("*.md") if "_hooks" not in path.parts)
 
 
-def translation_twin(page: Path) -> Path:
-    """The page a reader of ``page`` actually lands on when the link names the canonical file."""
+def landing_page(page: Path, target: Path) -> Path:
+    """The page a reader of ``page`` lands on when the link names ``target``.
+
+    The anchor is checked against the page the **browser** will open, which is not always the file
+    the link names. The i18n build rewrites an in-site link to the reader's language and keeps the
+    anchor exactly as written (measured on the built site: a Portuguese page linking
+    ``guides/operate.md#limites-conhecidos-e-trade-offs-aceitos`` renders
+    ``guides/operate/#limites-conhecidos-e-trade-offs-aceitos``, and the Portuguese heading is what
+    carries that id). So a translated page that links a canonical file has to offer the **translated**
+    anchor, and an English page keeps the canonical one. A link that names the translated file, or a
+    page with no translation, is looked at as it is.
+    """
     if not page.name.endswith(".pt.md"):
-        return page
-    twin = page.with_name(page.name.removesuffix(".pt.md") + ".md")
-    return twin if twin.exists() else page
+        return target
+    if target.name.endswith(".pt.md"):
+        return target
+    twin = target.with_name(target.name.removesuffix(".md") + ".pt.md")
+    return twin if twin.exists() else target
 
 
 def test_every_declared_page_is_reachable_from_the_nav_or_another_page() -> None:
@@ -115,9 +127,9 @@ def test_every_in_site_link_resolves_to_a_page_and_an_anchor() -> None:
                 continue
             if not anchor:
                 continue
-            # A link that names a canonical file from a translated page lands on the translation;
-            # a same-page anchor (`#section`) is in the page the reader is already reading.
-            landing = translation_twin(target_page) if path else page
+            # The anchor belongs to the page the browser opens, not necessarily to the file the
+            # link names: a translated page that links a canonical file lands on the translation.
+            landing = landing_page(page, target_page)
             if anchor not in headings(landing):
                 broken.append(
                     f"{page.name}: `{target}` — no heading in `{landing.relative_to(DOCS)}` slugifies to `{anchor}`"
