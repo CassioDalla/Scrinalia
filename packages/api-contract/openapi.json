@@ -5869,6 +5869,25 @@
         "title": "SystemHealthResponse",
         "type": "object"
       },
+      "SystemWorkerSettingsResponse": {
+        "properties": {
+          "generated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "workers": {
+            "items": {
+              "$ref": "#/components/schemas/WorkerSettingsItemDTO"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at"
+        ],
+        "title": "SystemWorkerSettingsResponse",
+        "type": "object"
+      },
       "SystemWorkersResponse": {
         "properties": {
           "generated_at": {
@@ -7201,6 +7220,36 @@
           "worker_name"
         ],
         "title": "WorkerSettingsDTO",
+        "type": "object"
+      },
+      "WorkerSettingsItemDTO": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "order": {
+            "description": "Posição na ordem do pipeline.",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/WorkerSettingsDTO"
+          }
+        },
+        "required": [
+          "description",
+          "label",
+          "name",
+          "order",
+          "settings"
+        ],
+        "title": "WorkerSettingsItemDTO",
         "type": "object"
       },
       "WorkerSettingsRequest": {
@@ -11747,6 +11796,29 @@
           }
         },
         "summary": "ListWorkers",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/workers/settings": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemWorkersSettingsListWorkerSettings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemWorkerSettingsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ListWorkerSettings",
         "tags": [
           "System"
         ]

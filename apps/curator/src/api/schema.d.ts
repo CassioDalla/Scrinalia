@@ -826,6 +826,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/workers/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListWorkerSettings */
+        get: operations["ApiV1SystemWorkersSettingsListWorkerSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/workers/{worker_name}/runs": {
         parameters: {
             query?: never;
@@ -3206,6 +3223,12 @@ export interface components {
             process: components["schemas"]["ProcessHealthDTO"];
             storage: components["schemas"]["StorageHealthDTO"];
         };
+        /** SystemWorkerSettingsResponse */
+        SystemWorkerSettingsResponse: {
+            /** Format: date-time */
+            generated_at: string;
+            workers?: components["schemas"]["WorkerSettingsItemDTO"][];
+        };
         /** SystemWorkersResponse */
         SystemWorkersResponse: {
             /** Format: date-time */
@@ -3538,6 +3561,15 @@ export interface components {
             updated_at?: string | null;
             updated_by?: string | null;
             worker_name: string;
+        };
+        /** WorkerSettingsItemDTO */
+        WorkerSettingsItemDTO: {
+            description: string;
+            label: string;
+            name: string;
+            /** @description Posição na ordem do pipeline. */
+            order: number;
+            settings: components["schemas"]["WorkerSettingsDTO"];
         };
         /** WorkerSettingsRequest */
         WorkerSettingsRequest: {
@@ -5544,6 +5576,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SystemWorkersResponse"];
+                };
+            };
+        };
+    };
+    ApiV1SystemWorkersSettingsListWorkerSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemWorkerSettingsResponse"];
                 };
             };
         };

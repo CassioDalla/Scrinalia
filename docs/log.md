@@ -462,3 +462,39 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   repeated) and the `url(...)` the stylesheet reaches for.
 - **Not carried, on purpose:** `guides/install.md`, `index.md` and the guides not named above —
   nothing in the range touches what they document, and `adr/` is not a sourced surface (ADR 0010).
+
+## 2026-10-10 — the worker settings leave the operations panel (issue #53)
+
+- **Range:** `236bc58..89e6a43`
+- **Pages:**
+  - `guides/curate.md` — **updated**: a new *Configuração dos Workers — `/configuracoes/workers`*, and
+    *Workers de IA* reduced to the machine view — the queue and running one now — with the effective
+    configuration explicitly **read only**. The Configurações table and the *Operação* card row gain
+    the fourth screen.
+  - `guides/curate.pt.md` — **updated**: the same two sections, in the SPA's vocabulary.
+  - `guides/operate.md` — **updated**: `GET /api/v1/system/workers/settings` joins the route table,
+    the SPA table gains `/configuracoes/workers`, and the polling paragraph says why the new read
+    exists — it resolves the same configuration and counts no queue. The `ci.yml` change of `41fffc7`
+    (dropping `configure-pages`) is **no-change** here: the page describes the artifact and the deploy
+    job and never named the dropped step.
+  - `guides/operate.pt.md` — **updated**: the same two tables and the same paragraph.
+- **Why the round exists:** issue #53 split a screen that answered two questions — what the machine is
+  doing and what the installation is *set* to do. The API gained exactly one read
+  (`WorkerOperationsService.list_settings`, over the same `_resolved_workers` traversal the panel
+  uses) because the panel's `GET /system/workers` counts nine queues and the configuration screen
+  shows none of them. The precedence (`explicit argument > the archive_worker_settings row > the
+  signature default`) and the refusal of `config` as an option are unchanged; the split moved where
+  the write is made, never what it means.
+- **What did not move:** the data model and the migrations — no table, no column, no migration and no
+  settings field. `packages/api-contract/openapi.json` and `schema.d.ts` move by exactly one route and
+  its two schemas (`SystemWorkerSettingsResponse`, `WorkerSettingsItemDTO`).
+- **Verified, rendered:** the built SPA served by the API on a migrated throwaway database, looked at
+  with the headless shell. `/configuracoes/workers` renders its heading and the nine cards (each with
+  `padrão do código` and the effective engine/preset/config), and expanding the NER card shows the
+  Engine and Preset selects, the batch field, the JSON options field and *Salvar padrão* / *Voltar ao
+  padrão do código*, with no runtime exception. `/sistema/workers` renders the same nine rows with
+  **only** *Rodar agora* — no *Configurar* — and the engine and preset still on the collapsed row. The
+  throwaway database's schema was dropped and the server stopped after the check.
+- **Not carried, on purpose:** `guides/install.md`, `index.md` and `guides/data-model.md` — the round
+  adds no setting field, no table and no install step, and install's sources did not move.
+

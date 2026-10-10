@@ -191,12 +191,13 @@ apenas a validação determinística, e o painel diz isso na `note`.
 
 ## O painel de operação
 
-O painel é a superfície `/api/v1/system/*` e os três cartões de `/configuracoes`, sob *Operação*, na
+O painel é a superfície `/api/v1/system/*` e os quatro cartões de `/configuracoes`, sob *Operação*, na
 SPA: o menu não os carrega mais (issue #22).
 
 | Rota | Método | Permissão | O que faz |
 | --- | --- | --- | --- |
 | `/api/v1/system/workers` | `GET` | autenticado | os nove workers com configuração, números de fila e última execução/execução ativa, numa requisição só |
+| `/api/v1/system/workers/settings` | `GET` | autenticado | os padrões persistidos dos nove workers, sem os contadores de fila (issue #53) |
 | `/api/v1/system/workers/{worker_name}/runs` | `POST` | `OPERATE` | enfileira uma execução com overrides só para ela e responde `201` na hora |
 | `/api/v1/system/workers/{worker_name}/settings` | `PUT` | `OPERATE` | persiste o padrão de engine/preset/batch/options |
 | `/api/v1/system/workers/{worker_name}/settings` | `DELETE` | `OPERATE` | apaga o override para o worker voltar a seguir o código |
@@ -212,12 +213,15 @@ A SPA espelha isso, como cartões de `/configuracoes` sob *Operação*:
 
 | Tela | Mostra |
 | --- | --- |
-| `/sistema/workers` | os nove workers: engine, preset e modelo, a fila, o padrão persistido e um botão de execução |
+| `/sistema/workers` | os nove workers: engine, preset e modelo, a fila e um botão de execução; a configuração efetiva aqui é só leitura |
+| `/configuracoes/workers` | o padrão persistido de cada worker e suas revisões, com salvar e remover — a escrita que o painel carregava |
 | `/sistema/execucoes` | o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela |
 | `/sistema/diagnostico` | banco, modelos do Ollama, storage das miniaturas e a configuração efetiva do processo |
 
 A tela só fica consultando enquanto algo está rodando, porque o contador do `transfer` faz uma
-chamada a `/system/workers` custar cerca de dois segundos no acervo real.
+chamada a `/system/workers` custar cerca de dois segundos no acervo real. A
+`/configuracoes/workers` lê `/system/workers/settings`, que resolve a mesma configuração e não conta
+fila nenhuma — a separação existe para que uma tela que não mostra números não pague por eles.
 
 ### Saúde: três endpoints, três perguntas
 

@@ -45,6 +45,7 @@ export type ScreenId =
   | "typologies"
   | "vocabulary"
   | "workers"
+  | "workerSettings"
   | "runs"
   | "health"
   | "settings"
@@ -182,6 +183,13 @@ export const SCREENS: Record<ScreenId, Screen> = {
     label: "Workers de IA",
     hint: "Presets, filas e execução",
     description: "O que roda, com qual preset e modelo, o que está na fila e o que já rodou.",
+  },
+  workerSettings: {
+    path: "/configuracoes/workers",
+    label: "Configuração dos Workers",
+    hint: "Engine, preset e o histórico",
+    description:
+      "O padrão persistido de cada worker — engine, preset, lote e opções — e quem alterou o quê, execução após execução.",
   },
   runs: {
     path: "/sistema/execucoes",

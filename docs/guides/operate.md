@@ -228,12 +228,13 @@ worker runs deterministic validation only, and the panel says so in `note`.
 
 ## The operations panel
 
-The panel is the `/api/v1/system/*` surface and the three cards of `/configuracoes`, under *Operação*,
+The panel is the `/api/v1/system/*` surface and the four cards of `/configuracoes`, under *Operação*,
 in the SPA: the menu no longer carries them (issue #22).
 
 | Route | Method | Permission | What it does |
 | --- | --- | --- | --- |
 | `/api/v1/system/workers` | `GET` | authenticated | the nine workers with configuration, queue numbers and last/active run, in one request |
+| `/api/v1/system/workers/settings` | `GET` | authenticated | the persisted defaults of the nine workers, without the queue counters (issue #53) |
 | `/api/v1/system/workers/{worker_name}/runs` | `POST` | `OPERATE` | queues one run with per-run overrides and answers `201` immediately |
 | `/api/v1/system/workers/{worker_name}/settings` | `PUT` | `OPERATE` | persists the default engine/preset/batch/options |
 | `/api/v1/system/workers/{worker_name}/settings` | `DELETE` | `OPERATE` | drops the override so the worker follows the code |
@@ -249,12 +250,15 @@ The SPA mirrors it, as cards of `/configuracoes` under *Operação*:
 
 | Screen | Shows |
 | --- | --- |
-| `/sistema/workers` | the nine workers: engine, preset and model, the queue, the persisted default and a run button |
+| `/sistema/workers` | the nine workers: engine, preset and model, the queue, and a run button; the effective configuration is read-only here |
+| `/configuracoes/workers` | the persisted default of each worker and its revisions, with save and remove — the write the panel used to carry |
 | `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage and the effective process configuration |
 
 The screen only polls while something is running, because the `transfer` counter makes one
-`/system/workers` call cost about two seconds on the real collection.
+`/system/workers` call cost about two seconds on the real collection. `/configuracoes/workers` reads
+`/system/workers/settings`, which resolves the same configuration and counts no queue — the split
+exists so that a screen showing no numbers does not pay for them.
 
 ### Health: three endpoints, three questions
 
