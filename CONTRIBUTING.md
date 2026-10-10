@@ -104,9 +104,9 @@ than being caught in review.
 ## Cutting a release
 
 Releases go through the **`Release` workflow** (Actions → Release → *Run workflow*), not through a
-hand-made tag. It takes the version (`1.0.0` is the first public one), validates that it is a
-semantic version and that the tag does not exist, builds the curator SPA, generates the Python SBOM
-and attests the build provenance. Only then does it create the tag and the GitHub Release.
+hand-made tag. It takes the version (a semantic `MAJOR.MINOR.PATCH`, without the leading `v`),
+validates that the tag does not exist, builds the curator SPA, generates the Python SBOM and attests
+the build provenance. Only then does it create the tag and the GitHub Release.
 
 **It defaults to `dry_run: true`**: the first run validates and builds without tagging anything, and
 the job summary prints what Conventional Commits since the last tag imply the next version to be
@@ -120,8 +120,8 @@ Two rules the workflow enforces and a human should not work around:
 
 The workflow does not re-run the test suite: the gate is the CI job on the commit, and duplicating it
 would only make the release slower than the check that guards it. It also does not update the
-`CHANGELOG.md` — move the entries from `## [Unreleased]` into a `## [x.y.z] - YYYY-MM-DD` section in
-the same pull request that prepares the release, so the file is reviewed like every other change.
+`CHANGELOG.md` — the pull request that prepares the release writes the `## [x.y.z] - YYYY-MM-DD`
+section, so the file is reviewed like every other change.
 
 ## License
 
