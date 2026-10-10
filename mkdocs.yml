@@ -4,12 +4,27 @@
 # gate and freshness is a report produced by the hook below.
 site_name: Scrinalia
 site_description: Archival description cataloguing and AI-driven enrichment (ISAD(G))
+# Where the site is served from, written down rather than left to the deploy: without it Material
+# omits the canonical link, and every cross-language alternate the i18n plugin builds (`/` and
+# `/pt/`) has nowhere to point when a search engine reads the page. The value is the URL the
+# repository actually serves (measured: `gh api repos/:owner/:repo/pages`).
+site_url: https://cassiodalla.github.io/Scrinalia/
 docs_dir: docs
 site_dir: site
 
 theme:
   name: material
   language: en
+  # The identity, from the same two files the SPA draws it from: the mark with its terracotta tab,
+  # which the curator keeps as `apps/curator/src/assets/brand/marca-escura.svg`, and the stylesheet
+  # that carries the tokens of `apps/curator/src/styles.css`. The documentation pages never link
+  # into `docs/assets/`; `testing/unit/docs/test_docs_brand.py` pins the pair the copy cannot be
+  # allowed to drift from.
+  logo: assets/brand/mark.svg
+  favicon: assets/brand/favicon.svg
+  # No Roboto from Google Fonts: the wordmark uses the PT Serif the curator self-hosts (copied into
+  # `docs/assets/fonts/` with its OFL licence) and the body uses the system stack.
+  font: false
   features:
     - navigation.sections
     - navigation.top
@@ -20,14 +35,28 @@ theme:
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
+      # `custom` on both: the colours come from `assets/stylesheets/scrinalia.css`, one rule per
+      # scheme, instead of from Material's named palette. The names would have been close and never
+      # the identity's own navy and terracotta.
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-night
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-sunny
         name: Switch to light mode
+
+# After the theme's own stylesheets, which is what lets one rule per scheme redefine Material's
+# variables. Loaded on every build; `--strict` does **not** fail on a path that does not exist
+# here (measured: a build with a missing logo, favicon and `extra_css` exits 0), so the existence
+# of these files is a test and not the build.
+extra_css:
+  - assets/stylesheets/scrinalia.css
 
 plugins:
   - search:
