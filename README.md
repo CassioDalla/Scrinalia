@@ -15,12 +15,12 @@ three-layer pipeline, and enriches them with named entities, typologies and subj
 categories. Every AI decision is advisory: an archivist reviews and approves, and approved
 documents are locked against further automatic rewrites.
 
-> **Status:** `1.0.0` — the first release. The curator surface is complete: the pipeline, the AI
-> workers, the review governance, the authentication and the 24 screens are in place, and the
-> documentation covers install, operation, curation and the data model. The curator UI is a React SPA
-> (`apps/curator/`) served by the API; the HTTP API is the stable contract, and the TypeScript client
-> is generated from it. The public diffusion site (`apps/public/`) is planned —
-> the public projection and its routes already exist on the API, and nothing is published by default.
+> **Status:** `1.1.0`. The curator surface is complete: the pipeline, the AI workers, the review
+> governance, the authentication and the 26 screens are in place, and the documentation covers
+> install, operation, curation and the data model. The curator UI is a React SPA (`apps/curator/`)
+> served by the API; the HTTP API is the stable contract, and the TypeScript client is generated from
+> it. The public diffusion site (`apps/public/`) is planned — the public projection and its routes
+> already exist on the API, and nothing is published by default.
 
 ## How it works
 
@@ -268,9 +268,11 @@ The screens that exist today, in the order the work happens:
 | `/qualidade/trechos` | repeated excerpts, the scope that drops them and the mandatory dry run |
 | `/qualidade/regras` | cleaning rules: `REWRITE` replaces, `VALIDATE`/`LLM_CHECK` only flag |
 | `/qualidade/anomalias` | what the quality validator marked, with the reason counts over the whole filtered set and each reason as the filter |
-| `/sistema/workers` | the AI workers: engine, preset and model, the queue, the persisted default and a run button |
+| `/sistema/workers` | the AI workers as the machine sees them: the queue, the pending and failed counters, the effective configuration read only, and a run button |
 | `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage and the effective process configuration |
+| `/configuracoes` | the landing: one card per screen nobody opens in the middle of cataloguing, on three tabs |
+| `/configuracoes/workers` | what each worker is configured to be: the persisted default per worker, its revisions, and the engine and preset choice |
 | `/configuracoes/usuarios` | the accounts: create, change a role, deactivate, reset a password, and the active sessions of each account (`ADMIN`) |
 
 The arrangement screens offer no silent correction: every write is a decision taken on a screen

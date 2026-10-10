@@ -16,7 +16,7 @@ o cartão de configurações e o título da própria página leem, então os tr�
 abre no meio da catalogação — o plano de arranjo, os catálogos, o painel de workers, o ledger de
 execuções, os diagnósticos e as contas — são cartões de `/configuracoes`, não itens de menu
 (*Configurações*, abaixo). Uma rota também não vem do menu: a ficha da descrição,
-`/acervo/$descriptionId`, é alcançada pela lista e pela árvore. O roteador, por isso, declara **25
+`/acervo/$descriptionId`, é alcançada pela lista e pela árvore. O roteador, por isso, declara **26
 telas**. O próprio menu pode ser recolhido a ícones, o que é uma escolha de apresentação e não de
 permissão — *O menu se recolhe a ícones*, abaixo.
 

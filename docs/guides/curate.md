@@ -40,7 +40,7 @@ action*, below). The menu has **16 entries**: the screens nobody opens in the mi
 the arrangement plan, the catalogues, the worker panel, the run ledger, the diagnostics and the
 accounts — are cards of `/configuracoes` rather than menu entries (*Configurações*, below). One route
 is not reached from the menu either: the description's own dossier, `/acervo/$descriptionId`, comes
-from the list and from the tree. The router therefore declares **25 screens**. The menu itself can be
+from the list and from the tree. The router therefore declares **26 screens**. The menu itself can be
 collapsed to icons, which is a presentation choice and not a permission one — *The menu collapses to
 icons*, below.
 

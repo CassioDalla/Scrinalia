@@ -43,7 +43,7 @@ in the [open issues](https://github.com/CassioDalla/Scrinalia/issues) and their 
 ## Decisions and status
 
 The [architecture decisions](adr/index.md) explain why the system is built the way it is, including
-the alternatives that were measured and rejected. **Scrinalia is at 1.0**: the pipeline, the AI
+the alternatives that were measured and rejected. **Scrinalia is at 1.1**: the pipeline, the AI
 workers, the review governance, the authentication and the curator surface are complete, and the
 public diffusion surface exists with no site in front of it yet. The
 [open issues](https://github.com/CassioDalla/Scrinalia/issues) carry the work that is left, the limits
