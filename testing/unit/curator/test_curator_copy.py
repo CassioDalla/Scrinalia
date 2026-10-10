@@ -72,6 +72,12 @@ RETIRED = {
     r"\bapply\b": "the batch commit is `aplicação`",
     r"\bdry-run\b": "the preview is `prévia`",
     r"\bundo\b": "walking a ledger back is `Desfazer`",
+    # The two words the interface kept as metaphors after the contract had already named the concept:
+    # the API's field is `category` and its reason enum is `TRIGRAM, PLURAL, MIXED` for a *cluster*.
+    # `gaveta` ("drawer") and `cluster` were the interface's own vocabulary for both, which is the
+    # split this whole test exists to close.
+    r"\bgavetas?\b": "the subject axis is `Categoria` — the contract calls it `category`",
+    r"\bclusters?\b": "the grouping is `agrupamento`",
 }
 
 #: A legitimate use of a retired word, with the reason it is legitimate. Empty is the normal state:
@@ -86,6 +92,10 @@ LITERAL = re.compile(r'"([^"\n]{2,})"')
 #: half. `só o apply absorve as tags` sat on the second line and went unseen by the whole review
 #: pass *and* by the first version of this gate — the rendered screen is what showed it.
 JSX_TEXT = re.compile(r'>([^<>{}"]{2,})<')
+#: A template literal. It was the third hole and the rendered screen found it too: the categories
+#: subtitle is built as `` `${n} descrições com gaveta` ``, a backtick string, and the extractor read
+#: only double quotes. `${…}` is dropped before the words are read, because the expression is code.
+TEMPLATE = re.compile(r"`([^`]{2,})`")
 COMMENT = re.compile(r"/\*.*?\*/|^\s*//[^\n]*", re.M | re.S)
 
 #: A path — a contract route or a front-end one — which is an identifier and never copy. It is why
@@ -106,7 +116,9 @@ def visible_strings(path: Path) -> list[str]:
     """
     body = COMMENT.sub("", text(path))
     nodes = [" ".join(node.split()) for node in JSX_TEXT.findall(body)]
+    templates = [re.sub(r"\$\{[^}]*\}", " ", t) for t in TEMPLATE.findall(body)]
     found = LITERAL.findall(body) + [node for node in nodes if re.search(r"[A-Za-zÀ-ÿ]", node)]
+    found += [" ".join(t.split()) for t in templates if re.search(r"[A-Za-zÀ-ÿ]", t)]
     return [value for value in found if not PATH.match(value)]
 
 
@@ -140,6 +152,13 @@ def test_the_extractor_sees_strings(tmp_path: Path) -> None:
     sample.write_text('export const SAMPLE = { label: "Um rótulo qualquer" };\n', encoding="utf-8")
     assert any(value == "Um rótulo qualquer" for value in visible_strings(sample)), (
         "the extractor no longer reads a double-quoted literal."
+    )
+
+    # A backtick string is copy when it has words: the categories subtitle is one, and the first
+    # extractor read only double quotes, so a retired word inside it was invisible to the gate.
+    sample.write_text("const s = `${n} descrições com gaveta`;\n", encoding="utf-8")
+    assert any("descrições com gaveta" in value for value in visible_strings(sample)), (
+        "the extractor no longer reads a template literal; every word inside one is ungated."
     )
 
     seen = visible_strings(SCREENS)
