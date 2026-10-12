@@ -98,6 +98,10 @@ class ArchiveTag(Base):
         ),
         # GIN index used by the macro-category worker to poll unprocessed tags.
         Index("ix_archive_tags_exec_log", execution_log, postgresql_using="gin"),
+        # The same normalized-identity rule the entity table carries, and for the same reason: the
+        # tag vocabulary has no case-collision group today, but the uniqueness it relies on is the
+        # one ``normalize_tag`` declares, and only this index enforces that shape.
+        Index("uix_archive_tags_name_normalized", func.lower(func.btrim(name)), unique=True),
     )
 
 
