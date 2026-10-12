@@ -498,15 +498,17 @@ próxima execução do classificador.
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Tags — `/assuntos/tags` | o peso, as duplicatas, a fila de merges e os termos banidos | o merge sim (ledger); a purga **não** |
-| Categorias — `/assuntos/categorias` | as categorias de assunto que o classificador lê | sim (aposentar e reativar) |
+| Tags — `/assuntos/tags` | o peso, as duplicatas, a fila de merges, os termos banidos **e a decisão de assunto de cada tag** | o merge sim (ledger); a purga **não**; a decisão de assunto sim (dá para voltar atrás) |
+| Categorias — `/assuntos/categorias` | as categorias de assunto que o classificador lê, **e o que está dentro de cada uma** | sim (aposentar e reativar) |
 | Descobrir Categorias — `/assuntos/descobrir` | se um tema proposto merece uma categoria | sim (a proposta não escreve nada) |
 | Não é assunto — `/assuntos/excecoes` | quais termos saem do eixo de assunto | sim (banir não apaga nada) |
 
 ### Tags — `/assuntos/tags`
 
-Uma rota, quatro perguntas, uma conversa só: o arquivista vê que `alvenarias` pesa pouco, encontra a
-quase-duplicata dela e decide se a absorve. A aba ativa está na URL.
+Uma rota, cinco perguntas, uma conversa só: o arquivista vê que `alvenarias` pesa pouco, encontra a
+quase-duplicata dela e decide se a absorve. Quatro das abas são o jeito de olhar; a quinta,
+**Classificar**, é onde a decisão de assunto se toma, e é onde os dois cartões de assunto do Início
+caem. A aba ativa está na URL.
 
 #### Relevância
 
@@ -576,6 +578,45 @@ Os termos banidos, e a única escrita destrutiva da taxonomia. A tela separa tr�
     fazer a purga de assunto excluir uma tag que o curador manteve — os dois são guardados em lugares
     diferentes de propósito.
 
+#### Classificar
+
+Onde o assunto de uma tag se decide, e a aba que os cartões do Início abrem. A leitura é
+`GET /api/v1/taxonomy/tags/catalog` (`AUTHENTICATED`), filtrada por `subject_state` e opcionalmente
+por `macro_category_id`, paginada e ordenada por peso — a tag que mais descrições carrega é a decisão
+que vale mais primeiro. Ela existe porque o type-ahead não responde a essa pergunta: ele exige um
+termo e devolve um topo por peso, então o cartão que prometia "76 tags sem categoria de assunto" não
+tinha leitura que marcasse quais linhas eram.
+
+O estado é uma **partição**, e `ALL` é a ausência de filtro, não um estado:
+
+| `subject_state` | O que significa |
+| --- | --- |
+| `PENDING` | Sem categoria, sem veredito e sem faceta: ninguém decidiu. É o que o cartão do Início conta |
+| `NOT_SUBJECT` | Uma pessoa declarou que a tag não é assunto, e ela não vai a lugar nenhum |
+| `FACET` | A tag está no eixo não-assunto: é um produtor ou um lugar |
+| `LOW_CONFIDENCE` | O classificador rodou, não teve confiança para arquivar a tag e a deixou sem decisão |
+
+A linha carrega a evidência (peso, a confiança do classificador, a faceta em que está) e exatamente um
+de três destinos, por `PATCH /api/v1/taxonomy/tags/{tag_id}` (`CURATE`):
+
+- **uma categoria** — a categoria em que a tag entra. A decisão é **global**: muda o selo de todas as
+  descrições que carregam a tag, e a tela diz isso antes do clique;
+- **não é assunto** — `macro_category_id=null`. A tag continua no acervo e alcançável pela busca; só o
+  eixo de assunto deixa de adivinhar sobre ela. O termo entra em `domain_subject_exclusions`, que é a
+  metade durável do veredito: o classificador re-enfileira a tag que tem categoria vazia toda vez que
+  o conjunto de rótulos muda, então só a coluna seria uma decisão que a próxima execução sobrescreve.
+  O caminho de volta é `DELETE /api/v1/taxonomy/tags/subject-exclusions`;
+- **um produtor ou um lugar** — `PUT /api/v1/taxonomy/tags/{tag_id}/facets/{facet_type}` (`CURATE`),
+  com `INSTITUTION` ou `PLACE`, e `DELETE` no mesmo caminho para desfazer. A declaração resolve o
+  estado inteiro: a tag sai de qualquer categoria (a faceta é o que ela é *em vez* de ser assunto) e o
+  termo dela entra nas exclusões. É o destino para o qual o esquema foi escrito — `alfa` alcança 2.376
+  descrições e `cidade` 1.865, e forçá-las para dentro de uma categoria é causa medida do defeito de
+  classificação. Nada infere uma faceta: quem declara é uma pessoa.
+
+As mesmas três ações valem para uma **seleção**, uma requisição por tag, e o lote informa quantas tags
+escreveu e para onde. Nada nesta aba exclui: banir uma grafia e purgar as tags ficam em **Stopwords**,
+cada um no seu passo, e a purga mantém o aviso de que **não tem desfazer**.
+
 ### Categorias — `/assuntos/categorias`
 
 As categorias que o classificador de assunto lê. `POST /api/v1/taxonomy/macro-categories` e
@@ -585,6 +626,18 @@ aposentam e reativam; uma categoria aposentada mantém o peso visível. Duas not
 mão, uma frase em vez do nome nu leva a 0,000 com 65% das tags numa única categoria — e uma **categoria nova
 só passa a valer quando o classificador rodar de novo**, porque o carimbo do worker é o hash do
 conjunto de rótulos, o que devolve as tags à fila sozinho.
+
+Cada cartão abre em duas abas. **Descrições** lista as descrições que a categoria contém, dez por vez,
+pela busca do acervo (`GET /api/v1/documents?macro_category_id=`, `AUTHENTICATED`); o selo do cartão
+conta descrições **distintas** pela mesma junção, então o número do cartão e o `total` da lista são uma
+definição contada duas vezes. Uma categoria sem nenhuma diz isso — as aposentadas não são um defeito.
+**Editar** é o formulário: nome, rótulo do classificador e descrição.
+
+O botão da linha abre uma **prévia somente leitura** de uma descrição — código de referência, título,
+data, nível e tipologia, caminho no arranjo, as tags com as suas categorias e a situação de revisão —
+sobre a lista, para reconhecer a descrição sem uma ida ao dossiê. O painel não escreve nada: o
+**Editar** dele sai para `/acervo/{description_id}?aba=descricao`. A categoria aberta, a página dela e
+a descrição em prévia vivem na URL, então o botão voltar fecha o painel e a página sobrevive a ele.
 
 ### Descobrir Categorias — `/assuntos/descobrir`
 

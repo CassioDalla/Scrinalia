@@ -112,7 +112,11 @@ Três propriedades desta tabela sustentam o modelo:
 `archive_tags.macro_category_id` guarda no máximo uma categoria de assunto; `archive_tag_facets` é uma
 tabela separada porque uma tag carrega no máximo um assunto, mas pode ser lugar *e* instituição ao
 mesmo tempo. `facet_type` é restrito a `INSTITUTION` ou `PLACE`, e nada grava uma faceta
-automaticamente — faceta é ato de curadoria, nunca inferência da IA.
+automaticamente — faceta é ato de curadoria, nunca inferência da IA. O ato é
+`PUT /api/v1/taxonomy/tags/{tag_id}/facets/{facet_type}` (`CURATE`), desfeito por `DELETE` no mesmo
+caminho; a declaração também esvazia a categoria da tag e registra o termo dela em
+`domain_subject_exclusions`, porque uma tag nesse eixo continua não sendo um assunto que o
+classificador possa adivinhar.
 
 A identidade de uma tag e de uma entidade é a grafia normalizada: `lower(btrim(name))` é único nas
 duas tabelas, ao lado do `name` único. Sem essa regra, uma linha guardada em Caixa Alta e a linha em

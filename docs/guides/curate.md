@@ -520,15 +520,17 @@ as a subject again on the next classifier run.
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
-| Tags — `/assuntos/tags` | the weight, the duplicates, the merge queue and the banned terms | the merge yes (ledger); the purge **no** |
-| Categorias — `/assuntos/categorias` | the subject categories the classifier reads | yes (retire and reactivate) |
+| Tags — `/assuntos/tags` | the weight, the duplicates, the merge queue, the banned terms **and the subject decision of each tag** | the merge yes (ledger); the purge **no**; a subject decision yes (it can be taken back) |
+| Categorias — `/assuntos/categorias` | the subject categories the classifier reads, **and what is inside each one** | yes (retire and reactivate) |
 | Descobrir Categorias — `/assuntos/descobrir` | whether a proposed theme deserves a category | yes (the proposal writes nothing) |
 | Não é assunto — `/assuntos/excecoes` | which terms leave the subject axis | yes (banning deletes nothing) |
 
 ### Tags — `/assuntos/tags`
 
-One route, four questions, one conversation: the archivist sees that `alvenarias` weighs little,
-finds its near-duplicate and decides whether to absorb it. The active tab is in the URL.
+One route, five questions, one conversation: the archivist sees that `alvenarias` weighs little,
+finds its near-duplicate and decides whether to absorb it. Four of the tabs are how they look; the
+fifth, **Classificar**, is where the subject decision is taken, and it is where the home screen's two
+subject cards land. The active tab is in the URL.
 
 #### Relevância
 
@@ -600,6 +602,45 @@ apart:
     make the subject purge delete a tag the curator kept — the two are stored in different places on
     purpose.
 
+#### Classificar
+
+Where a tag's subject is decided, and the tab the home screen's cards open. The read is
+`GET /api/v1/taxonomy/tags/catalog` (`AUTHENTICATED`), filtered by `subject_state` and optionally by
+`macro_category_id`, paged, and ordered by weight — the tag the most descriptions carry is the
+decision worth taking first. It exists because the type-ahead cannot answer it: that one requires a
+term and returns a top-N by weight, so a card promising "76 tags without a subject" had no read that
+could mark which rows they were.
+
+The state is a **partition**, and `ALL` is the absence of a filter rather than a state:
+
+| `subject_state` | What it means |
+| --- | --- |
+| `PENDING` | No drawer, no verdict and no facet: nobody has decided. It is what the home card counts |
+| `NOT_SUBJECT` | A person declared the tag is not a subject, and it goes nowhere |
+| `FACET` | The tag is on the non-subject axis: a producer or a place |
+| `LOW_CONFIDENCE` | The classifier ran, was not confident enough to file the tag, and left it undecided |
+
+The row carries the evidence (weight, the classifier's confidence, the facet it is on) and exactly
+one of three destinations, through `PATCH /api/v1/taxonomy/tags/{tag_id}` (`CURATE`):
+
+- **a category** — the drawer the tag joins. The decision is **global**: it changes the badge of
+  every description that carries the tag, and the screen says so before the click;
+- **not a subject** — `macro_category_id=null`. The tag stays in the collection and reachable by
+  search; only the subject axis stops guessing at it. The term is registered in
+  `domain_subject_exclusions`, which is the durable half of the verdict: the classifier re-queues a
+  tag whose drawer is empty every time the label set changes, so the column alone would be a decision
+  the next run overwrites. The reversal is `DELETE /api/v1/taxonomy/tags/subject-exclusions`;
+- **a producer or a place** — `PUT /api/v1/taxonomy/tags/{tag_id}/facets/{facet_type}` (`CURATE`),
+  with `INSTITUTION` or `PLACE`, and `DELETE` on the same path to take it back. The declaration
+  settles the whole state: the tag leaves any drawer (a facet is what it is *instead* of a subject)
+  and its term joins the exclusions. It is the destination the schema was written for — `alfa` reaches
+  2,376 descriptions and `cidade` 1,865, and forcing them into a category is a measured cause of the
+  classification defect. Nothing infers a facet: a person declares it.
+
+The same three actions apply to a **selection**, one request per tag, and the batch reports how many
+tags it wrote and where. Nothing on this tab deletes: banning a spelling and purging the tags are in
+**Stopwords**, each behind its own step, and the purge keeps its "no undo" warning.
+
 ### Categorias — `/assuntos/categorias`
 
 The categories the subject classifier reads. `POST /api/v1/taxonomy/macro-categories` and
@@ -609,6 +650,19 @@ gives: the **classifier label** is a curator override, not an improvement — me
 hand-labelled tags, a phrase instead of a bare name scores 0.000 with 65% of the tags in one category
 — and a **new category only takes effect when the classifier runs again**, because the worker's stamp
 is the hash of the label set, which returns the tags to the queue on its own.
+
+Each card opens on two tabs. **Descrições** lists the descriptions the category holds, ten at a time,
+through the collection search (`GET /api/v1/documents?macro_category_id=`, `AUTHENTICATED`); the
+card's badge counts **distinct** descriptions through the same join, so the number on the card and
+the `total` of the list are one definition counted twice. A category with none says so — the retired
+ones are not a defect. **Editar** is the form: name, classifier label and description.
+
+The button on the row opens a **read-only preview** of one description — reference code, title, date,
+level and typology, arrangement path, its tags with their drawers, and the review status — over the
+list, so the description can be recognised without a round trip to the dossier. The panel writes
+nothing: its **Editar** leaves for `/acervo/{description_id}?aba=descricao`. The open category, its
+page and the previewed description live in the URL, so the back button closes the panel and the page
+survives it.
 
 ### Descobrir Categorias — `/assuntos/descobrir`
 

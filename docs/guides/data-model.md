@@ -123,7 +123,10 @@ Three properties of this table carry the model:
 `archive_tags.macro_category_id` holds at most one subject category; `archive_tag_facets` is a separate
 table because a tag carries at most one subject but can be a place *and* an institution at once.
 `facet_type` is checked to `INSTITUTION` or `PLACE`, and nothing writes a facet automatically — a
-facet is a curation act, never an AI inference.
+facet is a curation act, never an AI inference. The act is `PUT /api/v1/taxonomy/tags/{tag_id}/facets/{facet_type}`
+(`CURATE`), undone by `DELETE` on the same path; the declaration also empties the tag's drawer and
+registers its term in `domain_subject_exclusions`, because a tag on this axis is still not an
+aboutness the classifier may guess at.
 
 The identity of a tag and of an entity is the normalized spelling: `lower(btrim(name))` is unique on
 both tables, next to the unique `name` itself. Without that rule a row stored in Title Case and the
