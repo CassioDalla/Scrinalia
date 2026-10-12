@@ -335,6 +335,10 @@ class TagService:
         from the same predicate builder as the page, so the two cannot disagree.
         """
         limit = max(1, min(limit, MAX_CATALOG_PAGE))
+        # A negative offset reaches PostgreSQL as ``OFFSET -1``: a DataError and a 500, measured
+        # through the route. The clamp belongs here and not only on the query parameter, because the
+        # service is the boundary every caller goes through.
+        offset = max(0, offset)
         total = self.repo.count_catalog(state, macro_category_id, term)
         return TagCatalogResponse(
             total=total,

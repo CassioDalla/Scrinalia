@@ -316,3 +316,22 @@ def test_a_banned_term_registered_by_the_screen_reaches_the_catalogue(
     # The verdict silences the classifier: the tag is still in the collection, with its name.
     everything = _catalog(client, subject_state="ALL", limit=25)
     assert [row["name"] for row in everything["items"]] == [tag.name]
+
+
+def test_a_negative_offset_is_clamped_instead_of_failing(
+    client: TestClient, api_uses_test_db, db_session: Session
+) -> None:
+    """
+    PostgreSQL refuses ``OFFSET -1``, and the route used to answer 500 for it.
+
+    The clamp lives in the service and not only on the query parameter: the service is the boundary
+    every caller goes through, and the next caller would have had to remember.
+    """
+    _tag(db_session, "pendente")
+    db_session.flush()
+
+    response = client.get("/api/v1/taxonomy/tags/catalog?subject_state=PENDING&limit=5&offset=-1")
+
+    assert response.status_code == HTTP_200_OK, response.text
+    assert response.json()["offset"] == 0
+    assert response.json()["total"] == 1
