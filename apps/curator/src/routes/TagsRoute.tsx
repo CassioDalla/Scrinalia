@@ -19,6 +19,7 @@ import {
   unbanStopwords,
   undoMerge,
   type BatchMergeResponse,
+  type MacroCategory,
   type MergePreview,
   type MergeReason,
   type MergeResponse,
@@ -1496,7 +1497,21 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
   const items = catalog.data?.items ?? [];
   const total = catalog.data?.total ?? 0;
   const offset = search.offset ?? 0;
-  const drawers = (categories.data ?? []).filter((category) => category.is_active);
+  /**
+   * Whether the payload on screen belongs to the filter on screen.
+   *
+   * ``placeholderData`` keeps the previous page while the next one loads, which is right for the
+   * rows and wrong for the **counts**: the header would promise the previous filter's total under
+   * the new chip, and a filter that answers nothing would render the previous filter's empty state.
+   * The rows may lag; the numbers may not.
+   */
+  const countsAreCurrent = catalog.data !== undefined && !catalog.isPlaceholderData;
+  /**
+   * Every category, retired ones included: the state `ALL` lists tags that sit in a retired drawer,
+   * and a select that only offered the active ones would display "sem categoria" for a tag whose
+   * badge above says otherwise. The catalogue screen makes the same choice for the same reason.
+   */
+  const drawers = categories.data ?? [];
 
   /**
    * The selection belongs to the rows on screen.
@@ -1565,15 +1580,26 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
    */
   const bulk = useMutation({
     mutationFn: async ({ ids, action }: { ids: number[]; action: BulkAction }) => {
-      let written = 0;
+      // One request per tag, so the failure of one is not the failure of the batch: it is caught
+      // here and reported with the rest, which is the whole point of the bar saying what it wrote.
+      const written: number[] = [];
+      const failed: number[] = [];
       for (const tagId of ids) {
-        if (action.kind === "facet") await declareTagFacet(tagId, action.facet);
-        else await curateTag(tagId, { macro_category_id: action.kind === "category" ? action.categoryId : null, note: null });
-        written += 1;
+        try {
+          if (action.kind === "facet") await declareTagFacet(tagId, action.facet);
+          else
+            await curateTag(tagId, {
+              macro_category_id: action.kind === "category" ? action.categoryId : null,
+              note: null,
+            });
+          written.push(tagId);
+        } catch {
+          failed.push(tagId);
+        }
       }
-      return written;
+      return { written, failed };
     },
-    onSuccess: (written, variables) => {
+    onSuccess: ({ written, failed }, variables) => {
       const action = variables.action;
       const destination =
         action.kind === "category"
@@ -1581,8 +1607,14 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
           : action.kind === "not-subject"
             ? "não-assunto"
             : `eixo ${labelOf(FACET_TYPE_LABEL, action.facet).toLowerCase()}`;
-      setReport(`${formatCount(written)} tag(s) escritas: ${destination}.`);
-      setSelected([]);
+      setReport(
+        `${formatCount(written.length)} tag(s) escritas: ${destination}.` +
+          (failed.length > 0
+            ? ` ${formatCount(failed.length)} não responderam (ids ${failed.join(", ")}): a decisão delas continua em aberto, e elas seguem marcadas.`
+            : ""),
+      );
+      // What did not go through stays marked, so the retry is a click and not a re-selection.
+      setSelected(failed);
     },
     /**
      * The list is refetched even when the loop stops halfway.
@@ -1650,7 +1682,7 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
       {catalog.error ? <ErrorState error={catalog.error} /> : null}
       {catalog.isPending ? <Spinner label="Lendo o catálogo…" /> : null}
 
-      {catalog.data && total === 0 ? (
+      {countsAreCurrent && total === 0 ? (
         <EmptyState
           title="Nenhuma tag neste estado"
           hint={
@@ -1665,7 +1697,7 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
         <Card>
           <CardHeader className="flex flex-wrap items-center justify-between gap-2 text-xs text-(--color-muted)">
             <span>
-              {formatCount(total)} tag(s) neste estado
+              {countsAreCurrent ? `${formatCount(total)} tag(s) neste estado` : "lendo…"}
               {search.termo ? ` para “${search.termo}”` : ""}
             </span>
             <span className="flex items-center gap-2">
@@ -1715,7 +1747,7 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
         </Card>
       ) : null}
 
-      {total > CATALOG_PAGE_SIZE ? (
+      {countsAreCurrent && total > CATALOG_PAGE_SIZE ? (
         <div className="flex items-center justify-between text-sm">
           <Button size="sm" disabled={offset === 0} onClick={() => patch({ offset: Math.max(0, offset - CATALOG_PAGE_SIZE) })}>
             ← Anterior
@@ -1753,6 +1785,7 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
               {drawers.map((category) => (
                 <option key={category.category_id} value={category.category_id}>
                   {category.name}
+                  {category.is_active ? "" : " (aposentada)"}
                 </option>
               ))}
             </Select>
@@ -1799,7 +1832,7 @@ function CatalogRow({
   onUnfacet,
 }: {
   row: TagCatalogRow;
-  drawers: { category_id: number; name: string }[];
+  drawers: MacroCategory[];
   selected: boolean;
   busy: boolean;
   onToggle: () => void;
@@ -1868,6 +1901,7 @@ function CatalogRow({
             {drawers.map((category) => (
               <option key={category.category_id} value={category.category_id}>
                 {category.name}
+                {category.is_active ? "" : " (aposentada)"}
               </option>
             ))}
           </Select>
@@ -1917,10 +1951,14 @@ function CatalogSearchBox({
   }
 
   useEffect(() => {
+    // The debounce has to have caught up with the box before this can write: right after the URL
+    // changes, ``settled`` still holds the term the box had a moment ago, and pushing that back
+    // would rewrite the search the back button had just removed.
+    if (settled.trim() !== term.trim()) return;
     const next = settled.trim();
     if (fromUrl === next) return;
     onSearch(next.length > 0 ? next : undefined);
-  }, [settled, fromUrl, onSearch]);
+  }, [settled, term, fromUrl, onSearch]);
 
   return (
     <Input
