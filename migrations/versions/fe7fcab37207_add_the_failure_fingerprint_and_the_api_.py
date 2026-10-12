@@ -38,6 +38,10 @@ down_revision: str | None = "6414e7d6ca06"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+#: Alembic reads these four from the module namespace (``alembic/script/base.py``): they are the
+#: module's public API, and ``__all__`` is what keeps a static reader from taking them for dead code.
+__all__ = ["branch_labels", "depends_on", "down_revision", "revision"]
+
 #: The one definition of "root cause", used by both generated columns below. It has to be SQL: a
 #: generated column can only call an ``IMMUTABLE`` function, and a Python implementation would have
 #: to be duplicated here to backfill. ``STRICT`` is what keeps a ``NULL`` error a ``NULL``

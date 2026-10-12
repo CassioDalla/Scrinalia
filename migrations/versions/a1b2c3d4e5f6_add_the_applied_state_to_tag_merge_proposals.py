@@ -32,6 +32,10 @@ down_revision: str | None = "3d62b30c117b"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+#: Alembic reads these four from the module namespace (``alembic/script/base.py``): they are the
+#: module's public API, and ``__all__`` is what keeps a static reader from taking them for dead code.
+__all__ = ["branch_labels", "depends_on", "down_revision", "revision"]
+
 CONSTRAINT = "chk_tag_merge_proposal_status"
 BEFORE = "status IN ('SUGGESTED', 'APPROVED', 'REJECTED')"
 AFTER = "status IN ('SUGGESTED', 'APPROVED', 'REJECTED', 'APPLIED')"

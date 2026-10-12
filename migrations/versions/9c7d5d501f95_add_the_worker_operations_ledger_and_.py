@@ -33,6 +33,10 @@ down_revision: str | None = "e423cd04973a"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+#: Alembic reads these four from the module namespace (``alembic/script/base.py``): they are the
+#: module's public API, and ``__all__`` is what keeps a static reader from taking them for dead code.
+__all__ = ["branch_labels", "depends_on", "down_revision", "revision"]
+
 #: The two native enum types this revision owns. They are created implicitly by ``create_table``
 #: and must be dropped explicitly: PostgreSQL does not drop a standalone type with its table, so
 #: without this the downgrade would leave the type behind and the next upgrade would fail.

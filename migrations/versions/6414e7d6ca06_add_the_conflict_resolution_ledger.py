@@ -26,6 +26,10 @@ down_revision: str | None = "d1bc15fb6beb"
 branch_labels: str | None = None
 depends_on: str | None = None
 
+#: Alembic reads these four from the module namespace (``alembic/script/base.py``): they are the
+#: module's public API, and ``__all__`` is what keeps a static reader from taking them for dead code.
+__all__ = ["branch_labels", "depends_on", "down_revision", "revision"]
+
 
 def upgrade() -> None:
     """Upgrade schema."""
