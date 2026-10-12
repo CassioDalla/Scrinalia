@@ -194,10 +194,12 @@ class TestConflictRoutes:
     def test_undoing_twice_is_409_and_an_unknown_id_is_404(self, client: TestClient, mocker):
         mocked = mocker.patch.object(EntityService, "undo_conflict_resolution")
         mocked.side_effect = ConflictResolutionAlreadyUndoneError("já foi desfeita")
-        assert client.delete("/api/v1/taxonomy/conflicts/resolutions/7").status_code == HTTP_409_CONFLICT
+        response = client.delete("/api/v1/taxonomy/conflicts/resolutions/7")
+        assert response.status_code == HTTP_409_CONFLICT
 
         mocked.side_effect = ConflictResolutionNotFoundError("não existe")
-        assert client.delete("/api/v1/taxonomy/conflicts/resolutions/999").status_code == HTTP_404_NOT_FOUND
+        response = client.delete("/api/v1/taxonomy/conflicts/resolutions/999")
+        assert response.status_code == HTTP_404_NOT_FOUND
 
     def test_the_ledger_lists_the_written_rows(self, client: TestClient, mocker):
         mocker.patch.object(
