@@ -19,6 +19,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from scrinalia.core.base import Base
 
+# Type-checker only, and load-bearing: the ``Mapped[...]`` strings below need this name. Keeping it
+# inside the guard is what makes CodeQL's ``py/unsafe-cyclic-import`` finding a false positive
+# (dismissed); ``testing/unit/quality/test_model_import_cycles.py`` fails if the cycle becomes real.
 if TYPE_CHECKING:
     from .document import ArchiveDocument
 
