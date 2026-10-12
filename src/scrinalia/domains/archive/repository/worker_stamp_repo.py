@@ -25,13 +25,16 @@ class StampedWorker(Protocol):
     """The part of a worker specification this repository needs (read-only, like the dataclass)."""
 
     @property
-    def name(self) -> str: ...
+    def name(self) -> str:
+        raise NotImplementedError
 
     @property
-    def stamp(self) -> WorkerStamp | None: ...
+    def stamp(self) -> WorkerStamp | None:
+        raise NotImplementedError
 
     @property
-    def stamp_model(self) -> Literal["document", "tag"] | None: ...
+    def stamp_model(self) -> Literal["document", "tag"] | None:
+        raise NotImplementedError
 
 
 class WorkerStampRepository:

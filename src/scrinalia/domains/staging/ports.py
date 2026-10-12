@@ -21,10 +21,11 @@ class RawRecordSource(Protocol):
         change does not touch the source payload, so the CDC alone would never re-parse
         the collection.
         """
-        ...
+        raise NotImplementedError
 
 
 class StagingDocumentWriter(Protocol):
     """Output port: persists a structured document in the Staging layer."""
 
-    def save(self, record: StagingDocumentDTO) -> None: ...
+    def save(self, record: StagingDocumentDTO) -> None:
+        raise NotImplementedError
