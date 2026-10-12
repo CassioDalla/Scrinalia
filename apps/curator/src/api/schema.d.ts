@@ -3297,10 +3297,12 @@ export interface components {
          * TagCatalogState
          * @description Which slice of the tag catalogue one read asks for, by the state of its subject decision.
          *
-         *         The four states are a **partition**, not overlapping views: a tag is in a drawer, declared not
-         *         a subject, claimed by the non-subject axis, or nobody has decided yet. The predicates live in
-         *         one module (``repository/subject_queue.py``) and the home screen's counters read the same ones,
-         *         because the number a card promises has to be the number the list it opens reports.
+         *         The decision has four parts and they are a **partition**: a tag is in a drawer, declared not a
+         *         subject, claimed by the non-subject axis, or nobody has decided yet. This filter names the three
+         *         that are states of the *catalogue* — the drawer is reached with ``macro_category_id`` — and
+         *         ``ALL`` is not a state at all but the absence of a filter. The predicates live in one module
+         *         (``repository/subject_queue.py``) and the home screen's counters read the same ones, because the
+         *         number a card promises has to be the number the list it opens reports.
          *
          *         ``LOW_CONFIDENCE`` is the one that is not a state of the tag but of the *work*: the classifier
          *         ran, was not confident enough to file the tag, and left a row in ``archive_ai_review_queue``.
@@ -6610,10 +6612,12 @@ export interface operations {
                 /**
                  * @description Which slice of the tag catalogue one read asks for, by the state of its subject decision.
                  *
-                 *         The four states are a **partition**, not overlapping views: a tag is in a drawer, declared not
-                 *         a subject, claimed by the non-subject axis, or nobody has decided yet. The predicates live in
-                 *         one module (``repository/subject_queue.py``) and the home screen's counters read the same ones,
-                 *         because the number a card promises has to be the number the list it opens reports.
+                 *         The decision has four parts and they are a **partition**: a tag is in a drawer, declared not a
+                 *         subject, claimed by the non-subject axis, or nobody has decided yet. This filter names the three
+                 *         that are states of the *catalogue* — the drawer is reached with ``macro_category_id`` — and
+                 *         ``ALL`` is not a state at all but the absence of a filter. The predicates live in one module
+                 *         (``repository/subject_queue.py``) and the home screen's counters read the same ones, because the
+                 *         number a card promises has to be the number the list it opens reports.
                  *
                  *         ``LOW_CONFIDENCE`` is the one that is not a state of the tag but of the *work*: the classifier
                  *         ran, was not confident enough to file the tag, and left a row in ``archive_ai_review_queue``.
