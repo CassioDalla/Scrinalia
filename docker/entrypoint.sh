@@ -3,8 +3,9 @@
 # Entrypoint of the application image.
 #
 # It does exactly one thing before handing over to the CMD: brings the schema to head. The schema is
-# owned by Alembic and nothing else creates it (there is no db-init), so an API started against a
-# fresh volume answers 503 on /health/ready at best — and fails on every ORM read at worst.
+# owned by Alembic and nothing else creates it — on the host, ``bun run db:init`` creates the database
+# and then runs this same command — so an API started against a fresh volume answers 503 on
+# /health/ready at best — and fails on every ORM read at worst.
 #
 # Two knobs, both environment variables:
 #
