@@ -114,6 +114,11 @@ tabela separada porque uma tag carrega no máximo um assunto, mas pode ser lugar
 mesmo tempo. `facet_type` é restrito a `INSTITUTION` ou `PLACE`, e nada grava uma faceta
 automaticamente — faceta é ato de curadoria, nunca inferência da IA.
 
+A identidade de uma tag e de uma entidade é a grafia normalizada: `lower(btrim(name))` é único nas
+duas tabelas, ao lado do `name` único. Sem essa regra, uma linha guardada em Caixa Alta e a linha em
+minúsculas do mesmo nome são duas linhas, e o caminho de inserção — que normaliza a grafia e procura
+os identificadores existentes por ela — nunca enxerga a primeira.
+
 #### O arranjo
 
 | Tabela | Para que serve | Colunas principais |

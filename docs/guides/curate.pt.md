@@ -635,8 +635,8 @@ O vocabulário de nomes próprios, por peso ou por similaridade. Três decisões
   para a canônica faz o antigo virar sinônimo também. Entidades não têm catálogo de propostas nem
   **ledger**: não há desfazer, e o painel avisa em vez de oferecer um botão de volta. Também não há
   rota de prévia — a tela declara o efeito documentado em vez de inventar números. A lista de pares é
-  evidência crua, com os dois identificadores, porque duas linhas podem ler o mesmo nome e a canônica
-  é uma escolha que o arquivista precisa conseguir distinguir.
+  evidência crua, com os dois identificadores, porque duas linhas podem ler nomes quase iguais e a
+  canônica é uma escolha que o arquivista precisa conseguir distinguir.
 
 ### Exclusões de NER — `/entidades/excecoes`
 

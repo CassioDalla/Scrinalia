@@ -658,8 +658,8 @@ The named-entity vocabulary, by weight or by similarity. Three decisions:
   name for the canonical makes the old one a synonym too. Entities have no proposal catalogue and
   **no ledger**: there is no undo, and the panel says so instead of offering a button back. There is
   no preview route either — the screen states the documented effect rather than inventing numbers.
-  The pair list is raw evidence, with both ids, because two rows can read the same name and the
-  canonical is a choice the archivist has to be able to tell apart.
+  The pair list is raw evidence, with both ids, because two rows can read almost the same name and
+  the canonical is a choice the archivist has to be able to tell apart.
 
 ### Exclusões de NER — `/entidades/excecoes`
 

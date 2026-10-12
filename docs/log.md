@@ -561,3 +561,29 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   spreads `changes` and then writes a literal `offset`. The three other screens with the same fold
   (`DeletionsRoute`, `SystemRunsRoute`, `DiagnosticsRoute`) are normalized in the same change.
 
+## 2026-10-12 — the entity merge and the normalized identity
+
+- **Range:** `b99408e..c1a6fbf`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the *Entidades — `/entidades/lista`* section justified the pair
+    list's two ids with "two rows can read the same name". That sentence described the defect: case
+    twins scored 1.000 on the trigram scan (`#1167 A. B. Deter ≈ #92610 a. b. deter`). The migration
+    reconciles them, so no two entity rows share a normalized name any more and the reason now reads
+    "almost the same name" — the similarity list is about spellings that are close, not identical.
+  - `guides/data-model.md` — **updated**: the *Subjects, categories and entities* table marks
+    `archive_tags.name` and `archive_entities.name` as unique, which is still true, and said nothing
+    about the identity rule the schema now enforces. One paragraph states it: `lower(btrim(name))` is
+    unique on both tables next to the unique `name`, and the insert path normalizes the spelling
+    before it looks an existing id up.
+- **Why the round exists:** the freshness report named both pages after `eae9943` and `c1a6fbf`, the
+  two commits of issue #68 — the shared synonym upsert and the reconciliation migration.
+- **What the round measured.** The migration was replayed on a `pg_dump` copy of the reference
+  collection before it touched the collection: 8 322 entities with 3 523 twin groups and 82 317
+  links became 4 799 entities with 0 twin groups, 0 non-normalized names and 64 504 links — exactly
+  the number of distinct `(description_id, survivor)` pairs computed before the run, with the 266
+  synonyms intact and none dangling and the surviving ids equal to the predicted ones. The upgrade
+  then ran on the collection itself and measured the same numbers, and `alembic check` reports no
+  drift on both. Not looked at in a browser: the evidence is the integration tests (the merge of the
+  issue's cluster, the dedup on both axes, the index rejecting a case twin), `basedpyright` and that
+  measurement.
+
