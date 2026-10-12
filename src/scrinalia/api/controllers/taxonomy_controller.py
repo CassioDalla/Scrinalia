@@ -4,7 +4,7 @@ from typing import Literal
 
 import anyio
 import anyio.to_process
-from litestar import Controller, delete, get, patch, post
+from litestar import Controller, delete, get, patch, post, put
 from litestar.di import NamedDependency, Provide
 from litestar.params import FromPath, FromQuery
 
@@ -29,9 +29,10 @@ from scrinalia.api.schemas.taxonomy import (
     SubjectExclusionRequest,
     SuggestMacroRequest,
     TagCurationRequest,
+    TagFacetRequest,
 )
 from scrinalia.api.security import Access, AuthenticatedUser
-from scrinalia.domains.archive.models.enums import StopwordsScope
+from scrinalia.domains.archive.models.enums import StopwordsScope, TagCatalogState, TagFacetType
 from scrinalia.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     BatchMergeResponse,
@@ -52,8 +53,11 @@ from scrinalia.domains.archive.schemas import (
     StopwordDTO,
     StopwordPurgePreview,
     SubjectExclusionSuggestionResponse,
+    TagCatalogResponse,
     TagCurationCommand,
     TagCurationResult,
+    TagFacetCommand,
+    TagFacetResult,
     TagMergeDecisionCommand,
     TagMergeProposalListResponse,
     TagSearchResult,
@@ -132,6 +136,76 @@ class TaxonomyController(Controller):
         return tag_service.curate_tag_macro_category(
             tag_id, TagCurationCommand(**data.model_dump(), changed_by=current_user.author)
         )
+
+    @get("/tags/catalog", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
+    def list_tag_catalog(
+        self,
+        tag_service: NamedDependency[TagService],
+        # NOT ``state``: Litestar reserves that parameter name for the ASGI state, and a handler that
+        # uses it silently receives the request's ``State`` instead of the query value. ``scope`` was
+        # the first of these (the stopwords route renamed its key to ``axis``) and the reserved-name
+        # failure is a 500 at app construction, which is how this one was found.
+        subject_state: FromQuery[TagCatalogState] = TagCatalogState.ALL,
+        macro_category_id: FromQuery[int | None] = None,
+        term: FromQuery[str | None] = None,
+        limit: FromQuery[int] = 25,
+        offset: FromQuery[int] = 0,
+    ) -> TagCatalogResponse:
+        """
+        One page of the tag catalogue, filtered by the state of the subject decision.
+
+        The read the home screen's cards land on, and one the type-ahead cannot answer: a list of the
+        tags **nobody has decided about** is a filter over the catalogue, while the relevance lists
+        are a top-N by weight with no notion of state at all — the card promised 76 tags and the
+        screen it opened could not mark which rows they were.
+
+        ``subject_state`` and ``macro_category_id`` are different questions and the caller may ask
+        both: "decided how" and "in which drawer".
+        """
+        return tag_service.list_catalog(
+            state=subject_state, macro_category_id=macro_category_id, term=term, limit=limit, offset=offset
+        )
+
+    @put("/tags/{tag_id:int}/facets/{facet_type:str}", opt={"access": Access.CURATE}, sync_to_thread=True)
+    def declare_tag_facet(
+        self,
+        tag_service: NamedDependency[TagService],
+        tag_id: FromPath[int],
+        facet_type: FromPath[TagFacetType],
+        data: TagFacetRequest,
+        current_user: NamedDependency[AuthenticatedUser],
+    ) -> TagFacetResult:
+        """
+        Declares that one tag is a producer or a place instead of a subject.
+
+        The destination the non-subject axis was written for: ``alfa`` (2,376 descriptions) and
+        ``cidade`` (1,865) have no honest subject, and forcing them into a drawer is a measured cause
+        of the classification defect. The declaration is a curation act; nothing infers a facet.
+        """
+        return tag_service.declare_tag_facet(
+            tag_id, facet_type, TagFacetCommand(**data.model_dump(), changed_by=current_user.author)
+        )
+
+    @delete(
+        "/tags/{tag_id:int}/facets/{facet_type:str}",
+        opt={"access": Access.CURATE},
+        status_code=200,
+        sync_to_thread=True,
+    )
+    def remove_tag_facet(
+        self,
+        tag_service: NamedDependency[TagService],
+        tag_id: FromPath[int],
+        facet_type: FromPath[TagFacetType],
+    ) -> TagFacetResult:
+        """
+        Takes one tag off that axis, and off the subject exclusion when it was the last one.
+
+        The undo of the declaration. It has to undo both halves: keeping the exclusion would leave
+        the tag parked in "not a subject, goes nowhere" — a decision nobody took — instead of back in
+        the queue for the next one.
+        """
+        return tag_service.remove_tag_facet(tag_id, facet_type)
 
     @get("/tags/relevance/{method:str}", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def get_tag_relevance(

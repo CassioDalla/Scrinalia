@@ -5907,6 +5907,104 @@
         "title": "SystemWorkersResponse",
         "type": "object"
       },
+      "TagCatalogResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TagCatalogRow"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "default": 25,
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "title": "TagCatalogResponse",
+        "type": "object"
+      },
+      "TagCatalogRow": {
+        "properties": {
+          "ai_confidence_score": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "facets": {
+            "items": {
+              "$ref": "#/components/schemas/TagFacetType"
+            },
+            "type": "array"
+          },
+          "macro_category_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "macro_category_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "subject_excluded": {
+            "default": false,
+            "type": "boolean"
+          },
+          "tag_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "tag_id"
+        ],
+        "title": "TagCatalogRow",
+        "type": "object"
+      },
+      "TagCatalogState": {
+        "default": "ALL",
+        "description": "\n    Which slice of the tag catalogue one read asks for, by the state of its subject decision.\n\n    The four states are a **partition**, not overlapping views: a tag is in a drawer, declared not\n    a subject, claimed by the non-subject axis, or nobody has decided yet. The predicates live in\n    one module (``repository/subject_queue.py``) and the home screen's counters read the same ones,\n    because the number a card promises has to be the number the list it opens reports.\n\n    ``LOW_CONFIDENCE`` is the one that is not a state of the tag but of the *work*: the classifier\n    ran, was not confident enough to file the tag, and left a row in ``archive_ai_review_queue``.\n    It is a subset of ``PENDING`` on purpose — the archivist's two cards answer two questions about\n    the same queue, and either one may take the decision.\n    ",
+        "enum": [
+          "ALL",
+          "PENDING",
+          "NOT_SUBJECT",
+          "FACET",
+          "LOW_CONFIDENCE"
+        ],
+        "title": "TagCatalogState",
+        "type": "string"
+      },
       "TagCurationRequest": {
         "properties": {
           "macro_category_id": {
@@ -5967,6 +6065,10 @@
           "name": {
             "type": "string"
           },
+          "subject_excluded": {
+            "default": false,
+            "type": "boolean"
+          },
           "tag_id": {
             "type": "integer"
           }
@@ -5977,6 +6079,80 @@
         ],
         "title": "TagCurationResult",
         "type": "object"
+      },
+      "TagFacetRequest": {
+        "properties": {
+          "note": {
+            "description": "Why; kept in the tag's ledger.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "value": {
+            "description": "Canonical spelling of the facet; the tag name by default.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "title": "TagFacetRequest",
+        "type": "object"
+      },
+      "TagFacetResult": {
+        "properties": {
+          "facets": {
+            "items": {
+              "$ref": "#/components/schemas/TagFacetType"
+            },
+            "type": "array"
+          },
+          "macro_category_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "subject_excluded": {
+            "default": false,
+            "type": "boolean"
+          },
+          "tag_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "tag_id"
+        ],
+        "title": "TagFacetResult",
+        "type": "object"
+      },
+      "TagFacetType": {
+        "description": "\n    Which non-subject axis a tag belongs to.\n\n    ``ArchiveTag.macro_category_id`` answers \"what is this about?\". Some tags have no honest\n    answer to that question but a very clear answer to a different one: ``alfa`` is *who\n    produced*, ``cidade`` is *where*. Before this existed those terms competed with\n    ``alvenaria`` for the same subject drawer, which is a measured cause of the systematic\n    misclassification (``alvenaria`` landing in \"Mobilidade e Transporte\").\n\n    Deliberately a separate table rather than a second column: a tag carries at most one\n    subject but can carry a place *and* an institution at once.\n    ",
+        "enum": [
+          "INSTITUTION",
+          "PLACE"
+        ],
+        "title": "TagFacetType",
+        "type": "string"
       },
       "TagLinkRequest": {
         "properties": {
@@ -13697,6 +13873,141 @@
         ]
       }
     },
+    "/api/v1/taxonomy/tags/catalog": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsCatalogListTagCatalog",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "\n    Which slice of the tag catalogue one read asks for, by the state of its subject decision.\n\n    The four states are a **partition**, not overlapping views: a tag is in a drawer, declared not\n    a subject, claimed by the non-subject axis, or nobody has decided yet. The predicates live in\n    one module (``repository/subject_queue.py``) and the home screen's counters read the same ones,\n    because the number a card promises has to be the number the list it opens reports.\n\n    ``LOW_CONFIDENCE`` is the one that is not a state of the tag but of the *work*: the classifier\n    ran, was not confident enough to file the tag, and left a row in ``archive_ai_review_queue``.\n    It is a subset of ``PENDING`` on purpose — the archivist's two cards answer two questions about\n    the same queue, and either one may take the decision.\n    ",
+            "in": "query",
+            "name": "subject_state",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TagCatalogState"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "macro_category_id",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "term",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagCatalogResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListTagCatalog",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
     "/api/v1/taxonomy/tags/merge": {
       "post": {
         "deprecated": false,
@@ -15361,6 +15672,178 @@
           }
         },
         "summary": "CurateTag",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/tags/{tag_id}/facets/{facet_type}": {
+      "delete": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsTagIdFacetsFacetTypeRemoveTagFacet",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "tag_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "deprecated": false,
+            "description": "\n    Which non-subject axis a tag belongs to.\n\n    ``ArchiveTag.macro_category_id`` answers \"what is this about?\". Some tags have no honest\n    answer to that question but a very clear answer to a different one: ``alfa`` is *who\n    produced*, ``cidade`` is *where*. Before this existed those terms competed with\n    ``alvenaria`` for the same subject drawer, which is a measured cause of the systematic\n    misclassification (``alvenaria`` landing in \"Mobilidade e Transporte\").\n\n    Deliberately a separate table rather than a second column: a tag carries at most one\n    subject but can carry a place *and* an institution at once.\n    ",
+            "in": "path",
+            "name": "facet_type",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/TagFacetType"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagFacetResult"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "RemoveTagFacet",
+        "tags": [
+          "Taxonomy"
+        ]
+      },
+      "put": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsTagIdFacetsFacetTypeDeclareTagFacet",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "tag_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "deprecated": false,
+            "description": "\n    Which non-subject axis a tag belongs to.\n\n    ``ArchiveTag.macro_category_id`` answers \"what is this about?\". Some tags have no honest\n    answer to that question but a very clear answer to a different one: ``alfa`` is *who\n    produced*, ``cidade`` is *where*. Before this existed those terms competed with\n    ``alvenaria`` for the same subject drawer, which is a measured cause of the systematic\n    misclassification (``alvenaria`` landing in \"Mobilidade e Transporte\").\n\n    Deliberately a separate table rather than a second column: a tag carries at most one\n    subject but can carry a place *and* an institution at once.\n    ",
+            "in": "path",
+            "name": "facet_type",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/TagFacetType"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagFacetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagFacetResult"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "DeclareTagFacet",
         "tags": [
           "Taxonomy"
         ]

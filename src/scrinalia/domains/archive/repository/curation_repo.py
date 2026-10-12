@@ -12,6 +12,7 @@ from scrinalia.domains.archive.models import (
     ArchiveTagMergeProposal,
 )
 from scrinalia.domains.archive.models.governance import AnomalyType, ArchiveAIReviewQueue
+from scrinalia.domains.archive.repository.subject_queue import subject_low_confidence, subject_pending
 
 #: Status a proposal/plan carries while it is still waiting for a human verdict. Semantics owned by
 #: the ``chk_*_status`` constraints of the two catalogues, repeated here as a literal because it is
@@ -72,12 +73,41 @@ class CurationRepository:
         return int(self.db.scalar(stmt) or 0)
 
     def count_subject_orphan_tags(self) -> int:
-        """Tags the classifier never filed in a drawer, so no badge can be shown for them."""
-        stmt = select(func.count()).select_from(ArchiveTag).where(ArchiveTag.macro_category_id.is_(None))
+        """
+        Tags whose subject nobody has decided yet: no drawer, no verdict, no facet.
+
+        Not ``macro_category_id IS NULL``, which is what it used to be. That column holds the
+        *absence* of a classification and the human verdict "this tag is not a subject" in the same
+        value, so a count built on it alone could never reach zero and the card was a debt the
+        archivist could not pay. The predicate is ``subject_queue.subject_pending()``, imported
+        rather than repeated: the catalogue's ``situacao=PENDING`` filter has to answer the same
+        number, and the test that drives both routes is what makes the pair impossible to drift.
+        """
+        stmt = select(func.count()).select_from(ArchiveTag).where(subject_pending())
+        return int(self.db.scalar(stmt) or 0)
+
+    def count_subject_low_confidence_tags(self) -> int:
+        """
+        Tags the classifier left below its floor and no human has decided yet.
+
+        Counted as **tags**, not as queue rows. ``worker_macro_category`` inserts one row per run in
+        which the label set changed, so a tag can accumulate several, and counting rows answered "2"
+        for a single decision to take. The other half is the ``PENDING`` condition inside
+        ``subject_low_confidence()``: nothing deletes the queue row when the archivist files the tag,
+        so reading the row alone would keep counting work that is already done.
+        """
+        stmt = select(func.count()).select_from(ArchiveTag).where(subject_low_confidence())
         return int(self.db.scalar(stmt) or 0)
 
     def count_queue(self, anomaly_type: AnomalyType) -> int:
-        """Items of the AI review queue still waiting for a human."""
+        """
+        Items of the AI review queue still waiting for a human.
+
+        A plain row count, right for the conflict queue: ``worker_resolve_tag_entity_conflict``
+        writes one row per pair. The low-confidence queue is counted per **tag** instead — see
+        ``count_subject_low_confidence_tags`` — because there a row is evidence of a run and the
+        decision is about a tag.
+        """
         stmt = (
             select(func.count())
             .select_from(ArchiveAIReviewQueue)
@@ -103,7 +133,7 @@ class CurationRepository:
             "hierarchy_plans": self.count_hierarchy_plans(),
             "tag_merge_proposals": self.count_tag_merge_proposals(),
             "cross_domain_conflicts": self.count_queue(AnomalyType.CROSS_DOMAIN_COLLISION),
-            "subject_low_confidence": self.count_queue(AnomalyType.SUBJECT_LOW_CONFIDENCE),
+            "subject_low_confidence": self.count_subject_low_confidence_tags(),
             "orphan_subject_tags": self.count_subject_orphan_tags(),
             "anomalies": self.count_anomalies(),
             "unreviewed_documents": self.count_unreviewed_documents(),

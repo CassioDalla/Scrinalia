@@ -56,15 +56,19 @@ from scrinalia.domains.archive.models import (
     ArchiveEntity,
     ArchiveMacroCategory,
     ArchiveTag,
+    ArchiveTagFacet,
     ArchiveTagMergeProposal,
     ArchiveTaxonomyMergeLog,
     DomainStopwords,
     DomainSubjectExclusion,
     DomainSynonyms,
     StopwordsScope,
+    TagCatalogState,
+    TagFacetType,
 )
 from scrinalia.domains.archive.ports.taxonomy import SubjectExclusionSource
 from scrinalia.domains.archive.repository.collection_vocabulary_repo import CollectionVocabularyRepository
+from scrinalia.domains.archive.repository.subject_queue import subject_not_subject, subject_state_condition
 from scrinalia.domains.archive.repository.synonym_upsert import upsert_synonyms
 from scrinalia.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
@@ -81,6 +85,7 @@ from scrinalia.domains.archive.schemas import (
     SubjectExclusionSuggestion,
     SubjectExclusionSuggestionResponse,
     SynonymCommand,
+    TagCatalogRow,
     TagCount,
     TagIdentity,
     TagLinkCommand,
@@ -350,6 +355,132 @@ class TagRepository:
         )
         row = self.db.execute(stmt).mappings().first()
         return TagSearchResult.model_validate(row) if row else None
+
+    # --- The catalogue read, by the state of the subject decision ------------------------------
+
+    def _catalog_filters(self, state: TagCatalogState, macro_category_id: int | None, term: str | None) -> list[Any]:
+        """
+        The predicate behind the catalogue, shared by the page and its total.
+
+        One builder for both halves on purpose: a ``total`` computed with a different filter than the
+        page is the way a count starts lying about the list under it.
+        """
+        filters: list[Any] = []
+        state_condition = subject_state_condition(state, macro_category_id)
+        if state_condition is not None:
+            filters.append(state_condition)
+
+        needle = (term or "").strip()
+        if needle:
+            # Served by ``idx_archive_tags_name_trgm``, like the type-ahead's box; the wildcards the
+            # archivist typed are escaped so a ``%`` cannot turn this into a scan of 8k spellings.
+            filters.append(ArchiveTag.name.ilike(f"%{escape_like(needle)}%", escape=LIKE_ESCAPE))
+        return filters
+
+    def count_catalog(
+        self, state: TagCatalogState, macro_category_id: int | None = None, term: str | None = None
+    ) -> int:
+        """How many tags the same filter answers, so the screen can page without guessing."""
+        stmt = (
+            select(func.count()).select_from(ArchiveTag).where(*self._catalog_filters(state, macro_category_id, term))
+        )
+        return int(self.db.scalar(stmt) or 0)
+
+    def list_catalog(
+        self,
+        state: TagCatalogState,
+        macro_category_id: int | None = None,
+        term: str | None = None,
+        limit: int = 25,
+        offset: int = 0,
+    ) -> list[TagCatalogRow]:
+        """
+        One page of the catalogue, heaviest first, with the state of each tag.
+
+        Ordered by weight because the decision that matters most is the tag the most descriptions
+        carry: filing ``cidade`` is worth more than filing a spelling nobody used. The facets come
+        from a second query over the page's ids — one round trip per page, never one per row.
+        """
+        counts = (
+            select(ArchiveDocumentTag.tag_id, func.count().label("document_count"))
+            .group_by(ArchiveDocumentTag.tag_id)
+            .subquery()
+        )
+        weight = func.coalesce(counts.c.document_count, 0)
+        stmt = (
+            select(
+                ArchiveTag.tag_id,
+                ArchiveTag.name,
+                weight.label("document_count"),
+                ArchiveTag.macro_category_id,
+                ArchiveMacroCategory.name.label("macro_category_name"),
+                ArchiveTag.ai_confidence_score,
+                subject_not_subject().label("subject_excluded"),
+            )
+            .outerjoin(counts, counts.c.tag_id == ArchiveTag.tag_id)
+            .outerjoin(ArchiveMacroCategory, ArchiveMacroCategory.category_id == ArchiveTag.macro_category_id)
+            .where(*self._catalog_filters(state, macro_category_id, term))
+            .order_by(weight.desc(), ArchiveTag.name)
+            .limit(limit)
+            .offset(offset)
+        )
+        rows = self.db.execute(stmt).mappings().all()
+        facets = self._facets_by_tag([row["tag_id"] for row in rows])
+        return [TagCatalogRow.model_validate({**dict(row), "facets": facets.get(row["tag_id"], [])}) for row in rows]
+
+    def _facets_by_tag(self, tag_ids: Sequence[int]) -> dict[int, list[TagFacetType]]:
+        """The non-subject axis of one page of tags, in one query."""
+        if not tag_ids:
+            return {}
+
+        stmt = select(ArchiveTagFacet.tag_id, ArchiveTagFacet.facet_type).where(
+            ArchiveTagFacet.tag_id.in_(list(tag_ids))
+        )
+        grouped: dict[int, list[TagFacetType]] = defaultdict(list)
+        for tag_id, facet_type in self.db.execute(stmt).all():
+            grouped[int(tag_id)].append(TagFacetType(facet_type))
+        return dict(grouped)
+
+    def read_tag_facets(self, tag_id: int) -> list[TagFacetType]:
+        """The axes one tag is claimed by, ordered for a stable answer."""
+        stmt = (
+            select(ArchiveTagFacet.facet_type)
+            .where(ArchiveTagFacet.tag_id == tag_id)
+            .order_by(ArchiveTagFacet.facet_type)
+        )
+        return [TagFacetType(value) for value in self.db.scalars(stmt).all()]
+
+    def upsert_tag_facet(self, tag_id: int, facet_type: TagFacetType, value: str, author: Author | None) -> None:
+        """
+        Declares one non-subject axis. Idempotent: re-declaring updates the canonical spelling and
+        the author, because the second declaration is the one that stands.
+
+        ``value`` is the spelling the facets read — the tag name is the evidence, the value is the
+        decision — and the caller defaults it to the tag's own name.
+        """
+        stmt = insert(ArchiveTagFacet).values(
+            tag_id=tag_id,
+            facet_type=facet_type.value,
+            value=value,
+            **author_columns("created_by", author),
+        )
+        self.db.execute(
+            stmt.on_conflict_do_update(
+                index_elements=["tag_id", "facet_type"],
+                set_={"value": value, **author_columns("created_by", author)},
+            )
+        )
+
+    def delete_tag_facets(self, tag_id: int, facet_type: TagFacetType | None = None) -> int:
+        """
+        Takes a tag off the non-subject axis. The undo of a declaration, and how a decision in favour
+        of a drawer stops contradicting itself: a tag in a subject drawer is not a place *instead*.
+        """
+        stmt = delete(ArchiveTagFacet).where(ArchiveTagFacet.tag_id == tag_id)
+        if facet_type is not None:
+            stmt = stmt.where(ArchiveTagFacet.facet_type == facet_type.value)
+        result = self.db.execute(stmt)
+        return int(cast(CursorResult, result).rowcount or 0)
 
     def get_macro_categories(self, only_active: bool = False) -> list[ArchiveMacroCategoryEntityDTO]:
         """
