@@ -47,7 +47,8 @@ def test_a_viewer_cannot_administer_accounts(sign_in) -> None:
     viewer = sign_in(Role.VIEWER)
 
     assert viewer.get("/api/v1/users").status_code == 403
-    assert viewer.delete("/api/v1/users/1/sessions").status_code == 403
+    response = viewer.delete("/api/v1/users/1/sessions")
+    assert response.status_code == 403
 
 
 # ==========================================

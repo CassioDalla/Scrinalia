@@ -77,7 +77,8 @@ class TestTypologyRoutes:
         assert response.json()["is_active"] is False
         assert mocked.call_args.args[1].is_active is False
 
-        assert client.delete("/api/v1/typologies/7").status_code == 405
+        response = client.delete("/api/v1/typologies/7")
+        assert response.status_code == 405
 
     def test_an_unknown_field_is_refused(self, client: TestClient):
         response = client.post("/api/v1/typologies", json={"name": "Ata", "typology_id": 4})

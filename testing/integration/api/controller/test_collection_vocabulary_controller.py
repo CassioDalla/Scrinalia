@@ -99,8 +99,10 @@ class TestVocabularyRoutes:
 
     def test_there_is_no_delete(self, client: TestClient):
         """Retiring is ``is_active=false``; a delete would make a refused term come back."""
-        assert client.delete("/api/v1/vocabulary/arrangement-terms/1").status_code == 405
-        assert client.delete("/api/v1/vocabulary/collection-terms/1").status_code == 405
+        response = client.delete("/api/v1/vocabulary/arrangement-terms/1")
+        assert response.status_code == 405
+        response = client.delete("/api/v1/vocabulary/collection-terms/1")
+        assert response.status_code == 405
 
     def test_an_unknown_kind_is_refused(self, client: TestClient):
         response = client.post("/api/v1/vocabulary/collection-terms", json={"term": "x", "kind": "PLANET"})

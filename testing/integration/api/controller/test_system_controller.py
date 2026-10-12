@@ -179,7 +179,8 @@ def test_the_settings_round_trip_through_the_http_layer(client: TestClient, mock
     revisions.return_value = WorkerSettingsRevisionListResponse(items=[], total=0)
 
     assert client.put("/api/v1/system/workers/ner/settings", json={"preset": "gpu"}).status_code == 200
-    assert client.delete("/api/v1/system/workers/ner/settings").status_code == 200
+    response = client.delete("/api/v1/system/workers/ner/settings")
+    assert response.status_code == 200
     assert client.get("/api/v1/system/workers/ner/settings/revisions").json()["total"] == 0
 
 
