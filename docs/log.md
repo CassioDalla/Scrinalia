@@ -645,3 +645,19 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   verified: the collection's own screens. The API was pointed at the zeroed database, so the pixels are
   of a seeded scratch collection, not of `memoriacuritibana`; what was measured there was the SQL, read
   through `psql`, not the screen.
+
+## 2026-10-12 — the review of the decision queue (no page changed)
+
+- **Range:** `820f3c9..b759393`
+- **Pages:**
+  - `guides/curate.md` — **no-change**: the range *is* the review of the change the previous entry
+    documented. The offset clamp answers 200 where the route answered 500 (`offset=-1`), the contract
+    pair moved only in the docstring of `TagCatalogState`, and the four curator fixes changed the
+    search box's debounce guard, the counts rendered while `placeholderData` held the previous filter,
+    the row's select (retired categories now included and marked) and the batch's report of what it
+    wrote and what did not answer. No sentence of the page described any of those behaviours as they
+    were — and the page already said the batch "reports how many tags it wrote and where", which the
+    fix made true for the failure case too.
+- **Why the round exists:** the two `fix` commits landed *after* the documentation commit, which is
+  exactly the signal the report is for: a page whose sources moved is a candidate, and a candidate is
+  closed with a reason rather than an edit.
