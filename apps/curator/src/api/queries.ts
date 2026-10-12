@@ -77,6 +77,14 @@ export const SETTINGS_REVISIONS_PAGE_SIZE = 10;
 export const SUBJECT_SUGGESTIONS_PAGE_SIZE = 25;
 /** The deletion ledger only grows, so it pages like the proposals queue. */
 export const DELETIONS_PAGE_SIZE = 20;
+/**
+ * A category's descriptions, read ten at a time **inside** the card.
+ *
+ * Smaller than the list screen's 25 on purpose: this list expands under a card that is already one
+ * of many on the page, and a page of 25 would push the next category out of sight — which is the
+ * problem the expansion is supposed to solve, not reproduce.
+ */
+export const CATEGORY_DOCUMENTS_PAGE_SIZE = 10;
 
 /**
  * Server state, declared once per resource.
