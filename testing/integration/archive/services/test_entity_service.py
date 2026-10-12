@@ -177,3 +177,52 @@ def test_create_synonyms_repoints_an_existing_entity_mapping(use_test_db, db_ses
 
     rules = {rule["pattern"]: rule["id"] for rule in repo.get_ner_synonyms_rules()}
     assert rules["ippuc antigo"] == "instituto ippuc"
+
+
+def test_merge_absorbs_a_cluster_whose_absorbed_names_normalize_to_one_key(use_test_db, db_session):
+    """
+    The cluster the issue reproduced: ``A. B. Detter`` absorbs ``A. B. Deter`` and ``a. b. deter``.
+
+    ``EntityService.merge`` builds the spellings as a plain list, and two names that differ only in
+    case normalize to the same ``(synonym_name, category)``; the single multi-row upsert then made
+    PostgreSQL answer ``CardinalityViolation`` and the request failed with a 500, absorbing nothing.
+    The write collapses the commands now, so the merge succeeds and the spelling survives exactly
+    once.
+
+    The unique index the same change adds to ``archive_entities`` is what makes such a pair
+    impossible in a reconciled collection, so the test drops it for its own transaction (the fixture
+    rolls the drop back) and puts the two rows back the way the pre-migration collection carries
+    them — the exact state the archivist hit.
+    """
+    from scrinalia.domains.archive.models import DomainSynonyms
+    from scrinalia.domains.archive.schemas import MergeEntityCommand
+    from scrinalia.domains.archive.services.entity_service import EntityService
+
+    db_session.execute(text("DROP INDEX IF EXISTS uix_archive_entities_name_normalized"))
+
+    repo = EntityRepository(db_session)
+    canonical = ArchiveEntity(name="A. B. Detter", entity_type="PER")
+    title_twin = ArchiveEntity(name="A. B. Deter", entity_type="PER")
+    lower_twin = ArchiveEntity(name="a. b. deter", entity_type="PER")
+    db_session.add_all([canonical, title_twin, lower_twin])
+    db_session.commit()
+
+    response = EntityService(repo).merge(
+        MergeEntityCommand(
+            canonical_id=canonical.entity_id,
+            ids_to_merge=[title_twin.entity_id, lower_twin.entity_id],
+        )
+    )
+    db_session.commit()
+
+    assert response.entities_deleted == 2
+    mapping = dict(
+        db_session.execute(
+            select(DomainSynonyms.synonym_name, DomainSynonyms.canonical_entity_id).where(
+                DomainSynonyms.category == "PER"
+            )
+        ).all()
+    )
+    assert mapping == {"a. b. deter": canonical.entity_id}
+    assert db_session.get(ArchiveEntity, title_twin.entity_id) is None
+    assert db_session.get(ArchiveEntity, lower_twin.entity_id) is None
