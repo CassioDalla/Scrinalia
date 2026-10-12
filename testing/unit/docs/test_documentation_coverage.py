@@ -36,7 +36,6 @@ GUIDES = {
     "adrs": "adr/index.md",
 }
 
-_METHODS = ("get", "put", "post", "delete", "patch", "options", "head", "trace")
 _ROUTE_PATH = re.compile(r'path:\s*"([^"]+)"')
 
 
