@@ -38,6 +38,7 @@ import {
   fetchSystemWorkerSettings,
   fetchSystemWorkers,
   fetchTagRelevance,
+  fetchTagCatalog,
   fetchTextTemplates,
   fetchUserSessions,
   fetchUsers,
@@ -49,6 +50,7 @@ import {
   type MergeReason,
   type ProposalStatus,
   type StopwordsScope,
+  type TagCatalogState,
   type TemplateStatus,
   type WorkerRunStatus,
 } from "./client";
@@ -77,6 +79,13 @@ export const SETTINGS_REVISIONS_PAGE_SIZE = 10;
 export const SUBJECT_SUGGESTIONS_PAGE_SIZE = 25;
 /** The deletion ledger only grows, so it pages like the proposals queue. */
 export const DELETIONS_PAGE_SIZE = 20;
+/**
+ * A page of the tag catalogue, and the same one the home screen's cards count.
+ *
+ * Bigger than the relevance lists' head and smaller than the collection page: the archivist works
+ * this list tag by tag, and a page has to fit a screening.
+ */
+export const CATALOG_PAGE_SIZE = 25;
 /**
  * A category's descriptions, read ten at a time **inside** the card.
  *
@@ -263,6 +272,27 @@ export const queries = {
       queryKey: ["taxonomy", "tags", "relevance", method, limit],
       queryFn: () => fetchTagRelevance(method, limit),
       staleTime: 60_000,
+    }),
+
+  /**
+   * The tag catalogue, filtered by the state of the subject decision.
+   *
+   * Server-side filter and paging, unlike the relevance lists: "list the tags nobody has decided
+   * about" is a filter over 8k spellings, and a client that filtered the page it holds would answer
+   * "not here" for the tag the card counted. ``placeholderData`` keeps the previous page on screen
+   * while the next one loads — the same reason the collection list does.
+   */
+  tagCatalog: (filters: {
+    subject_state?: TagCatalogState;
+    macro_category_id?: number;
+    term?: string;
+    offset?: number;
+  }) =>
+    queryOptions({
+      queryKey: ["taxonomy", "tags", "catalog", filters],
+      queryFn: () => fetchTagCatalog({ ...filters, limit: CATALOG_PAGE_SIZE, offset: filters.offset ?? 0 }),
+      staleTime: 15_000,
+      placeholderData: (previous) => previous,
     }),
 
   /** Every pair above the threshold: the evidence a merge proposal is built from. */
