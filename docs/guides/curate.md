@@ -558,6 +558,13 @@ links the merge created, so it cannot detach a document that already carried the
 also be marked across lines and unified as a cluster, which is how one merge spans several pairs
 (`carlos de carvalho` appears in more than one row).
 
+A marked selection has a **second destination**, and it is the other kind of write: **Banir N
+marcadas** registers the spellings in `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`), on the axis
+chosen beside the button. Banning **deletes nothing** — the tags stay in the collection, linked and
+reachable by search, and the step that removes them is the **purge** in the Stopwords tab, behind its
+own preview and with no undo. The marks survive the ban: the merge they were made for is still
+possible.
+
 #### Propostas de merge
 
 The machine's clusters, with the decision kept apart from the write:

@@ -299,6 +299,9 @@ function SimilarityTab({
   const [marked, setMarked] = useState<MergeCandidate[]>([]);
   const [clusterOpen, setClusterOpen] = useState(false);
   const [lastMerge, setLastMerge] = useState<{ label: string; outcome: MergeResponse } | null>(null);
+  /** The axis the ban goes to, chosen before the click: ``domain_stopwords.word`` is unique. */
+  const [banScope, setBanScope] = useState<StopwordsScope>("TAG");
+  const [lastBan, setLastBan] = useState<{ written: number; scope: StopwordsScope } | null>(null);
 
   const similar = useQuery(queries.similarTagPairs(threshold));
 
@@ -353,6 +356,30 @@ function SimilarityTab({
     setMarked([]);
     setClusterOpen(false);
   };
+
+  /**
+   * Bans the whole selection, in one call.
+   *
+   * The route already takes a list and the marks *are* the list: twenty spellings that all mean
+   * "this is not worth considering" are twenty trips to the Stopwords tab and one click here. The
+   * axis is chosen before the click because a ban is *from* one axis — `domain_stopwords.word` is
+   * unique, so re-banning moves the term instead of adding a second row — and the NER veto is not
+   * the subject veto.
+   *
+   * Banning **deletes nothing**: the tags stay in the collection, linked and reachable, and the step
+   * that removes them is the purge, in the Stopwords tab and behind its own preview. That is why the
+   * marks are **not** cleared: unlike a merge, this write took no row away, so the selection is still
+   * there and the merge it was made for is still possible.
+   */
+  const banMarked = useMutation({
+    mutationFn: () => banStopwords({ words: marked.map((member) => member.name), scope: banScope }),
+    onSuccess: (written) => {
+      setLastBan({ written: written.created, scope: banScope });
+      // The banned terms are another tab's read, and the axis is part of its query key.
+      void queryClient.invalidateQueries({ queryKey: ["taxonomy", "stopwords"] });
+      invalidate();
+    },
+  });
 
   /**
    * A successful merge invalidates the data and **leaves the panel open**.
@@ -411,6 +438,19 @@ function SimilarityTab({
       {similar.isPending ? <Spinner /> : null}
 
       {lastMerge ? <MergeOutcome label={lastMerge.label} outcome={lastMerge.outcome} /> : null}
+
+      {lastBan ? (
+        <Notice tone="ok">
+          <strong>
+            {formatCount(lastBan.written)} grafia(s) no eixo{" "}
+            {labelOf(STOPWORD_SCOPE_LABEL, lastBan.scope).toLowerCase()}
+          </strong>
+          . Banir <strong>não exclui nada</strong>: as tags continuam no acervo e alcançáveis pela busca, e a marcação
+          segue de pé porque a mesclagem continua possível. O passo que exclui é a <strong>purga</strong>, na aba
+          Stopwords, atrás da prévia.
+        </Notice>
+      ) : null}
+      {banMarked.error ? <ErrorState error={banMarked.error} /> : null}
 
       {/*
         Two rows at once is a different operation from one row, and it gets the panel in the place the
@@ -522,6 +562,38 @@ function SimilarityTab({
             </span>
             <Button size="sm" variant="primary" onClick={() => setClusterOpen(true)}>
               Mesclar tags
+            </Button>
+            {/*
+              The other decision the same selection makes possible, and the one the marks were
+              already good for: a list of spellings that all mean the same thing to ban. It is a
+              different kind of write from the merge, so it sits behind a divider and names its axis
+              before the click.
+            */}
+            <span className="h-4 w-px bg-white/20" aria-hidden />
+            <Select
+              // The bar is ``text-white`` and the control is ``bg-white``: without the explicit ink
+              // colour the option text renders white on white — measured on the other bar.
+              className="w-40 text-(--color-ink)"
+              value={banScope}
+              disabled={banMarked.isPending}
+              title={STOPWORD_SCOPE_HINT[banScope]}
+              aria-label="Eixo do banimento"
+              onChange={(event) => setBanScope(event.target.value as StopwordsScope)}
+            >
+              {SCOPE_VALUES.map((scope) => (
+                <option key={scope} value={scope}>
+                  {labelOf(STOPWORD_SCOPE_LABEL, scope)}
+                </option>
+              ))}
+            </Select>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={banMarked.isPending || marked.length === 0}
+              title="Banir uma grafia não exclui nada: a tag continua no acervo. O passo que exclui é a purga, na aba Stopwords."
+              onClick={() => banMarked.mutate()}
+            >
+              {banMarked.isPending ? ACTION.ban.pending : `Banir ${formatCount(marked.length)} marcadas`}
             </Button>
             <button className="text-xs text-white/70 hover:text-white" onClick={clearMarked}>
               limpar

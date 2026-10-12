@@ -536,6 +536,12 @@ vínculos que o merge criou, então não solta um documento que já carregava a 
 podem ser marcadas entre si e unificadas como um conjunto, que é como um merge atravessa vários pares
 (`carlos de carvalho` aparece em mais de uma linha).
 
+Uma seleção marcada tem um **segundo destino**, e ele é o outro tipo de escrita: **Banir N marcadas**
+registra as grafias em `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`), no eixo escolhido ao lado do
+botão. Banir **não apaga nada** — as tags continuam no acervo, vinculadas e alcançáveis pela busca, e o
+passo que as exclui é a **purga** na aba Stopwords, atrás da própria prévia e sem desfazer. A marcação
+sobrevive ao banimento: a mesclagem para a qual ela foi feita continua possível.
+
 #### Propostas de merge
 
 Os conjuntos da máquina, com a decisão separada da escrita:
