@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from functools import lru_cache
 from pathlib import Path
 
 from loguru import logger
@@ -12,8 +13,6 @@ CONSOLE_FORMAT = (
     "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | "
     "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
 )
-
-_CONFIGURED = False
 
 
 class InterceptHandler(logging.Handler):
@@ -54,18 +53,18 @@ def intercept_stdlib_logging() -> None:
     logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
 
 
+@lru_cache(maxsize=1)
 def configure_logging() -> None:
     """
     Installs the loguru sinks. Safe to call more than once.
 
     ``logger.remove()`` only runs on the first call: importing this module after
     some other component has already configured loguru (for example a host
-    application or a test harness) must not tear those sinks down.
+    application or a test harness) must not tear those sinks down. ``lru_cache``
+    *is* that guarantee — the same idiom ``get_settings()`` uses — and it replaces
+    the module flag that used to carry it; ``configure_logging.cache_clear()``
+    re-arms the first call for a test that has to observe it.
     """
-    global _CONFIGURED
-    if _CONFIGURED:
-        return
-
     log_dir = Path(settings.LOG_DIR)
     log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -95,7 +94,6 @@ def configure_logging() -> None:
     )
 
     intercept_stdlib_logging()
-    _CONFIGURED = True
 
 
 configure_logging()

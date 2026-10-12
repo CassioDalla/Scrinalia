@@ -551,8 +551,9 @@ class TagService:
 
         if source_type == "tags":
             texts_to_analyze = self.repo.fetch_tags_for_clustering()
-        elif source_type == "documents":
-            # Hack that will be refactored
+        else:
+            # ``documents``, the only other value the guard above admits. An ``elif`` would leave
+            # ``texts_to_analyze`` unbound on a path the reader has to prove cannot happen.
             texts_to_analyze = self.document_repo.fetch_documents_for_clustering(columns_to_extract=columns_to_extract)
 
         return texts_to_analyze
