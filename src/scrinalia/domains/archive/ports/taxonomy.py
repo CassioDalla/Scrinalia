@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from typing import Any, Literal, Protocol
 
 from scrinalia.core.author import Author
-from scrinalia.domains.archive.models.enums import StopwordsScope
+from scrinalia.domains.archive.models.enums import StopwordsScope, TagCatalogState, TagFacetType
 from scrinalia.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
@@ -15,6 +15,7 @@ from scrinalia.domains.archive.schemas import (
     StopwordPurgeTag,
     SubjectExclusionSuggestionResponse,
     SynonymCommand,
+    TagCatalogRow,
     TagCount,
     TagIdentity,
     TagMergeProposalDTO,
@@ -70,6 +71,30 @@ class TagRepositoryPort(Protocol):
         raise NotImplementedError
 
     def read_tag_result(self, tag_id: int) -> TagSearchResult | None:
+        raise NotImplementedError
+
+    def count_catalog(
+        self, state: TagCatalogState, macro_category_id: int | None = None, term: str | None = None
+    ) -> int:
+        raise NotImplementedError
+
+    def list_catalog(
+        self,
+        state: TagCatalogState,
+        macro_category_id: int | None = None,
+        term: str | None = None,
+        limit: int = 25,
+        offset: int = 0,
+    ) -> list[TagCatalogRow]:
+        raise NotImplementedError
+
+    def read_tag_facets(self, tag_id: int) -> list[TagFacetType]:
+        raise NotImplementedError
+
+    def upsert_tag_facet(self, tag_id: int, facet_type: TagFacetType, value: str, author: Author | None) -> None:
+        raise NotImplementedError
+
+    def delete_tag_facets(self, tag_id: int, facet_type: TagFacetType | None = None) -> int:
         raise NotImplementedError
 
     def find_merge_suggestions(self, threshold: float, limit: int) -> list[TagMergeSuggestion]:

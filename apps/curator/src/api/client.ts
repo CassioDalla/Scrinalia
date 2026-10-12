@@ -121,6 +121,12 @@ export type PlanStatus = PlanDecision["status"];
 export type TagSearchResult = components["schemas"]["TagSearchResult"];
 export type TagCurationRequest = components["schemas"]["TagCurationRequest"];
 export type TagCurationResult = components["schemas"]["TagCurationResult"];
+export type TagCatalogState = components["schemas"]["TagCatalogState"];
+export type TagCatalogResponse = components["schemas"]["TagCatalogResponse"];
+export type TagCatalogRow = components["schemas"]["TagCatalogRow"];
+export type TagFacetType = components["schemas"]["TagFacetType"];
+export type TagFacetRequest = components["schemas"]["TagFacetRequest"];
+export type TagFacetResult = components["schemas"]["TagFacetResult"];
 export type EntityRelevance = components["schemas"]["EntityRelevance"];
 export type MacroCategory = components["schemas"]["ArchiveMacroCategoryEntityDTO"];
 export type MacroCategoryCreateRequest = components["schemas"]["MacroCategoryCreateRequest"];
@@ -606,6 +612,52 @@ export async function curateTag(tagId: number, body: TagCurationRequest): Promis
 export async function fetchMacroCategories(onlyActive = false): Promise<MacroCategory[]> {
   return unwrap<MacroCategory[]>(
     await client.GET("/api/v1/taxonomy/macro-categories", { params: { query: { only_active: onlyActive } } }),
+  );
+}
+
+/**
+ * One page of the tag catalogue, filtered by the state of the subject decision.
+ *
+ * The read the home screen's cards land on: the type-ahead cannot answer "list the tags nobody has
+ * decided about", because it requires a term and returns a top-N by weight.
+ */
+export async function fetchTagCatalog(params: {
+  subject_state?: TagCatalogState;
+  macro_category_id?: number;
+  term?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<TagCatalogResponse> {
+  return unwrap<TagCatalogResponse>(
+    await client.GET("/api/v1/taxonomy/tags/catalog", { params: { query: params } }),
+  );
+}
+
+/**
+ * Declares one non-subject axis of a tag: a producer or a place.
+ *
+ * A declaration about the whole state, not about a column: the tag leaves any drawer it was in, and
+ * its term stops being a subject candidate. The route answers the state it left behind.
+ */
+export async function declareTagFacet(
+  tagId: number,
+  facetType: TagFacetType,
+  body: TagFacetRequest = {},
+): Promise<TagFacetResult> {
+  return unwrap<TagFacetResult>(
+    await client.PUT("/api/v1/taxonomy/tags/{tag_id}/facets/{facet_type}", {
+      params: { path: { tag_id: tagId, facet_type: facetType } },
+      body,
+    }),
+  );
+}
+
+/** Takes a tag off one axis; the subject exclusion goes with the last facet. */
+export async function removeTagFacet(tagId: number, facetType: TagFacetType): Promise<TagFacetResult> {
+  return unwrap<TagFacetResult>(
+    await client.DELETE("/api/v1/taxonomy/tags/{tag_id}/facets/{facet_type}", {
+      params: { path: { tag_id: tagId, facet_type: facetType } },
+    }),
   );
 }
 

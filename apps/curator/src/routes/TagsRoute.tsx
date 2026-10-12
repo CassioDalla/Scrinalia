@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   applyMergeBatch,
   banStopwords,
+  curateTag,
+  declareTagFacet,
   fetchMergeProposals,
   decideMergeProposal,
   mergeTags,
@@ -12,20 +14,25 @@ import {
   previewStopwordPurge,
   previewTagPair,
   purgeStopwords,
+  removeTagFacet,
   suggestMergeProposals,
   unbanStopwords,
   undoMerge,
   type BatchMergeResponse,
+  type MacroCategory,
   type MergePreview,
   type MergeReason,
   type MergeResponse,
   type ProposalStatus,
   type StopwordPurgePreview,
   type StopwordsScope,
+  type TagCatalogRow,
+  type TagCatalogState,
+  type TagFacetType,
   type TagMergeProposal,
   type TagPairSimilarity,
 } from "@/api/client";
-import { queries, MERGE_LOG_PAGE_SIZE, PROPOSALS_PAGE_SIZE } from "@/api/queries";
+import { queries, CATALOG_PAGE_SIZE, MERGE_LOG_PAGE_SIZE, PROPOSALS_PAGE_SIZE } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -41,6 +48,10 @@ import { formatCount, formatDateTime } from "@/lib/format";
 import { asBoolean, asEnum, asNumber, asString } from "@/lib/search";
 import { useDebounced } from "@/lib/useDebounced";
 import {
+  CATALOG_STATE_HINT,
+  CATALOG_STATE_LABEL,
+  FACET_TYPE_HINT,
+  FACET_TYPE_LABEL,
   MERGE_REASON_LABEL,
   MERGE_REASON_TONE,
   PROPOSAL_STATUS_LABEL,
@@ -59,10 +70,19 @@ const TABS = [
   { id: "similaridade", label: "Similaridade" },
   { id: "propostas", label: "Propostas de merge" },
   { id: "stopwords", label: "Stopwords" },
+  /**
+   * The decision queue, and the tab the home screen's cards open.
+   *
+   * Appended rather than placed first: the four analysis tabs have had this order since the screen
+   * existed, and the cards carry ``aba`` explicitly — a deep link does not depend on the default.
+   */
+  { id: "classificar", label: "Classificar" },
 ];
 
 const REASONS: MergeReason[] = ["TRIGRAM", "PLURAL", "MIXED"];
 const SCOPE_VALUES: StopwordsScope[] = ["TAG", "ENTITY", "ALL"];
+const CATALOG_STATES: TagCatalogState[] = ["ALL", "PENDING", "NOT_SUBJECT", "FACET", "LOW_CONFIDENCE"];
+const FACET_TYPES: TagFacetType[] = ["INSTITUTION", "PLACE"];
 
 /**
  * What a merge panel needs to know about one tag: the row it points at, and what it reads.
@@ -89,6 +109,12 @@ export type TagsSearch = {
   flag?: boolean;
   offset?: number;
   escopo?: StopwordsScope;
+  /** The catalogue's filter by the state of the subject decision. */
+  subject_state?: TagCatalogState;
+  /** The drawer the catalogue is restricted to, when the archivist picked one. */
+  cat?: number;
+  /** The catalogue's own search box. Separate from ``nome``, which filters the similarity pairs. */
+  termo?: string;
 };
 
 export function validateTagsSearch(search: Record<string, unknown>): TagsSearch {
@@ -104,6 +130,13 @@ export function validateTagsSearch(search: Record<string, unknown>): TagsSearch 
     flag: asBoolean(search.flag),
     offset: asNumber(search.offset),
     escopo: asEnum(search.escopo, SCOPE_VALUES),
+    // Only the decision tab has a state, and it opens on the queue the home screen counts; keeping
+    // the key off the other four tabs is what stops the address bar from carrying a filter that
+    // nothing on screen reads.
+    subject_state:
+      asEnum(search.subject_state, CATALOG_STATES) ?? (search.aba === "classificar" ? "PENDING" : undefined),
+    cat: asNumber(search.cat),
+    termo: asString(search.termo),
   };
 }
 
@@ -152,6 +185,8 @@ export function TagsRoute() {
           <ProposalsTab search={search} patch={patch} />
         ) : search.aba === "stopwords" ? (
           <StopwordsTab search={search} patch={patch} />
+        ) : search.aba === "classificar" ? (
+          <ClassificarTab search={search} patch={patch} />
         ) : (
           <RelevanceTab search={search} patch={patch} />
         )}
@@ -264,6 +299,9 @@ function SimilarityTab({
   const [marked, setMarked] = useState<MergeCandidate[]>([]);
   const [clusterOpen, setClusterOpen] = useState(false);
   const [lastMerge, setLastMerge] = useState<{ label: string; outcome: MergeResponse } | null>(null);
+  /** The axis the ban goes to, chosen before the click: ``domain_stopwords.word`` is unique. */
+  const [banScope, setBanScope] = useState<StopwordsScope>("TAG");
+  const [lastBan, setLastBan] = useState<{ written: number; scope: StopwordsScope } | null>(null);
 
   const similar = useQuery(queries.similarTagPairs(threshold));
 
@@ -318,6 +356,30 @@ function SimilarityTab({
     setMarked([]);
     setClusterOpen(false);
   };
+
+  /**
+   * Bans the whole selection, in one call.
+   *
+   * The route already takes a list and the marks *are* the list: twenty spellings that all mean
+   * "this is not worth considering" are twenty trips to the Stopwords tab and one click here. The
+   * axis is chosen before the click because a ban is *from* one axis — `domain_stopwords.word` is
+   * unique, so re-banning moves the term instead of adding a second row — and the NER veto is not
+   * the subject veto.
+   *
+   * Banning **deletes nothing**: the tags stay in the collection, linked and reachable, and the step
+   * that removes them is the purge, in the Stopwords tab and behind its own preview. That is why the
+   * marks are **not** cleared: unlike a merge, this write took no row away, so the selection is still
+   * there and the merge it was made for is still possible.
+   */
+  const banMarked = useMutation({
+    mutationFn: () => banStopwords({ words: marked.map((member) => member.name), scope: banScope }),
+    onSuccess: (written) => {
+      setLastBan({ written: written.created, scope: banScope });
+      // The banned terms are another tab's read, and the axis is part of its query key.
+      void queryClient.invalidateQueries({ queryKey: ["taxonomy", "stopwords"] });
+      invalidate();
+    },
+  });
 
   /**
    * A successful merge invalidates the data and **leaves the panel open**.
@@ -376,6 +438,19 @@ function SimilarityTab({
       {similar.isPending ? <Spinner /> : null}
 
       {lastMerge ? <MergeOutcome label={lastMerge.label} outcome={lastMerge.outcome} /> : null}
+
+      {lastBan ? (
+        <Notice tone="ok">
+          <strong>
+            {formatCount(lastBan.written)} grafia(s) no eixo{" "}
+            {labelOf(STOPWORD_SCOPE_LABEL, lastBan.scope).toLowerCase()}
+          </strong>
+          . Banir <strong>não exclui nada</strong>: as tags continuam no acervo e alcançáveis pela busca, e a marcação
+          segue de pé porque a mesclagem continua possível. O passo que exclui é a <strong>purga</strong>, na aba
+          Stopwords, atrás da prévia.
+        </Notice>
+      ) : null}
+      {banMarked.error ? <ErrorState error={banMarked.error} /> : null}
 
       {/*
         Two rows at once is a different operation from one row, and it gets the panel in the place the
@@ -487,6 +562,38 @@ function SimilarityTab({
             </span>
             <Button size="sm" variant="primary" onClick={() => setClusterOpen(true)}>
               Mesclar tags
+            </Button>
+            {/*
+              The other decision the same selection makes possible, and the one the marks were
+              already good for: a list of spellings that all mean the same thing to ban. It is a
+              different kind of write from the merge, so it sits behind a divider and names its axis
+              before the click.
+            */}
+            <span className="h-4 w-px bg-white/20" aria-hidden />
+            <Select
+              // The bar is ``text-white`` and the control is ``bg-white``: without the explicit ink
+              // colour the option text renders white on white — measured on the other bar.
+              className="w-40 text-(--color-ink)"
+              value={banScope}
+              disabled={banMarked.isPending}
+              title={STOPWORD_SCOPE_HINT[banScope]}
+              aria-label="Eixo do banimento"
+              onChange={(event) => setBanScope(event.target.value as StopwordsScope)}
+            >
+              {SCOPE_VALUES.map((scope) => (
+                <option key={scope} value={scope}>
+                  {labelOf(STOPWORD_SCOPE_LABEL, scope)}
+                </option>
+              ))}
+            </Select>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={banMarked.isPending || marked.length === 0}
+              title="Banir uma grafia não exclui nada: a tag continua no acervo. O passo que exclui é a purga, na aba Stopwords."
+              onClick={() => banMarked.mutate()}
+            >
+              {banMarked.isPending ? ACTION.ban.pending : `Banir ${formatCount(marked.length)} marcadas`}
             </Button>
             <button className="text-xs text-white/70 hover:text-white" onClick={clearMarked}>
               limpar
@@ -1411,6 +1518,527 @@ function ProposalCard({
         ) : null}
       </CardBody>
     </Card>
+  );
+}
+
+// =============================================================================================
+// Classificar — a fila de tags sem decisão de assunto
+// =============================================================================================
+
+/**
+ * The three destinations, and they are exclusive: a category, "not a subject", or the non-subject
+ * axis (a producer or a place). One shape for the selection's action, so the bulk path cannot write
+ * something the single row cannot.
+ */
+type BulkAction =
+  | { kind: "category"; categoryId: number }
+  | { kind: "not-subject" }
+  | { kind: "facet"; facet: TagFacetType };
+
+/**
+ * The decision queue of the subject axis: the tab the home screen's two cards open.
+ *
+ * The read did not exist before it. The relevance lists are a top-N by weight with no notion of
+ * state, so a card promising "76 tags without a subject" had no screen that could mark which rows
+ * they were — the archivist landed on an unfiltered ranking. Here the state is a filter over the
+ * whole catalogue, with the total beside it, and the row is where the decision is taken.
+ *
+ * The three destinations are the point of the taxonomy: **not a subject** is a verdict about the
+ * subject axis (the tag stays in the collection and reachable by search — banning a spelling and
+ * purging are the destructive paths, and they live in Stopwords), while **producer** and **place**
+ * are the non-subject axis the schema was written for. ``alfa`` reaches 2,376 descriptions and
+ * ``cidade`` 1,865; forcing them into a category is a measured cause of the classification defect,
+ * which is why the queue can only close if the third destination is real.
+ */
+function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes: Partial<TagsSearch>) => void }) {
+  const queryClient = useQueryClient();
+  const categories = useQuery(queries.macroCategories());
+  const [selected, setSelected] = useState<number[]>([]);
+  const [report, setReport] = useState<string | null>(null);
+
+  const state = search.subject_state ?? "PENDING";
+  const catalog = useQuery(
+    queries.tagCatalog({
+      subject_state: state,
+      macro_category_id: search.cat,
+      term: search.termo,
+      offset: search.offset,
+    }),
+  );
+
+  const items = catalog.data?.items ?? [];
+  const total = catalog.data?.total ?? 0;
+  const offset = search.offset ?? 0;
+  /**
+   * Whether the payload on screen belongs to the filter on screen.
+   *
+   * ``placeholderData`` keeps the previous page while the next one loads, which is right for the
+   * rows and wrong for the **counts**: the header would promise the previous filter's total under
+   * the new chip, and a filter that answers nothing would render the previous filter's empty state.
+   * The rows may lag; the numbers may not.
+   */
+  const countsAreCurrent = catalog.data !== undefined && !catalog.isPlaceholderData;
+  /**
+   * Every category, retired ones included: the state `ALL` lists tags that sit in a retired drawer,
+   * and a select that only offered the active ones would display "sem categoria" for a tag whose
+   * badge above says otherwise. The catalogue screen makes the same choice for the same reason.
+   */
+  const drawers = categories.data ?? [];
+
+  /**
+   * The selection belongs to the rows on screen.
+   *
+   * A filter or a page change makes the marked tags invisible, and the bar would then write to tags
+   * the archivist can no longer see — a batch decision is not something to take blind. Adjusted
+   * during render (the pattern React documents for syncing state with a prop) instead of in an
+   * effect, which would render one frame with the stale selection.
+   */
+  const selectionKey = `${state}|${search.cat ?? ""}|${search.termo ?? ""}|${offset}`;
+  const [selectionFor, setSelectionFor] = useState(selectionKey);
+  if (selectionFor !== selectionKey) {
+    setSelectionFor(selectionKey);
+    setSelected([]);
+  }
+
+  /**
+   * A decision about a tag touches four screens: the catalogue it just left, the drawers' weights,
+   * every description that carries the tag, and the counters on the home screen.
+   */
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ["taxonomy", "tags"] });
+    void queryClient.invalidateQueries({ queryKey: ["taxonomy", "macro-categories"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents"] });
+    void queryClient.invalidateQueries({ queryKey: ["curation", "inbox"] });
+  };
+
+  const curate = useMutation({
+    mutationFn: ({ tagId, categoryId }: { tagId: number; categoryId: number | null }) =>
+      curateTag(tagId, { macro_category_id: categoryId, note: null }),
+    onSuccess: (result) => {
+      setReport(
+        result.macro_category_name
+          ? `“${result.name}” está em ${result.macro_category_name}. A decisão vale para todas as descrições que carregam a tag.`
+          : `“${result.name}” foi declarada não-assunto: nenhum selo de assunto será mostrado para ela, e o classificador não vai adivinhar de novo.`,
+      );
+      invalidate();
+    },
+  });
+
+  const facet = useMutation({
+    mutationFn: ({ tagId, facet }: { tagId: number; facet: TagFacetType }) => declareTagFacet(tagId, facet),
+    onSuccess: (result, variables) => {
+      setReport(
+        `“${result.name}” entrou no eixo ${labelOf(FACET_TYPE_LABEL, variables.facet).toLowerCase()}: deixa de ser assunto e passa a ser ${labelOf(FACET_TYPE_LABEL, variables.facet).toLowerCase()}.`,
+      );
+      invalidate();
+    },
+  });
+
+  const unmake = useMutation({
+    mutationFn: ({ tagId, facet }: { tagId: number; facet: TagFacetType }) => removeTagFacet(tagId, facet),
+    onSuccess: (result, variables) => {
+      setReport(`“${result.name}” saiu do eixo ${labelOf(FACET_TYPE_LABEL, variables.facet).toLowerCase()}.`);
+      invalidate();
+    },
+  });
+
+  /**
+   * The same decision over a selection, one request per tag.
+   *
+   * There is no batch route and this is not the place to invent one: the operations are the same
+   * route the row calls, and the loop is what the merge queue already does for a batch of verdicts.
+   * What matters is that it **reports what it wrote** — the archivist selected twenty tags and has to
+   * learn that nineteen moved and which one did not.
+   */
+  const bulk = useMutation({
+    mutationFn: async ({ ids, action }: { ids: number[]; action: BulkAction }) => {
+      // One request per tag, so the failure of one is not the failure of the batch: it is caught
+      // here and reported with the rest, which is the whole point of the bar saying what it wrote.
+      const written: number[] = [];
+      const failed: number[] = [];
+      for (const tagId of ids) {
+        try {
+          if (action.kind === "facet") await declareTagFacet(tagId, action.facet);
+          else
+            await curateTag(tagId, {
+              macro_category_id: action.kind === "category" ? action.categoryId : null,
+              note: null,
+            });
+          written.push(tagId);
+        } catch {
+          failed.push(tagId);
+        }
+      }
+      return { written, failed };
+    },
+    onSuccess: ({ written, failed }, variables) => {
+      const action = variables.action;
+      const destination =
+        action.kind === "category"
+          ? `categoria ${drawers.find((category) => category.category_id === action.categoryId)?.name ?? `#${action.categoryId}`}`
+          : action.kind === "not-subject"
+            ? "não-assunto"
+            : `eixo ${labelOf(FACET_TYPE_LABEL, action.facet).toLowerCase()}`;
+      setReport(
+        `${formatCount(written.length)} tag(s) escritas: ${destination}.` +
+          (failed.length > 0
+            ? ` ${formatCount(failed.length)} não responderam (ids ${failed.join(", ")}): a decisão delas continua em aberto, e elas seguem marcadas.`
+            : ""),
+      );
+      // What did not go through stays marked, so the retry is a click and not a re-selection.
+      setSelected(failed);
+    },
+    /**
+     * The list is refetched even when the loop stops halfway.
+     *
+     * The batch is one request per tag, so a failure on the seventh leaves six decisions already
+     * written; without this the list would keep showing those six as pending, and the archivist
+     * would read a write that happened as one that did not.
+     */
+    onSettled: invalidate,
+  });
+
+  const toggle = (tagId: number) =>
+    setSelected((current) => (current.includes(tagId) ? current.filter((id) => id !== tagId) : [...current, tagId]));
+
+  const pageIds = items.map((row) => row.tag_id);
+  const allOnPage = pageIds.length > 0 && pageIds.every((id) => selected.includes(id));
+
+  return (
+    <div className="grid gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {CATALOG_STATES.map((value) => (
+          <Button
+            key={value}
+            size="sm"
+            variant={state === value ? "primary" : "secondary"}
+            title={CATALOG_STATE_HINT[value]}
+            // A different question is a different page: the fold resets the offset unless the caller
+            // hands it one, which is exactly the rule the search-state gate pins.
+            onClick={() => patch({ subject_state: value, termo: search.termo })}
+          >
+            {labelOf(CATALOG_STATE_LABEL, value)}
+          </Button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <CatalogSearchBox value={search.termo} onSearch={(term) => patch({ termo: term })} />
+        <Select
+          className="w-56"
+          value={search.cat ?? ""}
+          onChange={(event) => patch({ cat: event.target.value ? Number(event.target.value) : undefined })}
+        >
+          <option value="">Todas as categorias</option>
+          {(categories.data ?? []).map((category) => (
+            <option key={category.category_id} value={category.category_id}>
+              {category.name}
+              {category.is_active ? "" : " (aposentada)"}
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      <p className="max-w-3xl text-xs text-(--color-muted)">
+        {CATALOG_STATE_HINT[state]} Decidir aqui é uma decisão <strong>global</strong>: muda o selo de todas as
+        descrições que carregam a tag. Nada nesta aba exclui nada — banir uma grafia e excluir as tags banidas estão
+        na aba Stopwords, cada um no seu passo.
+      </p>
+
+      {curate.error ? <ErrorState error={curate.error} /> : null}
+      {facet.error ? <ErrorState error={facet.error} /> : null}
+      {unmake.error ? <ErrorState error={unmake.error} /> : null}
+      {bulk.error ? <ErrorState error={bulk.error} /> : null}
+      {report ? <Notice tone="ok">{report}</Notice> : null}
+
+      {catalog.error ? <ErrorState error={catalog.error} /> : null}
+      {catalog.isPending ? <Spinner label="Lendo o catálogo…" /> : null}
+
+      {countsAreCurrent && total === 0 ? (
+        <EmptyState
+          title="Nenhuma tag neste estado"
+          hint={
+            state === "PENDING"
+              ? "A fila está vazia: toda tag do acervo tem categoria, foi declarada não-assunto ou está num eixo de produtor ou lugar."
+              : "Troque o estado ou limpe a busca para ver outras tags do catálogo."
+          }
+        />
+      ) : null}
+
+      {items.length > 0 ? (
+        <Card>
+          <CardHeader className="flex flex-wrap items-center justify-between gap-2 text-xs text-(--color-muted)">
+            <span>
+              {countsAreCurrent ? `${formatCount(total)} tag(s) neste estado` : "lendo…"}
+              {search.termo ? ` para “${search.termo}”` : ""}
+            </span>
+            <span className="flex items-center gap-2">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={allOnPage}
+                  onChange={() => setSelected(allOnPage ? selected.filter((id) => !pageIds.includes(id)) : [...new Set([...selected, ...pageIds])])}
+                />
+                selecionar esta página
+              </label>
+              {selected.length > 0 ? (
+                <Button size="sm" variant="ghost" onClick={() => setSelected([])}>
+                  limpar seleção ({formatCount(selected.length)})
+                </Button>
+              ) : null}
+            </span>
+          </CardHeader>
+          <CardBody className="p-0">
+            <table className="w-full text-sm">
+              <thead className="border-b border-(--color-line) text-xs text-(--color-muted)">
+                <tr>
+                  <th className="w-8 px-3 py-2" />
+                  <th className="px-3 py-2 text-left font-medium">Tag</th>
+                  <th className="px-3 py-2 text-right font-medium">Documentos</th>
+                  <th className="px-3 py-2 text-left font-medium">Estado</th>
+                  <th className="px-3 py-2 text-left font-medium">Decidir</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((row) => (
+                  <CatalogRow
+                    key={row.tag_id}
+                    row={row}
+                    drawers={drawers}
+                    selected={selected.includes(row.tag_id)}
+                    busy={curate.isPending || facet.isPending || unmake.isPending}
+                    onToggle={() => toggle(row.tag_id)}
+                    onCurate={(categoryId) => curate.mutate({ tagId: row.tag_id, categoryId })}
+                    onFacet={(facetType) => facet.mutate({ tagId: row.tag_id, facet: facetType })}
+                    onUnfacet={(facetType) => unmake.mutate({ tagId: row.tag_id, facet: facetType })}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {countsAreCurrent && total > CATALOG_PAGE_SIZE ? (
+        <div className="flex items-center justify-between text-sm">
+          <Button size="sm" disabled={offset === 0} onClick={() => patch({ offset: Math.max(0, offset - CATALOG_PAGE_SIZE) })}>
+            ← Anterior
+          </Button>
+          <span className="text-xs text-(--color-muted)">
+            {formatCount(offset + 1)}–{formatCount(Math.min(offset + CATALOG_PAGE_SIZE, total))} de {formatCount(total)}
+          </span>
+          <Button
+            size="sm"
+            disabled={offset + CATALOG_PAGE_SIZE >= total}
+            onClick={() => patch({ offset: offset + CATALOG_PAGE_SIZE })}
+          >
+            Próxima →
+          </Button>
+        </div>
+      ) : null}
+
+      {/* The bar floats over the list so the decision is reachable from anywhere in it. */}
+      {selected.length > 0 ? (
+        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center">
+          <div className="pointer-events-auto flex flex-wrap items-center gap-3 rounded-full bg-(--color-ink) px-4 py-2 text-sm text-white shadow-lg">
+            <span>{formatCount(selected.length)} tag(s) marcada(s)</span>
+            <Select
+              // ``text-(--color-ink)`` is not decoration: the bar is ``text-white`` and the control
+              // is ``bg-white``, so without an explicit colour the placeholder renders white on
+              // white — measured, and it was invisible until the screen was looked at.
+              className="w-52 text-(--color-ink)"
+              value=""
+              disabled={bulk.isPending}
+              onChange={(event) => {
+                if (event.target.value) bulk.mutate({ ids: selected, action: { kind: "category", categoryId: Number(event.target.value) } });
+              }}
+            >
+              <option value="">mover para categoria…</option>
+              {drawers.map((category) => (
+                <option key={category.category_id} value={category.category_id}>
+                  {category.name}
+                  {category.is_active ? "" : " (aposentada)"}
+                </option>
+              ))}
+            </Select>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={bulk.isPending}
+              title="Nenhum selo de assunto será mostrado para elas."
+              onClick={() => bulk.mutate({ ids: selected, action: { kind: "not-subject" } })}
+            >
+              não é assunto
+            </Button>
+            {FACET_TYPES.map((facetType) => (
+              <Button
+                key={facetType}
+                size="sm"
+                variant="secondary"
+                disabled={bulk.isPending}
+                title={FACET_TYPE_HINT[facetType]}
+                onClick={() => bulk.mutate({ ids: selected, action: { kind: "facet", facet: facetType } })}
+              >
+                {labelOf(FACET_TYPE_LABEL, facetType)}
+              </Button>
+            ))}
+            <button className="text-xs text-white/70 hover:text-white" onClick={() => setSelected([])}>
+              limpar
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** One row of the queue: the evidence, the state, and the three destinations. */
+function CatalogRow({
+  row,
+  drawers,
+  selected,
+  busy,
+  onToggle,
+  onCurate,
+  onFacet,
+  onUnfacet,
+}: {
+  row: TagCatalogRow;
+  drawers: MacroCategory[];
+  selected: boolean;
+  busy: boolean;
+  onToggle: () => void;
+  onCurate: (categoryId: number | null) => void;
+  onFacet: (facet: TagFacetType) => void;
+  onUnfacet: (facet: TagFacetType) => void;
+}) {
+  const drawer = row.macro_category_id
+    ? drawers.find((category) => category.category_id === row.macro_category_id)
+    : undefined;
+  // The route always sends the list (the schema defaults it), but the generated type marks it
+  // optional and the screen should not depend on that difference.
+  const facets = row.facets ?? [];
+
+  return (
+    <tr className="border-b border-(--color-line) last:border-b-0">
+      <td className="px-3 py-1.5 align-top">
+        <input type="checkbox" checked={selected} onChange={onToggle} aria-label={`Marcar ${row.name}`} />
+      </td>
+      <td className="px-3 py-1.5 align-top">
+        <span className="flex min-w-0 flex-col">
+          <span className="truncate">{row.name}</span>
+          {row.ai_confidence_score !== null && row.ai_confidence_score !== undefined ? (
+            <span
+              className="text-xs tabular-nums text-(--color-muted)"
+              title="O que o classificador pontuou antes de recusar a categoria. Ele não errou sozinho: abaixo do limiar, a decisão é sua."
+            >
+              confiança {row.ai_confidence_score.toFixed(2)}
+            </span>
+          ) : null}
+        </span>
+      </td>
+      <td className="px-3 py-1.5 text-right align-top tabular-nums">{formatCount(row.document_count)}</td>
+      <td className="px-3 py-1.5 align-top">
+        <span className="flex flex-wrap items-center gap-1">
+          {row.macro_category_id ? (
+            <Badge tone="accent">{drawer?.name ?? `#${row.macro_category_id}`}</Badge>
+          ) : facets.length > 0 ? (
+            facets.map((facet) => (
+              <Badge key={facet} tone="neutral" title={FACET_TYPE_HINT[facet]}>
+                {labelOf(FACET_TYPE_LABEL, facet)}
+              </Badge>
+            ))
+          ) : row.subject_excluded ? (
+            <Badge tone="neutral" title="Uma pessoa declarou que esta tag não é assunto.">
+              não é assunto
+            </Badge>
+          ) : (
+            <Badge tone="warn" title="Nenhuma pessoa decidiu, e o classificador não arquivou a tag.">
+              sem decisão
+            </Badge>
+          )}
+        </span>
+      </td>
+      <td className="px-3 py-1.5 align-top">
+        <span className="flex flex-wrap items-center gap-2">
+          <Select
+            className="w-64"
+            aria-label={`Categoria da tag ${row.name}`}
+            value={row.macro_category_id ?? ""}
+            disabled={busy}
+            title="Vale para todas as descrições que carregam a tag, não só para uma."
+            onChange={(event) => onCurate(event.target.value ? Number(event.target.value) : null)}
+          >
+            <option value="">sem categoria (não é assunto)</option>
+            {drawers.map((category) => (
+              <option key={category.category_id} value={category.category_id}>
+                {category.name}
+                {category.is_active ? "" : " (aposentada)"}
+              </option>
+            ))}
+          </Select>
+          {FACET_TYPES.map((facet) => {
+            const declared = facets.includes(facet);
+            return (
+              <Button
+                key={facet}
+                size="sm"
+                variant={declared ? "primary" : "ghost"}
+                disabled={busy}
+                title={FACET_TYPE_HINT[facet]}
+                onClick={() => (declared ? onUnfacet(facet) : onFacet(facet))}
+              >
+                {declared ? `tirar de ${labelOf(FACET_TYPE_LABEL, facet).toLowerCase()}` : labelOf(FACET_TYPE_LABEL, facet)}
+              </Button>
+            );
+          })}
+        </span>
+      </td>
+    </tr>
+  );
+}
+
+/**
+ * The queue's search box: it settles before it reaches the URL, which is what issues the request.
+ *
+ * The URL stays the source of truth, so a shared link, the back button or "limpar" wins over
+ * whatever this box last held — and the box keeps its own value so typing never waits for a
+ * navigation.
+ */
+function CatalogSearchBox({
+  value,
+  onSearch,
+}: {
+  value: string | undefined;
+  onSearch: (term: string | undefined) => void;
+}) {
+  const fromUrl = value ?? "";
+  const [term, setTerm] = useState(fromUrl);
+  const [seen, setSeen] = useState(fromUrl);
+  const settled = useDebounced(term);
+
+  if (fromUrl !== seen) {
+    setSeen(fromUrl);
+    setTerm(fromUrl);
+  }
+
+  useEffect(() => {
+    // The debounce has to have caught up with the box before this can write: right after the URL
+    // changes, ``settled`` still holds the term the box had a moment ago, and pushing that back
+    // would rewrite the search the back button had just removed.
+    if (settled.trim() !== term.trim()) return;
+    const next = settled.trim();
+    if (fromUrl === next) return;
+    onSearch(next.length > 0 ? next : undefined);
+  }, [settled, term, fromUrl, onSearch]);
+
+  return (
+    <Input
+      className="max-w-xs"
+      value={term}
+      placeholder="buscar tag…"
+      onChange={(event) => setTerm(event.target.value)}
+    />
   );
 }
 

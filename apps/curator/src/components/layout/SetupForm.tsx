@@ -5,7 +5,6 @@ import { ApiError, createFirstAdmin } from "@/api/client";
 import { Lockup } from "@/components/brand/Lockup";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { PRODUCT } from "@/lib/copy";
 
 /**
  * The first screen of an installation that has no account at all.
@@ -47,7 +46,7 @@ export function SetupForm() {
   return (
     <div className="flex min-h-full items-center justify-center px-4 py-10">
       <form
-        className="w-full max-w-sm rounded-lg bg-(--color-surface) p-6 ring-1 ring-(--color-line)"
+        className="w-full max-w-sm rounded-lg bg-(--color-surface) ring-1 ring-(--color-line)"
         onSubmit={(event) => {
           event.preventDefault();
           create.mutate();
@@ -60,74 +59,75 @@ export function SetupForm() {
           what this screen *is*, which the brand cannot.
         */}
         <div className="mb-5 rounded-md border-b-2 border-(--color-brand) bg-(--color-rail) px-4 py-4 text-center">
-          <Lockup className="mx-auto h-10 w-auto text-(--color-rail-ink)" />
-          <p className="pt-1 text-xs text-(--color-rail-muted)">{PRODUCT.tagline}</p>
+          <Lockup className="ml-auto mr-8 h-20 w-auto text-(--color-rail-ink)" />
         </div>
 
-        <p className="pb-3 text-base font-semibold">Primeiro acesso da instalação</p>
+        <div className="p-6">
+          <p className="pb-3 text-base font-semibold">Primeiro acesso da instalação</p>
 
-        <p className="pb-4 text-xs text-(--color-muted)">
-          Esta instalação ainda não tem contas, e esta só pode ser criada uma vez. A conta criada aqui
-          administra o sistema: ela cria as demais em Configurações › Usuários.
-        </p>
-
-        <label className="block pb-3 text-sm">
-          <span className="pb-1 block text-(--color-muted)">E-mail</span>
-          <Input
-            type="email"
-            value={email}
-            autoComplete="username"
-            autoFocus
-            onChange={(event) => setEmail(event.target.value)}
-          />
-        </label>
-
-        <label className="block pb-3 text-sm">
-          <span className="pb-1 block text-(--color-muted)">Nome</span>
-          <Input value={name} onChange={(event) => setName(event.target.value)} />
-        </label>
-
-        <label className="block pb-3 text-sm">
-          <span className="pb-1 block text-(--color-muted)">Senha</span>
-          <Input
-            type="password"
-            value={password}
-            autoComplete="new-password"
-            onChange={(event) => setPassword(event.target.value)}
-          />
-        </label>
-
-        <label className="block pb-5 text-sm">
-          <span className="pb-1 block text-(--color-muted)">Repita a senha</span>
-          <Input
-            type="password"
-            value={confirmation}
-            autoComplete="new-password"
-            onChange={(event) => setConfirmation(event.target.value)}
-          />
-        </label>
-
-        {mismatch ? <p className="pb-4 text-sm text-(--color-danger)">As duas senhas não coincidem.</p> : null}
-
-        {failure ? (
-          <p className="pb-4 text-sm text-(--color-danger)">
-            {failure instanceof ApiError ? failure.message : "Não foi possível criar a conta."}
+          <p className="pb-4 text-xs text-(--color-muted)">
+            Esta instalação ainda não tem contas, e esta só pode ser criada uma vez. A conta criada aqui
+            administra o sistema: ela cria as demais em Configurações › Usuários.
           </p>
-        ) : null}
 
-        <Button
-          type="submit"
-          variant="primary"
-          className="w-full"
-          disabled={create.isPending || !email || !name || !password || mismatch}
-        >
-          {create.isPending ? "Criando…" : "Criar conta e entrar"}
-        </Button>
+          <label className="block pb-3 text-sm">
+            <span className="pb-1 block text-(--color-muted)">E-mail</span>
+            <Input
+              type="email"
+              value={email}
+              autoComplete="username"
+              autoFocus
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </label>
 
-        <p className="pt-4 text-xs text-(--color-muted)">
-          Não há recuperação de senha por e-mail: guarde esta senha, ou quem administra a instalação a
-          redefine pelo terminal do servidor.
-        </p>
+          <label className="block pb-3 text-sm">
+            <span className="pb-1 block text-(--color-muted)">Nome</span>
+            <Input value={name} onChange={(event) => setName(event.target.value)} />
+          </label>
+
+          <label className="block pb-3 text-sm">
+            <span className="pb-1 block text-(--color-muted)">Senha</span>
+            <Input
+              type="password"
+              value={password}
+              autoComplete="new-password"
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </label>
+
+          <label className="block pb-5 text-sm">
+            <span className="pb-1 block text-(--color-muted)">Repita a senha</span>
+            <Input
+              type="password"
+              value={confirmation}
+              autoComplete="new-password"
+              onChange={(event) => setConfirmation(event.target.value)}
+            />
+          </label>
+
+          {mismatch ? <p className="pb-4 text-sm text-(--color-danger)">As duas senhas não coincidem.</p> : null}
+
+          {failure ? (
+            <p className="pb-4 text-sm text-(--color-danger)">
+              {failure instanceof ApiError ? failure.message : "Não foi possível criar a conta."}
+            </p>
+          ) : null}
+
+          <Button
+            type="submit"
+            variant="primary"
+            className="w-full"
+            disabled={create.isPending || !email || !name || !password || mismatch}
+          >
+            {create.isPending ? "Criando…" : "Criar conta e entrar"}
+          </Button>
+
+          <p className="pt-4 text-xs text-(--color-muted)">
+            Não há recuperação de senha por e-mail: guarde esta senha, ou quem administra a instalação a
+            redefine pelo terminal do servidor.
+          </p>
+        </div>
       </form>
     </div>
   );

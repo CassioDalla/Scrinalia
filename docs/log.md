@@ -587,3 +587,77 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   issue's cluster, the dedup on both axes, the index rejecting a case twin), `basedpyright` and that
   measurement.
 
+
+## 2026-10-12 — the tag decision queue and the category expansion
+
+- **Range:** `c1a6fbf..820f3c9`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the *Tags* route had four tabs and the page said so ("One route,
+    four questions"). The fifth, **Classificar**, is the subject decision itself, so the page gains a
+    subsection for it: the `GET /tags/catalog` read and its `subject_state` partition, the three
+    destinations of one tag (`PATCH` into a category, `PATCH` with `null`, `PUT`/`DELETE` on the
+    facet), the durability of "not a subject" through `domain_subject_exclusions`, and the fact that
+    the selection writes the same three. The *Categorias* section gains the expansion it never had:
+    the two tabs of a card, the list read through `macro_category_id` with the badge and the `total`
+    being one definition, and the read-only preview with its `Editar`. The summary table's two rows
+    name the new decisions.
+  - `guides/data-model.md` — **updated**: the facet paragraph said "nothing writes a facet
+    automatically" and named no writer, which was true and incomplete — the table had none at all.
+    One clause now names the act (`PUT /tags/{id}/facets/{facet_type}`, undone by `DELETE`) and the
+    two things it settles with it: the drawer it empties and the subject exclusion it registers.
+  - `guides/install.md` — **no-change**: its only source in the range is `SetupForm.tsx`, and the
+    paragraph that describes it says the first-run card carries the logomark at the top "on the same
+    plate the sign-in card has". The commit made the two plates identical — it dropped the tagline the
+    sign-in card had already dropped and moved the padding inside the card — so the sentence became
+    truer, not staler. Nothing the page states about the setup flow, the routes or the closing of both
+    doors moved.
+  - `guides/operate.md` — **no-change**: `e2ecd04` memoizes the once-only log sink (the page describes
+    what is written, not how the sink is held), `4ff8144` reads the URL alphabet of `worker_ner` from
+    the RFC (the page documents the panel and the ledger, never the character classes), `bc7fc07` only
+    gives the port stubs a body that has an effect, and from #64 the page's sources gained
+    `TagCatalogState` in `models/enums.py` and one `validateSearch` in `router.tsx` — a subject-axis
+    filter and an SPA route, neither of which the operations panel reads.
+- **Why the round exists:** the freshness report named four pages after 30 commits landed on `dev`
+  since the last entry, three of them the work of issues #64 and #65, and it printed the three new
+  operations (`GET /tags/catalog`, `PUT`/`DELETE /tags/{id}/facets/{facet_type}`) beside
+  `guides/curate.md`.
+- **What the round measured on the collection.** On the reference collection (`memoriacuritibana`:
+  8 103 tags, 55 345 links, 5 subject exclusions, 0 facets) the partition holds and the numbers are
+  those of the change: `PENDING` 7 407 + `NOT_SUBJECT` 3 + `FACET` 0 = 7 410, exactly the tags with
+  `macro_category_id IS NULL` that the card used to count. So the card's number barely moves *today* —
+  what the change makes reachable is the other 7 407, which had no screen and no durable write. The new
+  predicate costs 4.43 ms against the old column's 0.87 ms (both a sequential scan of 8 103 rows; the
+  two `NOT EXISTS` read a 0-row table and a 5-row one), and the catalogue's first page — the page, its
+  total aside — plans and executes in 19.6 ms with `limit 25` over the grouped link count. Neither is a
+  home-screen cost.
+- **What the round looked at.** The two screens were **looked at**, not inferred: the built SPA was
+  rendered with the dev stack (Vite on `:5173`, the API on the zeroed database) through the headless
+  shell, with scratch rows seeded into that database — 7 tags, 40 descriptions, 79 links, one facet and
+  two exclusions — and removed again afterwards, because a zeroed collection shows no row to judge.
+  That found one defect no gate could see: the batch bar's drawer select inherited the bar's white text
+  on its own white background, so its placeholder rendered invisible. Measured with `getComputedStyle`:
+  `color` and `background-color` were both `rgb(255, 255, 255)` before the fix and `oklch(0.24 0.012 60)`
+  on white after it. The rest of what the pixels confirmed: `PENDING` listed 4 tags with the classifier's
+  confidence beside each, `FACET` listed `rua exemplo` with the *Lugar* badge and its "tirar de lugar"
+  button, the category card's badge said 12 descrições while the list answered "1–10 de 12", the
+  read-only panel showed the title, both badges, the ISAD(G) fields and every tag with its category, and
+  the card's `Editar` tab rendered the form with `Salvar` disabled while nothing was dirty. **Not**
+  verified: the collection's own screens. The API was pointed at the zeroed database, so the pixels are
+  of a seeded scratch collection, not of `memoriacuritibana`; what was measured there was the SQL, read
+  through `psql`, not the screen.
+
+## 2026-10-12 — the review of the decision queue (no page changed)
+
+- **Range:** `820f3c9..b759393`
+- **Pages:**
+  - `guides/curate.md` — **no-change**: the range *is* the review of the change the previous entry
+    documented. The offset clamp answers 200 where the route answered 500 (`offset=-1`), the contract
+    pair moved only in the docstring of `TagCatalogState`, and the four curator fixes changed the
+    search box's debounce guard, the counts rendered while `placeholderData` held the previous filter,
+    the row's select (retired categories now included and marked) and the batch's report of what it
+    wrote and what did not answer. No sentence of the page described any of those behaviours as they
+    were — and the page already said the batch "reports how many tags it wrote and where", which the
+    fix made true for the failure case too.
+- **Why the round exists:** the two `fix` commits landed *after* the documentation commit, which is
+  exactly the signal the report is for: a page whose sources moved is a candidate, and a candidate is
+  closed with a reason rather than an edit.

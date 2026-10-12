@@ -56,6 +56,35 @@ class TagFacetType(enum.StrEnum):
     PLACE = "PLACE"
 
 
+class TagCatalogState(enum.StrEnum):
+    """
+    Which slice of the tag catalogue one read asks for, by the state of its subject decision.
+
+    The decision has four parts and they are a **partition**: a tag is in a drawer, declared not a
+    subject, claimed by the non-subject axis, or nobody has decided yet. This filter names the three
+    that are states of the *catalogue* — the drawer is reached with ``macro_category_id`` — and
+    ``ALL`` is not a state at all but the absence of a filter. The predicates live in one module
+    (``repository/subject_queue.py``) and the home screen's counters read the same ones, because the
+    number a card promises has to be the number the list it opens reports.
+
+    ``LOW_CONFIDENCE`` is the one that is not a state of the tag but of the *work*: the classifier
+    ran, was not confident enough to file the tag, and left a row in ``archive_ai_review_queue``.
+    It is a subset of ``PENDING`` on purpose — the archivist's two cards answer two questions about
+    the same queue, and either one may take the decision.
+    """
+
+    #: Everything, paginated. The screen's default, and the only one that is not a filter.
+    ALL = "ALL"
+    #: No drawer, no verdict, no facet: the work the home screen counts.
+    PENDING = "PENDING"
+    #: A person declared the tag belongs to no subject drawer, and it goes nowhere.
+    NOT_SUBJECT = "NOT_SUBJECT"
+    #: A person claimed it for the non-subject axis: a producer or a place.
+    FACET = "FACET"
+    #: Queued by the classifier below its confidence floor, still undecided.
+    LOW_CONFIDENCE = "LOW_CONFIDENCE"
+
+
 class CollectionTermKind(enum.StrEnum):
     """
     What a term of the collection is, when it is not a subject.

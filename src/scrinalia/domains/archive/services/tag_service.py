@@ -14,7 +14,7 @@ from scrinalia.domains.archive.exceptions import (
     TagMergeProposalNotFoundError,
     TagNotFoundError,
 )
-from scrinalia.domains.archive.models.enums import StopwordsScope
+from scrinalia.domains.archive.models.enums import StopwordsScope, TagCatalogState, TagFacetType
 from scrinalia.domains.archive.ports.document import DocumentRepositoryPort
 from scrinalia.domains.archive.ports.taxonomy import SubjectExclusionSource, TagRepositoryPort
 from scrinalia.domains.archive.schemas import (
@@ -35,8 +35,11 @@ from scrinalia.domains.archive.schemas import (
     StopwordDTO,
     StopwordPurgePreview,
     SubjectExclusionSuggestionResponse,
+    TagCatalogResponse,
     TagCurationCommand,
     TagCurationResult,
+    TagFacetCommand,
+    TagFacetResult,
     TagMergeDecisionCommand,
     TagMergeProposalDTO,
     TagMergeProposalListResponse,
@@ -51,6 +54,23 @@ from scrinalia.domains.archive.schemas import (
 #: Upper bound of one page of proposals. The real collection produced hundreds of clusters,
 #: so paging is the default and a client cannot ask for the whole catalog in one request.
 MAX_MERGE_PROPOSALS_PAGE = 200
+
+#: Upper bound of one page of the tag catalogue. Same reasoning: the reference collection carries
+#: 8k spellings, and a screen that could ask for all of them in one request would.
+MAX_CATALOG_PAGE = 200
+
+
+def _curation_stamp(macro_category_id: int | None, author: Author | None) -> str:
+    """
+    What the tag's ledger records about one subject decision: the destination, who, and when.
+
+    One function for both writes — the drawer verdict and the facet declaration — because they write
+    the *same* stamp. Two shapes of the same value would make the tag's history unreadable, and it
+    is the only trace the decision leaves: tags have no revision table.
+    """
+    destination = macro_category_id if macro_category_id is not None else "NONE"
+    return f"{destination}|{author.name if author else ''}|{datetime.now(UTC).isoformat(timespec='seconds')}"
+
 
 #: Upper bound of one batch. Each cluster is applied in its own savepoint, but the request is
 #: still a single transaction, so it has to stay bounded.
@@ -261,16 +281,31 @@ class TagService:
         a drawer, or declaring that it is not a subject at all — and the second is what
         ``macro_category_id=None`` means, which is why the field is required and nullable.
 
+        A verdict is settled as a **whole state**, and that is why this method writes more than the
+        column. Declaring the tag not a subject registers the term in ``domain_subject_exclusions``,
+        the table ``worker_macro_category`` obeys: ``macro_category_id=null`` alone is a decision the
+        next run overwrites the moment the label set changes, which is exactly the direction the
+        governance rule forbids. Filing it in a drawer takes it back off that axis, and off the
+        non-subject one — a tag in a drawer is not a place *instead*, and leaving the facet behind
+        would put one tag in two states at once (see ``repository/subject_queue.py``).
+
         The stamp written into the tag's ledger carries who and when, because tags have no revision
         table and this is the only trace the decision leaves.
         """
         if command.macro_category_id is not None and self.repo.get_macro_category(command.macro_category_id) is None:
             raise MacroCategoryNotFoundError(f"Categoria macro {command.macro_category_id} não existe no catálogo.")
 
-        stamp = f"{command.macro_category_id if command.macro_category_id is not None else 'NONE'}|{command.changed_by.name if command.changed_by else ''}|{datetime.now(UTC).isoformat(timespec='seconds')}"
+        stamp = _curation_stamp(command.macro_category_id, command.changed_by)
         updated = self.repo.update_tag_macro_category(tag_id, command.macro_category_id, stamp)
         if updated is None:
             raise TagNotFoundError(f"Tag {tag_id} não existe no vocabulário.")
+
+        excluded = command.macro_category_id is None
+        if excluded:
+            self.repo.add_subject_exclusions([updated.name], source="HUMAN", reason=command.note)
+        else:
+            self.repo.remove_subject_exclusions([updated.name])
+            self.repo.delete_tag_facets(tag_id)
 
         return TagCurationResult(
             tag_id=updated.tag_id,
@@ -278,6 +313,94 @@ class TagService:
             macro_category_id=updated.macro_category_id,
             macro_category_name=updated.macro_category_name,
             human_classified=True,
+            subject_excluded=excluded,
+        )
+
+    # --- The catalogue, and the non-subject axis ----------------------------------------------
+
+    def list_catalog(
+        self,
+        state: TagCatalogState = TagCatalogState.ALL,
+        macro_category_id: int | None = None,
+        term: str | None = None,
+        limit: int = 25,
+        offset: int = 0,
+    ) -> TagCatalogResponse:
+        """
+        One page of the tag catalogue, filtered by the state of the subject decision.
+
+        The read the home screen's cards need and the type-ahead cannot give: the type-ahead answers
+        "which spelling did I mean?" and requires a term, while this one answers "list the tags
+        nobody has decided about", which is a filter and not a top-N by weight. The ``total`` comes
+        from the same predicate builder as the page, so the two cannot disagree.
+        """
+        limit = max(1, min(limit, MAX_CATALOG_PAGE))
+        # A negative offset reaches PostgreSQL as ``OFFSET -1``: a DataError and a 500, measured
+        # through the route. The clamp belongs here and not only on the query parameter, because the
+        # service is the boundary every caller goes through.
+        offset = max(0, offset)
+        total = self.repo.count_catalog(state, macro_category_id, term)
+        return TagCatalogResponse(
+            total=total,
+            limit=limit,
+            offset=offset,
+            items=self.repo.list_catalog(state, macro_category_id, term, limit, offset),
+        )
+
+    def declare_tag_facet(self, tag_id: int, facet_type: TagFacetType, command: TagFacetCommand) -> TagFacetResult:
+        """
+        Puts one tag on the non-subject axis: a producer or a place.
+
+        This is the destination the schema was written for and the reason the queue can close. A tag
+        like ``alfa`` (2,376 descriptions) or ``cidade`` (1,865) has no honest subject but a very
+        clear *what it is*, and forcing it into a drawer is a measured cause of the classification
+        defect. The declaration settles the whole state: the drawer goes (a facet is what the tag is
+        **instead**), and the term joins the subject exclusions, because a facet is a positive
+        statement about the other axis and still not an aboutness the classifier may guess at.
+
+        A facet is a curation act, never an inference: nothing else in the system writes this table.
+        """
+        identity = self.repo.get_by_id(tag_id)
+        if identity is None:
+            raise TagNotFoundError(f"Tag {tag_id} não existe no vocabulário.")
+
+        self.repo.update_tag_macro_category(tag_id, None, _curation_stamp(None, command.changed_by))
+        self.repo.add_subject_exclusions([identity.name], source="HUMAN", reason=command.note)
+        self.repo.upsert_tag_facet(
+            tag_id,
+            facet_type,
+            (command.value or identity.name).strip() or identity.name,
+            command.changed_by,
+        )
+        return self._facet_result(tag_id, identity.name)
+
+    def remove_tag_facet(self, tag_id: int, facet_type: TagFacetType) -> TagFacetResult:
+        """
+        Takes a tag off one non-subject axis.
+
+        The undo of the declaration, and it has to undo **both** halves: when the last facet leaves,
+        the subject exclusion leaves with it. Keeping the exclusion would leave the tag parked in
+        "not a subject, goes nowhere" — a decision the archivist did not take — instead of back in
+        the queue where the next decision can find it.
+        """
+        identity = self.repo.get_by_id(tag_id)
+        if identity is None:
+            raise TagNotFoundError(f"Tag {tag_id} não existe no vocabulário.")
+
+        self.repo.delete_tag_facets(tag_id, facet_type)
+        if not self.repo.read_tag_facets(tag_id):
+            self.repo.remove_subject_exclusions([identity.name])
+        return self._facet_result(tag_id, identity.name)
+
+    def _facet_result(self, tag_id: int, name: str) -> TagFacetResult:
+        """The whole state a facet write leaves behind, read back from the rows it wrote."""
+        row = self.repo.read_tag_result(tag_id)
+        return TagFacetResult(
+            tag_id=tag_id,
+            name=name,
+            facets=self.repo.read_tag_facets(tag_id),
+            macro_category_id=row.macro_category_id if row else None,
+            subject_excluded=normalize_tag(name) in self.repo.get_subject_exclusions(),
         )
 
     def suggest_merges(self, threshold: float = 0.65, limit: int = 50) -> MergeSuggestionRunResponse:

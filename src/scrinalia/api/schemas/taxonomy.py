@@ -121,6 +121,19 @@ class TagCurationRequest(BaseModel):
     note: str | None = Field(default=None, description="Why; kept in the tag's ledger.")
 
 
+class TagFacetRequest(BaseModel):
+    """
+    Declares one non-subject axis of a tag: a producer or a place.
+
+    ``value`` is optional on purpose: confirming the axis without renaming the spelling is the
+    common case, and the tag's own name is what the facets read then. The tag name is the evidence,
+    the value is the decision.
+    """
+
+    value: str | None = Field(default=None, description="Canonical spelling of the facet; the tag name by default.")
+    note: str | None = Field(default=None, description="Why; kept in the tag's ledger.")
+
+
 class NerExclusionRequest(BaseModel):
     """Terms a curator declares to belong to the subject axis, not to named entities."""
 

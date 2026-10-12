@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from scrinalia.core.author import Author
-from scrinalia.domains.archive.models.enums import StopwordsScope
+from scrinalia.domains.archive.models.enums import StopwordsScope, TagFacetType
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode, RouteResponse
 from scrinalia.domains.archive.schemas.types import TagName
 
@@ -128,6 +128,81 @@ class TagCurationResult(BaseModel):
     #: True once a curator classified it: the AI's confidence is cleared at that point, because the
     #: number described a decision that no longer stands.
     human_classified: bool = False
+    #: True when the same decision registered the term as "not a subject" for the classifier. It is
+    #: part of the **outcome** and not an internal detail: the screen reports what it wrote, and the
+    #: verdict is durable only because of this half — ``macro_category_id=null`` alone comes back to
+    #: the classifier on the next run, when the label set changes.
+    subject_excluded: bool = False
+
+
+# ==========================================
+# THE CATALOGUE OF TAGS, BY THE STATE OF THEIR SUBJECT
+# ==========================================
+
+
+class TagCatalogRow(BaseModel):
+    """
+    One tag of the catalogue, with everything needed to decide about it without a second read.
+
+    Deliberately not ``TagSearchResult``: this row explains **why** the tag is where it is. The
+    type-ahead answers "which spelling did I mean?" and pays for one grouped count; this one carries
+    the confidence the classifier gave up on, the term's verdict and the non-subject axis, which is
+    what lets the screen show a state instead of an absence. The two share the definition of
+    ``document_count`` (documents linked to the tag), and the count is the same one the drawer
+    badge uses.
+    """
+
+    tag_id: int
+    name: str
+    document_count: int = 0
+    macro_category_id: int | None = None
+    macro_category_name: str | None = None
+    #: What the classifier scored before refusing to file it; ``None`` when it never ran or when a
+    #: person has since decided, which clears the number.
+    ai_confidence_score: float | None = None
+    #: The non-subject axis the tag is claimed by: a producer, a place, or none.
+    facets: list[TagFacetType] = Field(default_factory=list)
+    #: The term is registered as "not a subject", so the classifier does not guess at it again.
+    subject_excluded: bool = False
+
+
+class TagCatalogResponse(BaseModel):
+    """One page of the catalogue, with the total for the same filter."""
+
+    total: int = 0
+    limit: int = 25
+    offset: int = 0
+    items: list[TagCatalogRow] = Field(default_factory=list)
+
+
+class TagFacetCommand(BaseModel):
+    """
+    Declares one non-subject axis of a tag.
+
+    ``value`` is the canonical spelling the facets read — the tag name is the *evidence*, the value
+    is the *decision* — and it defaults to the tag's own name, because most declarations confirm the
+    axis without renaming anything.
+    """
+
+    value: str | None = Field(default=None, description="Canonical spelling of the facet; the tag name by default.")
+    changed_by: Author | None = Field(default=None)
+    note: str | None = Field(default=None)
+
+
+class TagFacetResult(BaseModel):
+    """
+    The tag's non-subject axis after the decision, plus the state it left behind.
+
+    Declaring a facet is a statement about the **whole** tag, so the answer says the whole state:
+    the tag is no longer in a drawer, its term is excluded from the subject axis, and its facets are
+    these. A response carrying only the facets would hide the classification the write removed.
+    """
+
+    tag_id: int
+    name: str
+    facets: list[TagFacetType] = Field(default_factory=list)
+    macro_category_id: int | None = None
+    subject_excluded: bool = False
 
 
 # ==========================================
