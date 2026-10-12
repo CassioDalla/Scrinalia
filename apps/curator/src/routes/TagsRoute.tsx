@@ -1499,6 +1499,21 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
   const drawers = (categories.data ?? []).filter((category) => category.is_active);
 
   /**
+   * The selection belongs to the rows on screen.
+   *
+   * A filter or a page change makes the marked tags invisible, and the bar would then write to tags
+   * the archivist can no longer see — a batch decision is not something to take blind. Adjusted
+   * during render (the pattern React documents for syncing state with a prop) instead of in an
+   * effect, which would render one frame with the stale selection.
+   */
+  const selectionKey = `${state}|${search.cat ?? ""}|${search.termo ?? ""}|${offset}`;
+  const [selectionFor, setSelectionFor] = useState(selectionKey);
+  if (selectionFor !== selectionKey) {
+    setSelectionFor(selectionKey);
+    setSelected([]);
+  }
+
+  /**
    * A decision about a tag touches four screens: the catalogue it just left, the drawers' weights,
    * every description that carries the tag, and the counters on the home screen.
    */
@@ -1568,8 +1583,15 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
             : `eixo ${labelOf(FACET_TYPE_LABEL, action.facet).toLowerCase()}`;
       setReport(`${formatCount(written)} tag(s) escritas: ${destination}.`);
       setSelected([]);
-      invalidate();
     },
+    /**
+     * The list is refetched even when the loop stops halfway.
+     *
+     * The batch is one request per tag, so a failure on the seventh leaves six decisions already
+     * written; without this the list would keep showing those six as pending, and the archivist
+     * would read a write that happened as one that did not.
+     */
+    onSettled: invalidate,
   });
 
   const toggle = (tagId: number) =>
