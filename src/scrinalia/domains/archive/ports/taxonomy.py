@@ -42,24 +42,48 @@ class TagRepositoryPort(Protocol):
     """
 
     # --- Read (analytics / curation) ---
-    def fetch_tags_for_clustering(self) -> list[str]: ...
-    def get_synonyms_mapping(self, words: list[str]) -> dict[str, int]: ...
-    def get_stopwords(self) -> set[str]: ...
-    def get_relevance_count(self, limit: int) -> Sequence[TagRelevanceCount]: ...
-    def get_relevance_tfidf(self, limit: int) -> Sequence[TagRelevanceIdf]: ...
-    def find_similar(self, target_lower: str, threshold: float) -> Sequence[TagSimilarity]: ...
-    def find_all_similar_pairs(self, threshold: float) -> Sequence[TagPairSimilarity]: ...
-    def get_all_tags_with_counts(self) -> Sequence[TagCount]: ...
-    def search_tags(self, term: str, limit: int) -> Sequence[TagSearchResult]: ...
-    def read_tag_result(self, tag_id: int) -> TagSearchResult | None: ...
-    def find_merge_suggestions(self, threshold: float, limit: int) -> list[TagMergeSuggestion]: ...
+    def fetch_tags_for_clustering(self) -> list[str]:
+        raise NotImplementedError
+
+    def get_synonyms_mapping(self, words: list[str]) -> dict[str, int]:
+        raise NotImplementedError
+
+    def get_stopwords(self) -> set[str]:
+        raise NotImplementedError
+
+    def get_relevance_count(self, limit: int) -> Sequence[TagRelevanceCount]:
+        raise NotImplementedError
+
+    def get_relevance_tfidf(self, limit: int) -> Sequence[TagRelevanceIdf]:
+        raise NotImplementedError
+
+    def find_similar(self, target_lower: str, threshold: float) -> Sequence[TagSimilarity]:
+        raise NotImplementedError
+
+    def find_all_similar_pairs(self, threshold: float) -> Sequence[TagPairSimilarity]:
+        raise NotImplementedError
+
+    def get_all_tags_with_counts(self) -> Sequence[TagCount]:
+        raise NotImplementedError
+
+    def search_tags(self, term: str, limit: int) -> Sequence[TagSearchResult]:
+        raise NotImplementedError
+
+    def read_tag_result(self, tag_id: int) -> TagSearchResult | None:
+        raise NotImplementedError
+
+    def find_merge_suggestions(self, threshold: float, limit: int) -> list[TagMergeSuggestion]:
+        raise NotImplementedError
+
     def count_merge_proposals(
         self,
         status: str | None = None,
         reason: str | None = None,
         min_documents: int = 0,
         flagged_only: bool = False,
-    ) -> int: ...
+    ) -> int:
+        raise NotImplementedError
+
     def list_merge_proposals(
         self,
         status: str | None = None,
@@ -68,67 +92,130 @@ class TagRepositoryPort(Protocol):
         flagged_only: bool = False,
         limit: int = 50,
         offset: int = 0,
-    ) -> list[TagMergeProposalDTO]: ...
-    def get_merge_proposal(self, proposal_id: int) -> TagMergeProposalDTO | None: ...
-    def get_tag_synonym_names(self) -> set[str]: ...
-    def get_synonym_names_pointing_to(self, tag_ids: Sequence[int]) -> list[str]: ...
-    def plan_merge(self, canonical_id: int, ids_to_merge: Sequence[int]) -> MergePlan: ...
-    def get_macro_categories(self, only_active: bool = False) -> list[ArchiveMacroCategoryEntityDTO]: ...
-    def get_macro_category(self, category_id: int) -> ArchiveMacroCategoryEntityDTO | None: ...
-    def get_active_macro_categories(self) -> dict[str, int]: ...
+    ) -> list[TagMergeProposalDTO]:
+        raise NotImplementedError
+
+    def get_merge_proposal(self, proposal_id: int) -> TagMergeProposalDTO | None:
+        raise NotImplementedError
+
+    def get_tag_synonym_names(self) -> set[str]:
+        raise NotImplementedError
+
+    def get_synonym_names_pointing_to(self, tag_ids: Sequence[int]) -> list[str]:
+        raise NotImplementedError
+
+    def plan_merge(self, canonical_id: int, ids_to_merge: Sequence[int]) -> MergePlan:
+        raise NotImplementedError
+
+    def get_macro_categories(self, only_active: bool = False) -> list[ArchiveMacroCategoryEntityDTO]:
+        raise NotImplementedError
+
+    def get_macro_category(self, category_id: int) -> ArchiveMacroCategoryEntityDTO | None:
+        raise NotImplementedError
+
+    def get_active_macro_categories(self) -> dict[str, int]:
+        raise NotImplementedError
 
     # --- Write ---
-    def get_or_create_tags(self, tags_list: list[ArchiveTagDTO]) -> list[int]: ...
-    def save_stopwords(self, words_list: list[str], scope: StopwordsScope = StopwordsScope.TAG) -> int: ...
-    def purge_tags_by_stopwords(self, stopwords: set[str]) -> int: ...
-    def create_synonyms(self, synonyms_data: list[SynonymCommand]) -> None: ...
-    def repoint_synonyms(self, from_tag_ids: list[int], to_tag_id: int) -> int: ...
+    def get_or_create_tags(self, tags_list: list[ArchiveTagDTO]) -> list[int]:
+        raise NotImplementedError
+
+    def save_stopwords(self, words_list: list[str], scope: StopwordsScope = StopwordsScope.TAG) -> int:
+        raise NotImplementedError
+
+    def purge_tags_by_stopwords(self, stopwords: set[str]) -> int:
+        raise NotImplementedError
+
+    def create_synonyms(self, synonyms_data: list[SynonymCommand]) -> None:
+        raise NotImplementedError
+
+    def repoint_synonyms(self, from_tag_ids: list[int], to_tag_id: int) -> int:
+        raise NotImplementedError
+
     def create_macro_category(
         self, name: str, description: str | None, classifier_label: str | None = None
-    ) -> ArchiveMacroCategoryEntityDTO: ...
-    def update_macro_category(
-        self, category_id: int, changes: dict[str, Any]
-    ) -> ArchiveMacroCategoryEntityDTO | None: ...
-    def get_subject_exclusions(self) -> set[str]: ...
+    ) -> ArchiveMacroCategoryEntityDTO:
+        raise NotImplementedError
+
+    def update_macro_category(self, category_id: int, changes: dict[str, Any]) -> ArchiveMacroCategoryEntityDTO | None:
+        raise NotImplementedError
+
+    def get_subject_exclusions(self) -> set[str]:
+        raise NotImplementedError
+
     def find_subject_exclusion_candidates(
         self, limit: int = 50, offset: int = 0, include_excluded: bool = False
-    ) -> SubjectExclusionSuggestionResponse: ...
-    def list_stopwords(self, scope: StopwordsScope | None = None) -> list[StopwordDTO]: ...
-    def remove_stopwords(self, words: list[str], scope: StopwordsScope | None = None) -> int: ...
-    def find_tags_by_stopwords(self, stopwords: set[str]) -> list[StopwordPurgeTag]: ...
+    ) -> SubjectExclusionSuggestionResponse:
+        raise NotImplementedError
+
+    def list_stopwords(self, scope: StopwordsScope | None = None) -> list[StopwordDTO]:
+        raise NotImplementedError
+
+    def remove_stopwords(self, words: list[str], scope: StopwordsScope | None = None) -> int:
+        raise NotImplementedError
+
+    def find_tags_by_stopwords(self, stopwords: set[str]) -> list[StopwordPurgeTag]:
+        raise NotImplementedError
+
     def update_tag_macro_category(
         self, tag_id: int, macro_category_id: int | None, stamp: str
-    ) -> TagSearchResult | None: ...
+    ) -> TagSearchResult | None:
+        raise NotImplementedError
+
     def add_subject_exclusions(
         self, terms: Sequence[str], *, source: Literal["HUMAN", "RULE"] = "HUMAN", reason: str | None = None
-    ) -> int: ...
-    def remove_subject_exclusions(self, terms: Sequence[str]) -> int: ...
-    def get_by_id(self, tag_id: int) -> TagIdentity | None: ...
-    def get_document_ids_grouped_by_tags(self, tag_ids: Sequence[int]) -> dict[int, list[str]]: ...
-    def link_documents_to_tag(self, doc_ids: set[str], target_tag_id: int) -> None: ...
-    def delete_tags(self, tag_ids: list[int]) -> int: ...
-    def upsert_merge_proposals(self, suggestions: Sequence[TagMergeSuggestion]) -> int: ...
+    ) -> int:
+        raise NotImplementedError
+
+    def remove_subject_exclusions(self, terms: Sequence[str]) -> int:
+        raise NotImplementedError
+
+    def get_by_id(self, tag_id: int) -> TagIdentity | None:
+        raise NotImplementedError
+
+    def get_document_ids_grouped_by_tags(self, tag_ids: Sequence[int]) -> dict[int, list[str]]:
+        raise NotImplementedError
+
+    def link_documents_to_tag(self, doc_ids: set[str], target_tag_id: int) -> None:
+        raise NotImplementedError
+
+    def delete_tags(self, tag_ids: list[int]) -> int:
+        raise NotImplementedError
+
+    def upsert_merge_proposals(self, suggestions: Sequence[TagMergeSuggestion]) -> int:
+        raise NotImplementedError
+
     def decide_merge_proposal(
         self, proposal_id: int, status: str, decided_by: Author | None, note: str | None
-    ) -> TagMergeProposalDTO | None: ...
+    ) -> TagMergeProposalDTO | None:
+        raise NotImplementedError
+
     def apply_merge(
         self,
         plan: MergePlan,
         cluster_fingerprint: str | None = None,
         changed_by: Author | None = None,
         note: str | None = None,
-    ) -> MergeResponse: ...
+    ) -> MergeResponse:
+        raise NotImplementedError
+
     def apply_merge_batch(
         self, entries: Sequence[MergeBatchEntry], changed_by: Author | None = None, note: str | None = None
-    ) -> BatchMergeResponse: ...
-    def undo_merge(self, merge_id: int, undone_by: Author | None = None) -> MergeLogEntryDTO: ...
+    ) -> BatchMergeResponse:
+        raise NotImplementedError
+
+    def undo_merge(self, merge_id: int, undone_by: Author | None = None) -> MergeLogEntryDTO:
+        raise NotImplementedError
+
     def count_merge_log(
         self,
         canonical_id: int | None = None,
         changed_by_name: str | None = None,
         include_undone: bool = True,
         term: str | None = None,
-    ) -> int: ...
+    ) -> int:
+        raise NotImplementedError
+
     def list_merge_log(
         self,
         canonical_id: int | None = None,
@@ -137,5 +224,8 @@ class TagRepositoryPort(Protocol):
         term: str | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> list[MergeLogEntryDTO]: ...
-    def get_merge_log_entry(self, merge_id: int) -> MergeLogEntryDTO | None: ...
+    ) -> list[MergeLogEntryDTO]:
+        raise NotImplementedError
+
+    def get_merge_log_entry(self, merge_id: int) -> MergeLogEntryDTO | None:
+        raise NotImplementedError

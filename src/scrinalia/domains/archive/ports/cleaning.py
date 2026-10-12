@@ -20,20 +20,36 @@ class CleaningRepositoryPort(Protocol):
     """
 
     # --- Rule reads/writes ---
-    def create_rule(self, rule_data: CleaningRuleCreateDTO) -> CleaningRuleDTO: ...
-    def get_active_rules(self, rule_kind: RuleKind | None = None) -> Sequence[CleaningRuleDTO]: ...
+    def create_rule(self, rule_data: CleaningRuleCreateDTO) -> CleaningRuleDTO:
+        raise NotImplementedError
+
+    def get_active_rules(self, rule_kind: RuleKind | None = None) -> Sequence[CleaningRuleDTO]:
+        raise NotImplementedError
+
     def list_rules(
         self, rule_kind: RuleKind | None = None, *, include_inactive: bool = False
-    ) -> Sequence[CleaningRuleDTO]: ...
-    def get_rule_by_id(self, rule_id: int) -> CleaningRuleDTO | None: ...
-    def deactivate_rule(self, rule_id: int) -> CleaningRuleDTO | None: ...
-    def activate_rule(self, rule_id: int) -> CleaningRuleDTO | None: ...
+    ) -> Sequence[CleaningRuleDTO]:
+        raise NotImplementedError
+
+    def get_rule_by_id(self, rule_id: int) -> CleaningRuleDTO | None:
+        raise NotImplementedError
+
+    def deactivate_rule(self, rule_id: int) -> CleaningRuleDTO | None:
+        raise NotImplementedError
+
+    def activate_rule(self, rule_id: int) -> CleaningRuleDTO | None:
+        raise NotImplementedError
 
     # --- Document scans and updates ---
     def get_unprocessed_documents_for_rule(
         self, rule_id: int, target_column: AllowedColumns, limit: int = 500
-    ) -> Sequence[CleanableDocumentDTO]: ...
+    ) -> Sequence[CleanableDocumentDTO]:
+        raise NotImplementedError
+
     def get_random_sample_for_dry_run(
         self, target_column: AllowedColumns, limit: int = 200
-    ) -> Sequence[CleanableDocumentDTO]: ...
-    def apply_cleaning(self, updates: Sequence[CleaningUpdateCommand]) -> None: ...
+    ) -> Sequence[CleanableDocumentDTO]:
+        raise NotImplementedError
+
+    def apply_cleaning(self, updates: Sequence[CleaningUpdateCommand]) -> None:
+        raise NotImplementedError

@@ -57,4 +57,5 @@ class StagingRecordSource(Protocol):
     staging->archive boundary a contract rather than a cross-domain table join.
     """
 
-    def stream(self, batch_size: int) -> Iterator[StagingRecord]: ...
+    def stream(self, batch_size: int) -> Iterator[StagingRecord]:
+        raise NotImplementedError

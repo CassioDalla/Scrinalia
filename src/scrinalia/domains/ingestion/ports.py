@@ -65,19 +65,19 @@ class SourceSchema:
 class AdapterNotFoundError(Exception):
     """Thrown when the document does not exist in the external source (e.g., 404)."""
 
-    ...
+    pass
 
 
 class AdapterNetworkError(Exception):
     """Thrown when connection instability occurs (e.g., timeout)."""
 
-    ...
+    pass
 
 
 class AdapterFatalError(Exception):
     """Thrown when data is corrupted or the layout is broken."""
 
-    ...
+    pass
 
 
 class IDiscoveryAdapter(ABC):
@@ -86,7 +86,7 @@ class IDiscoveryAdapter(ABC):
     @abstractmethod
     def fetch_new_ids(self, initial_page: int = 1, max_pages: int | None = None) -> Iterator[list[str]]:
         """It should yield lists of IDs found per page/batch."""
-        ...
+        raise NotImplementedError
 
 
 class IDetailAdapter(ABC):
@@ -95,4 +95,4 @@ class IDetailAdapter(ABC):
     @abstractmethod
     def fetch_details(self, description_id: str) -> dict[str, str]:
         """It must return a dictionary containing the raw data ready for Staging."""
-        ...
+        raise NotImplementedError

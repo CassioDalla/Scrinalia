@@ -19,22 +19,49 @@ class TextQualityRepositoryPort(Protocol):
     content, it only declares which excerpts the AI must not read.
     """
 
-    def list_templates(self, status: str | None = None, only_active: bool = False) -> list[TextTemplateDTO]: ...
-    def get_template(self, template_id: int) -> TextTemplateDTO | None: ...
-    def get_active_templates(self) -> list[TextTemplateDTO]: ...
-    def get_active_rules(self, scope: str | None = None) -> list[ExcerptRule]: ...
-    def create_template(self, command: TemplateCreateCommand) -> TextTemplateDTO: ...
-    def upsert_suggestions(self, candidates: Sequence[SuggestionCandidate]) -> int: ...
-    def update_template(self, template_id: int, command: TemplateUpdateCommand) -> TextTemplateDTO | None: ...
-    def delete_template(self, template_id: int) -> TextTemplateDTO | None: ...
-    def refresh_occurrence_count(self, template_id: int, occurrence_count: int) -> TextTemplateDTO | None: ...
-    def iter_text_columns(
-        self, columns: Sequence[str], batch_size: int = 500
-    ) -> Iterator[tuple[str, str, str | None]]: ...
-    def count_documents(self, columns: Sequence[str]) -> int: ...
-    def count_affected_documents(self, rules: Sequence[ExcerptRule], columns: Sequence[str]) -> int: ...
+    def list_templates(self, status: str | None = None, only_active: bool = False) -> list[TextTemplateDTO]:
+        raise NotImplementedError
+
+    def get_template(self, template_id: int) -> TextTemplateDTO | None:
+        raise NotImplementedError
+
+    def get_active_templates(self) -> list[TextTemplateDTO]:
+        raise NotImplementedError
+
+    def get_active_rules(self, scope: str | None = None) -> list[ExcerptRule]:
+        raise NotImplementedError
+
+    def create_template(self, command: TemplateCreateCommand) -> TextTemplateDTO:
+        raise NotImplementedError
+
+    def upsert_suggestions(self, candidates: Sequence[SuggestionCandidate]) -> int:
+        raise NotImplementedError
+
+    def update_template(self, template_id: int, command: TemplateUpdateCommand) -> TextTemplateDTO | None:
+        raise NotImplementedError
+
+    def delete_template(self, template_id: int) -> TextTemplateDTO | None:
+        raise NotImplementedError
+
+    def refresh_occurrence_count(self, template_id: int, occurrence_count: int) -> TextTemplateDTO | None:
+        raise NotImplementedError
+
+    def iter_text_columns(self, columns: Sequence[str], batch_size: int = 500) -> Iterator[tuple[str, str, str | None]]:
+        raise NotImplementedError
+
+    def count_documents(self, columns: Sequence[str]) -> int:
+        raise NotImplementedError
+
+    def count_affected_documents(self, rules: Sequence[ExcerptRule], columns: Sequence[str]) -> int:
+        raise NotImplementedError
+
     def dry_run(
         self, rules: Sequence[ExcerptRule], columns: Sequence[str], sample_limit: int = 5
-    ) -> TemplateDryRunResponse: ...
-    def find_documents_with_excerpt(self, matchers: Sequence[str], columns: Sequence[str]) -> list[str]: ...
-    def requeue_documents(self, description_ids: Sequence[str], stamp_keys: Sequence[str]) -> int: ...
+    ) -> TemplateDryRunResponse:
+        raise NotImplementedError
+
+    def find_documents_with_excerpt(self, matchers: Sequence[str], columns: Sequence[str]) -> list[str]:
+        raise NotImplementedError
+
+    def requeue_documents(self, description_ids: Sequence[str], stamp_keys: Sequence[str]) -> int:
+        raise NotImplementedError
