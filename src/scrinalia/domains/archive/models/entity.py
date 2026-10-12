@@ -40,4 +40,9 @@ class ArchiveEntity(Base):
             postgresql_using="gin",
             postgresql_ops={"name": "gin_trgm_ops"},
         ),
+        # The identity rule ``normalize_entity`` already declares — strip + lower — enforced where a
+        # second row could appear. The case-sensitive unique index on the column cannot see ``Batel``
+        # and ``batel`` as one name; this one can, and it is what stops ``get_or_create_entities``
+        # (which inserts the normalized spelling) from creating a twin of a row stored in Title Case.
+        Index("uix_archive_entities_name_normalized", func.lower(func.btrim(name)), unique=True),
     )

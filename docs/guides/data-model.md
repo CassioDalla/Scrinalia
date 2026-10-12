@@ -125,6 +125,11 @@ table because a tag carries at most one subject but can be a place *and* an inst
 `facet_type` is checked to `INSTITUTION` or `PLACE`, and nothing writes a facet automatically — a
 facet is a curation act, never an AI inference.
 
+The identity of a tag and of an entity is the normalized spelling: `lower(btrim(name))` is unique on
+both tables, next to the unique `name` itself. Without that rule a row stored in Title Case and the
+lowercase row for the same name are two rows, and the insert path — which normalizes the spelling and
+looks the existing ids up with it — can never see the first.
+
 #### The arrangement
 
 | Table | Purpose | Key columns |

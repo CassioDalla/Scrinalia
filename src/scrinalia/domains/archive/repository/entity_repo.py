@@ -12,7 +12,6 @@ from scrinalia.domains.archive.domain.normalization import (
     escape_like,
     normalize_entity,
     normalize_stopword,
-    normalize_synonym,
 )
 from scrinalia.domains.archive.exceptions import (
     ConflictResolutionAlreadyUndoneError,
@@ -35,6 +34,7 @@ from scrinalia.domains.archive.models import (
     DomainSynonyms,
     StopwordsScope,
 )
+from scrinalia.domains.archive.repository.synonym_upsert import upsert_synonyms
 from scrinalia.domains.archive.schemas.command_schema import EntityLinkCommand, SynonymCommand
 from scrinalia.domains.archive.schemas.entity_schema import (
     ArchiveEntityDTO,
@@ -972,32 +972,11 @@ class EntityRepository:
         """
         Registers the spellings the NER must redirect to a canonical entity.
 
-        Upsert, not ``on_conflict_do_nothing``: when a canonical entity is absorbed into
-        another one, a spelling that already had a mapping has to *move*. Keeping the old
-        target made a re-merge look successful while changing nothing, and left the extraction
-        pointing at an entity that no longer exists. Same defect and same fix as the tag path.
+        The write itself is defined once, in
+        :func:`scrinalia.domains.archive.repository.synonym_upsert.upsert_synonyms`, because the two
+        axes used to carry the same command twice and one of them drifted into a 500.
         """
-        if not synonyms_data:
-            return
-
-        rows = [
-            {
-                "synonym_name": normalize_synonym(item.synonym_name),
-                "category": item.category,
-                "canonical_tag_id": item.canonical_tag_id,
-                "canonical_entity_id": item.canonical_entity_id,
-            }
-            for item in synonyms_data
-        ]
-        stmt = insert(DomainSynonyms).values(rows)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["synonym_name", "category"],
-            set_={
-                "canonical_tag_id": stmt.excluded.canonical_tag_id,
-                "canonical_entity_id": stmt.excluded.canonical_entity_id,
-            },
-        )
-        self.db.execute(stmt)
+        upsert_synonyms(self.db, synonyms_data)
 
     def repoint_synonyms(self, from_entity_ids: list[int], to_entity_id: int) -> int:
         """

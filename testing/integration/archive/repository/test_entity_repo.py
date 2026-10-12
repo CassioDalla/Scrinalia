@@ -9,6 +9,7 @@ from scrinalia.domains.archive.models import (
     DomainSynonyms,
 )
 from scrinalia.domains.archive.repository.entity_repo import EntityRepository
+from scrinalia.domains.archive.schemas.command_schema import SynonymCommand
 from scrinalia.domains.archive.schemas.entity_schema import ArchiveEntityDTO
 
 
@@ -288,3 +289,40 @@ def test_resolve_cross_domain_conflict_entity_wins_keeps_tag_stopword(use_test_d
     assert stopwords[0].word == "batel"
     assert stopwords[0].word_scope == "TAG"
     assert db_session.scalars(select(DomainNerExclusion)).all() == []
+
+
+# ==========================================
+# THE SYNONYM KEY
+# ==========================================
+
+
+def test_create_synonyms_collapses_commands_that_normalize_to_one_key(use_test_db, db_session):
+    """
+    Two spellings that differ only in case are one key, and one command cannot repeat a key.
+
+    ``normalize_synonym`` is ``strip().lower()``, so ``"Batel Antigo"`` and ``"batel antigo"``
+    collapse to the same ``(synonym_name, category)``. Handing both to a single multi-row
+    ``INSERT ... ON CONFLICT DO UPDATE`` made PostgreSQL answer ``CardinalityViolation`` ("cannot
+    affect row a second time") and the whole write aborted, which is the 500 the merge answered.
+    The collapse belongs to the write itself — it is the single definition both axes share — and
+    this pins it without needing the two rows the unique index now forbids.
+    """
+    repo = EntityRepository(db_session)
+    entity = ArchiveEntity(name="batel", entity_type="LOC")
+    db_session.add(entity)
+    db_session.commit()
+
+    repo.create_synonyms(
+        [
+            SynonymCommand(
+                synonym_name="Batel Antigo", category="LOC", canonical_tag_id=None, canonical_entity_id=entity.entity_id
+            ),
+            SynonymCommand(
+                synonym_name="batel antigo", category="LOC", canonical_tag_id=None, canonical_entity_id=entity.entity_id
+            ),
+        ]
+    )
+    db_session.flush()
+
+    stored = db_session.scalars(select(DomainSynonyms).where(DomainSynonyms.category == "LOC")).all()
+    assert [(row.synonym_name, row.canonical_entity_id) for row in stored] == [("batel antigo", entity.entity_id)]
