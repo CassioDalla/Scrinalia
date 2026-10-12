@@ -93,8 +93,8 @@ cp .env.example .env      # then edit the values
 # 3. Start the database (PostGIS on 5432)
 docker compose up -d
 
-# 4. Create the schema
-uv run alembic upgrade head
+# 4. Create the database and the schema (idempotent: it creates DB_NAME when it is not there)
+bun run db:init
 
 # 5. Create the first administrator (prints a temporary password, to be changed at first sign-in)
 uv run python -m scrinalia.domains.identity.cli create \
@@ -226,6 +226,8 @@ starts the API and starts the SPA. Run the pieces separately when you only want 
 
 ```bash
 bun run db:up      # docker compose up -d — PostgreSQL (the object storage is yours)
+bun run db:init    # the above, plus DB_NAME created if it is missing, plus alembic upgrade head
+bun run db:recreate  # drops DB_NAME and creates it empty — asks for the name at the prompt first
 bun run api:dev    # uv run uvicorn main:app --reload — the API alone, on :8000
 bun run curator:dev  # the SPA alone, on :5173
 ```

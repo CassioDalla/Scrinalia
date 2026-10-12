@@ -121,17 +121,30 @@ uv sync
 
 Pesado: `torch`, `transformers`, `spacy` e `bertopic` estão no conjunto padrão de dependências.
 
-### 4. Crie o schema
+### 4. Crie o banco de dados e o schema
 
 ```bash
-uv run alembic upgrade head
+bun run db:init
 ```
 
-O schema é propriedade do Alembic e nada mais o cria; não existe `db-init`. O mesmo comando cria as
-extensões `pg_trgm`, `unaccent` e `vector` de que o schema depende. Confirme o resultado com
-`uv run alembic check`, que não acusa drift em uma instalação saudável.
+O `db:init` é aqueles dois passos em um: sobe o contêiner, cria o banco que `DB_NAME` nomeia quando ele
+ainda não existe e aplica o schema. Repeti-lo é inofensivo — ele é idempotente. É também o que recupera
+um banco apagado de um volume que já existia, o caso que o `docker compose up -d` não recupera sozinho:
+o `POSTGRES_DB` é honrado quando o volume é *inicializado*, então um banco apagado depois continua
+apagado e a migração falha em um banco que não está lá.
+
+O schema em si é propriedade do Alembic e nada mais o cria. O `uv run alembic upgrade head` o aplica, e
+o mesmo comando cria as extensões `pg_trgm`, `unaccent` e `vector` de que o schema depende. Confirme o
+resultado com `uv run alembic check`, que não acusa drift em uma instalação saudável.
 
 A ordem importa: este passo precisa de um banco alcançável, e é por isso que o contêiner vem antes.
+Para jogar tudo o que há nesse banco fora e começar de um vazio, o `bun run db:recreate` imprime o que
+seria destruído e pede o nome do banco antes de apagá-lo. Onde ninguém pode digitá-lo — um script de
+provisionamento — a mesma operação é `uv run python -m scrinalia.core.database_cli recreate --yes`; o
+`bun run` não encaminha argumentos extras para um script composto, então a flag tem de ir ao módulo.
+Ele é limitado ao banco de propósito: o `docker compose down -v` destrói o volume inteiro — todos os
+bancos vizinhos nele — e é a única forma de conseguir um volume *novo*, onde o `POSTGRES_DB` volta a ser
+honrado.
 
 ### 5. Compile a interface do curador
 

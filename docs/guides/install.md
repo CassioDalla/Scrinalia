@@ -10,6 +10,7 @@ sources:
   - package.json
   - pyproject.toml
   - src/scrinalia/core/config.py
+  - src/scrinalia/core/database_cli.py
   - src/scrinalia/core/logger.py
   - src/scrinalia/core/storage.py
   - src/scrinalia/api/health_probe.py
@@ -141,17 +142,31 @@ uv sync
 
 Heavy: `torch`, `transformers`, `spacy` and `bertopic` are in the default dependency set.
 
-### 4. Create the schema
+### 4. Create the database and the schema
 
 ```bash
-uv run alembic upgrade head
+bun run db:init
 ```
 
-The schema is owned by Alembic and nothing else creates it; there is no `db-init`. The same command
-creates the `pg_trgm`, `unaccent` and `vector` extensions the schema depends on. Confirm the result
-with `uv run alembic check`, which reports no drift on a healthy installation.
+`db:init` is those two steps in one: it brings the container up, creates the database `DB_NAME` names
+when it is not there yet, and applies the schema. Repeating it is harmless — it is idempotent. It is
+also what recovers a database that was dropped from an existing volume, the case `docker compose up
+-d` cannot recover alone: `POSTGRES_DB` is honoured when the volume is *initialised*, so a database
+deleted afterwards stays deleted and the migration fails on a database that is not there.
 
-The order matters: this step needs a reachable database, which is why the container comes first.
+The schema itself is owned by Alembic and nothing else creates it. `uv run alembic upgrade head`
+applies it, and the same command creates the `pg_trgm`, `unaccent` and `vector` extensions the schema
+depends on. Confirm the result with `uv run alembic check`, which reports no drift on a healthy
+installation.
+
+The order matters: this step needs a reachable database, which is why the container comes first. To
+throw everything in that database away and start from an empty one, `bun run db:recreate` prints what
+it would destroy and asks for the database name before dropping it. Where nobody can type it — a
+provisioning script — the same operation is `uv run python -m scrinalia.core.database_cli recreate
+--yes`; `bun run` does not forward extra arguments to a composed script, so the flag has to go to the
+module. It is database-scoped on purpose: `docker compose down -v` destroys the whole volume — every
+sibling database in it — and is the only way to get a *fresh* volume, where `POSTGRES_DB` is honoured
+again.
 
 ### 5. Build the curator UI
 
