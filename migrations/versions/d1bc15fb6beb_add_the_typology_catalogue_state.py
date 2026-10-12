@@ -29,6 +29,10 @@ down_revision: str | None = "9c7d5d501f95"
 branch_labels: str | None = None
 depends_on: str | None = None
 
+#: Alembic reads these four from the module namespace (``alembic/script/base.py``): they are the
+#: module's public API, and ``__all__`` is what keeps a static reader from taking them for dead code.
+__all__ = ["branch_labels", "depends_on", "down_revision", "revision"]
+
 #: name -> what the classifier is documented with. The context is *documentation*: it is never
 #: appended to the zero-shot label, because the entailment collapses as the label grows.
 SEED: tuple[tuple[str, str], ...] = (
