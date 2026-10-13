@@ -290,7 +290,9 @@ collapsed into one table or one scope.
 `domain_ner_exclusions` is a *decision*, not noise: it carries `reason`, `source` (`JUDGE` for the
 LLM conflict judge, `HUMAN` for a curator) and the `tag_id` that justifies it. The `tag_id` is
 `ON DELETE SET NULL`, so deleting the tag does not silently re-open the false positive this row
-exists to prevent.
+exists to prevent. The row itself **deletes nothing**: the entities already extracted from the
+spelling are removed by the NER purge, a separate act with its own preview and its own ledger
+(`archive_ner_purge_log`).
 
 `domain_subject_exclusions` is the same shape for the other axis: a term the curation decided is not a
 subject at all. The deterministic guard covers what has a recognisable form (a bare year, a
@@ -307,8 +309,9 @@ interchangeable, and only some of them have an undo.
 | --- | --- | --- |
 | `archive_taxonomy_merge_log` | One row **per absorbed tag**, snapshotted before anything changes. | `undo_merge` restores the row, its links, its classification and the spelling state. |
 | `archive_stopword_purge_log` | One row **per tag the stopword purge deleted**, snapshotted before the delete: the row, the documents that carried it and the spellings that pointed at it. | `undo_stopword_purge` restores the row, its links and its spellings; the ban stays, so the next purge lists the tag again. |
+| `archive_ner_purge_log` | One row **per entity the NER purge deleted**, snapshotted before the delete: the entity, the documents that carried it, the spellings that pointed at it and the `excluded_term` that justified it. | `DELETE /entities/ner-exclusions/purge-log/{id}` restores the entity, its links and its spellings; the veto stays, so the next purge lists the entity again. |
 | `archive_hierarchy_materialisation_log` | One row per materialisation run: the nodes it created and the previous parent/path of every row it changed. | The undo restores `previous_state` and then removes `created_nodes`. |
-| `archive_conflict_resolution_log` | One row per tag × entity resolution: the loser's snapshot, the transferred links, the ban it planted. | `DELETE /conflicts/resolutions/{id}`. |
+| `archive_conflict_resolution_log` | One row per tag × entity resolution: the loser's snapshot, the transferred links, the spellings that pointed at the loser and the ban it planted. | `DELETE /conflicts/resolutions/{id}`. |
 | `archive_document_deletions` | One row per deleted description, with the whole ISAD(G) snapshot. | **No undo.** The snapshot is evidence; nothing writes it back. |
 | `archive_worker_runs` | One row per worker execution, CLI and panel alike. | **No undo** — it is an execution history, not a change to the collection. |
 | `archive_api_errors` | One row per unexpected HTTP failure. | **No undo** — an error ledger is a trace. |

@@ -979,3 +979,36 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   changed. The commands were exercised — the parsers by the unit tests, the workers by the
   integration tests over the test database — but **no scrape against the origin site was run**, and
   the numeric evidence above is synthetic in that sense. That is the gap this entry declares.
+
+## 2026-10-13 — the NER purge stops being the write with no way back (#94)
+
+- **Range:** `84bb5f0..95796c3`
+- **Pages:**
+  - `guides/curate.md` — updated (the NER veto no longer claims to reach backwards: it bans and
+    deletes nothing; the retroactive half is **Expurgar do passado**, with its preview, its
+    `archive_ner_purge_log` and its undo, and the screen's table now says both halves are reversible;
+    the paragraph that put the veto under "What has no way back" is gone)
+  - `guides/curate.pt.md` — updated (the translation of the same section)
+  - `guides/data-model.md` — updated (`archive_ner_purge_log` joins the ledger table, the conflict
+    ledger row names the spellings it now restores, and `domain_ner_exclusions` says the row itself
+    deletes nothing)
+  - `guides/data-model.pt.md` — updated (the translation of those rows)
+- **Why the round exists:** the report named `guides/curate.md` and `guides/data-model.md`, and the
+  API delta was the four purge routes. The change moves a destructive write out of a reversible
+  toggle, so every sentence that described the old coupling had to be re-read, not just the routes.
+- **What the round measured.** Full suite **1591 passed** (`uv run pytest`, with
+  `TEST_DATABASE_URL` pointed at the test database on 5434), `ruff check` and `ruff format --check`
+  green, `basedpyright` **0 errors**, `alembic check` reporting no new upgrade operations after the
+  new migration was applied, `bun run --cwd apps/curator typecheck lint build` green, and
+  `mkdocs build --strict` green. The five new integration tests pin the plan/apply/ledger round trip,
+  the spelling restore on both the NER purge and the conflict undo, the 409 on a second undo and the
+  veto surviving the undo.
+- **What the round looked at.** `/entidades/excecoes` was **rendered** on the dev stack (the API on
+  `scrinalia_zeroed`, the built SPA served by the API, a scratch session created for the round and
+  deleted after, the headless shell driven over CDP). Seen in the pixels: the veto card stating
+  "Vetar não exclui nada", the **Expurgar do passado** card with its preview button, the
+  **Ledger dos expurgos** card, the preview reporting the entities and their links, the purge writing
+  a ledger row, and the undo marking that row "restaurada". The non-empty preview needed a matching
+  entity, so one **temporary** orphan entity (`misto`, `ORG`) was inserted into the zeroed database
+  and removed afterwards, together with the ledger row and the scratch session; the round trip was
+  driven through the screen. That is the one synthetic input this entry declares.

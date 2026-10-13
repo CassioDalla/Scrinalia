@@ -50,9 +50,9 @@ accounts and the deployment around the screens.
 
 ## The one rule
 
-Every write either has an undo, or it announces that it does not. The merge and the stopwords purge
-keep a ledger; editing a description keeps the before and after. When a screen has neither, this page
-says so in bold.
+Every write either has an undo, or it announces that it does not. The merge, the stopwords purge and
+the NER purge keep a ledger; editing a description keeps the before and after. When a screen has
+neither, this page says so in bold.
 
 Read-only work declares no permission: reading is what an authenticated session is. The screens that
 decide carry the area they write to, and the API refuses with a 403 and a sentence when the account
@@ -77,11 +77,6 @@ does not carry it.
   and `POST /api/v1/taxonomy/entities/orphans/purge`. The screen offers the delete only on a row
   whose use count is zero, and the purge removes every entity no description carries, so no link is
   lost — but the row is gone and there is no ledger to restore it.
-
-There is also one write whose effect reaches backwards: **an NER veto** (`POST
-/api/v1/taxonomy/entities/ner-exclusions`) purges the entities already extracted from that spelling,
-with their links. Removing the veto (`DELETE`, the screen's "remover veto") re-opens the term for
-future extractions; it **does not bring back** what the veto already deleted.
 
 ### The batch that does have an undo
 
@@ -700,7 +695,7 @@ lie, and a model that does not know how to abstain would answer confidently and 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
 | Entidades — `/entidades/lista` | the type of a name, the spelling of a name, and whether two names are one | the type yes; the rename **yes** (one ledger row); the merge **yes** (one ledger row per absorbed entity) |
-| Exclusões de NER — `/entidades/excecoes` | which spellings are subjects, not proper names | the veto row yes; the entities it purged **no** |
+| Exclusões de NER — `/entidades/excecoes` | which spellings are subjects, not proper names, and the retroactive purge that follows | both **yes**: the veto row by its own `DELETE`, the purge by its ledger (`archive_ner_purge_log`) |
 | Conflitos — `/entidades/conflitos` | whether a collision belongs to the subject axis or to the names, one pair at a time or a whole category at once | yes (one ledger row per pair, with the undo) |
 
 ### Entidades — `/entidades/lista`
@@ -761,13 +756,28 @@ canonical as a side effect.
 
 ### Exclusões de NER — `/entidades/excecoes`
 
-The veto "this spelling is a subject, not a proper name". The write is `POST
-/api/v1/taxonomy/entities/ner-exclusions` (`CURATE`), with a reason kept for audit; the reversal is
-`DELETE` (the screen's "remover veto"). Two behaviours the screen states because neither is visible
-in the list: the block is **by token boundary**, not by exact name (spaCy merges neighbouring tokens,
-so a banned `iptu` would not stop `"IPTU do Batel"` under an exact comparison), and it **applies to
-the past** — the entities already extracted from that spelling are deleted, with their links, and
-removing the veto does not bring them back.
+The veto "this spelling is a subject, not a proper name". **Vetoing deletes nothing.** The write is
+`POST /api/v1/taxonomy/entities/ner-exclusions` (`CURATE`), with a reason kept for audit, and the
+reversal is `DELETE` (the screen's "remover veto"), which re-opens the term for future extractions.
+One behaviour the screen states because it is not visible in the list: the block is **by token
+boundary**, not by exact name (spaCy merges neighbouring tokens, so a banned `iptu` would not stop
+`"IPTU do Batel"` under an exact comparison).
+
+The retroactive half is a separate act, **Expurgar do passado**:
+`POST /api/v1/taxonomy/entities/ner-exclusions/purge` (`CURATE`), after
+`POST /api/v1/taxonomy/entities/ner-exclusions/purge/preview`. The preview lists every entity already
+extracted from a banned spelling, with the descriptions that carry it, and the write consumes the same
+plan. Each deleted entity is written to a **ledger** (`archive_ner_purge_log`) before it disappears:
+the snapshot of the row, the documents that carried it, the spellings that pointed at it and the
+`excluded_term` that justified it. The response carries the `purge_ids`, the screen shows them in
+**Ledger dos expurgos**, and `DELETE /api/v1/taxonomy/entities/ner-exclusions/purge-log/{purge_id}`
+restores the entity, its links and its spellings — **without** lifting the veto, so the next purge
+lists the restored entity again. Use it to reverse the loss; use "remover veto" to re-open the term.
+
+The conflict screen resolves the same clash with the same pair of writes, and it is reversible there
+in the same shape: one ledger row per pair (`archive_conflict_resolution_log`), with the losing row,
+its links and its spellings restored by the undo. Reaching the operation from either screen now
+restores the same things.
 
 This is the other half of the bidirectional governance: it records the curator or the judge saying
 "this belongs to the subject axis", and it is stored apart from the subject-axis stopwords on
