@@ -241,6 +241,43 @@ class StopwordRemovalCommand(BaseModel):
     scope: StopwordsScope | None = Field(default=None)
 
 
+class StopwordPurgeItem(BaseModel):
+    """One tag the purge would delete, with the exact state the undo has to rebuild."""
+
+    tag_id: int
+    name: str
+    document_ids: list[str] = Field(default_factory=list, description="The documents that carried it.")
+    synonym_names: list[str] = Field(default_factory=list, description="The spellings that pointed at it.")
+    macro_category_id: int | None = None
+    macro_category_name: str | None = None
+    ai_confidence_score: float | None = None
+    execution_log: dict[str, str] | None = None
+    created_at: datetime | None = None
+
+
+class StopwordPurgePlan(BaseModel):
+    """
+    Everything the purge would delete, computed before anything is written.
+
+    Single definition of the operation: the preview reads it and the write consumes it, so the
+    two cannot disagree about which tags die — the same rule ``TagRepository.plan_merge``
+    follows. The items carry the snapshot the ledger records, which is why the dry run and the
+    write are one computation instead of two that happen to agree today.
+    """
+
+    stopwords: list[str] = Field(default_factory=list)
+    items: list[StopwordPurgeItem] = Field(default_factory=list)
+
+    @property
+    def total_tags(self) -> int:
+        return len(self.items)
+
+    @property
+    def total_documents(self) -> int:
+        """Documents that lose a tag, counted per tag: one document can lose two."""
+        return sum(len(item.document_ids) for item in self.items)
+
+
 class StopwordPurgeTag(BaseModel):
     """One tag the purge would delete, with the weight that makes the loss concrete."""
 
@@ -254,10 +291,10 @@ class StopwordPurgePreview(BaseModel):
     """
     What the purge would destroy, before it destroys it.
 
-    It exists because this is the **only destructive operation in the taxonomy without an undo**:
-    the merge has a ledger and restores the tag, its links and its classification, while
-    ``purge_tags_by_stopwords`` deletes the row and the links cascade. A screen may not offer that
-    without showing the impact first, so the preview is the step, not a convenience.
+    The purge keeps a ledger now (:class:`ArchiveStopwordPurgeLog`), so ``reversible`` is true:
+    the write is logged per deleted tag before anything changes and the undo restores the row,
+    its links and its spellings. The preview remains the step, not a convenience — the ledger
+    makes the loss recoverable, it does not make it invisible.
     """
 
     stopwords: list[str] = Field(
@@ -266,7 +303,35 @@ class StopwordPurgePreview(BaseModel):
     tags: list[StopwordPurgeTag] = Field(default_factory=list)
     total_tags: int = 0
     total_documents: int = Field(default=0, description="Documents that lose a subject tag.")
-    reversible: bool = Field(default=False, description="Always false: the purge has no ledger to restore from.")
+    reversible: bool = Field(default=True, description="True: the ledger restores the tags and their links.")
+
+
+class StopwordPurgeLogEntryDTO(BaseModel):
+    """One deleted tag in the ledger: what was purged, by whom, and whether it was restored."""
+
+    purge_id: int
+    purged_tag_id: int
+    purged_name: str
+    document_count: int = 0
+    synonym_names: list[str] = Field(default_factory=list)
+    macro_category_name: str | None = None
+    changed_by: str | None = None
+    changed_at: datetime | None = None
+    undone_at: datetime | None = None
+    undone_by: str | None = None
+
+    @property
+    def is_undone(self) -> bool:
+        return self.undone_at is not None
+
+
+class StopwordPurgeLogListResponse(BaseModel):
+    """One page of the purge ledger, with the total matching the same filters."""
+
+    total: int
+    limit: int
+    offset: int
+    items: list[StopwordPurgeLogEntryDTO] = Field(default_factory=list)
 
 
 class TagMergeSuggestion(BaseModel):
@@ -665,15 +730,31 @@ class StopwordBanResponse(RouteResponse):
 
 
 class StopwordRemovalResponse(RouteResponse):
-    """Terms un-banned — the only way back from a purge decision, which has no ledger."""
+    """Terms un-banned. The purge keeps a ledger, so this is no longer the only way back."""
 
     removed: int
 
 
+class StopwordPurgeResult(BaseModel):
+    """What the purge did, as the repository reports it: the count and the ledger ids to undo."""
+
+    tags_deleted: int = 0
+    purge_ids: list[int] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class StopwordPurgeResponse(RouteResponse):
-    """What the purge deleted. There is no undo for this one, only the preview before it."""
+    """What the purge deleted, with the ledger ids the screen needs to offer the undo."""
 
     tags_deleted: int
+    purge_ids: list[int] = Field(default_factory=list)
+
+
+class StopwordPurgeUndoResponse(RouteResponse):
+    """The purged tag came back, exactly as the ledger remembered it."""
+
+    data: StopwordPurgeLogEntryDTO
 
 
 class SubjectExclusionBanResponse(RouteResponse):

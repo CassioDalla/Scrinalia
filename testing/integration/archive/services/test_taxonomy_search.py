@@ -17,6 +17,7 @@ from scrinalia.domains.archive.models import (
     ArchiveDocumentTag,
     ArchiveEntity,
     ArchiveMacroCategory,
+    ArchiveStopwordPurgeLog,
     ArchiveTag,
     ArchiveTaxonomyMergeLog,
 )
@@ -352,8 +353,8 @@ class TestStopwords:
         assert preview.tags[0].document_count == 3
         assert preview.tags[0].macro_category_name == "Assistência e Questões Sociais"
         assert preview.total_documents == 3
-        # Announced, never silently reversible: there is no ledger behind this write.
-        assert preview.reversible is False
+        # Reversible now: the ledger restores the tag, its links and its spellings.
+        assert preview.reversible is True
 
     def test_an_entity_scoped_ban_never_reaches_the_subject_purge(self, db_session, generate_archive_doc, tag_service):
         """
@@ -367,24 +368,26 @@ class TestStopwords:
         tag_service.save_new_stopwords(["iptu"], StopwordsScope.ENTITY)
 
         preview = tag_service.preview_stopword_purge()
-        deleted = tag_service.purge_stopwords()
+        result = tag_service.purge_stopwords()
 
         assert preview.stopwords == []
         assert preview.tags == []
-        assert deleted == 0
+        assert result.tags_deleted == 0
         assert db_session.scalars(select(ArchiveTag).where(ArchiveTag.name == "iptu")).one() is not None
 
-    def test_the_purge_deletes_the_tag_and_its_links_and_is_not_reversible(
+    def test_the_purge_deletes_the_tag_and_its_links_and_is_reversible(
         self, db_session, generate_archive_doc, tag_service
     ):
         tag = _tag(db_session, generate_archive_doc, "pessoas", 3)
         tag_service.save_new_stopwords(["pessoas"], StopwordsScope.TAG)
 
-        deleted = tag_service.purge_stopwords()
+        result = tag_service.purge_stopwords()
 
-        assert deleted == 1
+        assert result.tags_deleted == 1
         assert db_session.get(ArchiveTag, tag.tag_id) is None
         links = db_session.scalars(select(ArchiveDocumentTag).where(ArchiveDocumentTag.tag_id == tag.tag_id)).all()
         assert links == []
-        # The contrast that the screen has to state: the merge keeps a ledger, this does not.
+        # The contrast the screen used to state is gone: this write has a ledger of its own now.
         assert db_session.scalars(select(ArchiveTaxonomyMergeLog)).all() == []
+        rows = db_session.scalars(select(ArchiveStopwordPurgeLog)).all()
+        assert [row.purged_tag_id for row in rows] == [tag.tag_id]

@@ -282,6 +282,57 @@ class ArchiveTaxonomyMergeLog(Base):
     )
 
 
+class ArchiveStopwordPurgeLog(Base):
+    """
+    Ledger of every tag the stopword purge deleted, with enough detail to undo it without loss.
+
+    One row **per deleted tag**, not per call: the unit of undo is the tag, exactly as in
+    :class:`ArchiveTaxonomyMergeLog`. The purge is the destructive write the taxonomy used to
+    keep apart from the merge — it deleted the row and let the links cascade, and nothing
+    restored it. This table makes it symmetric: a full snapshot of the tag (name, category,
+    confidence, the AI execution log), the exact documents that carried it and the spellings
+    that pointed at it, so the reverse rebuilds the row instead of approximating it.
+
+    ``synonym_names`` is captured because ``domain_synonyms.canonical_tag_id`` is
+    ``ON DELETE CASCADE``: deleting the tag destroys the spellings an earlier curation
+    absorbed, and an undo that did not put them back would leave the next ingestion free to
+    recreate the term as a brand-new tag.
+
+    ``undone_at`` makes the undo single-shot and keeps the trail readable afterwards; the row
+    is never deleted, so the history of "this was purged, then restored" survives. The ledger
+    deliberately holds no foreign key to ``archive_tags``: it has to outlive the catalogue it
+    describes, which is the whole point of a snapshot.
+    """
+
+    __tablename__ = "archive_stopword_purge_log"
+
+    purge_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    purged_tag_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    purged_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    purged_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+    # Exactly the documents that carried the tag when it died (a union would over-link on undo).
+    document_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+
+    # The spellings that pointed *at* the purged tag; the cascade takes them with the row.
+    synonym_names: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+
+    changed_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    #: The account behind the name above. ``SET NULL`` and not ``CASCADE``: an account is deactivated,
+    #: never deleted, and if one ever were, the act it took must survive with its author's name.
+    changed_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    undone_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    undone_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    undone_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
+
+
 class ArchiveTypology(Base):
     """
     Catalogue of documental typologies, owned by the archivist.

@@ -30,6 +30,7 @@ from .hierarchy import ArchiveDescriptionLevel, ArchiveHierarchyMaterialisationL
 from .operations import ApiError, WorkerRun, WorkerSetting, WorkerSettingRevision
 from .taxonomy import (
     ArchiveMacroCategory,
+    ArchiveStopwordPurgeLog,
     ArchiveTag,
     ArchiveTagFacet,
     ArchiveTagMergeProposal,
@@ -60,6 +61,7 @@ __all__ = [
     "ArchiveHierarchyNodePlan",
     "ArchiveMacroCategory",
     "ArchiveReviewStatus",
+    "ArchiveStopwordPurgeLog",
     "ArchiveTag",
     "ArchiveTagFacet",
     "ArchiveTagMergeProposal",

@@ -932,7 +932,7 @@ def test_stopword_purge_preview_route_returns_the_impact(client: TestClient, moc
         tags=[StopwordPurgeTag(tag_id=1, name="pessoas", document_count=3, macro_category_name="Assistência")],
         total_tags=1,
         total_documents=3,
-        reversible=False,
+        reversible=True,
     )
 
     response = client.post("/api/v1/taxonomy/tags/stopwords/purge/preview")
@@ -940,7 +940,7 @@ def test_stopword_purge_preview_route_returns_the_impact(client: TestClient, moc
     assert response.status_code == HTTP_200_OK
     body = response.json()
     assert body["total_documents"] == 3
-    assert body["reversible"] is False
+    assert body["reversible"] is True
     assert body["tags"][0]["name"] == "pessoas"
 
 
@@ -949,25 +949,89 @@ def test_stopword_purge_route_accepts_an_empty_body(client: TestClient, mocker):
     The screen purges with the list it already showed in the preview.
 
     ``words`` being optional is what makes that possible: sending them would register new terms in
-    the same call, and the numbers the archivist approved would not be the numbers that die.
+    the same call, and the numbers the archivist approved would not be the numbers that die. The
+    response carries the ledger ids, which is what lets the screen offer the undo.
     """
+    from scrinalia.domains.archive.schemas.tag_schema import StopwordPurgeResult
+
     saved = mocker.patch.object(TagService, "save_new_stopwords")
-    purged = mocker.patch.object(TagService, "purge_stopwords", return_value=1)
+    purged = mocker.patch.object(
+        TagService, "purge_stopwords", return_value=StopwordPurgeResult(tags_deleted=1, purge_ids=[7])
+    )
 
     response = client.post("/api/v1/taxonomy/tags/stopwords/purge", json={})
 
     assert response.status_code == HTTP_200_OK
     assert response.json()["tags_deleted"] == 1
+    assert response.json()["purge_ids"] == [7]
     saved.assert_not_called()
-    purged.assert_called_once_with()
+    purged.assert_called_once()
 
 
 def test_stopword_purge_route_still_registers_the_words_it_receives(client: TestClient, mocker):
     """A client that bans and purges in one call keeps working: send words, get them registered and purged."""
+    from scrinalia.domains.archive.schemas.tag_schema import StopwordPurgeResult
+
     saved = mocker.patch.object(TagService, "save_new_stopwords", return_value=1)
-    mocker.patch.object(TagService, "purge_stopwords", return_value=1)
+    mocker.patch.object(TagService, "purge_stopwords", return_value=StopwordPurgeResult(tags_deleted=1, purge_ids=[7]))
 
     response = client.post("/api/v1/taxonomy/tags/stopwords/purge", json={"words": ["pessoas"]})
 
     assert response.status_code == HTTP_200_OK
     saved.assert_called_once_with(["pessoas"])
+
+
+def test_stopword_purge_log_route_lists_the_ledger(client: TestClient, mocker):
+    """The audit trail is a read: the screen shows what died and offers the undo per row."""
+    from scrinalia.domains.archive.schemas.tag_schema import StopwordPurgeLogEntryDTO, StopwordPurgeLogListResponse
+
+    mocked = mocker.patch.object(TagService, "list_stopword_purge_log")
+    mocked.return_value = StopwordPurgeLogListResponse(
+        total=1,
+        limit=50,
+        offset=0,
+        items=[StopwordPurgeLogEntryDTO(purge_id=7, purged_tag_id=1, purged_name="pessoas", document_count=3)],
+    )
+
+    response = client.get("/api/v1/taxonomy/tags/stopwords/purge-log?q=pessoas")
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["total"] == 1
+    assert body["items"][0]["purge_id"] == 7
+    assert body["items"][0]["purged_name"] == "pessoas"
+    mocked.assert_called_once_with(include_undone=True, term="pessoas", limit=50, offset=0)
+
+
+def test_undo_stopword_purge_route_restores_the_tag(client: TestClient, mocker):
+    """The undo of one purge answers 200 with the restored entry, and names it in the message."""
+    from scrinalia.domains.archive.schemas.tag_schema import StopwordPurgeLogEntryDTO
+
+    mocked = mocker.patch.object(TagService, "undo_stopword_purge")
+    mocked.return_value = StopwordPurgeLogEntryDTO(purge_id=7, purged_tag_id=1, purged_name="pessoas")
+
+    response = client.delete("/api/v1/taxonomy/tags/stopwords/purge-log/7")
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["data"]["purge_id"] == 7
+    assert "pessoas" in body["message"]
+    mocked.assert_called_once()
+
+
+def test_undo_stopword_purge_route_answers_404_and_409(client: TestClient, mocker):
+    """The two failures the ledger defines: an unknown entry is 404, a second reversal is 409."""
+    from scrinalia.domains.archive.exceptions import (
+        StopwordPurgeAlreadyUndoneError,
+        StopwordPurgeLogNotFoundError,
+    )
+
+    mocked = mocker.patch.object(TagService, "undo_stopword_purge")
+    mocked.side_effect = StopwordPurgeLogNotFoundError("Registro de purga 99 não encontrado no ledger.")
+
+    not_found = client.delete("/api/v1/taxonomy/tags/stopwords/purge-log/99")
+    assert not_found.status_code == HTTP_404_NOT_FOUND
+
+    mocked.side_effect = StopwordPurgeAlreadyUndoneError("A purga 7 já foi desfeita.")
+    already = client.delete("/api/v1/taxonomy/tags/stopwords/purge-log/7")
+    assert already.status_code == HTTP_409_CONFLICT

@@ -306,6 +306,7 @@ interchangeable, and only some of them have an undo.
 | Ledger | What it records | Its undo |
 | --- | --- | --- |
 | `archive_taxonomy_merge_log` | One row **per absorbed tag**, snapshotted before anything changes. | `undo_merge` restores the row, its links, its classification and the spelling state. |
+| `archive_stopword_purge_log` | One row **per tag the stopword purge deleted**, snapshotted before the delete: the row, the documents that carried it and the spellings that pointed at it. | `undo_stopword_purge` restores the row, its links and its spellings; the ban stays, so the next purge lists the tag again. |
 | `archive_hierarchy_materialisation_log` | One row per materialisation run: the nodes it created and the previous parent/path of every row it changed. | The undo restores `previous_state` and then removes `created_nodes`. |
 | `archive_conflict_resolution_log` | One row per tag × entity resolution: the loser's snapshot, the transferred links, the ban it planted. | `DELETE /conflicts/resolutions/{id}`. |
 | `archive_document_deletions` | One row per deleted description, with the whole ISAD(G) snapshot. | **No undo.** The snapshot is evidence; nothing writes it back. |
@@ -444,6 +445,7 @@ Authorship is **two columns, never one**:
 
 The same pair appears wherever a person decides something: `archive_document_deletions` (`deleted_by`
 / `deleted_by_user_id`), `archive_taxonomy_merge_log` (`changed_by`, `undone_by`),
+`archive_stopword_purge_log` (`changed_by`, `undone_by`),
 `archive_conflict_resolution_log` (`decided_by`, `undone_by`), `archive_hierarchy_node_plans` and
 `archive_tag_merge_proposals` (`decided_by`), `archive_tag_facets` and `archive_cleaning_rules` and
 `domain_text_templates` (`created_by`), `archive_hierarchy_materialisation_log` (`changed_by`),

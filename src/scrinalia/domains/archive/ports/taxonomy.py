@@ -12,7 +12,9 @@ from scrinalia.domains.archive.schemas import (
     MergePlan,
     MergeResponse,
     StopwordDTO,
-    StopwordPurgeTag,
+    StopwordPurgeLogEntryDTO,
+    StopwordPurgePlan,
+    StopwordPurgeResult,
     SubjectExclusionSuggestionResponse,
     SynonymCommand,
     TagCatalogRow,
@@ -148,7 +150,25 @@ class TagRepositoryPort(Protocol):
     def save_stopwords(self, words_list: list[str], scope: StopwordsScope = StopwordsScope.TAG) -> int:
         raise NotImplementedError
 
-    def purge_tags_by_stopwords(self, stopwords: set[str]) -> int:
+    def plan_stopword_purge(self) -> StopwordPurgePlan:
+        raise NotImplementedError
+
+    def apply_stopword_purge(self, plan: StopwordPurgePlan, changed_by: Author | None = None) -> StopwordPurgeResult:
+        raise NotImplementedError
+
+    def undo_stopword_purge(self, purge_id: int, undone_by: Author | None = None) -> StopwordPurgeLogEntryDTO:
+        raise NotImplementedError
+
+    def count_stopword_purge_log(self, include_undone: bool = True, term: str | None = None) -> int:
+        raise NotImplementedError
+
+    def list_stopword_purge_log(
+        self,
+        include_undone: bool = True,
+        term: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[StopwordPurgeLogEntryDTO]:
         raise NotImplementedError
 
     def create_synonyms(self, synonyms_data: list[SynonymCommand]) -> None:
@@ -177,9 +197,6 @@ class TagRepositoryPort(Protocol):
         raise NotImplementedError
 
     def remove_stopwords(self, words: list[str], scope: StopwordsScope | None = None) -> int:
-        raise NotImplementedError
-
-    def find_tags_by_stopwords(self, stopwords: set[str]) -> list[StopwordPurgeTag]:
         raise NotImplementedError
 
     def update_tag_macro_category(

@@ -22,6 +22,9 @@ from scrinalia.domains.archive.schemas import (
     MergePlan,
     MergePreviewCommand,
     MergeTagsCommand,
+    StopwordPurgeItem,
+    StopwordPurgePlan,
+    StopwordPurgeResult,
     TagMergeDecisionCommand,
     TagMergeImpact,
     TagMergeMember,
@@ -136,33 +139,35 @@ def test_extract_and_clean_tags_splits_pipe_separator(mocker: MockerFixture) -> 
 
 
 def test_purge_stopwords_removes_tags_success(mocker: MockerFixture) -> None:
-    """Happy Path: Coordinates the stopword lookup and the bulk deletion."""
+    """Happy Path: coordinates the plan and the apply, and reports the ledger ids back."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
 
-    mock_tag_repo.get_stopwords.return_value = {"lixo"}
-    mock_tag_repo.purge_tags_by_stopwords.return_value = 1  # Pretend it deleted 1 tag
+    plan = StopwordPurgePlan(stopwords=["lixo"], items=[StopwordPurgeItem(tag_id=1, name="lixo")])
+    mock_tag_repo.plan_stopword_purge.return_value = plan
+    mock_tag_repo.apply_stopword_purge.return_value = StopwordPurgeResult(tags_deleted=1, purge_ids=[7])
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    deleted_count = service.purge_stopwords()
+    result = service.purge_stopwords()
 
-    assert deleted_count == 1
-    mock_tag_repo.get_stopwords.assert_called_once()
-    mock_tag_repo.purge_tags_by_stopwords.assert_called_once_with({"lixo"})
+    assert result.tags_deleted == 1
+    assert result.purge_ids == [7]
+    mock_tag_repo.apply_stopword_purge.assert_called_once()
 
 
 def test_purge_stopwords_empty_stopwords_table(mocker: MockerFixture) -> None:
-    """Bad Path: The stopword table is empty. The service must abort quickly."""
+    """Bad Path: the plan is empty. The service must not call the destructive apply."""
     mock_tag_repo = mocker.Mock(spec=TagRepository)
     mock_doc_repo = mocker.Mock(spec=DocumentRepository)
 
-    mock_tag_repo.get_stopwords.return_value = set()
+    mock_tag_repo.plan_stopword_purge.return_value = StopwordPurgePlan()
 
     service = TagService(mock_tag_repo, mock_doc_repo)
-    deleted_count = service.purge_stopwords()
+    result = service.purge_stopwords()
 
-    assert deleted_count == 0
-    mock_tag_repo.purge_tags_by_stopwords.assert_not_called()
+    assert result.tags_deleted == 0
+    assert result.purge_ids == []
+    mock_tag_repo.apply_stopword_purge.assert_not_called()
 
 
 # ==========================================
