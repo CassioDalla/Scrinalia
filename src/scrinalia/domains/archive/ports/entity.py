@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from typing import Protocol
 
 from scrinalia.core.author import Author
+from scrinalia.domains.archive.domain.entity_merge import EntityRenameRecord
 from scrinalia.domains.archive.schemas.command_schema import EntityLinkCommand, SynonymCommand
 from scrinalia.domains.archive.schemas.entity_schema import (
     ArchiveEntityDTO,
@@ -164,7 +165,14 @@ class EntityRepositoryPort(Protocol):
     ) -> EntityMergeResponse:
         raise NotImplementedError
 
-    def rename_entity(self, entity_id: int, new_name: str) -> str | None:
+    def rename_entity(
+        self, entity_id: int, new_name: str, *, keep_old_synonym: bool = True
+    ) -> EntityRenameRecord | None:
+        raise NotImplementedError
+
+    def write_entity_rename_log(
+        self, record: EntityRenameRecord, changed_by: Author | None = None, note: str | None = None
+    ) -> int:
         raise NotImplementedError
 
     def write_entity_merge_log(

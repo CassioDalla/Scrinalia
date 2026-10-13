@@ -29,6 +29,7 @@ from scrinalia.domains.archive.exceptions import (
     DuplicateArrangementTermError,
     DuplicateCollectionTermError,
     DuplicateDescriptionLevelError,
+    DuplicateEntityNameError,
     DuplicateTypologyError,
     EngineExecutionError,
     EntityNotFoundError,
@@ -115,6 +116,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
         (
             MergeAlreadyUndoneError,
             DuplicateDescriptionLevelError,
+            DuplicateEntityNameError,
             DuplicateTypologyError,
             DuplicateArrangementTermError,
             DuplicateCollectionTermError,
@@ -162,12 +164,18 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
     ):
         status_code = HTTP_422_UNPROCESSABLE_ENTITY
 
-    # Standardized response structure for the Front-end
+    # Standardized response structure for the Front-end.
+    #
+    # ``details`` is emitted **only when the refusal carries facts**, so a refusal that is only a
+    # sentence keeps exactly the body it always had. The facts are language-neutral on purpose: the
+    # sentence above is Portuguese and the interface is going to be translated (#45), so a screen that
+    # has to say *which* twin a rename collided with reads the pair here and wraps it in the SPA's own
+    # copy (`apps/curator/src/lib/messages.ts`) instead of printing the server's language.
+    content: dict[str, object] = {"error_code": exc.__class__.__name__, "message": str(exc)}
+    if exc.details is not None:
+        content["details"] = exc.details
     return Response(
-        content={
-            "error_code": exc.__class__.__name__,
-            "message": str(exc),
-        },
+        content=content,
         status_code=status_code,
     )
 

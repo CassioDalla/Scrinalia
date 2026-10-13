@@ -27,6 +27,15 @@ export class ApiError extends Error {
      * report is a time range and an eyeball.
      */
     readonly ref?: string,
+    /**
+     * The refusal's facts, when it has any. ``undefined`` for a refusal that is only a sentence.
+     *
+     * The API's sentence is Portuguese and the interface is going to be translated (#45), so a screen
+     * that has to name *which* twin a rename collided with reads the pair here and wraps it in
+     * `lib/messages.ts`'s copy. The error body is declared by no route, so this field is read by hand:
+     * the generated client cannot type what the contract does not describe.
+     */
+    readonly details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "ApiError";
@@ -44,12 +53,18 @@ type ApiResult = { data?: unknown; error?: unknown; response: Response };
  */
 async function unwrap<T>(result: ApiResult): Promise<T> {
   if (result.error !== undefined) {
-    const payload = result.error as { error_code?: string; message?: string; detail?: string } | null;
+    const payload = result.error as {
+      error_code?: string;
+      message?: string;
+      detail?: string;
+      details?: Record<string, unknown>;
+    } | null;
     throw new ApiError(
       result.response.status,
       payload?.error_code ?? "UNKNOWN",
       payload?.message ?? payload?.detail ?? `Erro ${result.response.status}`,
       result.response.headers.get("X-Request-ID") ?? undefined,
+      payload?.details,
     );
   }
   return result.data as T;
@@ -178,6 +193,8 @@ export type EntityMergeRequest = components["schemas"]["EntityMergeRequest"];
 export type ReclassifyEntityRequest = components["schemas"]["ReclassifyEntityRequest"];
 export type EntityReclassifyResponse = components["schemas"]["EntityReclassifyResponse"];
 export type EntityDeleteResponse = components["schemas"]["EntityDeleteResponse"];
+export type EntityRenameRequest = components["schemas"]["EntityRenameRequest"];
+export type EntityRenameResponse = components["schemas"]["EntityRenameResponse"];
 export type OrphanEntityPurgeResponse = components["schemas"]["OrphanEntityPurgeResponse"];
 export type NerExclusion = components["schemas"]["NerExclusion"];
 export type NerExclusionBanResponse = components["schemas"]["NerExclusionBanResponse"];
@@ -1100,6 +1117,24 @@ export async function reclassifyEntity(
 ): Promise<EntityReclassifyResponse> {
   return unwrap<EntityReclassifyResponse>(
     await client.PATCH("/api/v1/taxonomy/entities/{entity_id}/reclassify", {
+      params: { path: { entity_id: entityId } },
+      body,
+    }),
+  );
+}
+
+/**
+ * Renames one name. Its own operation, not a side effect of absorbing a twin.
+ *
+ * ``keep_old_synonym`` is the archivist's answer to "is this a typo or two spellings of one thing?",
+ * and the response says whether the old spelling still resolves to the entity.
+ */
+export async function renameEntity(
+  entityId: number,
+  body: EntityRenameRequest,
+): Promise<EntityRenameResponse> {
+  return unwrap<EntityRenameResponse>(
+    await client.PATCH("/api/v1/taxonomy/entities/{entity_id}", {
       params: { path: { entity_id: entityId } },
       body,
     }),

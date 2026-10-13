@@ -40,3 +40,49 @@ export function routeMessage(response: { code?: RouteMessageCode | null; message
 
   return translated ?? response.message ?? "";
 }
+
+/**
+ * What to show for a **refusal**, keyed by the API's ``error_code``.
+ *
+ * The other half of the same seam. A refusal carries a code, a Portuguese sentence, and — when it has
+ * facts to state — a ``details`` payload with them. This is where the sentence the archivist reads is
+ * composed: the server's prose is the fallback for a code this catalogue does not know yet, exactly as
+ * `routeMessage` falls back to `message`, so a refusal added later is never an empty line.
+ *
+ * Why a second map instead of one: the two channels are different in the API. `routeMessage` is keyed
+ * by `RouteMessageCode`, an enum the contract generates; a refusal is keyed by the exception's class
+ * name, which the contract does not carry. Merging them would mean typing an enum that does not exist.
+ */
+const REFUSALS: Partial<Record<string, (details: RefusalDetails) => string>> = {
+  /**
+   * A rename onto a spelling another entity already carries. The twin travels in ``details`` because
+   * a translated interface cannot interpolate a fact out of the server's sentence, and the archivist
+   * needs to read *which* name collided — the answer to the collision is the merge card, and it takes
+   * both names.
+   */
+  DuplicateEntityNameError: (details) => {
+    const twin = details?.conflicting_entity as { name?: string } | undefined;
+    return twin?.name
+      ? `Já existe uma entidade chamada "${twin.name}". Mescle as duas em vez de renomear.`
+      : "Já existe uma entidade com essa grafia. Mescle as duas em vez de renomear.";
+  },
+};
+
+/** The facts a refusal carries, when it carries any. */
+export type RefusalDetails = Record<string, unknown> | undefined;
+
+/**
+ * The sentence for a refusal: this catalogue's copy when it knows the code, the API's otherwise.
+ *
+ * Accepts the shape `ApiError` already has, so a screen passes the error itself and never reaches for
+ * `.message` — which is the call site that would freeze the server's language into the interface.
+ */
+export function refusalMessage(error: {
+  code?: string | null;
+  message?: string | null;
+  details?: RefusalDetails;
+}): string {
+  const render = error.code ? REFUSALS[error.code] : undefined;
+
+  return render?.(error.details) ?? error.message ?? "";
+}

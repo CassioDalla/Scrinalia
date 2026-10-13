@@ -178,18 +178,25 @@ class EntityMergePreviewResponse(BaseModel):
 
 
 class EntityMergeLogEntryDTO(BaseModel):
-    """One absorbed entity in the ledger: what was merged, by whom, and whether it was undone."""
+    """
+    One entry in the entity ledger: what was merged or renamed, by whom, and whether it was undone.
+
+    ``kind`` is ``MERGE`` or ``RENAME`` and the two rows do not carry the same fields: a rename has no
+    absorbed entity, so ``absorbed_*`` are ``None`` and ``canonical_renamed_from`` is what the undo
+    restores. The screen reads the discriminator instead of guessing from a null.
+    """
 
     merge_id: int
+    kind: str = "MERGE"
     canonical_id: int | None = None
     canonical_name: str
-    absorbed_entity_id: int
-    absorbed_name: str
-    absorbed_entity_type: str
+    absorbed_entity_id: int | None = None
+    absorbed_name: str | None = None
+    absorbed_entity_type: str | None = None
     document_count: int = 0
     repointed_synonym_names: list[str] = Field(default_factory=list)
     synonym_created: bool = True
-    #: The name the canonical carried before the merge renamed it (``None`` when it did not).
+    #: The name the canonical carried before this write renamed it (``None`` when it did not).
     canonical_renamed_from: str | None = None
     changed_by: str | None = None
     changed_at: datetime | None = None
@@ -202,6 +209,12 @@ class EntityMergeLogEntryDTO(BaseModel):
     def is_undone(self) -> bool:
         """Computed so the front reads one definition instead of comparing a timestamp itself."""
         return self.undone_at is not None
+
+    @computed_field
+    @property
+    def is_rename(self) -> bool:
+        """The discriminator the ledger screen branches on, so it never tests a null of its own."""
+        return self.kind == "RENAME"
 
 
 class EntityMergeLogListResponse(BaseModel):
@@ -556,6 +569,23 @@ class EntityReclassifyResponse(RouteResponse):
 
 class EntityDeleteResponse(RouteResponse):
     """One entity removed from the vocabulary."""
+
+
+class EntityRenameResponse(RouteResponse):
+    """
+    The name as it now reads, plus the two facts the screen cannot infer by itself.
+
+    ``merge_id`` is the ledger row this write left, which is what makes the rename reversible from the
+    screen through the same undo the merge uses. ``kept_old_spelling`` says whether the previous
+    spelling still resolves to this entity: the archivist decided it with a toggle, and the answer
+    belongs in the answer.
+    """
+
+    entity_id: int
+    name: str
+    entity_type: str
+    merge_id: int
+    kept_old_spelling: bool
 
 
 class EntityMergeUndoResponse(RouteResponse):

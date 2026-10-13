@@ -666,17 +666,25 @@ não sabe se abster responderia com confiança e errado.
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Entidades — `/entidades/lista` | o tipo de um nome, e se dois nomes são um | o tipo sim; o merge **sim** (uma linha no ledger por entidade absorvida) |
+| Entidades — `/entidades/lista` | o tipo de um nome, a grafia de um nome, e se dois nomes são um | o tipo sim; a renomeação **sim** (uma linha no ledger); o merge **sim** (uma linha por entidade absorvida) |
 | Exclusões de NER — `/entidades/excecoes` | quais grafias são assunto, não nome próprio | a linha do veto sim; as entidades expurgadas **não** |
 | Conflitos — `/entidades/conflitos` | se uma colisão pertence ao eixo de assunto ou aos nomes, um par de cada vez ou uma categoria inteira de uma vez | sim (uma linha no ledger por par, com o desfazer) |
 
 ### Entidades — `/entidades/lista`
 
-O vocabulário de nomes próprios, por peso ou por similaridade. Três decisões:
+O vocabulário de nomes próprios, por peso ou por similaridade. Quatro decisões:
 
 - **Reclassificar o tipo** — `PATCH /api/v1/taxonomy/entities/{entity_id}/reclassify` (`CURATE`), só
   entre `ORG`, `PER` e `LOC`. Isso não é renomear um rótulo: o serviço grava também o sinônimo de
   ancoragem, então o extrator devolve aquela grafia com o tipo novo em toda execução futura.
+- **Renomear** — `PATCH /api/v1/taxonomy/entities/{entity_id}` (`CURATE`): corrige a grafia de um
+  nome, e **não** é um merge. A grafia anterior continua ancorada como sinônimo a menos que o
+  arquivista desligue `keep_old_synonym`, que é o que faz uma extração futura da grafia antiga
+  continuar resolvendo para esta entidade — e um erro de digitação é exatamente o caso em que ela não
+  deveria. A escrita deixa uma linha `RENAME` no mesmo ledger que o merge usa, então o "desfazer" da
+  tela restaura o nome e remove a grafia que ele plantou. Uma grafia que outra entidade já carrega é um
+  **409** que nomeia o gêmeo e aponta para o merge, nunca uma sobrescrita silenciosa e nunca um
+  conflito estrutural cru.
 - **Excluir** uma entidade — `DELETE /api/v1/taxonomy/entities/{entity_id}` (`CURATE`), oferecido só
   numa linha que nenhuma descrição carrega, onde excluir não perde vínculo. Sem desfazer.
 - **Purgar órfãs** — `POST /api/v1/taxonomy/entities/orphans/purge` (`CURATE`): a mesma decisão em
@@ -703,6 +711,10 @@ usa, e nada nela escreve. O "Editar" dela cai na aba **Assuntos** do dossiê, qu
 de uma descrição são adicionadas e removidas. Um cartão fica aberto por vez, e `?aberta=`, `?offset=`
 e `?descricao=` carregam esse estado na URL — então o botão voltar fecha o painel e um colega pode
 receber a mesma vista exata.
+
+A segunda aba do cartão é a renomeação, e o botão **Renomear** ao lado do nome é quem a abre. Ele é o
+recurso da própria linha e nunca mescla: o merge parte de dois ou mais nomes e só renomeia a canônica
+como efeito colateral.
 
 ### Exclusões de NER — `/entidades/excecoes`
 

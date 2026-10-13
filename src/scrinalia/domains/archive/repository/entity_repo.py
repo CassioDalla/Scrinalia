@@ -9,10 +9,13 @@ from sqlalchemy.orm import Session, aliased
 
 from scrinalia.core.author import Author, assign_author, author_columns
 from scrinalia.domains.archive.domain.entity_merge import (
+    KIND_MERGE,
+    KIND_RENAME,
     REVIEW_MEMBER_IS_SYNONYM,
     REVIEW_MEMBER_WITH_DIGITS,
     REVIEW_MIXED_TYPES,
     REVIEW_ORPHAN_MEMBER,
+    EntityRenameRecord,
 )
 from scrinalia.domains.archive.domain.normalization import (
     LIKE_ESCAPE,
@@ -24,6 +27,8 @@ from scrinalia.domains.archive.domain.tag_merge import has_digits
 from scrinalia.domains.archive.exceptions import (
     ConflictResolutionAlreadyUndoneError,
     ConflictResolutionNotFoundError,
+    DuplicateEntityNameError,
+    InvalidMergeError,
     InvalidParam,
     MergeAlreadyUndoneError,
     MergeLogNotFoundError,
@@ -1383,25 +1388,54 @@ class EntityRepository:
             documents_updated=len(plan.document_ids), entities_deleted=entities_deleted, merge_ids=merge_ids
         )
 
-    def rename_entity(self, entity_id: int, new_name: str) -> str | None:
+    def rename_entity(
+        self, entity_id: int, new_name: str, *, keep_old_synonym: bool = True
+    ) -> EntityRenameRecord | None:
         """
-        Renames one entity and anchors the old spelling as a synonym.
+        Renames one entity and optionally anchors the old spelling as a synonym.
 
-        The single definition of "rename a name", shared by the merge and by the single-entity
-        rename route: the old spelling becomes a synonym so a future extraction still resolves to
-        the entity, and the new spelling is what the catalogue shows. Returns the previous name, or
-        ``None`` when the entity does not exist. A spelling that only differs in case is the same
-        name, so no synonym is written for it.
+        The single definition of "rename a name", shared by the merge and by the rename route: the old
+        spelling becomes a synonym so a future extraction still resolves to the entity, and the new
+        spelling is what the catalogue shows. ``None`` when the entity does not exist. A spelling that
+        only differs in case is the same name, so no synonym is written for it.
+
+        The **spelling state is captured before the write** and returned instead of being logged here,
+        because the two callers differ: the merge already wrote its own ledger row (which carries
+        ``canonical_renamed_from``) and must not write a second one, while the rename route has nothing
+        else to log. One implementation, one place per caller that logs it.
+
+        A spelling another entity already carries is refused *before* the write, as
+        :class:`DuplicateEntityNameError` naming that entity: ``uix_archive_entities_name_normalized``
+        would raise an ``IntegrityError`` a moment later and the archivist would read a structural
+        conflict that names neither the twin nor the fact that the twin is the merge case.
         """
         entity = self.db.get(ArchiveEntity, entity_id)
         if entity is None:
             return None
 
+        trimmed = new_name.strip()
+        key = normalize_entity(trimmed)
+        twin = self.db.scalars(
+            select(ArchiveEntity).where(
+                func.lower(func.btrim(ArchiveEntity.name)) == key,
+                ArchiveEntity.entity_id != entity_id,
+            )
+        ).one_or_none()
+        if twin is not None:
+            raise DuplicateEntityNameError(entity.entity_id, trimmed, twin.entity_id, twin.name)
+
         old_name = entity.name
-        entity.name = new_name.strip()
+        old_key = normalize_entity(old_name)
+        # The pre-state the undo has to restore: whether the old spelling already pointed somewhere,
+        # read before ``create_synonyms`` (an upsert) can quietly answer "nothing to do". Stored
+        # spellings are normalized (``upsert_synonyms``), so the lookup is keyed the same way.
+        previous_target = self.get_entity_synonym_targets([old_key], entity.entity_type).get(old_key)
+        plants_synonym = keep_old_synonym and old_key != key
+
+        entity.name = trimmed
         self.db.flush()
 
-        if normalize_entity(old_name) != normalize_entity(entity.name):
+        if plants_synonym:
             self.create_synonyms(
                 [
                     SynonymCommand(
@@ -1412,7 +1446,57 @@ class EntityRepository:
                     )
                 ]
             )
-        return old_name
+        return EntityRenameRecord(
+            entity_id=entity_id,
+            entity_type=entity.entity_type,
+            previous_name=old_name,
+            new_name=trimmed,
+            synonym_created=plants_synonym and previous_target is None,
+            synonym_previous_entity_id=previous_target,
+        )
+
+    def write_entity_rename_log(
+        self,
+        record: EntityRenameRecord,
+        changed_by: Author | None = None,
+        note: str | None = None,
+    ) -> int:
+        """
+        Records one rename as a ``RENAME`` row, so the pencil on the screen has an undo.
+
+        No absorbed entity, hence ``absorbed_*`` NULL, and the state that matters is the pair
+        ``canonical_renamed_from`` / ``renamed_from_synonym_*`` — the same columns a merge's optional
+        rename uses, restored by the same :meth:`_restore_canonical_name`. That is the whole reason the
+        rename shares this ledger instead of growing a second one.
+
+        ``synonym_created`` and ``document_ids`` are set explicitly rather than left to their column
+        defaults: a rename links no document and absorbs no spelling, and a row that said otherwise
+        would make the undo remove links nobody wrote.
+        """
+        stmt = (
+            insert(ArchiveEntityMergeLog)
+            .values(
+                kind=KIND_RENAME,
+                canonical_id=record.entity_id,
+                canonical_name=record.new_name,
+                canonical_entity_type=record.entity_type,
+                absorbed_entity_id=None,
+                absorbed_name=None,
+                absorbed_snapshot=None,
+                document_ids=[],
+                created_link_ids=[],
+                synonym_created=False,
+                synonym_previous_entity_id=None,
+                repointed_synonym_names=[],
+                canonical_renamed_from=record.previous_name,
+                renamed_from_synonym_created=record.synonym_created,
+                renamed_from_synonym_previous_entity_id=record.synonym_previous_entity_id,
+                **author_columns("changed_by", changed_by),
+                note=note,
+            )
+            .returning(ArchiveEntityMergeLog.merge_id)
+        )
+        return int(self.db.scalars(stmt).one())
 
     def write_entity_merge_log(
         self, plan: EntityMergePlan, changed_by: Author | None = None, note: str | None = None
@@ -1457,6 +1541,7 @@ class EntityRepository:
             documents = plan.documents_by_entity.get(entity_id, [])
             rows.append(
                 {
+                    "kind": KIND_MERGE,
                     "canonical_id": plan.canonical_id,
                     "canonical_name": plan.canonical_name,
                     "canonical_entity_type": category,
@@ -1489,12 +1574,16 @@ class EntityRepository:
 
     def undo_entity_merge(self, merge_id: int, undone_by: Author | None = None) -> EntityMergeLogEntryDTO:
         """
-        Reverses one merge: restores the entity, its links, its spelling state and the canonical name.
+        Reverses one entry of the ledger: a merge restores the entity, a rename only the name.
 
         Exact by construction — the id and the row come from the snapshot, the links from the
         per-entity list, and the spelling state from what was captured before the merge. Only
         documents that still exist are re-linked: a document deleted after the merge must not make
         the undo impossible.
+
+        A ``RENAME`` row has nothing to bring back, so it takes the branch below and reuses
+        :meth:`_restore_canonical_name` — the same code that reverses the optional rename inside a
+        merge. Sharing it is the point of sharing the ledger.
         """
         row = self.db.get(ArchiveEntityMergeLog, merge_id)
         if row is None:
@@ -1504,9 +1593,23 @@ class EntityRepository:
                 f"A mesclagem {merge_id} já foi desfeita em {row.undone_at:%Y-%m-%d %H:%M:%S}."
             )
 
+        if row.kind == KIND_RENAME:
+            self._restore_canonical_name(row)
+            row.undone_at = datetime.now(UTC)
+            assign_author(row, "undone_by", undone_by)
+            self.db.flush()
+            return self._to_entity_merge_log_dto(row)
+
         snapshot = row.absorbed_snapshot or {}
+        if row.absorbed_entity_id is None:
+            # A ``MERGE`` row always snapshots what it absorbed, so this is a row the write cannot
+            # produce. Refusing beats guessing: restoring an id read out of a null would bring back
+            # the wrong entity and the ledger would record an undo that never happened.
+            raise InvalidMergeError(f"O registro {merge_id} não guarda a entidade absorvida a restaurar.")
+        absorbed_entity_id = row.absorbed_entity_id
+
         restored = ArchiveEntity(
-            entity_id=row.absorbed_entity_id,
+            entity_id=absorbed_entity_id,
             name=snapshot.get("name") or row.absorbed_name,
             entity_type=snapshot.get("entity_type") or row.canonical_entity_type,
         )
@@ -1519,7 +1622,7 @@ class EntityRepository:
         # The sequence already allocated this id once, so re-using it cannot collide with the next
         # insert (unlike a hand-written seed, which is the known pitfall with explicit ids).
         self._remove_created_entity_links(row)
-        self._relink_entity_documents(row.absorbed_entity_id, row.document_ids or [])
+        self._relink_entity_documents(absorbed_entity_id, row.document_ids or [])
         self._restore_entity_spellings(row)
         self._restore_canonical_name(row)
 
@@ -1697,10 +1800,13 @@ class EntityRepository:
         snapshot = row.absorbed_snapshot or {}
         return EntityMergeLogEntryDTO(
             merge_id=row.merge_id,
+            kind=row.kind,
             canonical_id=row.canonical_id,
             canonical_name=row.canonical_name,
             absorbed_entity_id=row.absorbed_entity_id,
             absorbed_name=row.absorbed_name,
+            # A rename row has no snapshot: the entity that changed IS the canonical, so its type is
+            # the only honest answer and the screen can label the row without a second read.
             absorbed_entity_type=snapshot.get("entity_type") or row.canonical_entity_type,
             document_count=len(row.document_ids or []),
             repointed_synonym_names=list(row.repointed_synonym_names or []),

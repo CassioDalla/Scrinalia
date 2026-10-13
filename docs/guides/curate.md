@@ -690,17 +690,24 @@ lie, and a model that does not know how to abstain would answer confidently and 
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
-| Entidades — `/entidades/lista` | the type of a name, and whether two names are one | the type yes; the merge **yes** (one ledger row per absorbed entity) |
+| Entidades — `/entidades/lista` | the type of a name, the spelling of a name, and whether two names are one | the type yes; the rename **yes** (one ledger row); the merge **yes** (one ledger row per absorbed entity) |
 | Exclusões de NER — `/entidades/excecoes` | which spellings are subjects, not proper names | the veto row yes; the entities it purged **no** |
 | Conflitos — `/entidades/conflitos` | whether a collision belongs to the subject axis or to the names, one pair at a time or a whole category at once | yes (one ledger row per pair, with the undo) |
 
 ### Entidades — `/entidades/lista`
 
-The named-entity vocabulary, by weight or by similarity. Three decisions:
+The named-entity vocabulary, by weight or by similarity. Four decisions:
 
 - **Reclassify the type** — `PATCH /api/v1/taxonomy/entities/{entity_id}/reclassify` (`CURATE`),
   only between `ORG`, `PER` and `LOC`. This is not renaming a label: the service also writes the
   anchoring synonym, so the extractor returns that spelling with the new type in every future run.
+- **Renomear** — `PATCH /api/v1/taxonomy/entities/{entity_id}` (`CURATE`): corrects the spelling of
+  one name, and it is **not** a merge. The previous spelling stays anchored as a synonym unless the
+  archivist turns `keep_old_synonym` off, which is what keeps a future extraction of the old spelling
+  resolving to this entity — and a typo is exactly the case where it should not. The write leaves one
+  `RENAME` row in the same ledger the merge uses, so the screen's "desfazer" restores the name and
+  drops the spelling it planted. A spelling another entity already carries is a **409** that names the
+  twin and points at the merge, never a silent overwrite and never a bare structural conflict.
 - **Excluir** an entity — `DELETE /api/v1/taxonomy/entities/{entity_id}` (`CURATE`), offered only on
   a row no description carries, where deleting loses no link. No undo.
 - **Purgar órfãs** — `POST /api/v1/taxonomy/entities/orphans/purge` (`CURATE`): the same decision in
@@ -727,6 +734,10 @@ nothing in it writes. Its "Editar" lands on the dossier's **Assuntos** tab, whic
 description's entities are added and removed. One card is open at a time, and `?aberta=`, `?offset=`
 and `?descricao=` carry that state in the URL — so the back button closes the panel and a colleague
 can be sent the exact view.
+
+The card's second tab is the rename, and the **Renomear** button beside the name opens it. It is the
+row's own affordance and never merges: the merge starts from two or more names and only renames the
+canonical as a side effect.
 
 ### Exclusões de NER — `/entidades/excecoes`
 

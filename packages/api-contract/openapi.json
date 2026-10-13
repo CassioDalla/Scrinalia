@@ -2828,13 +2828,34 @@
       "EntityMergeLogEntryDTO": {
         "properties": {
           "absorbed_entity_id": {
-            "type": "integer"
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "absorbed_entity_type": {
-            "type": "string"
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "absorbed_name": {
-            "type": "string"
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "canonical_id": {
             "oneOf": [
@@ -2884,10 +2905,19 @@
             "default": 0,
             "type": "integer"
           },
+          "is_rename": {
+            "description": "The discriminator the ledger screen branches on, so it never tests a null of its own.",
+            "readOnly": true,
+            "type": "boolean"
+          },
           "is_undone": {
             "description": "Computed so the front reads one definition instead of comparing a timestamp itself.",
             "readOnly": true,
             "type": "boolean"
+          },
+          "kind": {
+            "default": "MERGE",
+            "type": "string"
           },
           "merge_id": {
             "type": "integer"
@@ -2935,10 +2965,8 @@
           }
         },
         "required": [
-          "absorbed_entity_id",
-          "absorbed_entity_type",
-          "absorbed_name",
           "canonical_name",
+          "is_rename",
           "is_undone",
           "merge_id"
         ],
@@ -3252,6 +3280,73 @@
           "data"
         ],
         "title": "EntityRelevanceResponse",
+        "type": "object"
+      },
+      "EntityRenameRequest": {
+        "properties": {
+          "keep_old_synonym": {
+            "default": true,
+            "description": "Whether the previous spelling keeps resolving to this entity.",
+            "type": "boolean"
+          },
+          "new_name": {
+            "description": "The spelling the catalogue will show.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "note": {
+            "description": "Why; kept in the merge ledger, with the undo.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "new_name"
+        ],
+        "title": "EntityRenameRequest",
+        "type": "object"
+      },
+      "EntityRenameResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "entity_id": {
+            "type": "integer"
+          },
+          "entity_type": {
+            "type": "string"
+          },
+          "kept_old_spelling": {
+            "type": "boolean"
+          },
+          "merge_id": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "entity_id",
+          "entity_type",
+          "kept_old_spelling",
+          "merge_id",
+          "message",
+          "name"
+        ],
+        "title": "EntityRenameResponse",
         "type": "object"
       },
       "EntitySimilarity": {
@@ -5833,6 +5928,7 @@
           "ORPHAN_ENTITIES_PURGED",
           "ENTITY_RECLASSIFIED",
           "ENTITY_DELETED",
+          "ENTITY_RENAMED",
           "ENTITY_MERGE_UNDONE",
           "CONFLICT_RESOLVED",
           "CONFLICT_BATCH_RESOLVED",
@@ -14431,6 +14527,86 @@
           }
         },
         "summary": "DeleteEntity",
+        "tags": [
+          "Taxonomy"
+        ]
+      },
+      "patch": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyEntitiesEntityIdRenameEntity",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityRenameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityRenameResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "RenameEntity",
         "tags": [
           "Taxonomy"
         ]

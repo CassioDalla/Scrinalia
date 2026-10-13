@@ -1183,7 +1183,8 @@ export interface paths {
         delete: operations["ApiV1TaxonomyEntitiesEntityIdDeleteEntity"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** RenameEntity */
+        patch: operations["ApiV1TaxonomyEntitiesEntityIdRenameEntity"];
         trace?: never;
     };
     "/api/v1/taxonomy/entities/{entity_id}/reclassify": {
@@ -2529,9 +2530,9 @@ export interface components {
         };
         /** EntityMergeLogEntryDTO */
         EntityMergeLogEntryDTO: {
-            absorbed_entity_id: number;
-            absorbed_entity_type: string;
-            absorbed_name: string;
+            absorbed_entity_id?: number | null;
+            absorbed_entity_type?: string | null;
+            absorbed_name?: string | null;
             canonical_id?: number | null;
             canonical_name: string;
             canonical_renamed_from?: string | null;
@@ -2539,8 +2540,12 @@ export interface components {
             changed_by?: string | null;
             /** @default 0 */
             document_count: number;
+            /** @description The discriminator the ledger screen branches on, so it never tests a null of its own. */
+            readonly is_rename: boolean;
             /** @description Computed so the front reads one definition instead of comparing a timestamp itself. */
             readonly is_undone: boolean;
+            /** @default MERGE */
+            kind: string;
             merge_id: number;
             note?: string | null;
             repointed_synonym_names?: string[];
@@ -2624,6 +2629,28 @@ export interface components {
         /** EntityRelevanceResponse */
         EntityRelevanceResponse: {
             data: components["schemas"]["EntityRelevance"][];
+        };
+        /** EntityRenameRequest */
+        EntityRenameRequest: {
+            /**
+             * @description Whether the previous spelling keeps resolving to this entity.
+             * @default true
+             */
+            keep_old_synonym: boolean;
+            /** @description The spelling the catalogue will show. */
+            new_name: string;
+            /** @description Why; kept in the merge ledger, with the undo. */
+            note?: string | null;
+        };
+        /** EntityRenameResponse */
+        EntityRenameResponse: {
+            code: components["schemas"]["RouteMessageCode"];
+            entity_id: number;
+            entity_type: string;
+            kept_old_spelling: boolean;
+            merge_id: number;
+            message: string;
+            name: string;
         };
         /** EntitySimilarity */
         EntitySimilarity: {
@@ -3272,7 +3299,7 @@ export interface components {
          *         things and a translation catalogue needs to tell them apart.
          * @enum {string}
          */
-        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORD_PURGE_DONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "ENTITY_MERGE_UNDONE" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
+        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORD_PURGE_DONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "ENTITY_RENAMED" | "ENTITY_MERGE_UNDONE" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
         /** RouteResponse */
         RouteResponse: {
             code: components["schemas"]["RouteMessageCode"];
@@ -6766,6 +6793,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EntityDeleteResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyEntitiesEntityIdRenameEntity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntityRenameRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityRenameResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

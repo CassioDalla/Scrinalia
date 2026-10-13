@@ -772,3 +772,49 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   panel's still carries `?aba=descricao`. **Not** verified in pixels: the empty expansion ("Nenhuma
   descrição carrega este nome"), unreachable from this screen for the reason above, and any write —
   the round only read.
+
+## 2026-10-13 — renaming a name, with an undo (issue #85)
+
+- **Range:** `6c79880..HEAD`
+- **Pages:**
+  - `guides/curate.md` — **updated**: *Entidades — `/entidades/lista`* gained its fourth decision,
+    **Renomear** (`PATCH /api/v1/taxonomy/entities/{entity_id}`), with the three facts the screen has
+    to state: the previous spelling stays anchored as a synonym unless `keep_old_synonym` is turned
+    off, the write leaves one `RENAME` row in the merge's own ledger so the ledger's "desfazer"
+    reverses it, and a spelling another entity already carries is a **409** that names the twin and
+    points at the merge. The summary table's row now says the rename is reversible, and the read
+    paragraph names the card's second tab, which is where the rename lives.
+  - `guides/curate.pt.md` — **updated**: the translation of the same.
+  - `guides/data-model.md` — **updated**: the `archive_entity_merge_log` row now says the table holds
+    a **merge** (one row per absorbed entity) or a **rename** (one per name), and names `kind` as the
+    checked discriminator the undo branches on.
+  - `guides/data-model.pt.md` — **updated**: the translation of the same.
+- **Why the round exists:** the name was the one field of the entity vocabulary with no write of its
+  own. The rename already existed in the repository and the service — with a test, and shared with the
+  merge's optional rename — but no route reached it, and the screen's only rename field lived *inside*
+  the merge panel, so a plain typo had no path that did not absorb another entity. The freshness
+  report named `guides/curate.md` for the API and SPA commits of this change.
+- **What the round measured.** Measured: 1 524 tests passed, `basedpyright` 0 errors, and the
+  migration applied, reversed and re-applied on the reference database with `alembic check` reporting
+  no drift. The write and its reverse are pinned by the integration suite against the real repository:
+  the rename leaves exactly one `RENAME` row (no absorbed entity, no links), the undo restores the
+  name and drops the spelling the rename planted, `keep_old_synonym=False` writes no spelling at all,
+  the collision raises `DuplicateEntityNameError` with the twin in `details` **before** the write, and
+  a **merge with a rename leaves one row per absorbed entity and no `RENAME` row** — the trap the
+  shared writer would otherwise have created. `refusalMessage` is what turns that payload into the
+  sentence, so the copy the archivist reads is the interface's, not the server's.
+- **What the round looked at.** The screen was **rendered** against the reference collection
+  (`scrinalia_zeroed`, the ~100-description collection, already at head): the built SPA served by the
+  API, a scratch session created for the round and deleted after, and the headless shell driven over
+  CDP. Seen in the pixels: `/entidades/lista` with the row's **Renomear** in `actions`, outside the
+  toggle, and the card opened by it on the **Editar** tab, with the name input and the "manter a
+  grafia antiga como sinônimo" box checked; the same form refusing `curitiba` with "Já existe uma
+  entidade chamada \"curitiba\". Mescle as duas em vez de renomear." and the request reference, with
+  the row still reading `paço da liberdade` — the refusal happened before the write; and the ledger
+  card, reading **"paço da liberdade → paço da liberdade de curitiba · renomeação · 13/10/2026, 15:21
+  · por Cassio"**, which is the rename applied through the route on that collection. The **desfazer**
+  was then clicked *on the screen*, and the ledger row came back as "desfeito em 13/10/2026, 15:23"
+  with the row reading `paço da liberdade` again; read back from the database, the entity carries its
+  original name and no spelling row survives, which is the undo doing its job rather than the screen
+  redrawing. The round's own artifacts were then removed — the scratch session and the ledger row it
+  left — so the collection is as it was and no test write remains in its audit trail.
