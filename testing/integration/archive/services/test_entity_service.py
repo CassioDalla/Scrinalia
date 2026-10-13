@@ -226,3 +226,90 @@ def test_merge_absorbs_a_cluster_whose_absorbed_names_normalize_to_one_key(use_t
     assert mapping == {"a. b. deter": canonical.entity_id}
     assert db_session.get(ArchiveEntity, title_twin.entity_id) is None
     assert db_session.get(ArchiveEntity, lower_twin.entity_id) is None
+
+
+# ==========================================
+# MERGE PREVIEW AND THE LEDGER (issue #34)
+# ==========================================
+
+
+def test_the_entity_preview_and_the_merge_produce_the_same_numbers(use_test_db, db_session, generate_archive_doc):
+    """
+    The dry run cannot lie: preview and apply read one planner, so the counts are one measurement.
+
+    This is the tag-merge rule applied to the entity axis, and it is the whole reason the preview is
+    a route over ``plan_entity_merge`` instead of a second computation of the impact.
+    """
+    from scrinalia.domains.archive.models import ArchiveDocumentEntity
+    from scrinalia.domains.archive.schemas import MergeEntityCommand, MergeEntityPreviewCommand
+    from scrinalia.domains.archive.services.entity_service import EntityService
+
+    repo = EntityRepository(db_session)
+    canonical = ArchiveEntity(name="prefeitura", entity_type="ORG")
+    first = ArchiveEntity(name="prefeitura de curitiba", entity_type="ORG")
+    second = ArchiveEntity(name="pmc antiga", entity_type="ORG")
+    db_session.add_all([canonical, first, second])
+    db_session.flush()
+
+    shared = generate_archive_doc(original_title="As duas")
+    only_second = generate_archive_doc(original_title="Só a segunda")
+    db_session.add_all(
+        [
+            ArchiveDocumentEntity(description_id=shared.description_id, entity_id=first.entity_id),
+            ArchiveDocumentEntity(description_id=only_second.description_id, entity_id=first.entity_id),
+            ArchiveDocumentEntity(description_id=only_second.description_id, entity_id=second.entity_id),
+            ArchiveDocumentEntity(description_id=shared.description_id, entity_id=canonical.entity_id),
+        ]
+    )
+    db_session.flush()
+
+    service = EntityService(repo)
+    preview = service.preview_merge(
+        MergeEntityPreviewCommand(
+            canonical_id=canonical.entity_id,
+            ids_to_merge=[first.entity_id, second.entity_id],
+            new_name="pmc",
+        )
+    )
+    response = service.merge(
+        MergeEntityCommand(
+            canonical_id=canonical.entity_id,
+            ids_to_merge=[first.entity_id, second.entity_id],
+            new_name="pmc",
+            changed_by=None,
+        )
+    )
+    db_session.flush()
+
+    assert preview.documents_updated == response.documents_updated == 2
+    # The links are the absorbed entities' own (2 + 1); the documents are the union (2), never the sum.
+    assert preview.links_rewritten == 3
+    assert len(preview.entities_deleted) == response.entities_deleted == 2
+    assert preview.renamed_from == "prefeitura"
+    assert preview.renamed_to == "pmc"
+    # One ledger row per absorbed entity: the handles the screen needs to undo the click.
+    assert len(response.merge_ids) == 2
+
+
+def test_rename_entity_is_one_definition_shared_with_the_merge(use_test_db, db_session):
+    """
+    The single-entity rename and the merge's optional rename write the same two things.
+
+    The old spelling becomes a synonym so the extractor keeps resolving it; the new spelling is what
+    the catalogue shows. One method owns that pair, so the two entry points cannot drift.
+    """
+    from scrinalia.domains.archive.services.entity_service import EntityService
+
+    repo = EntityRepository(db_session)
+    entity = ArchiveEntity(name="prefeitura muinicipal", entity_type="ORG")
+    db_session.add(entity)
+    db_session.flush()
+
+    renamed = EntityService(repo).rename_entity(entity.entity_id, "prefeitura municipal")
+    db_session.flush()
+
+    assert renamed.name == "prefeitura municipal"
+    assert renamed.entity_type == "ORG"
+    assert repo.get_entity_synonym_targets(["prefeitura muinicipal"], "ORG") == {
+        "prefeitura muinicipal": entity.entity_id
+    }

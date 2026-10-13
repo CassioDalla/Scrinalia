@@ -61,19 +61,120 @@ def test_get_tag_relevance_returns_200(client: TestClient, mocker):
 
 
 def test_merge_entities_returns_200(client: TestClient, mocker):
-    """Guarantees that the POST works and returns the correct JSON envelope."""
+    """Guarantees that the POST works and returns the ledger handles with the counts."""
+    from scrinalia.domains.archive.schemas.entity_schema import EntityMergeResponse
+
     mock_service = mocker.patch.object(EntityService, "merge")
+    mock_service.return_value = EntityMergeResponse(documents_updated=5, entities_deleted=2, merge_ids=[7, 8])
 
-    # We simulate the service response DTO: EntityMergeResponse(documents_updated=5, entities_deleted=2)
-    mock_service.return_value.documents_updated = 5
-    mock_service.return_value.entities_deleted = 2
-
-    payload = {"canonical_id": 1, "ids_to_merge": [2, 3]}
+    payload = {"canonical_id": 1, "ids_to_merge": [2, 3], "note": "mesmo lugar"}
 
     response = client.post("/api/v1/taxonomy/entities/merge", json=payload)
 
     assert response.status_code == HTTP_201_CREATED
-    assert response.json() == {"documents_updated": 5, "entities_deleted": 2}
+    assert response.json() == {"documents_updated": 5, "entities_deleted": 2, "merge_ids": [7, 8]}
+    # The note travels to the ledger, and the author comes from the session, never from the body.
+    command = mock_service.call_args.args[0]
+    assert command.note == "mesmo lugar"
+    assert command.changed_by.name == TEST_ADMIN_NAME
+
+
+def test_preview_entity_merge_route_returns_the_impact(client: TestClient, mocker):
+    """The dry run is a read: it answers the plan without writing a ledger row."""
+    from scrinalia.domains.archive.schemas.entity_schema import EntityMergeImpact, EntityMergePreviewResponse
+
+    mocked = mocker.patch.object(EntityService, "preview_merge")
+    mocked.return_value = EntityMergePreviewResponse(
+        canonical_id=1,
+        canonical_name="prefeitura",
+        documents_updated=4,
+        links_rewritten=6,
+        entities_deleted=[
+            EntityMergeImpact(entity_id=2, name="prefeitura antiga", entity_type="ORG", document_count=2)
+        ],
+        synonyms_created=["prefeitura antiga"],
+        review_flags=["MIXED_TYPES"],
+        renamed_from="prefeitura",
+        renamed_to="pmc",
+    )
+
+    response = client.post(
+        "/api/v1/taxonomy/entities/merge/preview",
+        json={"canonical_id": 1, "ids_to_merge": [2], "new_name": "pmc"},
+    )
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["documents_updated"] == 4
+    assert body["links_rewritten"] == 6
+    assert body["entities_deleted"][0]["name"] == "prefeitura antiga"
+    assert body["review_flags"] == ["MIXED_TYPES"]
+
+
+def test_list_entity_merge_log_route_paginates_and_forwards_the_term(client: TestClient, mocker):
+    """``q`` reaches the service as ``term``: a ledger that ignores its search box is a lie."""
+    from scrinalia.domains.archive.schemas.entity_schema import EntityMergeLogListResponse
+
+    mocked = mocker.patch.object(EntityService, "list_merge_log")
+    mocked.return_value = EntityMergeLogListResponse(total=1, limit=50, offset=0, items=[_entity_log_entry()])
+
+    response = client.get("/api/v1/taxonomy/entities/merge-log?q=alameda&limit=25&offset=5")
+
+    assert response.status_code == HTTP_200_OK
+    assert response.json()["total"] == 1
+    assert mocked.call_args.kwargs["term"] == "alameda"
+    assert mocked.call_args.kwargs["limit"] == 25
+    assert mocked.call_args.kwargs["offset"] == 5
+
+
+def test_undo_entity_merge_route_returns_the_restored_entry(client: TestClient, mocker):
+    mocked = mocker.patch.object(EntityService, "undo_merge")
+    mocked.return_value = _entity_log_entry(undone_by="arquivista")
+
+    response = client.delete("/api/v1/taxonomy/entities/merge-log/5")
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["data"]["undone_by"] == "arquivista"
+    assert body["code"] == "ENTITY_MERGE_UNDONE"
+    assert "restaurada" in body["message"]
+    _, kwargs = mocked.call_args
+    assert kwargs["undone_by"].name == TEST_ADMIN_NAME
+    assert kwargs["undone_by"].user_id is not None
+
+
+def test_undo_entity_merge_route_maps_a_repeated_undo_to_409(client: TestClient, mocker):
+    mocker.patch.object(EntityService, "undo_merge", side_effect=MergeAlreadyUndoneError("já desfeita"))
+
+    response = client.delete("/api/v1/taxonomy/entities/merge-log/5")
+
+    assert response.status_code == HTTP_409_CONFLICT
+    assert response.json()["error_code"] == "MergeAlreadyUndoneError"
+
+
+def test_undo_entity_merge_route_maps_an_unknown_merge_to_404(client: TestClient, mocker):
+    mocker.patch.object(EntityService, "undo_merge", side_effect=MergeLogNotFoundError("não encontrado"))
+
+    response = client.delete("/api/v1/taxonomy/entities/merge-log/999")
+
+    assert response.status_code == HTTP_404_NOT_FOUND
+    assert response.json()["error_code"] == "MergeLogNotFoundError"
+
+
+def _entity_log_entry(**overrides):
+    from scrinalia.domains.archive.schemas.entity_schema import EntityMergeLogEntryDTO
+
+    data = {
+        "merge_id": 5,
+        "canonical_id": 1,
+        "canonical_name": "prefeitura",
+        "absorbed_entity_id": 2,
+        "absorbed_name": "prefeitura antiga",
+        "absorbed_entity_type": "ORG",
+        "document_count": 3,
+    }
+    data.update(overrides)
+    return EntityMergeLogEntryDTO(**data)
 
 
 # ==========================================
