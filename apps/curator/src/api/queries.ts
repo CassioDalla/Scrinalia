@@ -104,6 +104,15 @@ export const CATALOG_PAGE_SIZE = 25;
 export const CATEGORY_DOCUMENTS_PAGE_SIZE = 10;
 
 /**
+ * An entity's descriptions, read ten at a time **inside** the card.
+ *
+ * The same number and the same reason as the category expansion: the list expands under a card that
+ * is one of hundreds on a page ranked by weight, and a page of 25 would push the next name out of
+ * sight — which is the problem the expansion exists to solve, not reproduce.
+ */
+export const ENTITY_DOCUMENTS_PAGE_SIZE = 10;
+
+/**
  * Server state, declared once per resource.
  *
  * ``staleTime`` is chosen per resource rather than globally, because the resources have genuinely

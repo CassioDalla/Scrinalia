@@ -729,3 +729,46 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   pixels: a merge actually written and undone from the screen. Applying one would have written to the
   reference collection's ledger, so the write rests on the integration suite, which drives the real
   repository and the real ledger.
+
+## 2026-10-13 — an entity opens into its descriptions (issue #86)
+
+- **Range:** `08500a9..HEAD`
+- **Pages:**
+  - `guides/curate.md` — **updated**: *Entidades — `/entidades/lista`* gained the read half of the
+    screen, which it never described. A name expands into the **descriptions that carry it**
+    (`GET /api/v1/documents` with the new `entity_id` filter, paged ten at a time inside the card);
+    the badge above and the list's `total` are one number counted twice, pinned by
+    `testing/integration/api/controller/test_entity_documents.py`; a row opens the read-only preview
+    the category screen already uses, and its "Editar" lands on the dossier's **Assuntos** tab, which
+    is where a description's entities are added and removed. `?aberta=`, `?offset=` and `?descricao=`
+    are named as the state the URL carries.
+  - `guides/curate.pt.md` — **updated**: the translation of the same paragraph.
+- **Why the round exists:** the section listed the screen's decisions and said nothing about reading
+  it, while the card promised "3.152 descrições" and the screen had no way to show which ones. The
+  freshness report named `guides/curate.md` for the SPA and API commits of this change.
+- **What the round measured.** The pairing was measured on the **reference collection**, through the
+  routes the screen calls and not against a fixture: `entity_id=10` (*Curitiba*) answers
+  `total=3152` where the card shows `total_usage=3152`, and `2679`/`2670` answer `2467` against
+  `2467`. Measured: 1 513 tests passed, `basedpyright` 0 errors, `alembic check` reports no drift (the
+  change adds no migration), and the SPA's `tsc`, ESLint and Vite build are green. The new test seeds
+  one description carrying **two** entities on purpose, so the join it forbids would answer 2 where
+  the card promises 1 — the same trap `test_category_documents.py` pins for the drawers.
+- **Found and deliberately not fixed.** `EntityRepository.get_relevance_count` **inner-joins** the
+  link table, so the ranking never lists an entity that no description carries: `EntityRow`'s orphan
+  branch, and the per-row *Excluir* button with it, is unreachable from the Relevância tab. That is a
+  separate defect about a separate decision (whether the ranking should left-join and list orphans at
+  zero), so it was left alone and pinned as measured in
+  `test_an_orphan_is_not_ranked_and_its_expansion_is_empty`.
+- **What the round looked at.** The screen was **rendered**, not inferred: the built SPA served by the
+  API (`create_app()` mounts `apps/curator/dist`) against the reference collection, with a scratch
+  session created for the round and deleted after, and the headless shell driven over CDP. Seen in the
+  pixels: `/entidades/lista?aberta=10` with the *Curitiba* card open, the badge "3.152 descrições"
+  above the expansion's own "1–10 de 3.152", the controls (checkbox, `tipo`, *Excluir*) outside the
+  toggle and the name and badges inside it — which is the click that used to mean two things; the
+  preview panel over the list, rendering the shared `DescriptionPreview`; and
+  `/assuntos/categorias?aberta=4` still rendering its own expansion after the component was lifted out
+  of `CategoriesRoute.tsx` ("2.312 descrições" against "1–10 de 2.312"). Read from the DOM and not
+  inferred: the entity panel's *Editar* carries `href="/acervo/53617?aba=assuntos"`, and the category
+  panel's still carries `?aba=descricao`. **Not** verified in pixels: the empty expansion ("Nenhuma
+  descrição carrega este nome"), unreachable from this screen for the reason above, and any write —
+  the round only read.

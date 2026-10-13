@@ -718,6 +718,16 @@ The named-entity vocabulary, by weight or by similarity. Three decisions:
   The pair list is raw evidence, with both ids, because two rows can read almost the same name and
   the canonical is a choice the archivist has to be able to tell apart.
 
+Reading is the other half of this screen, and the card opens into it. A name expands into the
+**descriptions that carry it** — the collection search (`GET /api/v1/documents`) with `entity_id`,
+paged ten at a time inside the card, so the badge above and the list's `total` are one number counted
+twice; `testing/integration/api/controller/test_entity_documents.py` fails when they stop agreeing.
+Clicking a row opens the read-only preview (`?descricao=`) that the category screen already uses, and
+nothing in it writes. Its "Editar" lands on the dossier's **Assuntos** tab, which is where a
+description's entities are added and removed. One card is open at a time, and `?aberta=`, `?offset=`
+and `?descricao=` carry that state in the URL — so the back button closes the panel and a colleague
+can be sent the exact view.
+
 ### Exclusões de NER — `/entidades/excecoes`
 
 The veto "this spelling is a subject, not a proper name". The write is `POST

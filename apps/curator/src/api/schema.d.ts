@@ -4105,6 +4105,7 @@ export interface operations {
                 level_id?: number | null;
                 ancestor_id?: string | null;
                 entity_type?: string | null;
+                entity_id?: number | null;
                 date_from?: string | null;
                 date_to?: string | null;
                 status?: components["schemas"]["ArchiveReviewStatus"] | null;

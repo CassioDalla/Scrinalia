@@ -694,6 +694,16 @@ O vocabulário de nomes próprios, por peso ou por similaridade. Três decisões
   A lista de pares é evidência crua, com os dois identificadores, porque duas linhas podem ler nomes
   quase iguais e a canônica é uma escolha que o arquivista precisa conseguir distinguir.
 
+Ler é a outra metade desta tela, e o cartão se abre nela. Um nome se expande nas **descrições que o
+carregam** — a busca do acervo (`GET /api/v1/documents`) com `entity_id`, paginada de dez em dez
+dentro do cartão, de modo que o selo acima e o `total` da lista são um número contado duas vezes;
+`testing/integration/api/controller/test_entity_documents.py` falha quando os dois deixam de
+concordar. Clicar numa linha abre a prévia somente-leitura (`?descricao=`) que a tela de categorias já
+usa, e nada nela escreve. O "Editar" dela cai na aba **Assuntos** do dossiê, que é onde as entidades
+de uma descrição são adicionadas e removidas. Um cartão fica aberto por vez, e `?aberta=`, `?offset=`
+e `?descricao=` carregam esse estado na URL — então o botão voltar fecha o painel e um colega pode
+receber a mesma vista exata.
+
 ### Exclusões de NER — `/entidades/excecoes`
 
 O veto "esta grafia é assunto, não nome próprio". A escrita é `POST

@@ -8563,6 +8563,24 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
+            "name": "entity_id",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
             "name": "date_from",
             "required": false,
             "schema": {

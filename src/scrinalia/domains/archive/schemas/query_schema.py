@@ -27,6 +27,11 @@ class DocumentSearchQuery(BaseModel):
     entity_type: str | None = Field(
         default=None, description="Only documents having at least one named entity of this type (LOC/PER/ORG)."
     )
+    entity_id: int | None = Field(
+        default=None,
+        description="Only documents carrying this named entity, by id. It is what answers 'which descriptions "
+        "carry this name', the list an entity card expands into.",
+    )
     level_id: int | None = Field(
         default=None, description="Only descriptions at this level of the catalogue (Dossiê, Item...)."
     )

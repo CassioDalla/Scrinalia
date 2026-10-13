@@ -331,6 +331,8 @@ export type DocumentSearch = {
   level_id?: number;
   ancestor_id?: string;
   entity_type?: string;
+  /** One named entity by id: the filter an entity card expands into its descriptions with. */
+  entity_id?: number;
   date_from?: string;
   date_to?: string;
   status?: ArchiveReviewStatus;

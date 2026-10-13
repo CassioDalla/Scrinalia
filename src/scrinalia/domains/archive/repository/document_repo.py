@@ -115,6 +115,26 @@ def _anomaly_reason_key(reason: Any) -> Any:
     return case((code == AnomalyReason.RULE_MATCH.value, reason), else_=code)
 
 
+def _carries_entity(*conditions: Any) -> Any:
+    """
+    "This description carries an entity matching these conditions", as one correlated ``EXISTS``.
+
+    Written once because two filters ask it: the sidebar's type facet keyed by ``entity_type`` and the
+    entity screen's expansion keyed by ``entity_id``. Both mean the same join, and a second spelling of
+    it would be a facet filter that groups by something the list cannot select.
+
+    It is a predicate on the document and not a join, so a description that carries the same entity
+    twice — or two entities of the same type — is still one row. That is what makes a count here a
+    count of descriptions rather than of links, which is the number the entity card promises.
+    """
+    return exists(
+        select(1)
+        .select_from(ArchiveDocumentEntity)
+        .join(ArchiveEntity, ArchiveDocumentEntity.entity_id == ArchiveEntity.entity_id)
+        .where(ArchiveDocumentEntity.description_id == ArchiveDocument.description_id, *conditions)
+    )
+
+
 class DocumentRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -428,17 +448,12 @@ class DocumentRepository:
                 )
             )
         if query.entity_type is not None and "entity_type" not in exclude:
-            filters.append(
-                exists(
-                    select(1)
-                    .select_from(ArchiveDocumentEntity)
-                    .join(ArchiveEntity, ArchiveDocumentEntity.entity_id == ArchiveEntity.entity_id)
-                    .where(
-                        ArchiveDocumentEntity.description_id == ArchiveDocument.description_id,
-                        ArchiveEntity.entity_type == query.entity_type,
-                    )
-                )
-            )
+            filters.append(_carries_entity(ArchiveEntity.entity_type == query.entity_type))
+        if query.entity_id is not None:
+            # No ``exclude`` guard: an entity is not a facet dimension of its own, so this filter
+            # constrains every count in the sidebar — like ``status`` or a date bound, and unlike
+            # ``entity_type``, which is left out of computing its own facet.
+            filters.append(_carries_entity(ArchiveEntity.entity_id == query.entity_id))
 
         return filters
 
