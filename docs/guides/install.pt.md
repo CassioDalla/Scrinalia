@@ -216,7 +216,7 @@ pipeline, não o boot — o `ACERVO_SOURCE` é exigido pela transformação de s
 | `DB_NAME` | `scrinalia` | nome do banco; o serviço do compose o cria no primeiro boot |
 | `PUBLIC_SCRAPE_URL` | vazio | URL base do site de origem que o worker de coleta lista; exigida para coletar |
 | `PUBLIC_SCRAPE_DETAIL_URL` | vazio | prefixo da página de detalhe de onde o adaptador monta cada registro; exigido para coletar |
-| `ACERVO_SOURCE` | vazio | nomeia a origem cujos rótulos de campo a transformação de staging lê (a única embarcada é `pmc`); **sem padrão**, e uma execução de staging falha rápido sem ela |
+| `ACERVO_SOURCE` | vazio | nomeia a origem ativa — os rótulos de campo que a transformação de staging lê e as portas que a coleta monta; a única embarcada é `pmc`, o `--origin` a sobrepõe numa execução, e **não há padrão**: uma execução de staging falha rápido sem ela |
 | `ACERVO_LANGUAGE` | `pt-BR` | seleciona o perfil de língua — stopwords, gramática de datas, regras de plural, o dicionário de busca textual e o modelo do spaCy. O dicionário chega a uma coluna gerada, então mudá-lo é uma **migração**, não um reinício |
 | `S3_ENDPOINT_URL` | vazio | o endpoint compatível com S3 (MinIO, Ceph, SeaweedFS, um bucket na nuvem); de dentro de um contêiner, `localhost` é o próprio contêiner |
 | `S3_BUCKET_NAME` | vazio | o bucket para onde vão as miniaturas; ele precisa existir antes |

@@ -28,6 +28,12 @@ sources:
   - src/scrinalia/core/config.py
   - src/scrinalia/domains/identity/cli.py
   - src/scrinalia/domains/identity/services/auth_service.py
+  - src/scrinalia/domains/ingestion/worker.py
+  - src/scrinalia/domains/ingestion/repository.py
+  - src/scrinalia/domains/ingestion/sources.py
+  - src/scrinalia/domains/staging/worker.py
+  - src/scrinalia/domains/staging/repository.py
+  - src/scrinalia/core/cli.py
   - src/scrinalia/api/controllers/users_controller.py
   - docs/adr/0009-authentication-and-authorization.md
   - docs/adr/0011-first-run-setup-without-an-open-door.md
@@ -74,6 +80,11 @@ section of the panel shows:
 ```text
 transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-category -> quality-validator -> embedding
 ```
+
+The two stages **in front** of that table — reading the origin into `raw_data` and structuring it into
+`staging_documents` — are not workers of this catalogue, because they load no engine and write no AI
+stamp. They are host commands of their own, described in
+[the scrape and the transform](#the-scrape-and-the-transform).
 
 - **`transfer`** copies the structured staging record into the archive description, keyed on the
   hash of the parsed record (`staging_content_hash`). It is the only stage that rewrites content:
@@ -192,6 +203,49 @@ A direct run is a debugging tool, not the operational path. It bypasses the ledg
 overrides, the concurrency guard and the `--option` coercion, and it uses whatever `engine_name`
 and `preset` the module's `__main__` block hardcodes (for `ner`, `db_batch_size=100` and otherwise
 the signature defaults). Nothing appears in the run history, so nothing tells you it happened.
+
+### The scrape and the transform
+
+The two stages in front of the archive are not in the runner and not in the panel, and their
+commands are the operational path for those layers rather than a debugging shortcut:
+
+```bash
+# List the origin's identifiers into the queue, walking at most ten listing pages.
+uv run python -m scrinalia.domains.ingestion.worker discover --pages 10
+
+# Read the detail page of at most a hundred of the identifiers the queue holds.
+uv run python -m scrinalia.domains.ingestion.worker scrape --limit 100
+
+# Both phases in one process, which is what a scheduler would run.
+uv run python -m scrinalia.domains.ingestion.worker run --pages 10 --limit 100
+
+# Structure at most a hundred raw records into staging.
+uv run python -m scrinalia.domains.staging.worker --limit 100
+```
+
+Both take `--origin` to name the origin for that run; without it, the code is the one
+`ACERVO_SOURCE` names, and there is still no default. `scrape` also takes `--audit-ttl-days N` to
+re-read the descriptions completed more than N days ago, `--force-retry-fatal` to include the rows
+marked `FATAL_ERROR`, `--ignore-sliding-window` to drop the discovery and TTL windows, and
+`--max-retries`, `--discovery-window-days` and `--scraped-ttl-days` to override the run policy for
+that run only.
+
+**A bounded run resumes by itself.** The queue is ordered by `last_scraped_at`, never-tried first,
+and every outcome — done, a transient failure, a fatal one — stamps it, so the batch that just ran
+moves behind the ones that have not. The transform is keyed on the hash of the raw payload, so
+whatever a run structured stops being pending. `--limit 100` over a queue of thousands therefore
+takes the next hundred on the next run, and both commands log how much is still pending when they
+finish. The one exception is a scrape whose write rolls back: the row keeps its place and holds a
+slot of every run until the write succeeds.
+
+`--force` re-parses every raw record, which is what a parser fix needs, and it also bypasses the
+comparison the transform advances on, so a bounded forced run is not resumable by itself. That is
+what `--after <description_id>` is for: the run logs the id its window ended at and the command to
+continue from there. Do not use `--after` without `--force`: under the comparison, skipping ahead
+would skip pending records instead of already-structured ones.
+
+Neither command writes to `archive_worker_runs` — the ledger belongs to the runner — and neither
+shows up in the operations panel, which is a separate change.
 
 ## Configuration: what a run actually uses
 

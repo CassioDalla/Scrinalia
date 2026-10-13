@@ -38,6 +38,11 @@ painel mostra:
 transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-category -> quality-validator -> embedding
 ```
 
+As duas etapas **à frente** dessa tabela — ler a origem para o `raw_data` e estruturá-lo em
+`staging_documents` — não são workers deste catálogo, porque não carregam engine nem gravam carimbo
+de IA. São comandos de linha de comando próprios, descritos em
+[a leitura da origem e o transform](#a-leitura-da-origem-e-o-transform).
+
 - **`transfer`** copia o registro estruturado do staging para a descrição do Acervo, tendo como
   chave o hash do registro interpretado (`staging_content_hash`). É a única etapa que reescreve
   conteúdo: quando o hash muda, o `execution_log` gravado é zerado e os enriquecimentos de IA
@@ -156,6 +161,51 @@ Uma execução direta é ferramenta de depuração, não o caminho de operação
 overrides persistidos, a trava de concorrência e a conversão de `--option`, e usa o `engine_name` e
 o `preset` que o bloco `__main__` do módulo fixa (para `ner`, `db_batch_size=100` e, no resto, os
 padrões da assinatura). Nada aparece no histórico de execuções, então nada avisa que ela aconteceu.
+
+### A leitura da origem e o transform
+
+As duas etapas à frente do Acervo não estão no runner nem no painel, e os comandos delas são o
+caminho de operação dessas camadas, não um atalho de depuração:
+
+```bash
+# Lista os identificadores da origem na fila, percorrendo no máximo dez páginas.
+uv run python -m scrinalia.domains.ingestion.worker discover --pages 10
+
+# Lê a página de detalhe de no máximo cem dos identificadores que a fila guarda.
+uv run python -m scrinalia.domains.ingestion.worker scrape --limit 100
+
+# As duas fases num processo, que é o que um agendador rodaria.
+uv run python -m scrinalia.domains.ingestion.worker run --pages 10 --limit 100
+
+# Estrutura no máximo cem registros brutos no staging.
+uv run python -m scrinalia.domains.staging.worker --limit 100
+```
+
+Os dois aceitam `--origin` para nomear a origem daquela execução; sem ele, o código é o que
+`ACERVO_SOURCE` nomeia, e continua não havendo padrão. O `scrape` também aceita `--audit-ttl-days N`
+para reler as descrições concluídas há mais de N dias, `--force-retry-fatal` para incluir as linhas
+marcadas como `FATAL_ERROR`, `--ignore-sliding-window` para descartar as janelas de descoberta e de
+TTL, e `--max-retries`, `--discovery-window-days` e `--scraped-ttl-days` para sobrepor a política
+daquela execução.
+
+**Uma execução limitada retoma sozinha.** A fila é ordenada por `last_scraped_at`, com as nunca
+tentadas na frente, e todo desfecho — concluída, falha transitória, falha fatal — carimba esse
+campo, então o lote que acabou de rodar vai para trás dos que ainda não rodaram. O transform tem
+como chave o hash do payload bruto, então o que uma execução estruturou deixa de estar pendente.
+`--limit 100` sobre uma fila de milhares pega os próximos cem na execução seguinte, e os dois
+comandos registram no log quanto ainda falta quando terminam. A única exceção é uma leitura cuja
+gravação sofre rollback: a linha mantém seu lugar e ocupa uma vaga em toda execução até que a
+gravação dê certo.
+
+`--force` reinterpreta todos os registros brutos, que é o que uma correção de parser exige, e
+também ignora a comparação de hash da qual o transform avança, então uma execução forçada e
+limitada não retoma sozinha. É para isso que existe `--after <description_id>`: a execução registra
+no log o id em que a janela terminou e o comando para continuar dali. Não use `--after` sem
+`--force`: sob a comparação de hash, pular à frente pularia registros pendentes em vez de registros
+já estruturados.
+
+Nenhum dos dois comandos escreve em `archive_worker_runs` — o ledger é do runner — e nenhum dos
+dois aparece no painel de sistema, o que é uma mudança à parte.
 
 ## Configuração: o que uma execução realmente usa
 
