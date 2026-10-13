@@ -20,7 +20,7 @@ from scrinalia.api.dependencies import (
     provide_login_rate_limiter,
 )
 from scrinalia.api.login_rate_limit import LoginRateLimiter
-from scrinalia.api.security import Access, AuthenticatedUser
+from scrinalia.api.security import PASSWORD_CHANGE_EXEMPT_OPT_KEY, Access, AuthenticatedUser
 from scrinalia.api.session_cookie import write_session_cookie
 from scrinalia.core.config import get_settings
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode, RouteResponse
@@ -70,7 +70,7 @@ class AuthController(Controller):
 
     @post(
         "/logout",
-        opt={"access": Access.AUTHENTICATED},
+        opt={"access": Access.AUTHENTICATED, PASSWORD_CHANGE_EXEMPT_OPT_KEY: True},
         status_code=200,
         sync_to_thread=True,
     )
@@ -86,6 +86,9 @@ class AuthController(Controller):
         public so it can always clear the cookie, would let any page sign the archivist out with a
         cross-site form post. A cookie left behind in the browser is harmless: the session behind it
         is already over.
+
+        Exempt from the forced password change: the screen the flag forces the person onto still has
+        to be able to sign out.
         """
         token = request.cookies.get(get_settings().AUTH_SESSION_COOKIE_NAME)
         if token:
@@ -97,7 +100,7 @@ class AuthController(Controller):
         response.delete_cookie(get_settings().AUTH_SESSION_COOKIE_NAME)
         return response
 
-    @get("/me", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
+    @get("/me", opt={"access": Access.AUTHENTICATED, PASSWORD_CHANGE_EXEMPT_OPT_KEY: True}, sync_to_thread=True)
     def me(
         self,
         auth_service: NamedDependency[AuthService],
@@ -109,12 +112,15 @@ class AuthController(Controller):
         Fresh and not from the gate's snapshot because this is the *read contract*: the screen shows
         when the person last signed in and whether they still owe a password change, and a snapshot
         taken before the request could lag a change made by an administrator a second earlier.
+
+        Exempt from the forced password change because it is how the forced screen learns that it is
+        forced: refusing it would leave the account with no way to reach the very change it owes.
         """
         return AuthUserDTO.model_validate(auth_service.get_user(current_user.user_id))
 
     @post(
         "/password",
-        opt={"access": Access.AUTHENTICATED},
+        opt={"access": Access.AUTHENTICATED, PASSWORD_CHANGE_EXEMPT_OPT_KEY: True},
         status_code=200,
         sync_to_thread=True,
     )
@@ -131,6 +137,9 @@ class AuthController(Controller):
         The session that makes the change survives it; every other one ends. Being logged out of the
         screen you are standing on, right after securing your account, is the behaviour that makes
         people avoid changing their password.
+
+        Exempt from the forced password change by definition: it is the operation the refusal asks
+        for, and the one that clears ``must_change_password``.
         """
         user = auth_service.get_user(current_user.user_id)
         auth_service.change_password(

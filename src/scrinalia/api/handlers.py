@@ -59,6 +59,7 @@ from scrinalia.domains.archive.exceptions import (
     WorkerRunNotFoundError,
 )
 from scrinalia.domains.archive.repository.api_error_repo import ApiErrorRecorder
+from scrinalia.domains.archive.schemas.responses import RouteMessageCode
 from scrinalia.domains.identity.exceptions import (
     AccountLockedError,
     DuplicateUserEmailError,
@@ -256,11 +257,17 @@ def permission_denied_handler(request: Request, exc: PermissionDeniedException) 
     hiding its existence would only make a misconfigured role look like a typo in the URL. The
     surface that hides existence is the **public** one, and there the rule is about unpublished
     records, not about administrative routes.
+
+    A guard refusal that names an outcome carries a ``RouteMessageCode`` on the exception, and this
+    emits it as ``code`` beside the sentence — the contract rule for a route that answers a sentence.
+    It is additive: the error body is declared by no route, so a client that only knows ``error_code``
+    (the exception's own name) keeps working exactly as it did.
     """
-    return Response(
-        content={
-            "error_code": type(exc).__name__,
-            "message": str(exc.detail) or PERMISSION_DENIED_MESSAGE,
-        },
-        status_code=HTTP_403_FORBIDDEN,
-    )
+    content: dict[str, object] = {
+        "error_code": type(exc).__name__,
+        "message": str(exc.detail) or PERMISSION_DENIED_MESSAGE,
+    }
+    code = getattr(exc, "code", None)
+    if isinstance(code, RouteMessageCode):
+        content["code"] = code.value
+    return Response(content=content, status_code=HTTP_403_FORBIDDEN)

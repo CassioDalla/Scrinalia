@@ -174,6 +174,63 @@ def test_a_new_password_below_the_policy_is_refused(client: TestClient) -> None:
 
 
 # ==========================================
+# THE TEMPORARY PASSWORD IS NOT A CREDENTIAL (issue #79)
+# ==========================================
+
+
+def _sign_in_owing_a_password_change(api_client: TestClient, generate_user) -> TestClient:
+    """An account the CLI or an administrator created, signed in with the password it printed."""
+    generate_user(email=EMAIL, name="Maria", role=Role.CURATOR, password=PASSWORD, must_change_password=True)
+    assert _login(api_client).status_code == 200
+    return api_client
+
+
+def test_the_temporary_password_reaches_only_the_change_itself(api_client: TestClient, generate_user) -> None:
+    """
+    The flag is enforced by the API, not by the screen.
+
+    Until the temporary password is replaced, the account's whole role is refused on every ordinary
+    operation — reading included, because the read is the reconnaissance the flag exists to stop.
+    """
+    signed_in = _sign_in_owing_a_password_change(api_client, generate_user)
+
+    refused = signed_in.get("/api/v1/curation/inbox")
+
+    assert refused.status_code == 403
+    body = refused.json()
+    assert body["error_code"] == "PasswordChangeRequiredException"
+    assert body["code"] == "PASSWORD_CHANGE_REQUIRED"
+    assert body["message"]
+
+
+def test_the_forced_change_still_reaches_the_routes_it_needs(api_client: TestClient, generate_user) -> None:
+    """
+    The three ways out the forced screen stands on: read the session, end it, replace the password.
+
+    ``/auth/me`` and ``/auth/logout`` are exempt because a screen that cannot read its own session or
+    sign out is a trap; ``/auth/password`` is the change itself.
+    """
+    signed_in = _sign_in_owing_a_password_change(api_client, generate_user)
+
+    assert signed_in.get("/api/v1/auth/me").status_code == 200
+    assert signed_in.post("/api/v1/auth/logout").status_code == 200
+
+
+def test_replacing_the_password_opens_the_rest_of_the_api(api_client: TestClient, generate_user) -> None:
+    signed_in = _sign_in_owing_a_password_change(api_client, generate_user)
+
+    changed = signed_in.post(
+        "/api/v1/auth/password",
+        json={"current_password": PASSWORD, "new_password": NEW_PASSWORD},
+    )
+
+    assert changed.status_code == 200
+    assert changed.json()["code"] == "PASSWORD_CHANGED"
+    # The same request that was refused a moment ago now answers: it is the flag, not the role.
+    assert signed_in.get("/api/v1/curation/inbox").status_code == 200
+
+
+# ==========================================
 # THE HARDENING (B9.3)
 # ==========================================
 
