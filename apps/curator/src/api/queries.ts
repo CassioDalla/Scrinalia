@@ -30,6 +30,7 @@ import {
   fetchRevisions,
   fetchSimilarEntities,
   fetchSimilarTags,
+  fetchStopwordPurgeLog,
   fetchStopwords,
   fetchSubjectExclusionSuggestions,
   fetchSubjectExclusions,
@@ -328,6 +329,14 @@ export const queries = {
     queryOptions({
       queryKey: ["taxonomy", "merge-log", limit, term ?? ""],
       queryFn: () => fetchMergeLog({ include_undone: true, q: term, limit, offset: 0 }),
+      staleTime: 5_000,
+    }),
+
+  /** The purge ledger: the same shape as the merge one, because it offers the same undo. */
+  stopwordPurgeLog: (limit: number, term: string | undefined) =>
+    queryOptions({
+      queryKey: ["taxonomy", "stopword-purge-log", limit, term ?? ""],
+      queryFn: () => fetchStopwordPurgeLog({ includeUndone: true, q: term, limit, offset: 0 }),
       staleTime: 5_000,
     }),
 
