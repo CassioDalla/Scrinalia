@@ -1048,6 +1048,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/taxonomy/entities/merge-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListEntityMergeLog */
+        get: operations["ApiV1TaxonomyEntitiesMergeLogListEntityMergeLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxonomy/entities/merge-log/{merge_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** UndoEntityMerge */
+        delete: operations["ApiV1TaxonomyEntitiesMergeLogMergeIdUndoEntityMerge"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxonomy/entities/merge/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** PreviewEntityMerge */
+        post: operations["ApiV1TaxonomyEntitiesMergePreviewPreviewEntityMerge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/taxonomy/entities/ner-exclusions": {
         parameters: {
             query?: never;
@@ -2468,10 +2519,83 @@ export interface components {
             /** @description Por que decidiu; fica no histórico do documento. */
             review_note?: string | null;
         };
+        /** EntityMergeImpact */
+        EntityMergeImpact: {
+            /** @default 0 */
+            document_count: number;
+            entity_id: number;
+            entity_type: string;
+            name: string;
+        };
+        /** EntityMergeLogEntryDTO */
+        EntityMergeLogEntryDTO: {
+            absorbed_entity_id: number;
+            absorbed_entity_type: string;
+            absorbed_name: string;
+            canonical_id?: number | null;
+            canonical_name: string;
+            canonical_renamed_from?: string | null;
+            changed_at?: string | null;
+            changed_by?: string | null;
+            /** @default 0 */
+            document_count: number;
+            /** @description Computed so the front reads one definition instead of comparing a timestamp itself. */
+            readonly is_undone: boolean;
+            merge_id: number;
+            note?: string | null;
+            repointed_synonym_names?: string[];
+            /** @default true */
+            synonym_created: boolean;
+            undone_at?: string | null;
+            undone_by?: string | null;
+        };
+        /** EntityMergeLogListResponse */
+        EntityMergeLogListResponse: {
+            items?: components["schemas"]["EntityMergeLogEntryDTO"][];
+            limit: number;
+            offset: number;
+            total: number;
+        };
+        /** EntityMergePreviewRequest */
+        EntityMergePreviewRequest: {
+            canonical_id: number;
+            ids_to_merge: number[];
+            new_name?: string | null;
+        };
+        /** EntityMergePreviewResponse */
+        EntityMergePreviewResponse: {
+            canonical_id: number;
+            canonical_name: string;
+            documents_updated: number;
+            entities_deleted?: components["schemas"]["EntityMergeImpact"][];
+            links_rewritten: number;
+            renamed_from?: string | null;
+            renamed_to?: string | null;
+            review_flags?: string[];
+            synonyms_created?: string[];
+            synonyms_repointed?: string[];
+        };
+        /** EntityMergeRequest */
+        EntityMergeRequest: {
+            canonical_id: number;
+            /** @description List of IDs that will be merged and deleted. */
+            ids_to_merge: number[];
+            /** @description Optional new name for the canonical; the old one becomes a synonym. */
+            new_name?: string | null;
+            /** @description Why; kept in the merge ledger. */
+            note?: string | null;
+        };
         /** EntityMergeResponse */
         EntityMergeResponse: {
             documents_updated: number;
             entities_deleted: number;
+            merge_ids?: number[];
+        };
+        /** EntityMergeUndoResponse */
+        EntityMergeUndoResponse: {
+            code: components["schemas"]["RouteMessageCode"];
+            data: components["schemas"]["EntityMergeLogEntryDTO"];
+            message: string;
         };
         /** EntityPairSimilarity */
         EntityPairSimilarity: {
@@ -3148,7 +3272,7 @@ export interface components {
          *         things and a translation catalogue needs to tell them apart.
          * @enum {string}
          */
-        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORD_PURGE_DONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
+        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORD_PURGE_DONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "ENTITY_MERGE_UNDONE" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
         /** RouteResponse */
         RouteResponse: {
             code: components["schemas"]["RouteMessageCode"];
@@ -6280,7 +6404,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["MergeRequest"];
+                "application/json": components["schemas"]["EntityMergeRequest"];
             };
         };
         responses: {
@@ -6291,6 +6415,124 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EntityMergeResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyEntitiesMergeLogListEntityMergeLog: {
+        parameters: {
+            query?: {
+                canonical_id?: number | null;
+                changed_by?: string | null;
+                include_undone?: boolean;
+                q?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityMergeLogListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyEntitiesMergeLogMergeIdUndoEntityMerge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                merge_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityMergeUndoResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyEntitiesMergePreviewPreviewEntityMerge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntityMergePreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityMergePreviewResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

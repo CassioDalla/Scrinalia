@@ -105,6 +105,7 @@ Três propriedades desta tabela sustentam o modelo:
 | `archive_macro_categories` | A categoria de assunto (o eixo do "sobre o quê"). | `category_id`, `name` (único), `description`, `classifier_label`, `is_active` |
 | `archive_tag_facets` | O eixo não-assunto de uma tag: o que ela *é* quando não é um *sobre*. | chave composta `(tag_id, facet_type)`, `value`, `created_by`, `created_by_user_id` |
 | `archive_entities` | Uma entidade nomeada (pessoa, organização, lugar) encontrada por NER ou inserida à mão. | `entity_id`, `name` (único), `entity_type` |
+| `archive_entity_merge_log` | Uma linha **por entidade absorvida**, retratada antes de qualquer mudança. | `undo_entity_merge` restaura a linha, seus vínculos, suas grafias e o nome que a canônica perdeu. |
 | `archive_document_tags` | Quais tags uma descrição carrega. | chave composta `(description_id, tag_id)` |
 | `archive_document_entities` | Quais entidades uma descrição carrega. | chave composta `(description_id, entity_id)` |
 | `archive_ai_review_queue` | A fila de auditoria da IA; o lado da *decisão* de uma colisão tag × entidade. | `anomaly_type` (`AnomalyType`), `status` (`ArchiveReviewStatus`), `context_payload` (JSONB), `llm_decision`, `llm_confidence`, `llm_reason` |

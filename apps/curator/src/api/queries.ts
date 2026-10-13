@@ -12,6 +12,7 @@ import {
   fetchDocument,
   fetchDocuments,
   fetchEntityRelevance,
+  fetchEntityMergeLog,
   fetchHierarchyNode,
   fetchHierarchyPlans,
   fetchHierarchyTree,
@@ -393,6 +394,14 @@ export const queries = {
       queryKey: ["taxonomy", "entities", "similar", targetName ?? "ALL", threshold],
       queryFn: () => fetchSimilarEntities({ target_name: targetName, threshold }),
       staleTime: 60_000,
+    }),
+
+  /** The entity merge ledger: server-side term, growing window — same reasoning as the tags'. */
+  entityMergeLog: (limit: number, term: string | undefined) =>
+    queryOptions({
+      queryKey: ["taxonomy", "entities", "merge-log", limit, term ?? ""],
+      queryFn: () => fetchEntityMergeLog({ include_undone: true, q: term, limit, offset: 0 }),
+      staleTime: 5_000,
     }),
 
   nerExclusions: () =>

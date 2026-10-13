@@ -15,6 +15,8 @@ from scrinalia.api.schemas.taxonomy import (
     ConflictPreviewRequest,
     ConflictResolutionRequest,
     ConflictResolutionResponse,
+    EntityMergePreviewRequest,
+    EntityMergeRequest,
     MacroCategoryCreateRequest,
     MacroCategoryUpdateRequest,
     MergeBatchRequest,
@@ -46,6 +48,7 @@ from scrinalia.domains.archive.schemas import (
     JudgedConflictPage,
     MergeBatchCommand,
     MergeEntityCommand,
+    MergeEntityPreviewCommand,
     MergeLogListResponse,
     MergePreviewCommand,
     MergePreviewResponse,
@@ -69,7 +72,10 @@ from scrinalia.domains.archive.schemas import (
 )
 from scrinalia.domains.archive.schemas.entity_schema import (
     EntityDeleteResponse,
+    EntityMergeLogListResponse,
+    EntityMergePreviewResponse,
     EntityMergeResponse,
+    EntityMergeUndoResponse,
     EntityReclassifyResponse,
     EntityRelevance,
     EntityRelevanceResponse,
@@ -653,12 +659,94 @@ class TaxonomyController(Controller):
         return EntitySimilarityResponse.from_payload(list(results))
 
     @post("/entities/merge", opt={"access": Access.CURATE}, sync_to_thread=True)
-    def merge_entities(self, entity_service: NamedDependency[EntityService], data: MergeRequest) -> EntityMergeResponse:
-        """Merges entities into the canonical one, answering with the same shape the tag merge uses."""
-        res = entity_service.merge(
-            MergeEntityCommand(canonical_id=data.canonical_id, ids_to_merge=data.ids_to_merge, new_name=data.new_name)
+    def merge_entities(
+        self,
+        entity_service: NamedDependency[EntityService],
+        data: EntityMergeRequest,
+        current_user: NamedDependency[AuthenticatedUser],
+    ) -> EntityMergeResponse:
+        """
+        Unifies entities into the canonical one, optionally renaming it.
+
+        The write is logged per absorbed entity in the ledger before anything changes, so the
+        response carries the ``merge_ids`` the screen needs to offer the undo — without them the
+        archivist would have to go find the row in the ledger to reverse the click they just made.
+        """
+        return entity_service.merge(
+            MergeEntityCommand(
+                canonical_id=data.canonical_id,
+                ids_to_merge=data.ids_to_merge,
+                new_name=data.new_name,
+                changed_by=current_user.author,
+                note=data.note,
+            )
         )
-        return EntityMergeResponse(documents_updated=res.documents_updated, entities_deleted=res.entities_deleted)
+
+    @post("/entities/merge/preview", opt={"access": Access.AUTHENTICATED}, status_code=200, sync_to_thread=True)
+    def preview_entity_merge(
+        self,
+        entity_service: NamedDependency[EntityService],
+        data: EntityMergePreviewRequest,
+    ) -> EntityMergePreviewResponse:
+        """
+        Dry-run of an entity merge: how many links move, what is absorbed and what to review.
+
+        Read-only, computed by the same planner the merge executes, so the preview cannot promise
+        a different number from the write.
+        """
+        return entity_service.preview_merge(
+            MergeEntityPreviewCommand(
+                canonical_id=data.canonical_id, ids_to_merge=data.ids_to_merge, new_name=data.new_name
+            )
+        )
+
+    @get("/entities/merge-log", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
+    def list_entity_merge_log(
+        self,
+        entity_service: NamedDependency[EntityService],
+        canonical_id: FromQuery[int | None] = None,
+        changed_by: FromQuery[str | None] = None,
+        include_undone: FromQuery[bool] = True,
+        # ``q`` and not ``term``: the collection search already owns ``term`` for its own meaning,
+        # and this one is a filter *inside* a ledger. The front reads the same name it sends.
+        q: FromQuery[str | None] = None,
+        limit: FromQuery[int] = 50,
+        offset: FromQuery[int] = 0,
+    ) -> EntityMergeLogListResponse:
+        """
+        The audit trail of the entity merges: what was merged, by whom, and what was undone.
+
+        ``q`` matches both sides of the entry — the absorbed and the canonical name — because the
+        archivist asking "where did this spelling go?" does not know which side it was on.
+        """
+        return entity_service.list_merge_log(
+            canonical_id=canonical_id,
+            changed_by_name=changed_by,
+            include_undone=include_undone,
+            term=q,
+            limit=limit,
+            offset=offset,
+        )
+
+    @delete("/entities/merge-log/{merge_id:int}", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
+    def undo_entity_merge(
+        self,
+        entity_service: NamedDependency[EntityService],
+        merge_id: FromPath[int],
+        current_user: NamedDependency[AuthenticatedUser],
+    ) -> EntityMergeUndoResponse:
+        """
+        Undoes one merge from the ledger: the entity, its links and the canonical name come back.
+
+        The second attempt is **409** and an unknown id is **404**; the ledger entry is never
+        deleted, so the history of "this was merged, then undone" survives.
+        """
+        entry = entity_service.undo_merge(merge_id, undone_by=current_user.author)
+        return EntityMergeUndoResponse(
+            code=RouteMessageCode.ENTITY_MERGE_UNDONE,
+            message=f"Mesclagem desfeita: a entidade '{entry.absorbed_name}' foi restaurada.",
+            data=entry,
+        )
 
     @post("/entities/orphans/purge", opt={"access": Access.CURATE}, sync_to_thread=True)
     def purge_orphan_entities(self, entity_service: NamedDependency[EntityService]) -> OrphanEntityPurgeResponse:

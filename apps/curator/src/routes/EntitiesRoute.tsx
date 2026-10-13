@@ -5,8 +5,10 @@ import { useState } from "react";
 import {
   deleteEntity,
   mergeEntities,
+  previewEntityMerge,
   purgeOrphanEntities,
   reclassifyEntity,
+  undoEntityMerge,
   type EntityPairSimilarity,
   type EntityRelevance,
   type EntitySimilarity,
@@ -17,7 +19,7 @@ import { queries, RELEVANCE_PAGE_SIZE } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card, CardBody } from "@/components/ui/Card";
+import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Field } from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
@@ -25,8 +27,14 @@ import { Notice } from "@/components/ui/Notice";
 import { Tabs } from "@/components/ui/Tabs";
 import { PageBody } from "@/components/layout/PageBody";
 import { ACTION } from "@/lib/copy";
-import { ENTITY_TYPE_HINT, ENTITY_TYPE_LABEL, ENTITY_TYPE_TONE } from "@/lib/entities";
-import { descricoes, formatCount } from "@/lib/format";
+import {
+  ENTITY_MERGE_FLAG_HINT,
+  ENTITY_MERGE_FLAG_LABEL,
+  ENTITY_TYPE_HINT,
+  ENTITY_TYPE_LABEL,
+  ENTITY_TYPE_TONE,
+} from "@/lib/entities";
+import { descricoes, formatCount, formatDateTime } from "@/lib/format";
 import { asEnum, asNumber } from "@/lib/search";
 import { labelOf } from "@/lib/hierarchy";
 import { routeMessage } from "@/lib/messages";
@@ -64,9 +72,9 @@ const WINDOW = 100;
  * The named-entity vocabulary.
  *
  * The screen exists to make one thing unmistakable: **reclassifying teaches the extractor**, and
- * **merging has no undo**. Nothing here keeps a ledger — that is the tags' privilege — so the merge
- * carries a warning instead of an undo button, and the delete is offered only where the API's own
- * intent fits: an entity no description carries.
+ * **merging is reversible**. The write is logged per absorbed entity in the merge ledger before
+ * anything changes, so the panel shows the impact and offers the undo, and the ledger at the bottom
+ * keeps the trail.
  */
 export function EntitiesRoute() {
   const search = routeApi.useSearch();
@@ -85,7 +93,6 @@ export function EntitiesRoute() {
     void queryClient.invalidateQueries({ queryKey: ["curation", "inbox"] });
     void queryClient.invalidateQueries({ queryKey: ["documents"] });
   };
-
   const purgeOrphans = useMutation({
     mutationFn: purgeOrphanEntities,
     onSuccess: invalidate,
@@ -142,8 +149,8 @@ export function EntitiesRoute() {
         <Notice tone="accent">
           <strong>Reclassificar não é renomear um rótulo.</strong> Ao corrigir o tipo, o serviço grava
           também o sinônimo de ancoragem: o extrator passa a devolver aquela grafia com o tipo novo, em
-          toda execução futura. E <strong>mesclar não tem desfazer</strong> — só as tags têm ledger; a
-          entidade absorvida vira sinônimo e não volta  - TODO arrumar no futuro.
+          toda execução futura. E <strong>mesclar tem desfazer</strong>: cada entidade absorvida entra no
+          ledger antes de a escrita acontecer, e o painel mostra o impacto antes do clique.
         </Notice>
 
         {purgeOrphans.data ? (
@@ -165,6 +172,7 @@ export function EntitiesRoute() {
         {selected.length >= 2 ? (
           <MergePanel
             members={membersOf(selected)}
+            onChanged={invalidate}
             onDone={() => {
               clear();
               invalidate();
@@ -229,6 +237,8 @@ export function EntitiesRoute() {
         ) : (
           <SimilarityTab onMerged={invalidate} />
         )}
+
+        <EntityMergeLedger onChanged={invalidate} />
       </PageBody>
     </>
   );
@@ -318,21 +328,23 @@ function EntityRow({
 /**
  * The confirmation step of a merge, and the only place the effect is stated.
  *
- * There is no entity preview route — the tag merge has ``plan_merge`` and this one does not — so the
- * screen states the documented effect instead of inventing numbers: the documents move to the
- * canonical, the absorbed names become synonyms, and the rows disappear. Warning instead of an undo,
- * because there is none.
+ * The impact comes from the preview route, computed by the same planner the write executes, so the
+ * numbers here are the numbers the merge produces. The warning is a warning and not a refusal, and
+ * the undo is real: the merge answers with the ledger ids, and the button reverses the click without
+ * leaving the screen.
  */
 function MergePanel({
   members,
   title,
   hint,
+  onChanged,
   onDone,
   onCancel,
 }: {
   members: EntityCandidate[];
   title?: string;
   hint?: string;
+  onChanged: () => void;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -340,17 +352,39 @@ function MergePanel({
   const [newName, setNewName] = useState("");
   const nameOf = (id: number) => members.find((member) => member.entity_id === id)?.name ?? `#${id}`;
 
+  const absorbed = members.filter((member) => member.entity_id !== canonicalId);
+
+  // The preview is a read of the planner the write executes. It is keyed by the cluster and the
+  // canonical because those are what the numbers depend on; the optional rename does not change them.
+  const preview = useQuery({
+    queryKey: ["taxonomy", "entities", "merge-preview", members.map((m) => m.entity_id).join("-"), canonicalId],
+    queryFn: () =>
+      previewEntityMerge({
+        canonical_id: canonicalId,
+        ids_to_merge: absorbed.map((member) => member.entity_id),
+        new_name: null,
+      }),
+    enabled: absorbed.length > 0,
+    staleTime: 30_000,
+  });
+
   const merge = useMutation({
     mutationFn: () =>
       mergeEntities({
         canonical_id: canonicalId,
-        ids_to_merge: members.map((member) => member.entity_id).filter((id) => id !== canonicalId),
+        ids_to_merge: absorbed.map((member) => member.entity_id),
         new_name: newName.trim() || null,
       }),
-    onSuccess: onDone,
+    onSuccess: onChanged,
   });
 
-  const absorbed = members.filter((member) => member.entity_id !== canonicalId);
+  const undo = useMutation({
+    mutationFn: (mergeIds: number[]) => Promise.all(mergeIds.map(undoEntityMerge)),
+    onSuccess: () => {
+      onChanged();
+      onDone();
+    },
+  });
 
   return (
     <Card className="ring-(--color-warn)/40">
@@ -384,15 +418,37 @@ function MergePanel({
           />
         </Field>
 
+        {/* The dry run, before the click: the same planner the merge executes computes these. */}
+        {preview.isPending ? <Spinner label="Calculando o impacto…" /> : null}
+        {preview.error ? <ErrorState error={preview.error} /> : null}
+        {preview.data ? (
+          <p className="text-xs text-(--color-muted)">
+            {formatCount(preview.data.documents_updated)} descrição(ões) passam a carregar{" "}
+            <strong>{nameOf(canonicalId)}</strong> · {formatCount(preview.data.links_rewritten)} vínculo(s)
+            reescrito(s) · {formatCount(preview.data.entities_deleted?.length ?? 0)} entidade(s) absorvida(s).
+          </p>
+        ) : null}
+        {preview.data && (preview.data.review_flags ?? []).length > 0 ? (
+          <ul className="flex flex-wrap gap-2 text-xs">
+            {(preview.data.review_flags ?? []).map((flag) => (
+              <li key={flag}>
+                <Badge tone="warn" title={ENTITY_MERGE_FLAG_HINT[flag]}>
+                  {ENTITY_MERGE_FLAG_LABEL[flag] ?? flag}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
         <Notice tone="warn">
           As <strong>{formatCount(absorbed.length)}</strong> entidades absorvidas deixam de existir e
           seus vínculos passam para <strong>{nameOf(canonicalId)}</strong>. As grafias viram sinônimos
-          (o extrator continua reconhecendo-as) — mas <strong>não há desfazer</strong>: entidades não
-          têm ledger como as tags.
+          (o extrator continua reconhecendo-as) e cada absorvida entra no ledger{" "}
+          <strong>antes</strong> da escrita — o desfazer restaura a linha, os vínculos e as grafias.
         </Notice>
 
         <div className="flex items-center gap-2">
-          <Button variant="primary" disabled={merge.isPending} onClick={() => merge.mutate()}>
+          <Button variant="primary" disabled={merge.isPending || absorbed.length === 0} onClick={() => merge.mutate()}>
             {merge.isPending
               ? ACTION.merge.pending
               : absorbed.length === 1
@@ -403,13 +459,127 @@ function MergePanel({
             {ACTION.cancel.label}
           </Button>
         </div>
+
         {merge.data ? (
-          <p className="text-xs text-(--color-muted)">
-            {formatCount(merge.data.documents_updated)} vínculos movidos ·{" "}
-            {formatCount(merge.data.entities_deleted)} entidades absorvidas.
-          </p>
+          <div className="grid gap-1 text-xs text-(--color-muted)">
+            <p>
+              {formatCount(merge.data.documents_updated)} vínculo(s) movido(s) ·{" "}
+              {formatCount(merge.data.entities_deleted)} entidade(s) absorvida(s) · ledger{" "}
+              <code>{(merge.data.merge_ids ?? []).join(", ") || "—"}</code>.
+            </p>
+            {(merge.data.merge_ids ?? []).length > 0 ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={undo.isPending}
+                  title="Restaura cada entidade absorvida, seus vínculos e as grafias."
+                  onClick={() => undo.mutate(merge.data.merge_ids ?? [])}
+                >
+                  {undo.isPending ? "desfazendo…" : "Desfazer este merge"}
+                </Button>
+                <span>O desfazer também está no ledger abaixo.</span>
+              </div>
+            ) : null}
+          </div>
         ) : null}
         {merge.error ? <ErrorState error={merge.error} /> : null}
+        {undo.error ? <ErrorState error={undo.error} /> : null}
+      </CardBody>
+    </Card>
+  );
+}
+
+/** How many ledger rows the entity screen reads at a time; "ver mais" grows the window. */
+const ENTITY_MERGE_LOG_PAGE_SIZE = 50;
+
+/**
+ * The merge ledger: what was absorbed, by whom, and the undo of each row.
+ *
+ * Server-side search over both sides of each entry, exactly like the tag ledger: the trail only
+ * grows, and a filter over the loaded page would answer "não está aqui" for a merge that happened.
+ */
+function EntityMergeLedger({ onChanged }: { onChanged: () => void }) {
+  const [term, setTerm] = useState("");
+  const [limit, setLimit] = useState(ENTITY_MERGE_LOG_PAGE_SIZE);
+
+  const log = useQuery(queries.entityMergeLog(limit, term.trim() || undefined));
+
+  const undo = useMutation({
+    mutationFn: (mergeId: number) => undoEntityMerge(mergeId),
+    onSuccess: onChanged,
+  });
+
+  return (
+    <Card>
+      <CardHeader className="text-sm font-semibold">Ledger dos merges de entidades</CardHeader>
+      <CardBody className="grid gap-2">
+        <p className="text-xs text-(--color-muted)">
+          Aqui só entram merges <strong>aplicados</strong>. Cada linha guarda o estado anterior — a
+          entidade, seus vínculos, suas grafias e o nome que a canônica perdeu — e o desfazer restaura
+          tudo.
+        </p>
+        <Input
+          className="max-w-xs"
+          value={term}
+          placeholder="buscar por grafia absorvida ou canônica…"
+          onChange={(event) => {
+            setTerm(event.target.value);
+            setLimit(ENTITY_MERGE_LOG_PAGE_SIZE);
+          }}
+        />
+        {log.isPending ? <Spinner label="Lendo o ledger…" /> : null}
+        {log.error ? <ErrorState error={log.error} /> : null}
+        {log.data && (log.data.items ?? []).length === 0 ? (
+          <EmptyState
+            title={term.trim() ? `Nenhum merge para “${term.trim()}”` : "Nenhum merge aplicado ainda"}
+            hint={
+              term.trim()
+                ? "A busca cobre as duas grafias de cada linha: a absorvida e a canônica."
+                : "O ledger registra cada entidade absorvida, com o antes."
+            }
+          />
+        ) : null}
+        <ul className="divide-y divide-(--color-line) text-xs">
+          {(log.data?.items ?? []).map((entry) => (
+            <li key={entry.merge_id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+              <span className="min-w-0">
+                <span className="font-medium">{entry.absorbed_name}</span>
+                <span className="text-(--color-muted)"> → {entry.canonical_name}</span>
+                <span className="text-(--color-muted)">
+                  {" "}
+                  · {formatCount(entry.document_count)} doc(s) · {formatDateTime(entry.changed_at)}
+                  {entry.changed_by ? ` · por ${entry.changed_by}` : ""}
+                  {entry.canonical_renamed_from ? ` · canônica era “${entry.canonical_renamed_from}”` : ""}
+                </span>
+              </span>
+              {entry.is_undone ? (
+                <Badge tone="neutral">desfeito em {formatDateTime(entry.undone_at)}</Badge>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={undo.isPending}
+                  title="Restaura a entidade, seus vínculos, suas grafias e o nome da canônica."
+                  onClick={() => undo.mutate(entry.merge_id)}
+                >
+                  desfazer
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+        {undo.error ? <ErrorState error={undo.error} /> : null}
+        {log.data && log.data.total > (log.data.items ?? []).length ? (
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setLimit((current) => current + ENTITY_MERGE_LOG_PAGE_SIZE)}>
+              ver mais
+            </Button>
+            <span className="text-xs text-(--color-muted)">
+              {formatCount((log.data.items ?? []).length)} de {formatCount(log.data.total)}
+            </span>
+          </div>
+        ) : null}
       </CardBody>
     </Card>
   );
@@ -497,9 +667,9 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
 
       <p className="text-xs text-(--color-muted)">
         O par é evidência, não decisão: similaridade de trigrama alta também acontece entre nomes
-        diferentes. A canônica é escolha sua, e mesclar aqui é a mesma operação irreversível da aba de
-        relevância — só as tags têm ledger. Para mesclar mais de um par de uma vez, marque as linhas e use
-        a barra que aparece embaixo.
+        diferentes. A canônica é escolha sua, e mesclar aqui é a mesma operação da aba de relevância —
+        o ledger guarda cada absorvida e o desfazer restaura. Para mesclar mais de um par de uma vez,
+        marque as linhas e use a barra que aparece embaixo.
       </p>
 
       {pull.error ? <ErrorState error={pull.error} /> : null}
@@ -519,7 +689,8 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
         <MergePanel
           members={marked}
           title={`Mesclar ${formatCount(marked.length)} entidades marcadas`}
-          hint="Estas entidades vieram de linhas diferentes da lista: a canônica é escolhida abaixo. Não há desfazer — entidades não têm ledger como as tags."
+          hint="Estas entidades vieram de linhas diferentes da lista: a canônica é escolhida abaixo. O ledger guarda cada absorvida e o desfazer restaura."
+          onChanged={onMerged}
           onDone={afterMerge}
           onCancel={clearMarked}
         />
@@ -610,6 +781,7 @@ function SimilarityTab({ onMerged }: { onMerged: () => void }) {
                       ? "Os dois nomes são idênticos nesta linha: confira os identificadores antes de decidir."
                       : undefined
                   }
+                  onChanged={onMerged}
                   onDone={afterMerge}
                   onCancel={() => setOpenPair(null)}
                 />

@@ -34,7 +34,24 @@ class MergeTagsCommand(BaseModel):
 
 
 class MergeEntityCommand(BaseModel):
-    """Command to merge entities into a canonical one, optionally renaming it."""
+    """
+    Command to merge entities into a canonical one, optionally renaming it.
+
+    ``changed_by`` and ``note`` travel with the verdict because the merge now leaves a durable
+    ledger row per absorbed entity, and a row that cannot say who merged is not an audit trail.
+    """
+
+    canonical_id: int
+    ids_to_merge: list[int]
+    new_name: str | None = None
+    changed_by: Author | None = Field(
+        default=None, description="Who merged: the account when there is one, the name alone when there is not."
+    )
+    note: str | None = Field(default=None, description="Why; kept in the merge ledger.")
+
+
+class MergeEntityPreviewCommand(BaseModel):
+    """Asks what an entity merge would change. Read-only: the plan, computed by the writer's planner."""
 
     canonical_id: int
     ids_to_merge: list[int]

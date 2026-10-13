@@ -25,6 +25,31 @@ export const ENTITY_TYPE_HINT: Record<string, string> = {
   LOC: "Lugares: logradouros, bairros, rios e edificações.",
 };
 
+/**
+ * The warnings the entity merge preview carries — **warnings, not blocks**.
+ *
+ * The codes are the contract's (``domain/entity_merge.py``); only the text lives here. ``MIXED_TYPES``
+ * and ``ORPHAN_MEMBER`` are specific to this axis: a person's name absorbed into an organisation
+ * starts resolving as an organisation, and an orphan is exactly the class of row the purge targets.
+ */
+export const ENTITY_MERGE_FLAG_LABEL: Record<string, string> = {
+  MEMBER_WITH_DIGITS: "membro com número",
+  MIXED_TYPES: "tipos diferentes",
+  MEMBER_IS_SYNONYM: "membro é grafia absorvida",
+  ORPHAN_MEMBER: "membro sem descrição",
+};
+
+export const ENTITY_MERGE_FLAG_HINT: Record<string, string> = {
+  MEMBER_WITH_DIGITS:
+    "Algum membro tem número no nome. Pode ser o mesmo nome escrito com e sem o número, ou outro nome: o número não decide.",
+  MIXED_TYPES:
+    "Algum membro tem tipo diferente da canônica. As grafias absorvidas passam a resolver com o tipo da canônica.",
+  MEMBER_IS_SYNONYM:
+    "Algum membro é uma grafia que já foi absorvida por um merge anterior — o agrupamento pode ser reflexo de uma decisão antiga.",
+  ORPHAN_MEMBER:
+    "Algum membro não é carregado por nenhuma descrição. Absorvê-lo não perde vínculo, mas é a classe que a purga de órfãs remove.",
+};
+
 /** Who recorded a NER veto: the conflict judge, or an archivist. */
 export const EXCLUSION_SOURCE_LABEL: Record<string, string> = {
   JUDGE: "juiz LLM",

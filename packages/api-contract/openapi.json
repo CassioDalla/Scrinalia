@@ -2801,6 +2801,317 @@
         "title": "EntityLinkRequest",
         "type": "object"
       },
+      "EntityMergeImpact": {
+        "properties": {
+          "document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "entity_id": {
+            "type": "integer"
+          },
+          "entity_type": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id",
+          "entity_type",
+          "name"
+        ],
+        "title": "EntityMergeImpact",
+        "type": "object"
+      },
+      "EntityMergeLogEntryDTO": {
+        "properties": {
+          "absorbed_entity_id": {
+            "type": "integer"
+          },
+          "absorbed_entity_type": {
+            "type": "string"
+          },
+          "absorbed_name": {
+            "type": "string"
+          },
+          "canonical_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "canonical_name": {
+            "type": "string"
+          },
+          "canonical_renamed_from": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "changed_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "changed_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "is_undone": {
+            "description": "Computed so the front reads one definition instead of comparing a timestamp itself.",
+            "readOnly": true,
+            "type": "boolean"
+          },
+          "merge_id": {
+            "type": "integer"
+          },
+          "note": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "repointed_synonym_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "synonym_created": {
+            "default": true,
+            "type": "boolean"
+          },
+          "undone_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "undone_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "absorbed_entity_id",
+          "absorbed_entity_type",
+          "absorbed_name",
+          "canonical_name",
+          "is_undone",
+          "merge_id"
+        ],
+        "title": "EntityMergeLogEntryDTO",
+        "type": "object"
+      },
+      "EntityMergeLogListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EntityMergeLogEntryDTO"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "offset",
+          "total"
+        ],
+        "title": "EntityMergeLogListResponse",
+        "type": "object"
+      },
+      "EntityMergePreviewRequest": {
+        "properties": {
+          "canonical_id": {
+            "type": "integer"
+          },
+          "ids_to_merge": {
+            "items": {
+              "type": "integer"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "new_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "canonical_id",
+          "ids_to_merge"
+        ],
+        "title": "EntityMergePreviewRequest",
+        "type": "object"
+      },
+      "EntityMergePreviewResponse": {
+        "properties": {
+          "canonical_id": {
+            "type": "integer"
+          },
+          "canonical_name": {
+            "type": "string"
+          },
+          "documents_updated": {
+            "type": "integer"
+          },
+          "entities_deleted": {
+            "items": {
+              "$ref": "#/components/schemas/EntityMergeImpact"
+            },
+            "type": "array"
+          },
+          "links_rewritten": {
+            "type": "integer"
+          },
+          "renamed_from": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "renamed_to": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "review_flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "synonyms_created": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "synonyms_repointed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "canonical_id",
+          "canonical_name",
+          "documents_updated",
+          "links_rewritten"
+        ],
+        "title": "EntityMergePreviewResponse",
+        "type": "object"
+      },
+      "EntityMergeRequest": {
+        "properties": {
+          "canonical_id": {
+            "type": "integer"
+          },
+          "ids_to_merge": {
+            "description": "List of IDs that will be merged and deleted.",
+            "items": {
+              "type": "integer"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "new_name": {
+            "description": "Optional new name for the canonical; the old one becomes a synonym.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "description": "Why; kept in the merge ledger.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "canonical_id",
+          "ids_to_merge"
+        ],
+        "title": "EntityMergeRequest",
+        "type": "object"
+      },
       "EntityMergeResponse": {
         "properties": {
           "documents_updated": {
@@ -2808,6 +3119,12 @@
           },
           "entities_deleted": {
             "type": "integer"
+          },
+          "merge_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -2815,6 +3132,26 @@
           "entities_deleted"
         ],
         "title": "EntityMergeResponse",
+        "type": "object"
+      },
+      "EntityMergeUndoResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/EntityMergeLogEntryDTO"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "title": "EntityMergeUndoResponse",
         "type": "object"
       },
       "EntityPairSimilarity": {
@@ -5496,6 +5833,7 @@
           "ORPHAN_ENTITIES_PURGED",
           "ENTITY_RECLASSIFIED",
           "ENTITY_DELETED",
+          "ENTITY_MERGE_UNDONE",
           "CONFLICT_RESOLVED",
           "CONFLICT_BATCH_RESOLVED",
           "SESSION_ENDED",
@@ -13254,7 +13592,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/MergeRequest"
+                "$ref": "#/components/schemas/EntityMergeRequest"
               }
             }
           },
@@ -13312,6 +13650,302 @@
           }
         },
         "summary": "MergeEntities",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/entities/merge-log": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyEntitiesMergeLogListEntityMergeLog",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "canonical_id",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "changed_by",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "include_undone",
+            "required": false,
+            "schema": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityMergeLogListResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListEntityMergeLog",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/entities/merge-log/{merge_id}": {
+      "delete": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyEntitiesMergeLogMergeIdUndoEntityMerge",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "merge_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityMergeUndoResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "UndoEntityMerge",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/entities/merge/preview": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyEntitiesMergePreviewPreviewEntityMerge",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityMergePreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityMergePreviewResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "PreviewEntityMerge",
         "tags": [
           "Taxonomy"
         ]

@@ -1,12 +1,14 @@
 from collections.abc import Sequence
-from typing import Literal, cast
+from typing import Literal
 
 from scrinalia.core.author import Author
+from scrinalia.core.logger import logger
 from scrinalia.domains.archive.domain.normalization import normalize_entity
 from scrinalia.domains.archive.exceptions import InvalidParam
 from scrinalia.domains.archive.ports.entity import EntityRepositoryPort
 from scrinalia.domains.archive.schemas.command_schema import (
     MergeEntityCommand,
+    MergeEntityPreviewCommand,
     ResolveConflictBatchCommand,
     ResolveConflictCommand,
     SynonymCommand,
@@ -19,7 +21,11 @@ from scrinalia.domains.archive.schemas.entity_schema import (
     ConflictResolutionPlan,
     CrossDomainConflict,
     CrossDomainConflictPage,
+    EntityIdentity,
     EntityKind,
+    EntityMergeLogEntryDTO,
+    EntityMergeLogListResponse,
+    EntityMergePreviewResponse,
     EntityMergeResponse,
     EntityPairSimilarity,
     EntityRelevance,
@@ -63,68 +69,99 @@ class EntityService:
 
     def merge(self, command: MergeEntityCommand) -> EntityMergeResponse:
         """
-        Orchestrates the merging of entities applying business rules and sanitization.
-        Allows renaming the canonical entity
+        Unifies entities into the canonical one, optionally renaming it.
+
+        Plan + apply, exactly like the tag merge: the same planner computes the impact and the
+        writer executes it, so the dry run cannot promise a different number from the write. The
+        write is logged per absorbed entity in the ledger, which is what makes it reversible.
         """
         canonical_id = command.canonical_id
-        ids_to_merge = command.ids_to_merge
-        new_name = command.new_name
-
-        # Rule 1: Protection against self-merge
-        real_ids = [id_ for id_ in ids_to_merge if id_ != canonical_id]
+        # Protection against self-merge: the canonical is not absorbed into itself.
+        real_ids = [id_ for id_ in command.ids_to_merge if id_ != canonical_id]
 
         # If there is no merge and no rename, ignore.
-        if not real_ids and not new_name:
+        if not real_ids and not (command.new_name and command.new_name.strip()):
             return EntityMergeResponse(documents_updated=0, entities_deleted=0)
 
-        # Rule 2: Validates that the canonical exists to inherit the typing
-        canonical = self.repo.get_by_id(canonical_id)
-        if not canonical:
-            raise InvalidParam(f"Entidade canônica com ID {canonical_id} não encontrada.")
+        plan = self.repo.plan_entity_merge(canonical_id, real_ids, command.new_name)
+        return self.repo.apply_entity_merge(plan, changed_by=command.changed_by, note=command.note)
 
-        # Rule 3: Data sanitization (Names for synonyms must be lowercase)
-        dead_entities = self.repo.get_by_ids(real_ids) if real_ids else []
-        synonym_names = [normalize_entity(e.name) for e in dead_entities]
+    def preview_merge(self, command: MergeEntityPreviewCommand) -> EntityMergePreviewResponse:
+        """
+        Dry-run of a merge: what changes, what is lost and why the archivist should look twice.
 
-        # Coordination 0: Renaming the Canonical Entity
-        if new_name and new_name.strip() and normalize_entity(new_name) != normalize_entity(canonical.name):
-            old_name = canonical.name
-            # Adds the old name as a synonym so as not to break future searches
-            synonym_names.append(normalize_entity(old_name))
-            self.repo.update_entity_name(canonical_id, new_name.strip())
+        Read-only by construction (it only calls ``plan_entity_merge``), which is the point: the
+        archivist decides with a number and a warning in hand, never on the hope that the cluster
+        is harmless.
+        """
+        real_ids = [id_ for id_ in command.ids_to_merge if id_ != command.canonical_id]
+        plan = self.repo.plan_entity_merge(command.canonical_id, real_ids, command.new_name)
+        return EntityMergePreviewResponse(
+            canonical_id=plan.canonical_id,
+            canonical_name=plan.canonical_name,
+            documents_updated=plan.documents_updated,
+            links_rewritten=plan.links_rewritten,
+            entities_deleted=plan.impacted,
+            synonyms_created=plan.synonym_names,
+            synonyms_repointed=plan.repointed_synonyms,
+            renamed_from=plan.rename_from,
+            renamed_to=plan.rename_to,
+            review_flags=plan.review_flags,
+        )
 
-        # Coordination 1: Transfer documents
-        unique_docs = set()
-        if real_ids:
-            raw_docs = self.repo.get_document_ids_by_entities(real_ids)
-            unique_docs = set(raw_docs)
-            if unique_docs:
-                self.repo.link_documents_to_entity(unique_docs, canonical_id)
+    def rename_entity(self, entity_id: int, new_name: str) -> EntityIdentity:
+        """
+        Renames one entity, with the old spelling kept as a synonym.
 
-        # Coordination 2: Save synonyms (both of the dead entities and the old name). The
-        # spellings already absorbed by the dead entities are moved to the canonical BEFORE
-        # the delete below: the FK is ON DELETE CASCADE, so deleting first would destroy the
-        # earlier curation and the next extraction would recreate the term.
-        self.repo.repoint_synonyms(real_ids, canonical_id)
+        One definition of "rename a name" (the repository method the merge also calls), so the
+        single-entity rename and the merge's optional rename cannot drift apart. An unknown id is a
+        business error, never a silent no-op.
+        """
+        if not new_name.strip():
+            raise InvalidParam("O novo nome da entidade não pode ser vazio.")
 
-        if synonym_names:
-            synonyms_data = [
-                SynonymCommand(
-                    synonym_name=name,
-                    category=cast("Literal['ORG', 'PER', 'LOC']", canonical.entity_type),
-                    canonical_tag_id=None,
-                    canonical_entity_id=canonical_id,
-                )
-                for name in synonym_names
-            ]
-            self.repo.create_synonyms(synonyms_data)
+        previous = self.repo.rename_entity(entity_id, new_name)
+        if previous is None:
+            raise InvalidParam(f"Entidade com ID {entity_id} não encontrada.")
 
-        # Coordination 3: Delete old entities
-        deleted_rows = 0
-        if real_ids:
-            deleted_rows = self.repo.delete_entities(real_ids)
+        renamed = self.repo.get_by_id(entity_id)
+        if renamed is None:
+            raise InvalidParam(f"Entidade com ID {entity_id} não encontrada após o rename.")
+        return renamed
 
-        return EntityMergeResponse(documents_updated=len(unique_docs), entities_deleted=deleted_rows)
+    def list_merge_log(
+        self,
+        canonical_id: int | None = None,
+        changed_by_name: str | None = None,
+        include_undone: bool = True,
+        term: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> EntityMergeLogListResponse:
+        """One page of the merge ledger, with the total matching the same filters."""
+        total = self.repo.count_entity_merge_log(
+            canonical_id=canonical_id, changed_by_name=changed_by_name, include_undone=include_undone, term=term
+        )
+        items = self.repo.list_entity_merge_log(
+            canonical_id=canonical_id,
+            changed_by_name=changed_by_name,
+            include_undone=include_undone,
+            term=term,
+            limit=limit,
+            offset=offset,
+        )
+        return EntityMergeLogListResponse(total=total, limit=limit, offset=offset, items=items)
+
+    def undo_merge(self, merge_id: int, undone_by: Author | None = None) -> EntityMergeLogEntryDTO:
+        """
+        Reverses one merge from the ledger, restoring the entity, its links and the canonical name.
+
+        The second attempt is a conflict and an unknown id is a not-found, because a silent no-op
+        would read as "it worked" when nothing was restored.
+        """
+        entry = self.repo.undo_entity_merge(merge_id, undone_by=undone_by)
+        logger.info(f"↩️ Mesclagem de entidade {merge_id} desfeita: '{entry.absorbed_name}' restaurada.")
+        return entry
 
     def get_entity_relevance_count(
         self, entity_type: Literal["ORG", "PER", "LOC"] | None = None, limit: int = 30
