@@ -188,6 +188,15 @@ account and lifts a lockout — and if the last active administrator is the one 
 host's terminal is the way back ([Operations](operate.md) owns that procedure). Nothing on the screen
 promises a message, because no message is sent.
 
+**The temporary password is a credential for the change and nothing else.** While the account still
+carries it, the API refuses every operation of `/api/v1` — reads included — with
+`PASSWORD_CHANGE_REQUIRED`, and the shell draws the forced password change in the place of every
+screen. The three operations that forced screen stands on stay reachable: reading the session
+(`GET /auth/me`), ending it (`POST /auth/logout`) and replacing the password (`POST /auth/password`,
+which clears the flag). The refusal does not depend on the screen: a script holding the password that
+was printed to a terminal, or typed by an administrator, gets the same sentence and no access to the
+collection. The change opens the rest of the API in the same session.
+
 ### The menu hides; it never grants
 
 The shell filters its entries by the area the screen **writes** (`apps/curator/src/lib/permissions.ts`,

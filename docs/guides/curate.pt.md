@@ -163,6 +163,15 @@ administrador ativo for justamente quem não consegue entrar, o terminal do serv
 ([Operação](operate.md) é dona desse procedimento). Nada na tela promete uma mensagem, porque
 nenhuma mensagem é enviada.
 
+**A senha temporária é credencial para a troca e para nada mais.** Enquanto a conta ainda a carrega,
+a API recusa toda operação de `/api/v1` — leituras inclusive — com `PASSWORD_CHANGE_REQUIRED`, e a
+casca desenha a troca de senha forçada no lugar de toda tela. As três operações em que esse
+formulário se apoia continuam alcançáveis: ler a sessão (`GET /auth/me`), encerrá-la
+(`POST /auth/logout`) e trocar a senha (`POST /auth/password`, que limpa a marca). A recusa não
+depende da tela: um script com a senha que foi impressa num terminal, ou digitada por um
+administrador, recebe a mesma frase e nenhum acesso ao acervo. A troca abre o resto da API na mesma
+sessão.
+
 ### O menu esconde; nunca concede
 
 A casca filtra as entradas pela área em que a tela **escreve**

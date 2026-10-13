@@ -918,3 +918,29 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   **"1924 · 2 doc(s) · por Cassio"** and its **desfazer** button, and — after clicking it — the same
   row showing **"restaurada em 13/10/2026, 18:13"**. **Not** looked at: a purge over a real
   stopword of the collection (none of the 88 matched a tag, which is why the scratch tag existed).
+
+## 2026-10-13 — the API enforces the temporary password (#79)
+
+- **Range:** `bbd0189..feed903`
+- **Pages:**
+  - `guides/curate.md` — updated (the sign-in section now says the API refuses every operation but
+    the change, and names the three it still reaches, instead of leaving the refusal to the shell)
+  - `guides/curate.pt.md` — updated (the translation of the same paragraph)
+- **Why the round exists:** the section described the temporary password as the screen's promise —
+  "the account replaces it at the next sign-in" — while the guard read nothing, so a script holding
+  the password the CLI printed kept the account's whole role. The decision that the **API**, not the
+  screen, owns the refusal changed what is true on a page that documents the guard
+  (`src/scrinalia/api/security.py` is in its `sources:`), which is why this is a `updated` and not a
+  `no-change`.
+- **What the round measured.** The route through HTTP, against the test database: an account with
+  `must_change_password=True` signed in, `GET /api/v1/curation/inbox` answering **403** with
+  `error_code: "PasswordChangeRequiredException"` and `code: "PASSWORD_CHANGE_REQUIRED"`,
+  `GET /auth/me` and `POST /auth/logout` answering **200**, and the same inbox answering **200**
+  after `POST /auth/password`. Before the fix the same inbox answered **200** with the flag set —
+  the defect, measured in this checkout before the guard changed. Measured: **1550** tests passed,
+  `ruff check`/`format --check` and `basedpyright` (0 errors) green, and the contract regenerated
+  with one additive enum member (`PASSWORD_CHANGE_REQUIRED`) and the committed client rebuilt from it.
+- **What the round looked at.** No screen was **rendered**, and none needed to be: no SPA file
+  changed, the forced screen already reads the flag from `/auth/me` and calls `/auth/password`, and
+  this change moves the enforcement behind that screen. **Not** looked at in a browser; the evidence
+  is the integration test over HTTP, the unit guard test and the regenerated contract.
