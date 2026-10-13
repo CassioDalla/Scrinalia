@@ -717,6 +717,15 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   produce the same numbers; and the `pair_kind` partition of the conflict routes, which this change
   must not disturb, keeps its own tests green. Measured: 1 511 tests passed, `basedpyright` 0 errors,
   `alembic check` reports no drift after the new table.
-- **Not looked at in a browser.** The panel's preview, its "Desfazer este merge" button and the
-  ledger section are verified by `tsc`, ESLint and the Vite build, not by rendering: the evidence is
-  the green gates, not the pixels. What the API answers is verified by the route tests.
+- **What the round looked at.** The screen was **rendered**, not inferred: the built SPA was served by
+  the API (`create_app()` mounts `apps/curator/dist`) against the reference collection, with a scratch
+  session created for the round and deleted after, and the headless shell drove `/entidades/lista` over
+  CDP. Seen in the pixels: the list with the new sentence ("mesclar tem desfazer: cada entidade
+  absorvida entra no ledger antes de a escrita acontecer"); the merge panel opened by marking two rows,
+  reading "33 descrição(ões) passam a carregar **smu** · 33 vínculo(s) reescrito(s) · 1 entidade(s)
+  absorvida(s)" — the planner's real numbers over the real collection, not a copy — with the updated
+  warning below it; and the new *Ledger dos merges de entidades* section at the bottom, with its
+  server-side search box and the empty state ("Nenhum merge aplicado ainda"). **Not** verified in
+  pixels: a merge actually written and undone from the screen. Applying one would have written to the
+  reference collection's ledger, so the write rests on the integration suite, which drives the real
+  repository and the real ledger.
