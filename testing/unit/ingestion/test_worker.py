@@ -1,3 +1,4 @@
+import pytest
 from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
@@ -13,6 +14,17 @@ from scrinalia.domains.ingestion.ports import (
 # ==========================================
 # INGESTION ORCHESTRATOR TESTS (WORKER)
 # ==========================================
+
+
+@pytest.fixture(autouse=True)
+def _stub_the_remaining_count(mocker: MockerFixture) -> None:
+    """
+    Every run ends by reporting how much is left, through the repository's own counter.
+
+    These tests are about the orchestration, so the count is stubbed here; the predicate it shares
+    with the batch is pinned by ``testing/integration/test_ingestion_repository.py``.
+    """
+    mocker.patch.object(repository, "count_pending", return_value=0)
 
 
 def test_run_detail_scraping_job_success(mocker: MockerFixture, queue_mock: ScrapingQueue) -> None:
@@ -121,3 +133,48 @@ def test_run_detail_scraping_job_direct_fatal_error(mocker: MockerFixture, queue
     worker.run_detail_scraping_job(mock_db, adapter=mock_adapter)
 
     mock_queue.assert_called_once_with(mock_db, "doc-123", ScrapeStatus.FATAL_ERROR, error_msg="HTML Malformado")
+
+
+# ==========================================
+# THE BATCH SIZE
+# ==========================================
+
+
+def test_run_detail_scraping_job_forwards_the_limit(mocker: MockerFixture, queue_mock: ScrapingQueue) -> None:
+    """The bound is a decision of the caller; the worker must pass it on instead of widening it."""
+    mock_db = mocker.Mock(spec=Session)
+    get_from_queue = mocker.patch.object(repository, "get_from_queue", return_value=[queue_mock])
+    mocker.patch.object(repository, "save_raw_data")
+    mocker.patch.object(repository, "update_queue_status")
+
+    mock_adapter = mocker.Mock(spec=IDetailAdapter)
+    mock_adapter.fetch_details.return_value = {"title": "Teste"}
+
+    worker.run_detail_scraping_job(mock_db, adapter=mock_adapter, limit=7)
+
+    assert get_from_queue.call_args.kwargs["limit"] == 7
+
+
+def test_the_remaining_report_uses_the_policy_the_batch_used(mocker: MockerFixture, queue_mock: ScrapingQueue) -> None:
+    """
+    The count must read the very filters the batch read.
+
+    A count that recomputed the windows would describe a slightly different queue every time, and
+    "3 still pending" would stop meaning "the next run takes 3".
+    """
+    mock_db = mocker.Mock(spec=Session)
+    get_from_queue = mocker.patch.object(repository, "get_from_queue", return_value=[queue_mock])
+    mocker.patch.object(repository, "save_raw_data")
+    mocker.patch.object(repository, "update_queue_status")
+    count = mocker.patch.object(repository, "count_pending", return_value=42)
+
+    mock_adapter = mocker.Mock(spec=IDetailAdapter)
+    mock_adapter.fetch_details.return_value = {"title": "Teste"}
+
+    worker.run_detail_scraping_job(mock_db, adapter=mock_adapter, limit=1)
+
+    taken = get_from_queue.call_args.kwargs
+    counted = count.call_args.kwargs
+    assert counted["discovered_after"] == taken["discovered_after"]
+    assert counted["scraped_before"] == taken["scraped_before"]
+    assert counted["ignore_status"] == taken["ignore_status"]
