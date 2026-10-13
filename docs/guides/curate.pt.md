@@ -26,8 +26,8 @@ implantação em volta das telas.
 
 ## A única regra
 
-Toda escrita ou tem desfazer, ou avisa que não tem. O merge guarda um ledger; a purga tem prévia e
-não tem desfazer; a edição da descrição guarda o antes e o depois. Quando uma tela não tem nem uma
+Toda escrita ou tem desfazer, ou avisa que não tem. O merge e a purga de stopwords guardam um ledger;
+a edição da descrição guarda o antes e o depois. Quando uma tela não tem nem uma
 coisa nem outra, esta página diz em negrito.
 
 O trabalho de leitura não declara permissão: ler é o que uma sessão autenticada é. As telas que
@@ -38,16 +38,8 @@ carrega.
 
 !!! warning "Estas escritas não têm desfazer"
 
-    As operações abaixo apagam ou dissolvem uma linha que nada mais reconstrói. A purga de stopwords
-    mostra uma prévia; a exclusão pede que você digite o código de referência. Leia a confirmação.
-
-- **Purga de stopwords** — `POST /api/v1/taxonomy/tags/stopwords/purge`. Apaga toda tag cujo nome
-  seja um termo banido nos eixos `TAG` ou `ALL`. Os vínculos caem em cascata e a classificação de
-  assunto da tag vai junto. Ela tem prévia (`POST
-  /api/v1/taxonomy/tags/stopwords/purge/preview`, que lista as tags que morreriam) e **não tem
-  desfazer**: o merge guarda o estado anterior e restaura, a purga não. Banir
-  (`POST /api/v1/taxonomy/tags/stopwords`) não apaga nada; só a purga apaga, e a mensagem de sucesso
-  avisa que isso não aparece no ledger de merges.
+    As operações abaixo apagam ou dissolvem uma linha que nada mais reconstrói. A exclusão pede que
+    você digite o código de referência. Leia a confirmação.
 
 - **Excluir uma descrição** — `DELETE /api/v1/documents/{description_id}`. Definitivo. A API grava
   antes um retrato ISAD(G) da linha inteira no ledger de exclusões, e esse retrato é uma **trilha,
@@ -490,7 +482,7 @@ próxima execução do classificador.
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Tags — `/assuntos/tags` | o peso, as duplicatas, a fila de merges, os termos banidos **e a decisão de assunto de cada tag** | o merge sim (ledger); a purga **não**; a decisão de assunto sim (dá para voltar atrás) |
+| Tags — `/assuntos/tags` | o peso, as duplicatas, a fila de merges, os termos banidos **e a decisão de assunto de cada tag** | o merge sim (ledger); a purga sim (ledger próprio); a decisão de assunto sim (dá para voltar atrás) |
 | Categorias — `/assuntos/categorias` | as categorias de assunto que o classificador lê, **e o que está dentro de cada uma** | sim (aposentar e reativar) |
 | Descobrir Categorias — `/assuntos/descobrir` | se um tema proposto merece uma categoria | sim (a proposta não escreve nada) |
 | Não é assunto — `/assuntos/excecoes` | quais termos saem do eixo de assunto | sim (banir não apaga nada) |
@@ -531,7 +523,7 @@ podem ser marcadas entre si e unificadas como um conjunto, que é como um merge 
 Uma seleção marcada tem um **segundo destino**, e ele é o outro tipo de escrita: **Banir N marcadas**
 registra as grafias em `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`), no eixo escolhido ao lado do
 botão. Banir **não apaga nada** — as tags continuam no acervo, vinculadas e alcançáveis pela busca, e o
-passo que as exclui é a **purga** na aba Stopwords, atrás da própria prévia e sem desfazer. A marcação
+passo que as exclui é a **purga** na aba Stopwords, atrás da própria prévia e com um ledger que restaura cada tag. A marcação
 sobrevive ao banimento: a mesclagem para a qual ela foi feita continua possível.
 
 #### Propostas de merge
@@ -559,16 +551,24 @@ a história da escrita e o status é a da decisão.
 
 #### Stopwords
 
-Os termos banidos, e a única escrita destrutiva da taxonomia. A tela separa três coisas:
+Os termos banidos, e a escrita destrutiva da taxonomia que guarda um ledger. A tela separa três
+coisas:
 
 - **Banir** — `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`) registra que um termo não vale a pena
   num eixo: `TAG` (o eixo de assunto), `ENTITY` (NER) ou `ALL`. Uma palavra tem exatamente um escopo
   — banir de novo **move** — e banir **não apaga nada**.
 - **Desbanir** — `DELETE /api/v1/taxonomy/tags/stopwords` (`CURATE`). Reversível.
 - **Purgar** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), depois de
-  `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. Esta é a escrita que apaga as tags, e ela
-  **não tem desfazer**. A prévia lista as tags que morreriam, com a contagem de documentos e a
-  categoria, e o botão de aplicar fica desabilitado até a prévia existir.
+  `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. Esta é a escrita que apaga as tags. A prévia
+  lista as tags que morreriam, com a contagem de documentos e a categoria, e o botão de aplicar fica
+  desabilitado até a prévia existir.
+
+Cada tag apagada é gravada num **ledger** (`archive_stopword_purge_log`) antes de sumir: o retrato da
+linha, os documentos que a carregavam e as grafias que apontavam para ela. A resposta da purga traz os
+`purge_ids`, a aba Stopwords os mostra em **Ledger das purgas**, e `DELETE
+/api/v1/taxonomy/tags/stopwords/purge-log/{purge_id}` (`CURATE`) restaura a tag, os vínculos e as
+grafias; um identificador desconhecido é **404** e uma segunda tentativa é **409**. O desfazer **não**
+levanta o banimento — o termo continua stopword, e a próxima purga lista a tag restaurada de novo.
 
 !!! warning "O escopo protege o outro eixo"
 
@@ -613,7 +613,7 @@ de três destinos, por `PATCH /api/v1/taxonomy/tags/{tag_id}` (`CURATE`):
 
 As mesmas três ações valem para uma **seleção**, uma requisição por tag, e o lote informa quantas tags
 escreveu e para onde. Nada nesta aba exclui: banir uma grafia e purgar as tags ficam em **Stopwords**,
-cada um no seu passo, e a purga mantém o aviso de que **não tem desfazer**.
+cada um no seu passo, e a purga guarda um ledger com o desfazer de cada tag.
 
 ### Categorias — `/assuntos/categorias`
 

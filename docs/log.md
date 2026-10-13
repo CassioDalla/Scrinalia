@@ -889,3 +889,32 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   shell driven over CDP. Seen in the pixels: the header reading **"28 descrições"** with the chip
   **"Somente anomalias ✕"** and every row carrying its `anomalia` badge — the same 28 the route answers,
   now filtering through a field the type declares instead of one it denied.
+
+## 2026-10-13 — the stopword purge stops being the write with no way back (#36)
+
+- **Range:** `f0ba7c2..HEAD`
+- **Pages:**
+  - `guides/curate.md` — updated (the purge moved out of "what has no way back", the Stopwords
+    section describes the ledger and the undo, and the reversibility table says yes)
+  - `guides/curate.pt.md` — updated (the translation of the same three passages)
+  - `guides/data-model.md` — updated (`archive_stopword_purge_log` joined the ledger table and the
+    list of tables that carry an author pair)
+  - `.dsh/skills/taxonomy/SKILL.md` — updated (the rule file said the purge "has no undo"; it now
+    states the plan/apply/undo, the `synonym_names` snapshot and the ban that the undo must not lift)
+- **Why the round exists:** the decision on #36 was a ledger, scoped to destructive writes — and the
+  page had been describing the exception as if it were the rule. The docs were not stale by drift;
+  they were stale because the decision changed what is true.
+- **What the round measured.** The round trip through the routes, against `scrinalia_zeroed`: a
+  scratch tag `1924` carrying **2** documents, `POST /tags/stopwords/purge/preview` answering
+  `reversible=true, total_tags=1, total_documents=2`, the purge answering `tags_deleted=1,
+  purge_ids=[1]`, and `DELETE /tags/stopwords/purge-log/1` putting the row and both links back while
+  `domain_stopwords` kept `1924 | TAG`. The scratch tag, the ledger row and the scratch session were
+  deleted after the round. Measured: **1540** tests passed, `ruff check`/`format --check` and
+  `basedpyright` (0 errors) green, `alembic check` reporting no drift, the contract regenerated and
+  stable, and `tsc`, ESLint and the Vite build green.
+- **What the round looked at.** The screen was **rendered**: `/assuntos/tags?aba=stopwords` with the
+  scratch session, the headless shell driven over CDP. Seen in the pixels: the notice reading
+  **"Como o merge, ela guarda um ledger"**, the card **"Ledger das purgas"** with the row
+  **"1924 · 2 doc(s) · por Cassio"** and its **desfazer** button, and — after clicking it — the same
+  row showing **"restaurada em 13/10/2026, 18:13"**. **Not** looked at: a purge over a real
+  stopword of the collection (none of the 88 matched a tag, which is why the scratch tag existed).

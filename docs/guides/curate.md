@@ -50,9 +50,9 @@ accounts and the deployment around the screens.
 
 ## The one rule
 
-Every write either has an undo, or it announces that it does not. The merge keeps a ledger; the
-purge has a preview and no undo; editing a description keeps the before and after. When a screen has
-neither, this page says so in bold.
+Every write either has an undo, or it announces that it does not. The merge and the stopwords purge
+keep a ledger; editing a description keeps the before and after. When a screen has neither, this page
+says so in bold.
 
 Read-only work declares no permission: reading is what an authenticated session is. The screens that
 decide carry the area they write to, and the API refuses with a 403 and a sentence when the account
@@ -62,15 +62,8 @@ does not carry it.
 
 !!! warning "These writes have no undo"
 
-    The operations below delete or dissolve a row that nothing else rebuilds. The stopwords purge
-    shows a preview; the deletion asks you to type the reference code. Read the confirmation.
-
-- **Stopwords purge** — `POST /api/v1/taxonomy/tags/stopwords/purge`. Deletes every tag whose name
-  is a banned term on the `TAG` or `ALL` axis. The links cascade and the tag's classification goes
-  with it. It has a preview (`POST /api/v1/taxonomy/tags/stopwords/purge/preview`, which lists the
-  tags that would die) and **no undo**: the merge keeps the previous state and restores it, the
-  purge does not. Banning (`POST /api/v1/taxonomy/tags/stopwords`) deletes nothing; only the purge
-  does, and the success message says it does not appear in the merge ledger.
+    The operations below delete or dissolve a row that nothing else rebuilds. The deletion asks you
+    to type the reference code. Read the confirmation.
 
 - **Excluding a description** — `DELETE /api/v1/documents/{description_id}`. Definitive. The API
   writes an ISAD(G) snapshot of the whole row into the deletion ledger first, and that snapshot is a
@@ -511,7 +504,7 @@ as a subject again on the next classifier run.
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
-| Tags — `/assuntos/tags` | the weight, the duplicates, the merge queue, the banned terms **and the subject decision of each tag** | the merge yes (ledger); the purge **no**; a subject decision yes (it can be taken back) |
+| Tags — `/assuntos/tags` | the weight, the duplicates, the merge queue, the banned terms **and the subject decision of each tag** | the merge yes (ledger); the purge yes (its own ledger); a subject decision yes (it can be taken back) |
 | Categorias — `/assuntos/categorias` | the subject categories the classifier reads, **and what is inside each one** | yes (retire and reactivate) |
 | Descobrir Categorias — `/assuntos/descobrir` | whether a proposed theme deserves a category | yes (the proposal writes nothing) |
 | Não é assunto — `/assuntos/excecoes` | which terms leave the subject axis | yes (banning deletes nothing) |
@@ -553,8 +546,8 @@ A marked selection has a **second destination**, and it is the other kind of wri
 marcadas** registers the spellings in `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`), on the axis
 chosen beside the button. Banning **deletes nothing** — the tags stay in the collection, linked and
 reachable by search, and the step that removes them is the **purge** in the Stopwords tab, behind its
-own preview and with no undo. The marks survive the ban: the merge they were made for is still
-possible.
+own preview and with a ledger that restores each tag. The marks survive the ban: the merge they were
+made for is still possible.
 
 #### Propostas de merge
 
@@ -582,17 +575,24 @@ ledger is the write's history and the status is the decision's.
 
 #### Stopwords
 
-The banned terms, and the one destructive write in the taxonomy. The screen keeps three things
-apart:
+The banned terms, and the destructive write in the taxonomy that keeps a ledger. The screen keeps
+three things apart:
 
 - **Banir** — `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`) records that a term is not worth
   considering on one axis: `TAG` (the subject axis), `ENTITY` (NER) or `ALL`. A word has exactly one
   scope — re-banning it **moves** it — and banning **deletes nothing**.
 - **Desbanir** — `DELETE /api/v1/taxonomy/tags/stopwords` (`CURATE`). Reversible.
 - **Purgar** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), after
-  `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. This is the write that deletes the tags, and
-  it has **no undo**. The preview lists the tags that would die, with their document count and
-  category, and the apply button is disabled until the preview exists.
+  `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. This is the write that deletes the tags. The
+  preview lists the tags that would die, with their document count and category, and the apply button
+  is disabled until the preview exists.
+
+Each deleted tag is written to a **ledger** (`archive_stopword_purge_log`) before it disappears: the
+snapshot of the row, the documents that carried it and the spellings that pointed at it. The purge
+response carries the `purge_ids`, the Stopwords tab shows them in **Ledger das purgas**, and
+`DELETE /api/v1/taxonomy/tags/stopwords/purge-log/{purge_id}` (`CURATE`) restores the tag, its links
+and its spellings; an unknown id is **404** and a second attempt is **409**. The undo does **not**
+lift the ban — the term is still a stopword, and the next purge lists the restored tag again.
 
 !!! warning "The scope protects the other axis"
 
@@ -637,7 +637,7 @@ one of three destinations, through `PATCH /api/v1/taxonomy/tags/{tag_id}` (`CURA
 
 The same three actions apply to a **selection**, one request per tag, and the batch reports how many
 tags it wrote and where. Nothing on this tab deletes: banning a spelling and purging the tags are in
-**Stopwords**, each behind its own step, and the purge keeps its "no undo" warning.
+**Stopwords**, each behind its own step, and the purge keeps a ledger with the undo of each tag.
 
 ### Categorias — `/assuntos/categorias`
 
