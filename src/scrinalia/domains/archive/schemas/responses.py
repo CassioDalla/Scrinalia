@@ -84,6 +84,10 @@ class RouteMessageCode(enum.StrEnum):
     # and already speaks both domains; the identity domain itself imports nothing from the archive.
     SESSION_ENDED = "SESSION_ENDED"
     PASSWORD_CHANGED = "PASSWORD_CHANGED"
+    #: The account still carries the temporary password the CLI generated (or an administrator
+    #: typed), so the guard refuses every operation but the change itself and the ways out the
+    #: forced screen needs. An outcome and not a wording: it names the refusal, not the sentence.
+    PASSWORD_CHANGE_REQUIRED = "PASSWORD_CHANGE_REQUIRED"
     #: An administrator replaced somebody's password, which ended every session of that account.
     USER_PASSWORD_RESET = "USER_PASSWORD_RESET"
     #: Every session of one account was ended at once.
