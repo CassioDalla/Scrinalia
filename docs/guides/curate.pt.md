@@ -702,6 +702,17 @@ O vocabulário de nomes próprios, por peso ou por similaridade. Quatro decisõe
   A lista de pares é evidência crua, com os dois identificadores, porque duas linhas podem ler nomes
   quase iguais e a canônica é uma escolha que o arquivista precisa conseguir distinguir.
 
+O merge tem três portas e um único painel atrás de todas: a seleção na **Relevância**, um par na
+**Similaridade** e o cartão **Mesclar pelo nome** acima das abas. O cartão existe porque as outras duas
+são guiadas por listas que o arquivista não controla — a relevância é ordenada por peso e limitada,
+então dois nomes carregados por números muito diferentes de descrições nunca ficam na mesma página, e
+a similaridade é trigrama, a única medida que falha no par de que ele tem mais certeza (`smu` e `smcs
+secretaria municipal de comunicação social`: 68 descrições contra 1, e 0.045 de similaridade). O cartão
+recebe os nomes pelo type-ahead que a aba Assuntos do dossiê já usa, então herda o piso de dois
+caracteres da API em vez de inventar um; mostra o peso de cada nome, para a canônica ser escolhida com
+os números à vista; e **a lista é dele** — não consome as caixas marcadas na Relevância, e com menos de
+dois nomes nada é escrito.
+
 Ler é a outra metade desta tela, e o cartão se abre nela. Um nome se expande nas **descrições que o
 carregam** — a busca do acervo (`GET /api/v1/documents`) com `entity_id`, paginada de dez em dez
 dentro do cartão, de modo que o selo acima e o `total` da lista são um número contado duas vezes;

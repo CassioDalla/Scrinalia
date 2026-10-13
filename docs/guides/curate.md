@@ -725,6 +725,17 @@ The named-entity vocabulary, by weight or by similarity. Four decisions:
   The pair list is raw evidence, with both ids, because two rows can read almost the same name and
   the canonical is a choice the archivist has to be able to tell apart.
 
+The merge has three doors and one panel behind all of them: the selection on **Relevância**, a pair on
+**Similaridade**, and the **Mesclar pelo nome** card above the tabs. The card exists because the other
+two are list-driven and the archivist controls neither list — relevance is ordered by weight and
+capped, so two names carried by very different numbers of descriptions are never on the same page, and
+similarity is trigram, the one measure that fails on the pair they are most sure about (`smu` and
+`smcs secretaria municipal de comunicação social`: 68 descriptions against 1, and 0.045 of trigram
+similarity). The card takes the names through the type-ahead the dossier's Assuntos tab already uses,
+so it inherits the API's two-character floor instead of inventing one; it shows each name's weight, so
+the canonical is chosen with the numbers in view; and **its list is its own** — it does not consume the
+checkboxes of Relevância, and with fewer than two names nothing is written.
+
 Reading is the other half of this screen, and the card opens into it. A name expands into the
 **descriptions that carry it** — the collection search (`GET /api/v1/documents`) with `entity_id`,
 paged ten at a time inside the card, so the badge above and the list's `total` are one number counted
