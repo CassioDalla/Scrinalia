@@ -22,3 +22,4 @@ because the obvious alternative was measured and lost.
 | [0010](0010-documentation-coverage-and-freshness.md) | The documentation is versioned with the code: coverage is a gate, freshness is a report recorded in a ledger. |
 | [0011](0011-first-run-setup-without-an-open-door.md) | First-run setup: an empty installation creates its first administrator once, under a table lock, and answers 409 forever after. Amends ADR 0009. |
 | [0012](0012-the-documentation-site-is-published-by-ci.md) | The documentation site is published by CI from `main`, into the Pages artifact, latest-only. Amends ADR 0010. |
+| [0013](0013-the-tag-axis-is-the-subject-axis.md) | The tag axis is the subject axis: a tag is a drawer or not-a-subject, the place/producer/person cases live on the entity axis, and the exclusion bans the spelling it confirms. |

@@ -475,8 +475,9 @@ O que *este* acervo declara, em oposição ao que a língua ou o software fixam.
   (`SMU`) ou o código inteiro (`BR PRADAP`) mapeado para o nome que a proposta de arranjo sugere; o
   código inteiro tem precedência sobre o último token;
 - **termos do acervo** — `POST`/`PATCH /api/v1/vocabulary/collection-terms` (`CATALOGUE`): as
-  grafias que o acervo carrega e que não são assunto, tipadas para a faceta Lugar reivindicar um
-  lugar enquanto o nome de uma pessoa não vai a lugar nenhum.
+  grafias que o acervo carrega e que não são assunto, tipadas para o guarda reconhecer um lugar ou
+  um nome de pessoa. O que o nome *é* fica no eixo de entidades (`LOC`, `PER`), não num estado da
+  tag: o eixo de assunto simplesmente para de adivinhar sobre ele.
 
 O que é propriedade da língua portuguesa — *rua*, *não identificado*, *303 anos*, um ano solto — fica
 no perfil de idioma e **não** aparece aqui: mudá-lo seria mudar o significado que o software dá à
@@ -490,7 +491,7 @@ próxima execução do classificador.
 | Tags — `/assuntos/tags` | o peso, as duplicatas, a fila de merges, os termos banidos **e a decisão de assunto de cada tag** | o merge sim (ledger); a purga sim (ledger próprio); a decisão de assunto sim (dá para voltar atrás) |
 | Categorias — `/assuntos/categorias` | as categorias de assunto que o classificador lê, **e o que está dentro de cada uma** | sim (aposentar e reativar) |
 | Descobrir Categorias — `/assuntos/descobrir` | se um tema proposto merece uma categoria | sim (a proposta não escreve nada) |
-| Não é assunto — `/assuntos/excecoes` | quais termos saem do eixo de assunto | sim (banir não apaga nada) |
+| Não é assunto — `/assuntos/excecoes` | quais termos saem do eixo de assunto e têm a grafia banida de voltar a ser tag | sim (o banimento não apaga nada, e o desfazer levanta o banimento que esta decisão plantou) |
 
 ### Tags — `/assuntos/tags`
 
@@ -561,12 +562,17 @@ coisas:
 
 - **Banir** — `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`) registra que um termo não vale a pena
   num eixo: `TAG` (o eixo de assunto), `ENTITY` (NER) ou `ALL`. Uma palavra tem exatamente um escopo
-  — banir de novo **move** — e banir **não apaga nada**.
+  — banir de novo **move** — e banir **não apaga nada**. Um banimento digitado aqui é gravado com
+  `source=HUMAN`; o que a tela *Não é assunto* planta é `EXCLUSION`, e o que uma resolução de
+  conflito planta é `CONFLICT`. A lista mostra o escopo em todo termo e a origem como selo quando ela
+  não é `HUMAN` — um termo digitado aqui é o padrão, e o selo marca os que chegaram como consequência
+  de outra decisão.
 - **Desbanir** — `DELETE /api/v1/taxonomy/tags/stopwords` (`CURATE`). Reversível.
 - **Purgar** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), depois de
   `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. Esta é a escrita que apaga as tags. A prévia
-  lista as tags que morreriam, com a contagem de documentos e a categoria, e o botão de aplicar fica
-  desabilitado até a prévia existir.
+  lista as tags que morreriam, com a contagem de documentos, a categoria **e de onde veio o
+  banimento** (`HUMAN`, `CONFLICT` ou `EXCLUSION`), para um termo banido com o acervo em mente não se
+  confundir com um digitado à mão; o botão de aplicar fica desabilitado até a prévia existir.
 
 Cada tag apagada é gravada num **ledger** (`archive_stopword_purge_log`) antes de sumir: o retrato da
 linha, os documentos que a carregavam e as grafias que apontavam para ela. A resposta da purga traz os
@@ -594,29 +600,32 @@ O estado é uma **partição**, e `ALL` é a ausência de filtro, não um estado
 
 | `subject_state` | O que significa |
 | --- | --- |
-| `PENDING` | Sem categoria, sem veredito e sem faceta: ninguém decidiu. É o que o cartão do Início conta |
-| `NOT_SUBJECT` | Uma pessoa declarou que a tag não é assunto, e ela não vai a lugar nenhum |
-| `FACET` | A tag está no eixo não-assunto: é um produtor ou um lugar |
+| `PENDING` | Sem categoria e sem veredito: ninguém decidiu. É o que o cartão do Início conta |
+| `NOT_SUBJECT` | Uma pessoa declarou que a tag não é assunto; o classificador para de adivinhar sobre ela e a grafia fica banida de voltar a ser tag |
 | `LOW_CONFIDENCE` | O classificador rodou, não teve confiança para arquivar a tag e a deixou sem decisão |
 
-A linha carrega a evidência (peso, a confiança do classificador, a faceta em que está) e exatamente um
-de três destinos, por `PATCH /api/v1/taxonomy/tags/{tag_id}` (`CURATE`):
+A linha carrega a evidência (peso e a confiança do classificador) e exatamente um de dois destinos,
+por `PATCH /api/v1/taxonomy/tags/{tag_id}` (`CURATE`):
 
 - **uma categoria** — a categoria em que a tag entra. A decisão é **global**: muda o selo de todas as
   descrições que carregam a tag, e a tela diz isso antes do clique;
-- **não é assunto** — `macro_category_id=null`. A tag continua no acervo e alcançável pela busca; só o
-  eixo de assunto deixa de adivinhar sobre ela. O termo entra em `domain_subject_exclusions`, que é a
-  metade durável do veredito: o classificador re-enfileira a tag que tem categoria vazia toda vez que
-  o conjunto de rótulos muda, então só a coluna seria uma decisão que a próxima execução sobrescreve.
-  O caminho de volta é `DELETE /api/v1/taxonomy/tags/subject-exclusions`;
-- **um produtor ou um lugar** — `PUT /api/v1/taxonomy/tags/{tag_id}/facets/{facet_type}` (`CURATE`),
-  com `INSTITUTION` ou `PLACE`, e `DELETE` no mesmo caminho para desfazer. A declaração resolve o
-  estado inteiro: a tag sai de qualquer categoria (a faceta é o que ela é *em vez* de ser assunto) e o
-  termo dela entra nas exclusões. É o destino para o qual o esquema foi escrito — `alfa` alcança 2.376
-  descrições e `cidade` 1.865, e forçá-las para dentro de uma categoria é causa medida do defeito de
-  classificação. Nada infere uma faceta: quem declara é uma pessoa.
+- **não é assunto** — `macro_category_id=null`, que é a mesma escrita que a tela *Não é assunto* faz.
+  A tag continua no acervo e alcançável pela busca, e só a coluna seria uma decisão que a próxima
+  execução sobrescreve; por isso o termo entra em `domain_subject_exclusions` **e a grafia é banida no
+  escopo `TAG`**, para a próxima ingestão não recriá-la. O caminho de volta é
+  `DELETE /api/v1/taxonomy/tags/subject-exclusions`, e ele levanta só o banimento que esta decisão
+  plantou.
 
-As mesmas três ações valem para uma **seleção**, uma requisição por tag, e o lote informa quantas tags
+Um produtor, um lugar ou uma pessoa **não** é um terceiro destino. O que o nome *é* pertence ao eixo
+de entidades, onde ele carrega um tipo (`LOC`, `PER`, `ORG`) que a busca e a projeção pública leem;
+uma grafia que é tag e entidade ao mesmo tempo se resolve em **Conflitos — `/entidades/conflitos`**,
+que bane a grafia perdedora e guarda um ledger. Declarar o termo não-assunto é o que o tira da fila de
+assunto; a entidade é onde ele mantém o significado. A medição por trás do estado removido continua
+valendo — `alfa` alcança 2.376 descrições e `cidade` 1.865, e forçá-las para dentro de uma categoria é
+causa medida do defeito de classificação —, mas a resposta agora é a entidade e a exclusão, não um
+quarto estado da tag.
+
+As mesmas duas ações valem para uma **seleção**, uma requisição por tag, e o lote informa quantas tags
 escreveu e para onde. Nada nesta aba exclui: banir uma grafia e purgar as tags ficam em **Stopwords**,
 cada um no seu passo, e a purga guarda um ledger com o desfazer de cada tag.
 
@@ -657,15 +666,36 @@ erro.
 A metade curada do "isto não é assunto de jeito nenhum". O guarda determinístico pega o que tem forma
 — uma data, um placeholder, um logradouro, um número solto — e, na medição real, pegou 1 de 4 dos
 não-assuntos rotulados à mão; o resto é julgamento semântico que nenhuma regra resolve (`pessoas`,
-`vista aérea`, `capanema`). A tela mostra os candidatos do guarda com a evidência deles (peso, se a
-faceta Lugar reivindica o termo, se a mesma grafia também é entidade) e oferece registrá-los com
-`source=RULE` ou um a um.
+`vista aérea`, `capanema`). A tela mostra os candidatos do guarda com a evidência deles (peso, se o
+termo é um lugar, se a mesma grafia também é entidade, a categoria que o bloquearia e se a grafia já
+está banida) e oferece registrá-los com `source=RULE` ou um a um.
 
-A escrita é `POST /api/v1/taxonomy/tags/subject-exclusions` (`CURATE`) e a reversão é `DELETE`
-(`CURATE`, o "restaurar" da tela). **Banir aqui não apaga nada**: a tag continua no acervo, continua
-vinculada e continua alcançável pela busca — só a classificação de assunto para de adivinhar. A rota
-deliberadamente não propõe nada para a metade semântica: os sinais disponíveis mentem, e um modelo que
-não sabe se abster responderia com confiança e errado.
+Confirmar é uma leitura que escreve um plano primeiro: `POST
+/api/v1/taxonomy/tags/subject-exclusions/preview` (`AUTHENTICATED`) devolve `applicable` e `blocked`,
+calculados pela mesma função que a escrita consome, então a prévia não pode prometer outro número.
+
+A escrita é `POST /api/v1/taxonomy/tags/subject-exclusions` (`CURATE`), e ela faz duas coisas de uma
+vez: registra o termo em `domain_subject_exclusions`, para o classificador de assunto parar de
+adivinhar sobre ele, **e bane a grafia no escopo `TAG`**, para a próxima ingestão não recriar a tag
+que acabou de ser decidida. **O banimento não apaga nada**: a tag continua no acervo, continua
+vinculada e continua alcançável pela busca. Removê-la é um ato separado — a **purga**, na aba
+Stopwords, atrás da própria prévia e com um ledger que restaura cada tag — e a prévia da purga diz
+quais banimentos foram plantados aqui (`EXCLUSION`) e quais à mão (`HUMAN`).
+
+Duas respostas que a tela precisa mostrar:
+
+- um termo cuja tag já está numa **categoria** não é aplicado: ele volta em `blocked` com a categoria
+  que precisa ser esvaziada primeiro, porque "em que categoria esta tag está?" é uma pergunta sobre a
+  *tag*, respondida no catálogo de tags, e uma afirmação sobre um *termo* não pode desarquivar um
+  veredito humano. O código é `SUBJECT_EXCLUSIONS_BLOCKED` quando nada foi aplicado e algo foi
+  recusado, `SUBJECT_EXCLUSIONS_PARTIAL` quando alguns foram aplicados e alguns recusados, e
+  `created` / `banned` / `blocked` levam as três respostas;
+- a rota deliberadamente não propõe nada para a metade semântica: os sinais disponíveis mentem, e um
+  modelo que não sabe se abster responderia com confiança e errado.
+
+A reversão é `DELETE` (`CURATE`, o "restaurar" da tela). Ela responde `removed` e `unbanned`, e o
+levantamento é exato: só um banimento que esta decisão plantou sai com ela. Uma grafia que uma pessoa
+baniu na tela Stopwords, ou que uma resolução de conflito plantou antes, sobrevive.
 
 ## Entidades
 

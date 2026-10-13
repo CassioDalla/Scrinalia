@@ -103,21 +103,19 @@ Três propriedades desta tabela sustentam o modelo:
 | --- | --- | --- |
 | `archive_tags` | Um termo de assunto do acervo. | `tag_id`, `name` (único), `macro_category_id`, `ai_confidence_score`, `execution_log` (JSONB) |
 | `archive_macro_categories` | A categoria de assunto (o eixo do "sobre o quê"). | `category_id`, `name` (único), `description`, `classifier_label`, `is_active` |
-| `archive_tag_facets` | O eixo não-assunto de uma tag: o que ela *é* quando não é um *sobre*. | chave composta `(tag_id, facet_type)`, `value`, `created_by`, `created_by_user_id` |
 | `archive_entities` | Uma entidade nomeada (pessoa, organização, lugar) encontrada por NER ou inserida à mão. | `entity_id`, `name` (único), `entity_type` |
 | `archive_entity_merge_log` | Uma linha por entidade absorvida (um **merge**) ou por nome renomeado (uma **renomeação**), retratada antes de qualquer mudança. | `kind` (`MERGE`/`RENAME`, com check), `canonical_renamed_from`, `renamed_from_synonym_created`, `undone_at`; `undo_entity_merge` restaura a linha, seus vínculos, suas grafias e o nome que a canônica perdeu. |
 | `archive_document_tags` | Quais tags uma descrição carrega. | chave composta `(description_id, tag_id)` |
 | `archive_document_entities` | Quais entidades uma descrição carrega. | chave composta `(description_id, entity_id)` |
 | `archive_ai_review_queue` | A fila de auditoria da IA; o lado da *decisão* de uma colisão tag × entidade. | `anomaly_type` (`AnomalyType`), `status` (`ArchiveReviewStatus`), `context_payload` (JSONB), `llm_decision`, `llm_confidence`, `llm_reason` |
 
-`archive_tags.macro_category_id` guarda no máximo uma categoria de assunto; `archive_tag_facets` é uma
-tabela separada porque uma tag carrega no máximo um assunto, mas pode ser lugar *e* instituição ao
-mesmo tempo. `facet_type` é restrito a `INSTITUTION` ou `PLACE`, e nada grava uma faceta
-automaticamente — faceta é ato de curadoria, nunca inferência da IA. O ato é
-`PUT /api/v1/taxonomy/tags/{tag_id}/facets/{facet_type}` (`CURATE`), desfeito por `DELETE` no mesmo
-caminho; a declaração também esvazia a categoria da tag e registra o termo dela em
-`domain_subject_exclusions`, porque uma tag nesse eixo continua não sendo um assunto que o
-classificador possa adivinhar.
+`archive_tags.macro_category_id` guarda no máximo uma categoria de assunto, e esse é todo o eixo de
+assunto: uma tag está numa **categoria**, foi declarada **não-assunto**, ou ninguém decidiu (ADR 0013).
+O que um nome *é* quando não é um sobre-o-quê — um lugar, um produtor, uma pessoa — fica no **eixo de
+entidades**, onde ele tem um `entity_type` que a busca e a projeção pública leem; uma grafia que é tag
+e entidade ao mesmo tempo se resolve pela resolução de conflito tag × entidade, que bane a grafia
+perdedora e guarda um ledger. `archive_tag_facets` guardava essa distinção como um segundo estado da
+tag; seu único leitor era o selo de estado que ela alimentava, e ela foi removida.
 
 A identidade de uma tag e de uma entidade é a grafia normalizada: `lower(btrim(name))` é único nas
 duas tabelas, ao lado do `name` único. Sem essa regra, uma linha guardada em Caixa Alta e a linha em
@@ -155,9 +153,9 @@ do acervo, não sobre a instalação.
 
 | Tabela | Para que serve | Colunas principais |
 | --- | --- | --- |
-| `domain_stopwords` | Termos banidos pela curadoria, com o eixo que eles deixam. | `id`, `word` (único), `word_scope` (`StopwordsScope`: `TAG`, `ENTITY`, `ALL`) |
+| `domain_stopwords` | Termos banidos pela curadoria, com o eixo que eles deixam e quem plantou o banimento. | `id`, `word` (único), `word_scope` (`StopwordsScope`: `TAG`, `ENTITY`, `ALL`), `source` (`HUMAN`/`CONFLICT`/`EXCLUSION`, com check) |
 | `domain_ner_exclusions` | Termos que a curadoria decidiu pertencerem ao eixo TAG, não a entidades nomeadas. | `id`, `term` (único), `reason`, `source` (`JUDGE`/`HUMAN`), `tag_id` |
-| `domain_subject_exclusions` | Termos que a curadoria decidiu não serem assunto de forma alguma. | `id`, `term` (único), `reason`, `source` (`HUMAN`/`RULE`) |
+| `domain_subject_exclusions` | Termos que a curadoria decidiu não serem assunto de forma alguma, e se esta linha plantou o banimento no escopo `TAG`. | `id`, `term` (único), `reason`, `source` (`HUMAN`/`RULE`), `ban_created` |
 | `domain_synonyms` | Grafias mapeadas para uma tag ou entidade canônica. | `id`, `synonym_name`, `category` (`TAG`/`ORG`/`LOC`/`PER`), `canonical_tag_id`, `canonical_entity_id` |
 | `domain_text_templates` | Trechos repetidos que a curadoria mantém fora do texto da IA. | `template_id`, `text`, `fingerprint` (único), `variants`, `action`, `replacement`, `scope`, `status`, `occurrence_count`, `sample_document_ids` |
 | `archive_cleaning_rules` | Regras de regex cadastradas por um arquivista. | `rule_id`, `rule_name`, `rule_kind` (`REWRITE`/`VALIDATE`/`LLM_CHECK`), `target_column`, `regex_pattern`, `replacement_string`, `anomaly_reason`, `engine_name`, `preset`, `is_active` |
@@ -185,8 +183,9 @@ o que a sugestão de título precisa.
 `token` é tanto um token de código único (`ED`, `ALFA`) quanto um código inteiro (`ACERVO RAIZ`). A
 proposta lê o código inteiro primeiro e recorre ao seu último token, então uma linha de código
 completo vence uma linha de último token. `CollectionTermKind` é `DISTRICT`, `MUNICIPALITY`, `STATE`,
-`REGION`, `COUNTRY` ou `PERSON`; um tipo de lugar reivindica a faceta `PLACE`, e `PERSON` não vai a
-lugar nenhum — é o produtor, não um assunto.
+`REGION`, `COUNTRY` ou `PERSON`; um tipo de lugar e `PERSON` marcam os termos que o **eixo de
+entidades** carrega (`LOC`, `PER`), que é sobre o que o eixo de assunto para de adivinhar — eles não
+são um estado da tag.
 
 #### Operação
 
@@ -270,13 +269,22 @@ Uma colisão tag × entidade tem dois veredictos possíveis, e as duas direçõe
 | A favor da **tag** | `domain_ner_exclusions` | O termo é um assunto legítimo; uma extração NER dele é falso positivo |
 
 `domain_stopwords.word` é **único**, então um termo vive em exatamente um eixo. Banir de novo um termo
-o *move* (`save_stopwords` é um upsert em `word`) em vez de deixar a tela mostrando um eixo do qual o
-arquivista acabou de sair. `word_scope` é `TAG`, `ENTITY` ou `ALL`.
+na tela Stopwords o *move* (`save_stopwords` é um upsert em `word`) em vez de deixar a tela mostrando
+um eixo do qual o arquivista acabou de sair. `word_scope` é `TAG`, `ENTITY` ou `ALL`, e `source`
+(`HUMAN`, `CONFLICT` ou `EXCLUSION`) diz quem plantou o banimento — a origem que a prévia da purga lê
+para separar um termo banido com o acervo em mente de um digitado à mão.
 
-`TagRepository.get_stopwords()` lê **somente** o escopo `TAG`/`ALL`. Um veto com escopo `ENTITY` é um
-banimento da extração NER, não uma afirmação sobre o eixo de assunto; lê-lo ali já fez a purga da
-curadoria apagar tags que o curador tinha mantido de propósito. É por isso que as duas direções não
-podem ser colapsadas em uma tabela ou um escopo só.
+As duas escritas de um mesmo banimento não são a mesma escrita. `save_stopwords` **move** o escopo,
+porque é o arquivista mudando de ideia na tela; `TagRepository.ensure_tag_ban` — o que a tela *Não é
+assunto* e a resolução de conflito usam — **nunca estreita**: um veto `ENTITY` vira `ALL`, e um
+`TAG`/`ALL` existente fica como está. Escrever `TAG` por cima de um veto `ENTITY` pararia silenciosamente
+a extração NER de um nome que o arquivista tinha mantido de propósito, e é por isso que o acoplamento
+usa a segunda escrita.
+
+`TagRepository.get_stopwords_with_source()` lê **somente** o escopo `TAG`/`ALL`. Um veto com escopo
+`ENTITY` é um banimento da extração NER, não uma afirmação sobre o eixo de assunto; lê-lo ali já fez a
+purga da curadoria apagar tags que o curador tinha mantido de propósito. É por isso que as duas
+direções não podem ser colapsadas em uma tabela ou um escopo só.
 
 `domain_ner_exclusions` é uma *decisão*, não ruído: carrega `reason`, `source` (`JUDGE` para o juiz
 de conflito por LLM, `HUMAN` para um curador) e o `tag_id` que a justifica. O `tag_id` é
@@ -288,8 +296,12 @@ expurgo de NER, um ato separado com o seu próprio impacto na frente e o seu pr�
 `domain_subject_exclusions` tem a mesma forma para o outro eixo: um termo que a curadoria decidiu não
 ser assunto de forma alguma. O guardião determinístico cobre o que tem forma reconhecível (um ano
 solto, um placeholder, uma rua, uma medida); a metade semântica (`pessoas`, `vista aérea`) é uma
-decisão, e vive aqui com `source` (`HUMAN` ou `RULE`). Um termo excluído continua sendo uma tag do
-acervo, alcançável pela busca — a exclusão silencia o classificador de assunto, não o termo.
+decisão, e vive aqui com `source` (`HUMAN` ou `RULE`). Confirmar também **bane a grafia** no escopo
+`TAG`, para a próxima ingestão não recriar a tag; o banimento não apaga nada, e `ban_created` registra
+se *esta* linha o plantou, o que torna o desfazer exato. A escrita recusa um termo cuja tag já está
+numa categoria — essa categoria é um veredito humano sobre a tag, e uma afirmação sobre um termo não
+pode desarquivá-lo. Um termo excluído continua sendo uma tag do acervo, alcançável pela busca até a
+purga — um ato separado — removê-la.
 
 ## Os ledgers, um a um
 
@@ -310,9 +322,11 @@ intercambiáveis, e só alguns têm desfazer.
 Dois detalhes tornam os ledgers reversíveis exatos em vez de aproximados. `created_link_ids` registra
 os vínculos que a operação *criou*; tanto o merge quanto a resolução de conflito vinculam com
 `ON CONFLICT DO NOTHING`, então um desfazer que apagasse todo vínculo removeria vínculos que já
-existiam antes dele. `ban_created` cumpre o mesmo papel para a escrita de governança: o desfazer só
-pode remover o banimento quando esta resolução é a que o plantou, senão reverter uma decisão levantaria
-um banimento que uma decisão anterior fez. Para o merge, `synonym_created` e `synonym_previous_tag_id`
+existiam antes dele. `ban_created` cumpre o mesmo papel para as duas escritas que plantam um banimento
+— a resolução de conflito e a exclusão de assunto: o desfazer só pode remover o banimento quando esta
+linha é a que o plantou, e só enquanto o `source` do banimento ainda nomeia esse escritor, senão
+reverter uma decisão levantaria um banimento que uma decisão anterior fez. Para o merge,
+`synonym_created` e `synonym_previous_tag_id`
 capturam o estado das grafias antes do merge, e `repointed_synonym_names` registra as grafias que
 apontavam para a tag absorvida e foram movidas para a canônica. `undone_at` mantém o desfazer de uso
 único e mantém o rastro legível depois: a linha nunca é apagada.
@@ -443,7 +457,7 @@ O mesmo par aparece onde quer que uma pessoa decida algo: `archive_document_dele
 `deleted_by_user_id`), `archive_taxonomy_merge_log` (`changed_by`, `undone_by`),
 `archive_stopword_purge_log` (`changed_by`, `undone_by`),
 `archive_conflict_resolution_log` (`decided_by`, `undone_by`), `archive_hierarchy_node_plans` e
-`archive_tag_merge_proposals` (`decided_by`), `archive_tag_facets`, `archive_cleaning_rules` e
+`archive_tag_merge_proposals` (`decided_by`), `archive_cleaning_rules` e
 `domain_text_templates` (`created_by`), `archive_hierarchy_materialisation_log` (`changed_by`),
 `archive_worker_runs` (`requested_by`) e `archive_worker_settings_revisions` (`changed_by`). O autor é
 gravado por `author_columns`/`assign_author` a partir da sessão, nunca tomado da requisição.

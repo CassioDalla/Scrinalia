@@ -114,20 +114,19 @@ Three properties of this table carry the model:
 | --- | --- | --- |
 | `archive_tags` | A subject term of the collection. | `tag_id`, `name` (unique), `macro_category_id`, `ai_confidence_score`, `execution_log` (JSONB) |
 | `archive_macro_categories` | The subject category (the "about" axis). | `category_id`, `name` (unique), `description`, `classifier_label`, `is_active` |
-| `archive_tag_facets` | The non-subject axis of a tag: what it *is* when it is not an *about*. | `(tag_id, facet_type)` composite key, `value`, `created_by`, `created_by_user_id` |
 | `archive_entities` | A named entity (person, organisation, place) found by NER or inserted by hand. | `entity_id`, `name` (unique), `entity_type` |
 | `archive_entity_merge_log` | One row per absorbed entity (a **merge**) or per renamed name (a **rename**), snapshotted before anything changes. | `kind` (`MERGE`/`RENAME`, checked), `canonical_renamed_from`, `renamed_from_synonym_created`, `undone_at`; `undo_entity_merge` restores the row, its links, its spellings and the name the canonical lost. |
 | `archive_document_tags` | Which tags a description carries. | `(description_id, tag_id)` composite key |
 | `archive_document_entities` | Which entities a description carries. | `(description_id, entity_id)` composite key |
 | `archive_ai_review_queue` | The AI auditing queue; the decision side of a tag × entity collision. | `anomaly_type` (`AnomalyType`), `status` (`ArchiveReviewStatus`), `context_payload` (JSONB), `llm_decision`, `llm_confidence`, `llm_reason` |
 
-`archive_tags.macro_category_id` holds at most one subject category; `archive_tag_facets` is a separate
-table because a tag carries at most one subject but can be a place *and* an institution at once.
-`facet_type` is checked to `INSTITUTION` or `PLACE`, and nothing writes a facet automatically — a
-facet is a curation act, never an AI inference. The act is `PUT /api/v1/taxonomy/tags/{tag_id}/facets/{facet_type}`
-(`CURATE`), undone by `DELETE` on the same path; the declaration also empties the tag's drawer and
-registers its term in `domain_subject_exclusions`, because a tag on this axis is still not an
-aboutness the classifier may guess at.
+`archive_tags.macro_category_id` holds at most one subject category, and that is the whole subject
+axis: a tag is in a **drawer**, declared **not a subject**, or undecided (ADR 0013). What a name *is*
+when it is not an aboutness — a place, a producer, a person — is carried by the **entity axis**, where
+it has an `entity_type` that search and the public projection read; a spelling that is both a tag and
+an entity is settled by the tag × entity conflict resolution, which bans the losing spelling and keeps
+a ledger. `archive_tag_facets` used to hold that distinction as a second state of the tag; its only
+reader was the state chip it fed, and it was dropped.
 
 The identity of a tag and of an entity is the normalized spelling: `lower(btrim(name))` is unique on
 both tables, next to the unique `name` itself. Without that rule a row stored in Title Case and the
@@ -165,9 +164,9 @@ about the domain of the archive, not about the installation.
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `domain_stopwords` | Terms the curation banned, with the axis they leave. | `id`, `word` (unique), `word_scope` (`StopwordsScope`: `TAG`, `ENTITY`, `ALL`) |
+| `domain_stopwords` | Terms the curation banned, with the axis they leave and who planted the ban. | `id`, `word` (unique), `word_scope` (`StopwordsScope`: `TAG`, `ENTITY`, `ALL`), `source` (`HUMAN`/`CONFLICT`/`EXCLUSION`, checked) |
 | `domain_ner_exclusions` | Terms the curation decided belong to the TAG axis, not to named entities. | `id`, `term` (unique), `reason`, `source` (`JUDGE`/`HUMAN`), `tag_id` |
-| `domain_subject_exclusions` | Terms the curation decided are not a subject at all. | `id`, `term` (unique), `reason`, `source` (`HUMAN`/`RULE`) |
+| `domain_subject_exclusions` | Terms the curation decided are not a subject at all, with whether this row planted the `TAG`-scoped ban. | `id`, `term` (unique), `reason`, `source` (`HUMAN`/`RULE`), `ban_created` |
 | `domain_synonyms` | Spellings mapped to a canonical tag or entity. | `id`, `synonym_name`, `category` (`TAG`/`ORG`/`LOC`/`PER`), `canonical_tag_id`, `canonical_entity_id` |
 | `domain_text_templates` | Repeated excerpts the curation keeps out of the AI text. | `template_id`, `text`, `fingerprint` (unique), `variants`, `action`, `replacement`, `scope`, `status`, `occurrence_count`, `sample_document_ids` |
 | `archive_cleaning_rules` | Regex rules an archivist registered. | `rule_id`, `rule_name`, `rule_kind` (`REWRITE`/`VALIDATE`/`LLM_CHECK`), `target_column`, `regex_pattern`, `replacement_string`, `anomaly_reason`, `engine_name`, `preset`, `is_active` |
@@ -195,8 +194,8 @@ explicitly; without it a validation rule would rewrite the text.
 `token` is either a single code token (`ED`, `ALFA`) or a whole code (`ACERVO RAIZ`). The proposal
 reads the whole code first and falls back to its last token, so a full-code row wins over a
 last-token row. `CollectionTermKind` is `DISTRICT`, `MUNICIPALITY`, `STATE`, `REGION`, `COUNTRY` or
-`PERSON`; a place kind claims the `PLACE` facet, and `PERSON` goes nowhere — it is the producer, not
-a subject.
+`PERSON`; a place kind and `PERSON` mark the terms the **entity axis** carries (`LOC`, `PER`), which
+is what the subject axis stops guessing at — they are not a state of the tag.
 
 #### Operations
 
@@ -278,14 +277,23 @@ tables on purpose**.
 | In favour of the **entity** | `domain_stopwords` (tag-scoped) | The tag name is noise on the subject axis and is dropped from it |
 | In favour of the **tag** | `domain_ner_exclusions` | The term is a legitimate subject; a NER extraction of it is a false positive |
 
-`domain_stopwords.word` is **unique**, so a term lives on exactly one axis. Re-banning a term *moves*
-it (`save_stopwords` is an upsert on `word`) rather than leaving the screen showing an axis the
-archivist just changed away from. `word_scope` is `TAG`, `ENTITY` or `ALL`.
+`domain_stopwords.word` is **unique**, so a term lives on exactly one axis. Re-banning a term on the
+Stopwords screen *moves* it (`save_stopwords` is an upsert on `word`) rather than leaving the screen
+showing an axis the archivist just changed away from. `word_scope` is `TAG`, `ENTITY` or `ALL`, and
+`source` (`HUMAN`, `CONFLICT` or `EXCLUSION`) says who planted the ban — the origin the purge preview
+reads to tell a term banned with the archive in mind from one typed by hand.
 
-`TagRepository.get_stopwords()` reads **only** `TAG`/`ALL` scope. An `ENTITY`-scoped veto is a ban on
-NER extraction, not a statement about the subject axis; reading it there once made the curation purge
-delete tags the curator had deliberately kept. That is the reason the two directions cannot be
-collapsed into one table or one scope.
+The two writes of one ban are not the same write. `save_stopwords` **moves** the scope, because that is
+the archivist changing their mind on the screen; `TagRepository.ensure_tag_ban` — what the *Não é
+assunto* screen and the conflict resolution use — **never narrows**: an `ENTITY` veto becomes `ALL`,
+and an existing `TAG`/`ALL` is left alone. Writing `TAG` over an `ENTITY` veto would silently stop the
+NER from extracting a name the archivist had deliberately kept, which is why the coupling uses the
+second write.
+
+`TagRepository.get_stopwords_with_source()` reads **only** `TAG`/`ALL` scope. An `ENTITY`-scoped veto
+is a ban on NER extraction, not a statement about the subject axis; reading it there once made the
+curation purge delete tags the curator had deliberately kept. That is the reason the two directions
+cannot be collapsed into one table or one scope.
 
 `domain_ner_exclusions` is a *decision*, not noise: it carries `reason`, `source` (`JUDGE` for the
 LLM conflict judge, `HUMAN` for a curator) and the `tag_id` that justifies it. The `tag_id` is
@@ -297,8 +305,12 @@ spelling are removed by the NER purge, a separate act with its own preview and i
 `domain_subject_exclusions` is the same shape for the other axis: a term the curation decided is not a
 subject at all. The deterministic guard covers what has a recognisable form (a bare year, a
 placeholder, a street, a measure); the semantic half (`pessoas`, `vista aérea`) is a decision, and it
-lives here with `source` (`HUMAN` or `RULE`). An excluded term is still a tag of the collection,
-reachable by search — the exclusion silences the subject classifier, not the term.
+lives here with `source` (`HUMAN` or `RULE`). Confirming also **bans the spelling** at `TAG` scope, so
+the next ingestion does not recreate the tag; the ban deletes nothing, and `ban_created` records
+whether *this* row planted it, which is what makes the undo exact. The write refuses a term whose tag
+already sits in a drawer — that drawer is a human verdict about the tag, and a statement about a term
+must not un-file it. An excluded term is still a tag of the collection, reachable by search until the
+purge — a separate act — removes it.
 
 ## Ledgers, one by one
 
@@ -319,8 +331,9 @@ interchangeable, and only some of them have an undo.
 Two details make the reversible ledgers exact rather than approximate. `created_link_ids` records the
 links the operation *created*; both the merge and the conflict resolution link with
 `ON CONFLICT DO NOTHING`, so an undo that deleted every link would remove links that existed before
-it. `ban_created` plays the same role for the governance write: the undo must remove the ban only
-when this resolution is the one that planted it, or reversing one decision would lift a ban an
+it. `ban_created` plays the same role for the two writes that plant a ban — the conflict resolution and
+the subject exclusion: the undo must remove the ban only when this row is the one that planted it, and
+only while the ban's `source` still names that writer, or reversing one decision would lift a ban an
 earlier one made. For the merge, `synonym_created` and `synonym_previous_tag_id` capture the spelling
 state before the merge, and `repointed_synonym_names` records the spellings that pointed at the
 absorbed tag and were moved to the canonical. `undone_at` keeps the undo single-shot and keeps the
@@ -450,7 +463,7 @@ The same pair appears wherever a person decides something: `archive_document_del
 / `deleted_by_user_id`), `archive_taxonomy_merge_log` (`changed_by`, `undone_by`),
 `archive_stopword_purge_log` (`changed_by`, `undone_by`),
 `archive_conflict_resolution_log` (`decided_by`, `undone_by`), `archive_hierarchy_node_plans` and
-`archive_tag_merge_proposals` (`decided_by`), `archive_tag_facets` and `archive_cleaning_rules` and
+`archive_tag_merge_proposals` (`decided_by`), `archive_cleaning_rules` and
 `domain_text_templates` (`created_by`), `archive_hierarchy_materialisation_log` (`changed_by`),
 `archive_worker_runs` (`requested_by`) and `archive_worker_settings_revisions` (`changed_by`). The
 author is written by `author_columns`/`assign_author` from the session, never taken from the request.
