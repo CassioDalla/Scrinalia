@@ -86,9 +86,6 @@ class ArchiveTag(Base):
         secondary="archive_document_tags", back_populates="tags"
     )
     macro_category: Mapped["ArchiveMacroCategory"] = relationship(back_populates="tags")
-    facets: Mapped[list["ArchiveTagFacet"]] = relationship(
-        back_populates="tag", cascade="all, delete-orphan", passive_deletes=True
-    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -105,49 +102,6 @@ class ArchiveTag(Base):
         # tag vocabulary has no case-collision group today, but the uniqueness it relies on is the
         # one ``normalize_tag`` declares, and only this index enforces that shape.
         Index("uix_archive_tags_name_normalized", func.lower(func.btrim(name)), unique=True),
-    )
-
-
-class ArchiveTagFacet(Base):
-    """
-    The non-subject axis of a tag: what it *is*, when it is not an *about*.
-
-    ``archive_tags.macro_category_id`` holds one subject drawer and nothing else. A tag like
-    ``alfa`` (2.376 documents) or ``cidade`` (1.865) has no subject but is unmistakably a
-    producer or a place; forcing them into the subject axis is a measured cause of the
-    classification defect, because they competed with ``alvenaria`` for the same slot. This
-    table is where those statements live instead.
-
-    The primary key is ``(tag_id, facet_type)``: a tag can be a place *and* an institution,
-    but not twice the same one. ``value`` carries the canonical spelling the curator chose,
-    which is what the facets read — the tag name is the evidence, the value is the decision.
-    Nothing writes here automatically: a facet is a curation act, never an AI inference.
-    """
-
-    __tablename__ = "archive_tag_facets"
-
-    tag_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("archive_tags.tag_id", ondelete="CASCADE"), primary_key=True
-    )
-    facet_type: Mapped[str] = mapped_column(String(20), primary_key=True)
-
-    #: The canonical value of the facet (``ALFA``, ``Cidade``). Falls back to the tag
-    #: name when the curator only confirms the axis without renaming the spelling.
-    value: Mapped[str] = mapped_column(String(100), nullable=False)
-
-    created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    #: The account behind the name above. ``SET NULL`` and not ``CASCADE``: an account is deactivated, never deleted,
-    #: and if one ever were, the decision it took must survive with its author's name.
-    created_by_user_id: Mapped[int | None] = mapped_column(
-        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    tag: Mapped["ArchiveTag"] = relationship(back_populates="facets")
-
-    __table_args__ = (
-        CheckConstraint("facet_type IN ('INSTITUTION', 'PLACE')", name="chk_tag_facet_type"),
-        Index("ix_archive_tag_facets_type_value", facet_type, value),
     )
 
 

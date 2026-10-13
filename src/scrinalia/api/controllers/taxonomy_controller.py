@@ -4,7 +4,7 @@ from typing import Literal
 
 import anyio
 import anyio.to_process
-from litestar import Controller, delete, get, patch, post, put
+from litestar import Controller, delete, get, patch, post
 from litestar.di import NamedDependency, Provide
 from litestar.params import FromPath, FromQuery
 
@@ -34,10 +34,9 @@ from scrinalia.api.schemas.taxonomy import (
     SubjectExclusionRequest,
     SuggestMacroRequest,
     TagCurationRequest,
-    TagFacetRequest,
 )
 from scrinalia.api.security import Access, AuthenticatedUser
-from scrinalia.domains.archive.models.enums import StopwordsScope, TagCatalogState, TagFacetType
+from scrinalia.domains.archive.models.enums import StopwordsScope, TagCatalogState
 from scrinalia.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     BatchMergeResponse,
@@ -65,8 +64,6 @@ from scrinalia.domains.archive.schemas import (
     TagCatalogResponse,
     TagCurationCommand,
     TagCurationResult,
-    TagFacetCommand,
-    TagFacetResult,
     TagMergeDecisionCommand,
     TagMergeProposalListResponse,
     TagSearchResult,
@@ -100,6 +97,7 @@ from scrinalia.domains.archive.schemas.tag_schema import (
     StopwordPurgeUndoResponse,
     StopwordRemovalResponse,
     SubjectExclusionBanResponse,
+    SubjectExclusionPlan,
     SubjectExclusionRemovalResponse,
     TagMergeProposalDecisionResponse,
     TagMergeUndoResponse,
@@ -183,47 +181,6 @@ class TaxonomyController(Controller):
         return tag_service.list_catalog(
             state=subject_state, macro_category_id=macro_category_id, term=term, limit=limit, offset=offset
         )
-
-    @put("/tags/{tag_id:int}/facets/{facet_type:str}", opt={"access": Access.CURATE}, sync_to_thread=True)
-    def declare_tag_facet(
-        self,
-        tag_service: NamedDependency[TagService],
-        tag_id: FromPath[int],
-        facet_type: FromPath[TagFacetType],
-        data: TagFacetRequest,
-        current_user: NamedDependency[AuthenticatedUser],
-    ) -> TagFacetResult:
-        """
-        Declares that one tag is a producer or a place instead of a subject.
-
-        The destination the non-subject axis was written for: ``alfa`` (2,376 descriptions) and
-        ``cidade`` (1,865) have no honest subject, and forcing them into a drawer is a measured cause
-        of the classification defect. The declaration is a curation act; nothing infers a facet.
-        """
-        return tag_service.declare_tag_facet(
-            tag_id, facet_type, TagFacetCommand(**data.model_dump(), changed_by=current_user.author)
-        )
-
-    @delete(
-        "/tags/{tag_id:int}/facets/{facet_type:str}",
-        opt={"access": Access.CURATE},
-        status_code=200,
-        sync_to_thread=True,
-    )
-    def remove_tag_facet(
-        self,
-        tag_service: NamedDependency[TagService],
-        tag_id: FromPath[int],
-        facet_type: FromPath[TagFacetType],
-    ) -> TagFacetResult:
-        """
-        Takes one tag off that axis, and off the subject exclusion when it was the last one.
-
-        The undo of the declaration. It has to undo both halves: keeping the exclusion would leave
-        the tag parked in "not a subject, goes nowhere" — a decision nobody took — instead of back in
-        the queue for the next one.
-        """
-        return tag_service.remove_tag_facet(tag_id, facet_type)
 
     @get("/tags/relevance/{method:str}", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def get_tag_relevance(
@@ -603,41 +560,95 @@ class TaxonomyController(Controller):
         The guard has always skipped these terms inside ``worker_macro_category``, and until now the
         archivist could not see a single one of them: 1.489 of the 8.155 real tags, including
         ``local não identificado`` (310 documents), 689 streets and 707 bare numbers. Each candidate
-        carries its evidence — weight, whether the PLACE facet claims it, whether the same spelling is
-        also a named entity — and the route deliberately proposes **nothing** for the semantic half
-        (``pessoas``, ``vista aérea``), where the measurement says the model answers confidently and
-        wrongly.
+        carries its evidence — weight, whether the term is a place (the entity axis owns it), whether
+        the same spelling is also a named entity, the drawer that would block it and whether its
+        spelling is already banned — and the route deliberately proposes **nothing** for the semantic
+        half (``pessoas``, ``vista aérea``), where the measurement says the model answers confidently
+        and wrongly.
         """
         return tag_service.suggest_subject_exclusions(limit=limit, offset=offset, include_excluded=include_excluded)
+
+    @post(
+        "/tags/subject-exclusions/preview", opt={"access": Access.AUTHENTICATED}, status_code=200, sync_to_thread=True
+    )
+    def preview_subject_exclusions(
+        self, tag_service: NamedDependency[TagService], data: SubjectExclusionRequest
+    ) -> SubjectExclusionPlan:
+        """
+        What confirming these terms would do, without writing anything.
+
+        ``applicable`` is what the write will record — the exclusion and the ``TAG``-scoped ban — and
+        ``blocked`` is what it refuses, each with the drawer in the way. A term whose tag already sits
+        in a subject drawer is a subject question already answered, and the write that settles a *tag*
+        is the tag catalogue's ``PATCH``; asking for the opposite here would destroy a human verdict
+        with a statement about a term.
+        """
+        return tag_service.plan_subject_exclusions(data.words)
 
     @post("/tags/subject-exclusions", opt={"access": Access.CURATE}, status_code=201, sync_to_thread=True)
     def create_subject_exclusions(
         self, tag_service: NamedDependency[TagService], data: SubjectExclusionRequest
     ) -> SubjectExclusionBanResponse:
         """
-        Records that a term is not a subject, so the classifier stops guessing at it.
+        Records that a term is not a subject and bans its spelling from becoming a tag again.
 
-        Nothing is deleted: the term stays a tag of the collection and stays reachable by
-        search. Only the subject classification is silenced, which is what turns "the model
-        answers confidently and wrongly" into "the curator decided".
+        Nothing is deleted: the term stays a tag of the collection and stays reachable by search until
+        the archivist purges it, which is a separate act behind its own preview and ledger. The ban
+        only stops the next ingestion from recreating the term — and it is written at ``TAG`` scope,
+        so the NER keeps extracting the name as an entity. A term whose tag sits in a drawer is
+        refused and reported in ``blocked`` instead of silently un-filing it.
         """
-        created = tag_service.exclude_terms_from_subjects(data.words, reason=data.reason, source=data.source)
+        result = tag_service.exclude_terms_from_subjects(data.words, reason=data.reason, source=data.source)
+        if result.blocked and result.created == 0:
+            return SubjectExclusionBanResponse(
+                code=RouteMessageCode.SUBJECT_EXCLUSIONS_BLOCKED,
+                message=(
+                    "Nenhum termo foi marcado: as tags abaixo já estão numa categoria de assunto. "
+                    "Tire-as da categoria no catálogo de tags antes de declará-las não-assunto."
+                ),
+                created=result.created,
+                banned=result.banned,
+                blocked=result.blocked,
+            )
+        if result.blocked:
+            return SubjectExclusionBanResponse(
+                code=RouteMessageCode.SUBJECT_EXCLUSIONS_PARTIAL,
+                message=(
+                    f"{result.created} termo(s) marcados como não-assunto e banidos de voltar; "
+                    f"{len(result.blocked)} recusado(s) por já estarem numa categoria de assunto."
+                ),
+                created=result.created,
+                banned=result.banned,
+                blocked=result.blocked,
+            )
         return SubjectExclusionBanResponse(
             code=RouteMessageCode.SUBJECT_EXCLUSIONS_ADDED,
-            message="Termos marcados como não-assunto: o classificador de assuntos vai ignorá-los.",
-            created=created,
+            message=(
+                "Termos marcados como não-assunto: o classificador de assuntos vai ignorá-los e as "
+                "grafias não voltam a virar tag."
+            ),
+            created=result.created,
+            banned=result.banned,
+            blocked=result.blocked,
         )
 
     @delete("/tags/subject-exclusions", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def remove_subject_exclusions(
         self, tag_service: NamedDependency[TagService], data: SubjectExclusionRemovalRequest
     ) -> SubjectExclusionRemovalResponse:
-        """Undoes the decision and puts the terms back in the classification queue."""
-        removed = tag_service.remove_subject_exclusions(data.words)
+        """
+        Undoes the decision: the terms return to the classification queue and the ban this write
+        planted leaves with them.
+
+        The lift is exact — only a ban the exclusion itself created — so a spelling a person banned
+        on the Stopwords screen, or one a conflict resolution planted first, survives.
+        """
+        result = tag_service.remove_subject_exclusions(data.words)
         return SubjectExclusionRemovalResponse(
             code=RouteMessageCode.SUBJECT_EXCLUSIONS_REMOVED,
             message="Exclusões removidas: o classificador voltará a considerar esses termos.",
-            removed=removed,
+            removed=result.removed,
+            unbanned=result.unbanned,
         )
 
     @get("/macro-categories", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)

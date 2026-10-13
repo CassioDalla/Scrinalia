@@ -12,8 +12,8 @@ Two measured facts made this module necessary (Fase 1.5, defeito 2/2):
    geography. Sharing a slot with ``alvenaria`` is what produced "``alvenaria`` is
    Mobilidade".
 
-So the vocabulary is split in three: subject drawers, facets, and terms that are not a
-subject at all. The evidence for every family lives in
+So the vocabulary is split in three: subject drawers, the terms that are a place or a producer, and
+terms that are not a subject at all. The evidence for every family lives in
 ``testing/evaluation/macro_category_vocabulary.py``, which produced the proposal the curator
 approved; this module is the approved result, and the classifier reads it instead of the
 raw tag list.
@@ -25,8 +25,11 @@ collection — ``rua``/``avenida``, ``não identificado``, ``303 anos`` — come
 profile (``core/language``). This module keeps the rules that read them, and they are pure: the
 guard is a function of the term, the language and the collection vocabulary it is handed.
 
-**Nothing here classifies anything.** It states which drawers exist and which tags are
-statements about something other than a subject. Deciding is still the archivist's.
+**Nothing here classifies anything, and nothing here is a state of a tag.** It states which drawers
+exist and which tags are statements about something other than a subject. A term that is a place or a
+producer is carried by the **entity axis** (``LOC``/``PER``/``ORG``), which is what search and
+diffusion read; ADR 0013 removed the ``archive_tag_facets`` table that used to duplicate that answer
+inside the subject axis. Deciding is still the archivist's.
 """
 
 import hashlib
@@ -129,8 +132,8 @@ def is_subject_candidate(term: str, vocabulary: CollectionVocabulary | None = No
     *collection* owns arrive as ``vocabulary``; the three the *language* owns it reads itself.
 
     Note that a street is *excluded here* and then claimed by ``is_place_term``: "not a
-    subject" and "goes nowhere" are different statements, and the facet is where the street
-    goes.
+    subject" and "goes nowhere" are different statements, and the entity axis is where the street
+    is carried.
     """
     return not (
         is_placeholder(term) or is_year(term) or is_measure(term) or is_street(term) or is_person_name(term, vocabulary)
@@ -166,12 +169,13 @@ def subject_exclusion_signal(term: str, vocabulary: CollectionVocabulary | None 
 
 def is_place_term(term: str, vocabulary: CollectionVocabulary | None = None) -> bool:
     """
-    Whether the term is a place, and therefore belongs to the ``PLACE`` facet.
+    Whether the term is a place, and therefore carried by the entity axis.
 
     Returns ``True`` for a street spelling and for a toponym the collection registered. Kept next
     to :func:`is_subject_candidate` on purpose: the two answer different questions about the same
     word, and a curator reading only one of them would conclude that ``rua exemplo``
-    (118 documents) is discarded.
+    (118 documents) is discarded. "Not a subject" and "goes nowhere" are different statements, and
+    the entity axis is where the place goes (ADR 0013).
     """
     return is_street(term) or (bool(vocabulary) and vocabulary.is_place(term))
 

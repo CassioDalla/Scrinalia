@@ -14,6 +14,7 @@ day one of them drifts this fails instead of the archivist noticing.
 
 from litestar.status_codes import HTTP_200_OK, HTTP_201_CREATED
 from litestar.testing import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from scrinalia.domains.archive.models import (
@@ -22,9 +23,8 @@ from scrinalia.domains.archive.models import (
     ArchiveMacroCategory,
     ArchiveReviewStatus,
     ArchiveTag,
-    ArchiveTagFacet,
+    DomainStopwords,
     DomainSubjectExclusion,
-    TagFacetType,
 )
 
 # ==========================================
@@ -86,9 +86,6 @@ def test_the_orphan_card_and_the_pending_list_are_the_same_number(
     _tag(db_session, "cidade")
     db_session.add(DomainSubjectExclusion(term="cidade", source="HUMAN"))
     db_session.flush()
-    facade = _tag(db_session, "alfa")
-    db_session.add(ArchiveTagFacet(tag_id=facade.tag_id, facet_type=TagFacetType.INSTITUTION.value, value="alfa"))
-    db_session.flush()
 
     pending = _catalog(client, subject_state="PENDING", limit=25)
     assert pending["total"] == _inbox(client)["orphan_subject_tags"] == 2
@@ -97,31 +94,26 @@ def test_the_orphan_card_and_the_pending_list_are_the_same_number(
     # And the slice showed the whole catalogue, not a top-N: the decided tags are still listed,
     # each one explaining its own state.
     everything = _catalog(client, subject_state="ALL", limit=25)
-    assert everything["total"] == 5
+    assert everything["total"] == 4
     by_name = {row["name"]: row for row in everything["items"]}
     assert by_name["urbanismo"]["macro_category_name"] == "Urbanismo"
     assert by_name["cidade"]["subject_excluded"] is True
-    assert by_name["alfa"]["facets"] == ["INSTITUTION"]
 
 
 def test_the_decision_states_partition_the_catalogue(client: TestClient, api_uses_test_db, db_session: Session) -> None:
-    """A tag is in exactly one of the three undecided/decided slices, plus the drawers."""
+    """A tag is in exactly one of the two undecided/decided slices, plus the drawers."""
     category = _category(db_session)
     _tag(db_session, "com-categoria", macro_category_id=category.category_id)
     _tag(db_session, "pendente-1")
     _tag(db_session, "pendente-2")
     db_session.add(DomainSubjectExclusion(term="nao-assunto", source="HUMAN"))
     _tag(db_session, "nao-assunto")
-    place = _tag(db_session, "lugar")
-    db_session.add(ArchiveTagFacet(tag_id=place.tag_id, facet_type=TagFacetType.PLACE.value, value="lugar"))
     db_session.flush()
 
     total = _catalog(client, subject_state="ALL", limit=25)["total"]
-    slices = {
-        state: _catalog(client, subject_state=state, limit=25)["total"] for state in ("PENDING", "NOT_SUBJECT", "FACET")
-    }
+    slices = {state: _catalog(client, subject_state=state, limit=25)["total"] for state in ("PENDING", "NOT_SUBJECT")}
 
-    assert slices == {"PENDING": 2, "NOT_SUBJECT": 1, "FACET": 1}
+    assert slices == {"PENDING": 2, "NOT_SUBJECT": 1}
     assert sum(slices.values()) == total - 1  # the one tag in a drawer
 
 
@@ -167,6 +159,9 @@ def test_declaring_not_a_subject_is_durable_and_deletes_nothing(
     ``worker_macro_category`` re-queues a tag whose drawer is empty every time the label set
     changes, so the column alone is not the decision — ``domain_subject_exclusions`` is what the
     worker obeys. The tag itself is untouched: only the subject axis stops guessing at it.
+
+    This door and the "not a subject" screen are one statement, not two: both ban the spelling at
+    ``TAG`` scope, or the term keeps coming back through whichever door was not used (ADR 0013).
     """
     tag = _tag(db_session, "pessoas")
     db_session.flush()
@@ -180,6 +175,8 @@ def test_declaring_not_a_subject_is_durable_and_deletes_nothing(
     excluded = client.get("/api/v1/taxonomy/tags/subject-exclusions")
     assert excluded.status_code == HTTP_200_OK
     assert excluded.json() == ["pessoas"]
+    ban = db_session.scalars(select(DomainStopwords).where(DomainStopwords.word == "pessoas")).one()
+    assert (ban.word_scope.value, ban.source) == ("TAG", "EXCLUSION")
 
     # Out of the queue, still in the collection: the total of the catalogue does not move.
     assert _catalog(client, subject_state="PENDING", limit=25)["total"] == 0
@@ -191,11 +188,10 @@ def test_declaring_not_a_subject_is_durable_and_deletes_nothing(
 def test_filing_a_tag_takes_it_off_the_non_subject_axis(
     client: TestClient, api_uses_test_db, db_session: Session
 ) -> None:
-    """A tag in a drawer is not also a term the classifier must skip, nor a place *instead*."""
+    """A tag in a drawer is not also a term the classifier must skip."""
     category = _category(db_session)
     tag = _tag(db_session, "centro")
     db_session.add(DomainSubjectExclusion(term="centro", source="HUMAN"))
-    db_session.add(ArchiveTagFacet(tag_id=tag.tag_id, facet_type=TagFacetType.PLACE.value, value="centro"))
     db_session.flush()
 
     response = client.patch(f"/api/v1/taxonomy/tags/{tag.tag_id}", json={"macro_category_id": category.category_id})
@@ -205,73 +201,194 @@ def test_filing_a_tag_takes_it_off_the_non_subject_axis(
     everything = _catalog(client, subject_state="ALL", limit=25)
     row = next(item for item in everything["items"] if item["tag_id"] == tag.tag_id)
     assert row["macro_category_id"] == category.category_id
-    assert row["facets"] == []
     assert row["subject_excluded"] is False
     assert client.get("/api/v1/taxonomy/tags/subject-exclusions").json() == []
 
 
-def test_declaring_a_facet_settles_the_whole_state_and_can_be_undone(
+def test_the_exclusion_refuses_a_term_whose_tag_is_already_in_a_drawer(
     client: TestClient, api_uses_test_db, db_session: Session
 ) -> None:
     """
-    The third destination: a producer or a place, which is what lets the queue reach zero.
+    Issue #83, option C: the write that settles a *tag* is the catalogue's, not this one's.
 
-    The declaration leaves the drawer (a facet is what the tag is *instead* of a subject) and joins
-    the subject exclusion, so the classifier does not guess at it either. Removing it puts the tag
-    back in the queue — the exclusion goes with the last facet, because keeping it would park the
-    tag in "goes nowhere", a decision nobody took.
+    A drawer is a human verdict, and a statement about a *term* must not un-file it. The route
+    answers the refusal and names the tag and its drawer, so the screen can send the archivist to the
+    catalogue instead of silently doing the opposite of what they asked.
     """
     category = _category(db_session)
-    tag = _tag(db_session, "alfa", macro_category_id=category.category_id)
+    tag = _tag(db_session, "centro", macro_category_id=category.category_id)
     db_session.flush()
 
-    declared = client.put(f"/api/v1/taxonomy/tags/{tag.tag_id}/facets/{TagFacetType.INSTITUTION.value}", json={})
-    assert declared.status_code == HTTP_200_OK, declared.text
-    body = declared.json()
-    assert body["facets"] == ["INSTITUTION"]
-    assert body["macro_category_id"] is None
-    assert body["subject_excluded"] is True
+    refused = client.post("/api/v1/taxonomy/tags/subject-exclusions", json={"words": ["centro"]})
+    assert refused.status_code == HTTP_201_CREATED, refused.text
+    body = refused.json()
+    assert body["code"] == "SUBJECT_EXCLUSIONS_BLOCKED"
+    assert body["created"] == 0
+    assert body["banned"] == 0
+    assert body["blocked"] == [
+        {
+            "term": "centro",
+            "signal": None,
+            "is_place_term": False,
+            "also_an_entity": False,
+            "document_count": 0,
+            "tag_id": tag.tag_id,
+            "macro_category_id": category.category_id,
+            "macro_category_name": "Urbanismo",
+            "already_excluded": False,
+            "already_banned": False,
+        }
+    ]
 
-    assert _catalog(client, subject_state="FACET", limit=25)["total"] == 1
-    assert _catalog(client, subject_state="PENDING", limit=25)["total"] == 0
-    assert _inbox(client)["orphan_subject_tags"] == 0
+    # Nothing moved: the drawer stands, no exclusion was recorded and no spelling was banned.
+    assert client.get("/api/v1/taxonomy/tags/subject-exclusions").json() == []
+    row = next(
+        item for item in _catalog(client, subject_state="ALL", limit=25)["items"] if item["tag_id"] == tag.tag_id
+    )
+    assert row["macro_category_id"] == category.category_id
+    assert row["subject_excluded"] is False
+    assert db_session.scalars(select(DomainStopwords)).all() == []
 
-    removed = client.delete(f"/api/v1/taxonomy/tags/{tag.tag_id}/facets/{TagFacetType.INSTITUTION.value}")
+
+def test_a_partial_exclusion_reports_both_numbers(client: TestClient, api_uses_test_db, db_session: Session) -> None:
+    """One blocked term must not hide the term the write did record."""
+    category = _category(db_session)
+    _tag(db_session, "centro", macro_category_id=category.category_id)
+    _tag(db_session, "vista aerea")
+    db_session.flush()
+
+    response = client.post("/api/v1/taxonomy/tags/subject-exclusions", json={"words": ["centro", "vista aerea"]})
+    assert response.status_code == HTTP_201_CREATED, response.text
+    body = response.json()
+    assert body["code"] == "SUBJECT_EXCLUSIONS_PARTIAL"
+    assert body["created"] == 1
+    assert body["banned"] == 1
+    assert [item["term"] for item in body["blocked"]] == ["centro"]
+    assert client.get("/api/v1/taxonomy/tags/subject-exclusions").json() == ["vista aerea"]
+
+
+def test_the_preview_says_what_the_write_would_do_without_writing(
+    client: TestClient, api_uses_test_db, db_session: Session
+) -> None:
+    """The dry run of the write: the same plan the write consumes, so it cannot promise another number."""
+    category = _category(db_session)
+    _tag(db_session, "centro", macro_category_id=category.category_id)
+    _tag(db_session, "capanema")
+    db_session.flush()
+
+    preview = client.post("/api/v1/taxonomy/tags/subject-exclusions/preview", json={"words": ["centro", "capanema"]})
+    assert preview.status_code == HTTP_200_OK, preview.text
+    body = preview.json()
+    assert [item["term"] for item in body["applicable"]] == ["capanema"]
+    assert [item["term"] for item in body["blocked"]] == ["centro"]
+    assert body["blocked"][0]["macro_category_name"] == "Urbanismo"
+
+    # A preview writes nothing.
+    assert client.get("/api/v1/taxonomy/tags/subject-exclusions").json() == []
+    assert db_session.scalars(select(DomainStopwords)).all() == []
+
+
+def test_confirming_not_a_subject_bans_the_spelling_at_tag_scope(
+    client: TestClient, api_uses_test_db, db_session: Session
+) -> None:
+    """
+    Issue #84: the exclusion silences the classifier **and** stops the spelling coming back.
+
+    The scope is the safety: a ``TAG`` ban is read by ``extract_and_clean_tags`` and never by the
+    NER, whose blacklist reads ``ENTITY``/``ALL`` only. So the tag stops being recreated while the
+    name keeps being extracted from the document text.
+    """
+    _tag(db_session, "capanema")
+    db_session.flush()
+
+    created = client.post("/api/v1/taxonomy/tags/subject-exclusions", json={"words": ["capanema"]})
+    assert created.status_code == HTTP_201_CREATED
+    body = created.json()
+    assert body["code"] == "SUBJECT_EXCLUSIONS_ADDED"
+    assert body["created"] == 1
+    assert body["banned"] == 1
+
+    ban = db_session.scalars(select(DomainStopwords).where(DomainStopwords.word == "capanema")).one()
+    assert ban.word_scope.value == "TAG"
+    assert ban.source == "EXCLUSION"
+    exclusion = db_session.scalars(select(DomainSubjectExclusion)).one()
+    assert exclusion.ban_created is True
+
+    # The restore lifts both halves this write planted: the term is classified again and can become
+    # a tag again. What it does not lift is a ban somebody else owns — the next test pins that.
+    removed = client.request("DELETE", "/api/v1/taxonomy/tags/subject-exclusions", json={"words": ["capanema"]})
     assert removed.status_code == HTTP_200_OK
-    assert removed.json()["facets"] == []
-    assert removed.json()["subject_excluded"] is False
-    # Back in the queue, undecided again: the undo restores the state before the declaration.
-    assert _catalog(client, subject_state="PENDING", limit=25)["total"] == 1
-    assert _inbox(client)["orphan_subject_tags"] == 1
+    assert removed.json()["removed"] == 1
+    assert removed.json()["unbanned"] == 1
+    assert db_session.scalars(select(DomainStopwords)).all() == []
 
 
-def test_a_tag_can_carry_a_place_and_an_institution(client: TestClient, api_uses_test_db, db_session: Session) -> None:
-    """The table's primary key says a tag can be both; the read and the undo must respect it."""
-    tag = _tag(db_session, "prefeitura")
+def test_the_restore_leaves_a_ban_a_person_owns(client: TestClient, api_uses_test_db, db_session: Session) -> None:
+    """
+    The ban has two writers, so the undo has to know which one planted it.
+
+    A person bans ``capanema`` on the Stopwords screen (``source=HUMAN``); confirming it as
+    not-a-subject finds the ban already there and records ``ban_created=False``; restoring the
+    exclusion must leave the person's ban standing.
+    """
+    _tag(db_session, "capanema")
     db_session.flush()
 
-    for facet in (TagFacetType.PLACE, TagFacetType.INSTITUTION):
-        response = client.put(f"/api/v1/taxonomy/tags/{tag.tag_id}/facets/{facet.value}", json={"value": "PMC"})
-        assert response.status_code == HTTP_200_OK
+    banned = client.post("/api/v1/taxonomy/tags/stopwords", json={"words": ["capanema"], "scope": "TAG"})
+    assert banned.status_code == HTTP_201_CREATED, banned.text
 
-    listed = client.get("/api/v1/taxonomy/tags/catalog?subject_state=FACET")
-    assert listed.status_code == HTTP_200_OK
-    assert listed.json()["items"][0]["facets"] == ["INSTITUTION", "PLACE"]
+    created = client.post("/api/v1/taxonomy/tags/subject-exclusions", json={"words": ["capanema"]})
+    assert created.status_code == HTTP_201_CREATED
+    assert created.json()["banned"] == 0
+    assert db_session.scalars(select(DomainSubjectExclusion)).one().ban_created is False
 
-    # Removing one axis leaves the other, and the exclusion with it.
-    after = client.delete(f"/api/v1/taxonomy/tags/{tag.tag_id}/facets/{TagFacetType.PLACE.value}")
-    assert after.status_code == HTTP_200_OK
-    assert after.json()["facets"] == ["INSTITUTION"]
-    assert client.get("/api/v1/taxonomy/tags/subject-exclusions").json() == ["prefeitura"]
+    removed = client.request("DELETE", "/api/v1/taxonomy/tags/subject-exclusions", json={"words": ["capanema"]})
+    assert removed.status_code == HTTP_200_OK
+    assert removed.json()["unbanned"] == 0
+    ban = db_session.scalars(select(DomainStopwords).where(DomainStopwords.word == "capanema")).one()
+    assert ban.source == "HUMAN"
 
 
-def test_an_unknown_facet_type_is_refused(client: TestClient, api_uses_test_db, db_session: Session) -> None:
-    """The axis is a closed vocabulary of two; a third one is not a stored value."""
-    tag = _tag(db_session, "qualquer")
+def test_an_entity_scoped_veto_is_widened_and_never_narrowed(
+    client: TestClient, api_uses_test_db, db_session: Session
+) -> None:
+    """
+    Coupling must not blind the NER: an ``ENTITY`` veto becomes ``ALL``, it is never moved to ``TAG``.
+
+    ``domain_stopwords.word`` is unique and ``save_stopwords`` *moves* the scope on conflict, so
+    writing the ban through that path would silently un-veto the extraction axis. ``ensure_tag_ban``
+    is the write that widens.
+    """
+    tag = _tag(db_session, "josé pedro")
+    db_session.add(DomainStopwords(word="josé pedro", word_scope="ENTITY", source="HUMAN"))
     db_session.flush()
 
-    response = client.put(f"/api/v1/taxonomy/tags/{tag.tag_id}/facets/PLANET", json={})
-    assert response.status_code in (400, 422)
+    created = client.post("/api/v1/taxonomy/tags/subject-exclusions", json={"words": [tag.name]})
+    assert created.status_code == HTTP_201_CREATED
+
+    ban = db_session.scalars(select(DomainStopwords).where(DomainStopwords.word == "josé pedro")).one()
+    assert ban.word_scope.value == "ALL", "the NER veto has to survive the coupling"
+    assert ban.source == "HUMAN", "the origin of the ban is whoever planted it"
+
+
+def test_the_purge_preview_names_the_origin_of_each_ban(
+    client: TestClient, api_uses_test_db, db_session: Session
+) -> None:
+    """The purge has to say which terms were banned with the archive in mind and which were typed."""
+    _tag(db_session, "capanema")
+    typed = _tag(db_session, "rascunho")
+    db_session.flush()
+
+    assert client.post("/api/v1/taxonomy/tags/subject-exclusions", json={"words": ["capanema"]}).status_code == 201
+    assert (
+        client.post("/api/v1/taxonomy/tags/stopwords", json={"words": [typed.name], "scope": "TAG"}).status_code == 201
+    )
+
+    preview = client.post("/api/v1/taxonomy/tags/stopwords/purge/preview")
+    assert preview.status_code == HTTP_200_OK
+    by_name = {tag["name"]: tag for tag in preview.json()["tags"]}
+    assert by_name["capanema"]["source"] == "EXCLUSION"
+    assert by_name["rascunho"]["source"] == "HUMAN"
 
 
 # ==========================================

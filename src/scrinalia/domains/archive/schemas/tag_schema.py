@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from scrinalia.core.author import Author
-from scrinalia.domains.archive.models.enums import StopwordsScope, TagFacetType
+from scrinalia.domains.archive.models.enums import StopwordsScope
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode, RouteResponse
 from scrinalia.domains.archive.schemas.types import TagName
 
@@ -73,6 +73,7 @@ class TagCount(BaseModel):
     # The curator needs to know whether a merge would drop a classification, so the catalog
     # read carries the tag's own macro category and confidence score.
     macro_category_id: int | None = None
+    macro_category_name: str | None = None
     ai_confidence_score: float | None = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -146,10 +147,9 @@ class TagCatalogRow(BaseModel):
 
     Deliberately not ``TagSearchResult``: this row explains **why** the tag is where it is. The
     type-ahead answers "which spelling did I mean?" and pays for one grouped count; this one carries
-    the confidence the classifier gave up on, the term's verdict and the non-subject axis, which is
-    what lets the screen show a state instead of an absence. The two share the definition of
-    ``document_count`` (documents linked to the tag), and the count is the same one the drawer
-    badge uses.
+    the confidence the classifier gave up on and the term's verdict, which is what lets the screen
+    show a state instead of an absence. The two share the definition of ``document_count``
+    (documents linked to the tag), and the count is the same one the drawer badge uses.
     """
 
     tag_id: int
@@ -160,9 +160,8 @@ class TagCatalogRow(BaseModel):
     #: What the classifier scored before refusing to file it; ``None`` when it never ran or when a
     #: person has since decided, which clears the number.
     ai_confidence_score: float | None = None
-    #: The non-subject axis the tag is claimed by: a producer, a place, or none.
-    facets: list[TagFacetType] = Field(default_factory=list)
-    #: The term is registered as "not a subject", so the classifier does not guess at it again.
+    #: The term is registered as "not a subject", so the classifier does not guess at it again and
+    #: its spelling is banned from becoming a tag again.
     subject_excluded: bool = False
 
 
@@ -175,36 +174,6 @@ class TagCatalogResponse(BaseModel):
     items: list[TagCatalogRow] = Field(default_factory=list)
 
 
-class TagFacetCommand(BaseModel):
-    """
-    Declares one non-subject axis of a tag.
-
-    ``value`` is the canonical spelling the facets read — the tag name is the *evidence*, the value
-    is the *decision* — and it defaults to the tag's own name, because most declarations confirm the
-    axis without renaming anything.
-    """
-
-    value: str | None = Field(default=None, description="Canonical spelling of the facet; the tag name by default.")
-    changed_by: Author | None = Field(default=None)
-    note: str | None = Field(default=None)
-
-
-class TagFacetResult(BaseModel):
-    """
-    The tag's non-subject axis after the decision, plus the state it left behind.
-
-    Declaring a facet is a statement about the **whole** tag, so the answer says the whole state:
-    the tag is no longer in a drawer, its term is excluded from the subject axis, and its facets are
-    these. A response carrying only the facets would hide the classification the write removed.
-    """
-
-    tag_id: int
-    name: str
-    facets: list[TagFacetType] = Field(default_factory=list)
-    macro_category_id: int | None = None
-    subject_excluded: bool = False
-
-
 # ==========================================
 # STOPWORDS (the curated "this is not a term" list)
 # ==========================================
@@ -212,15 +181,19 @@ class TagFacetResult(BaseModel):
 
 class StopwordDTO(BaseModel):
     """
-    One banned term and **which axis it was banned from**.
+    One banned term, **which axis it was banned from** and who planted the ban.
 
     The scope is not decoration: ``TagRepository.get_stopwords()`` reads only ``TAG``/``ALL``, so an
     ``ENTITY``-scoped ban cannot make the subject purge delete a tag the curator kept. The screen has
     to show the scope, or the two mechanisms look like one list and the archivist stops trusting it.
+    ``source`` is the provenance the purge preview names (``HUMAN`` typed on the Stopwords tab,
+    ``CONFLICT`` planted by a tag x entity resolution, ``EXCLUSION`` confirmed on the "not a subject"
+    screen), because one of the three is a consequence and the other two are acts.
     """
 
     word: str
     scope: StopwordsScope
+    source: str = "HUMAN"
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -253,6 +226,9 @@ class StopwordPurgeItem(BaseModel):
     ai_confidence_score: float | None = None
     execution_log: dict[str, str] | None = None
     created_at: datetime | None = None
+    #: Who planted the ban that is about to delete this tag: the column the preview reports and the
+    #: ledger does not need to restore, because the undo deliberately does not lift the ban.
+    source: str = "HUMAN"
 
 
 class StopwordPurgePlan(BaseModel):
@@ -285,6 +261,9 @@ class StopwordPurgeTag(BaseModel):
     name: str
     document_count: int = 0
     macro_category_name: str | None = None
+    #: ``HUMAN``, ``CONFLICT`` or ``EXCLUSION``: the origin of the ban that would delete it, so the
+    #: screen can separate the terms banned with the archive in mind from the ones typed by hand.
+    source: str = "HUMAN"
 
 
 class StopwordPurgePreview(BaseModel):
@@ -635,10 +614,12 @@ class SubjectExclusionSuggestion(BaseModel):
     ``worker_macro_category`` while ``source='RULE'`` sat unused in the schema.
 
     The evidence travels with the candidate because the archivist is deciding, not confirming:
-    ``document_count`` is the weight at stake, ``is_place_term`` says the term has somewhere else to
-    go (the PLACE facet — "not a subject" and "goes nowhere" are different statements), and
-    ``also_an_entity`` says the same spelling lives on the NER axis, which is the collision screen's
-    business rather than this one's.
+    ``document_count`` is the weight at stake, ``is_place_term`` says the term is a place — the entity
+    axis owns it, which is a different statement from "goes nowhere" (ADR 0013) — and
+    ``also_an_entity`` says the same spelling already lives on the NER axis, which is the collision
+    screen's business rather than this one's. ``macro_category_name`` and ``already_banned`` are the
+    two facts that change what the button does: a term whose tag sits in a drawer is refused, and
+    confirming a term bans its spelling from becoming a tag again.
     """
 
     term: str
@@ -647,13 +628,20 @@ class SubjectExclusionSuggestion(BaseModel):
     #: a shape, and the guard's reason stays visible even after the decision was taken.
     signal: str
     document_count: int = 0
-    #: The term is a place, so the PLACE facet claims it even though the subject axis does not.
+    #: The term is a place: a street spelling or a toponym of the collection's own vocabulary. The
+    #: entity axis is where it goes; the subject axis simply stops guessing at it.
     is_place_term: bool = False
     #: The same spelling exists as a named entity: that is a tag x entity collision, not a subject.
     also_an_entity: bool = False
     word_count: int = 1
     #: Already recorded as not-a-subject. The screen shows them apart instead of offering them again.
     already_excluded: bool = False
+    #: The tag sits in a subject drawer, so the write refuses the term and names the drawer here
+    #: instead of un-filing a human verdict (issue #83, option C).
+    macro_category_id: int | None = None
+    macro_category_name: str | None = None
+    #: Its spelling is already banned from becoming a tag again, so confirming adds nothing there.
+    already_banned: bool = False
 
 
 class SubjectExclusionSuggestionResponse(BaseModel):
@@ -757,13 +745,87 @@ class StopwordPurgeUndoResponse(RouteResponse):
     data: StopwordPurgeLogEntryDTO
 
 
+class SubjectExclusionTarget(BaseModel):
+    """
+    One term the "not a subject" write would act on, or one it refuses.
+
+    The refusal is the whole point of :class:`SubjectExclusionPlan`: a term whose tag already sits in
+    a drawer is a subject question already answered, and the write that settles a *tag* is the tag
+    catalogue's ``PATCH`` — a statement about a term must not un-file a human verdict (issue #83,
+    option C). Everything else here is the evidence that makes the decision concrete, computed once
+    and read by the preview and by the write.
+    """
+
+    term: str
+    #: The guard's shape for the term, or ``None`` when the archivist typed it.
+    signal: str | None = None
+    #: The term is a place: a street spelling or a toponym of the collection's vocabulary.
+    is_place_term: bool = False
+    #: The same spelling already exists as a named entity — the entity axis owns what it is.
+    also_an_entity: bool = False
+    #: Documents that carry the tag, when there is one; the loss the purge would make real.
+    document_count: int = 0
+    tag_id: int | None = None
+    #: Set only on a refused term: the drawer that has to be emptied first, on the tag catalogue.
+    macro_category_id: int | None = None
+    macro_category_name: str | None = None
+    already_excluded: bool = False
+    already_banned: bool = False
+
+
+class SubjectExclusionPlan(BaseModel):
+    """
+    Everything the "not a subject" write would do, computed before anything is written.
+
+    Single definition of the operation, like ``TagRepository.plan_merge``: the preview reads it and
+    the write consumes it, so the dry run cannot promise another number. ``applicable`` is what the
+    write will record — the exclusion and the ``TAG``-scoped ban — and ``blocked`` is what it refuses,
+    each with the drawer in the way.
+    """
+
+    applicable: list[SubjectExclusionTarget] = Field(default_factory=list)
+    blocked: list[SubjectExclusionTarget] = Field(default_factory=list)
+
+    @property
+    def total_applicable(self) -> int:
+        return len(self.applicable)
+
+    @property
+    def total_blocked(self) -> int:
+        return len(self.blocked)
+
+
+class SubjectExclusionApplyResult(BaseModel):
+    """What the write did: exclusions recorded, bans planted, and the terms it refused."""
+
+    created: int = 0
+    banned: int = 0
+    blocked: list[SubjectExclusionTarget] = Field(default_factory=list)
+
+
+class SubjectExclusionRemovalResult(BaseModel):
+    """What the undo did: exclusions removed and the bans the exclusion itself had planted."""
+
+    removed: int = 0
+    unbanned: int = 0
+
+
 class SubjectExclusionBanResponse(RouteResponse):
-    """Terms declared not-a-subject: the classifier stops guessing at them."""
+    """
+    Terms declared not-a-subject: the classifier stops guessing at them.
+
+    ``banned`` counts the spellings the same write banned from becoming a tag again — the half that
+    keeps the next ingestion from recreating what was just decided — and ``blocked`` carries the
+    terms whose tag is in a drawer, which the write refused instead of un-filing a human verdict.
+    """
 
     created: int
+    banned: int = 0
+    blocked: list[SubjectExclusionTarget] = Field(default_factory=list)
 
 
 class SubjectExclusionRemovalResponse(RouteResponse):
-    """The decision was undone and the terms are back in the classification queue."""
+    """The decision was undone, the term is back in the queue and the ban it planted is lifted."""
 
     removed: int
+    unbanned: int = 0

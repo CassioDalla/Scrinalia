@@ -5,7 +5,6 @@ from scrinalia.domains.archive.models import (
     ArchiveMacroCategory,
     ArchiveReviewStatus,
     ArchiveTag,
-    ArchiveTagFacet,
     ArchiveTagMergeProposal,
     DomainSubjectExclusion,
 )
@@ -59,11 +58,11 @@ def test_orphan_subject_tags_counts_the_tags_nobody_has_decided(db_session) -> N
             ArchiveTag(name="decidida-nao-assunto", macro_category_id=None),
         ]
     )
-    facade = ArchiveTag(name="decidida-como-lugar", macro_category_id=None)
-    db_session.add(facade)
-    db_session.add(DomainSubjectExclusion(term="decidida-nao-assunto", source="HUMAN"))
+    category = ArchiveMacroCategory(name="Urbanismo", description=None, classifier_label=None, is_active=True)
+    db_session.add(category)
     db_session.flush()
-    db_session.add(ArchiveTagFacet(tag_id=facade.tag_id, facet_type="PLACE", value="decidida-como-lugar"))
+    db_session.add(ArchiveTag(name="decidida-com-categoria", macro_category_id=category.category_id))
+    db_session.add(DomainSubjectExclusion(term="decidida-nao-assunto", source="HUMAN"))
     db_session.flush()
 
     assert CurationRepository(db_session).count_subject_orphan_tags() == 2

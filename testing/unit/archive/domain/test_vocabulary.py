@@ -112,7 +112,7 @@ class TestStreetsGoToTheFacetAndNotEmpty:
         ``rua xv de novembro`` (118 documents) goes nowhere.
         """
         assert not is_subject_candidate(term), f"{term} reaches {documents} documents"
-        assert is_place_term(term), f"{term} is a place and the facet is where it goes"
+        assert is_place_term(term), f"{term} is a place and the entity axis is where it is carried"
 
     def test_the_street_prefix_is_what_matters(self) -> None:
         """
