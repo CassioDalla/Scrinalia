@@ -9,11 +9,21 @@ from scrinalia.domains.archive.schemas.types import EntityName
 # Who recorded a NER exclusion: a human curator or the LLM conflict judge.
 NerExclusionSource = Literal["JUDGE", "HUMAN"]
 
+#: The three categories of named entity the catalogue holds. Declared once because the same triple
+#: is a filter, a reclassification input and a DTO field, and the batch decides a whole category
+#: ("a street is an entity") rather than one pair.
+EntityKind = Literal["ORG", "PER", "LOC"]
+
 #: The two axes of a tag x entity collision, who may decide it, and the two governance writes
 #: a verdict can plant. Declared once so the DTOs, the plan and the ledger cannot disagree.
 ConflictWinner = Literal["TAG", "ENTITY"]
 ConflictDecider = Literal["JUDGE", "HUMAN"]
 ConflictBanKind = Literal["NER_EXCLUSION", "STOPWORD"]
+
+#: Which of the two populations of the trigram scan a read or a batch selects. ``exact_name`` is the
+#: structural question (the same spelling on both axes) and ``near_duplicate`` the spelling one; the
+#: batch is only meaningful for the structural population, where one decision settles many pairs.
+ConflictPairKind = Literal["all", "exact_name", "near_duplicate"]
 
 
 class NerSynonymRule(TypedDict):
@@ -332,12 +342,67 @@ class JudgedConflictPage(BaseModel):
 
 
 class ConflictResolutionData(BaseModel):
-    winner: Literal["TAG", "ENTITY"]
+    winner: ConflictWinner
     documents_transferred: int
     #: The ledger row, so the screen can offer the undo of the write it just made.
     resolution_id: int | None = None
     ban_kind: ConflictBanKind | None = None
     ban_term: str | None = None
+
+
+class ConflictBatchEntry(BaseModel):
+    """One pair the batch wrote, carrying the ledger row its own undo needs."""
+
+    resolution_id: int
+    tag_id: int
+    tag_name: str
+    entity_id: int
+    entity_name: str
+    documents_transferred: int = 0
+
+
+class ConflictBatchSkip(BaseModel):
+    """
+    A pair the batch did **not** write, and why.
+
+    Kept apart from ``failed`` on purpose. A pair whose loser an earlier pair of the same batch
+    already removed is *finished* work, not an error — a tag that lost its entity to one pair cannot
+    lose it again in the next — and reporting it as a failure is what turns a clean batch into a wall
+    of red lines. ``failed`` is only ever a real exception.
+    """
+
+    tag_id: int
+    entity_id: int
+    tag_name: str = ""
+    entity_name: str = ""
+    reason: str
+
+
+class ConflictBatchRemaining(BaseModel):
+    """What the same selection still holds after the write, counted over the whole filtered set."""
+
+    total: int = 0
+    exact_name_count: int = 0
+    near_duplicate_count: int = 0
+
+
+class ConflictBatchResult(BaseModel):
+    """
+    What one batch of verdicts wrote, skipped and left behind.
+
+    The unit of the write is still the **pair**: every entry carries its own ``resolution_id``, so
+    the screen offers one undo per pair even when the decision was taken for a whole category at
+    once. ``remaining`` is computed from the same scan the screen reads, with the same filters, so
+    the number before and the number after cannot be two different measurements.
+    """
+
+    winner: ConflictWinner
+    pair_kind: ConflictPairKind = "exact_name"
+    entity_type: EntityKind | None = None
+    applied: list[ConflictBatchEntry] = Field(default_factory=list)
+    skipped: list[ConflictBatchSkip] = Field(default_factory=list)
+    failed: list[ConflictBatchSkip] = Field(default_factory=list)
+    remaining: ConflictBatchRemaining = Field(default_factory=ConflictBatchRemaining)
 
 
 class NerExclusion(BaseModel):
@@ -387,7 +452,7 @@ class EntityReclassifyResponse(RouteResponse):
     future run, which is why the screen has to say so.
     """
 
-    new_type: Literal["ORG", "PER", "LOC"]
+    new_type: EntityKind
 
 
 class EntityDeleteResponse(RouteResponse):

@@ -7,6 +7,22 @@ All notable changes to this project are documented here. The format is
 `1.0.0` was the first release; the newest one is at the top. Entries describe **behaviour**, not
 commits — the history is the detail.
 
+## [Unreleased]
+
+### Added
+
+- **A whole category of tag × entity collisions decided in one call** (issue #35):
+  `POST /api/v1/taxonomy/conflicts/resolve/batch` applies one verdict to the selection the collisions
+  screen is showing — the same `pair_kind`, `entity_type` and `threshold` — because "a street is an
+  entity" is a decision about a category, not about a pair, and the screen could only ask one pair at
+  a time. The unit of the write stays the **pair**: each one is planned by the same planner the single
+  preview uses, written inside its own savepoint with its own ledger row, and therefore undoable on
+  its own. A pair an earlier pair of the same batch already finished is reported in `skipped` with its
+  reason and never as a failure; `limit` bounds one request (the screen writes 50 at a time and the
+  route accepts at most 200); and `remaining` is the same read the screen makes, taken again, so the
+  number before the click and the number after it are one measurement. The live list gained the
+  `entity_type` filter the batch selects with.
+
 ## [1.1.0] - 2026-10-10
 
 ### Added

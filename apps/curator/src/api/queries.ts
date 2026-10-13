@@ -65,6 +65,13 @@ export const MERGE_LOG_PAGE_SIZE = 20;
 export const TREE_PAGE_SIZE = 500;
 /** The collision lists are read one page at a time; the trigram join itself is the expensive part. */
 export const CONFLICTS_PAGE_SIZE = 25;
+/**
+ * How many collisions one categorical click may write.
+ *
+ * The batch is undoable pair by pair, but a click that writes the whole structural population of a
+ * large collection is a click nobody reviewed: the screen writes this many and says what is left.
+ */
+export const CONFLICTS_BATCH_LIMIT = 50;
 /** The entity and tag vocabularies are read by weight, so the head of the list is what matters. */
 export const RELEVANCE_PAGE_SIZE = 50;
 export const ANOMALIES_PAGE_SIZE = 20;
@@ -396,19 +403,26 @@ export const queries = {
     }),
 
   /**
-   * The live collisions, filtered by population and paged on the server.
+   * The live collisions, filtered by population and category, and paged on the server.
    *
    * The trigram join is measured in seconds on the real vocabulary, so a threshold change is a
    * deliberate read and the answer is kept while the archivist works through the queue. ``pair_kind``
-   * is part of the key because it is a different question, not a refinement of the same one.
+   * and ``entity_type`` are part of the key because each one is a different question, not a
+   * refinement of the same one — and they are also the selection the batch writes.
    */
-  crossDomainConflicts: (threshold: number, pairKind: ConflictPairKindFilter, offset: number) =>
+  crossDomainConflicts: (
+    threshold: number,
+    pairKind: ConflictPairKindFilter,
+    entityType: EntityType | undefined,
+    offset: number,
+  ) =>
     queryOptions({
-      queryKey: ["taxonomy", "conflicts", threshold, pairKind, offset],
+      queryKey: ["taxonomy", "conflicts", threshold, pairKind, entityType, offset],
       queryFn: () =>
         fetchCrossDomainConflicts({
           threshold,
           pair_kind: pairKind,
+          entity_type: entityType,
           limit: CONFLICTS_PAGE_SIZE,
           offset,
         }),

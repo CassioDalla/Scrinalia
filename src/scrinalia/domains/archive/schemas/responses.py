@@ -71,6 +71,8 @@ class RouteMessageCode(enum.StrEnum):
 
     # --- The tag x entity collision ---
     CONFLICT_RESOLVED = "CONFLICT_RESOLVED"
+    #: One categorical verdict written over a whole selection of pairs, one ledger row each.
+    CONFLICT_BATCH_RESOLVED = "CONFLICT_BATCH_RESOLVED"
 
     # --- The session and the account (identity) ---
     # The codes of the identity routes live in the same enum because the enum is the shared

@@ -10,6 +10,8 @@ from litestar.params import FromPath, FromQuery
 
 from scrinalia.api.dependencies import provide_current_user, provide_entity_service, provide_tag_service
 from scrinalia.api.schemas.taxonomy import (
+    ConflictBatchRequest,
+    ConflictBatchResponse,
     ConflictPreviewRequest,
     ConflictResolutionRequest,
     ConflictResolutionResponse,
@@ -40,6 +42,7 @@ from scrinalia.domains.archive.schemas import (
     ConflictResolutionPlan,
     CreateMacroCategoryCommand,
     CrossDomainConflictPage,
+    EntityKind,
     JudgedConflictPage,
     MergeBatchCommand,
     MergeEntityCommand,
@@ -48,6 +51,7 @@ from scrinalia.domains.archive.schemas import (
     MergePreviewResponse,
     MergeSuggestionRunResponse,
     MergeTagsCommand,
+    ResolveConflictBatchCommand,
     ResolveConflictCommand,
     RouteMessageCode,
     StopwordDTO,
@@ -736,20 +740,23 @@ class TaxonomyController(Controller):
         entity_service: NamedDependency[EntityService],
         threshold: FromQuery[float] = 0.85,
         pair_kind: FromQuery[Literal["all", "exact_name", "near_duplicate"]] = "all",
+        entity_type: FromQuery[EntityKind | None] = None,
         limit: FromQuery[int] = 50,
         offset: FromQuery[int] = 0,
     ) -> CrossDomainConflictPage:
         """
         The collisions that exist **today**, annotated with what has already been decided.
 
-        ``scope`` is what makes the list usable rather than overwhelming: the trigram join returns
-        5 408 pairs on the real collection, of which 5 050 are the same spelling on both axes (a
-        structural question) and 122 are the same word written differently (a spelling question).
+        ``pair_kind`` is what makes the list usable rather than overwhelming: the trigram join returns
+        thousands of pairs, most of them the same spelling on both axes (a structural question) and a
+        minority the same word written differently (a spelling question). ``entity_type`` narrows the
+        structural population to a category — the same selection the batch writes.
+
         Each pair carries the judge's verdict when there is one, so a pair the judge already doubted
         is not put in front of the archivist as if it were new.
         """
         return entity_service.page_cross_domain_conflicts(
-            threshold=threshold, pair_kind=pair_kind, limit=limit, offset=offset
+            threshold=threshold, pair_kind=pair_kind, entity_type=entity_type, limit=limit, offset=offset
         )
 
     @get("/conflicts/judged", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
@@ -811,6 +818,45 @@ class TaxonomyController(Controller):
             ),
             data=result,
         )
+
+    @post("/conflicts/resolve/batch", opt={"access": Access.CURATE}, sync_to_thread=True)
+    def resolve_cross_domain_conflict_batch(
+        self,
+        entity_service: NamedDependency[EntityService],
+        data: ConflictBatchRequest,
+        current_user: NamedDependency[AuthenticatedUser],
+    ) -> ConflictBatchResponse:
+        """
+        Forces one verdict over a whole **selection**, one ledger row — and one undo — per pair.
+
+        ``pair_kind`` picks the structural population the batch is meaningful for and ``entity_type``
+        narrows it to a category: "a street is an entity" is a decision about a set, and a screen that
+        asks one pair at a time cannot express it. The report keeps ``skipped`` apart from ``failed``
+        — a pair an earlier one of the same batch already finished is not an error — and the
+        remaining count is the read the screen already uses, taken again.
+        """
+        result = entity_service.resolve_conflict_batch(
+            ResolveConflictBatchCommand(
+                winner=data.winner,
+                pair_kind=data.pair_kind,
+                entity_type=data.entity_type,
+                threshold=data.threshold,
+                limit=data.limit,
+                decided_by=current_user.author,
+                note=data.note,
+            )
+        )
+
+        message = (
+            f"{len(result.applied)} colisão(ões) resolvida(s) a favor de {data.winner} em lote; "
+            f"{result.remaining.total} continua(m) na seleção."
+        )
+        if result.skipped:
+            message += f" {len(result.skipped)} já não tinha(m) o que resolver."
+        if result.failed:
+            message += f" {len(result.failed)} falhou(aram)."
+
+        return ConflictBatchResponse(code=RouteMessageCode.CONFLICT_BATCH_RESOLVED, message=message, data=result)
 
     @get("/conflicts/resolutions", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_conflict_resolutions(

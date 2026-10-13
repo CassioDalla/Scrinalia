@@ -676,7 +676,7 @@ não sabe se abster responderia com confiança e errado.
 | --- | --- | --- |
 | Entidades — `/entidades/lista` | o tipo de um nome, e se dois nomes são um | o tipo sim; o merge **não** |
 | Exclusões de NER — `/entidades/excecoes` | quais grafias são assunto, não nome próprio | a linha do veto sim; as entidades expurgadas **não** |
-| Conflitos — `/entidades/conflitos` | se uma colisão pertence ao eixo de assunto ou aos nomes | sim (ledger e desfazer) |
+| Conflitos — `/entidades/conflitos` | se uma colisão pertence ao eixo de assunto ou aos nomes, um par de cada vez ou uma categoria inteira de uma vez | sim (uma linha no ledger por par, com o desfazer) |
 
 ### Entidades — `/entidades/lista`
 
@@ -717,9 +717,10 @@ A mesma grafia nos dois eixos: "isto é assunto ou nome próprio?". Três leitur
 perguntas, e ler só a primeira era o que escondia o trabalho do juiz:
 
 - **Pendentes** — a varredura ao vivo de trigrama (`GET /api/v1/taxonomy/conflicts/cross-domain`),
-  anotada com o veredito do juiz onde existe e separada por `pair_kind`: "grafias diferentes" (uma
+  anotada com o veredito do juiz onde existe e filtrada por `pair_kind`: "grafias diferentes" (uma
   pergunta de grafia) e "nomes idênticos" (uma pergunta estrutural) não são a mesma lista, e juntas
-  nenhuma das duas fica visível.
+  nenhuma das duas fica visível. A mesma leitura aceita `entity_type` (`ORG`/`PER`/`LOC`), porque "rua
+  é entidade" é uma decisão sobre uma categoria de colisões e não sobre um par.
 - **Decididos pelo juiz** — a fila de revisão (`GET /api/v1/taxonomy/conflicts/judged`). Uma
   auto-resolução apaga a linha perdedora, então a maior parte das decisões do juiz não pode aparecer
   na varredura ao vivo.
@@ -751,6 +752,26 @@ próprio desfazer.
     A resolução apaga a linha perdedora, então o join de trigrama não pode devolvê-la e a lista ao
     vivo não tem o que anotar. É por isso que o trabalho sobrevive na fila do juiz e no ledger, e é
     por isso que as abas `Decididos` e `Resoluções` existem.
+
+#### Decidir uma categoria de uma vez
+
+Uma colisão é decidida um par de cada vez, mas a decisão que o arquivista está de fato tomando é
+categórica — "rua é entidade" — e um acervo pode ter dezenas da mesma grafia nos dois eixos. O lote,
+`POST /api/v1/taxonomy/conflicts/resolve/batch` (`CURATE`), aplica um veredito à **seleção** inteira
+que a lista mostra: os mesmos filtros `pair_kind` e `entity_type`, o mesmo `threshold`, e nada além.
+
+A unidade da decisão é a seleção; a unidade da escrita continua sendo o par. Cada par é planejado pelo
+mesmo planejador que a prévia de um par usa e escrito dentro do seu próprio savepoint, então um par que
+falha não desfaz os outros, e cada par fica com a sua linha no ledger e o seu `resolution_id` — o
+desfazer continua sendo por par mesmo quando o clique foi categórico. Um par cujo perdedor um par
+anterior do mesmo lote já removeu é relatado em `skipped` **com o motivo**, nunca como falha: é
+trabalho terminado, e chamá-lo de falha é o que já transformou um lote limpo numa parede de linhas
+vermelhas.
+
+O `limit` limita uma requisição, porque um clique que escreve milhares de linhas no ledger é um clique
+que ninguém revisou. O `remaining` é a mesma leitura que a lista faz, feita de novo com os mesmos
+filtros, então o número antes do clique e o número depois dele são uma só medição — a tela não pode
+afirmar que uma categoria acabou quando a página seguinte discorda.
 
 ## Qualidade
 

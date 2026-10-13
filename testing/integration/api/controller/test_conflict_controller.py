@@ -23,6 +23,10 @@ from scrinalia.domains.archive.exceptions import (
     UnresolvableConflictError,
 )
 from scrinalia.domains.archive.schemas.entity_schema import (
+    ConflictBatchEntry,
+    ConflictBatchRemaining,
+    ConflictBatchResult,
+    ConflictBatchSkip,
     ConflictResolutionData,
     ConflictResolutionLogEntry,
     ConflictResolutionPlan,
@@ -72,16 +76,21 @@ class TestConflictRoutes:
         # ``pair_kind`` is derived in the DTO, and the front reads it from the payload.
         assert body["items"][0]["pair_kind"] == "NEAR_DUPLICATE"
 
-    def test_the_scope_reaches_the_service(self, client: TestClient, mocker):
+    def test_the_category_reaches_the_service(self, client: TestClient, mocker):
         mocked = mocker.patch.object(
             EntityService,
             "page_cross_domain_conflicts",
             return_value=CrossDomainConflictPage(total=0, limit=10, offset=20),
         )
 
-        client.get("/api/v1/taxonomy/conflicts/cross-domain?threshold=0.9&pair_kind=near_duplicate&limit=10&offset=20")
+        client.get(
+            "/api/v1/taxonomy/conflicts/cross-domain"
+            "?threshold=0.9&pair_kind=near_duplicate&entity_type=LOC&limit=10&offset=20"
+        )
 
-        mocked.assert_called_once_with(threshold=0.9, pair_kind="near_duplicate", limit=10, offset=20)
+        mocked.assert_called_once_with(
+            threshold=0.9, pair_kind="near_duplicate", entity_type="LOC", limit=10, offset=20
+        )
 
     def test_an_unknown_scope_is_refused(self, client: TestClient):
         response = client.get("/api/v1/taxonomy/conflicts/cross-domain?pair_kind=whatever")
@@ -190,6 +199,87 @@ class TestConflictRoutes:
             "/api/v1/taxonomy/conflicts/resolve", json={"winner": "TAG", "tag_id": 1, "entity_id": 2}
         )
         assert response.status_code == HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_the_batch_forwards_the_category_the_archivist_chose(self, client: TestClient, mocker):
+        """
+        The selection is the batch's whole input: population, category and cap.
+
+        ``decided_by`` comes from the session and never from the payload — the ledger has to say who
+        decided, and a client cannot claim to be somebody else.
+        """
+        mocked = mocker.patch.object(
+            EntityService, "resolve_conflict_batch", return_value=ConflictBatchResult(winner="ENTITY")
+        )
+
+        response = client.post(
+            "/api/v1/taxonomy/conflicts/resolve/batch",
+            json={
+                "winner": "ENTITY",
+                "pair_kind": "exact_name",
+                "entity_type": "LOC",
+                "limit": 25,
+                "note": "rua é entidade",
+            },
+        )
+
+        assert response.status_code == HTTP_201_CREATED
+        command = mocked.call_args.args[0]
+        assert command.winner == "ENTITY"
+        assert command.entity_type == "LOC"
+        assert command.limit == 25
+        assert command.note == "rua é entidade"
+        assert command.decided_by is not None, "o autor vem da sessão, não do payload"
+        assert command.decided_by.name == TEST_ADMIN_NAME
+
+    def test_the_batch_reports_a_skip_apart_from_a_failure(self, client: TestClient, mocker):
+        """
+        Finished work is not an error, and the payload keeps the two lists apart.
+
+        A pair an earlier one of the same batch already resolved used to be reported as a failure,
+        which turned a clean batch into a wall of red lines.
+        """
+        mocker.patch.object(
+            EntityService,
+            "resolve_conflict_batch",
+            return_value=ConflictBatchResult(
+                winner="ENTITY",
+                pair_kind="exact_name",
+                entity_type="LOC",
+                applied=[
+                    ConflictBatchEntry(
+                        resolution_id=7,
+                        tag_id=1,
+                        tag_name="batel",
+                        entity_id=2,
+                        entity_name="Batel",
+                        documents_transferred=3,
+                    )
+                ],
+                skipped=[
+                    ConflictBatchSkip(
+                        tag_id=3,
+                        entity_id=2,
+                        tag_name="Batel",
+                        entity_name="Batel",
+                        reason="A entidade deste par não existe mais.",
+                    )
+                ],
+                remaining=ConflictBatchRemaining(total=1),
+            ),
+        )
+
+        body = client.post("/api/v1/taxonomy/conflicts/resolve/batch", json={"winner": "ENTITY"}).json()
+
+        assert body["code"] == "CONFLICT_BATCH_RESOLVED"
+        assert body["data"]["applied"][0]["resolution_id"] == 7
+        assert body["data"]["skipped"][0]["reason"]
+        assert body["data"]["failed"] == []
+        assert body["data"]["remaining"]["total"] == 1
+
+    def test_the_batch_refuses_a_cap_outside_its_bounds(self, client: TestClient):
+        for limit in (0, 201):
+            response = client.post("/api/v1/taxonomy/conflicts/resolve/batch", json={"winner": "TAG", "limit": limit})
+            assert response.status_code in (HTTP_400_BAD_REQUEST, HTTP_422_UNPROCESSABLE_ENTITY)
 
     def test_undoing_twice_is_409_and_an_unknown_id_is_404(self, client: TestClient, mocker):
         mocked = mocker.patch.object(EntityService, "undo_conflict_resolution")
@@ -319,3 +409,42 @@ class TestConflictLifecycle:
         )
         assert response.status_code == HTTP_422_UNPROCESSABLE_ENTITY
         assert "existe" in response.json()["message"]
+
+    def test_the_batch_resolves_one_category_and_leaves_the_other(
+        self, client: TestClient, api_uses_test_db, db_session
+    ):
+        """
+        The categorical click over HTTP: one verdict, one category, one ledger row per pair.
+
+        The other category is left alone, and ``remaining`` is the same read the screen makes with the
+        same filters, taken again — the LOC selection is finished while the PER pair is still there.
+        """
+        from scrinalia.domains.archive.models import ArchiveEntity, ArchiveTag
+
+        loc_tag = ArchiveTag(name="batel")
+        loc_entity = ArchiveEntity(name="Batel", entity_type="LOC")
+        per_tag = ArchiveTag(name="ana")
+        per_entity = ArchiveEntity(name="Ana", entity_type="PER")
+        db_session.add_all([loc_tag, loc_entity, per_tag, per_entity])
+        db_session.flush()
+
+        response = client.post(
+            "/api/v1/taxonomy/conflicts/resolve/batch",
+            json={"winner": "ENTITY", "pair_kind": "exact_name", "entity_type": "LOC", "note": "rua é entidade"},
+        )
+
+        assert response.status_code == HTTP_201_CREATED
+        body = response.json()
+        assert body["code"] == "CONFLICT_BATCH_RESOLVED"
+        data = body["data"]
+        assert [entry["entity_id"] for entry in data["applied"]] == [loc_entity.entity_id]
+        assert data["skipped"] == [] and data["failed"] == []
+        assert data["remaining"]["total"] == 0
+
+        # The LOC pair is written and the PER pair is untouched: the category is the selection.
+        assert db_session.get(ArchiveTag, loc_tag.tag_id) is None
+        assert db_session.get(ArchiveTag, per_tag.tag_id) is not None
+        ledger = client.get("/api/v1/taxonomy/conflicts/resolutions").json()
+        assert ledger["total"] == 1
+        assert ledger["items"][0]["decided_by"] == TEST_ADMIN_NAME
+        assert ledger["items"][0]["note"] == "rua é entidade"

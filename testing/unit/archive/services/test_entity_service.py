@@ -5,14 +5,16 @@ from pytest_mock import MockerFixture
 from scrinalia.core.author import Author
 from scrinalia.domains.archive.exceptions import InvalidParam
 from scrinalia.domains.archive.repository import EntityRepository
-from scrinalia.domains.archive.schemas import ResolveConflictCommand
+from scrinalia.domains.archive.schemas import ResolveConflictBatchCommand, ResolveConflictCommand
 from scrinalia.domains.archive.schemas.entity_schema import (
+    ConflictBatchResult,
     ConflictResolutionData,
     ConflictResolutionPlan,
     CrossDomainConflict,
     CrossDomainConflictPage,
 )
 from scrinalia.domains.archive.services import EntityService
+from scrinalia.domains.archive.services.entity_service import MAX_CONFLICT_BATCH_PAIRS
 
 # ==========================================
 # TESTS: CROSS DOMAIN
@@ -108,7 +110,8 @@ def test_the_preview_refuses_a_threshold_out_of_range(mocker: MockerFixture) -> 
 
 def test_the_page_forwards_the_pair_kind_that_makes_the_list_usable(mocker: MockerFixture) -> None:
     """
-    ``pair_kind`` is the lever that separates 122 spelling questions from 5 050 structural ones.
+    ``pair_kind`` is the lever that separates the spelling questions from the structural ones, and
+    ``entity_type`` narrows the structural population to the category the batch writes.
 
     It is not called ``scope``: Litestar reserves that name for the ASGI scope, and a handler
     parameter with it silently receives the raw request instead of the query string.
@@ -117,11 +120,46 @@ def test_the_page_forwards_the_pair_kind_that_makes_the_list_usable(mocker: Mock
     mock_ent_repo.page_cross_domain_conflicts.return_value = CrossDomainConflictPage(total=0, limit=50, offset=0)
 
     service = EntityService(mock_ent_repo)
-    service.page_cross_domain_conflicts(threshold=0.9, pair_kind="near_duplicate", limit=10, offset=20)
+    service.page_cross_domain_conflicts(
+        threshold=0.9, pair_kind="near_duplicate", entity_type="LOC", limit=10, offset=20
+    )
 
     mock_ent_repo.page_cross_domain_conflicts.assert_called_once_with(
-        threshold=0.9, pair_kind="near_duplicate", limit=10, offset=20
+        threshold=0.9, pair_kind="near_duplicate", entity_type="LOC", limit=10, offset=20
     )
+
+
+def test_the_batch_forwards_its_selection_and_bounds_it(mocker: MockerFixture) -> None:
+    """
+    The selection is the batch's whole input, and the service is where its bounds are enforced.
+
+    A limit outside the range is refused before any pair is written — a click that writes thousands
+    of ledger rows is a click nobody reviewed.
+    """
+    mock_ent_repo = mocker.Mock(spec=EntityRepository)
+    mock_ent_repo.resolve_conflict_batch.return_value = ConflictBatchResult(winner="ENTITY")
+
+    service = EntityService(mock_ent_repo)
+    service.resolve_conflict_batch(
+        ResolveConflictBatchCommand(winner="ENTITY", pair_kind="exact_name", entity_type="LOC", limit=25)
+    )
+
+    mock_ent_repo.resolve_conflict_batch.assert_called_once_with(
+        winner="ENTITY",
+        pair_kind="exact_name",
+        entity_type="LOC",
+        threshold=0.85,
+        limit=25,
+        decided_by=None,
+        note=None,
+    )
+
+    for out_of_range in (0, MAX_CONFLICT_BATCH_PAIRS + 1):
+        with pytest.raises(InvalidParam):
+            service.resolve_conflict_batch(ResolveConflictBatchCommand(winner="TAG", limit=out_of_range))
+
+    with pytest.raises(InvalidParam):
+        service.resolve_conflict_batch(ResolveConflictBatchCommand(winner="TAG", threshold=1.5))
 
 
 # ==========================================
