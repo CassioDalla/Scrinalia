@@ -26,7 +26,8 @@ implantação em volta das telas.
 
 ## A única regra
 
-Toda escrita ou tem desfazer, ou avisa que não tem. O merge e a purga de stopwords guardam um ledger;
+Toda escrita ou tem desfazer, ou avisa que não tem. O merge, a purga de stopwords e o expurgo de NER
+guardam um ledger;
 a edição da descrição guarda o antes e o depois. Quando uma tela não tem nem uma
 coisa nem outra, esta página diz em negrito.
 
@@ -53,11 +54,6 @@ carrega.
   `POST /api/v1/taxonomy/entities/orphans/purge`. A tela só oferece a exclusão numa linha cuja
   contagem de uso é zero, e a purga remove toda entidade que nenhuma descrição carrega, então nenhum
   vínculo se perde — mas a linha vai embora e não há ledger que a restaure.
-
-Há ainda uma escrita cujo efeito alcança o passado: **um veto de NER** (`POST
-/api/v1/taxonomy/entities/ner-exclusions`) expurga as entidades já extraídas daquela grafia, com os
-vínculos. Remover o veto (`DELETE`, o "remover veto" da tela) reabre o termo para as próximas
-extrações; **não traz de volta** o que o veto já apagou.
 
 ### O lote que tem desfazer
 
@@ -676,7 +672,7 @@ não sabe se abster responderia com confiança e errado.
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
 | Entidades — `/entidades/lista` | o tipo de um nome, a grafia de um nome, e se dois nomes são um | o tipo sim; a renomeação **sim** (uma linha no ledger); o merge **sim** (uma linha por entidade absorvida) |
-| Exclusões de NER — `/entidades/excecoes` | quais grafias são assunto, não nome próprio | a linha do veto sim; as entidades expurgadas **não** |
+| Exclusões de NER — `/entidades/excecoes` | quais grafias são assunto, não nome próprio, e o expurgo retroativo que as segue | ambos **sim**: a linha do veto pelo seu próprio `DELETE`, o expurgo pelo seu ledger (`archive_ner_purge_log`) |
 | Conflitos — `/entidades/conflitos` | se uma colisão pertence ao eixo de assunto ou aos nomes, um par de cada vez ou uma categoria inteira de uma vez | sim (uma linha no ledger por par, com o desfazer) |
 
 ### Entidades — `/entidades/lista`
@@ -738,13 +734,28 @@ como efeito colateral.
 
 ### Exclusões de NER — `/entidades/excecoes`
 
-O veto "esta grafia é assunto, não nome próprio". A escrita é `POST
-/api/v1/taxonomy/entities/ner-exclusions` (`CURATE`), com um motivo guardado para auditoria; a
-reversão é `DELETE` (o "remover veto" da tela). Dois comportamentos que a tela declara porque nenhum
-deles é visível na lista: o bloqueio é **por limite de token**, não por nome exato (o spaCy funde
-tokens vizinhos, então um `iptu` vetado não barraria `"IPTU do Batel"` numa comparação exata), e ele
-**vale para trás** — as entidades já extraídas daquela grafia são apagadas, com os vínculos, e
-remover o veto não as traz de volta.
+O veto "esta grafia é assunto, não nome próprio". **Vetar não apaga nada.** A escrita é `POST
+/api/v1/taxonomy/entities/ner-exclusions` (`CURATE`), com um motivo guardado para auditoria, e a
+reversão é `DELETE` (o "remover veto" da tela), que reabre o termo para as próximas extrações. Um
+comportamento que a tela declara porque não é visível na lista: o bloqueio é **por limite de token**,
+não por nome exato (o spaCy funde tokens vizinhos, então um `iptu` vetado não barraria `"IPTU do
+Batel"` numa comparação exata).
+
+A metade retroativa é um ato separado, **Expurgar do passado**:
+`POST /api/v1/taxonomy/entities/ner-exclusions/purge` (`CURATE`), depois de
+`POST /api/v1/taxonomy/entities/ner-exclusions/purge/preview`. O impacto lista toda entidade já
+extraída de uma grafia vetada, com as descrições que a carregam, e a escrita consome o mesmo plano.
+Cada entidade apagada entra num **ledger** (`archive_ner_purge_log`) antes de sair: o snapshot da
+linha, os documentos que a carregavam, as grafias que apontavam para ela e o `excluded_term` que a
+justificou. A resposta carrega os `purge_ids`, a tela os mostra em **Ledger dos expurgos**, e
+`DELETE /api/v1/taxonomy/entities/ner-exclusions/purge-log/{purge_id}` restaura a entidade, os seus
+vínculos e as suas grafias — **sem** levantar o veto, então o próximo expurgo lista a entidade
+restaurada de novo. Use-o para reverter a perda; use "remover veto" para reabrir o termo.
+
+A tela de conflitos resolve o mesmo choque com o mesmo par de escritas, e lá também é reversível na
+mesma forma: uma linha de ledger por par (`archive_conflict_resolution_log`), com a linha perdedora, os
+seus vínculos e as suas grafias restauradas pelo desfazer. Chegar à operação por qualquer das telas
+restaura as mesmas coisas.
 
 Esta é a outra metade da governança bidirecional: ela registra o curador ou o juiz dizendo "isto
 pertence ao eixo de assunto", e é guardada separada das stopwords do eixo de assunto de propósito,

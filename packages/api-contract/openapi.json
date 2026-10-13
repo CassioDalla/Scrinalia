@@ -5395,7 +5395,9 @@
           "code": {
             "$ref": "#/components/schemas/RouteMessageCode"
           },
-          "entities_deleted": {
+          "created": {
+            "default": 0,
+            "description": "How many exclusions were inserted; a re-ban inserts none.",
             "type": "integer"
           },
           "message": {
@@ -5404,7 +5406,6 @@
         },
         "required": [
           "code",
-          "entities_deleted",
           "message"
         ],
         "title": "NerExclusionBanResponse",
@@ -5456,6 +5457,228 @@
           "words"
         ],
         "title": "NerExclusionRequest",
+        "type": "object"
+      },
+      "NerPurgeEntity": {
+        "properties": {
+          "document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "entity_id": {
+            "type": "integer"
+          },
+          "entity_type": {
+            "type": "string"
+          },
+          "excluded_term": {
+            "description": "The banned spelling this entity matched.",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "synonym_names": {
+            "description": "The spellings that point at it.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "entity_id",
+          "entity_type",
+          "excluded_term",
+          "name"
+        ],
+        "title": "NerPurgeEntity",
+        "type": "object"
+      },
+      "NerPurgeLogEntryDTO": {
+        "properties": {
+          "changed_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "changed_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "entity_type": {
+            "type": "string"
+          },
+          "excluded_term": {
+            "type": "string"
+          },
+          "purge_id": {
+            "type": "integer"
+          },
+          "purged_entity_id": {
+            "type": "integer"
+          },
+          "purged_name": {
+            "type": "string"
+          },
+          "synonym_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "undone_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "undone_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "entity_type",
+          "excluded_term",
+          "purge_id",
+          "purged_entity_id",
+          "purged_name"
+        ],
+        "title": "NerPurgeLogEntryDTO",
+        "type": "object"
+      },
+      "NerPurgeLogListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NerPurgeLogEntryDTO"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "offset",
+          "total"
+        ],
+        "title": "NerPurgeLogListResponse",
+        "type": "object"
+      },
+      "NerPurgePreview": {
+        "properties": {
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/NerPurgeEntity"
+            },
+            "type": "array"
+          },
+          "excluded_terms": {
+            "description": "The banned spellings the purge acts on.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reversible": {
+            "default": true,
+            "description": "True: the ledger restores the entities and their links.",
+            "type": "boolean"
+          },
+          "total_documents": {
+            "default": 0,
+            "description": "Documents that lose an entity.",
+            "type": "integer"
+          },
+          "total_entities": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "title": "NerPurgePreview",
+        "type": "object"
+      },
+      "NerPurgeResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "entities_deleted": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "purge_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "code",
+          "entities_deleted",
+          "message"
+        ],
+        "title": "NerPurgeResponse",
+        "type": "object"
+      },
+      "NerPurgeUndoResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/NerPurgeLogEntryDTO"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "title": "NerPurgeUndoResponse",
         "type": "object"
       },
       "OllamaHealthDTO": {
@@ -5926,6 +6149,8 @@
           "MACRO_CLUSTERING_INSUFFICIENT_TEXTS",
           "NER_EXCLUSIONS_ADDED",
           "NER_EXCLUSIONS_REMOVED",
+          "NER_PURGE_DONE",
+          "NER_PURGE_UNDONE",
           "ORPHAN_ENTITIES_PURGED",
           "ENTITY_RECLASSIFIED",
           "ENTITY_DELETED",
@@ -14360,6 +14585,241 @@
           }
         },
         "summary": "CreateNerExclusions",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/entities/ner-exclusions/purge": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyEntitiesNerExclusionsPurgePurgeNerEntities",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NerPurgeResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "PurgeNerEntities",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/entities/ner-exclusions/purge-log": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyEntitiesNerExclusionsPurgeLogListNerPurgeLog",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "include_undone",
+            "required": false,
+            "schema": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NerPurgeLogListResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListNerPurgeLog",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/entities/ner-exclusions/purge-log/{purge_id}": {
+      "delete": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyEntitiesNerExclusionsPurgeLogPurgeIdUndoNerPurge",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "purge_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NerPurgeUndoResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "UndoNerPurge",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/entities/ner-exclusions/purge/preview": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyEntitiesNerExclusionsPurgePreviewPreviewNerPurge",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NerPurgePreview"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "PreviewNerPurge",
         "tags": [
           "Taxonomy"
         ]

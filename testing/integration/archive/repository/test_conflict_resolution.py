@@ -30,6 +30,7 @@ from scrinalia.domains.archive.models import (
     ArchiveTag,
     DomainNerExclusion,
     DomainStopwords,
+    DomainSynonyms,
     StopwordsScope,
 )
 from scrinalia.domains.archive.repository.entity_repo import EntityRepository
@@ -170,6 +171,35 @@ def test_undo_restores_the_loser_its_id_and_only_the_links_it_created(use_test_d
 
     # The ban this resolution planted is lifted with it.
     assert db_session.scalar(select(DomainNerExclusion).where(DomainNerExclusion.term == "batel")) is None
+
+
+def test_undo_restores_the_spellings_the_delete_cascaded(use_test_db, db_session, generate_archive_doc):
+    """
+    The same operation restores the same things as the NER purge: row, links and spellings (#94).
+
+    ``domain_synonyms.canonical_entity_id`` is ``ON DELETE CASCADE``, so resolving in favour of the
+    tag took the spellings an earlier curation absorbed. An undo that left them behind would let the
+    next extraction recreate the absorbed spelling as a brand-new entity.
+    """
+    repo = EntityRepository(db_session)
+    tag, entity = _pair(db_session)
+    entity_id = entity.entity_id
+    db_session.add(DomainSynonyms(synonym_name="batel antigo", category="LOC", canonical_entity_id=entity_id))
+    db_session.flush()
+
+    plan = repo.plan_conflict_resolution(tag.tag_id, entity_id)
+    data = repo.apply_conflict_resolution(plan, "TAG", source="HUMAN")
+    db_session.flush()
+    assert data.resolution_id is not None
+    assert db_session.scalar(select(DomainSynonyms).where(DomainSynonyms.synonym_name == "batel antigo")) is None
+
+    repo.undo_conflict_resolution(data.resolution_id)
+    db_session.flush()
+
+    restored = db_session.scalar(select(DomainSynonyms).where(DomainSynonyms.synonym_name == "batel antigo"))
+    assert restored is not None
+    assert restored.canonical_entity_id == entity_id
+    assert restored.category == "LOC"
 
 
 def test_undo_does_not_lift_a_ban_it_did_not_plant(use_test_db, db_session, generate_archive_doc):

@@ -16,11 +16,20 @@ from scrinalia.domains.archive.exceptions import (
     MacroCategoryNotFoundError,
     MergeAlreadyUndoneError,
     MergeLogNotFoundError,
+    NerPurgeAlreadyUndoneError,
+    NerPurgeLogNotFoundError,
     TagMergeProposalNotFoundError,
     TagNotFoundError,
 )
 from scrinalia.domains.archive.schemas import ArchiveMacroCategoryEntityDTO
-from scrinalia.domains.archive.schemas.entity_schema import NerExclusion
+from scrinalia.domains.archive.schemas.entity_schema import (
+    NerExclusion,
+    NerPurgeEntity,
+    NerPurgeLogEntryDTO,
+    NerPurgeLogListResponse,
+    NerPurgePreview,
+    NerPurgeResult,
+)
 from scrinalia.domains.archive.schemas.tag_schema import (  # <-- Import the DTO
     MergeLogEntryDTO,
     TagMergeProposalDTO,
@@ -437,9 +446,9 @@ def test_create_macro_category_triggers_409_on_duplicate_name(client: TestClient
 
 
 def test_create_ner_exclusions_returns_201(client: TestClient, mocker):
-    """The curator bans a term from NER and learns how many entities were purged."""
+    """The curator bans a term from NER — and the ban deletes nothing (#94)."""
     mock_service = mocker.patch.object(EntityService, "exclude_terms_from_ner")
-    mock_service.return_value = 3
+    mock_service.return_value = 1
 
     response = client.post(
         "/api/v1/taxonomy/entities/ner-exclusions",
@@ -447,7 +456,8 @@ def test_create_ner_exclusions_returns_201(client: TestClient, mocker):
     )
 
     assert response.status_code == HTTP_201_CREATED
-    assert response.json()["entities_deleted"] == 3
+    assert response.json()["created"] == 1
+    assert "entities_deleted" not in response.json()
     mock_service.assert_called_once_with(["IPTU"], reason="é assunto, não entidade")
 
 
@@ -494,6 +504,116 @@ def test_remove_ner_exclusions_returns_200(client: TestClient, mocker):
     assert response.status_code == HTTP_200_OK
     assert response.json()["removed"] == 1
     mock_service.assert_called_once_with(["iptu"])
+
+
+# --- The purge: the destructive half of the veto, on its own ---
+
+
+def test_ner_purge_preview_route_returns_the_impact(client: TestClient, mocker):
+    """The dry run lists what would die and promises the ledger's undo."""
+    mocked = mocker.patch.object(EntityService, "preview_ner_purge")
+    mocked.return_value = NerPurgePreview(
+        excluded_terms=["iptu"],
+        entities=[
+            NerPurgeEntity(
+                entity_id=3,
+                name="iptu",
+                entity_type="ORG",
+                excluded_term="iptu",
+                document_count=2,
+                synonym_names=["iptu do batel"],
+            )
+        ],
+        total_entities=1,
+        total_documents=2,
+        reversible=True,
+    )
+
+    response = client.post("/api/v1/taxonomy/entities/ner-exclusions/purge/preview")
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["total_entities"] == 1
+    assert body["total_documents"] == 2
+    assert body["reversible"] is True
+    assert body["entities"][0]["entity_id"] == 3
+
+
+def test_ner_purge_route_applies_the_previewed_list(client: TestClient, mocker):
+    """The write consumes the same plan the preview showed and answers with the ledger ids."""
+    mocked = mocker.patch.object(EntityService, "purge_ner_terms")
+    mocked.return_value = NerPurgeResult(entities_deleted=1, purge_ids=[7])
+
+    response = client.post("/api/v1/taxonomy/entities/ner-exclusions/purge")
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["entities_deleted"] == 1
+    assert body["purge_ids"] == [7]
+    assert body["code"] == "NER_PURGE_DONE"
+
+
+def test_ner_purge_log_route_lists_the_ledger(client: TestClient, mocker):
+    """The audit trail is readable, with the free-text filter over the entity name."""
+    mocked = mocker.patch.object(EntityService, "list_ner_purge_log")
+    mocked.return_value = NerPurgeLogListResponse(
+        total=1,
+        limit=50,
+        offset=0,
+        items=[
+            NerPurgeLogEntryDTO(
+                purge_id=7,
+                purged_entity_id=3,
+                purged_name="iptu",
+                entity_type="ORG",
+                excluded_term="iptu",
+                document_count=2,
+            )
+        ],
+    )
+
+    response = client.get("/api/v1/taxonomy/entities/ner-exclusions/purge-log?q=iptu")
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["total"] == 1
+    assert body["items"][0]["purge_id"] == 7
+    assert body["items"][0]["excluded_term"] == "iptu"
+
+
+def test_undo_ner_purge_route_restores_the_entity(client: TestClient, mocker):
+    """The undo of one purge answers 200 with the restored entry, and names it in the message."""
+    mocked = mocker.patch.object(EntityService, "undo_ner_purge")
+    mocked.return_value = NerPurgeLogEntryDTO(
+        purge_id=7, purged_entity_id=3, purged_name="iptu", entity_type="ORG", excluded_term="iptu"
+    )
+
+    response = client.delete("/api/v1/taxonomy/entities/ner-exclusions/purge-log/7")
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["data"]["purge_id"] == 7
+    assert "iptu" in body["message"]
+
+
+def test_undo_ner_purge_route_maps_unknown_id_to_404(client: TestClient, mocker):
+    """An unknown ledger id is a not-found, not a silent no-op."""
+    mocked = mocker.patch.object(EntityService, "undo_ner_purge")
+    mocked.side_effect = NerPurgeLogNotFoundError("não encontrado")
+
+    response = client.delete("/api/v1/taxonomy/entities/ner-exclusions/purge-log/999")
+
+    assert response.status_code == HTTP_404_NOT_FOUND
+
+
+def test_undo_ner_purge_route_maps_a_second_attempt_to_409(client: TestClient, mocker):
+    """A second undo is a conflict: the ledger keeps one reversal per entity."""
+    mocked = mocker.patch.object(EntityService, "undo_ner_purge")
+    mocked.side_effect = NerPurgeAlreadyUndoneError("já desfeita")
+
+    response = client.delete("/api/v1/taxonomy/entities/ner-exclusions/purge-log/7")
+
+    assert response.status_code == HTTP_409_CONFLICT
 
 
 # ==========================================

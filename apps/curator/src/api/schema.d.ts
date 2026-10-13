@@ -1118,6 +1118,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/taxonomy/entities/ner-exclusions/purge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** PurgeNerEntities */
+        post: operations["ApiV1TaxonomyEntitiesNerExclusionsPurgePurgeNerEntities"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxonomy/entities/ner-exclusions/purge-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListNerPurgeLog */
+        get: operations["ApiV1TaxonomyEntitiesNerExclusionsPurgeLogListNerPurgeLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxonomy/entities/ner-exclusions/purge-log/{purge_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** UndoNerPurge */
+        delete: operations["ApiV1TaxonomyEntitiesNerExclusionsPurgeLogPurgeIdUndoNerPurge"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxonomy/entities/ner-exclusions/purge/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** PreviewNerPurge */
+        post: operations["ApiV1TaxonomyEntitiesNerExclusionsPurgePreviewPreviewNerPurge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/taxonomy/entities/orphans/purge": {
         parameters: {
             query?: never;
@@ -3199,7 +3267,11 @@ export interface components {
         /** NerExclusionBanResponse */
         NerExclusionBanResponse: {
             code: components["schemas"]["RouteMessageCode"];
-            entities_deleted: number;
+            /**
+             * @description How many exclusions were inserted; a re-ban inserts none.
+             * @default 0
+             */
+            created: number;
             message: string;
         };
         /** NerExclusionRemovalResponse */
@@ -3214,6 +3286,71 @@ export interface components {
             reason?: string | null;
             /** @description Terms to keep out of the NER extraction. */
             words: string[];
+        };
+        /** NerPurgeEntity */
+        NerPurgeEntity: {
+            /** @default 0 */
+            document_count: number;
+            entity_id: number;
+            entity_type: string;
+            /** @description The banned spelling this entity matched. */
+            excluded_term: string;
+            name: string;
+            /** @description The spellings that point at it. */
+            synonym_names?: string[];
+        };
+        /** NerPurgeLogEntryDTO */
+        NerPurgeLogEntryDTO: {
+            changed_at?: string | null;
+            changed_by?: string | null;
+            /** @default 0 */
+            document_count: number;
+            entity_type: string;
+            excluded_term: string;
+            purge_id: number;
+            purged_entity_id: number;
+            purged_name: string;
+            synonym_names?: string[];
+            undone_at?: string | null;
+            undone_by?: string | null;
+        };
+        /** NerPurgeLogListResponse */
+        NerPurgeLogListResponse: {
+            items?: components["schemas"]["NerPurgeLogEntryDTO"][];
+            limit: number;
+            offset: number;
+            total: number;
+        };
+        /** NerPurgePreview */
+        NerPurgePreview: {
+            entities?: components["schemas"]["NerPurgeEntity"][];
+            /** @description The banned spellings the purge acts on. */
+            excluded_terms?: string[];
+            /**
+             * @description True: the ledger restores the entities and their links.
+             * @default true
+             */
+            reversible: boolean;
+            /**
+             * @description Documents that lose an entity.
+             * @default 0
+             */
+            total_documents: number;
+            /** @default 0 */
+            total_entities: number;
+        };
+        /** NerPurgeResponse */
+        NerPurgeResponse: {
+            code: components["schemas"]["RouteMessageCode"];
+            entities_deleted: number;
+            message: string;
+            purge_ids?: number[];
+        };
+        /** NerPurgeUndoResponse */
+        NerPurgeUndoResponse: {
+            code: components["schemas"]["RouteMessageCode"];
+            data: components["schemas"]["NerPurgeLogEntryDTO"];
+            message: string;
         };
         /** OllamaHealthDTO */
         OllamaHealthDTO: {
@@ -3333,7 +3470,7 @@ export interface components {
          *         things and a translation catalogue needs to tell them apart.
          * @enum {string}
          */
-        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORD_PURGE_DONE" | "TAG_STOPWORD_PURGE_UNDONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "ENTITY_RENAMED" | "ENTITY_MERGE_UNDONE" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "PASSWORD_CHANGE_REQUIRED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
+        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORD_PURGE_DONE" | "TAG_STOPWORD_PURGE_UNDONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "NER_PURGE_DONE" | "NER_PURGE_UNDONE" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "ENTITY_RENAMED" | "ENTITY_MERGE_UNDONE" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "PASSWORD_CHANGE_REQUIRED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
         /** RouteResponse */
         RouteResponse: {
             code: components["schemas"]["RouteMessageCode"];
@@ -6736,6 +6873,123 @@ export interface operations {
                         } | unknown[];
                         status_code: number;
                     };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyEntitiesNerExclusionsPurgePurgeNerEntities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NerPurgeResponse"];
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyEntitiesNerExclusionsPurgeLogListNerPurgeLog: {
+        parameters: {
+            query?: {
+                include_undone?: boolean;
+                q?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NerPurgeLogListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyEntitiesNerExclusionsPurgeLogPurgeIdUndoNerPurge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                purge_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NerPurgeUndoResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyEntitiesNerExclusionsPurgePreviewPreviewNerPurge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NerPurgePreview"];
                 };
             };
         };

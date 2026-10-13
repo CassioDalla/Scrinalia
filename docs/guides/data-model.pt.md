@@ -281,7 +281,9 @@ podem ser colapsadas em uma tabela ou um escopo só.
 `domain_ner_exclusions` é uma *decisão*, não ruído: carrega `reason`, `source` (`JUDGE` para o juiz
 de conflito por LLM, `HUMAN` para um curador) e o `tag_id` que a justifica. O `tag_id` é
 `ON DELETE SET NULL`, então apagar a tag não reabre silenciosamente o falso positivo que esta linha
-existe para evitar.
+existe para evitar. A linha em si **não apaga nada**: as entidades já extraídas da grafia saem no
+expurgo de NER, um ato separado com o seu próprio impacto na frente e o seu próprio ledger
+(`archive_ner_purge_log`).
 
 `domain_subject_exclusions` tem a mesma forma para o outro eixo: um termo que a curadoria decidiu não
 ser assunto de forma alguma. O guardião determinístico cobre o que tem forma reconhecível (um ano
@@ -298,8 +300,9 @@ intercambiáveis, e só alguns têm desfazer.
 | --- | --- | --- |
 | `archive_taxonomy_merge_log` | Uma linha **por tag absorvida**, fotografada antes de qualquer mudança. | `undo_merge` restaura a linha, os seus vínculos, a sua classificação e o estado das grafias. |
 | `archive_stopword_purge_log` | Uma linha **por tag que a purga de stopwords apagou**, fotografada antes do delete: a linha, os documentos que a carregavam e as grafias que apontavam para ela. | `undo_stopword_purge` restaura a linha, os seus vínculos e as suas grafias; o banimento continua, então a próxima purga lista a tag de novo. |
+| `archive_ner_purge_log` | Uma linha **por entidade que o expurgo de NER apagou**, fotografada antes do delete: a entidade, os documentos que a carregavam, as grafias que apontavam para ela e o `excluded_term` que a justificou. | `DELETE /entities/ner-exclusions/purge-log/{id}` restaura a entidade, os seus vínculos e as suas grafias; o veto continua, então o próximo expurgo lista a entidade de novo. |
 | `archive_hierarchy_materialisation_log` | Uma linha por execução de materialização: os nós que ela criou e o pai/caminho anterior de cada linha que ela mudou. | O desfazer restaura `previous_state` e então remove `created_nodes`. |
-| `archive_conflict_resolution_log` | Uma linha por resolução tag × entidade: o snapshot do perdedor, os vínculos transferidos, o banimento que ela plantou. | `DELETE /conflicts/resolutions/{id}`. |
+| `archive_conflict_resolution_log` | Uma linha por resolução tag × entidade: o snapshot do perdedor, os vínculos transferidos, as grafias que apontavam para o perdedor e o banimento que ela plantou. | `DELETE /conflicts/resolutions/{id}`. |
 | `archive_document_deletions` | Uma linha por descrição apagada, com todo o snapshot ISAD(G). | **Sem desfazer.** O snapshot é evidência; nada o grava de volta. |
 | `archive_worker_runs` | Uma linha por execução de worker, CLI e painel igualmente. | **Sem desfazer** — é um histórico de execução, não uma mudança no acervo. |
 | `archive_api_errors` | Uma linha por falha HTTP inesperada. | **Sem desfazer** — um ledger de erros é um rastro. |

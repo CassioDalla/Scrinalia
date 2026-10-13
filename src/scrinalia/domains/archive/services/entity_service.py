@@ -32,6 +32,11 @@ from scrinalia.domains.archive.schemas.entity_schema import (
     EntitySimilarity,
     JudgedConflictPage,
     NerExclusion,
+    NerPurgeEntity,
+    NerPurgeLogEntryDTO,
+    NerPurgeLogListResponse,
+    NerPurgePreview,
+    NerPurgeResult,
 )
 
 #: Character floor of an entity search, mirroring the tags': one letter matches an arbitrary slice
@@ -249,9 +254,11 @@ class EntityService:
         """
         Records the durable decision "this term is a subject, not a named entity".
 
-        This is the negative counterpart of ``reclassify_entity``: instead of teaching
-        the NER a different label, it keeps the term out of the extraction for good
-        and purges the entities already created from it.
+        The negative counterpart of ``reclassify_entity``: instead of teaching the NER a different
+        label, it keeps the term out of the extraction for good. It **deletes nothing** — the
+        entities already extracted from the spelling are removed by :meth:`purge_ner_terms`, a
+        separate act with its own preview and ledger, because a reversible toggle must not carry an
+        irreversible loss (#94).
 
         Args:
             words: Raw spellings to exclude. Normalized (lowercase) before storage.
@@ -260,22 +267,72 @@ class EntityService:
             source: ``JUDGE`` for the LLM conflict worker, ``HUMAN`` for the curator.
 
         Returns:
-            int: How many existing entities were deleted from the collection.
+            int: How many exclusions were actually inserted (the ban is idempotent).
         """
         clean_words = [normalize_entity(word) for word in words if word.strip()]
         if not clean_words:
             return 0
 
-        self.repo.add_ner_exclusions(clean_words, source=source, reason=reason, tag_id=tag_id)
-
-        # The exclusion also applies to the past: entities built from that spelling are
-        # purged. Links are dropped by cascade; the caller decides whether the documents
-        # should receive the winning tag (``resolve_cross_domain_conflict`` does it).
-        return self.repo.delete_entities_by_names(clean_words)
+        return self.repo.add_ner_exclusions(clean_words, source=source, reason=reason, tag_id=tag_id)
 
     def list_ner_exclusions(self) -> Sequence[NerExclusion]:
         """Lists every term currently excluded from NER extraction."""
         return self.repo.list_ner_exclusions()
+
+    def preview_ner_purge(self) -> NerPurgePreview:
+        """
+        The dry run of the purge: the entities that would die, and the ledger that can bring them back.
+
+        Computed from the same plan :meth:`purge_ner_terms` consumes, so the list the archivist
+        approves is the list the write deletes.
+        """
+        plan = self.repo.plan_ner_purge()
+        return NerPurgePreview(
+            excluded_terms=plan.excluded_terms,
+            entities=[
+                NerPurgeEntity(
+                    entity_id=item.entity_id,
+                    name=item.name,
+                    entity_type=item.entity_type,
+                    excluded_term=item.excluded_term,
+                    document_count=len(item.document_ids),
+                    synonym_names=item.synonym_names,
+                )
+                for item in plan.items
+            ],
+            total_entities=plan.total_entities,
+            total_documents=plan.total_documents,
+            reversible=True,
+        )
+
+    def purge_ner_terms(self, changed_by: Author | None = None) -> NerPurgeResult:
+        """
+        Deletes every entity whose spelling is a banned term, after logging each one in the ledger.
+
+        The plan is recomputed here from ``domain_ner_exclusions``, which is the same computation
+        the preview ran: the screen applies the list it showed.
+        """
+        plan = self.repo.plan_ner_purge()
+        if not plan.items:
+            return NerPurgeResult()
+
+        return self.repo.apply_ner_purge(plan, changed_by=changed_by)
+
+    def undo_ner_purge(self, purge_id: int, undone_by: Author | None = None) -> NerPurgeLogEntryDTO:
+        """
+        Reverses one purge: the entity, its links and its spellings come back.
+
+        The veto stays — the term is still excluded, and the next purge lists the restored entity
+        again. An unknown id is a not-found and a second undo is a conflict, because a silent no-op
+        would read as "it worked" when nothing was restored.
+        """
+        return self.repo.undo_ner_purge(purge_id, undone_by=undone_by)
+
+    def list_ner_purge_log(
+        self, include_undone: bool = True, term: str | None = None, limit: int = 50, offset: int = 0
+    ) -> NerPurgeLogListResponse:
+        """The audit trail of the NER purges: what died, by whom, and what was restored."""
+        return self.repo.list_ner_purge_log(include_undone=include_undone, term=term, limit=limit, offset=offset)
 
     def remove_ner_exclusions(self, words: list[str]) -> int:
         """Undoes an exclusion, re-opening the term for the NER engine."""

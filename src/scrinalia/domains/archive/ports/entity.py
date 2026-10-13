@@ -26,6 +26,10 @@ from scrinalia.domains.archive.schemas.entity_schema import (
     JudgedConflictPage,
     NerExclusion,
     NerExclusionSource,
+    NerPurgeLogEntryDTO,
+    NerPurgeLogListResponse,
+    NerPurgePlan,
+    NerPurgeResult,
     NerSynonymRule,
 )
 
@@ -136,9 +140,6 @@ class EntityRepositoryPort(Protocol):
     def update_entity_type(self, entity_id: int, new_type: str) -> None:
         raise NotImplementedError
 
-    def delete_entities_by_names(self, names: list[str]) -> int:
-        raise NotImplementedError
-
     # --- The merge: the plan, the ledger, the write and the undo ---
     def get_entities_with_counts(self, entity_ids: Sequence[int]) -> dict[int, EntityMergeImpact]:
         raise NotImplementedError
@@ -220,6 +221,31 @@ class EntityRepositoryPort(Protocol):
         raise NotImplementedError
 
     def remove_ner_exclusions(self, terms: Sequence[str]) -> int:
+        raise NotImplementedError
+
+    # --- The NER purge: the destructive half of the veto, with a preview and a ledger ---
+    def plan_ner_purge(self) -> NerPurgePlan:
+        raise NotImplementedError
+
+    def apply_ner_purge(self, plan: NerPurgePlan, changed_by: Author | None = None) -> NerPurgeResult:
+        raise NotImplementedError
+
+    def undo_ner_purge(self, purge_id: int, undone_by: Author | None = None) -> NerPurgeLogEntryDTO:
+        raise NotImplementedError
+
+    def count_ner_purge_log(self, include_undone: bool = True, term: str | None = None) -> int:
+        raise NotImplementedError
+
+    def list_ner_purge_log(
+        self,
+        include_undone: bool = True,
+        term: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> NerPurgeLogListResponse:
+        raise NotImplementedError
+
+    def get_ner_purge_log_entry(self, purge_id: int) -> NerPurgeLogEntryDTO | None:
         raise NotImplementedError
 
     def apply_conflict_resolution(

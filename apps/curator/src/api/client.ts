@@ -202,6 +202,12 @@ export type OrphanEntityPurgeResponse = components["schemas"]["OrphanEntityPurge
 export type NerExclusion = components["schemas"]["NerExclusion"];
 export type NerExclusionBanResponse = components["schemas"]["NerExclusionBanResponse"];
 export type NerExclusionRemovalResponse = components["schemas"]["NerExclusionRemovalResponse"];
+export type NerPurgeEntity = components["schemas"]["NerPurgeEntity"];
+export type NerPurgePreview = components["schemas"]["NerPurgePreview"];
+export type NerPurgeResponse = components["schemas"]["NerPurgeResponse"];
+export type NerPurgeLogEntryDTO = components["schemas"]["NerPurgeLogEntryDTO"];
+export type NerPurgeLogListResponse = components["schemas"]["NerPurgeLogListResponse"];
+export type NerPurgeUndoResponse = components["schemas"]["NerPurgeUndoResponse"];
 
 /** An entity type the NER extractor is allowed to speak, taken from the route's own enum. */
 export type EntityType = NonNullable<
@@ -1169,7 +1175,10 @@ export async function fetchNerExclusions(): Promise<NerExclusion[]> {
   return unwrap<NerExclusion[]>(await client.GET("/api/v1/taxonomy/entities/ner-exclusions"));
 }
 
-/** Bans terms from NER and purges the entities already extracted from them. */
+/**
+ * Bans terms from NER. The ban **deletes nothing**: it only stops the extractor from creating them
+ * from now on, and the `DELETE` on the same path re-opens the term.
+ */
 export async function banNerExclusions(body: {
   words: string[];
   reason?: string | null;
@@ -1182,6 +1191,49 @@ export async function banNerExclusions(body: {
 export async function unbanNerExclusions(body: { words: string[] }): Promise<NerExclusionRemovalResponse> {
   return unwrap<NerExclusionRemovalResponse>(
     await client.DELETE("/api/v1/taxonomy/entities/ner-exclusions", { body }),
+  );
+}
+
+/** The dry run of the purge: the entities already extracted from a banned spelling that would die. */
+export async function previewNerPurge(): Promise<NerPurgePreview> {
+  return unwrap<NerPurgePreview>(await client.POST("/api/v1/taxonomy/entities/ner-exclusions/purge/preview"));
+}
+
+/**
+ * Deletes every entity extracted from a banned spelling, after logging each one in the ledger.
+ *
+ * No body: the screen applies the list the preview showed. The veto stays in place.
+ */
+export async function purgeNerExclusions(): Promise<NerPurgeResponse> {
+  return unwrap<NerPurgeResponse>(await client.POST("/api/v1/taxonomy/entities/ner-exclusions/purge"));
+}
+
+/** The audit trail of the NER purges: what died, by whom, and what was restored. */
+export async function fetchNerPurgeLog(params?: {
+  includeUndone?: boolean;
+  q?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<NerPurgeLogListResponse> {
+  return unwrap<NerPurgeLogListResponse>(
+    await client.GET("/api/v1/taxonomy/entities/ner-exclusions/purge-log", {
+      params: {
+        query: {
+          include_undone: params?.includeUndone,
+          q: params?.q,
+          limit: params?.limit,
+          offset: params?.offset,
+        },
+      },
+    }),
+  );
+}
+
+export async function undoNerPurge(purgeId: number): Promise<NerPurgeUndoResponse> {
+  return unwrap<NerPurgeUndoResponse>(
+    await client.DELETE("/api/v1/taxonomy/entities/ner-exclusions/purge-log/{purge_id}", {
+      params: { path: { purge_id: purgeId } },
+    }),
   );
 }
 

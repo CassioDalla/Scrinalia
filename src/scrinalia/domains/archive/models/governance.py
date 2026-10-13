@@ -239,6 +239,12 @@ class ArchiveConflictResolutionLog(Base):
     #: The subset this resolution newly linked. The undo removes exactly these.
     created_link_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
 
+    #: The spellings that pointed *at* the losing row. ``domain_synonyms`` cascades on the entity
+    #: and on the tag, so the delete took them with the row; the undo has to put them back or the
+    #: next ingestion recreates the absorbed spelling as a brand-new row. Shared with
+    #: :class:`ArchiveNerPurgeLog`, because the same operation has to restore the same things.
+    synonym_names: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+
     #: The governance write in the winning axis: ``NER_EXCLUSION`` (tag won) or ``STOPWORD``
     #: (entity won), the spelling it names, and whether this resolution is what created it.
     ban_kind: Mapped[str | None] = mapped_column(String(20), nullable=True)

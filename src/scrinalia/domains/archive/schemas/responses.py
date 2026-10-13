@@ -66,6 +66,9 @@ class RouteMessageCode(enum.StrEnum):
     # --- The named entities (NER) ---
     NER_EXCLUSIONS_ADDED = "NER_EXCLUSIONS_ADDED"
     NER_EXCLUSIONS_REMOVED = "NER_EXCLUSIONS_REMOVED"
+    #: The destructive half of the NER veto: the entities already extracted from a banned spelling.
+    NER_PURGE_DONE = "NER_PURGE_DONE"
+    NER_PURGE_UNDONE = "NER_PURGE_UNDONE"
     ORPHAN_ENTITIES_PURGED = "ORPHAN_ENTITIES_PURGED"
     ENTITY_RECLASSIFIED = "ENTITY_RECLASSIFIED"
     ENTITY_DELETED = "ENTITY_DELETED"
