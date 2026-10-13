@@ -28,6 +28,9 @@ coverage.xml
 .cache-hf/
 .cache-uv/
 
+# Scratch do render (o perfil do browser e o driver descartável da rodada)
+/.render/
+
 # Front-end (Bun workspaces)
 node_modules/
 .cache-bun/

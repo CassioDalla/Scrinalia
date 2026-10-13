@@ -6,6 +6,18 @@ whenToUse: "When changing anything under apps/curator."
 
 # curator-ui
 
+## Render before you call it verified
+
+- **A change that touches a screen is not verified until the screen is rendered and the screenshot
+  shown.** `tsc`, ESLint and the Vite build were green while 105 bracket-form tokens rendered nothing,
+  and the same gates were green again while this was only a sentence: the pixels are the one evidence
+  that the tokens resolve, the copy fits the real header and the new control is where the archivist
+  looks. Load the `render` rule file for the procedure — check that a headless shell exists, launch it,
+  drive it with CDP if the screen needs a session, and inspect the PNG with `read_image`.
+- **When it cannot be rendered, say so in the terms `docs/log.md` uses**: "not looked at in a browser;
+  the evidence is `tsc`, ESLint, the Vite build". Never describe a screen you did not see, and never
+  imply pixels from a green build. A missing browser is a property of the machine, not a broken UI.
+
 ## Tokens and the generated client
 
 - Tailwind v4 tokens are used with **parentheses**, not brackets: `bg-(--color-surface)`, `text-(--color-muted)`, `ring-(--color-line)`. The bracket form `bg-[--color-surface]` compiles to `background-color:--color-surface`, which is invalid CSS that the browser drops **silently** — the build stays green and the theme simply does not apply. This shipped once (105 occurrences) and was only caught by rendering the screens; when touching the UI, look at the page, do not trust a green `tsc`/`eslint`/`vite build`.
