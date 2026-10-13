@@ -145,6 +145,10 @@ Always run from the repo root. Python 3.12, managed by `uv` (`uv.lock`).
   ignore its own section and drop to its defaults (measured: 661 errors). Do not move it into
   `pyproject.toml`.
 - Hooks: `uv run pre-commit install` once per clone; `uv run pre-commit run --all-files` by hand.
+- Caches: the agent sandbox mounts `$HOME` read-only, so `uv` and `pre-commit` — whose caches default
+  under `$HOME/.cache` — die with `Read-only file system` on **any** `uv run`, not only on the hook.
+  Point them into the checkout before running; the rule file `environment` owns the measurement and the
+  flags.
 - Deploy: `Procfile` runs the API on the CPU; `create_app()` mounts `apps/curator/dist` at `/` when the
   build exists, so a deploy builds the SPA first (rule file `api`).
 
@@ -219,6 +223,8 @@ A skill per topic. Open the one that owns what you are about to touch.
 - `auth` — access classification, the guard, sessions, lockout, rate limiting and the ADMIN surface.
 - `render` — whether this machine can render a screen and how; and what to say when it cannot.
 - `commit` — the commit format and the DCO sign-off.
+- `environment` — the agent sandbox: `$HOME` read-only, `/tmp` private per command, the workspace
+  writable, and where `uv`'s and `pre-commit`'s caches must point.
 - `documenter` — the procedure for a documentation triage round.
 
-**Version**: 1.0.1 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-13
+**Version**: 1.1.0 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-13
