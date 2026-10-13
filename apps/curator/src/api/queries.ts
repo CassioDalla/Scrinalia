@@ -27,6 +27,7 @@ import {
   fetchMergeLog,
   fetchMergeProposals,
   fetchNerExclusions,
+  fetchNerPurgeLog,
   fetchRevisions,
   fetchSimilarEntities,
   fetchSimilarTags,
@@ -415,6 +416,14 @@ export const queries = {
       queryKey: ["taxonomy", "ner-exclusions"],
       queryFn: fetchNerExclusions,
       staleTime: 30_000,
+    }),
+
+  /** The NER purge ledger: the same shape as the stopword one, because it offers the same undo. */
+  nerPurgeLog: (limit: number, term: string | undefined) =>
+    queryOptions({
+      queryKey: ["taxonomy", "ner-purge-log", limit, term ?? ""],
+      queryFn: () => fetchNerPurgeLog({ includeUndone: true, q: term, limit, offset: 0 }),
+      staleTime: 5_000,
     }),
 
   /**

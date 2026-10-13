@@ -114,6 +114,20 @@ class StopwordPurgeAlreadyUndoneError(DomainException):
     pass
 
 
+class NerPurgeLogNotFoundError(DomainException):
+    """Raised when a NER-purge ledger entry does not exist."""
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
+class NerPurgeAlreadyUndoneError(DomainException):
+    """Raised when the same NER purge is undone twice; the ledger keeps one reversal per entity."""
+
+    # Ideal translation in Litestar: HTTP 409 (Conflict)
+    pass
+
+
 class InvalidMergeError(DomainException):
     """Raised when trying to merge a tag into itself or breaking synonym rules."""
 

@@ -86,6 +86,10 @@ from scrinalia.domains.archive.schemas.entity_schema import (
     NerExclusion,
     NerExclusionBanResponse,
     NerExclusionRemovalResponse,
+    NerPurgeLogListResponse,
+    NerPurgePreview,
+    NerPurgeResponse,
+    NerPurgeUndoResponse,
     OrphanEntityPurgeResponse,
 )
 from scrinalia.domains.archive.schemas.tag_schema import (
@@ -883,26 +887,113 @@ class TaxonomyController(Controller):
     def create_ner_exclusions(
         self, entity_service: NamedDependency[EntityService], data: NerExclusionRequest
     ) -> NerExclusionBanResponse:
-        """Bans terms from NER and purges the entities already extracted from them."""
-        entities_deleted = entity_service.exclude_terms_from_ner(data.words, reason=data.reason)
+        """
+        Bans terms from NER. **Nothing is deleted**: the entities already extracted from a banned
+        spelling are removed by the purge below, a separate act with its own preview and ledger
+        (#94). The ban is reversible through the ``DELETE`` on this same path.
+        """
+        created = entity_service.exclude_terms_from_ner(data.words, reason=data.reason)
 
         return NerExclusionBanResponse(
             code=RouteMessageCode.NER_EXCLUSIONS_ADDED,
             message="Termos marcados como assunto: o extrator não os tratará mais como entidade.",
-            entities_deleted=entities_deleted,
+            created=created,
         )
 
     @delete("/entities/ner-exclusions", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def remove_ner_exclusions(
         self, entity_service: NamedDependency[EntityService], data: NerExclusionRequest
     ) -> NerExclusionRemovalResponse:
-        """Undoes the ban and re-opens the terms for the NER engine."""
+        """
+        Undoes the ban and re-opens the terms for the NER engine.
+
+        It does not bring back what a purge deleted: that is the purge ledger's undo, which is where
+        the entities and their links were recorded.
+        """
         removed = entity_service.remove_ner_exclusions(data.words)
 
         return NerExclusionRemovalResponse(
             code=RouteMessageCode.NER_EXCLUSIONS_REMOVED,
-            message="Exclusões removidas: o extrator voltará a considerar esses termos.",
+            message=(
+                "Exclusões removidas: o extrator voltará a considerar esses termos. "
+                "As entidades já expurgadas voltam pelo desfazer da purga, não por aqui."
+            ),
             removed=removed,
+        )
+
+    @post(
+        "/entities/ner-exclusions/purge/preview",
+        opt={"access": Access.AUTHENTICATED},
+        status_code=200,
+        sync_to_thread=True,
+    )
+    def preview_ner_purge(self, entity_service: NamedDependency[EntityService]) -> NerPurgePreview:
+        """
+        The dry run of the purge: the entities that would die, and the ledger that can bring them back.
+
+        Every entity extracted from a banned spelling, with how many descriptions carry it, so the
+        screen can show the loss before it happens. The list is the plan the purge itself consumes,
+        so the preview and the write cannot disagree.
+        """
+        return entity_service.preview_ner_purge()
+
+    @post("/entities/ner-exclusions/purge", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
+    def purge_ner_entities(
+        self, entity_service: NamedDependency[EntityService], current_user: NamedDependency[AuthenticatedUser]
+    ) -> NerPurgeResponse:
+        """
+        Deletes every entity whose spelling is a banned term, after logging each one in the ledger.
+
+        The write consumes the same plan the preview showed — no body, because the screen applies
+        the list it approved. The response carries the ``purge_ids`` the screen needs to offer the
+        undo; the veto itself stays in place.
+        """
+        result = entity_service.purge_ner_terms(current_user.author)
+        return NerPurgeResponse(
+            code=RouteMessageCode.NER_PURGE_DONE,
+            message="Expurgo concluído: as entidades já extraídas foram removidas e podem ser restauradas.",
+            entities_deleted=result.entities_deleted,
+            purge_ids=result.purge_ids,
+        )
+
+    @get("/entities/ner-exclusions/purge-log", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
+    def list_ner_purge_log(
+        self,
+        entity_service: NamedDependency[EntityService],
+        include_undone: FromQuery[bool] = True,
+        # ``q`` and not ``term``: the taxonomy search already owns ``term`` for its own meaning, and
+        # this one is a filter *inside* a ledger. The front reads the same name it sends.
+        q: FromQuery[str | None] = None,
+        limit: FromQuery[int] = 50,
+        offset: FromQuery[int] = 0,
+    ) -> NerPurgeLogListResponse:
+        """The audit trail of the NER purges: what died, by whom, and what was restored."""
+        return entity_service.list_ner_purge_log(include_undone=include_undone, term=q, limit=limit, offset=offset)
+
+    @delete(
+        "/entities/ner-exclusions/purge-log/{purge_id:int}",
+        opt={"access": Access.CURATE},
+        status_code=200,
+        sync_to_thread=True,
+    )
+    def undo_ner_purge(
+        self,
+        entity_service: NamedDependency[EntityService],
+        purge_id: FromPath[int],
+        current_user: NamedDependency[AuthenticatedUser],
+    ) -> NerPurgeUndoResponse:
+        """
+        Undoes one purge from the ledger: the entity, its links and its spellings come back.
+
+        The second attempt is **409** and an unknown id is **404**; the ledger entry is never
+        deleted, so the history of "this was purged, then restored" survives. The veto stays: the
+        term is still excluded, and the next purge lists the restored entity again.
+        """
+        entry = entity_service.undo_ner_purge(purge_id, undone_by=current_user.author)
+        return NerPurgeUndoResponse(
+            code=RouteMessageCode.NER_PURGE_UNDONE,
+            message=f"Expurgo desfeito: a entidade '{entry.purged_name}' foi restaurada.",
+            data=entry,
         )
 
     # ==========================================

@@ -1,8 +1,12 @@
+import pytest
 from sqlalchemy import select, text
 
+from scrinalia.domains.archive.exceptions import NerPurgeAlreadyUndoneError, NerPurgeLogNotFoundError
 from scrinalia.domains.archive.models import (
     ArchiveDocument,
+    ArchiveDocumentEntity,
     ArchiveEntity,
+    ArchiveNerPurgeLog,
     ArchiveTag,
     DomainNerExclusion,
     DomainStopwords,
@@ -326,3 +330,104 @@ def test_create_synonyms_collapses_commands_that_normalize_to_one_key(use_test_d
 
     stored = db_session.scalars(select(DomainSynonyms).where(DomainSynonyms.category == "LOC")).all()
     assert [(row.synonym_name, row.canonical_entity_id) for row in stored] == [("batel antigo", entity.entity_id)]
+
+
+# ==========================================
+# THE NER PURGE: PRIVIEW, LEDGER AND UNDO (#94)
+# ==========================================
+
+
+def _seeded_ner_purge(db_session, generate_archive_doc, *, term: str = "iptu"):
+    """One banned spelling, one entity carrying it, one document link and one absorbed spelling."""
+    repo = EntityRepository(db_session)
+    entity = ArchiveEntity(name=term, entity_type="ORG")
+    db_session.add(entity)
+    db_session.commit()
+
+    generate_archive_doc(description_id="doc_iptu", original_title="Guia do IPTU")
+    repo.link_entities_to_document("doc_iptu", [entity.entity_id])
+    db_session.add(
+        DomainSynonyms(synonym_name=f"{term} do batel", category="ORG", canonical_entity_id=entity.entity_id)
+    )
+    repo.add_ner_exclusions([term])
+    db_session.commit()
+    return repo, entity
+
+
+def test_plan_ner_purge_lists_exactly_what_the_write_deletes(use_test_db, db_session, generate_archive_doc):
+    """The plan is the single definition: the apply deletes the ids the preview showed."""
+    repo, entity = _seeded_ner_purge(db_session, generate_archive_doc)
+
+    plan = repo.plan_ner_purge()
+    assert plan.excluded_terms == ["iptu"]
+    assert [item.entity_id for item in plan.items] == [entity.entity_id]
+    assert plan.items[0].document_ids == ["doc_iptu"]
+    assert plan.items[0].synonym_names == ["iptu do batel"]
+
+    result = repo.apply_ner_purge(plan)
+    db_session.commit()
+
+    assert result.entities_deleted == 1
+    assert len(result.purge_ids) == 1
+    assert db_session.scalars(select(ArchiveEntity)).all() == []
+    rows = db_session.scalars(select(ArchiveNerPurgeLog)).all()
+    assert [(row.purged_entity_id, row.excluded_term) for row in rows] == [(entity.entity_id, "iptu")]
+
+
+def test_undo_ner_purge_restores_the_entity_its_links_and_its_spellings(use_test_db, db_session, generate_archive_doc):
+    """The round trip is exact: row, links and spellings come back, and the veto stays."""
+    repo, entity = _seeded_ner_purge(db_session, generate_archive_doc)
+
+    result = repo.apply_ner_purge(repo.plan_ner_purge())
+    db_session.commit()
+
+    entry = repo.undo_ner_purge(result.purge_ids[0])
+    db_session.commit()
+
+    assert entry.purged_name == "iptu"
+    restored = db_session.get(ArchiveEntity, entity.entity_id)
+    assert restored is not None
+    assert (restored.name, restored.entity_type) == ("iptu", "ORG")
+
+    links = db_session.scalars(select(ArchiveDocumentEntity.description_id)).all()
+    assert links == ["doc_iptu"]
+
+    spellings = db_session.scalars(select(DomainSynonyms.synonym_name)).all()
+    assert spellings == ["iptu do batel"]
+
+    # The undo restores the entity; it does not un-ban the term.
+    assert db_session.scalars(select(DomainNerExclusion.term)).all() == ["iptu"]
+
+
+def test_undo_ner_purge_twice_is_a_conflict(use_test_db, db_session, generate_archive_doc):
+    """A silent no-op would read as "it worked" when nothing was restored."""
+    repo, _ = _seeded_ner_purge(db_session, generate_archive_doc)
+    result = repo.apply_ner_purge(repo.plan_ner_purge())
+    db_session.commit()
+    repo.undo_ner_purge(result.purge_ids[0])
+    db_session.commit()
+
+    with pytest.raises(NerPurgeAlreadyUndoneError):
+        repo.undo_ner_purge(result.purge_ids[0])
+
+
+def test_undo_ner_purge_of_an_unknown_id_is_not_found(use_test_db, db_session):
+    repo = EntityRepository(db_session)
+
+    with pytest.raises(NerPurgeLogNotFoundError):
+        repo.undo_ner_purge(999)
+
+
+def test_plan_ner_purge_is_empty_when_the_ban_matches_no_entity(use_test_db, db_session):
+    """A ban with nothing extracted from it is not a write: no entity, no ledger row."""
+    repo = EntityRepository(db_session)
+    repo.add_ner_exclusions(["cidade fictícia"])
+    db_session.commit()
+
+    plan = repo.plan_ner_purge()
+
+    assert plan.excluded_terms == ["cidade fictícia"]
+    assert plan.items == []
+    result = repo.apply_ner_purge(plan)
+    assert result.purge_ids == []
+    assert repo.list_ner_purge_log().total == 0

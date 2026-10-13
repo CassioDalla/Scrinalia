@@ -32,6 +32,8 @@ from scrinalia.domains.archive.exceptions import (
     InvalidParam,
     MergeAlreadyUndoneError,
     MergeLogNotFoundError,
+    NerPurgeAlreadyUndoneError,
+    NerPurgeLogNotFoundError,
     UnresolvableConflictError,
 )
 from scrinalia.domains.archive.models import (
@@ -43,6 +45,7 @@ from scrinalia.domains.archive.models import (
     ArchiveDocumentTag,
     ArchiveEntity,
     ArchiveEntityMergeLog,
+    ArchiveNerPurgeLog,
     ArchiveReviewStatus,
     ArchiveTag,
     DomainNerExclusion,
@@ -80,6 +83,11 @@ from scrinalia.domains.archive.schemas.entity_schema import (
     JudgedConflictPage,
     NerExclusion,
     NerExclusionSource,
+    NerPurgeItem,
+    NerPurgeLogEntryDTO,
+    NerPurgeLogListResponse,
+    NerPurgePlan,
+    NerPurgeResult,
     NerSynonymRule,
 )
 
@@ -713,6 +721,10 @@ class EntityRepository:
             entity_name=plan.entity_name,
             entity_type=plan.entity_type,
             loser_snapshot=self._loser_snapshot(winner, plan),
+            # The spellings the delete cascades. Recorded here because this path deletes the loser
+            # by id while the NER purge deletes by name, and the two have to restore the same things
+            # (#94, constitution IV).
+            synonym_names=self._loser_synonym_names(winner, plan),
             transferred_document_ids=sorted(loser_docs),
             created_link_ids=created_link_ids,
             ban_kind=ban_kind,
@@ -743,6 +755,22 @@ class EntityRepository:
         if loser is None:
             return {}
         return {column.name: _jsonable(getattr(loser, column.name)) for column in loser.__table__.columns}
+
+    def _loser_synonym_names(self, winner: ConflictWinner, plan: ConflictResolutionPlan) -> list[str]:
+        """
+        The spellings the losing row absorbs today, in its own axis.
+
+        ``domain_synonyms`` cascades on both canonical keys, so the delete takes these with the row;
+        recording them is what lets ``undo_conflict_resolution`` put them back, exactly as the NER
+        purge records the entity's. Two axes, one rule.
+        """
+        if winner == "TAG":
+            return self._entity_synonym_names_by_id([plan.entity_id]).get(plan.entity_id, [])
+
+        stmt = select(DomainSynonyms.synonym_name).where(
+            DomainSynonyms.category == "TAG", DomainSynonyms.canonical_tag_id == plan.tag_id
+        )
+        return sorted(set(self.db.scalars(stmt).all()))
 
     def _transfer_conflict_winner(
         self,
@@ -843,6 +871,9 @@ class EntityRepository:
                     restored_tag.created_at = datetime.fromisoformat(str(snapshot["created_at"]))
                 self.db.add(restored_tag)
             self.db.flush()
+            # After the row exists (its FK is the target of these spellings) and before the ledger
+            # row is marked undone.
+            self._restore_conflict_spellings(row)
 
         self._remove_created_conflict_links(row)
         self._restore_conflict_links(row)
@@ -900,6 +931,26 @@ class EntityRepository:
             )
         self.db.execute(stmt.on_conflict_do_nothing())
         return len(existing)
+
+    def _restore_conflict_spellings(self, row: ArchiveConflictResolutionLog) -> None:
+        """
+        Puts back the spellings the delete cascaded, pointed at the restored row.
+
+        ``on_conflict_do_nothing``: a mapping somebody re-created after the resolution points
+        wherever they put it, and that is not this undo's business — the same care
+        ``TagRepository._restore_purged_spellings`` takes.
+        """
+        names = list(row.synonym_names or [])
+        if not names:
+            return
+
+        if row.winner == "TAG":
+            self._restore_entity_spelling_names(row.entity_id, names, row.entity_type)
+            return
+
+        rows = [{"synonym_name": name, "category": "TAG", "canonical_tag_id": row.tag_id} for name in names]
+        stmt = insert(DomainSynonyms).values(rows).on_conflict_do_nothing(index_elements=["synonym_name", "category"])
+        self.db.execute(stmt)
 
     def _lift_conflict_ban(self, row: ArchiveConflictResolutionLog) -> int:
         """
@@ -1059,6 +1110,222 @@ class EntityRepository:
         result = self.db.execute(delete(DomainNerExclusion).where(DomainNerExclusion.term.in_(clean_terms)))
         return cast(CursorResult, result).rowcount
 
+    # --- The NER purge: the destructive half of the veto, on its own ---
+    #
+    # One operation in two halves, exactly like the stopword purge: ``plan_ner_purge`` describes
+    # what would die without writing, and ``apply_ner_purge`` executes that same plan after
+    # snapshotting every entity in ``archive_ner_purge_log``. The preview reads the plan and the
+    # write consumes it, so the two cannot disagree about which entities the purge acts on. There
+    # is no repoint step, unlike the merge: the spelling is banned, so its entity's spellings have
+    # nowhere to go — they are recorded for the undo and the forward write leaves them to the
+    # cascade. The undo does **not** lift the veto: restoring the entity is not un-banning the term.
+
+    def plan_ner_purge(self) -> NerPurgePlan:
+        """
+        Every entity the purge would delete, with the state the undo has to rebuild.
+
+        The terms come from ``domain_ner_exclusions`` — the banned spellings — and the per-entity
+        documents and spellings are read here so the ledger records what the delete is about to
+        cascade instead of reconstructing it afterwards.
+        """
+        terms = sorted(self.get_ner_exclusion_terms())
+        if not terms:
+            return NerPurgePlan()
+
+        entities = self.db.scalars(select(ArchiveEntity).where(func.lower(ArchiveEntity.name).in_(terms))).all()
+        if not entities:
+            return NerPurgePlan(excluded_terms=terms)
+
+        entity_ids = [entity.entity_id for entity in entities]
+        documents_by_entity = self.get_document_ids_grouped_by_entities(entity_ids)
+        spellings_by_entity = self._entity_synonym_names_by_id(entity_ids)
+        items = [
+            NerPurgeItem(
+                entity_id=entity.entity_id,
+                name=entity.name,
+                entity_type=entity.entity_type,
+                excluded_term=normalize_entity(entity.name),
+                document_ids=documents_by_entity.get(entity.entity_id, []),
+                synonym_names=spellings_by_entity.get(entity.entity_id, []),
+                created_at=entity.created_at,
+            )
+            for entity in entities
+        ]
+        # Heaviest first, then by name: the order the stopword preview already shows, so the two
+        # surfaces read the same way and the screen does not reshuffle under the archivist.
+        items.sort(key=lambda item: (-len(item.document_ids), item.name))
+        return NerPurgePlan(excluded_terms=terms, items=items)
+
+    def write_ner_purge_log(self, plan: NerPurgePlan, changed_by: Author | None = None) -> list[int]:
+        """
+        Snapshots every entity the plan deletes. Returns the ledger ids, oldest first.
+
+        Written **before** anything changes, because what it captures — the documents and the
+        spellings that pointed at the entity — is exactly what the delete cascades.
+        """
+        if not plan.items:
+            return []
+
+        rows = [
+            {
+                "excluded_term": item.excluded_term,
+                "purged_entity_id": item.entity_id,
+                "purged_name": normalize_entity(item.name),
+                "purged_snapshot": {
+                    "name": item.name,
+                    "entity_type": item.entity_type,
+                    "created_at": item.created_at.isoformat() if item.created_at else None,
+                },
+                "document_ids": item.document_ids,
+                "synonym_names": item.synonym_names,
+                **author_columns("changed_by", changed_by),
+            }
+            for item in plan.items
+        ]
+        stmt = insert(ArchiveNerPurgeLog).values(rows).returning(ArchiveNerPurgeLog.purge_id)
+        return list(self.db.scalars(stmt).all())
+
+    def apply_ner_purge(self, plan: NerPurgePlan, changed_by: Author | None = None) -> NerPurgeResult:
+        """Executes exactly what ``plan_ner_purge`` described, after writing the undo ledger."""
+        purge_ids = self.write_ner_purge_log(plan, changed_by=changed_by)
+        deleted = self.delete_entities([item.entity_id for item in plan.items]) if plan.items else 0
+        return NerPurgeResult(entities_deleted=deleted, purge_ids=purge_ids)
+
+    def undo_ner_purge(self, purge_id: int, undone_by: Author | None = None) -> NerPurgeLogEntryDTO:
+        """
+        Reverses one purge: restores the entity, its links and its spellings.
+
+        Exact by construction, like ``undo_stopword_purge``: the id and the row come from the
+        snapshot, the links from the per-entity list and the spellings from what was captured
+        before the delete. Only documents that still exist are re-linked. The veto is **not**
+        lifted — the term is still excluded; the undo restores the entity, it does not undo the
+        decision to ban the spelling.
+        """
+        row = self.db.get(ArchiveNerPurgeLog, purge_id)
+        if row is None:
+            raise NerPurgeLogNotFoundError(f"Registro de purga de NER {purge_id} não encontrado no ledger.")
+        if row.undone_at is not None:
+            raise NerPurgeAlreadyUndoneError(
+                f"A purga de NER {purge_id} já foi desfeita em {row.undone_at:%Y-%m-%d %H:%M:%S}."
+            )
+
+        snapshot = row.purged_snapshot or {}
+        entity_type = snapshot.get("entity_type") or "ORG"
+        restored = ArchiveEntity(
+            entity_id=row.purged_entity_id,
+            name=snapshot.get("name") or row.purged_name,
+            entity_type=entity_type,
+        )
+        created_at = snapshot.get("created_at")
+        if created_at:
+            restored.created_at = datetime.fromisoformat(created_at)
+        self.db.add(restored)
+        self.db.flush()
+
+        self._relink_entity_documents(row.purged_entity_id, row.document_ids or [])
+        self._restore_entity_spelling_names(row.purged_entity_id, row.synonym_names or [], entity_type)
+
+        row.undone_at = datetime.now(UTC)
+        assign_author(row, "undone_by", undone_by)
+        self.db.flush()
+        return self._to_ner_purge_log_dto(row)
+
+    def _restore_entity_spelling_names(self, entity_id: int, names: Sequence[str], category: str | None) -> None:
+        """
+        Puts the spellings back the cascade took with the entity.
+
+        ``on_conflict_do_nothing`` on ``(synonym_name, category)``: a mapping somebody re-created
+        after the purge points wherever they put it, and that is not this undo's business. The
+        category is the entity's own type, snapshotted at purge time — the one the spellings were
+        written under.
+        """
+        if not names or not category:
+            return
+
+        rows = [{"synonym_name": name, "category": category, "canonical_entity_id": entity_id} for name in names]
+        stmt = insert(DomainSynonyms).values(rows).on_conflict_do_nothing(index_elements=["synonym_name", "category"])
+        self.db.execute(stmt)
+
+    def _entity_synonym_names_by_id(self, entity_ids: Sequence[int]) -> dict[int, list[str]]:
+        """Spellings each entity absorbs today, keyed by the entity they point at."""
+        if not entity_ids:
+            return {}
+
+        stmt = select(DomainSynonyms.canonical_entity_id, DomainSynonyms.synonym_name).where(
+            DomainSynonyms.category.in_(list(ENTITY_SYNONYM_CATEGORIES)),
+            DomainSynonyms.canonical_entity_id.in_(list(entity_ids)),
+        )
+        grouped: dict[int, list[str]] = defaultdict(list)
+        for canonical_entity_id, synonym_name in self.db.execute(stmt).all():
+            if canonical_entity_id is not None:
+                grouped[canonical_entity_id].append(synonym_name)
+        return {entity_id: sorted(names) for entity_id, names in grouped.items()}
+
+    def _ner_purge_log_filters(self, include_undone: bool, term: str | None = None) -> list[Any]:
+        """The filters of the purge ledger, including the free-text one over the entity name."""
+        filters: list[Any] = []
+        if not include_undone:
+            filters.append(ArchiveNerPurgeLog.undone_at.is_(None))
+        if term:
+            pattern = f"%{escape_like(term)}%"
+            filters.append(ArchiveNerPurgeLog.purged_name.ilike(pattern, escape=LIKE_ESCAPE))
+        return filters
+
+    def count_ner_purge_log(self, include_undone: bool = True, term: str | None = None) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(ArchiveNerPurgeLog)
+            .where(*self._ner_purge_log_filters(include_undone, term))
+        )
+        return self.db.scalar(stmt) or 0
+
+    def list_ner_purge_log(
+        self,
+        include_undone: bool = True,
+        term: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> NerPurgeLogListResponse:
+        """The audit trail: most recent first, undone entries included unless filtered out."""
+        total = self.count_ner_purge_log(include_undone=include_undone, term=term)
+        stmt = (
+            select(ArchiveNerPurgeLog)
+            .where(*self._ner_purge_log_filters(include_undone, term))
+            .order_by(ArchiveNerPurgeLog.purge_id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        rows = self.db.scalars(stmt).all()
+        return NerPurgeLogListResponse(
+            total=total,
+            limit=limit,
+            offset=offset,
+            items=[self._to_ner_purge_log_dto(row) for row in rows],
+        )
+
+    def get_ner_purge_log_entry(self, purge_id: int) -> NerPurgeLogEntryDTO | None:
+        row = self.db.get(ArchiveNerPurgeLog, purge_id)
+        if row is None:
+            return None
+        return self._to_ner_purge_log_dto(row)
+
+    def _to_ner_purge_log_dto(self, row: ArchiveNerPurgeLog) -> NerPurgeLogEntryDTO:
+        """Maps the row to the read contract, exposing the document *count* and not the ids."""
+        snapshot = row.purged_snapshot or {}
+        return NerPurgeLogEntryDTO(
+            purge_id=row.purge_id,
+            purged_entity_id=row.purged_entity_id,
+            purged_name=row.purged_name,
+            entity_type=snapshot.get("entity_type") or "",
+            excluded_term=row.excluded_term,
+            document_count=len(row.document_ids or []),
+            synonym_names=list(row.synonym_names or []),
+            changed_by=row.changed_by,
+            changed_at=row.changed_at,
+            undone_at=row.undone_at,
+            undone_by=row.undone_by,
+        )
+
     def get_or_create_entities(self, entities_list: list[ArchiveEntityDTO]) -> list[int]:
         """
         Manages the entity dimension (NER).
@@ -1172,18 +1439,6 @@ class EntityRepository:
         entity = self.db.query(ArchiveEntity).filter(ArchiveEntity.entity_id == entity_id).first()
         if entity:
             entity.entity_type = new_type
-
-    def delete_entities_by_names(self, names: list[str]) -> int:
-        """Deletes entities from the collection by searching for a list of exact names."""
-        clean_names = [normalize_entity(n) for n in names]
-
-        deleted_rows = (
-            self.db.query(ArchiveEntity)
-            .filter(func.lower(ArchiveEntity.name).in_(clean_names))
-            .delete(synchronize_session=False)
-        )
-
-        return deleted_rows
 
     # --- The entity merge: plan, ledger, apply and undo ---
     #

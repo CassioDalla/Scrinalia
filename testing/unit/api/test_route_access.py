@@ -71,6 +71,7 @@ READ_ONLY_POSTS = {
     ("POST", "/api/v1/quality/text-templates/preview"),
     ("POST", "/api/v1/taxonomy/conflicts/resolve/preview"),
     ("POST", "/api/v1/taxonomy/entities/merge/preview"),
+    ("POST", "/api/v1/taxonomy/entities/ner-exclusions/purge/preview"),
     ("POST", "/api/v1/taxonomy/tags/merge/preview"),
     ("POST", "/api/v1/taxonomy/tags/stopwords/purge/preview"),
     # Computes candidates for the subject axis and writes nothing; the route that *applies* a

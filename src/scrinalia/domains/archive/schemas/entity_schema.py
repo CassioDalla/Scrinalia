@@ -539,15 +539,141 @@ class NerExclusion(BaseModel):
 
 
 class NerExclusionBanResponse(RouteResponse):
-    """Terms banned from NER, and how many already-extracted entities the ban purged."""
+    """
+    Terms banned from NER. The ban deletes nothing: the entities already extracted by that spelling
+    are removed by the purge, a separate and reversible act.
+    """
 
-    entities_deleted: int
+    created: int = Field(default=0, description="How many exclusions were inserted; a re-ban inserts none.")
 
 
 class NerExclusionRemovalResponse(RouteResponse):
     """The ban was lifted: the extractor will consider those spellings again."""
 
     removed: int
+
+
+# --- The NER purge: the destructive half of the veto, on its own ---
+#
+# Until #94 the ban and the purge were one call and only the ban came back: `POST
+# /entities/ner-exclusions` recorded the exclusion **and** deleted every entity already extracted
+# from that spelling, while the `DELETE` removed only the exclusion rows. These DTOs are the
+# stopword purge's shape applied to the other axis: a plan the preview and the write both read, a
+# ledger of what died, and an undo that restores the row, its links and its spellings.
+
+
+class NerPurgeEntity(BaseModel):
+    """One entity the purge would delete, with the weight that makes the loss concrete."""
+
+    entity_id: int
+    name: str
+    entity_type: str
+    excluded_term: str = Field(description="The banned spelling this entity matched.")
+    document_count: int = 0
+    synonym_names: list[str] = Field(default_factory=list, description="The spellings that point at it.")
+
+
+class NerPurgeItem(BaseModel):
+    """One entity the purge would delete, with the exact state the undo has to rebuild."""
+
+    entity_id: int
+    name: str
+    entity_type: str
+    excluded_term: str
+    document_ids: list[str] = Field(default_factory=list, description="The documents that carried it.")
+    synonym_names: list[str] = Field(default_factory=list, description="The spellings that pointed at it.")
+    created_at: datetime | None = None
+
+
+class NerPurgePlan(BaseModel):
+    """
+    Everything the purge would delete, computed before anything is written.
+
+    Single definition of the operation: the preview reads it and the write consumes it, so the two
+    cannot disagree about which entities die — the same rule ``TagRepository.plan_stopword_purge``
+    follows. The items carry the snapshot the ledger records, which is why the dry run and the
+    write are one computation instead of two that happen to agree today.
+    """
+
+    excluded_terms: list[str] = Field(default_factory=list)
+    items: list[NerPurgeItem] = Field(default_factory=list)
+
+    @property
+    def total_entities(self) -> int:
+        return len(self.items)
+
+    @property
+    def total_documents(self) -> int:
+        """Documents that lose an entity, counted per entity: one document can lose two."""
+        return sum(len(item.document_ids) for item in self.items)
+
+
+class NerPurgePreview(BaseModel):
+    """
+    What the purge would destroy, before it destroys it.
+
+    The purge keeps a ledger (:class:`ArchiveNerPurgeLog`), so ``reversible`` is true: the write is
+    logged per deleted entity before anything changes and the undo restores the row, its links and
+    its spellings. The preview remains the step, not a convenience — the ledger makes the loss
+    recoverable, it does not make it invisible.
+    """
+
+    excluded_terms: list[str] = Field(default_factory=list, description="The banned spellings the purge acts on.")
+    entities: list[NerPurgeEntity] = Field(default_factory=list)
+    total_entities: int = 0
+    total_documents: int = Field(default=0, description="Documents that lose an entity.")
+    reversible: bool = Field(default=True, description="True: the ledger restores the entities and their links.")
+
+
+class NerPurgeResult(BaseModel):
+    """What the purge did, as the repository reports it: the count and the ledger ids to undo."""
+
+    entities_deleted: int = 0
+    purge_ids: list[int] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class NerPurgeLogEntryDTO(BaseModel):
+    """One deleted entity in the ledger: what was purged, by whom, and whether it was restored."""
+
+    purge_id: int
+    purged_entity_id: int
+    purged_name: str
+    entity_type: str
+    excluded_term: str
+    document_count: int = 0
+    synonym_names: list[str] = Field(default_factory=list)
+    changed_by: str | None = None
+    changed_at: datetime | None = None
+    undone_at: datetime | None = None
+    undone_by: str | None = None
+
+    @property
+    def is_undone(self) -> bool:
+        return self.undone_at is not None
+
+
+class NerPurgeLogListResponse(BaseModel):
+    """One page of the NER purge ledger, with the total matching the same filters."""
+
+    total: int
+    limit: int
+    offset: int
+    items: list[NerPurgeLogEntryDTO] = Field(default_factory=list)
+
+
+class NerPurgeResponse(RouteResponse):
+    """What the purge deleted, with the ledger ids the screen needs to offer the undo."""
+
+    entities_deleted: int
+    purge_ids: list[int] = Field(default_factory=list)
+
+
+class NerPurgeUndoResponse(RouteResponse):
+    """The purged entity came back, exactly as the ledger remembered it."""
+
+    data: NerPurgeLogEntryDTO
 
 
 class OrphanEntityPurgeResponse(RouteResponse):
