@@ -23,6 +23,17 @@ commits — the history is the detail.
   number before the click and the number after it are one measurement. The live list gained the
   `entity_type` filter the batch selects with.
 
+- **Unifying entities is reversible** (issue #34): the entity merge now goes through the same two
+  halves as the tag merge. `POST /api/v1/taxonomy/entities/merge/preview` is the plan alone — how many
+  descriptions gain the canonical, how many links are rewritten, which names are absorbed and which
+  warnings to read — computed by the same planner the write executes, so the dry run cannot promise a
+  different number from the merge. The write is logged **before** anything changes, one row per
+  absorbed entity in `archive_entity_merge_log`, capturing the row, its links, its spellings and the
+  canonical name the optional rename replaces; `DELETE /api/v1/taxonomy/entities/merge-log/{merge_id}`
+  restores exactly that, and `GET /api/v1/taxonomy/entities/merge-log` is the trail, searchable by
+  either spelling. The entities screen shows the impact before the click, offers the undo right where
+  the merge was made, and keeps the ledger below. Entities still have no proposal catalogue.
+
 ## [1.1.0] - 2026-10-10
 
 ### Added
