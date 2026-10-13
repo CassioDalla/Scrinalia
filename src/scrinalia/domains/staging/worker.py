@@ -1,6 +1,9 @@
+import argparse
+
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
+from scrinalia.core.cli import positive_int
 from scrinalia.core.database import get_db
 from scrinalia.core.logger import logger
 from scrinalia.core.unit_of_work import UnitOfWork
@@ -17,6 +20,8 @@ def run_staging_pipeline(
     writer: StagingDocumentWriter | None = None,
     uow: UnitOfWork | None = None,
     force: bool = False,
+    limit: int | None = None,
+    after: str | None = None,
 ) -> None:
     """
     Orchestrates the transformation pipeline (Transform/Load) for the Staging layer.
@@ -40,6 +45,12 @@ def run_staging_pipeline(
         writer (StagingDocumentWriter | None): Output port; defaults to the SQL adapter.
         force (bool): Re-parses every raw record instead of only the changed ones. Required
             after a parser change, because the source payload hash did not change.
+        limit (int | None): Maximum raw records this run may take. ``None`` is the whole pending
+            set, which is what one transform used to do unconditionally; a bounded run leaves the
+            rest for the next one and reports how many, so a 100-document scrape does not force a
+            full-collection transform.
+        after (str | None): Keyset cursor over ``description_id``, the way a bounded ``force`` run
+            resumes: the CDC advances on its own, a forced re-parse does not.
     """
     # Imported here, not at module level: the staging worker is a step of the pipeline, and the
     # origin registry drags in the adapter module (requests, bs4) that this process never uses.
@@ -51,7 +62,7 @@ def run_staging_pipeline(
     uow = uow or UnitOfWork(db_session)
 
     logger.info("🔍 Checking pending documents at the Ingestion Domain...")
-    pending_records = source.next_batch(force=force)
+    pending_records = source.next_batch(force=force, limit=limit, after=after)
 
     total = len(pending_records)
     if total == 0:
@@ -97,18 +108,65 @@ def run_staging_pipeline(
 
     try:
         uow.commit()
-        logger.info(f"🎯 Staging Pipeline Completed! Success: {success} | failures: {failures}")
     except Exception as e:
         uow.rollback()
         logger.critical(f"🔥 Critical error during final commit:{e!s}")
+        return
+
+    remaining = source.count_pending(force=force, after=after)
+    logger.info(
+        f"🎯 Staging Pipeline Completed! Success: {success} | failures: {failures} | still pending: {remaining}"
+    )
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    """
+    The host CLI of the transform.
+
+    ``--force`` is the parser-change escape hatch the CDC cannot provide, and ``--after`` is what
+    keeps a forced re-parse bounded: the hash comparison advances a limited run by itself, but a
+    forced one re-reads the same window every time unless it is told where to resume.
+    """
+    parser = argparse.ArgumentParser(
+        prog="python -m scrinalia.domains.staging.worker",
+        description="Transforms the raw records into structured staging documents.",
+    )
+    parser.add_argument("--force", action="store_true", help="Re-parses every raw record, ignoring the CDC.")
+    parser.add_argument("--limit", type=positive_int, default=None, help="Maximum raw records this run may take.")
+    parser.add_argument(
+        "--after",
+        default=None,
+        help="Resume a forced re-parse at the first description_id greater than this.",
+    )
+    parser.add_argument("--origin", default=None, help="Origin code; ACERVO_SOURCE when omitted.")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Runs one bounded transform; returns the process exit code."""
+    # Imported here, not at module level, for the same reason the pipeline imports it: this module
+    # is imported by the API process, which never reads an origin.
+    from scrinalia.domains.ingestion.sources import get_source_schema
+
+    args = _build_parser().parse_args(argv)
+
+    try:
+        source_schema = get_source_schema(args.origin)
+    except ValueError as error:
+        logger.error(f"❌ {error}")
+        return 1
+
+    with get_db() as db:
+        run_staging_pipeline(
+            db,
+            source_schema=source_schema,
+            force=args.force,
+            limit=args.limit,
+            after=args.after,
+        )
+
+    return 0
 
 
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Runs the staging transform.")
-    parser.add_argument("--force", action="store_true", help="Re-parses every raw record, ignoring the CDC.")
-    args = parser.parse_args()
-
-    with get_db() as db:
-        run_staging_pipeline(db, force=args.force)
+    raise SystemExit(main())

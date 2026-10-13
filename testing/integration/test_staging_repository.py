@@ -124,3 +124,96 @@ def test_upsert_staging_preserves_created_at_and_absent_fields(use_test_db, db_s
     assert updated_doc.created_at == created_at_before  # not reset
     assert updated_doc.reference_code == "BR PR CUR"  # absent field preserved
     assert updated_doc.producers == "Prefeitura de Curitiba"
+
+
+# ==========================================
+# THE BOUNDED RUN
+# ==========================================
+
+
+def test_the_limit_is_applied_after_the_cdc_join(use_test_db, db_session) -> None:
+    """
+    The limit must not consume records the CDC already excluded.
+
+    Two records already structured (same hash) sort **before** the three pending ones, so a limit
+    applied before the comparison would spend both of its rows on them and return nothing — the
+    defect this pins. The comparison decides what is pending; the limit only bounds how many of the
+    pending records come back.
+    """
+    for index in range(2):
+        db_session.add(RawData(description_id=f"a-sync-{index}", content_hash="hash-sincronizado", payload={}))
+        db_session.add(
+            StagingDocument(
+                description_id=f"a-sync-{index}", raw_content_hash="hash-sincronizado", title="Título", raw_metadata={}
+            )
+        )
+    for index in range(3):
+        db_session.add(RawData(description_id=f"b-pendente-{index}", content_hash="hash-novo", payload={}))
+    db_session.commit()
+
+    batch = SqlRawRecordSource(db_session).next_batch(limit=2)
+
+    assert [record.description_id for record in batch] == ["b-pendente-0", "b-pendente-1"]
+
+
+def _store(db_session, records) -> None:
+    """What the transform does with the records it took: upsert them and commit."""
+    for record in records:
+        upsert_staging_document(
+            db_session,
+            StagingDocumentDTO(
+                description_id=record.description_id, raw_content_hash=record.content_hash, title="Título"
+            ),
+        )
+    db_session.commit()
+
+
+def test_a_limited_transform_leaves_the_rest_pending(use_test_db, db_session) -> None:
+    """
+    A bounded run resumes by itself, because the CDC *is* the progress.
+
+    Whatever the run wrote stops matching the comparison, so the next run sees exactly the rest —
+    no marker, no cursor, and nothing to reset if a run dies halfway.
+    """
+    for index in range(3):
+        db_session.add(RawData(description_id=f"lim-{index}", content_hash=f"hash-{index}", payload={}))
+    db_session.commit()
+
+    source = SqlRawRecordSource(db_session)
+
+    first = source.next_batch(limit=2)
+    assert [record.description_id for record in first] == ["lim-0", "lim-1"]
+
+    _store(db_session, first)
+    assert source.count_pending() == 1
+
+    second = source.next_batch(limit=2)
+    assert [record.description_id for record in second] == ["lim-2"]
+
+    _store(db_session, second)
+    assert source.next_batch() == []
+    assert source.count_pending() == 0
+
+
+def test_the_cursor_advances_a_forced_reparse(use_test_db, db_session) -> None:
+    """
+    ``force`` bypasses the comparison, so the bounded forced run needs the cursor to progress.
+
+    Without it, ``--force --limit 2`` would re-read the same first two records on every run; the
+    cursor changes neither the predicate nor what counts as pending, only where the window opens.
+    """
+    for index in range(4):
+        db_session.add(RawData(description_id=f"cur-{index}", content_hash=f"hash-{index}", payload={}))
+    db_session.commit()
+
+    source = SqlRawRecordSource(db_session)
+
+    assert [record.description_id for record in source.next_batch(force=True, limit=2)] == ["cur-0", "cur-1"]
+    assert [record.description_id for record in source.next_batch(force=True, limit=2, after="cur-1")] == [
+        "cur-2",
+        "cur-3",
+    ]
+
+    # Under force every record is pending; the cursor is the only thing that says how much is left.
+    assert source.count_pending(force=True) == 4
+    assert source.count_pending(force=True, after="cur-3") == 0
