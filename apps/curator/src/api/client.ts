@@ -139,9 +139,6 @@ export type TagCurationResult = components["schemas"]["TagCurationResult"];
 export type TagCatalogState = components["schemas"]["TagCatalogState"];
 export type TagCatalogResponse = components["schemas"]["TagCatalogResponse"];
 export type TagCatalogRow = components["schemas"]["TagCatalogRow"];
-export type TagFacetType = components["schemas"]["TagFacetType"];
-export type TagFacetRequest = components["schemas"]["TagFacetRequest"];
-export type TagFacetResult = components["schemas"]["TagFacetResult"];
 export type EntityRelevance = components["schemas"]["EntityRelevance"];
 export type MacroCategory = components["schemas"]["ArchiveMacroCategoryEntityDTO"];
 export type MacroCategoryCreateRequest = components["schemas"]["MacroCategoryCreateRequest"];
@@ -243,6 +240,8 @@ export type ConflictPairKindFilter = "all" | "exact_name" | "near_duplicate";
 
 // --- The subject vocabulary: exclusions and the agrupamento discovery ------------------------------
 export type SubjectExclusionBanResponse = components["schemas"]["SubjectExclusionBanResponse"];
+export type SubjectExclusionPlan = components["schemas"]["SubjectExclusionPlan"];
+export type SubjectExclusionTarget = components["schemas"]["SubjectExclusionTarget"];
 export type SubjectExclusionSuggestion = components["schemas"]["SubjectExclusionSuggestion"];
 export type SubjectExclusionSuggestionResponse =
   components["schemas"]["SubjectExclusionSuggestionResponse"];
@@ -669,34 +668,6 @@ export async function fetchTagCatalog(params: TagCatalogSearch): Promise<TagCata
   );
 }
 
-/**
- * Declares one non-subject axis of a tag: a producer or a place.
- *
- * A declaration about the whole state, not about a column: the tag leaves any drawer it was in, and
- * its term stops being a subject candidate. The route answers the state it left behind.
- */
-export async function declareTagFacet(
-  tagId: number,
-  facetType: TagFacetType,
-  body: TagFacetRequest = {},
-): Promise<TagFacetResult> {
-  return unwrap<TagFacetResult>(
-    await client.PUT("/api/v1/taxonomy/tags/{tag_id}/facets/{facet_type}", {
-      params: { path: { tag_id: tagId, facet_type: facetType } },
-      body,
-    }),
-  );
-}
-
-/** Takes a tag off one axis; the subject exclusion goes with the last facet. */
-export async function removeTagFacet(tagId: number, facetType: TagFacetType): Promise<TagFacetResult> {
-  return unwrap<TagFacetResult>(
-    await client.DELETE("/api/v1/taxonomy/tags/{tag_id}/facets/{facet_type}", {
-      params: { path: { tag_id: tagId, facet_type: facetType } },
-    }),
-  );
-}
-
 // --- The subject vocabulary, seen as a whole: the drawers and the tag catalog ------------------
 
 export async function createMacroCategory(body: MacroCategoryCreateRequest): Promise<MacroCategory> {
@@ -1020,8 +991,31 @@ export async function fetchSubjectExclusionSuggestions(
 }
 
 /**
+ * What confirming these terms would do, without writing anything.
+ *
+ * ``applicable`` is what the write records — the exclusion **and** the ``TAG``-scoped ban — and
+ * ``blocked`` is what it refuses, each with the drawer in the way: a term whose tag already sits in
+ * a subject drawer is a subject question already answered, and the write that settles a *tag* is
+ * the tag catalogue's, not this one's.
+ */
+export async function previewSubjectExclusions(body: {
+  words: string[];
+  reason?: string | null;
+  source: "HUMAN" | "RULE";
+}): Promise<SubjectExclusionPlan> {
+  return unwrap<SubjectExclusionPlan>(
+    await client.POST("/api/v1/taxonomy/tags/subject-exclusions/preview", { body }),
+  );
+}
+
+/**
  * Records the decision. ``source`` tells a shape from a judgement: ``RULE`` for a term the guard
  * refused and the archivist confirmed, ``HUMAN`` for one they typed.
+ *
+ * One statement in two halves: the classifier stops guessing at the term **and** its spelling is
+ * banned from becoming a tag again, so the next ingestion does not recreate it. A term whose tag is
+ * in a drawer is refused and reported in ``blocked`` — the answer says what it wrote and what it
+ * would not.
  */
 export async function excludeFromSubjects(body: {
   words: string[];

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { excludeFromSubjects, restoreToSubjects } from "@/api/client";
+import { excludeFromSubjects, restoreToSubjects, type SubjectExclusionBanResponse } from "@/api/client";
 import { SUBJECT_SUGGESTIONS_PAGE_SIZE, queries } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
@@ -26,9 +26,13 @@ import { routeMessage } from "@/lib/messages";
  * are semantic calls no rule resolves: ``pessoas`` reaches 166 documents, ``vista aérea`` 89 and
  * ``capanema`` 91. Those are the cases this screen exists for.
  *
- * Banning here **deletes nothing**: the term stays a tag, stays linked to its descriptions and stays
- * reachable by search. Only the subject classification stops guessing at it — which is exactly how
- * "the model answers confidently and wrongly" turns into "the curator decided".
+ * Confirming a term is **one statement in two halves** (ADR 0013, issue #84): the classifier stops
+ * guessing at it, and its spelling is banned from becoming a tag again, so the next ingestion does
+ * not recreate the term and park it in the queue forever. The ban deletes nothing — the tag stays in
+ * the collection and reachable by search, and purging the banned tags is a separate, previewed step
+ * on the Stopwords tab. A term whose tag already sits in a subject **drawer** is refused and named
+ * instead (issue #83, option C): that drawer is a human verdict, and the write that settles a tag is
+ * the tag catalogue's ``PATCH``.
  */
 export function SubjectExclusionsRoute() {
   const queryClient = useQueryClient();
@@ -39,11 +43,14 @@ export function SubjectExclusionsRoute() {
 
   const [draft, setDraft] = useState("");
   const [reason, setReason] = useState("");
+  /** The last write, kept so the screen can name what it refused instead of only counting. */
+  const [report, setReport] = useState<SubjectExclusionBanResponse | null>(null);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["taxonomy", "subject-exclusions"] });
     void queryClient.invalidateQueries({ queryKey: ["taxonomy", "subject-exclusion-suggestions"] });
     void queryClient.invalidateQueries({ queryKey: ["taxonomy", "tags"] });
+    void queryClient.invalidateQueries({ queryKey: ["taxonomy", "stopwords"] });
     void queryClient.invalidateQueries({ queryKey: ["documents"] });
     void queryClient.invalidateQueries({ queryKey: ["curation", "inbox"] });
   };
@@ -65,7 +72,8 @@ export function SubjectExclusionsRoute() {
           source: "HUMAN",
         },
       ),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      setReport(result);
       setDraft("");
       setReason("");
       invalidate();
@@ -112,7 +120,7 @@ export function SubjectExclusionsRoute() {
                     .map(([signal, count]) => `${SIGNAL_LABEL[signal] ?? signal} ${formatCount(count)}`)
                     .join(" · ")}
                   {suggestions.data.place_count > 0
-                    ? ` · ${formatCount(suggestions.data.place_count)} vão para a faceta Lugar`
+                    ? ` · ${formatCount(suggestions.data.place_count)} são lugares (o eixo de entidades os carrega)`
                     : ""}
                 </span>
               </div>
@@ -159,13 +167,26 @@ export function SubjectExclusionsRoute() {
                           <Badge tone="warn">{SIGNAL_LABEL[item.signal] ?? item.signal}</Badge>
                           <Badge tone="neutral">{descricoes(item.document_count)}</Badge>
                           {item.is_place_term ? (
-                            <Badge tone="accent" title="O guarda recusa como assunto, mas a faceta Lugar o reivindica: 'não é assunto' não é 'vai para o lixo'.">
-                              vai para a faceta Lugar
+                            <Badge tone="accent" title="O guarda recusa como assunto, mas é um lugar: quem o carrega é o eixo de entidades (LOC). 'Não é assunto' não é 'vai para o lixo'.">
+                              é lugar
                             </Badge>
                           ) : null}
                           {item.also_an_entity ? (
                             <Badge tone="ok" title="A mesma grafia existe como entidade nomeada: isso é a tela de conflitos, não esta.">
                               também é entidade
+                            </Badge>
+                          ) : null}
+                          {item.macro_category_name ? (
+                            <Badge
+                              tone="danger"
+                              title="Esta tag já está numa categoria de assunto: o registro é recusado aqui. Tire-a da categoria na aba Classificar."
+                            >
+                              está em {item.macro_category_name}
+                            </Badge>
+                          ) : null}
+                          {item.already_banned ? (
+                            <Badge tone="neutral" title="A grafia já está banida de voltar a virar tag.">
+                              grafia banida
                             </Badge>
                           ) : null}
                           {item.already_excluded ? <Badge tone="neutral">já registrado</Badge> : null}
@@ -177,7 +198,12 @@ export function SubjectExclusionsRoute() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        disabled={item.already_excluded || ban.isPending}
+                        disabled={item.already_excluded || Boolean(item.macro_category_name) || ban.isPending}
+                        title={
+                          item.macro_category_name
+                            ? `Está em ${item.macro_category_name}: tire a tag da categoria na aba Classificar antes.`
+                            : "O classificador para de adivinhar e a grafia não volta a virar tag."
+                        }
                         onClick={() =>
                           ban.mutate({
                             words: [item.term],
@@ -240,7 +266,8 @@ export function SubjectExclusionsRoute() {
             <div className="grid gap-1">
               <span className="text-sm font-semibold">Vetar termos</span>
               <span className="text-xs text-(--color-muted)">
-                Banir não exclui nada: a tag continua no acervo, só a classificação de assunto para de adivinhar.
+                Marcar como não-assunto não exclui nada: a tag continua no acervo, o classificador para de adivinhar e
+                a grafia não volta a virar tag. Excluir as tags banidas é o passo separado da aba Stopwords.
               </span>
             </div>
           }
@@ -279,12 +306,24 @@ export function SubjectExclusionsRoute() {
                 {ban.isPending ? "Vetando…" : "Marcar como não-assunto"}
               </Button>
             </div>
-            {ban.data ? (
-              <p className="text-xs text-(--color-muted)">
-                {routeMessage(ban.data)} {formatCount(ban.data.created)} termo(s) registrado(s).
-              </p>
-            ) : null}
             {ban.error ? <ErrorState error={ban.error} /> : null}
+            {report ? (
+              <div className="grid gap-1 text-xs text-(--color-muted)">
+                <span>
+                  {routeMessage(report)} {formatCount(report.created)} termo(s) registrado(s),{" "}
+                  {formatCount(report.banned)} grafia(s) banida(s) de voltar.
+                </span>
+                {(report.blocked ?? []).length > 0 ? (
+                  <span className="text-(--color-danger)">
+                    {formatCount((report.blocked ?? []).length)} recusado(s) por já estar numa categoria de assunto:{" "}
+                    {(report.blocked ?? [])
+                      .map((item) => `${item.term} (${item.macro_category_name ?? `#${item.macro_category_id}`})`)
+                      .join(", ")}
+                    . Tire a tag da categoria na aba Classificar e volte aqui.
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </Disclosure>
 
@@ -320,7 +359,7 @@ export function SubjectExclusionsRoute() {
                       size="sm"
                       variant="ghost"
                       disabled={restore.isPending}
-                      title="O classificador volta a considerar o termo"
+                      title="O classificador volta a considerar o termo, e a grafia volta a poder virar tag (só o ban que esta decisão plantou sai; um ban digitado na aba Stopwords fica)."
                       onClick={() => restore.mutate(word)}
                     >
                       {ACTION.remove.label}

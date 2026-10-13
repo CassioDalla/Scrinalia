@@ -85,42 +85,47 @@ export const STOPWORD_SCOPE_HINT: Record<string, string> = {
 };
 
 /**
+ * Who planted a ban.
+ *
+ * The column exists because the purge preview has to tell a term banned **with the archive in mind**
+ * from one typed by hand: ``CONFLICT`` came from settling a tag × entity collision and ``EXCLUSION``
+ * from declaring the term not-a-subject — both are consequences of another decision — while
+ * ``HUMAN`` is an act taken on the Stopwords screen.
+ */
+export const STOPWORD_SOURCE_LABEL: Record<string, string> = {
+  HUMAN: "digitado aqui",
+  CONFLICT: "veio de um conflito tag × entidade",
+  EXCLUSION: "veio de “não é assunto”",
+};
+
+export const STOPWORD_SOURCE_HINT: Record<string, string> = {
+  HUMAN: "Alguém digitou este termo na aba Stopwords: é um ato deliberado.",
+  CONFLICT: "O termo foi banido ao resolver um conflito entre a tag e a entidade de mesma grafia.",
+  EXCLUSION:
+    "O termo foi banido junto com a decisão “não é assunto”. O desfazer daquela decisão levanta este ban.",
+};
+
+/**
  * The state of a tag's subject decision, as the archivist reads it.
  *
- * The four states are a partition of the tags with no category (see
+ * The three states are a partition of the tags with no category (see
  * ``repository/subject_queue.py``), and the labels say which question each one answers. ``ALL`` is
- * not a state: it is the absence of a filter.
+ * not a state: it is the absence of a filter. A producer, a place or a person is **not** a fourth
+ * state: the entity axis carries what it is, and the tag × entity conflict screen settles a spelling
+ * that is both (ADR 0013).
  */
 export const CATALOG_STATE_LABEL: Record<string, string> = {
   ALL: "Todas",
   PENDING: "Sem decisão",
   NOT_SUBJECT: "Não é assunto",
-  FACET: "Produtor ou lugar",
   LOW_CONFIDENCE: "Confiança baixa",
 };
 
 export const CATALOG_STATE_HINT: Record<string, string> = {
   ALL: "O catálogo inteiro, mais pesado primeiro.",
   PENDING: "Nenhuma pessoa decidiu ainda, e o classificador também não: é a fila que o Início conta.",
-  NOT_SUBJECT: "Uma pessoa declarou que a tag não é assunto e não vai a lugar nenhum.",
-  FACET: "A tag é um produtor ou um lugar, e não um assunto. Nada foi inferido: alguém declarou.",
+  NOT_SUBJECT:
+    "Uma pessoa declarou que a tag não é assunto: o classificador para de adivinhar e a grafia não volta a virar tag. A tag atual fica no acervo, alcançável pela busca.",
   LOW_CONFIDENCE:
     "O classificador rodou e não teve confiança para arquivar a tag; ela continua sem decisão. A nota dele aparece na linha.",
-};
-
-/**
- * The non-subject axis: what a tag *is* when it is not an *about*.
- *
- * ``INSTITUTION`` is the producer and ``PLACE`` the geography, and the two are what a street name
- * needs: a street is refused by the subject axis **and** claimed here. That is why "não é assunto"
- * and "vai para um eixo" are different statements, and the screen offers both.
- */
-export const FACET_TYPE_LABEL: Record<string, string> = {
-  INSTITUTION: "Produtor",
-  PLACE: "Lugar",
-};
-
-export const FACET_TYPE_HINT: Record<string, string> = {
-  INSTITUTION: "Quem produziu o registro, ou de quem ele trata: alfa, pmc, theta. Não é assunto.",
-  PLACE: "Um topônimo ou um logradouro: cidade, rua exemplo. Não é assunto.",
 };
