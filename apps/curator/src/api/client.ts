@@ -193,6 +193,9 @@ export type ConflictResolutionLogEntry = components["schemas"]["ConflictResoluti
 export type ConflictResolutionLogList = components["schemas"]["ConflictResolutionLogListResponse"];
 export type ConflictResolutionRequest = components["schemas"]["ConflictResolutionRequest"];
 export type ConflictResolutionResponse = components["schemas"]["ConflictResolutionResponse"];
+export type ConflictBatchRequest = components["schemas"]["ConflictBatchRequest"];
+export type ConflictBatchResponse = components["schemas"]["ConflictBatchResponse"];
+export type ConflictBatchResult = components["schemas"]["ConflictBatchResult"];
 export type ConflictWinner = ConflictResolutionRequest["winner"];
 export type ConflictDecider = ConflictResolutionLogEntry["source"];
 /** Which of the two populations a pair belongs to: the same spelling, or the same word written twice. */
@@ -1098,12 +1101,14 @@ export async function unbanNerExclusions(body: { words: string[] }): Promise<Ner
  * The collisions that exist today, annotated with whatever has already been decided about each.
  *
  * ``pair_kind`` is the lever that makes the list usable: ``near_duplicate`` is the same word written
- * differently (a spelling question, 122 pairs on the real collection) and ``exact_name`` is the same
- * spelling on both axes (a structural question, 5 050). ``all`` hides nothing and is the default.
+ * differently (a spelling question) and ``exact_name`` is the same spelling on both axes (a
+ * structural question, and the one a batch can settle). ``entity_type`` narrows it to a category —
+ * the same selection the batch writes — and ``all`` hides nothing.
  */
 export async function fetchCrossDomainConflicts(params: {
   threshold?: number;
   pair_kind?: ConflictPairKindFilter;
+  entity_type?: EntityType;
   limit?: number;
   offset?: number;
 }): Promise<CrossDomainConflictPage> {
@@ -1150,6 +1155,18 @@ export async function previewConflictResolution(body: {
  */
 export async function resolveConflict(body: ConflictResolutionRequest): Promise<ConflictResolutionResponse> {
   return unwrap<ConflictResolutionResponse>(await client.POST("/api/v1/taxonomy/conflicts/resolve", { body }));
+}
+
+/**
+ * One categorical verdict over a whole selection — "a street is an entity" — in a single call.
+ *
+ * The unit of the decision is the selection (``pair_kind`` narrowed by ``entity_type``); the unit of
+ * the write is still the pair, so every entry in ``applied`` carries its own ``resolution_id`` and
+ * its own undo. ``skipped`` is work an earlier pair of the same batch already finished, and it is
+ * never reported as a failure.
+ */
+export async function resolveConflictBatch(body: ConflictBatchRequest): Promise<ConflictBatchResponse> {
+  return unwrap<ConflictBatchResponse>(await client.POST("/api/v1/taxonomy/conflicts/resolve/batch", { body }));
 }
 
 /** The ledger of the resolutions: what was written, by whom, and what was reversed. */
