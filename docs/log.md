@@ -689,3 +689,34 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   working collection, so the write is verified by the integration suite, which drives the real route
   and the real ledger (814 integration tests passed); the screenshots show the selection and the
   panel, not a resolution.
+
+## 2026-10-13 — the entity merge ledger (issue #34)
+
+- **Range:** `0fd528e..318f8e0`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the *Mesclar* bullet of *Entidades — `/entidades/lista`* said
+    entities had "no proposal catalogue and no ledger", so there was no undo and no preview route.
+    It now names the preview (`POST /api/v1/taxonomy/entities/merge/preview`, the plan the write
+    executes), the ledger (`GET /api/v1/taxonomy/entities/merge-log`, one row per absorbed entity)
+    and the undo (`DELETE /api/v1/taxonomy/entities/merge-log/{merge_id}`), and the summary table's
+    row says the merge is reversible. The entity merge also **left** the *What has no way back*
+    warning: it is no longer one of the writes that announce they have no undo.
+  - `guides/data-model.md` — **updated**: the subjects-and-entities table gained the
+    `archive_entity_merge_log` row — one row per absorbed entity, snapshotted before anything
+    changes, and what `undo_entity_merge` restores from it.
+- **Why the round exists:** the freshness report named both pages after the two code commits landed
+  on the branch (the API and the SPA screen) and printed the three new operations beside
+  `guides/curate.md`: `POST /entities/merge/preview`, `GET /entities/merge-log` and
+  `DELETE /entities/merge-log/{merge_id}`. The range also carries `a63b6c9` and `402d657` (the
+  collision batch's documentation and API commits), which no earlier entry closed; the report named
+  no page for them, so they are closed here by absence.
+- **What the round measured.** The write and its reverse are pinned by the integration suite, which
+  drives the real repository and the real ledger: the undo restores the row, the per-entity links and
+  the spelling state exactly, removes only the links the merge created (`created_link_ids`) and puts
+  back the canonical name the optional rename changed; the preview and the apply are asserted to
+  produce the same numbers; and the `pair_kind` partition of the conflict routes, which this change
+  must not disturb, keeps its own tests green. Measured: 1 511 tests passed, `basedpyright` 0 errors,
+  `alembic check` reports no drift after the new table.
+- **Not looked at in a browser.** The panel's preview, its "Desfazer este merge" button and the
+  ledger section are verified by `tsc`, ESLint and the Vite build, not by rendering: the evidence is
+  the green gates, not the pixels. What the API answers is verified by the route tests.

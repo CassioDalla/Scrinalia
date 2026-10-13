@@ -39,8 +39,7 @@ carrega.
 !!! warning "Estas escritas não têm desfazer"
 
     As operações abaixo apagam ou dissolvem uma linha que nada mais reconstrói. A purga de stopwords
-    mostra uma prévia; a exclusão pede que você digite o código de referência; o merge de entidades
-    não tem nem uma coisa nem outra — o painel avisa. Leia a confirmação.
+    mostra uma prévia; a exclusão pede que você digite o código de referência. Leia a confirmação.
 
 - **Purga de stopwords** — `POST /api/v1/taxonomy/tags/stopwords/purge`. Apaga toda tag cujo nome
   seja um termo banido nos eixos `TAG` ou `ALL`. Os vínculos caem em cascata e a classificação de
@@ -57,13 +56,6 @@ carrega.
   filhos não pode ser excluída — o serviço recusa e diz quantos estão abaixo; exclua ou mova os
   filhos primeiro. A tela pede que o arquivista digite o código de referência (ou o identificador,
   quando não há código) antes de o botão liberar.
-
-- **Mesclar entidades** — `POST /api/v1/taxonomy/entities/merge`. As entidades absorvidas deixam de
-  existir, seus vínculos passam para a canônica e suas grafias viram sinônimos, para o extrator
-  continuar reconhecendo-as. Entidades **não têm catálogo de propostas nem ledger**, então este é o
-  merge sem desfazer — o privilégio das tags é ter ledger. O painel avisa em vez de oferecer um
-  botão de volta, e não há rota de prévia: a tela declara o efeito documentado em vez de inventar
-  números. Renomear a canônica faz parte da mesma escrita, e o nome antigo vira sinônimo.
 
 - **Excluir ou purgar entidades sem vínculo** — `DELETE /api/v1/taxonomy/entities/{entity_id}` e
   `POST /api/v1/taxonomy/entities/orphans/purge`. A tela só oferece a exclusão numa linha cuja
@@ -674,7 +666,7 @@ não sabe se abster responderia com confiança e errado.
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Entidades — `/entidades/lista` | o tipo de um nome, e se dois nomes são um | o tipo sim; o merge **não** |
+| Entidades — `/entidades/lista` | o tipo de um nome, e se dois nomes são um | o tipo sim; o merge **sim** (uma linha no ledger por entidade absorvida) |
 | Exclusões de NER — `/entidades/excecoes` | quais grafias são assunto, não nome próprio | a linha do veto sim; as entidades expurgadas **não** |
 | Conflitos — `/entidades/conflitos` | se uma colisão pertence ao eixo de assunto ou aos nomes, um par de cada vez ou uma categoria inteira de uma vez | sim (uma linha no ledger por par, com o desfazer) |
 
@@ -691,11 +683,16 @@ O vocabulário de nomes próprios, por peso ou por similaridade. Três decisões
   lote. Sem desfazer.
 - **Mesclar** — `POST /api/v1/taxonomy/entities/merge` (`CURATE`): as entidades absorvidas deixam de
   existir, seus vínculos passam para a canônica, suas grafias viram sinônimos, e um nome novo opcional
-  para a canônica faz o antigo virar sinônimo também. Entidades não têm catálogo de propostas nem
-  **ledger**: não há desfazer, e o painel avisa em vez de oferecer um botão de volta. Também não há
-  rota de prévia — a tela declara o efeito documentado em vez de inventar números. A lista de pares é
-  evidência crua, com os dois identificadores, porque duas linhas podem ler nomes quase iguais e a
-  canônica é uma escolha que o arquivista precisa conseguir distinguir.
+  para a canônica faz o antigo virar sinônimo também. A decisão é precedida da prévia
+  (`POST /api/v1/taxonomy/entities/merge/preview`, uma leitura): ela devolve quantas descrições passam
+  a carregar a canônica, quantos vínculos são reescritos, quais entidades são absorvidas e os avisos a
+  olhar, calculada pelo **mesmo planejador** que a escrita executa. Entidades não têm catálogo de
+  propostas, mas têm ledger: cada absorvida é registrada **antes** de qualquer mudança, e o desfazer
+  (`DELETE /api/v1/taxonomy/entities/merge-log/{merge_id}`, o "desfazer" da tela) restaura a linha,
+  seus vínculos, suas grafias e o nome que a canônica perdeu.
+  `GET /api/v1/taxonomy/entities/merge-log` é a trilha, buscável pelas duas grafias de cada entrada.
+  A lista de pares é evidência crua, com os dois identificadores, porque duas linhas podem ler nomes
+  quase iguais e a canônica é uma escolha que o arquivista precisa conseguir distinguir.
 
 ### Exclusões de NER — `/entidades/excecoes`
 

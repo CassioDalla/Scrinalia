@@ -63,8 +63,7 @@ does not carry it.
 !!! warning "These writes have no undo"
 
     The operations below delete or dissolve a row that nothing else rebuilds. The stopwords purge
-    shows a preview; the deletion asks you to type the reference code; the entity merge has neither
-    — its panel warns instead. Read the confirmation.
+    shows a preview; the deletion asks you to type the reference code. Read the confirmation.
 
 - **Stopwords purge** — `POST /api/v1/taxonomy/tags/stopwords/purge`. Deletes every tag whose name
   is a banned term on the `TAG` or `ALL` axis. The links cascade and the tag's classification goes
@@ -80,14 +79,6 @@ does not carry it.
   description with children cannot be excluded — the service refuses and says how many are below;
   exclude or move the children first. The screen asks the archivist to type the reference code (or
   the id, when there is no code) before the button unlocks.
-
-- **Merging entities** — `POST /api/v1/taxonomy/entities/merge`. The absorbed entities stop
-  existing, their links move to the canonical one, and their spellings become synonyms so the
-  extractor keeps recognising them. Entities have **no proposal catalogue and no ledger**, so this
-  is the one merge with no undo — the tags' privilege is a ledger. The panel warns instead of
-  offering a button back, and there is no preview route: the screen states the documented effect
-  rather than inventing numbers. Renaming the canonical is part of the same write, and the old name
-  becomes a synonym.
 
 - **Deleting or purging entities without links** — `DELETE /api/v1/taxonomy/entities/{entity_id}`
   and `POST /api/v1/taxonomy/entities/orphans/purge`. The screen offers the delete only on a row
@@ -699,7 +690,7 @@ lie, and a model that does not know how to abstain would answer confidently and 
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
-| Entidades — `/entidades/lista` | the type of a name, and whether two names are one | the type yes; the merge **no** |
+| Entidades — `/entidades/lista` | the type of a name, and whether two names are one | the type yes; the merge **yes** (one ledger row per absorbed entity) |
 | Exclusões de NER — `/entidades/excecoes` | which spellings are subjects, not proper names | the veto row yes; the entities it purged **no** |
 | Conflitos — `/entidades/conflitos` | whether a collision belongs to the subject axis or to the names, one pair at a time or a whole category at once | yes (one ledger row per pair, with the undo) |
 
@@ -716,9 +707,14 @@ The named-entity vocabulary, by weight or by similarity. Three decisions:
   batch. No undo.
 - **Mesclar** — `POST /api/v1/taxonomy/entities/merge` (`CURATE`): the absorbed entities stop
   existing, their links move to the canonical, their spellings become synonyms, and an optional new
-  name for the canonical makes the old one a synonym too. Entities have no proposal catalogue and
-  **no ledger**: there is no undo, and the panel says so instead of offering a button back. There is
-  no preview route either — the screen states the documented effect rather than inventing numbers.
+  name for the canonical makes the old one a synonym too. The decision is preceded by the preview
+  (`POST /api/v1/taxonomy/entities/merge/preview`, a read): it returns how many descriptions gain the
+  canonical, how many links are rewritten, which entities are absorbed and the warnings to look at,
+  computed by the **same planner** the write executes. Entities have no proposal catalogue, but they
+  do have a ledger: each absorbed entity is logged **before** anything changes, and the undo
+  (`DELETE /api/v1/taxonomy/entities/merge-log/{merge_id}`, the screen's "desfazer") restores the row,
+  its links, its spellings and the name the canonical lost. `GET /api/v1/taxonomy/entities/merge-log`
+  is the trail, searchable by either spelling of each entry.
   The pair list is raw evidence, with both ids, because two rows can read almost the same name and
   the canonical is a choice the archivist has to be able to tell apart.
 
