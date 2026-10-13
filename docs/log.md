@@ -819,6 +819,43 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   redrawing. The round's own artifacts were then removed — the scratch session and the ledger row it
   left — so the collection is as it was and no test write remains in its audit trail.
 
+## 2026-10-13 — the merge card fed by the type-ahead (issue #87)
+
+- **Range:** `e0c0720..bbd0189`
+- **Pages:**
+  - `guides/curate.md` — **updated**: *Entidades — `/entidades/lista`* now says the merge has **three
+    doors** — the selection on Relevância, a pair on Similaridade and the **Mesclar pelo nome** card
+    above the tabs — and why the third exists: the other two are list-driven, relevance is ordered by
+    weight and capped, and similarity is trigram, the one measure that fails on the pair the archivist
+    is most sure about. It names the card's three decisions: the type-ahead with the API's own
+    two-character floor, each name's weight shown so the canonical is chosen with the numbers in view,
+    and a list of its own that does not consume the relevance checkboxes.
+  - `guides/curate.pt.md` — **updated**: the translation of the same.
+- **Why the round exists:** the screen had two ways into the merge panel and the archivist controls
+  neither list, so the pair they already know is one entity was the pair the screen was least likely
+  to show them. The freshness report named `guides/curate.md` for the SPA commit.
+- **What the round measured.** Measured: 1 528 tests passed, `basedpyright` 0 errors, the SPA's `tsc`,
+  ESLint and Vite build green, and `mkdocs build --strict` clean. The acceptance pair was measured
+  against the reference collection before it was rendered: `smu` (entity 45) carries **68**
+  descriptions and `smcs secretaria municipal de comunicação social` (entity 349) carries **1**, so the
+  relevance ranking — capped at fifty rows, whose lightest entry carries two — can never show both;
+  and `similarity('smu', 'smcs secretaria municipal de comunicação social')` is **0.045**, far under
+  any threshold the similarity tab accepts. Neither list reaches the pair; the card does.
+  `testing/unit/curator/test_entities_merge_doors.py` is the gate for the shape: it fails when the
+  write gains a second call site, when a door stops rendering `<MergePanel`, or when the card starts
+  calling the write, the preview or `navigate` itself. It is a **textual** gate and says so — the SPA
+  has no test runner of its own.
+- **What the round looked at.** The screen was **rendered** against the reference collection: the
+  built SPA served by the API, a scratch session created for the round and deleted after, the headless
+  shell driven over CDP. Seen in the pixels: the card **collapsed** between the irreversibility
+  `Notice` and the tabs, with the labelled "+ Mesclar pelo nome" button; and the card **open** after
+  the two names were typed and picked one at a time, each row carrying its own weight ("smu · Local ·
+  68 descrições", "smcs secretaria municipal de comunicação social · Local · 1 descrição"), with the
+  panel below stating the **real** plan — "1 descrição(ões) passam a carregar smu · 1 vínculo(s)
+  reescrito(s) · 1 entidade(s) absorvida(s)" — and its warning once, not twice. **Not** verified in
+  pixels: an actual merge from this card. The round wrote nothing to the collection, and the write
+  itself rests on the suite that pins the three doors to the one call site.
+
 ## 2026-10-13 — the SPA stops re-declaring the contract's query shapes (no page changed)
 
 - **Range:** `e0c0720..HEAD`
