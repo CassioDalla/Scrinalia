@@ -160,15 +160,21 @@ export type EntityPairSimilarity = components["schemas"]["EntityPairSimilarity"]
 export type EntitySimilarity = components["schemas"]["EntitySimilarity"];
 export type EntitySimilarityResponse = components["schemas"]["EntitySimilarityResponse"];
 export type EntityMergeResponse = components["schemas"]["EntityMergeResponse"];
+export type EntityMergePreviewResponse = components["schemas"]["EntityMergePreviewResponse"];
+export type EntityMergeImpact = components["schemas"]["EntityMergeImpact"];
+export type EntityMergeLogList = components["schemas"]["EntityMergeLogListResponse"];
+export type EntityMergeLogEntry = components["schemas"]["EntityMergeLogEntryDTO"];
+export type EntityMergeUndoResponse = components["schemas"]["EntityMergeUndoResponse"];
 
 /**
  * One canonical row absorbing the others — the payload both vocabularies accept.
  *
  * Tags and entities share the shape on purpose: the operation is the same, and the front should not
- * learn a second spelling of "merge these two".
+ * learn a second spelling of "merge these two". The entity route adds ``note``, which the tag route
+ * does not record.
  */
 export type MergeRequest = components["schemas"]["MergeRequest"];
-export type EntityMergeRequest = MergeRequest;
+export type EntityMergeRequest = components["schemas"]["EntityMergeRequest"];
 export type ReclassifyEntityRequest = components["schemas"]["ReclassifyEntityRequest"];
 export type EntityReclassifyResponse = components["schemas"]["EntityReclassifyResponse"];
 export type EntityDeleteResponse = components["schemas"]["EntityDeleteResponse"];
@@ -1040,6 +1046,43 @@ export async function fetchSimilarEntities(params: {
 
 export async function mergeEntities(body: EntityMergeRequest): Promise<EntityMergeResponse> {
   return unwrap<EntityMergeResponse>(await client.POST("/api/v1/taxonomy/entities/merge", { body }));
+}
+
+/** The dry run of an entity merge, computed by the same planner the write executes. */
+export async function previewEntityMerge(body: {
+  canonical_id: number;
+  ids_to_merge: number[];
+  new_name?: string | null;
+}): Promise<EntityMergePreviewResponse> {
+  return unwrap<EntityMergePreviewResponse>(
+    await client.POST("/api/v1/taxonomy/entities/merge/preview", { body }),
+  );
+}
+
+/**
+ * The entity merge ledger, optionally filtered by a term.
+ *
+ * ``q`` is matched **server-side against both sides** of each entry — the absorbed and the canonical
+ * name — because "where did this spelling go?" does not say which side it was on.
+ */
+export async function fetchEntityMergeLog(params: {
+  include_undone?: boolean;
+  q?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<EntityMergeLogList> {
+  return unwrap<EntityMergeLogList>(
+    await client.GET("/api/v1/taxonomy/entities/merge-log", { params: { query: params } }),
+  );
+}
+
+/** Reverses one absorbed entity: the row, its links, its spellings and the canonical name. */
+export async function undoEntityMerge(mergeId: number): Promise<EntityMergeUndoResponse> {
+  return unwrap<EntityMergeUndoResponse>(
+    await client.DELETE("/api/v1/taxonomy/entities/merge-log/{merge_id}", {
+      params: { path: { merge_id: mergeId } },
+    }),
+  );
 }
 
 /**
