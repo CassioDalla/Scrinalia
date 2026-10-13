@@ -661,3 +661,31 @@ with short or full shas, and part of a `## <date> — <title>` entry.
 - **Why the round exists:** the two `fix` commits landed *after* the documentation commit, which is
   exactly the signal the report is for: a page whose sources moved is a candidate, and a candidate is
   closed with a reason rather than an edit.
+
+## 2026-10-13 — the collision batch
+
+- **Range:** `b759393..0fd528e`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the collisions screen gained the category filter (`entity_type`,
+    the same read the batch selects with) and the batch itself,
+    `POST /api/v1/taxonomy/conflicts/resolve/batch`. A new subsection, *Deciding a category at once*,
+    says what the unit of the write is (the pair, never the selection), why `skipped` is not `failed`,
+    and why `remaining` is the same read taken twice. The `Pendentes` bullet now names the filter, and
+    the summary table's row says the decision covers one pair or a whole category, with one ledger row
+    per pair.
+- **Why the round exists:** the freshness report named one page after the two commits landed on the
+  branch — the API route and the SPA screen — and printed the one new operation,
+  `POST /api/v1/taxonomy/conflicts/resolve/batch`, beside `guides/curate.md`. The range also carries
+  three commits no earlier entry had closed (`1f28807`, `7012898`, `e745466`); the report named no page
+  for them, so they are closed here by absence.
+- **What the round looked at.** The screen was **looked at**, not inferred: the built SPA was served by
+  the API against the zeroed collection with a scratch account (created for the round, deleted after),
+  and the headless shell rendered the route. Measured in the pixels: the category row (`todas as
+  categorias` / `Local` / `Pessoa` / `Organização`) with `nomes idênticos` selected; the batch card
+  reading "80 par(es) · nomes idênticos"; and the panel opening on a click, with the note field and
+  the two verdict buttons. With `?tipo=exact_name&categoria=LOC` the header, the card and the list move
+  together — 36 collisions, all `Local` — which is the selection the batch writes. **Not** verified in
+  pixels: the write itself. Resolving a category from the screen would have destroyed 36 pairs of the
+  working collection, so the write is verified by the integration suite, which drives the real route
+  and the real ledger (814 integration tests passed); the screenshots show the selection and the
+  panel, not a resolution.

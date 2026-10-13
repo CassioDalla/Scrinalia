@@ -701,7 +701,7 @@ lie, and a model that does not know how to abstain would answer confidently and 
 | --- | --- | --- |
 | Entidades — `/entidades/lista` | the type of a name, and whether two names are one | the type yes; the merge **no** |
 | Exclusões de NER — `/entidades/excecoes` | which spellings are subjects, not proper names | the veto row yes; the entities it purged **no** |
-| Conflitos — `/entidades/conflitos` | whether a collision belongs to the subject axis or to the names | yes (ledger and undo) |
+| Conflitos — `/entidades/conflitos` | whether a collision belongs to the subject axis or to the names, one pair at a time or a whole category at once | yes (one ledger row per pair, with the undo) |
 
 ### Entidades — `/entidades/lista`
 
@@ -742,9 +742,10 @@ The same spelling on both axes: "is this a subject or a proper name?". Three rea
 questions, and reading only the first is what used to hide the judge's work:
 
 - **Pendentes** — the live trigram scan (`GET /api/v1/taxonomy/conflicts/cross-domain`), annotated
-  with the judge's verdict where there is one and separated by `pair_kind`: "grafias diferentes" (a
+  with the judge's verdict where there is one and filtered by `pair_kind`: "grafias diferentes" (a
   spelling question) and "nomes idênticos" (a structural question) are not the same list, and mixed
-  together neither is visible.
+  together neither is visible. The same read takes `entity_type` (`ORG`/`PER`/`LOC`), because "a
+  street is an entity" is a decision about a category of collisions and not about a pair.
 - **Decididos pelo juiz** — the review queue (`GET /api/v1/taxonomy/conflicts/judged`). An
   auto-resolution deletes the losing row, so most of the judge's decisions cannot appear in the live
   scan at all.
@@ -768,6 +769,27 @@ because the ledger records `created_link_ids` and `ban_created`: both writes use
 nor delete a link that predated it. The ledger restores the losing row from its snapshot. A pair
 already resolved can be decided again — the second resolution is independent, and each has its own
 undo.
+
+#### Deciding a category at once
+
+A collision is decided one pair at a time, but the decision the archivist is actually making is
+categorical — "a street is an entity" — and a collection can hold dozens of the same spelling on both
+axes. The batch, `POST /api/v1/taxonomy/conflicts/resolve/batch` (`CURATE`), applies one verdict to
+the whole **selection** the list is showing: the same `pair_kind` and `entity_type` filters, the same
+`threshold`, and nothing else.
+
+The unit of the decision is the selection; the unit of the write is still the pair. Every pair is
+planned by the same planner the single preview uses and written inside its own savepoint, so one pair
+failing does not roll back the others, and every pair gets its own ledger row and its own
+`resolution_id` — the undo stays per pair even though the click was categorical. A pair whose loser an
+earlier pair of the same batch already removed is reported in `skipped` **with its reason**, never as
+a failure: it is finished work, and calling it a failure is what once turned a clean batch into a wall
+of red lines.
+
+`limit` bounds one request, because a click that writes thousands of ledger rows is a click nobody
+reviewed. `remaining` is the same read the list makes, taken again with the same filters, so the
+number before the click and the number after it are one measurement — the screen cannot claim a
+category is finished when the next page disagrees.
 
 !!! note "A resolved pair leaves the live scan"
 
