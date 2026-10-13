@@ -110,8 +110,107 @@ class EntitySimilarityResponse(BaseModel):
 class EntityMergeResponse(BaseModel):
     documents_updated: int
     entities_deleted: int
+    # Ledger rows written by this merge: the handles a client needs to undo it.
+    merge_ids: list[int] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class EntityMergeImpact(BaseModel):
+    """One entity a merge would absorb, with what disappears along with it."""
+
+    entity_id: int
+    name: str
+    entity_type: str
+    document_count: int = 0
+
+
+class EntityMergePlan(BaseModel):
+    """
+    Everything an entity merge would do, computed before anything is written.
+
+    Read side of the operation: the dry run returns it (trimmed) and the apply consumes it, so the
+    preview cannot promise something different from what the merge does. Same reasoning as the tag
+    ``MergePlan`` and the AI text composition living in one SQL expression.
+    """
+
+    canonical_id: int
+    canonical_name: str
+    canonical_entity_type: str
+    canonical_document_count: int = 0
+    ids_to_merge: list[int] = Field(default_factory=list)
+    impacted: list[EntityMergeImpact] = Field(default_factory=list)
+    document_ids: list[str] = Field(default_factory=list)
+    # The same links, kept per absorbed entity: the ledger needs to know which document carried
+    # which name, because undo restores each entity's links exactly (the union would over-link).
+    documents_by_entity: dict[int, list[str]] = Field(default_factory=dict)
+    synonym_names: list[str] = Field(default_factory=list)
+    repointed_synonyms: list[str] = Field(default_factory=list)
+    # The optional rename of the canonical, carried by the same write.
+    rename_from: str | None = None
+    rename_to: str | None = None
+    review_flags: list[str] = Field(default_factory=list)
+
+    @property
+    def documents_updated(self) -> int:
+        """Distinct documents the merge touches (the union, never the sum)."""
+        return len(self.document_ids)
+
+    @property
+    def links_rewritten(self) -> int:
+        """Links moved: one per document the absorbed entities carried."""
+        return sum(member.document_count for member in self.impacted)
+
+
+class EntityMergePreviewResponse(BaseModel):
+    """Dry-run report: what changes, what is lost and why the archivist should look twice."""
+
+    canonical_id: int
+    canonical_name: str
+    documents_updated: int
+    links_rewritten: int
+    entities_deleted: list[EntityMergeImpact] = Field(default_factory=list)
+    synonyms_created: list[str] = Field(default_factory=list)
+    synonyms_repointed: list[str] = Field(default_factory=list)
+    renamed_from: str | None = None
+    renamed_to: str | None = None
+    review_flags: list[str] = Field(default_factory=list)
+
+
+class EntityMergeLogEntryDTO(BaseModel):
+    """One absorbed entity in the ledger: what was merged, by whom, and whether it was undone."""
+
+    merge_id: int
+    canonical_id: int | None = None
+    canonical_name: str
+    absorbed_entity_id: int
+    absorbed_name: str
+    absorbed_entity_type: str
+    document_count: int = 0
+    repointed_synonym_names: list[str] = Field(default_factory=list)
+    synonym_created: bool = True
+    #: The name the canonical carried before the merge renamed it (``None`` when it did not).
+    canonical_renamed_from: str | None = None
+    changed_by: str | None = None
+    changed_at: datetime | None = None
+    note: str | None = None
+    undone_at: datetime | None = None
+    undone_by: str | None = None
+
+    @computed_field
+    @property
+    def is_undone(self) -> bool:
+        """Computed so the front reads one definition instead of comparing a timestamp itself."""
+        return self.undone_at is not None
+
+
+class EntityMergeLogListResponse(BaseModel):
+    """One page of the audit trail, with the total matching the same filters."""
+
+    total: int
+    limit: int
+    offset: int
+    items: list[EntityMergeLogEntryDTO] = Field(default_factory=list)
 
 
 class EntityRelevance(BaseModel):
@@ -457,3 +556,9 @@ class EntityReclassifyResponse(RouteResponse):
 
 class EntityDeleteResponse(RouteResponse):
     """One entity removed from the vocabulary."""
+
+
+class EntityMergeUndoResponse(RouteResponse):
+    """The absorbed entity came back, exactly as the ledger remembered it."""
+
+    data: EntityMergeLogEntryDTO

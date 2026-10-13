@@ -19,6 +19,31 @@ class MergeRequest(BaseModel):
     new_name: str | None = None
 
 
+class EntityMergeRequest(BaseModel):
+    """
+    The verdict on a cluster of entities, with its authorship.
+
+    ``note`` is not decoration: the merge now leaves a durable ledger row per absorbed entity, and
+    a row that cannot say why the decision was taken is a poorer audit trail. It is a separate
+    schema from ``MergeRequest`` (the tags') because only this route records the note.
+    """
+
+    canonical_id: int
+    ids_to_merge: list[int] = Field(min_length=1, description="List of IDs that will be merged and deleted.")
+    new_name: str | None = Field(
+        default=None, description="Optional new name for the canonical; the old one becomes a synonym."
+    )
+    note: str | None = Field(default=None, description="Why; kept in the merge ledger.")
+
+
+class EntityMergePreviewRequest(BaseModel):
+    """Dry-run of an entity merge. Read-only: the plan, computed by the same planner the write uses."""
+
+    canonical_id: int
+    ids_to_merge: list[int] = Field(min_length=1)
+    new_name: str | None = None
+
+
 class MergeBatchRequest(BaseModel):
     """Applies a set of proposals. Including a pending one is the archivist's decision."""
 

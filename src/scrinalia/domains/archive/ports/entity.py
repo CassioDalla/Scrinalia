@@ -15,6 +15,10 @@ from scrinalia.domains.archive.schemas.entity_schema import (
     CrossDomainConflictPage,
     EntityIdentity,
     EntityKind,
+    EntityMergeImpact,
+    EntityMergeLogEntryDTO,
+    EntityMergePlan,
+    EntityMergeResponse,
     EntityPairSimilarity,
     EntityRelevance,
     EntitySimilarity,
@@ -110,9 +114,6 @@ class EntityRepositoryPort(Protocol):
     def get_by_ids(self, entity_ids: list[int]) -> Sequence[EntityIdentity]:
         raise NotImplementedError
 
-    def get_document_ids_by_entities(self, entity_ids: list[int]) -> Sequence[str]:
-        raise NotImplementedError
-
     def link_documents_to_entity(self, doc_ids: set[str], target_entity_id: int) -> None:
         raise NotImplementedError
 
@@ -134,10 +135,67 @@ class EntityRepositoryPort(Protocol):
     def update_entity_type(self, entity_id: int, new_type: str) -> None:
         raise NotImplementedError
 
-    def update_entity_name(self, entity_id: int, new_name: str) -> None:
+    def delete_entities_by_names(self, names: list[str]) -> int:
         raise NotImplementedError
 
-    def delete_entities_by_names(self, names: list[str]) -> int:
+    # --- The merge: the plan, the ledger, the write and the undo ---
+    def get_entities_with_counts(self, entity_ids: Sequence[int]) -> dict[int, EntityMergeImpact]:
+        raise NotImplementedError
+
+    def get_document_ids_grouped_by_entities(self, entity_ids: Sequence[int]) -> dict[int, list[str]]:
+        raise NotImplementedError
+
+    def get_entity_synonym_names(self) -> set[str]:
+        raise NotImplementedError
+
+    def get_synonym_names_pointing_to_entities(self, entity_ids: Sequence[int]) -> list[str]:
+        raise NotImplementedError
+
+    def get_entity_synonym_targets(self, names: Sequence[str], category: str) -> dict[str, int]:
+        raise NotImplementedError
+
+    def plan_entity_merge(
+        self, canonical_id: int, ids_to_merge: Sequence[int], new_name: str | None = None
+    ) -> EntityMergePlan:
+        raise NotImplementedError
+
+    def apply_entity_merge(
+        self, plan: EntityMergePlan, changed_by: Author | None = None, note: str | None = None
+    ) -> EntityMergeResponse:
+        raise NotImplementedError
+
+    def rename_entity(self, entity_id: int, new_name: str) -> str | None:
+        raise NotImplementedError
+
+    def write_entity_merge_log(
+        self, plan: EntityMergePlan, changed_by: Author | None = None, note: str | None = None
+    ) -> list[int]:
+        raise NotImplementedError
+
+    def undo_entity_merge(self, merge_id: int, undone_by: Author | None = None) -> EntityMergeLogEntryDTO:
+        raise NotImplementedError
+
+    def count_entity_merge_log(
+        self,
+        canonical_id: int | None = None,
+        changed_by_name: str | None = None,
+        include_undone: bool = True,
+        term: str | None = None,
+    ) -> int:
+        raise NotImplementedError
+
+    def list_entity_merge_log(
+        self,
+        canonical_id: int | None = None,
+        changed_by_name: str | None = None,
+        include_undone: bool = True,
+        term: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[EntityMergeLogEntryDTO]:
+        raise NotImplementedError
+
+    def get_entity_merge_log_entry(self, merge_id: int) -> EntityMergeLogEntryDTO | None:
         raise NotImplementedError
 
     def purge_orphan_entities(self) -> int:

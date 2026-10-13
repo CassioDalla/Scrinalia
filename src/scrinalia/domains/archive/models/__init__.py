@@ -1,7 +1,7 @@
 from .associations import ArchiveDocumentEntity, ArchiveDocumentTag
 from .collection_vocabulary import ArchiveArrangementTerm, ArchiveCollectionTerm
 from .document import ArchiveDocument, ArchiveDocumentDeletion, ArchiveDocumentRevision
-from .entity import ArchiveEntity
+from .entity import ArchiveEntity, ArchiveEntityMergeLog
 from .enums import (
     ACTIVE_WORKER_RUN_STATUSES,
     PLACE_TERM_KINDS,
@@ -55,6 +55,7 @@ __all__ = [
     "ArchiveDocumentRevision",
     "ArchiveDocumentTag",
     "ArchiveEntity",
+    "ArchiveEntityMergeLog",
     "ArchiveHierarchyMaterialisationLog",
     "ArchiveHierarchyNodePlan",
     "ArchiveMacroCategory",
