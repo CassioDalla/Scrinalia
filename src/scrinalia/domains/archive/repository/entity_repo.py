@@ -39,7 +39,12 @@ from scrinalia.domains.archive.schemas.command_schema import EntityLinkCommand, 
 from scrinalia.domains.archive.schemas.entity_schema import (
     ArchiveEntityDTO,
     ConflictBanKind,
+    ConflictBatchEntry,
+    ConflictBatchRemaining,
+    ConflictBatchResult,
+    ConflictBatchSkip,
     ConflictDecider,
+    ConflictPairKind,
     ConflictResolutionData,
     ConflictResolutionLogEntry,
     ConflictResolutionPlan,
@@ -47,6 +52,7 @@ from scrinalia.domains.archive.schemas.entity_schema import (
     CrossDomainConflict,
     CrossDomainConflictPage,
     EntityIdentity,
+    EntityKind,
     EntityPairSimilarity,
     EntityRelevance,
     EntitySimilarity,
@@ -207,7 +213,10 @@ class EntityRepository:
                 sim_score.label("similarity"),
             )
             .join(ArchiveEntity, ArchiveTag.name.op("%")(ArchiveEntity.name))
-            .order_by(desc("similarity"))
+            # The id tie-breakers make the order **total**, which is what lets a batch slice the
+            # selection without the set it writes depending on the planner's mood: ``similarity``
+            # alone is full of ties (every ``EXACT_NAME`` pair scores exactly 1).
+            .order_by(desc("similarity"), ArchiveTag.tag_id, ArchiveEntity.entity_id)
         )
         return [CrossDomainConflict.model_validate(dict(row._mapping)) for row in self.db.execute(stmt).all()]
 
@@ -252,39 +261,43 @@ class EntityRepository:
             for tag_id, entity_id, resolution_id, winner, source in self.db.execute(stmt).all()
         }
 
-    def page_cross_domain_conflicts(
+    def _select_conflicts(
         self,
         threshold: float = 0.85,
-        pair_kind: Literal["all", "exact_name", "near_duplicate"] = "all",
-        limit: int = 50,
-        offset: int = 0,
-    ) -> CrossDomainConflictPage:
+        pair_kind: ConflictPairKind = "all",
+        entity_type: EntityKind | None = None,
+    ) -> list[CrossDomainConflict]:
         """
-        One page of the live scan, annotated with what has already been decided about each pair.
+        The annotated live scan, filtered by population and category — **the** definition of "the
+        selection".
 
-        The scan itself is not paginable in SQL — the trigram join has to produce and sort the whole
-        candidate set before a page means anything — so the page is sliced after the scan. What the
-        API returns is bounded by ``limit``; what it reads is not. That is the honest trade, and it
-        is why the counts below are over the **whole** filtered set rather than the page: the
-        screen's "122 grafias diferentes / 5 050 nomes idênticos" cannot come from a page.
+        The page, the counts and the batch all read this one method, so the number the archivist sees
+        and the set the batch writes cannot become two different measurements. The scan is not
+        paginable in SQL (the trigram join produces and sorts the whole candidate set before a page
+        means anything), so the selection is materialised in Python; ``get_cross_domain_conflicts``
+        orders it by similarity with the id tie-breakers, which is what makes the order total and a
+        batch slice deterministic.
 
-        ``pair_kind`` is the lever that makes the list usable. ``exact_name`` is a structural
-        question (the same spelling on both axes) and ``near_duplicate`` is a spelling question; the
-        default is ``all`` so nothing is hidden, and the screen chooses which population to open.
-
-        The parameter is not called ``scope`` because Litestar reserves that name for the ASGI scope:
-        a handler parameter called ``scope`` silently receives the raw request instead of the query
-        string. The stopwords route was bitten by the same trap and renamed its key to ``axis``.
+        ``pair_kind`` is the lever that makes the list usable: ``exact_name`` is a structural question
+        (the same spelling on both axes) and ``near_duplicate`` a spelling question. ``entity_type``
+        narrows it to a category, because "a street is an entity" is a decision about a set and not
+        about a pair.
         """
         verdicts = self._judge_verdicts()
         resolutions = self._active_resolutions()
 
-        annotated: list[CrossDomainConflict] = []
+        selected: list[CrossDomainConflict] = []
         for conflict in self.get_cross_domain_conflicts(threshold):
+            if entity_type is not None and conflict.entity_type != entity_type:
+                continue
+            if pair_kind == "exact_name" and conflict.pair_kind != "EXACT_NAME":
+                continue
+            if pair_kind == "near_duplicate" and conflict.pair_kind != "NEAR_DUPLICATE":
+                continue
             pair = (conflict.tag_id, conflict.entity_id)
             verdict = verdicts.get(pair, {})
             resolution = resolutions.get(pair)
-            annotated.append(
+            selected.append(
                 conflict.model_copy(
                     update={
                         **verdict,
@@ -294,13 +307,28 @@ class EntityRepository:
                     }
                 )
             )
+        return selected
 
-        if pair_kind == "exact_name":
-            filtered = [row for row in annotated if row.pair_kind == "EXACT_NAME"]
-        elif pair_kind == "near_duplicate":
-            filtered = [row for row in annotated if row.pair_kind == "NEAR_DUPLICATE"]
-        else:
-            filtered = annotated
+    def page_cross_domain_conflicts(
+        self,
+        threshold: float = 0.85,
+        pair_kind: ConflictPairKind = "all",
+        entity_type: EntityKind | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> CrossDomainConflictPage:
+        """
+        One page of the live scan, annotated with what has already been decided about each pair.
+
+        The page is sliced after the scan, and the counts are over the **whole** filtered set rather
+        than the page: the screen's "122 grafias diferentes / 5 050 nomes idênticos" cannot come from
+        a page.
+
+        The parameter is not called ``scope`` because Litestar reserves that name for the ASGI scope:
+        a handler parameter called ``scope`` silently receives the raw request instead of the query
+        string. The stopwords route was bitten by the same trap and renamed its key to ``axis``.
+        """
+        filtered = self._select_conflicts(threshold, pair_kind, entity_type)
 
         return CrossDomainConflictPage(
             total=len(filtered),
@@ -310,6 +338,104 @@ class EntityRepository:
             exact_name_count=sum(1 for row in filtered if row.pair_kind == "EXACT_NAME"),
             near_duplicate_count=sum(1 for row in filtered if row.pair_kind == "NEAR_DUPLICATE"),
             judged_count=sum(1 for row in filtered if row.judge_winner is not None or row.resolution_id is not None),
+        )
+
+    def resolve_conflict_batch(
+        self,
+        winner: ConflictWinner,
+        pair_kind: ConflictPairKind = "exact_name",
+        entity_type: EntityKind | None = None,
+        threshold: float = 0.85,
+        limit: int = 50,
+        source: ConflictDecider = "HUMAN",
+        decided_by: Author | None = None,
+        note: str | None = None,
+    ) -> ConflictBatchResult:
+        """
+        Applies one verdict to a whole selection, one ledger row — and one undo — per pair.
+
+        The unit of the write is still the **pair**: each one is planned by
+        ``plan_conflict_resolution`` and written by ``apply_conflict_resolution`` inside its own
+        SAVEPOINT, so a pair that fails does not roll back the ones that succeeded and the request
+        still ends in the single commit the unit of work owns.
+
+        The selection is read **once**, before the first write. A resolution deletes the losing row,
+        so a later pair whose loser an earlier one already removed can no longer be planned; it is
+        reported in ``skipped`` with the reason — finished work, not a failure. Counting it as a
+        failure is what turned a clean batch of merges into twenty red lines once already.
+
+        ``remaining`` is recomputed through ``_select_conflicts`` with the same filters, so "before"
+        and "after" are the same measurement taken twice.
+        """
+        selected = self._select_conflicts(threshold, pair_kind, entity_type)[:limit]
+        # One read of the queue and one of the ledger for the whole batch, handed to the shared
+        # planner: without this, planning N pairs reads the review queue and the ledger N times, and
+        # the ledger grows with every resolution ever written.
+        verdicts = self._judge_verdicts()
+        resolutions = self._active_resolutions()
+
+        applied: list[ConflictBatchEntry] = []
+        skipped: list[ConflictBatchSkip] = []
+        failed: list[ConflictBatchSkip] = []
+
+        for conflict in selected:
+            plan = self.plan_conflict_resolution(
+                conflict.tag_id,
+                conflict.entity_id,
+                conflict.similarity,
+                verdicts=verdicts,
+                resolutions=resolutions,
+            )
+            if not plan.resolvable:
+                skipped.append(
+                    ConflictBatchSkip(
+                        tag_id=conflict.tag_id,
+                        entity_id=conflict.entity_id,
+                        tag_name=conflict.tag_name,
+                        entity_name=conflict.entity_name,
+                        reason=plan.blocker or "Este par não pode mais ser resolvido.",
+                    )
+                )
+                continue
+
+            try:
+                with self.db.begin_nested():
+                    data = self.apply_conflict_resolution(plan, winner, source=source, decided_by=decided_by, note=note)
+            except Exception as exc:
+                failed.append(
+                    ConflictBatchSkip(
+                        tag_id=conflict.tag_id,
+                        entity_id=conflict.entity_id,
+                        tag_name=conflict.tag_name,
+                        entity_name=conflict.entity_name,
+                        reason=str(exc),
+                    )
+                )
+            else:
+                applied.append(
+                    ConflictBatchEntry(
+                        resolution_id=data.resolution_id or 0,
+                        tag_id=conflict.tag_id,
+                        tag_name=conflict.tag_name,
+                        entity_id=conflict.entity_id,
+                        entity_name=conflict.entity_name,
+                        documents_transferred=data.documents_transferred,
+                    )
+                )
+
+        remaining = self._select_conflicts(threshold, pair_kind, entity_type)
+        return ConflictBatchResult(
+            winner=winner,
+            pair_kind=pair_kind,
+            entity_type=entity_type,
+            applied=applied,
+            skipped=skipped,
+            failed=failed,
+            remaining=ConflictBatchRemaining(
+                total=len(remaining),
+                exact_name_count=sum(1 for row in remaining if row.pair_kind == "EXACT_NAME"),
+                near_duplicate_count=sum(1 for row in remaining if row.pair_kind == "NEAR_DUPLICATE"),
+            ),
         )
 
     def list_judged_conflicts(self, limit: int = 50, offset: int = 0) -> JudgedConflictPage:
@@ -410,7 +536,14 @@ class EntityRepository:
             ).all()
         )
 
-    def plan_conflict_resolution(self, tag_id: int, entity_id: int, similarity: float = 0.0) -> ConflictResolutionPlan:
+    def plan_conflict_resolution(
+        self,
+        tag_id: int,
+        entity_id: int,
+        similarity: float = 0.0,
+        verdicts: dict[tuple[int, int], dict[str, Any]] | None = None,
+        resolutions: dict[tuple[int, int], tuple[int, str, str]] | None = None,
+    ) -> ConflictResolutionPlan:
         """
         Everything a resolution would change, computed without writing anything.
 
@@ -422,6 +555,11 @@ class EntityRepository:
         that decide it are: how many documents follow the loser to the winner, how many of those
         already carry the winner (so the transfer changes nothing for them), and whether the ban the
         resolution would plant is already in place.
+
+        ``verdicts`` and ``resolutions`` are the two whole-table reads the plan annotates itself with,
+        accepted as arguments so a **batch** can read each once for all of its pairs instead of once
+        per pair. Passing them changes nothing about the computation; leaving them out keeps the
+        single-pair behaviour.
         """
         tag = self.db.get(ArchiveTag, tag_id)
         entity = self.db.get(ArchiveEntity, entity_id)
@@ -433,8 +571,9 @@ class EntityRepository:
         entity_linked = set(entity_docs)
 
         # The judge's verdict, so the preview can show what has already been decided.
-        verdict = self._judge_verdicts().get((tag_id, entity_id), {})
-        already_resolved = (tag_id, entity_id) in self._active_resolutions()
+        verdict = (self._judge_verdicts() if verdicts is None else verdicts).get((tag_id, entity_id), {})
+        active_resolutions = self._active_resolutions() if resolutions is None else resolutions
+        already_resolved = (tag_id, entity_id) in active_resolutions
 
         entity_name = entity.name if entity is not None else ""
         tag_name = tag.name if tag is not None else ""

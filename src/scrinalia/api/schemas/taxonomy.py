@@ -3,7 +3,13 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from scrinalia.domains.archive.models.enums import StopwordsScope
-from scrinalia.domains.archive.schemas.entity_schema import ConflictResolutionData
+from scrinalia.domains.archive.schemas.entity_schema import (
+    ConflictBatchResult,
+    ConflictPairKind,
+    ConflictResolutionData,
+    ConflictWinner,
+    EntityKind,
+)
 from scrinalia.domains.archive.schemas.responses import RouteResponse
 
 
@@ -202,9 +208,38 @@ class ConflictResolutionRequest(BaseModel):
     and a row that cannot say who decided is not an audit trail.
     """
 
-    winner: Literal["TAG", "ENTITY"]
+    winner: ConflictWinner
     tag_id: int
     entity_id: int
     note: str | None = Field(default=None, description="Por que decidiu; fica no ledger da resolução.")
 
     model_config = ConfigDict(extra="forbid")
+
+
+class ConflictBatchRequest(BaseModel):
+    """
+    One verdict for a whole **selection** of collisions, not for a pair.
+
+    The selection is the structural population the batch is meaningful for (``pair_kind``: the same
+    spelling on both axes) narrowed by category (``entity_type``: "a street is an entity" is a
+    decision about a set). ``limit`` bounds one request — the write is undoable pair by pair, but a
+    click that writes thousands of ledger rows is a click nobody reviewed.
+    """
+
+    winner: ConflictWinner
+    pair_kind: ConflictPairKind = "exact_name"
+    entity_type: EntityKind | None = None
+    threshold: float = Field(default=0.85, gt=0, le=1, description="pg_trgm similarity floor.")
+    limit: int = Field(
+        default=50,
+        ge=1,
+        le=200,
+        description="Quantos pares uma requisição pode escrever; o restante continua na seleção.",
+    )
+    note: str | None = Field(default=None, description="Por que decidiu; fica no ledger de cada resolução.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ConflictBatchResponse(RouteResponse):
+    data: ConflictBatchResult

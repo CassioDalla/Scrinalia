@@ -7,15 +7,19 @@ from scrinalia.domains.archive.exceptions import InvalidParam
 from scrinalia.domains.archive.ports.entity import EntityRepositoryPort
 from scrinalia.domains.archive.schemas.command_schema import (
     MergeEntityCommand,
+    ResolveConflictBatchCommand,
     ResolveConflictCommand,
     SynonymCommand,
 )
 from scrinalia.domains.archive.schemas.entity_schema import (
+    ConflictBatchResult,
+    ConflictPairKind,
     ConflictResolutionData,
     ConflictResolutionLogEntry,
     ConflictResolutionPlan,
     CrossDomainConflict,
     CrossDomainConflictPage,
+    EntityKind,
     EntityMergeResponse,
     EntityPairSimilarity,
     EntityRelevance,
@@ -27,6 +31,11 @@ from scrinalia.domains.archive.schemas.entity_schema import (
 #: Character floor of an entity search, mirroring the tags': one letter matches an arbitrary slice
 #: of 3.808 names, and the box is for choosing one of them.
 MIN_ENTITY_SEARCH_TERM = 2
+
+#: How many pairs one batch request may write. The tag merge batch caps its clusters at 200 for the
+#: same reason: every unit is individually undoable, but a single click that writes thousands of
+#: ledger rows is a click nobody reviewed.
+MAX_CONFLICT_BATCH_PAIRS = 200
 
 
 class EntityService:
@@ -232,22 +241,24 @@ class EntityService:
     def page_cross_domain_conflicts(
         self,
         threshold: float = 0.85,
-        pair_kind: Literal["all", "exact_name", "near_duplicate"] = "all",
+        pair_kind: ConflictPairKind = "all",
+        entity_type: EntityKind | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> CrossDomainConflictPage:
         """
         One page of the live collisions, annotated with the judge's verdict and the ledger's write.
 
-        The list is the *pending* work, and it is only usable because of ``scope``: on the real
-        collection the trigram join returns 5 408 pairs, of which 5 050 are the same spelling on both
-        axes and 122 are the same word written differently. Those are two different questions, and
-        the screen chooses which one to open.
+        The list is the *pending* work, and it is only usable because of ``pair_kind``: on the real
+        collection the trigram join returns thousands of pairs, most of them the same spelling on both
+        axes and a minority the same word written differently. Those are two different questions, and
+        the screen chooses which one to open. ``entity_type`` narrows the structural population to a
+        category — the same selection the batch writes.
         """
         if not 0 < threshold <= 1:
             raise InvalidParam("O parâmetro 'threshold' deve estar entre 0 e 1.")
         return self.repo.page_cross_domain_conflicts(
-            threshold=threshold, pair_kind=pair_kind, limit=limit, offset=offset
+            threshold=threshold, pair_kind=pair_kind, entity_type=entity_type, limit=limit, offset=offset
         )
 
     def list_judged_conflicts(self, limit: int = 50, offset: int = 0) -> JudgedConflictPage:
@@ -287,6 +298,30 @@ class EntityService:
             plan,
             command.winner,
             source=source,
+            decided_by=command.decided_by,
+            note=command.note,
+        )
+
+    def resolve_conflict_batch(self, command: ResolveConflictBatchCommand) -> ConflictBatchResult:
+        """
+        Applies one categorical verdict — "a street is an entity" — to a whole selection of pairs.
+
+        The batch is the unit of the *decision*, never of the write: the repository still resolves
+        pair by pair, each in its own savepoint and with its own ledger row, so every pair keeps an
+        independent undo and a pair that cannot be resolved is reported instead of aborting the rest.
+        The bounds are validated here so the API route stays a thin translation of the command.
+        """
+        if not 0 < command.threshold <= 1:
+            raise InvalidParam("O parâmetro 'threshold' deve estar entre 0 e 1.")
+        if not 1 <= command.limit <= MAX_CONFLICT_BATCH_PAIRS:
+            raise InvalidParam(f"O lote aceita entre 1 e {MAX_CONFLICT_BATCH_PAIRS} pares por requisição.")
+
+        return self.repo.resolve_conflict_batch(
+            winner=command.winner,
+            pair_kind=command.pair_kind,
+            entity_type=command.entity_type,
+            threshold=command.threshold,
+            limit=command.limit,
             decided_by=command.decided_by,
             note=command.note,
         )

@@ -530,3 +530,107 @@ def test_resolving_through_the_single_entry_point_always_leaves_a_ledger_row(
     assert total == 1
     assert items[0].source == "JUDGE"
     assert items[0].winner == "TAG"
+
+
+# ==========================================
+# THE BATCH: ONE DECISION, MANY PAIRS
+# ==========================================
+
+
+def test_the_batch_writes_one_ledger_row_per_pair_and_each_is_undoable(use_test_db, db_session, generate_archive_doc):
+    """
+    The batch is the unit of the *decision*, never of the write.
+
+    Every pair of the selection gets its own plan and its own ledger row, so reversing one of them
+    leaves the others written — which is the whole reason a categorical click is safe.
+    """
+    repo = EntityRepository(db_session)
+    pairs = [
+        _pair(db_session, tag_name="batel", entity_name="Batel", entity_type="LOC"),
+        _pair(db_session, tag_name="portão", entity_name="Portão", entity_type="LOC"),
+    ]
+    for _tag, entity in pairs:
+        doc = generate_archive_doc(original_title=f"Doc {entity.entity_id}")
+        _link_entity(db_session, entity, doc.description_id)
+    db_session.flush()
+
+    result = repo.resolve_conflict_batch("ENTITY", pair_kind="exact_name", threshold=0.6)
+
+    assert len(result.applied) == 2
+    assert result.skipped == [] and result.failed == []
+    assert all(entry.resolution_id for entry in result.applied)
+    assert result.remaining.total == 0
+
+    _items, total = repo.list_conflict_resolutions()
+    assert total == 2
+
+    # The undo is per pair: reversing the first leaves the second written.
+    first, second = result.applied
+    repo.undo_conflict_resolution(first.resolution_id)
+    db_session.flush()
+    assert db_session.get(ArchiveTag, first.tag_id) is not None
+    assert db_session.get(ArchiveTag, second.tag_id) is None
+
+
+def test_the_batch_selects_one_category_and_leaves_the_others(use_test_db, db_session):
+    """
+    "A street is an entity" is a decision about a set, and the set is the category.
+
+    ``entity_type`` is the lever: the LOC collisions of the same spelling are decided together while
+    the PER ones stay in front of the archivist. ``remaining`` counts the **same** selection the batch
+    wrote, so it says whether *this category* is finished — and the read the screen makes, with the
+    other category's filter, still shows the pair that was left alone.
+    """
+    repo = EntityRepository(db_session)
+    loc_tag, loc_entity = _pair(db_session, tag_name="batel", entity_name="Batel", entity_type="LOC")
+    per_tag, _per_entity = _pair(db_session, tag_name="ana", entity_name="Ana", entity_type="PER")
+    db_session.flush()
+
+    result = repo.resolve_conflict_batch("ENTITY", pair_kind="exact_name", entity_type="LOC", threshold=0.6)
+
+    assert [entry.entity_id for entry in result.applied] == [loc_entity.entity_id]
+    assert db_session.get(ArchiveTag, loc_tag.tag_id) is None
+    assert db_session.get(ArchiveTag, per_tag.tag_id) is not None
+    # ``remaining`` is the batch's own selection (LOC), and that one is finished.
+    assert result.remaining.total == 0
+
+    # And the read the screen makes shows the one PER pair left, with the same filters it uses.
+    page = repo.page_cross_domain_conflicts(threshold=0.6, pair_kind="exact_name", entity_type="PER")
+    assert page.total == 1
+    assert page.items[0].tag_id == per_tag.tag_id
+
+
+def test_a_pair_an_earlier_one_finished_is_skipped_and_never_failed(use_test_db, db_session):
+    """
+    One tag collides with two entities; the first resolution deletes the tag and the second is done.
+
+    That is finished work, not an error. Reporting it as a failure is what once turned a clean batch
+    of merges into a wall of red lines, and ``skipped`` carries the reason instead.
+    """
+    repo = EntityRepository(db_session)
+    tag = ArchiveTag(name="terminal guadalupe")
+    exact = ArchiveEntity(name="Terminal Guadalupe", entity_type="LOC")
+    near = ArchiveEntity(name="Terminal Guadalupe Municipal", entity_type="LOC")
+    db_session.add_all([tag, exact, near])
+    db_session.flush()
+
+    result = repo.resolve_conflict_batch("ENTITY", pair_kind="all", threshold=0.6)
+
+    assert len(result.applied) == 1
+    assert len(result.skipped) == 1
+    assert result.failed == []
+    assert result.skipped[0].entity_id == near.entity_id
+    assert "não existe mais" in result.skipped[0].reason
+
+
+def test_the_batch_honours_the_limit_and_reports_what_remains(use_test_db, db_session):
+    """A cap bounds one request; the rest of the selection stays, and ``remaining`` says how much."""
+    repo = EntityRepository(db_session)
+    for name in ("batel", "portão", "jardim botânico"):
+        _pair(db_session, tag_name=name, entity_name=name.title(), entity_type="LOC")
+    db_session.flush()
+
+    result = repo.resolve_conflict_batch("ENTITY", pair_kind="exact_name", threshold=0.6, limit=2)
+
+    assert len(result.applied) == 2
+    assert result.remaining.total == 1

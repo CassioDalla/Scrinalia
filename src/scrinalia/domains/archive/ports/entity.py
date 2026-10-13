@@ -1,16 +1,20 @@
 from collections.abc import Sequence
-from typing import Literal, Protocol
+from typing import Protocol
 
 from scrinalia.core.author import Author
 from scrinalia.domains.archive.schemas.command_schema import EntityLinkCommand, SynonymCommand
 from scrinalia.domains.archive.schemas.entity_schema import (
     ArchiveEntityDTO,
+    ConflictBatchResult,
+    ConflictPairKind,
     ConflictResolutionData,
     ConflictResolutionLogEntry,
     ConflictResolutionPlan,
+    ConflictWinner,
     CrossDomainConflict,
     CrossDomainConflictPage,
     EntityIdentity,
+    EntityKind,
     EntityPairSimilarity,
     EntityRelevance,
     EntitySimilarity,
@@ -32,7 +36,7 @@ class EntityRepositoryPort(Protocol):
 
     # --- Read (analytics / curation) ---
     def find_similar(
-        self, target_name: str, entity_type: Literal["ORG", "PER", "LOC"] | None = None, threshold: float = 0.5
+        self, target_name: str, entity_type: EntityKind | None = None, threshold: float = 0.5
     ) -> Sequence[EntitySimilarity]:
         raise NotImplementedError
 
@@ -45,10 +49,24 @@ class EntityRepositoryPort(Protocol):
     def page_cross_domain_conflicts(
         self,
         threshold: float = 0.85,
-        pair_kind: Literal["all", "exact_name", "near_duplicate"] = "all",
+        pair_kind: ConflictPairKind = "all",
+        entity_type: EntityKind | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> CrossDomainConflictPage:
+        raise NotImplementedError
+
+    def resolve_conflict_batch(
+        self,
+        winner: ConflictWinner,
+        pair_kind: ConflictPairKind = "exact_name",
+        entity_type: EntityKind | None = None,
+        threshold: float = 0.85,
+        limit: int = 50,
+        source: NerExclusionSource = "HUMAN",
+        decided_by: Author | None = None,
+        note: str | None = None,
+    ) -> ConflictBatchResult:
         raise NotImplementedError
 
     def list_judged_conflicts(self, limit: int = 50, offset: int = 0) -> JudgedConflictPage:
@@ -67,9 +85,7 @@ class EntityRepositoryPort(Protocol):
     ) -> ConflictResolutionLogEntry:
         raise NotImplementedError
 
-    def get_relevance_count(
-        self, entity_type: Literal["ORG", "PER", "LOC"] | None = None, limit: int = 30
-    ) -> Sequence[EntityRelevance]:
+    def get_relevance_count(self, entity_type: EntityKind | None = None, limit: int = 30) -> Sequence[EntityRelevance]:
         raise NotImplementedError
 
     def search_entities(self, term: str, limit: int) -> Sequence[EntityRelevance]:
@@ -143,7 +159,7 @@ class EntityRepositoryPort(Protocol):
     def apply_conflict_resolution(
         self,
         plan: ConflictResolutionPlan,
-        winner: Literal["TAG", "ENTITY"],
+        winner: ConflictWinner,
         source: NerExclusionSource = "HUMAN",
         decided_by: Author | None = None,
         note: str | None = None,
@@ -152,7 +168,7 @@ class EntityRepositoryPort(Protocol):
 
     def resolve_cross_domain_conflict(
         self,
-        winner: Literal["TAG", "ENTITY"],
+        winner: ConflictWinner,
         tag_id: int,
         entity_id: int,
         source: NerExclusionSource = "HUMAN",

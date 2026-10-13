@@ -538,6 +538,225 @@
         "title": "CollectionVocabularyResponse",
         "type": "object"
       },
+      "ConflictBatchEntry": {
+        "properties": {
+          "documents_transferred": {
+            "default": 0,
+            "type": "integer"
+          },
+          "entity_id": {
+            "type": "integer"
+          },
+          "entity_name": {
+            "type": "string"
+          },
+          "resolution_id": {
+            "type": "integer"
+          },
+          "tag_id": {
+            "type": "integer"
+          },
+          "tag_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id",
+          "entity_name",
+          "resolution_id",
+          "tag_id",
+          "tag_name"
+        ],
+        "title": "ConflictBatchEntry",
+        "type": "object"
+      },
+      "ConflictBatchRemaining": {
+        "properties": {
+          "exact_name_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "near_duplicate_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "title": "ConflictBatchRemaining",
+        "type": "object"
+      },
+      "ConflictBatchRequest": {
+        "properties": {
+          "entity_type": {
+            "enum": [
+              "ORG",
+              "PER",
+              "LOC",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "limit": {
+            "default": 50,
+            "description": "Quantos pares uma requisição pode escrever; o restante continua na seleção.",
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "type": "integer"
+          },
+          "note": {
+            "description": "Por que decidiu; fica no ledger de cada resolução.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pair_kind": {
+            "default": "exact_name",
+            "enum": [
+              "all",
+              "exact_name",
+              "near_duplicate"
+            ],
+            "type": "string"
+          },
+          "threshold": {
+            "default": 0.85,
+            "description": "pg_trgm similarity floor.",
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "type": "number"
+          },
+          "winner": {
+            "enum": [
+              "TAG",
+              "ENTITY"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "winner"
+        ],
+        "title": "ConflictBatchRequest",
+        "type": "object"
+      },
+      "ConflictBatchResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ConflictBatchResult"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "title": "ConflictBatchResponse",
+        "type": "object"
+      },
+      "ConflictBatchResult": {
+        "properties": {
+          "applied": {
+            "items": {
+              "$ref": "#/components/schemas/ConflictBatchEntry"
+            },
+            "type": "array"
+          },
+          "entity_type": {
+            "enum": [
+              "ORG",
+              "PER",
+              "LOC",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "failed": {
+            "items": {
+              "$ref": "#/components/schemas/ConflictBatchSkip"
+            },
+            "type": "array"
+          },
+          "pair_kind": {
+            "default": "exact_name",
+            "enum": [
+              "all",
+              "exact_name",
+              "near_duplicate"
+            ],
+            "type": "string"
+          },
+          "remaining": {
+            "$ref": "#/components/schemas/ConflictBatchRemaining"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/ConflictBatchSkip"
+            },
+            "type": "array"
+          },
+          "winner": {
+            "enum": [
+              "TAG",
+              "ENTITY"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "winner"
+        ],
+        "title": "ConflictBatchResult",
+        "type": "object"
+      },
+      "ConflictBatchSkip": {
+        "properties": {
+          "entity_id": {
+            "type": "integer"
+          },
+          "entity_name": {
+            "default": "",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "tag_id": {
+            "type": "integer"
+          },
+          "tag_name": {
+            "default": "",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id",
+          "reason",
+          "tag_id"
+        ],
+        "title": "ConflictBatchSkip",
+        "type": "object"
+      },
       "ConflictPreviewRequest": {
         "properties": {
           "entity_id": {
@@ -5278,6 +5497,7 @@
           "ENTITY_RECLASSIFIED",
           "ENTITY_DELETED",
           "CONFLICT_RESOLVED",
+          "CONFLICT_BATCH_RESOLVED",
           "SESSION_ENDED",
           "PASSWORD_CHANGED",
           "USER_PASSWORD_RESET",
@@ -12369,6 +12589,26 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
+            "name": "entity_type",
+            "required": false,
+            "schema": {
+              "enum": [
+                "ORG",
+                "PER",
+                "LOC",
+                null
+              ],
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -12770,6 +13010,77 @@
           }
         },
         "summary": "ResolveCrossDomainConflict",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/conflicts/resolve/batch": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyConflictsResolveBatchResolveCrossDomainConflictBatch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConflictBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictBatchResponse"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ResolveCrossDomainConflictBatch",
         "tags": [
           "Taxonomy"
         ]

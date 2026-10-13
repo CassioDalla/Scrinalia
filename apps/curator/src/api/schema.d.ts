@@ -980,6 +980,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/taxonomy/conflicts/resolve/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ResolveCrossDomainConflictBatch */
+        post: operations["ApiV1TaxonomyConflictsResolveBatchResolveCrossDomainConflictBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/taxonomy/conflicts/resolve/preview": {
         parameters: {
             query?: never;
@@ -1878,6 +1895,81 @@ export interface components {
             arrangement_terms: components["schemas"]["ArrangementTermDTO"][];
             collection_terms: components["schemas"]["CollectionTermDTO"][];
             kinds: components["schemas"]["CollectionTermKind"][];
+        };
+        /** ConflictBatchEntry */
+        ConflictBatchEntry: {
+            /** @default 0 */
+            documents_transferred: number;
+            entity_id: number;
+            entity_name: string;
+            resolution_id: number;
+            tag_id: number;
+            tag_name: string;
+        };
+        /** ConflictBatchRemaining */
+        ConflictBatchRemaining: {
+            /** @default 0 */
+            exact_name_count: number;
+            /** @default 0 */
+            near_duplicate_count: number;
+            /** @default 0 */
+            total: number;
+        };
+        /** ConflictBatchRequest */
+        ConflictBatchRequest: {
+            /** @enum {null|string} */
+            entity_type?: "ORG" | "PER" | "LOC" | null;
+            /**
+             * @description Quantos pares uma requisição pode escrever; o restante continua na seleção.
+             * @default 50
+             */
+            limit: number;
+            /** @description Por que decidiu; fica no ledger de cada resolução. */
+            note?: string | null;
+            /**
+             * @default exact_name
+             * @enum {string}
+             */
+            pair_kind: "all" | "exact_name" | "near_duplicate";
+            /**
+             * @description pg_trgm similarity floor.
+             * @default 0.85
+             */
+            threshold: number;
+            /** @enum {string} */
+            winner: "TAG" | "ENTITY";
+        };
+        /** ConflictBatchResponse */
+        ConflictBatchResponse: {
+            code: components["schemas"]["RouteMessageCode"];
+            data: components["schemas"]["ConflictBatchResult"];
+            message: string;
+        };
+        /** ConflictBatchResult */
+        ConflictBatchResult: {
+            applied?: components["schemas"]["ConflictBatchEntry"][];
+            /** @enum {null|string} */
+            entity_type?: "ORG" | "PER" | "LOC" | null;
+            failed?: components["schemas"]["ConflictBatchSkip"][];
+            /**
+             * @default exact_name
+             * @enum {string}
+             */
+            pair_kind: "all" | "exact_name" | "near_duplicate";
+            remaining?: components["schemas"]["ConflictBatchRemaining"];
+            skipped?: components["schemas"]["ConflictBatchSkip"][];
+            /** @enum {string} */
+            winner: "TAG" | "ENTITY";
+        };
+        /** ConflictBatchSkip */
+        ConflictBatchSkip: {
+            entity_id: number;
+            /** @default  */
+            entity_name: string;
+            reason: string;
+            tag_id: number;
+            /** @default  */
+            tag_name: string;
         };
         /** ConflictPreviewRequest */
         ConflictPreviewRequest: {
@@ -3056,7 +3148,7 @@ export interface components {
          *         things and a translation catalogue needs to tell them apart.
          * @enum {string}
          */
-        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORD_PURGE_DONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "CONFLICT_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
+        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORD_PURGE_DONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
         /** RouteResponse */
         RouteResponse: {
             code: components["schemas"]["RouteMessageCode"];
@@ -5874,6 +5966,7 @@ export interface operations {
             query?: {
                 threshold?: number;
                 pair_kind?: "all" | "exact_name" | "near_duplicate";
+                entity_type?: "ORG" | "PER" | "LOC" | null;
                 limit?: number;
                 offset?: number;
             };
@@ -6043,6 +6136,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConflictResolutionResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyConflictsResolveBatchResolveCrossDomainConflictBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConflictBatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictBatchResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
