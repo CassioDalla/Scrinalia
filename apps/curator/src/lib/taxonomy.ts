@@ -79,7 +79,7 @@ export const STOPWORD_SCOPE_LABEL: Record<string, string> = {
 };
 
 export const STOPWORD_SCOPE_HINT: Record<string, string> = {
-  TAG: "O termo sai do eixo de assunto. A purga exclui as tags com esse nome — e a purga não tem desfazer.",
+  TAG: "O termo sai do eixo de assunto. A purga exclui as tags com esse nome e guarda cada uma no ledger, com desfazer.",
   ENTITY: "O termo sai da extração de nomes próprios. Não afeta tag nenhuma.",
   ALL: "O termo sai dos dois eixos, e a purga o alcança.",
 };

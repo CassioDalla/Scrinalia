@@ -59,6 +59,7 @@ from scrinalia.domains.archive.schemas import (
     ResolveConflictCommand,
     RouteMessageCode,
     StopwordDTO,
+    StopwordPurgeLogListResponse,
     StopwordPurgePreview,
     SubjectExclusionSuggestionResponse,
     TagCatalogResponse,
@@ -92,6 +93,7 @@ from scrinalia.domains.archive.schemas.tag_schema import (
     MergeResponse,
     StopwordBanResponse,
     StopwordPurgeResponse,
+    StopwordPurgeUndoResponse,
     StopwordRemovalResponse,
     SubjectExclusionBanResponse,
     SubjectExclusionRemovalResponse,
@@ -448,7 +450,7 @@ class TaxonomyController(Controller):
         tag_service: NamedDependency[TagService],
         data: StopwordRemovalRequest,
     ) -> StopwordRemovalResponse:
-        """Un-bans terms — the only way back from a purge decision, since the purge has no undo."""
+        """Un-bans terms. The purge keeps a ledger, so this is no longer the only way back."""
         removed = tag_service.remove_stopwords(data.words, data.scope)
         return StopwordRemovalResponse(
             code=RouteMessageCode.TAG_STOPWORDS_REMOVED,
@@ -459,32 +461,81 @@ class TaxonomyController(Controller):
     @post("/tags/stopwords/purge/preview", opt={"access": Access.AUTHENTICATED}, status_code=200, sync_to_thread=True)
     def preview_stopword_purge(self, tag_service: NamedDependency[TagService]) -> StopwordPurgePreview:
         """
-        The dry run of the only destructive operation in the taxonomy without an undo.
+        The dry run of the purge: the tags that would die, and the ledger that can bring them back.
 
         It lists the tags the purge would delete, with how many descriptions carry each and which
-        drawer dies with it, so the screen can show the loss before it happens.
+        drawer dies with it, so the screen can show the loss before it happens. The list is the plan
+        the purge itself consumes, so the preview and the write cannot disagree.
         """
         return tag_service.preview_stopword_purge()
 
     @post("/tags/stopwords/purge", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def purge_stopwords(
-        self, tag_service: NamedDependency[TagService], data: StopwordsRequest
+        self,
+        tag_service: NamedDependency[TagService],
+        data: StopwordsRequest,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> StopwordPurgeResponse:
         """
-        Deletes every tag whose name is a banned term. **There is no undo for this one.**
+        Deletes every tag whose name is a banned term, after logging each one in the ledger.
 
         ``words`` is optional and, when sent, is registered before the purge, so a client may ban and
         purge in one call. The screen sends an **empty body**: it purges with the list it already
-        showed in the preview, so the numbers the archivist approved are the numbers that die.
+        showed in the preview, so the numbers the archivist approved are the numbers that die. The
+        response carries the ``purge_ids`` the screen needs to offer the undo — without them the
+        archivist would have to find the row in the ledger to reverse the click they just made.
         """
         if data.words:
             tag_service.save_new_stopwords(data.words)
 
-        deleted_count = tag_service.purge_stopwords()
+        result = tag_service.purge_stopwords(current_user.author)
         return StopwordPurgeResponse(
             code=RouteMessageCode.TAG_STOPWORD_PURGE_DONE,
             message="Limpeza concluída com sucesso.",
-            tags_deleted=deleted_count,
+            tags_deleted=result.tags_deleted,
+            purge_ids=result.purge_ids,
+        )
+
+    @get("/tags/stopwords/purge-log", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
+    def list_stopword_purge_log(
+        self,
+        tag_service: NamedDependency[TagService],
+        include_undone: FromQuery[bool] = True,
+        # ``q`` and not ``term``: the collection search already owns ``term`` for its own meaning,
+        # and this one is a filter *inside* a ledger. The front reads the same name it sends.
+        q: FromQuery[str | None] = None,
+        limit: FromQuery[int] = 50,
+        offset: FromQuery[int] = 0,
+    ) -> StopwordPurgeLogListResponse:
+        """
+        The audit trail of the purges: what died, by whom, and what was restored.
+
+        ``q`` matches the purged tag's name — the question that sends an archivist here is "where
+        did this spelling go?", and the answer is a row that can be put back.
+        """
+        return tag_service.list_stopword_purge_log(include_undone=include_undone, term=q, limit=limit, offset=offset)
+
+    @delete(
+        "/tags/stopwords/purge-log/{purge_id:int}", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True
+    )
+    def undo_stopword_purge(
+        self,
+        tag_service: NamedDependency[TagService],
+        purge_id: FromPath[int],
+        current_user: NamedDependency[AuthenticatedUser],
+    ) -> StopwordPurgeUndoResponse:
+        """
+        Undoes one purge from the ledger: the tag, its links and its spellings come back.
+
+        The second attempt is **409** and an unknown id is **404**; the ledger entry is never
+        deleted, so the history of "this was purged, then restored" survives. The ban stays: the
+        term is still a stopword, and the next purge lists it again.
+        """
+        entry = tag_service.undo_stopword_purge(purge_id, undone_by=current_user.author)
+        return StopwordPurgeUndoResponse(
+            code=RouteMessageCode.TAG_STOPWORD_PURGE_UNDONE,
+            message=f"Purga desfeita: a tag '{entry.purged_name}' foi restaurada.",
+            data=entry,
         )
 
     # ``AUTHENTICATED`` and not ``CURATE``: the route computes candidates and writes nothing, and

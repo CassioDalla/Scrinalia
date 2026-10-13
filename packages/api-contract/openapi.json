@@ -5920,6 +5920,7 @@
           "TAG_STOPWORDS_BANNED",
           "TAG_STOPWORDS_REMOVED",
           "TAG_STOPWORD_PURGE_DONE",
+          "TAG_STOPWORD_PURGE_UNDONE",
           "SUBJECT_EXCLUSIONS_ADDED",
           "SUBJECT_EXCLUSIONS_REMOVED",
           "MACRO_CLUSTERING_INSUFFICIENT_TEXTS",
@@ -6071,11 +6072,119 @@
         "title": "StopwordDTO",
         "type": "object"
       },
+      "StopwordPurgeLogEntryDTO": {
+        "properties": {
+          "changed_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "changed_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "macro_category_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "purge_id": {
+            "type": "integer"
+          },
+          "purged_name": {
+            "type": "string"
+          },
+          "purged_tag_id": {
+            "type": "integer"
+          },
+          "synonym_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "undone_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "undone_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "purge_id",
+          "purged_name",
+          "purged_tag_id"
+        ],
+        "title": "StopwordPurgeLogEntryDTO",
+        "type": "object"
+      },
+      "StopwordPurgeLogListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StopwordPurgeLogEntryDTO"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "offset",
+          "total"
+        ],
+        "title": "StopwordPurgeLogListResponse",
+        "type": "object"
+      },
       "StopwordPurgePreview": {
         "properties": {
           "reversible": {
-            "default": false,
-            "description": "Always false: the purge has no ledger to restore from.",
+            "default": true,
+            "description": "True: the ledger restores the tags and their links.",
             "type": "boolean"
           },
           "stopwords": {
@@ -6112,6 +6221,12 @@
           },
           "message": {
             "type": "string"
+          },
+          "purge_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
           },
           "tags_deleted": {
             "type": "integer"
@@ -6153,6 +6268,26 @@
           "tag_id"
         ],
         "title": "StopwordPurgeTag",
+        "type": "object"
+      },
+      "StopwordPurgeUndoResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/StopwordPurgeLogEntryDTO"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "title": "StopwordPurgeUndoResponse",
         "type": "object"
       },
       "StopwordRemovalRequest": {
@@ -16372,6 +16507,195 @@
           }
         },
         "summary": "PurgeStopwords",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/tags/stopwords/purge-log": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsStopwordsPurgeLogListStopwordPurgeLog",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "include_undone",
+            "required": false,
+            "schema": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopwordPurgeLogListResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListStopwordPurgeLog",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/tags/stopwords/purge-log/{purge_id}": {
+      "delete": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsStopwordsPurgeLogPurgeIdUndoStopwordPurge",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "purge_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopwordPurgeUndoResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "UndoStopwordPurge",
         "tags": [
           "Taxonomy"
         ]

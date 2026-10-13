@@ -2,10 +2,15 @@ import pytest
 from sqlalchemy import select, text
 
 from scrinalia.core.author import Author
-from scrinalia.domains.archive.exceptions import TagMergeProposalNotFoundError
+from scrinalia.domains.archive.exceptions import (
+    StopwordPurgeAlreadyUndoneError,
+    StopwordPurgeLogNotFoundError,
+    TagMergeProposalNotFoundError,
+)
 from scrinalia.domains.archive.models import (
     ArchiveDocumentTag,
     ArchiveMacroCategory,
+    ArchiveStopwordPurgeLog,
     ArchiveTag,
     DomainSynonyms,
 )
@@ -26,6 +31,22 @@ from scrinalia.domains.archive.services.tag_service import TagService
 # ==========================================
 
 
+def _tag_with_documents(
+    db_session, generate_archive_doc, name: str, documents: int, category_id: int | None = None
+) -> ArchiveTag:
+    """A tag carried by ``documents`` real descriptions, so the ledger has links to restore."""
+    tag = ArchiveTag(name=name, macro_category_id=category_id)
+    db_session.add(tag)
+    db_session.flush()
+    for index in range(documents):
+        document = generate_archive_doc(
+            description_id=f"{name.replace(' ', '-')}-{index}", original_title=f"Documento {name} {index}"
+        )
+        db_session.add(ArchiveDocumentTag(description_id=document.description_id, tag_id=tag.tag_id))
+    db_session.flush()
+    return tag
+
+
 def test_purge_stopwords_success(use_test_db, db_session):
     """Guarantees that the stopwords are read from the database and deleted."""
     tag_repo = TagRepository(db_session)
@@ -40,14 +61,13 @@ def test_purge_stopwords_success(use_test_db, db_session):
     db_session.commit()
 
     # 3. The method must read from the database and delete
-    deleted = service.purge_stopwords()
+    result = service.purge_stopwords()
 
-    # 4. Since the Service no longer commits, we need to commit the test transaction
-    db_session.commit()
-
-    assert deleted == 2
+    assert result.tags_deleted == 2
     remaining = db_session.scalars(select(ArchiveTag.name)).all()
     assert remaining == ["valiosa"]
+    # One ledger row per deleted tag: the handles the screen needs to offer the undo.
+    assert len(result.purge_ids) == 2
 
 
 def test_purge_stopwords_cascade(use_test_db, db_session, generate_archive_doc):
@@ -65,9 +85,10 @@ def test_purge_stopwords_cascade(use_test_db, db_session, generate_archive_doc):
     tag_repo.save_stopwords(["lixo"])
     db_session.commit()
 
-    service.purge_stopwords()
+    result = service.purge_stopwords()
     db_session.commit()  # Persist the deletion
 
+    assert result.tags_deleted == 1
     # The link table must also be empty now
     links = db_session.scalars(select(ArchiveDocumentTag)).all()
     assert len(links) == 0
@@ -79,9 +100,125 @@ def test_purge_stopwords_empty_db(use_test_db, db_session):
     doc_repo = DocumentRepository(db_session)
     service = TagService(tag_repo, doc_repo)
 
-    deleted = service.purge_stopwords()
+    result = service.purge_stopwords()
 
-    assert deleted == 0
+    assert result.tags_deleted == 0
+    assert result.purge_ids == []
+
+
+def test_preview_and_purge_produce_the_same_list(use_test_db, db_session, generate_archive_doc):
+    """
+    The pair the DoD pins: the preview's ids are exactly the ledger rows the purge writes.
+
+    Both read ``plan_stopword_purge``, so the dry run cannot promise a list the write does not act
+    on — the same rule the merge dry run follows. Heaviest first is the order the preview always
+    showed, and the plan has to keep it.
+    """
+    tag_repo = TagRepository(db_session)
+    service = TagService(tag_repo, DocumentRepository(db_session))
+
+    heavier = _tag_with_documents(db_session, generate_archive_doc, "pessoas", 3)
+    lighter = _tag_with_documents(db_session, generate_archive_doc, "lugares", 1)
+    tag_repo.save_stopwords(["pessoas", "lugares"])
+    db_session.commit()
+
+    preview = service.preview_stopword_purge()
+    result = service.purge_stopwords()
+    db_session.commit()
+
+    assert [tag.tag_id for tag in preview.tags] == [heavier.tag_id, lighter.tag_id]
+    assert preview.reversible is True
+    assert preview.total_documents == 4
+
+    rows = db_session.scalars(select(ArchiveStopwordPurgeLog).order_by(ArchiveStopwordPurgeLog.purge_id)).all()
+    assert [row.purged_tag_id for row in rows] == [tag.tag_id for tag in preview.tags]
+    assert sorted(row.purge_id for row in rows) == sorted(result.purge_ids)
+
+
+def test_undo_stopword_purge_restores_the_tag_its_links_and_its_spellings(
+    use_test_db, db_session, generate_archive_doc
+):
+    """
+    The round trip: the ledger puts back the row, the links and the spellings the cascade took.
+
+    ``domain_synonyms.canonical_tag_id`` is ``ON DELETE CASCADE``, so a purge that did not snapshot
+    the spellings would silently destroy a curation an earlier merge absorbed.
+    """
+    tag_repo = TagRepository(db_session)
+    service = TagService(tag_repo, DocumentRepository(db_session))
+
+    category = ArchiveMacroCategory(name="Urbanismo")
+    db_session.add(category)
+    db_session.flush()
+    tag = _tag_with_documents(db_session, generate_archive_doc, "pessoas", 2, category_id=category.category_id)
+    db_session.add(DomainSynonyms(synonym_name="pessoa", category="TAG", canonical_tag_id=tag.tag_id))
+    tag_repo.save_stopwords(["pessoas"])
+    db_session.commit()
+
+    result = service.purge_stopwords()
+    db_session.commit()
+    assert result.tags_deleted == 1
+    assert db_session.get(ArchiveTag, tag.tag_id) is None
+
+    entry = service.undo_stopword_purge(result.purge_ids[0], undone_by=Author(name="curador", user_id=None))
+    db_session.commit()
+
+    restored = db_session.get(ArchiveTag, tag.tag_id)
+    assert restored is not None
+    assert restored.name == "pessoas"
+    assert restored.macro_category_id == category.category_id
+    links = db_session.scalars(select(ArchiveDocumentTag).where(ArchiveDocumentTag.tag_id == tag.tag_id)).all()
+    assert len(links) == 2
+    spellings = db_session.scalars(
+        select(DomainSynonyms.synonym_name).where(DomainSynonyms.canonical_tag_id == tag.tag_id)
+    ).all()
+    assert spellings == ["pessoa"]
+    assert entry.undone_at is not None
+    assert entry.undone_by == "curador"
+
+
+def test_undo_stopword_purge_does_not_lift_the_ban(use_test_db, db_session, generate_archive_doc):
+    """
+    Restoring the tag must not reopen the term: the ban is the decision, the tag is the data.
+
+    The next purge lists the restored tag again — that is the honest consequence, and it is what
+    keeps the undo from silently reversing a ban the archivist asked for.
+    """
+    tag_repo = TagRepository(db_session)
+    service = TagService(tag_repo, DocumentRepository(db_session))
+
+    _tag_with_documents(db_session, generate_archive_doc, "pessoas", 1)
+    tag_repo.save_stopwords(["pessoas"])
+    db_session.commit()
+
+    result = service.purge_stopwords()
+    db_session.commit()
+    service.undo_stopword_purge(result.purge_ids[0])
+    db_session.commit()
+
+    assert tag_repo.get_stopwords() == {"pessoas"}
+    assert service.preview_stopword_purge().total_tags == 1
+
+
+def test_undo_stopword_purge_is_single_shot_and_404_for_an_unknown_id(use_test_db, db_session, generate_archive_doc):
+    """The ledger keeps one reversal per tag: the second attempt is 409, an unknown id is 404."""
+    tag_repo = TagRepository(db_session)
+    service = TagService(tag_repo, DocumentRepository(db_session))
+
+    _tag_with_documents(db_session, generate_archive_doc, "pessoas", 1)
+    tag_repo.save_stopwords(["pessoas"])
+    db_session.commit()
+
+    result = service.purge_stopwords()
+    db_session.commit()
+    service.undo_stopword_purge(result.purge_ids[0])
+    db_session.commit()
+
+    with pytest.raises(StopwordPurgeAlreadyUndoneError):
+        service.undo_stopword_purge(result.purge_ids[0])
+
+    with pytest.raises(StopwordPurgeLogNotFoundError):
+        service.undo_stopword_purge(999_999)
 
 
 # ==========================================

@@ -18,6 +18,7 @@ import {
   suggestMergeProposals,
   unbanStopwords,
   undoMerge,
+  undoStopwordPurge,
   type BatchMergeResponse,
   type MacroCategory,
   type MergePreview,
@@ -2068,12 +2069,18 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
   const [draftScope, setDraftScope] = useState<StopwordsScope>("TAG");
   const [preview, setPreview] = useState<StopwordPurgePreview | null>(null);
   const [purged, setPurged] = useState<number | null>(null);
+  const [purgeIds, setPurgeIds] = useState<number[]>([]);
+  const [logTerm, setLogTerm] = useState("");
+  const [logLimit, setLogLimit] = useState(MERGE_LOG_PAGE_SIZE);
+  const settledLogTerm = useDebounced(logTerm);
 
   const stopwords = useQuery(queries.stopwords(search.escopo));
+  const log = useQuery(queries.stopwordPurgeLog(logLimit, settledLogTerm.trim() || undefined));
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["taxonomy", "stopwords"] });
     void queryClient.invalidateQueries({ queryKey: ["taxonomy", "tags"] });
+    void queryClient.invalidateQueries({ queryKey: ["taxonomy", "stopword-purge-log"] });
     void queryClient.invalidateQueries({ queryKey: ["documents"] });
     void queryClient.invalidateQueries({ queryKey: ["curation", "inbox"] });
   };
@@ -2096,6 +2103,7 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
     onSuccess: (data) => {
       setPreview(data);
       setPurged(null);
+      setPurgeIds([]);
     },
   });
 
@@ -2103,7 +2111,16 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
     mutationFn: purgeStopwords,
     onSuccess: (data) => {
       setPurged(data.tags_deleted);
+      setPurgeIds(data.purge_ids ?? []);
       setPreview(null);
+      invalidate();
+    },
+  });
+
+  const revertPurge = useMutation({
+    mutationFn: (purgeId: number) => undoStopwordPurge(purgeId),
+    onSuccess: () => {
+      setPurgeIds([]);
       invalidate();
     },
   });
@@ -2115,8 +2132,8 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
     <div className="grid gap-4">
       <Notice tone="warn" className="max-w-3xl">
         <strong>Banir não exclui nada.</strong> Banir registra que o termo não vale; a <strong>purga</strong> é o passo
-        que exclui as tags com esse nome — e ela <strong>não tem desfazer</strong>: o merge guarda o estado anterior e
-        restaura, a purga não. Por isso ela vem sempre depois de conferir o impacto.
+        que exclui as tags com esse nome. Como o merge, ela <strong>guarda um ledger</strong>: cada tag excluída pode ser
+        restaurada com seus vínculos e suas grafias. O desfazer fica no ledger de purgas, no fim desta aba.
       </Notice>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -2235,7 +2252,9 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
         <CardBody className="grid gap-3">
           <p className="text-xs text-(--color-muted)">
             A purga exclui toda tag cujo nome seja um termo banido nos eixos <code>TAG</code> ou <code>ALL</code>. Os
-            vínculos caem junto e a classificação da tag vai embora. <strong>Não há desfazer.</strong>
+            vínculos caem junto e a classificação da tag vai embora. Cada tag excluída entra no <strong>ledger de
+            purgas</strong> antes de sair, então o desfazer restaura a tag, os vínculos e as grafias — mas não
+            desbane o termo.
           </p>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -2291,10 +2310,108 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
           ) : null}
 
           {purged !== null ? (
-            <Notice tone="ok">
-              {formatCount(purged)} tag(s) excluída(s). Isto <strong>não</strong> aparece no ledger de merges: não há
-              estado anterior guardado para restaurar.
+            <Notice tone="ok" as="div" className="grid gap-2">
+              <p>
+                {formatCount(purged)} tag(s) excluída(s) e registrada(s) no ledger de purgas.
+              </p>
+              {purgeIds.length > 0 ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={revertPurge.isPending}
+                    title="Restaura as tags, os vínculos e as grafias desta purga. O banimento continua."
+                    onClick={() => {
+                      const [first] = purgeIds;
+                      if (first !== undefined) revertPurge.mutate(first);
+                    }}
+                  >
+                    desfazer esta purga
+                  </Button>
+                  <span className="text-(--color-muted)">
+                    entradas no ledger: <code>{purgeIds.join(", ")}</code>
+                  </span>
+                </div>
+              ) : null}
             </Notice>
+          ) : null}
+          {revertPurge.error ? <ErrorState error={revertPurge.error} /> : null}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader className="text-sm font-semibold">Ledger das purgas</CardHeader>
+        <CardBody className="grid gap-2">
+          <p className="text-xs text-(--color-muted)">
+            Cada linha é uma tag excluída pela purga, com o antes guardado: nome, vínculos, grafias e classificação. O
+            desfazer restaura a tag — e <strong>não</strong> desbane o termo, que continua fora do próximo índice.
+          </p>
+          {/*
+            The search is server-side: the ledger only grows, and a box that filtered the loaded page
+            would say "não está aqui" for a purge that happened.
+          */}
+          <Input
+            className="max-w-xs"
+            value={logTerm}
+            placeholder="buscar por tag excluída…"
+            onChange={(event) => setLogTerm(event.target.value)}
+          />
+          {log.isPending ? <Spinner label="Lendo o ledger…" /> : null}
+          {log.error ? <ErrorState error={log.error} /> : null}
+          {log.data && (log.data.items ?? []).length === 0 ? (
+            <EmptyState
+              title={logTerm.trim() ? `Nenhuma purga para “${logTerm.trim()}”` : "Nenhuma purga registrada ainda"}
+              hint={
+                logTerm.trim()
+                  ? "A busca cobre o nome da tag excluída."
+                  : "O ledger registra cada tag excluída, com o antes."
+              }
+            />
+          ) : null}
+          <ul className="divide-y divide-(--color-line) text-xs">
+            {(log.data?.items ?? []).map((entry) => (
+              <li key={entry.purge_id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span className="min-w-0">
+                  <span className="font-medium">{entry.purged_name}</span>
+                  <span className="text-(--color-muted)">
+                    {" "}
+                    · {formatCount(entry.document_count)} doc(s) · {formatDateTime(entry.changed_at)}
+                    {entry.changed_by ? ` · por ${entry.changed_by}` : ""}
+                    {entry.macro_category_name ? ` · ${entry.macro_category_name}` : ""}
+                  </span>
+                </span>
+                {entry.undone_at ? (
+                  <Badge tone="neutral">restaurada em {formatDateTime(entry.undone_at)}</Badge>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={revertPurge.isPending}
+                    title="Restaura a tag, os vínculos e as grafias. O banimento do termo continua."
+                    onClick={() => revertPurge.mutate(entry.purge_id)}
+                  >
+                    desfazer
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+          {/*
+            The footer appears whenever there is something to say: more rows below, or a search that
+            matched — the same rule the merge ledger follows.
+          */}
+          {log.data && (log.data.total > (log.data.items ?? []).length || settledLogTerm.trim()) ? (
+            <div className="flex items-center gap-2">
+              {log.data.total > (log.data.items ?? []).length ? (
+                <Button size="sm" variant="ghost" onClick={() => setLogLimit((current) => current + MERGE_LOG_PAGE_SIZE)}>
+                  ver mais
+                </Button>
+              ) : null}
+              <span className="text-xs text-(--color-muted)">
+                mostrando {formatCount((log.data.items ?? []).length)} de {formatCount(log.data.total)}{" "}
+                {settledLogTerm.trim() ? "purga(s) que casam com a busca" : "purga(s) registrada(s)"}
+              </span>
+            </div>
           ) : null}
         </CardBody>
       </Card>

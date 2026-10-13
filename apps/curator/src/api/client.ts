@@ -166,6 +166,9 @@ export type StopwordPurgeTag = components["schemas"]["StopwordPurgeTag"];
 export type StopwordBanResponse = components["schemas"]["StopwordBanResponse"];
 export type StopwordRemovalResponse = components["schemas"]["StopwordRemovalResponse"];
 export type StopwordPurgeResponse = components["schemas"]["StopwordPurgeResponse"];
+export type StopwordPurgeLogEntryDTO = components["schemas"]["StopwordPurgeLogEntryDTO"];
+export type StopwordPurgeLogListResponse = components["schemas"]["StopwordPurgeLogListResponse"];
+export type StopwordPurgeUndoResponse = components["schemas"]["StopwordPurgeUndoResponse"];
 export type TagMergeProposalDecisionResponse = components["schemas"]["TagMergeProposalDecisionResponse"];
 export type TagMergeUndoResponse = components["schemas"]["TagMergeUndoResponse"];
 
@@ -930,7 +933,7 @@ export async function banStopwords(body: {
   return unwrap<StopwordBanResponse>(await client.POST("/api/v1/taxonomy/tags/stopwords", { body }));
 }
 
-/** Un-bans terms — the only way back from a purge decision, which has no ledger to restore from. */
+/** Un-bans terms. The purge keeps a ledger, so this is no longer the only way back. */
 export async function unbanStopwords(body: {
   words: string[];
   scope?: StopwordsScope;
@@ -938,20 +941,51 @@ export async function unbanStopwords(body: {
   return unwrap<StopwordRemovalResponse>(await client.DELETE("/api/v1/taxonomy/tags/stopwords", { body }));
 }
 
-/** What the purge would delete. The step is mandatory: this write cannot be undone. */
+/** What the purge would delete, and the confirmation that the ledger can bring it back. */
 export async function previewStopwordPurge(): Promise<StopwordPurgePreview> {
   return unwrap<StopwordPurgePreview>(await client.POST("/api/v1/taxonomy/tags/stopwords/purge/preview"));
 }
 
 /**
- * Deletes every tag whose name is a banned term.
+ * Deletes every tag whose name is a banned term, and logs each one in the ledger first.
  *
  * Sent with an empty body on purpose: registering words in the same call would make the numbers the
- * archivist approved different from the numbers that die.
+ * archivist approved different from the numbers that die. The response carries the ``purge_ids`` the
+ * screen needs to offer the undo.
  */
 export async function purgeStopwords(): Promise<StopwordPurgeResponse> {
   return unwrap<StopwordPurgeResponse>(
     await client.POST("/api/v1/taxonomy/tags/stopwords/purge", { body: {} }),
+  );
+}
+
+/** The audit trail of the purges: what died, by whom, and what was restored. */
+export async function fetchStopwordPurgeLog(params?: {
+  includeUndone?: boolean;
+  q?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<StopwordPurgeLogListResponse> {
+  return unwrap<StopwordPurgeLogListResponse>(
+    await client.GET("/api/v1/taxonomy/tags/stopwords/purge-log", {
+      params: {
+        query: {
+          include_undone: params?.includeUndone,
+          q: params?.q,
+          limit: params?.limit,
+          offset: params?.offset,
+        },
+      },
+    }),
+  );
+}
+
+/** Undoes one purge from the ledger: the tag, its links and its spellings come back. */
+export async function undoStopwordPurge(purgeId: number): Promise<StopwordPurgeUndoResponse> {
+  return unwrap<StopwordPurgeUndoResponse>(
+    await client.DELETE("/api/v1/taxonomy/tags/stopwords/purge-log/{purge_id}", {
+      params: { path: { purge_id: purgeId } },
+    }),
   );
 }
 

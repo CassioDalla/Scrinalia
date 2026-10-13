@@ -346,9 +346,9 @@ def test_purging_tag_stopwords_spares_the_winning_tag(use_test_db, db_session):
 
     tag_repo = TagRepository(db_session)
     service = TagService(tag_repo, DocumentRepository(db_session))
-    deleted = service.purge_stopwords()
+    result = service.purge_stopwords()
 
-    assert deleted == 0
+    assert result.tags_deleted == 0
     assert db_session.get(ArchiveTag, tag.tag_id) is not None
 
 

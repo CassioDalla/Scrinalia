@@ -33,7 +33,11 @@ from scrinalia.domains.archive.schemas import (
     MergeSuggestionRunResponse,
     MergeTagsCommand,
     StopwordDTO,
+    StopwordPurgeLogEntryDTO,
+    StopwordPurgeLogListResponse,
     StopwordPurgePreview,
+    StopwordPurgeResult,
+    StopwordPurgeTag,
     SubjectExclusionSuggestionResponse,
     TagCatalogResponse,
     TagCurationCommand,
@@ -205,36 +209,69 @@ class TagService:
 
     def preview_stopword_purge(self) -> StopwordPurgePreview:
         """
-        What the purge would delete, computed with the same list the purge itself reads.
+        What the purge would delete, computed with the same plan the purge itself consumes.
 
-        The list is ``get_stopwords()`` — ``TAG``/``ALL`` only — so the preview and the write cannot
-        disagree about which words are in play. Same rule as the merge dry run.
+        The words come from ``get_stopwords()`` — ``TAG``/``ALL`` only — so the preview and the
+        write cannot disagree about which tags are in play. Same rule as the merge dry run, and
+        the same plan object: the dry run is not a second implementation of the query.
         """
-        stopwords = self.repo.get_stopwords()
-        tags = self.repo.find_tags_by_stopwords(stopwords)
+        plan = self.repo.plan_stopword_purge()
+        tags = [
+            StopwordPurgeTag(
+                tag_id=item.tag_id,
+                name=item.name,
+                document_count=len(item.document_ids),
+                macro_category_name=item.macro_category_name,
+            )
+            for item in plan.items
+        ]
         return StopwordPurgePreview(
-            stopwords=sorted(stopwords),
+            stopwords=plan.stopwords,
             tags=tags,
-            total_tags=len(tags),
-            total_documents=sum(tag.document_count for tag in tags),
-            reversible=False,
+            total_tags=plan.total_tags,
+            total_documents=plan.total_documents,
+            reversible=True,
         )
 
-    def purge_stopwords(self) -> int:
+    def purge_stopwords(self, changed_by: Author | None = None) -> StopwordPurgeResult:
         """
-        Deletes every tag whose name is a banned term, and **this one has no undo**.
+        Deletes every tag whose name is a banned term, after logging each one in the ledger.
 
-        The merge keeps a ledger and restores the tag, its links and its classification; here the row
-        goes and the links cascade. The route offers a preview first and the screen says so out loud,
-        because a destructive write with no reversal is exactly the case the project's rule — every
-        write is reversible or announced — is about.
+        The write is plan + apply, exactly like the merge: the plan that the preview showed is the
+        plan this consumes, so a tag cannot die without having appeared in the list. The ledger row
+        is the undo the screen offers, and it is written before the row disappears.
         """
+        plan = self.repo.plan_stopword_purge()
+        if not plan.items:
+            return StopwordPurgeResult()
+        return self.repo.apply_stopword_purge(plan, changed_by=changed_by)
 
-        clean_stopwords = self.repo.get_stopwords()
-        if not clean_stopwords:
-            return 0
+    def undo_stopword_purge(self, purge_id: int, undone_by: Author | None = None) -> StopwordPurgeLogEntryDTO:
+        """
+        Restores one purged tag from the ledger: the row, its links and its spellings.
 
-        return self.repo.purge_tags_by_stopwords(clean_stopwords)
+        The ban is not lifted: the term is still a stopword, and the next purge lists it again.
+        The repository raises ``StopwordPurgeLogNotFoundError`` (404) or
+        ``StopwordPurgeAlreadyUndoneError`` (409).
+        """
+        return self.repo.undo_stopword_purge(purge_id, undone_by=undone_by)
+
+    def list_stopword_purge_log(
+        self,
+        include_undone: bool = True,
+        term: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> StopwordPurgeLogListResponse:
+        """The audit trail of the purges: which tag died, when, by whom, and what was restored."""
+        return StopwordPurgeLogListResponse(
+            total=self.repo.count_stopword_purge_log(include_undone=include_undone, term=term),
+            limit=limit,
+            offset=offset,
+            items=list(
+                self.repo.list_stopword_purge_log(include_undone=include_undone, term=term, limit=limit, offset=offset)
+            ),
+        )
 
     def get_tag_relevance_count(self, limit: int = 30) -> Sequence[TagRelevanceCount]:
         """

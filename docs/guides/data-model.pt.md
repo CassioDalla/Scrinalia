@@ -297,6 +297,7 @@ intercambiáveis, e só alguns têm desfazer.
 | Ledger | O que registra | O seu desfazer |
 | --- | --- | --- |
 | `archive_taxonomy_merge_log` | Uma linha **por tag absorvida**, fotografada antes de qualquer mudança. | `undo_merge` restaura a linha, os seus vínculos, a sua classificação e o estado das grafias. |
+| `archive_stopword_purge_log` | Uma linha **por tag que a purga de stopwords apagou**, fotografada antes do delete: a linha, os documentos que a carregavam e as grafias que apontavam para ela. | `undo_stopword_purge` restaura a linha, os seus vínculos e as suas grafias; o banimento continua, então a próxima purga lista a tag de novo. |
 | `archive_hierarchy_materialisation_log` | Uma linha por execução de materialização: os nós que ela criou e o pai/caminho anterior de cada linha que ela mudou. | O desfazer restaura `previous_state` e então remove `created_nodes`. |
 | `archive_conflict_resolution_log` | Uma linha por resolução tag × entidade: o snapshot do perdedor, os vínculos transferidos, o banimento que ela plantou. | `DELETE /conflicts/resolutions/{id}`. |
 | `archive_document_deletions` | Uma linha por descrição apagada, com todo o snapshot ISAD(G). | **Sem desfazer.** O snapshot é evidência; nada o grava de volta. |
@@ -437,6 +438,7 @@ A autoria são **duas colunas, nunca uma**:
 
 O mesmo par aparece onde quer que uma pessoa decida algo: `archive_document_deletions` (`deleted_by` /
 `deleted_by_user_id`), `archive_taxonomy_merge_log` (`changed_by`, `undone_by`),
+`archive_stopword_purge_log` (`changed_by`, `undone_by`),
 `archive_conflict_resolution_log` (`decided_by`, `undone_by`), `archive_hierarchy_node_plans` e
 `archive_tag_merge_proposals` (`decided_by`), `archive_tag_facets`, `archive_cleaning_rules` e
 `domain_text_templates` (`created_by`), `archive_hierarchy_materialisation_log` (`changed_by`),

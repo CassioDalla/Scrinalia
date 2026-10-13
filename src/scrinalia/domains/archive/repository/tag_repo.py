@@ -49,12 +49,15 @@ from scrinalia.domains.archive.exceptions import (
     InvalidParam,
     MergeAlreadyUndoneError,
     MergeLogNotFoundError,
+    StopwordPurgeAlreadyUndoneError,
+    StopwordPurgeLogNotFoundError,
 )
 from scrinalia.domains.archive.models import (
     ArchiveDocument,
     ArchiveDocumentTag,
     ArchiveEntity,
     ArchiveMacroCategory,
+    ArchiveStopwordPurgeLog,
     ArchiveTag,
     ArchiveTagFacet,
     ArchiveTagMergeProposal,
@@ -81,7 +84,10 @@ from scrinalia.domains.archive.schemas import (
     MergePlan,
     MergeResponse,
     StopwordDTO,
-    StopwordPurgeTag,
+    StopwordPurgeItem,
+    StopwordPurgeLogEntryDTO,
+    StopwordPurgePlan,
+    StopwordPurgeResult,
     SubjectExclusionSuggestion,
     SubjectExclusionSuggestionResponse,
     SynonymCommand,
@@ -220,32 +226,6 @@ class TagRepository:
             stmt = stmt.where(DomainStopwords.word_scope == scope)
         result = self.db.execute(stmt)
         return cast(CursorResult, result).rowcount
-
-    def find_tags_by_stopwords(self, stopwords: set[str]) -> list[StopwordPurgeTag]:
-        """
-        The tags a purge would delete, with the weight that makes the loss concrete.
-
-        Read side of the only destructive operation here that has **no undo**: it exists so the
-        screen can show what dies — the name, how many descriptions carry it and which drawer is
-        lost with it — before anything is deleted.
-        """
-        if not stopwords:
-            return []
-
-        stmt = (
-            select(
-                ArchiveTag.tag_id,
-                ArchiveTag.name,
-                func.count(ArchiveDocumentTag.description_id).label("document_count"),
-                ArchiveMacroCategory.name.label("macro_category_name"),
-            )
-            .outerjoin(ArchiveDocumentTag, ArchiveDocumentTag.tag_id == ArchiveTag.tag_id)
-            .outerjoin(ArchiveMacroCategory, ArchiveMacroCategory.category_id == ArchiveTag.macro_category_id)
-            .where(func.lower(ArchiveTag.name).in_(stopwords))
-            .group_by(ArchiveTag.tag_id, ArchiveTag.name, ArchiveMacroCategory.name)
-            .order_by(func.count(ArchiveDocumentTag.description_id).desc(), ArchiveTag.name)
-        )
-        return [StopwordPurgeTag.model_validate(row) for row in self.db.execute(stmt).mappings().all()]
 
     def get_stopwords(self) -> set[str]:
         """
@@ -705,11 +685,233 @@ class TagRepository:
         result = cast(CursorResult, self.db.execute(stmt))
         return result.rowcount
 
-    def purge_tags_by_stopwords(self, stopwords: set[str]) -> int:
-        """Mass deletes all tags that match the stopwords list."""
-        stmt = delete(ArchiveTag).where(func.lower(ArchiveTag.name).in_(stopwords))
-        result = self.db.execute(stmt)
-        return cast(CursorResult, result).rowcount
+    # --- The stopword purge: plan, ledger, apply and undo ---
+    #
+    # One operation in two halves, exactly like the tag merge: ``plan_stopword_purge`` describes
+    # what would die without writing, and ``apply_stopword_purge`` executes that same plan after
+    # snapshotting every tag in ``archive_stopword_purge_log``. The preview reads the plan and the
+    # write consumes it, so the two cannot disagree about which tags the purge acts on. There is no
+    # repoint step here, unlike the merge: the tag is banned, so its spellings have nowhere to go —
+    # they are recorded for the undo and the forward write leaves them to the cascade.
+
+    def plan_stopword_purge(self) -> StopwordPurgePlan:
+        """
+        Every tag the purge would delete, with the state the undo has to rebuild.
+
+        The words come from ``get_stopwords()`` — ``TAG``/``ALL`` only, deliberately — and the
+        per-tag documents and spellings are read here so the ledger records what the delete is
+        about to cascade instead of reconstructing it afterwards.
+        """
+        stopwords = self.get_stopwords()
+        if not stopwords:
+            return StopwordPurgePlan()
+
+        tags = self.db.scalars(select(ArchiveTag).where(func.lower(ArchiveTag.name).in_(stopwords))).all()
+        if not tags:
+            return StopwordPurgePlan(stopwords=sorted(stopwords))
+
+        tag_ids = [tag.tag_id for tag in tags]
+        documents_by_tag = self.get_document_ids_grouped_by_tags(tag_ids)
+        spellings_by_tag = self._synonym_names_by_canonical(tag_ids)
+        category_names = self._macro_category_names(
+            [tag.macro_category_id for tag in tags if tag.macro_category_id is not None]
+        )
+        items = [
+            StopwordPurgeItem(
+                tag_id=tag.tag_id,
+                name=tag.name,
+                document_ids=documents_by_tag.get(tag.tag_id, []),
+                synonym_names=spellings_by_tag.get(tag.tag_id, []),
+                macro_category_id=tag.macro_category_id,
+                macro_category_name=(
+                    category_names.get(tag.macro_category_id) if tag.macro_category_id is not None else None
+                ),
+                ai_confidence_score=tag.ai_confidence_score,
+                execution_log=tag.execution_log,
+                created_at=tag.created_at,
+            )
+            for tag in tags
+        ]
+        # Heaviest first, then by name: the order the preview always showed, so the screen does not
+        # reshuffle under the archivist when the read moves from a SQL order-by to this plan.
+        items.sort(key=lambda item: (-len(item.document_ids), item.name))
+        return StopwordPurgePlan(stopwords=sorted(stopwords), items=items)
+
+    def write_stopword_purge_log(self, plan: StopwordPurgePlan, changed_by: Author | None = None) -> list[int]:
+        """
+        Snapshots every tag the plan deletes. Returns the ledger ids, oldest first.
+
+        Written **before** anything changes, because what it captures — the documents and the
+        spellings that pointed at the tag — is exactly what the delete cascades.
+        """
+        if not plan.items:
+            return []
+
+        rows = [
+            {
+                "purged_tag_id": item.tag_id,
+                "purged_name": normalize_tag(item.name),
+                "purged_snapshot": {
+                    "name": item.name,
+                    "macro_category_id": item.macro_category_id,
+                    "ai_confidence_score": item.ai_confidence_score,
+                    "execution_log": item.execution_log,
+                    "created_at": item.created_at.isoformat() if item.created_at else None,
+                },
+                "document_ids": item.document_ids,
+                "synonym_names": item.synonym_names,
+                **author_columns("changed_by", changed_by),
+            }
+            for item in plan.items
+        ]
+        stmt = insert(ArchiveStopwordPurgeLog).values(rows).returning(ArchiveStopwordPurgeLog.purge_id)
+        return list(self.db.scalars(stmt).all())
+
+    def apply_stopword_purge(self, plan: StopwordPurgePlan, changed_by: Author | None = None) -> StopwordPurgeResult:
+        """Executes exactly what ``plan_stopword_purge`` described, after writing the undo ledger."""
+        purge_ids = self.write_stopword_purge_log(plan, changed_by=changed_by)
+        tags_deleted = self.delete_tags([item.tag_id for item in plan.items]) if plan.items else 0
+        return StopwordPurgeResult(tags_deleted=tags_deleted, purge_ids=purge_ids)
+
+    def undo_stopword_purge(self, purge_id: int, undone_by: Author | None = None) -> StopwordPurgeLogEntryDTO:
+        """
+        Reverses one purge: restores the tag, its links and its spellings.
+
+        Exact by construction, like ``undo_merge``: the id and the row come from the snapshot, the
+        links from the per-tag list and the spellings from what was captured before the delete.
+        Only documents that still exist are re-linked. The ban is **not** lifted — the term is still
+        a stopword; the undo restores the tag, it does not undo the decision to ban it.
+        """
+        row = self.db.get(ArchiveStopwordPurgeLog, purge_id)
+        if row is None:
+            raise StopwordPurgeLogNotFoundError(f"Registro de purga {purge_id} não encontrado no ledger.")
+        if row.undone_at is not None:
+            raise StopwordPurgeAlreadyUndoneError(
+                f"A purga {purge_id} já foi desfeita em {row.undone_at:%Y-%m-%d %H:%M:%S}."
+            )
+
+        snapshot = row.purged_snapshot or {}
+        restored = ArchiveTag(
+            tag_id=row.purged_tag_id,
+            name=snapshot.get("name") or row.purged_name,
+            macro_category_id=snapshot.get("macro_category_id"),
+            ai_confidence_score=snapshot.get("ai_confidence_score"),
+            execution_log=snapshot.get("execution_log"),
+        )
+        created_at = snapshot.get("created_at")
+        if created_at:
+            restored.created_at = datetime.fromisoformat(created_at)
+        self.db.add(restored)
+        self.db.flush()
+
+        # The sequence already allocated this id once, so re-using it cannot collide with the next
+        # insert (the same argument ``undo_merge`` makes).
+        self._relink_documents(row.purged_tag_id, row.document_ids or [])
+        self._restore_purged_spellings(row)
+
+        row.undone_at = datetime.now(UTC)
+        assign_author(row, "undone_by", undone_by)
+        self.db.flush()
+        return self._to_stopword_purge_log_dto(row, self._macro_category_names(self._snapshot_category_ids([row])))
+
+    def _restore_purged_spellings(self, row: ArchiveStopwordPurgeLog) -> None:
+        """
+        Puts back the spellings the cascade took with the tag.
+
+        ``on_conflict_do_nothing`` on ``(synonym_name, category)``: a mapping somebody re-created
+        after the purge points wherever they put it, and that is not this undo's business.
+        """
+        names = list(row.synonym_names or [])
+        if not names:
+            return
+
+        rows = [{"synonym_name": name, "category": "TAG", "canonical_tag_id": row.purged_tag_id} for name in names]
+        stmt = insert(DomainSynonyms).values(rows).on_conflict_do_nothing(index_elements=["synonym_name", "category"])
+        self.db.execute(stmt)
+
+    def _stopword_purge_log_filters(self, include_undone: bool, term: str | None = None) -> list[Any]:
+        """The filters of the purge ledger, including the free-text one over the tag name."""
+        filters: list[Any] = []
+        if not include_undone:
+            filters.append(ArchiveStopwordPurgeLog.undone_at.is_(None))
+        if term:
+            pattern = f"%{escape_like(term)}%"
+            filters.append(ArchiveStopwordPurgeLog.purged_name.ilike(pattern, escape=LIKE_ESCAPE))
+        return filters
+
+    def count_stopword_purge_log(self, include_undone: bool = True, term: str | None = None) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(ArchiveStopwordPurgeLog)
+            .where(*self._stopword_purge_log_filters(include_undone, term))
+        )
+        return self.db.scalar(stmt) or 0
+
+    def list_stopword_purge_log(
+        self,
+        include_undone: bool = True,
+        term: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[StopwordPurgeLogEntryDTO]:
+        """The audit trail: most recent first, undone entries included unless filtered out."""
+        stmt = (
+            select(ArchiveStopwordPurgeLog)
+            .where(*self._stopword_purge_log_filters(include_undone, term))
+            .order_by(ArchiveStopwordPurgeLog.purge_id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        rows = self.db.scalars(stmt).all()
+        names = self._macro_category_names(self._snapshot_category_ids(rows))
+        return [self._to_stopword_purge_log_dto(row, names) for row in rows]
+
+    def get_stopword_purge_log_entry(self, purge_id: int) -> StopwordPurgeLogEntryDTO | None:
+        row = self.db.get(ArchiveStopwordPurgeLog, purge_id)
+        if row is None:
+            return None
+        return self._to_stopword_purge_log_dto(row, self._macro_category_names(self._snapshot_category_ids([row])))
+
+    def _snapshot_category_ids(self, rows: Sequence[ArchiveStopwordPurgeLog]) -> list[int]:
+        """The drawer ids the snapshots name, deduplicated, for one lookup instead of one per row."""
+        return list(
+            dict.fromkeys(
+                category_id
+                for row in rows
+                if (category_id := (row.purged_snapshot or {}).get("macro_category_id")) is not None
+            )
+        )
+
+    def _macro_category_names(self, category_ids: Sequence[int]) -> dict[int, str]:
+        """The drawer names behind the snapshot ids, in one query for the whole page."""
+        if not category_ids:
+            return {}
+        stmt = select(ArchiveMacroCategory.category_id, ArchiveMacroCategory.name).where(
+            ArchiveMacroCategory.category_id.in_(list(category_ids))
+        )
+        names: dict[int, str] = {}
+        for category_id, name in self.db.execute(stmt).all():
+            names[category_id] = name
+        return names
+
+    def _to_stopword_purge_log_dto(
+        self, row: ArchiveStopwordPurgeLog, macro_category_names: dict[int, str]
+    ) -> StopwordPurgeLogEntryDTO:
+        """Maps the row to the read contract, exposing the document *count* and not the ids."""
+        snapshot = row.purged_snapshot or {}
+        category_id = snapshot.get("macro_category_id")
+        return StopwordPurgeLogEntryDTO(
+            purge_id=row.purge_id,
+            purged_tag_id=row.purged_tag_id,
+            purged_name=row.purged_name,
+            document_count=len(row.document_ids or []),
+            synonym_names=list(row.synonym_names or []),
+            macro_category_name=(macro_category_names.get(category_id) if isinstance(category_id, int) else None),
+            changed_by=row.changed_by,
+            changed_at=row.changed_at,
+            undone_at=row.undone_at,
+            undone_by=row.undone_by,
+        )
 
     def get_relevance_count(self, limit: int) -> Sequence[TagRelevanceCount]:
         stmt = (
