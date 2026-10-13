@@ -9,6 +9,7 @@ import {
   purgeOrphanEntities,
   reclassifyEntity,
   renameEntity,
+  searchEntities,
   undoEntityMerge,
   type EntityPairSimilarity,
   type EntityRelevance,
@@ -30,6 +31,7 @@ import { Field } from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { Tabs } from "@/components/ui/Tabs";
+import { Typeahead, type TypeaheadOption } from "@/components/ui/Typeahead";
 import { PageBody } from "@/components/layout/PageBody";
 import { ACTION } from "@/lib/copy";
 import {
@@ -210,6 +212,12 @@ export function EntitiesRoute() {
           </p>
         ) : null}
         {purgeOrphans.error ? <ErrorState error={purgeOrphans.error} /> : null}
+
+        {/*
+          Above the tabs and collapsed by default: browsing is the screen's first job, and the card is
+          the third door into the merge panel — the one the two lists cannot reach.
+        */}
+        <MergeCard onMerged={invalidate} />
 
         <Tabs
           items={[
@@ -523,6 +531,123 @@ function EntityRow({
         </div>
       </Disclosure>
     </li>
+  );
+}
+
+/**
+ * A member of the card's own list: the pair the panel needs, plus the weight the type-ahead gave.
+ *
+ * The weight is the card's and not the panel's, because the panel shows `#id` and does not need it.
+ * It is what lets the archivist see which of the two spellings is the heavy one **before** choosing
+ * the canonical — the similarity rows cannot show it, and the type-ahead has it for free.
+ */
+type MergeCandidate = EntityCandidate & { hint: string };
+
+/**
+ * The third door into the merge panel: the pair the archivist writes by name.
+ *
+ * The other two doors are list-driven, and the archivist controls neither list. Relevância is ordered
+ * by weight and capped at ``RELEVANCE_PAGE_SIZE``, so two names carried by very different numbers of
+ * descriptions are never on the same page. Similaridade answers by trigram — the one measure that
+ * fails on the pair they are most certain about: ``SMU`` and ``Secretaria Municipal do Urbanismo``
+ * share no trigram run worth a threshold. So the pair they already know is one entity is the pair the
+ * screen is least likely to show them.
+ *
+ * Three decisions this card owns, and none of them is the panel's:
+ *
+ * * **the list is the card's** and does not consume the checkboxes of the relevance tab. Two candidate
+ *   sets that can silently diverge is how a panel ends up merging something the archivist never read;
+ * * **the open state is local**, not a fourth key in the URL: a half-built list is a draft, not a view
+ *   worth sending to a colleague;
+ * * **the irreversibility warning is not repeated** — the panel already states that each absorbed
+ *   entity enters the ledger before the write. One statement, one place.
+ */
+function MergeCard({ onMerged }: { onMerged: () => void }) {
+  const [members, setMembers] = useState<MergeCandidate[]>([]);
+
+  const add = (option: TypeaheadOption) => {
+    const entityId = Number(option.value);
+    // Deduped by id: picking the same name twice is one member, and the panel's canonical radio is
+    // still what decides which spelling survives.
+    setMembers((current) =>
+      current.some((member) => member.entity_id === entityId)
+        ? current
+        : [...current, { entity_id: entityId, name: option.label, hint: option.hint ?? "" }],
+    );
+  };
+
+  const remove = (entityId: number) =>
+    setMembers((current) => current.filter((member) => member.entity_id !== entityId));
+
+  const clear = () => setMembers([]);
+
+  return (
+    <Disclosure
+      triggerLabel="+ Mesclar pelo nome"
+      toggleLabel="Mesclar duas entidades escritas pelo nome"
+      header={
+        <div className="grid gap-1">
+          <span className="text-sm font-semibold">Mesclar pelo nome</span>
+          <span className="text-xs text-(--color-muted)">
+            Para o par que nenhuma lista aproxima: escreva as duas grafias e mescle. As caixas marcadas
+            na aba Relevância não entram aqui.
+          </span>
+        </div>
+      }
+    >
+      <div className="grid gap-3">
+        <Typeahead
+          placeholder="digite ao menos 2 letras: smu…"
+          emptyLabel="nenhuma entidade com esse trecho"
+          onSearch={async (term) =>
+            (await searchEntities(term)).map((result) => ({
+              value: String(result.entity_id),
+              label: result.name,
+              hint: `${labelOf(ENTITY_TYPE_LABEL, result.entity_type)} · ${descricoes(result.total_usage)}`,
+            }))
+          }
+          onPick={add}
+        />
+
+        {members.length === 0 ? (
+          <p className="text-xs text-(--color-muted)">
+            Nenhum nome escolhido ainda. Escreva as duas grafias que você já sabe que são uma só.
+          </p>
+        ) : (
+          <ul className="divide-y divide-(--color-line) text-xs">
+            {members.map((member) => (
+              <li key={member.entity_id} className="flex items-center justify-between gap-2 py-1.5">
+                <span className="min-w-0 truncate">
+                  {member.name}
+                  {member.hint ? <span className="text-(--color-muted)"> · {member.hint}</span> : null}
+                </span>
+                <Button size="sm" variant="ghost" onClick={() => remove(member.entity_id)}>
+                  {ACTION.remove.label}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {members.length < 2 ? (
+          <p className="text-xs text-(--color-muted)">
+            Um merge precisa de duas grafias, e abaixo disso nada é escrito.
+          </p>
+        ) : (
+          <MergePanel
+            members={members}
+            title="Mesclar os nomes escolhidos"
+            hint="A canônica é escolha sua. O desfazer de cada entidade absorvida fica no ledger, no fim desta tela."
+            onChanged={onMerged}
+            onDone={() => {
+              clear();
+              onMerged();
+            }}
+            onCancel={clear}
+          />
+        )}
+      </div>
+    </Disclosure>
   );
 }
 
