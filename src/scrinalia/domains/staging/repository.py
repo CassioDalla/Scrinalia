@@ -1,4 +1,6 @@
-from sqlalchemy import select
+from typing import Any
+
+from sqlalchemy import Select, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -19,14 +21,47 @@ class SqlRawRecordSource:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def next_batch(self, force: bool = False) -> list[RawRecord]:
-        """Pending records by CDC, or every record when ``force`` asks for a full re-parse."""
-        stmt = select(RawData.description_id, RawData.payload, RawData.content_hash, RawData.raw_title)
+    @staticmethod
+    def _with_pending(stmt: Select[Any], force: bool, after: str | None) -> Select[Any]:
+        """
+        The one definition of "pending", applied to whatever statement needs it.
+
+        The batch and the count both come through here, so "how many remain" cannot disagree with
+        "what the next run takes" — the same reason the archive side has one CDC key.
+
+        ``after`` is a keyset cursor on ``description_id`` and exists for the one case the CDC cannot
+        advance on its own: ``force`` bypasses the hash comparison, so a bounded forced re-parse
+        would otherwise re-read the same first page every run. It changes neither the CDC nor what
+        counts as pending — only where the window starts.
+        """
         if not force:
             stmt = stmt.outerjoin(StagingDocument, RawData.description_id == StagingDocument.description_id).where(
                 (StagingDocument.description_id.is_(None)) | (StagingDocument.raw_content_hash != RawData.content_hash)
             )
+        if after is not None:
+            stmt = stmt.where(RawData.description_id > after)
+        return stmt
+
+    def next_batch(self, force: bool = False, limit: int | None = None, after: str | None = None) -> list[RawRecord]:
+        """
+        Pending records by CDC, or every record when ``force`` asks for a full re-parse.
+
+        ``limit`` is applied **after** the CDC join, on the statement the join and the cursor already
+        filtered: a limit inside the join would change which records count as pending, because the
+        rows it excluded would never reach the comparison. The order is by ``description_id`` so a
+        bounded run is reproducible and a cursor can name where the next one starts.
+        """
+        stmt = self._with_pending(
+            select(RawData.description_id, RawData.payload, RawData.content_hash, RawData.raw_title), force, after
+        ).order_by(RawData.description_id)
+        if limit is not None:
+            stmt = stmt.limit(limit)
         return [RawRecord.model_validate(row._mapping) for row in self.db.execute(stmt)]
+
+    def count_pending(self, force: bool = False, after: str | None = None) -> int:
+        """How many raw records the same predicate still leaves pending."""
+        stmt = self._with_pending(select(func.count()).select_from(RawData), force, after)
+        return int(self.db.scalar(stmt) or 0)
 
 
 class SqlStagingDocumentWriter:

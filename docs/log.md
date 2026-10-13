@@ -944,3 +944,38 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   changed, the forced screen already reads the flag from `/auth/me` and calls `/auth/password`, and
   this change moves the enforcement behind that screen. **Not** looked at in a browser; the evidence
   is the integration test over HTTP, the unit guard test and the regenerated contract.
+
+## 2026-10-13 — the scrape and the transform can be bounded per run (#47, #48)
+
+- **Range:** `feed903..84bb5f0`
+- **Pages:**
+  - `guides/operate.md` — updated (the pipeline table said "Nine workers, in pipeline order" and
+    started at `transfer`; the page now names the two stages in front of it and documents their host
+    commands, their flags, how a bounded run resumes by itself, and that a forced one resumes only
+    with `--after`)
+  - `guides/operate.pt.md` — updated (the translation of the same two pieces)
+  - `guides/install.md` — updated (`ACERVO_SOURCE` also selects the origin's ports now, and
+    `--origin` overrides it for one run, which is that row's business)
+  - `guides/install.pt.md` — updated (the translation of that row)
+- **Why the round exists:** the report named `guides/install.md`, whose `sources:` include
+  `ingestion/sources.py`, because that module gained the origin's port registry. `operate.md` was
+  **not** reported stale — it declared neither ingestion nor staging — and that was the gap: the two
+  stages that produce everything the archive reads had no page, and this change turns them into a
+  batched operation an operator has to be able to run.
+- **What the round measured.** Full suite **1574 passed** (`uv run pytest`, with
+  `TEST_DATABASE_URL` pointed at the test database on 5434), `ruff check` and `ruff format --check`
+  green, `basedpyright` **0 errors**, `alembic check` reporting no new upgrade operations (no schema
+  change), `mkdocs build --strict` green.
+  The batched run was measured on a **throwaway database** — created on the test server, migrated
+  with `alembic upgrade head`, seeded through the repositories and dropped afterwards — because the
+  reference collection cannot reproduce the issue's "queue of thousands": measured there,
+  `scraping_queue` holds **100** rows, all `DONE`, with **100** `raw_data`, **100**
+  `staging_documents` and **101** `archive_documents`, and **nothing pending to transform**. On the
+  scratch database, with a 250-row queue and a port double in place of the site: `--limit 100` took
+  **100** and left **150**, then **100** and left **50**, then **50** and left **0**; the transform
+  bounded at 100 left staging at 100, 200 and 250 rows with 150, 50 and 0 pending; and the forced
+  run bounded by the cursor walked windows of 100, 100 and 50, ending with 0 left.
+- **What the round looked at.** No screen was **rendered**, and none needed to be: no SPA file
+  changed. The commands were exercised — the parsers by the unit tests, the workers by the
+  integration tests over the test database — but **no scrape against the origin site was run**, and
+  the numeric evidence above is synthetic in that sense. That is the gap this entry declares.

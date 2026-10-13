@@ -238,7 +238,7 @@ pipeline, not the boot — `ACERVO_SOURCE` is required by the staging transform 
 | `DB_NAME` | `scrinalia` | database name; the compose service creates it on first boot |
 | `PUBLIC_SCRAPE_URL` | unset | base URL of the source site the ingestion worker lists; required to scrape |
 | `PUBLIC_SCRAPE_DETAIL_URL` | unset | detail-page URL prefix the ingestion adapter builds each record from; required to scrape |
-| `ACERVO_SOURCE` | unset | names the origin whose field labels the staging transform reads (the only one shipped is `pmc`); **no default**, and a staging run fails fast without it |
+| `ACERVO_SOURCE` | unset | names the active origin — the field labels the staging transform reads and the ports the scrape builds; the only one shipped is `pmc`, `--origin` overrides it for one run, and there is **no default**: a staging run fails fast without it |
 | `ACERVO_LANGUAGE` | `pt-BR` | selects the language profile — stopwords, date grammar, plural rules, the full-text dictionary and the spaCy model. The full-text dictionary reaches a generated column, so changing it is a **migration**, not a restart |
 | `S3_ENDPOINT_URL` | unset | the S3-compatible endpoint (MinIO, Ceph, SeaweedFS, a cloud bucket); from a container, `localhost` is the container itself |
 | `S3_BUCKET_NAME` | unset | the bucket the thumbnails go to; it must already exist |
