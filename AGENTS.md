@@ -22,7 +22,9 @@ verification. `tsc`, ESLint and the Vite build were all green while 105 bracket-
 rendered nothing; only looking at the page found it. Give evidence with its number ("52.9 s with the
 OR, 1.4 s without, identical results") and name what you did **not** verify — `docs/log.md` has the
 form: *"not looked at in a browser; the evidence is `tsc`, ESLint, the Vite build"*. Never describe a
-screen, a query plan or a behaviour you did not observe.
+screen, a query plan or a behaviour you did not observe. A change that touches a screen MUST be
+rendered and the screenshot shown before it is called verified; the `render` rule file is the
+procedure, and a green build is not a substitute for it.
 
 **Rationale:** a confidently wrong statement is more expensive than a declared gap, and every rule file
 below exists because a plausible assumption was measured and found false.
@@ -219,4 +221,4 @@ A skill per topic. Open the one that owns what you are about to touch.
 - `commit` — the commit format and the DCO sign-off.
 - `documenter` — the procedure for a documentation triage round.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-09
+**Version**: 1.0.1 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-13
