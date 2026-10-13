@@ -818,3 +818,37 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   original name and no spelling row survives, which is the undo doing its job rather than the screen
   redrawing. The round's own artifacts were then removed — the scratch session and the ledger row it
   left — so the collection is as it was and no test write remains in its audit trail.
+
+## 2026-10-13 — the SPA stops re-declaring the contract's query shapes (no page changed)
+
+- **Range:** `e0c0720..HEAD`
+- **Pages:** **none**, and that is the verdict this entry records. The change lives inside
+  `apps/curator/src/api/`, and no page declares that path among its `sources:` — the freshness report
+  named no page for it. What changed is a **rule file**,
+  `.dsh/skills/curator-ui/SKILL.md`: it now states that a query shape is derived from the route and
+  never typed out, with the measured failure beside it.
+- **Why the round exists:** the last change to this surface (#86) added `entity_id` to the contract and
+  had to add it to the hand-written mirror by hand. Sizing that mirror found it had **already** lost a
+  field, and that seventeen more shapes shared the pattern. A convention with no gate is what principle V
+  is about, so the round closed the convention and left a test that fails on the next one.
+- **What the round measured.** `DocumentSearch` declared **14** keys against the route's **15**, missing
+  `is_anomaly`, and nothing failed: `CollectionRoute.toRequest` spreads a wider `CollectionSearch` into
+  it, the extra key survives the return type, and `openapi-fetch` sent it — so the screen filtered
+  correctly through a field its own type denied. What that was hiding, measured with a session against
+  the reference collection: `GET /api/v1/documents?is_anomaly=true` answers **28**, `?is_anomaly=false`
+  **73** (28 + 73 = 101, the whole collection), and a misspelled `?is_anomalyy=true` or a nonsense
+  `?non_sense=42` answers **101 with HTTP 200 and no warning** — an unknown query parameter is ignored,
+  not refused. A contract that renamed the filter would therefore have left the list unfiltered with a
+  chip on the screen saying it was filtered, and `tsc`, ESLint, the build and the suite green.
+  **19** shapes derive from their route now (three of them named), and the ten call sites that build a
+  one-key value inline — `query: { only_active: true }`, `query: { term, limit }` — are measured and left
+  alone: they are values, not declared shapes, and deriving them would change the client's own signature
+  and every caller. Measured: 1 528 tests passed (four of them the new gate), `tsc`, ESLint and the Vite
+  build green. The derivation needed **no** reinterpretation — the generated type already spells an
+  omitted filter `campo?: T | null` — and an earlier `Exclude<T[K], null>` mapping was measured to be
+  both unnecessary and wrong (it rejected two callers that legitimately hold `null`).
+- **What the round looked at.** The screen was **rendered**: `/acervo/lista?is_anomaly=true` against the
+  reference collection, with a scratch session created for the round and deleted after, the headless
+  shell driven over CDP. Seen in the pixels: the header reading **"28 descrições"** with the chip
+  **"Somente anomalias ✕"** and every row carrying its `anomalia` badge — the same 28 the route answers,
+  now filtering through a field the type declares instead of one it denied.

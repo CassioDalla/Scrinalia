@@ -337,27 +337,34 @@ export type WorkerRunStatus = WorkerRun["status"];
  */
 export type EngineSource = WorkerSettings["engine_source"];
 
-export type SearchMode = "lexical" | "semantic";
+/**
+ * Every filter the collection search accepts; they all live in the URL.
+ *
+ * **Derived from the contract, where it used to be written by hand.** The generated type already
+ * spells an omitted filter the way a caller hands one over — `is_anomaly?: boolean | null` — so the
+ * derivation is the type itself and there is nothing to reinterpret.
+ *
+ * The object it replaced declared fourteen keys against the route's fifteen: it had lost
+ * `is_anomaly`, and nothing failed, because ``CollectionRoute.toRequest`` spreads its own
+ * ``CollectionSearch`` into it and the extra key survives the return type, so `openapi-fetch` kept
+ * sending a filter the type said did not exist. The failure it was hiding is silent in the worst
+ * direction: an unknown query parameter is *ignored* and the route answers 200 with the whole set, so
+ * a contract that renamed `is_anomaly` would leave the list unfiltered with a chip on the screen
+ * saying it was filtered, and `tsc`, ESLint, the build and the suite all green.
+ * ``testing/unit/curator/test_api_query_shapes.py`` is the gate that keeps the next one derived.
+ */
+export type DocumentSearch = NonNullable<paths["/api/v1/documents"]["get"]["parameters"]["query"]>;
 
-/** Every filter the collection search accepts; they all live in the URL. */
-export type DocumentSearch = {
-  term?: string;
-  mode?: SearchMode;
-  typology_id?: number;
-  macro_category_id?: number;
-  level_id?: number;
-  ancestor_id?: string;
-  entity_type?: string;
-  /** One named entity by id: the filter an entity card expands into its descriptions with. */
-  entity_id?: number;
-  date_from?: string;
-  date_to?: string;
-  status?: ArchiveReviewStatus;
-  /** The facet key: a bare code, or ``RULE_MATCH:<rule name>``. */
-  anomaly_reason?: string;
-  limit?: number;
-  offset?: number;
-};
+/** The ranking mode, as the contract enumerates it and not as a second copy of the vocabulary. */
+export type SearchMode = NonNullable<DocumentSearch["mode"]>;
+
+/** The tag catalogue's filters: the contract's, for the same reason as the collection search's. */
+export type TagCatalogSearch = NonNullable<paths["/api/v1/taxonomy/tags/catalog"]["get"]["parameters"]["query"]>;
+
+/** The merge-proposal filters, derived from the route that reads them. */
+export type MergeProposalSearch = NonNullable<
+  paths["/api/v1/taxonomy/tags/merge-proposals"]["get"]["parameters"]["query"]
+>;
 
 export async function fetchInbox(): Promise<CurationInbox> {
   return unwrap<CurationInbox>(await client.GET("/api/v1/curation/inbox"));
@@ -406,11 +413,9 @@ export async function deleteDocument(
  * ``term`` is matched server-side against reference code, title and id, because the trail grows
  * without bound and a client-side filter would only ever see the page it was given.
  */
-export async function fetchDeletions(params: {
-  term?: string;
-  limit?: number;
-  offset?: number;
-}): Promise<DocumentDeletionList> {
+export async function fetchDeletions(
+  params: NonNullable<paths["/api/v1/documents/deletions"]["get"]["parameters"]["query"]>,
+): Promise<DocumentDeletionList> {
   return unwrap<DocumentDeletionList>(
     await client.GET("/api/v1/documents/deletions", { params: { query: params } }),
   );
@@ -649,13 +654,7 @@ export async function fetchMacroCategories(onlyActive = false): Promise<MacroCat
  * The read the home screen's cards land on: the type-ahead cannot answer "list the tags nobody has
  * decided about", because it requires a term and returns a top-N by weight.
  */
-export async function fetchTagCatalog(params: {
-  subject_state?: TagCatalogState;
-  macro_category_id?: number;
-  term?: string;
-  limit?: number;
-  offset?: number;
-}): Promise<TagCatalogResponse> {
+export async function fetchTagCatalog(params: TagCatalogSearch): Promise<TagCatalogResponse> {
   return unwrap<TagCatalogResponse>(
     await client.GET("/api/v1/taxonomy/tags/catalog", { params: { query: params } }),
   );
@@ -726,24 +725,15 @@ export async function fetchTagRelevance(
  * shows: the pairs are the evidence a merge proposal is built from, and hiding them would make the
  * suggestion look arbitrary.
  */
-export async function fetchSimilarTags(params: {
-  target?: string;
-  threshold?: number;
-}): Promise<TagPairSimilarity[] | TagSimilarity[]> {
+export async function fetchSimilarTags(
+  params: NonNullable<paths["/api/v1/taxonomy/tags/similar"]["get"]["parameters"]["query"]>,
+): Promise<TagPairSimilarity[] | TagSimilarity[]> {
   return unwrap<TagPairSimilarity[] | TagSimilarity[]>(
     await client.GET("/api/v1/taxonomy/tags/similar", { params: { query: params } }),
   );
 }
 
-export async function fetchMergeProposals(params: {
-  status?: ProposalStatus;
-  /** The agrupamento's reason, as the contract enumerates it: TRIGRAM, PLURAL or MIXED. */
-  reason?: MergeReason;
-  min_documents?: number;
-  flagged_only?: boolean;
-  limit?: number;
-  offset?: number;
-}): Promise<TagMergeProposalList> {
+export async function fetchMergeProposals(params: MergeProposalSearch): Promise<TagMergeProposalList> {
   return unwrap<TagMergeProposalList>(
     await client.GET("/api/v1/taxonomy/tags/merge-proposals", { params: { query: params } }),
   );
@@ -788,12 +778,9 @@ export async function applyMergeBatch(body: {
  * name — because "where did this spelling go?" does not say which side it was on, and the trail grows
  * without bound: a filter over the loaded page would answer "não está aqui" for a row that is.
  */
-export async function fetchMergeLog(params: {
-  include_undone?: boolean;
-  q?: string;
-  limit?: number;
-  offset?: number;
-}): Promise<MergeLogList> {
+export async function fetchMergeLog(
+  params: NonNullable<paths["/api/v1/taxonomy/tags/merge-log"]["get"]["parameters"]["query"]>,
+): Promise<MergeLogList> {
   return unwrap<MergeLogList>(await client.GET("/api/v1/taxonomy/tags/merge-log", { params: { query: params } }));
 }
 
@@ -845,11 +832,9 @@ export async function fetchHierarchyVocabulary(): Promise<HierarchyVocabulary> {
   return unwrap<HierarchyVocabulary>(await client.GET("/api/v1/hierarchy/flags"));
 }
 
-export async function fetchHierarchyPlans(params: {
-  status?: PlanStatus;
-  limit?: number;
-  offset?: number;
-}): Promise<HierarchyPlanList> {
+export async function fetchHierarchyPlans(
+  params: NonNullable<paths["/api/v1/hierarchy/plans"]["get"]["parameters"]["query"]>,
+): Promise<HierarchyPlanList> {
   return unwrap<HierarchyPlanList>(
     await client.GET("/api/v1/hierarchy/plans", { params: { query: params } }),
   );
@@ -888,12 +873,9 @@ export async function applyMaterialisation(body: MaterialisationRequest): Promis
 }
 
 /** The materialisation ledger, filtered by author or note — the two fields a run is recognised by. */
-export async function fetchMaterialisationLog(params: {
-  include_undone?: boolean;
-  q?: string;
-  limit?: number;
-  offset?: number;
-}): Promise<MaterialisationLog> {
+export async function fetchMaterialisationLog(
+  params: NonNullable<paths["/api/v1/hierarchy/materialisation/log"]["get"]["parameters"]["query"]>,
+): Promise<MaterialisationLog> {
   return unwrap<MaterialisationLog>(
     await client.GET("/api/v1/hierarchy/materialisation/log", { params: { query: params } }),
   );
@@ -987,11 +969,11 @@ export async function fetchSubjectExclusions(): Promise<string[]> {
  * hallucinate and costs no inference. What the route adds is visibility — the guard has been
  * skipping these terms inside the classifier while ``source='RULE'`` sat unused in the schema.
  */
-export async function fetchSubjectExclusionSuggestions(params: {
-  limit?: number;
-  offset?: number;
-  include_excluded?: boolean;
-} = {}): Promise<SubjectExclusionSuggestionResponse> {
+export async function fetchSubjectExclusionSuggestions(
+  params: NonNullable<
+    paths["/api/v1/taxonomy/tags/subject-exclusions/suggestions"]["get"]["parameters"]["query"]
+  > = {},
+): Promise<SubjectExclusionSuggestionResponse> {
   return unwrap<SubjectExclusionSuggestionResponse>(
     await client.GET("/api/v1/taxonomy/tags/subject-exclusions/suggestions", { params: { query: params } }),
   );
@@ -1037,10 +1019,9 @@ export async function suggestMacroCategories(body: {
 
 // --- The named entities: relevance, similarity, merge, reclassification and the vetoes ---------
 
-export async function fetchEntityRelevance(params: {
-  entity_type?: EntityType;
-  limit?: number;
-}): Promise<EntityRelevanceResponse> {
+export async function fetchEntityRelevance(
+  params: NonNullable<paths["/api/v1/taxonomy/entities/relevance"]["get"]["parameters"]["query"]>,
+): Promise<EntityRelevanceResponse> {
   return unwrap<EntityRelevanceResponse>(
     await client.GET("/api/v1/taxonomy/entities/relevance", { params: { query: params } }),
   );
@@ -1053,11 +1034,9 @@ export async function fetchEntityRelevance(params: {
  * the neighbours of the name I asked about", a ``EntityPairSimilarity`` row is "these two are
  * alike". Rendering one as the other would invent a side that does not exist.
  */
-export async function fetchSimilarEntities(params: {
-  target_name?: string;
-  entity_type?: EntityType;
-  threshold?: number;
-}): Promise<EntitySimilarityResponse> {
+export async function fetchSimilarEntities(
+  params: NonNullable<paths["/api/v1/taxonomy/entities/similar"]["get"]["parameters"]["query"]>,
+): Promise<EntitySimilarityResponse> {
   return unwrap<EntitySimilarityResponse>(
     await client.GET("/api/v1/taxonomy/entities/similar", { params: { query: params } }),
   );
@@ -1084,12 +1063,9 @@ export async function previewEntityMerge(body: {
  * ``q`` is matched **server-side against both sides** of each entry — the absorbed and the canonical
  * name — because "where did this spelling go?" does not say which side it was on.
  */
-export async function fetchEntityMergeLog(params: {
-  include_undone?: boolean;
-  q?: string;
-  limit?: number;
-  offset?: number;
-}): Promise<EntityMergeLogList> {
+export async function fetchEntityMergeLog(
+  params: NonNullable<paths["/api/v1/taxonomy/entities/merge-log"]["get"]["parameters"]["query"]>,
+): Promise<EntityMergeLogList> {
   return unwrap<EntityMergeLogList>(
     await client.GET("/api/v1/taxonomy/entities/merge-log", { params: { query: params } }),
   );
@@ -1185,13 +1161,9 @@ export async function unbanNerExclusions(body: { words: string[] }): Promise<Ner
  * structural question, and the one a batch can settle). ``entity_type`` narrows it to a category —
  * the same selection the batch writes — and ``all`` hides nothing.
  */
-export async function fetchCrossDomainConflicts(params: {
-  threshold?: number;
-  pair_kind?: ConflictPairKindFilter;
-  entity_type?: EntityType;
-  limit?: number;
-  offset?: number;
-}): Promise<CrossDomainConflictPage> {
+export async function fetchCrossDomainConflicts(
+  params: NonNullable<paths["/api/v1/taxonomy/conflicts/cross-domain"]["get"]["parameters"]["query"]>,
+): Promise<CrossDomainConflictPage> {
   return unwrap<CrossDomainConflictPage>(
     await client.GET("/api/v1/taxonomy/conflicts/cross-domain", { params: { query: params } }),
   );
@@ -1204,7 +1176,9 @@ export async function fetchCrossDomainConflicts(params: {
  * decisions cannot appear in a trigram join. Each row says whether its two sides still exist, which
  * is what separates history from work that is still pending.
  */
-export async function fetchJudgedConflicts(params: { limit?: number; offset?: number } = {}): Promise<JudgedConflictPage> {
+export async function fetchJudgedConflicts(
+  params: NonNullable<paths["/api/v1/taxonomy/conflicts/judged"]["get"]["parameters"]["query"]> = {},
+): Promise<JudgedConflictPage> {
   return unwrap<JudgedConflictPage>(
     await client.GET("/api/v1/taxonomy/conflicts/judged", { params: { query: params } }),
   );
@@ -1250,11 +1224,9 @@ export async function resolveConflictBatch(body: ConflictBatchRequest): Promise<
 }
 
 /** The ledger of the resolutions: what was written, by whom, and what was reversed. */
-export async function fetchConflictResolutions(params: {
-  include_undone?: boolean;
-  limit?: number;
-  offset?: number;
-} = {}): Promise<ConflictResolutionLogList> {
+export async function fetchConflictResolutions(
+  params: NonNullable<paths["/api/v1/taxonomy/conflicts/resolutions"]["get"]["parameters"]["query"]> = {},
+): Promise<ConflictResolutionLogList> {
   return unwrap<ConflictResolutionLogList>(
     await client.GET("/api/v1/taxonomy/conflicts/resolutions", { params: { query: params } }),
   );
@@ -1276,10 +1248,9 @@ export async function undoConflictResolution(resolutionId: number): Promise<{ me
 
 // --- Quality of the input data: the repeated excerpts ------------------------------------------
 
-export async function fetchTextTemplates(params: {
-  status?: TemplateStatus;
-  only_active?: boolean;
-}): Promise<TextTemplate[]> {
+export async function fetchTextTemplates(
+  params: NonNullable<paths["/api/v1/quality/text-templates"]["get"]["parameters"]["query"]>,
+): Promise<TextTemplate[]> {
   return unwrap<TextTemplate[]>(
     await client.GET("/api/v1/quality/text-templates", { params: { query: params } }),
   );
@@ -1408,12 +1379,9 @@ export async function updateLevel(
  * far below it to go. The screen builds the indentation from ``path``/``parent_id``; the API does
  * not return nested children, because a subtree read is one query and not a walk per level.
  */
-export async function fetchHierarchyTree(params: {
-  root_id?: string;
-  max_depth?: number;
-  limit?: number;
-  offset?: number;
-}): Promise<HierarchyTree> {
+export async function fetchHierarchyTree(
+  params: NonNullable<paths["/api/v1/hierarchy/tree"]["get"]["parameters"]["query"]>,
+): Promise<HierarchyTree> {
   return unwrap<HierarchyTree>(
     await client.GET("/api/v1/hierarchy/tree", { params: { query: params } }),
   );
@@ -1461,13 +1429,9 @@ export async function fetchSystemWorkerSettings(): Promise<SystemWorkerSettings>
 }
 
 /** The execution ledger, newest first; the filters are applied server-side. */
-export async function fetchSystemRuns(params: {
-  worker?: string;
-  status?: WorkerRunStatus;
-  fingerprint?: string;
-  limit?: number;
-  offset?: number;
-}): Promise<WorkerRunList> {
+export async function fetchSystemRuns(
+  params: NonNullable<paths["/api/v1/system/runs"]["get"]["parameters"]["query"]>,
+): Promise<WorkerRunList> {
   return unwrap<WorkerRunList>(await client.GET("/api/v1/system/runs", { params: { query: params } }));
 }
 
@@ -1477,11 +1441,9 @@ export async function fetchSystemRuns(params: {
  * The grouping key is computed by the database from the error text, so this is one row per cause and
  * not one per execution — which is the whole point of the screen.
  */
-export async function fetchSystemFailures(params: {
-  days?: number;
-  worker?: string;
-  limit?: number;
-}): Promise<FailureGroupList> {
+export async function fetchSystemFailures(
+  params: NonNullable<paths["/api/v1/system/failures"]["get"]["parameters"]["query"]>,
+): Promise<FailureGroupList> {
   return unwrap<FailureGroupList>(await client.GET("/api/v1/system/failures", { params: { query: params } }));
 }
 
