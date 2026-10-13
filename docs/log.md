@@ -819,39 +819,36 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   redrawing. The round's own artifacts were then removed — the scratch session and the ledger row it
   left — so the collection is as it was and no test write remains in its audit trail.
 
-## 2026-10-13 — the merge card fed by the type-ahead (issue #87)
+## 2026-10-13 — the SPA stops re-declaring the contract's query shapes (no page changed)
 
 - **Range:** `e0c0720..HEAD`
-- **Pages:**
-  - `guides/curate.md` — **updated**: *Entidades — `/entidades/lista`* now says the merge has **three
-    doors** — the selection on Relevância, a pair on Similaridade and the **Mesclar pelo nome** card
-    above the tabs — and why the third exists: the other two are list-driven, relevance is ordered by
-    weight and capped, and similarity is trigram, the one measure that fails on the pair the archivist
-    is most sure about. It names the card's three decisions: the type-ahead with the API's own
-    two-character floor, each name's weight shown so the canonical is chosen with the numbers in view,
-    and a list of its own that does not consume the relevance checkboxes.
-  - `guides/curate.pt.md` — **updated**: the translation of the same.
-- **Why the round exists:** the screen had two ways into the merge panel and the archivist controls
-  neither list, so the pair they already know is one entity was the pair the screen was least likely
-  to show them. The freshness report named `guides/curate.md` for the SPA commit.
-- **What the round measured.** Measured: 1 528 tests passed, `basedpyright` 0 errors, the SPA's `tsc`,
-  ESLint and Vite build green, and `mkdocs build --strict` clean. The acceptance pair was measured
-  against the reference collection before it was rendered: `smu` (entity 45) carries **68**
-  descriptions and `smcs secretaria municipal de comunicação social` (entity 349) carries **1**, so the
-  relevance ranking — capped at fifty rows, whose lightest entry carries two — can never show both;
-  and `similarity('smu', 'smcs secretaria municipal de comunicação social')` is **0.045**, far under
-  any threshold the similarity tab accepts. Neither list reaches the pair; the card does.
-  `testing/unit/curator/test_entities_merge_doors.py` is the gate for the shape: it fails when the
-  write gains a second call site, when a door stops rendering `<MergePanel`, or when the card starts
-  calling the write, the preview or `navigate` itself. It is a **textual** gate and says so — the SPA
-  has no test runner of its own.
-- **What the round looked at.** The screen was **rendered** against the reference collection: the
-  built SPA served by the API, a scratch session created for the round and deleted after, the headless
-  shell driven over CDP. Seen in the pixels: the card **collapsed** between the irreversibility
-  `Notice` and the tabs, with the labelled "+ Mesclar pelo nome" button; and the card **open** after
-  the two names were typed and picked one at a time, each row carrying its own weight ("smu · Local ·
-  68 descrições", "smcs secretaria municipal de comunicação social · Local · 1 descrição"), with the
-  panel below stating the **real** plan — "1 descrição(ões) passam a carregar smu · 1 vínculo(s)
-  reescrito(s) · 1 entidade(s) absorvida(s)" — and its warning once, not twice. **Not** verified in
-  pixels: an actual merge from this card. The round wrote nothing to the collection, and the write
-  itself rests on the suite that pins the three doors to the one call site.
+- **Pages:** **none**, and that is the verdict this entry records. The change lives inside
+  `apps/curator/src/api/`, and no page declares that path among its `sources:` — the freshness report
+  named no page for it. What changed is a **rule file**,
+  `.dsh/skills/curator-ui/SKILL.md`: it now states that a query shape is derived from the route and
+  never typed out, with the measured failure beside it.
+- **Why the round exists:** the last change to this surface (#86) added `entity_id` to the contract and
+  had to add it to the hand-written mirror by hand. Sizing that mirror found it had **already** lost a
+  field, and that seventeen more shapes shared the pattern. A convention with no gate is what principle V
+  is about, so the round closed the convention and left a test that fails on the next one.
+- **What the round measured.** `DocumentSearch` declared **14** keys against the route's **15**, missing
+  `is_anomaly`, and nothing failed: `CollectionRoute.toRequest` spreads a wider `CollectionSearch` into
+  it, the extra key survives the return type, and `openapi-fetch` sent it — so the screen filtered
+  correctly through a field its own type denied. What that was hiding, measured with a session against
+  the reference collection: `GET /api/v1/documents?is_anomaly=true` answers **28**, `?is_anomaly=false`
+  **73** (28 + 73 = 101, the whole collection), and a misspelled `?is_anomalyy=true` or a nonsense
+  `?non_sense=42` answers **101 with HTTP 200 and no warning** — an unknown query parameter is ignored,
+  not refused. A contract that renamed the filter would therefore have left the list unfiltered with a
+  chip on the screen saying it was filtered, and `tsc`, ESLint, the build and the suite green.
+  **19** shapes derive from their route now (three of them named), and the ten call sites that build a
+  one-key value inline — `query: { only_active: true }`, `query: { term, limit }` — are measured and left
+  alone: they are values, not declared shapes, and deriving them would change the client's own signature
+  and every caller. Measured: 1 528 tests passed (four of them the new gate), `tsc`, ESLint and the Vite
+  build green. The derivation needed **no** reinterpretation — the generated type already spells an
+  omitted filter `campo?: T | null` — and an earlier `Exclude<T[K], null>` mapping was measured to be
+  both unnecessary and wrong (it rejected two callers that legitimately hold `null`).
+- **What the round looked at.** The screen was **rendered**: `/acervo/lista?is_anomaly=true` against the
+  reference collection, with a scratch session created for the round and deleted after, the headless
+  shell driven over CDP. Seen in the pixels: the header reading **"28 descrições"** with the chip
+  **"Somente anomalias ✕"** and every row carrying its `anomalia` badge — the same 28 the route answers,
+  now filtering through a field the type declares instead of one it denied.
