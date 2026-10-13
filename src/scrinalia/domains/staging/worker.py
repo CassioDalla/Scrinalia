@@ -118,6 +118,15 @@ def run_staging_pipeline(
         f"🎯 Staging Pipeline Completed! Success: {success} | failures: {failures} | still pending: {remaining}"
     )
 
+    # The cursor is the one thing a bounded forced run cannot derive from the CDC, and without
+    # naming it the operator of a batched re-parse has no way to ask for the next window. The batch
+    # is ordered by ``description_id``, so its last record is where the next one opens.
+    if force and limit is not None:
+        logger.info(
+            f"↩️ Forced window ended at {pending_records[-1].description_id}: "
+            f"resume with --force --limit {limit} --after {pending_records[-1].description_id}"
+        )
+
 
 def _build_parser() -> argparse.ArgumentParser:
     """
