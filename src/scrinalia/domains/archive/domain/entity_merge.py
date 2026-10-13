@@ -11,6 +11,8 @@ two that are specific to this axis: a cluster can mix ``ORG``/``PER``/``LOC``, a
 rename of the canonical is part of the same write.
 """
 
+from dataclasses import dataclass
+
 #: The absorbed member carries a type different from the canonical's. The spellings become
 #: synonyms of the canonical's category, so a ``PER`` name absorbed into an ``ORG`` starts
 #: resolving as an organisation — a decision the archivist has to see before the click.
@@ -28,3 +30,34 @@ REVIEW_MEMBER_WITH_DIGITS = "MEMBER_WITH_DIGITS"
 #: The absorbed entity carries no description. Absorbing it loses no link, but it is the class
 #: of row the orphan purge targets, and it is worth telling apart from a name the collection uses.
 REVIEW_ORPHAN_MEMBER = "ORPHAN_MEMBER"
+
+#: The two writes the entity ledger records. A merge absorbs an entity and brings it back on undo; a
+#: rename only changed the canonical's spelling, so it has no absorbed entity. They share one table
+#: because the undo, the trail and the screen are the same for both, and a second ledger would be a
+#: second definition of "put the name back" (AGENTS.md IV). The column's check constraint accepts
+#: exactly these two values.
+KIND_MERGE = "MERGE"
+KIND_RENAME = "RENAME"
+
+
+@dataclass(frozen=True)
+class EntityRenameRecord:
+    """
+    What one rename changed, captured **before** the write so the ledger can reverse it without loss.
+
+    A frozen dataclass and not a Pydantic model: it is computed inside the domain and only handed
+    around (the ``api`` rule file's split), and it never crosses the HTTP boundary.
+
+    ``synonym_created`` answers "did this rename plant the old spelling?", which is what the undo has
+    to know: it deletes the spelling it planted and moves back the one that already existed.
+    ``synonym_previous_entity_id`` is the target that pre-existed, recorded even when the caller asked
+    for no synonym at all — then the state is the one the undo must leave alone, and pointing the
+    spelling back to where it already points is exactly that.
+    """
+
+    entity_id: int
+    entity_type: str
+    previous_name: str
+    new_name: str
+    synonym_created: bool
+    synonym_previous_entity_id: int | None

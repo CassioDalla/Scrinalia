@@ -17,6 +17,7 @@ from scrinalia.api.schemas.taxonomy import (
     ConflictResolutionResponse,
     EntityMergePreviewRequest,
     EntityMergeRequest,
+    EntityRenameRequest,
     MacroCategoryCreateRequest,
     MacroCategoryUpdateRequest,
     MergeBatchRequest,
@@ -79,6 +80,7 @@ from scrinalia.domains.archive.schemas.entity_schema import (
     EntityReclassifyResponse,
     EntityRelevance,
     EntityRelevanceResponse,
+    EntityRenameResponse,
     EntitySimilarityResponse,
     NerExclusion,
     NerExclusionBanResponse,
@@ -769,6 +771,40 @@ class TaxonomyController(Controller):
             code=RouteMessageCode.ENTITY_RECLASSIFIED,
             message="Entidade reclassificada com sucesso e sinônimo de ancoragem gerado.",
             new_type=data.new_type,
+        )
+
+    @patch("/entities/{entity_id:int}", opt={"access": Access.CURATE}, sync_to_thread=True)
+    def rename_entity(
+        self,
+        entity_service: NamedDependency[EntityService],
+        entity_id: FromPath[int],
+        data: EntityRenameRequest,
+        current_user: NamedDependency[AuthenticatedUser],
+    ) -> EntityRenameResponse:
+        """
+        Renames one name, with an undo of its own.
+
+        Not a side effect of absorbing a twin — that is the merge — and not a label change either: the
+        previous spelling stays anchored as a synonym unless the archivist said the edit was a typo,
+        which is what ``keep_old_synonym`` decides. The ledger row is the undo the screen offers, the
+        same one the merge writes; a name another entity already carries is a **409** that names the
+        twin, because that twin is the merge case and not a collision to invent.
+        """
+        renamed, merge_id = entity_service.rename_entity(
+            entity_id,
+            data.new_name,
+            keep_old_synonym=data.keep_old_synonym,
+            changed_by=current_user.author,
+            note=data.note,
+        )
+        return EntityRenameResponse(
+            code=RouteMessageCode.ENTITY_RENAMED,
+            message="Entidade renomeada com sucesso.",
+            entity_id=renamed.entity_id,
+            name=renamed.name,
+            entity_type=renamed.entity_type,
+            merge_id=merge_id,
+            kept_old_spelling=data.keep_old_synonym,
         )
 
     @delete("/entities/{entity_id:int}", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)

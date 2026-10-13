@@ -729,3 +729,126 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   pixels: a merge actually written and undone from the screen. Applying one would have written to the
   reference collection's ledger, so the write rests on the integration suite, which drives the real
   repository and the real ledger.
+
+## 2026-10-13 — an entity opens into its descriptions (issue #86)
+
+- **Range:** `08500a9..HEAD`
+- **Pages:**
+  - `guides/curate.md` — **updated**: *Entidades — `/entidades/lista`* gained the read half of the
+    screen, which it never described. A name expands into the **descriptions that carry it**
+    (`GET /api/v1/documents` with the new `entity_id` filter, paged ten at a time inside the card);
+    the badge above and the list's `total` are one number counted twice, pinned by
+    `testing/integration/api/controller/test_entity_documents.py`; a row opens the read-only preview
+    the category screen already uses, and its "Editar" lands on the dossier's **Assuntos** tab, which
+    is where a description's entities are added and removed. `?aberta=`, `?offset=` and `?descricao=`
+    are named as the state the URL carries.
+  - `guides/curate.pt.md` — **updated**: the translation of the same paragraph.
+- **Why the round exists:** the section listed the screen's decisions and said nothing about reading
+  it, while the card promised "3.152 descrições" and the screen had no way to show which ones. The
+  freshness report named `guides/curate.md` for the SPA and API commits of this change.
+- **What the round measured.** The pairing was measured on the **reference collection**, through the
+  routes the screen calls and not against a fixture: `entity_id=10` (*Curitiba*) answers
+  `total=3152` where the card shows `total_usage=3152`, and `2679`/`2670` answer `2467` against
+  `2467`. Measured: 1 513 tests passed, `basedpyright` 0 errors, `alembic check` reports no drift (the
+  change adds no migration), and the SPA's `tsc`, ESLint and Vite build are green. The new test seeds
+  one description carrying **two** entities on purpose, so the join it forbids would answer 2 where
+  the card promises 1 — the same trap `test_category_documents.py` pins for the drawers.
+- **Found and deliberately not fixed.** `EntityRepository.get_relevance_count` **inner-joins** the
+  link table, so the ranking never lists an entity that no description carries: `EntityRow`'s orphan
+  branch, and the per-row *Excluir* button with it, is unreachable from the Relevância tab. That is a
+  separate defect about a separate decision (whether the ranking should left-join and list orphans at
+  zero), so it was left alone and pinned as measured in
+  `test_an_orphan_is_not_ranked_and_its_expansion_is_empty`.
+- **What the round looked at.** The screen was **rendered**, not inferred: the built SPA served by the
+  API (`create_app()` mounts `apps/curator/dist`) against the reference collection, with a scratch
+  session created for the round and deleted after, and the headless shell driven over CDP. Seen in the
+  pixels: `/entidades/lista?aberta=10` with the *Curitiba* card open, the badge "3.152 descrições"
+  above the expansion's own "1–10 de 3.152", the controls (checkbox, `tipo`, *Excluir*) outside the
+  toggle and the name and badges inside it — which is the click that used to mean two things; the
+  preview panel over the list, rendering the shared `DescriptionPreview`; and
+  `/assuntos/categorias?aberta=4` still rendering its own expansion after the component was lifted out
+  of `CategoriesRoute.tsx` ("2.312 descrições" against "1–10 de 2.312"). Read from the DOM and not
+  inferred: the entity panel's *Editar* carries `href="/acervo/53617?aba=assuntos"`, and the category
+  panel's still carries `?aba=descricao`. **Not** verified in pixels: the empty expansion ("Nenhuma
+  descrição carrega este nome"), unreachable from this screen for the reason above, and any write —
+  the round only read.
+
+## 2026-10-13 — renaming a name, with an undo (issue #85)
+
+- **Range:** `6c79880..HEAD`
+- **Pages:**
+  - `guides/curate.md` — **updated**: *Entidades — `/entidades/lista`* gained its fourth decision,
+    **Renomear** (`PATCH /api/v1/taxonomy/entities/{entity_id}`), with the three facts the screen has
+    to state: the previous spelling stays anchored as a synonym unless `keep_old_synonym` is turned
+    off, the write leaves one `RENAME` row in the merge's own ledger so the ledger's "desfazer"
+    reverses it, and a spelling another entity already carries is a **409** that names the twin and
+    points at the merge. The summary table's row now says the rename is reversible, and the read
+    paragraph names the card's second tab, which is where the rename lives.
+  - `guides/curate.pt.md` — **updated**: the translation of the same.
+  - `guides/data-model.md` — **updated**: the `archive_entity_merge_log` row now says the table holds
+    a **merge** (one row per absorbed entity) or a **rename** (one per name), and names `kind` as the
+    checked discriminator the undo branches on.
+  - `guides/data-model.pt.md` — **updated**: the translation of the same.
+- **Why the round exists:** the name was the one field of the entity vocabulary with no write of its
+  own. The rename already existed in the repository and the service — with a test, and shared with the
+  merge's optional rename — but no route reached it, and the screen's only rename field lived *inside*
+  the merge panel, so a plain typo had no path that did not absorb another entity. The freshness
+  report named `guides/curate.md` for the API and SPA commits of this change.
+- **What the round measured.** Measured: 1 524 tests passed, `basedpyright` 0 errors, and the
+  migration applied, reversed and re-applied on the reference database with `alembic check` reporting
+  no drift. The write and its reverse are pinned by the integration suite against the real repository:
+  the rename leaves exactly one `RENAME` row (no absorbed entity, no links), the undo restores the
+  name and drops the spelling the rename planted, `keep_old_synonym=False` writes no spelling at all,
+  the collision raises `DuplicateEntityNameError` with the twin in `details` **before** the write, and
+  a **merge with a rename leaves one row per absorbed entity and no `RENAME` row** — the trap the
+  shared writer would otherwise have created. `refusalMessage` is what turns that payload into the
+  sentence, so the copy the archivist reads is the interface's, not the server's.
+- **What the round looked at.** The screen was **rendered** against the reference collection
+  (`scrinalia_zeroed`, the ~100-description collection, already at head): the built SPA served by the
+  API, a scratch session created for the round and deleted after, and the headless shell driven over
+  CDP. Seen in the pixels: `/entidades/lista` with the row's **Renomear** in `actions`, outside the
+  toggle, and the card opened by it on the **Editar** tab, with the name input and the "manter a
+  grafia antiga como sinônimo" box checked; the same form refusing `curitiba` with "Já existe uma
+  entidade chamada \"curitiba\". Mescle as duas em vez de renomear." and the request reference, with
+  the row still reading `paço da liberdade` — the refusal happened before the write; and the ledger
+  card, reading **"paço da liberdade → paço da liberdade de curitiba · renomeação · 13/10/2026, 15:21
+  · por Cassio"**, which is the rename applied through the route on that collection. The **desfazer**
+  was then clicked *on the screen*, and the ledger row came back as "desfeito em 13/10/2026, 15:23"
+  with the row reading `paço da liberdade` again; read back from the database, the entity carries its
+  original name and no spelling row survives, which is the undo doing its job rather than the screen
+  redrawing. The round's own artifacts were then removed — the scratch session and the ledger row it
+  left — so the collection is as it was and no test write remains in its audit trail.
+
+## 2026-10-13 — the SPA stops re-declaring the contract's query shapes (no page changed)
+
+- **Range:** `e0c0720..HEAD`
+- **Pages:** **none**, and that is the verdict this entry records. The change lives inside
+  `apps/curator/src/api/`, and no page declares that path among its `sources:` — the freshness report
+  named no page for it. What changed is a **rule file**,
+  `.dsh/skills/curator-ui/SKILL.md`: it now states that a query shape is derived from the route and
+  never typed out, with the measured failure beside it.
+- **Why the round exists:** the last change to this surface (#86) added `entity_id` to the contract and
+  had to add it to the hand-written mirror by hand. Sizing that mirror found it had **already** lost a
+  field, and that seventeen more shapes shared the pattern. A convention with no gate is what principle V
+  is about, so the round closed the convention and left a test that fails on the next one.
+- **What the round measured.** `DocumentSearch` declared **14** keys against the route's **15**, missing
+  `is_anomaly`, and nothing failed: `CollectionRoute.toRequest` spreads a wider `CollectionSearch` into
+  it, the extra key survives the return type, and `openapi-fetch` sent it — so the screen filtered
+  correctly through a field its own type denied. What that was hiding, measured with a session against
+  the reference collection: `GET /api/v1/documents?is_anomaly=true` answers **28**, `?is_anomaly=false`
+  **73** (28 + 73 = 101, the whole collection), and a misspelled `?is_anomalyy=true` or a nonsense
+  `?non_sense=42` answers **101 with HTTP 200 and no warning** — an unknown query parameter is ignored,
+  not refused. A contract that renamed the filter would therefore have left the list unfiltered with a
+  chip on the screen saying it was filtered, and `tsc`, ESLint, the build and the suite green.
+  **19** shapes derive from their route now (three of them named), and the ten call sites that build a
+  one-key value inline — `query: { only_active: true }`, `query: { term, limit }` — are measured and left
+  alone: they are values, not declared shapes, and deriving them would change the client's own signature
+  and every caller. Measured: 1 528 tests passed (four of them the new gate), `tsc`, ESLint and the Vite
+  build green. The derivation needed **no** reinterpretation — the generated type already spells an
+  omitted filter `campo?: T | null` — and an earlier `Exclude<T[K], null>` mapping was measured to be
+  both unnecessary and wrong (it rejected two callers that legitimately hold `null`).
+- **What the round looked at.** The screen was **rendered**: `/acervo/lista?is_anomaly=true` against the
+  reference collection, with a scratch session created for the round and deleted after, the headless
+  shell driven over CDP. Seen in the pixels: the header reading **"28 descrições"** with the chip
+  **"Somente anomalias ✕"** and every row carrying its `anomalia` badge — the same 28 the route answers,
+  now filtering through a field the type declares instead of one it denied.

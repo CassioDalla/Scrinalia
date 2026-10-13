@@ -178,6 +178,140 @@ def _entity_log_entry(**overrides):
 
 
 # ==========================================
+# RENAMING ONE NAME (issue #85)
+# ==========================================
+
+
+def test_renaming_one_name_answers_the_new_spelling_and_the_undo(client: TestClient, db_session, generate_user) -> None:
+    """
+    The pencil on the row: one write, its ledger row, and the author from the session.
+
+    Driven through the route with the real repository, because the envelope is the easy half: what the
+    screen needs is that the name really changed, that the previous spelling was anchored so future
+    extractions keep resolving it, and that the response carries the ledger id that makes it reversible.
+    """
+    from scrinalia.domains.archive.models import ArchiveEntity
+    from scrinalia.domains.archive.repository import EntityRepository
+
+    entity = ArchiveEntity(name="prefeitura muinicipal", entity_type="ORG")
+    db_session.add(entity)
+    db_session.flush()
+
+    response = client.patch(
+        f"/api/v1/taxonomy/entities/{entity.entity_id}",
+        json={"new_name": "prefeitura municipal", "note": "typo no vocabulário antigo"},
+    )
+
+    assert response.status_code == HTTP_200_OK
+    body = response.json()
+    assert body["code"] == "ENTITY_RENAMED"
+    assert body["entity_id"] == entity.entity_id
+    assert body["name"] == "prefeitura municipal"
+    assert body["entity_type"] == "ORG"
+    assert body["kept_old_spelling"] is True
+    assert isinstance(body["merge_id"], int)
+
+    repo = EntityRepository(db_session)
+    assert repo.get_entity_synonym_targets(["prefeitura muinicipal"], "ORG") == {
+        "prefeitura muinicipal": entity.entity_id
+    }
+
+
+def test_renaming_onto_a_spelling_that_exists_is_a_409_that_names_the_twin(client: TestClient, db_session) -> None:
+    """
+    The collision is an answer, not an accident.
+
+    ``uix_archive_entities_name_normalized`` would raise an ``IntegrityError`` and the archivist would
+    read "Conflito estrutural no banco de dados" — a 409 that names neither the twin nor the fact that
+    the twin is the merge case. The twin travels in ``details`` as data, so the SPA can say which name
+    collided without printing the server's Portuguese.
+    """
+    from scrinalia.domains.archive.models import ArchiveEntity
+
+    first = ArchiveEntity(name="smu", entity_type="ORG")
+    second = ArchiveEntity(name="Secretaria Municipal do Urbanismo", entity_type="ORG")
+    db_session.add_all([first, second])
+    db_session.flush()
+
+    response = client.patch(
+        f"/api/v1/taxonomy/entities/{second.entity_id}",
+        json={"new_name": "SMU"},
+    )
+
+    assert response.status_code == HTTP_409_CONFLICT
+    body = response.json()
+    assert body["error_code"] == "DuplicateEntityNameError"
+    assert body["details"] == {
+        "entity": {"entity_id": second.entity_id, "name": "SMU"},
+        "conflicting_entity": {"entity_id": first.entity_id, "name": "smu"},
+    }
+    # Refused before the write, and no ledger row was left behind for an undo nobody asked for.
+    assert db_session.get(ArchiveEntity, second.entity_id).name == "Secretaria Municipal do Urbanismo"
+
+
+def test_renaming_can_decline_the_old_spelling_and_says_so(client: TestClient, db_session) -> None:
+    """The toggle: correcting a typo must not leave the wrong spelling resolving to the entity."""
+    from scrinalia.domains.archive.models import ArchiveEntity
+    from scrinalia.domains.archive.repository import EntityRepository
+
+    entity = ArchiveEntity(name="prefeitura muinicipal", entity_type="ORG")
+    db_session.add(entity)
+    db_session.flush()
+
+    response = client.patch(
+        f"/api/v1/taxonomy/entities/{entity.entity_id}",
+        json={"new_name": "prefeitura municipal", "keep_old_synonym": False},
+    )
+
+    assert response.status_code == HTTP_200_OK
+    assert response.json()["kept_old_spelling"] is False
+    assert EntityRepository(db_session).get_entity_synonym_targets(["prefeitura muinicipal"], "ORG") == {}
+
+
+def test_renaming_an_unknown_entity_is_a_404(client: TestClient) -> None:
+    response = client.patch("/api/v1/taxonomy/entities/987654", json={"new_name": "qualquer coisa"})
+
+    assert response.status_code == HTTP_404_NOT_FOUND
+    assert response.json()["error_code"] == "EntityNotFoundError"
+
+
+def test_renaming_rejects_an_empty_name(client: TestClient, db_session) -> None:
+    """
+    An empty spelling never reaches the domain, and the answer is **400** and not 422.
+
+    Measured, and it is this suite's convention: a request body that fails its own model's floor is a
+    400 here, exactly like ``POST /entities/ner-exclusions`` with an empty list. The name is asserted
+    unchanged, which is what proves the refusal happened before the write.
+    """
+    from scrinalia.domains.archive.models import ArchiveEntity
+
+    entity = ArchiveEntity(name="prefeitura muinicipal", entity_type="ORG")
+    db_session.add(entity)
+    db_session.flush()
+
+    response = client.patch(f"/api/v1/taxonomy/entities/{entity.entity_id}", json={"new_name": ""})
+
+    assert response.status_code == HTTP_400_BAD_REQUEST
+    assert db_session.get(ArchiveEntity, entity.entity_id).name == "prefeitura muinicipal"
+
+
+def test_a_viewer_cannot_rename(sign_in) -> None:
+    """
+    The permission is on the route and not on the controller, which is why it is pinned per route.
+
+    A rename writes the catalogue and the spelling dictionary, so it is ``CURATE``; a viewer reaching
+    it must be refused with a 403 and not with a silent read.
+    """
+    from scrinalia.domains.identity.domain.permissions import Role
+
+    client = sign_in(Role.VIEWER)
+
+    response = client.patch("/api/v1/taxonomy/entities/1", json={"new_name": "qualquer coisa"})
+
+    assert response.status_code == 403
+
+
+# ==========================================
 # 2. EXCEPTION HANDLER TESTS (STATUS 4XX)
 # ==========================================
 

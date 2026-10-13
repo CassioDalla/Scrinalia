@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -72,11 +73,21 @@ class ArchiveEntityMergeLog(Base):
 
     ``undone_at`` makes the undo single-shot and keeps the trail readable after the fact — the
     row is never deleted, so the history of "this was merged, then undone" survives.
+
+    ``kind`` separates the two writes that share this ledger. A **merge** row absorbs an entity and
+    has to restore it; a **rename** row only changed the canonical's spelling, so there is no absorbed
+    entity and ``absorbed_*`` are ``None``. It is a discriminator and not a second table because the
+    undo, the trail and the screen are the same for both, and a second ledger would be a second
+    definition of "put the name back" — the drift principle IV exists to prevent.
     """
 
     __tablename__ = "archive_entity_merge_log"
 
     merge_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    #: ``MERGE`` or ``RENAME``; the undo branches on it. Existing rows predate the rename and are all
+    #: merges, which is why the default is the merge and no backfill is needed.
+    kind: Mapped[str] = mapped_column(String(20), nullable=False, server_default="MERGE")
 
     # Snapshots: the canonical survives today, but it can be absorbed by a later merge, so what
     # undo restores must not depend on reading the current catalogue.
@@ -84,9 +95,10 @@ class ArchiveEntityMergeLog(Base):
     canonical_name: Mapped[str] = mapped_column(String(255), nullable=False)
     canonical_entity_type: Mapped[str] = mapped_column(String(50), nullable=False)
 
-    absorbed_entity_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-    absorbed_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    absorbed_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    #: ``None`` on a rename row: nothing was absorbed, so there is no row to bring back.
+    absorbed_entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    absorbed_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    absorbed_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     # Exactly the documents that carried the absorbed entity (a union would over-link on undo).
     document_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
@@ -126,4 +138,10 @@ class ArchiveEntityMergeLog(Base):
     #: The account behind the name above, exactly like every other authorship in the schema.
     undone_by_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
+
+    __table_args__ = (
+        # A gate and not decoration: the undo branches on ``kind``, so a third value would fall into
+        # the merge branch and try to restore an entity that never existed.
+        CheckConstraint("kind IN ('MERGE', 'RENAME')", name="chk_entity_merge_log_kind"),
     )

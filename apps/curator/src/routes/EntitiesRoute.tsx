@@ -8,18 +8,23 @@ import {
   previewEntityMerge,
   purgeOrphanEntities,
   reclassifyEntity,
+  renameEntity,
   undoEntityMerge,
   type EntityPairSimilarity,
   type EntityRelevance,
+  type EntityRenameRequest,
   type EntitySimilarity,
   type EntityType,
   type ReclassifyTarget,
 } from "@/api/client";
-import { queries, RELEVANCE_PAGE_SIZE } from "@/api/queries";
+import { ENTITY_DOCUMENTS_PAGE_SIZE, queries, RELEVANCE_PAGE_SIZE } from "@/api/queries";
+import { DescriptionExpansion } from "@/components/description/DescriptionExpansion";
+import { DescriptionPreview } from "@/components/description/DescriptionPreview";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { Disclosure } from "@/components/ui/Disclosure";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
 import { Field } from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
@@ -35,15 +40,41 @@ import {
   ENTITY_TYPE_TONE,
 } from "@/lib/entities";
 import { descricoes, formatCount, formatDateTime } from "@/lib/format";
-import { asEnum, asNumber } from "@/lib/search";
+import { asEnum, asNumber, asString } from "@/lib/search";
 import { labelOf } from "@/lib/hierarchy";
 import { routeMessage } from "@/lib/messages";
 
 const routeApi = getRouteApi("/entidades/lista");
 
-export type EntitiesSearch = { aba?: "relevancia" | "similaridade"; tipo?: EntityType; limiar?: number };
+/**
+ * The URL is the state, as on every other list.
+ *
+ * ``aberta``, ``descricao`` and ``offset`` are the expansion's three questions: which name is open
+ * (one at a time — the page is a list of names, not a dashboard), which page of **that** name's
+ * descriptions is showing, and which description the panel is previewing. Keeping them here is what
+ * makes the back button close the panel, and what lets a colleague be sent the exact view.
+ */
+export type EntitiesSearch = {
+  aba?: "relevancia" | "similaridade";
+  tipo?: EntityType;
+  limiar?: number;
+  aberta?: number;
+  descricao?: string;
+  offset?: number;
+};
 
 const TYPE_VALUES: ReclassifyTarget[] = ["ORG", "PER", "LOC"];
+
+/**
+ * The two questions one entity card answers: what carries this name, and what it is called.
+ *
+ * The same pair the category card has, and deliberately the same shape — one body, not two, because
+ * the pencil beside the name and the expansion under it are one object being read and corrected.
+ */
+const ENTITY_CARD_TABS = [
+  { id: "descricoes", label: "Descrições" },
+  { id: "editar", label: "Editar" },
+];
 
 /**
  * One entity a merge panel may absorb.
@@ -62,6 +93,9 @@ export function validateEntitiesSearch(search: Record<string, unknown>): Entitie
     aba,
     tipo,
     limiar: limiar !== undefined && limiar > 0 && limiar <= 1 ? limiar : undefined,
+    aberta: asNumber(search.aberta),
+    descricao: asString(search.descricao),
+    offset: asNumber(search.offset),
   };
 }
 
@@ -99,6 +133,23 @@ export function EntitiesRoute() {
   });
 
   const rows = relevance.data?.data ?? [];
+
+  /**
+   * ``offset: changes.offset`` and not a literal: opening another name has to return to **its** first
+   * page — page 3 of the previous name means nothing — and a caller that wants the first page sends no
+   * page at all. The literal-after-the-spread shape is what
+   * ``testing/unit/curator/test_curator_search_state.py`` exists to catch, because it silently
+   * discarded the page a caller had just set.
+   */
+  const patch = (changes: Partial<EntitiesSearch>) =>
+    navigate({ to: "/entidades/lista", search: { ...search, ...changes, offset: changes.offset } });
+
+  /**
+   * The preview is not a filter, so it does not go through ``patch``: opening a row on page 3 and
+   * closing the panel has to leave the archivist on page 3.
+   */
+  const showPreview = (descriptionId: string | undefined) =>
+    navigate({ to: "/entidades/lista", search: { ...search, descricao: descriptionId } });
 
   const toggle = (entityId: number) =>
     setSelected((current) =>
@@ -228,6 +279,11 @@ export function EntitiesRoute() {
                   key={row.entity_id}
                   entity={row}
                   checked={selected.includes(row.entity_id)}
+                  open={search.aberta === row.entity_id}
+                  offset={search.aberta === row.entity_id ? (search.offset ?? 0) : 0}
+                  onOpenChange={(next) => patch({ aberta: next ? row.entity_id : undefined })}
+                  onPage={(offset) => patch({ offset })}
+                  onPreview={showPreview}
                   onToggle={() => toggle(row.entity_id)}
                   onChanged={invalidate}
                 />
@@ -240,25 +296,81 @@ export function EntitiesRoute() {
 
         <EntityMergeLedger onChanged={invalidate} />
       </PageBody>
+
+      {/*
+        The panel is rendered by the screen and not by the row: the description being previewed is in
+        the URL, so the panel survives a refetch of the list it was opened from — and a link that
+        carries ``descricao`` opens on the record even when the current page does not list it.
+
+        ``editTab`` is ``assuntos`` here and ``descricao`` on the category screen: an entity's links
+        are added and removed on the dossier's Assuntos tab, which is the edit the archivist arrived
+        here to make.
+      */}
+      {search.descricao ? (
+        <DescriptionPreview
+          descriptionId={search.descricao}
+          editTab="assuntos"
+          onClose={() => showPreview(undefined)}
+        />
+      ) : null}
     </>
   );
 }
 
-/** One entity by weight, with the type correction and the delete where it is honest to offer it. */
+/**
+ * One entity by weight, opened on the descriptions that carry it or on its name.
+ *
+ * The row is built like ``CategoryCard`` and for the reason ``Disclosure`` documents: the name and the
+ * badges are **text inside the toggle**, while the controls — the checkbox, the type, the rename and
+ * the delete — sit in ``actions``, outside it. A control nested in the toggle is a click that means
+ * two things at once: checking a name for a merge would also open its descriptions.
+ *
+ * The body has two questions because a name is one object being both read and corrected. The
+ * descriptions tab reads ``GET /api/v1/documents`` with ``entity_id``, so the badge above and the
+ * ``total`` inside are one number counted twice
+ * (``testing/integration/api/controller/test_entity_documents.py``); the edit tab is the rename, which
+ * is its own write and never a merge.
+ */
 function EntityRow({
   entity,
   checked,
+  open,
+  offset,
+  onOpenChange,
   onToggle,
+  onPage,
+  onPreview,
   onChanged,
 }: {
   entity: EntityRelevance;
   checked: boolean;
+  open: boolean;
+  offset: number;
+  onOpenChange: (open: boolean) => void;
   onToggle: () => void;
+  onPage: (offset: number) => void;
+  onPreview: (descriptionId: string) => void;
   onChanged: () => void;
 }) {
+  /**
+   * Which of the two questions the open card is answering. Local state, like ``CategoryCard``'s: the
+   * URL carries *which* card is open (``?aberta=``) and the page, not which tab of it is being read.
+   */
+  const [tab, setTab] = useState<string>("descricoes");
+  const [draftName, setDraftName] = useState(entity.name);
+  const [keepOldSpelling, setKeepOldSpelling] = useState(true);
+
   const reclassify = useMutation({
     mutationFn: (newType: ReclassifyTarget) => reclassifyEntity(entity.entity_id, { new_type: newType }),
     onSuccess: onChanged,
+  });
+
+  const rename = useMutation({
+    mutationFn: (body: EntityRenameRequest) => renameEntity(entity.entity_id, body),
+    onSuccess: (data) => {
+      setDraftName(data.name);
+      onChanged();
+    },
   });
 
   const remove = useMutation({
@@ -267,18 +379,24 @@ function EntityRow({
   });
 
   const orphan = entity.total_usage === 0;
+  const trimmed = draftName.trim();
+  const dirty = trimmed.length > 0 && trimmed !== entity.name;
+
+  /** The row's own door to the name. It opens the card on the edit tab and never merges anything. */
+  const openRename = () => {
+    setDraftName(entity.name);
+    setTab("editar");
+    if (!open) onOpenChange(true);
+  };
 
   return (
     <li>
-      <Card>
-        <CardBody className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <input
-              type="checkbox"
-              checked={checked}
-              onChange={onToggle}
-              aria-label={`Selecionar ${entity.name}`}
-            />
+      <Disclosure
+        open={open}
+        onOpenChange={onOpenChange}
+        toggleLabel={`Ver as descrições de ${entity.name}`}
+        header={
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="truncate text-sm font-medium">{entity.name}</span>
             <Badge tone={ENTITY_TYPE_TONE[entity.entity_type] ?? "neutral"}>
               {labelOf(ENTITY_TYPE_LABEL, entity.entity_type)}
@@ -287,8 +405,15 @@ function EntityRow({
               {descricoes(entity.total_usage)}
             </Badge>
           </div>
-
+        }
+        actions={
           <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={onToggle}
+              aria-label={`Selecionar ${entity.name}`}
+            />
             <label className="flex items-center gap-1 text-xs text-(--color-muted)">
               tipo
               <Select
@@ -305,6 +430,16 @@ function EntityRow({
               </Select>
             </label>
 
+            <Button
+              size="sm"
+              variant="ghost"
+              title="Corrigir a grafia deste nome, sem mesclar com outra entidade"
+              aria-label={`Renomear ${entity.name}`}
+              onClick={openRename}
+            >
+              {ACTION.rename.label}
+            </Button>
+
             {orphan ? (
               <Button
                 size="sm"
@@ -317,10 +452,76 @@ function EntityRow({
               </Button>
             ) : null}
           </div>
-        </CardBody>
-        {reclassify.error ? <ErrorState error={reclassify.error} /> : null}
-        {remove.error ? <ErrorState error={remove.error} /> : null}
-      </Card>
+        }
+      >
+        <div className="grid gap-3">
+          <Tabs items={ENTITY_CARD_TABS} active={tab} onChange={setTab} />
+
+          {tab === "editar" ? (
+            <div className="grid gap-2">
+              <Field label="Nome">
+                <Input
+                  value={draftName}
+                  maxLength={255}
+                  onChange={(event) => setDraftName(event.target.value)}
+                />
+              </Field>
+
+              <label className="flex items-start gap-2 text-xs text-(--color-muted)">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={keepOldSpelling}
+                  onChange={(event) => setKeepOldSpelling(event.target.checked)}
+                />
+                <span>
+                  manter a grafia antiga como sinônimo — é o que faz uma extração futura da grafia
+                  antiga continuar resolvendo para esta entidade. Desmarque quando a grafia antiga for
+                  um erro de digitação.
+                </span>
+              </label>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={!dirty || rename.isPending}
+                  onClick={() => rename.mutate({ new_name: trimmed, keep_old_synonym: keepOldSpelling })}
+                >
+                  {rename.isPending ? ACTION.save.pending : ACTION.save.label}
+                </Button>
+                {dirty ? <span className="text-xs text-(--color-muted)">alteração não salva</span> : null}
+              </div>
+
+              {rename.data ? (
+                <p className="text-xs text-(--color-muted)">
+                  {routeMessage(rename.data)}{" "}
+                  {rename.data.kept_old_spelling
+                    ? `A grafia antiga continua resolvendo para esta entidade, e o desfazer é a linha ${rename.data.merge_id} do ledger.`
+                    : `A grafia antiga não foi mantida, e o desfazer é a linha ${rename.data.merge_id} do ledger.`}
+                </p>
+              ) : null}
+
+              {rename.error ? <ErrorState error={rename.error} /> : null}
+            </div>
+          ) : (
+            <DescriptionExpansion
+              params={{ entity_id: entity.entity_id }}
+              pageSize={ENTITY_DOCUMENTS_PAGE_SIZE}
+              offset={offset}
+              onPage={onPage}
+              onPreview={onPreview}
+              empty={{
+                title: "Nenhuma descrição carrega este nome",
+                hint: "O nome existe no vocabulário e nenhuma descrição o carrega — é a linha que a exclusão de órfãs remove. A expansão lê a mesma busca da lista, então o número aqui é o mesmo do cartão.",
+              }}
+            />
+          )}
+
+          {reclassify.error ? <ErrorState error={reclassify.error} /> : null}
+          {remove.error ? <ErrorState error={remove.error} /> : null}
+        </div>
+      </Disclosure>
     </li>
   );
 }
@@ -512,12 +713,12 @@ function EntityMergeLedger({ onChanged }: { onChanged: () => void }) {
 
   return (
     <Card>
-      <CardHeader className="text-sm font-semibold">Ledger dos merges de entidades</CardHeader>
+      <CardHeader className="text-sm font-semibold">Ledger dos nomes: merges e renomeações</CardHeader>
       <CardBody className="grid gap-2">
         <p className="text-xs text-(--color-muted)">
-          Aqui só entram merges <strong>aplicados</strong>. Cada linha guarda o estado anterior — a
-          entidade, seus vínculos, suas grafias e o nome que a canônica perdeu — e o desfazer restaura
-          tudo.
+          Aqui só entram escritas <strong>aplicadas</strong>. Cada linha guarda o estado anterior — no
+          merge, a entidade, seus vínculos, suas grafias e o nome que a canônica perdeu; na
+          renomeação, o nome antigo e se ele ficou como sinônimo — e o desfazer restaura tudo.
         </p>
         <Input
           className="max-w-xs"
@@ -532,27 +733,39 @@ function EntityMergeLedger({ onChanged }: { onChanged: () => void }) {
         {log.error ? <ErrorState error={log.error} /> : null}
         {log.data && (log.data.items ?? []).length === 0 ? (
           <EmptyState
-            title={term.trim() ? `Nenhum merge para “${term.trim()}”` : "Nenhum merge aplicado ainda"}
+            title={term.trim() ? `Nenhum registro para “${term.trim()}”` : "Nenhuma decisão sobre nomes ainda"}
             hint={
               term.trim()
-                ? "A busca cobre as duas grafias de cada linha: a absorvida e a canônica."
-                : "O ledger registra cada entidade absorvida, com o antes."
+                ? "A busca cobre as duas grafias de cada linha: a absorvida (ou a antiga) e a canônica."
+                : "O ledger registra cada entidade absorvida por um merge e cada nome renomeado, com o antes."
             }
           />
         ) : null}
         <ul className="divide-y divide-(--color-line) text-xs">
           {(log.data?.items ?? []).map((entry) => (
             <li key={entry.merge_id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-              <span className="min-w-0">
-                <span className="font-medium">{entry.absorbed_name}</span>
-                <span className="text-(--color-muted)"> → {entry.canonical_name}</span>
-                <span className="text-(--color-muted)">
-                  {" "}
-                  · {formatCount(entry.document_count)} doc(s) · {formatDateTime(entry.changed_at)}
-                  {entry.changed_by ? ` · por ${entry.changed_by}` : ""}
-                  {entry.canonical_renamed_from ? ` · canônica era “${entry.canonical_renamed_from}”` : ""}
+              {entry.is_rename ? (
+                <span className="min-w-0">
+                  <span className="font-medium">{entry.canonical_renamed_from}</span>
+                  <span className="text-(--color-muted)"> → {entry.canonical_name}</span>
+                  <span className="text-(--color-muted)">
+                    {" "}
+                    · renomeação · {formatDateTime(entry.changed_at)}
+                    {entry.changed_by ? ` · por ${entry.changed_by}` : ""}
+                  </span>
                 </span>
-              </span>
+              ) : (
+                <span className="min-w-0">
+                  <span className="font-medium">{entry.absorbed_name}</span>
+                  <span className="text-(--color-muted)"> → {entry.canonical_name}</span>
+                  <span className="text-(--color-muted)">
+                    {" "}
+                    · {formatCount(entry.document_count)} doc(s) · {formatDateTime(entry.changed_at)}
+                    {entry.changed_by ? ` · por ${entry.changed_by}` : ""}
+                    {entry.canonical_renamed_from ? ` · canônica era “${entry.canonical_renamed_from}”` : ""}
+                  </span>
+                </span>
+              )}
               {entry.is_undone ? (
                 <Badge tone="neutral">desfeito em {formatDateTime(entry.undone_at)}</Badge>
               ) : (
@@ -560,7 +773,11 @@ function EntityMergeLedger({ onChanged }: { onChanged: () => void }) {
                   size="sm"
                   variant="ghost"
                   disabled={undo.isPending}
-                  title="Restaura a entidade, seus vínculos, suas grafias e o nome da canônica."
+                  title={
+                    entry.is_rename
+                      ? "Devolve o nome anterior e desfaz o sinônimo que a renomeação plantou."
+                      : "Restaura a entidade, seus vínculos, suas grafias e o nome da canônica."
+                  }
                   onClick={() => undo.mutate(entry.merge_id)}
                 >
                   desfazer

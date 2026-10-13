@@ -137,6 +137,24 @@ class ReclassifyEntityRequest(BaseModel):
     new_type: Literal["ORG", "PER", "LOC"]
 
 
+class EntityRenameRequest(BaseModel):
+    """
+    A new spelling for one name, and whether the old one keeps resolving to it.
+
+    ``keep_old_synonym`` defaults to true because that is what the merge does and what the extractor
+    needs: the old spelling stays anchored, so a description extracted tomorrow under it still resolves
+    to this entity. Turning it off is the honest answer to a typo — ``Prefeitura Muinicipal`` is not a
+    spelling anybody should keep — and it is offered rather than assumed because only the archivist
+    knows which of the two an edit is.
+    """
+
+    new_name: str = Field(min_length=1, max_length=255, description="The spelling the catalogue will show.")
+    keep_old_synonym: bool = Field(
+        default=True, description="Whether the previous spelling keeps resolving to this entity."
+    )
+    note: str | None = Field(default=None, description="Why; kept in the merge ledger, with the undo.")
+
+
 class TagCurationRequest(BaseModel):
     """
     The archivist's verdict on which drawer one tag belongs to.

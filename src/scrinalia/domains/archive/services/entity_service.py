@@ -4,7 +4,7 @@ from typing import Literal
 from scrinalia.core.author import Author
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.domain.normalization import normalize_entity
-from scrinalia.domains.archive.exceptions import InvalidParam
+from scrinalia.domains.archive.exceptions import EntityNotFoundError, InvalidParam
 from scrinalia.domains.archive.ports.entity import EntityRepositoryPort
 from scrinalia.domains.archive.schemas.command_schema import (
     MergeEntityCommand,
@@ -109,25 +109,39 @@ class EntityService:
             review_flags=plan.review_flags,
         )
 
-    def rename_entity(self, entity_id: int, new_name: str) -> EntityIdentity:
+    def rename_entity(
+        self,
+        entity_id: int,
+        new_name: str,
+        *,
+        keep_old_synonym: bool = True,
+        changed_by: Author | None = None,
+        note: str | None = None,
+    ) -> tuple[EntityIdentity, int]:
         """
-        Renames one entity, with the old spelling kept as a synonym.
+        Renames one entity, leaving the ledger row that makes it reversible.
 
         One definition of "rename a name" (the repository method the merge also calls), so the
         single-entity rename and the merge's optional rename cannot drift apart. An unknown id is a
         business error, never a silent no-op.
+
+        The ledger row is written **here** and not in the repository, because the merge already logged
+        its own rename in the row per absorbed entity: a writer inside ``rename_entity`` would put two
+        rows under one decision. Returns the entity as it now reads and the ledger id of the undo.
         """
         if not new_name.strip():
             raise InvalidParam("O novo nome da entidade não pode ser vazio.")
 
-        previous = self.repo.rename_entity(entity_id, new_name)
-        if previous is None:
-            raise InvalidParam(f"Entidade com ID {entity_id} não encontrada.")
+        record = self.repo.rename_entity(entity_id, new_name, keep_old_synonym=keep_old_synonym)
+        if record is None:
+            raise EntityNotFoundError(f"Entidade com ID {entity_id} não encontrada.")
+
+        merge_id = self.repo.write_entity_rename_log(record, changed_by=changed_by, note=note)
 
         renamed = self.repo.get_by_id(entity_id)
         if renamed is None:
-            raise InvalidParam(f"Entidade com ID {entity_id} não encontrada após o rename.")
-        return renamed
+            raise EntityNotFoundError(f"Entidade com ID {entity_id} não encontrada após o rename.")
+        return renamed, merge_id
 
     def list_merge_log(
         self,

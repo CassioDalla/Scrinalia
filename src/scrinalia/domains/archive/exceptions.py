@@ -1,5 +1,7 @@
 # domain/exceptions.py
 
+from typing import Any
+
 # The base class lives in ``core`` (see ``core/exceptions.py``): the API registers one handler for
 # every domain's refusals, and a per-domain base class would escape it. Re-exported here with the
 # redundant alias so the imports across the codebase keep resolving and ruff sees the intent.
@@ -14,10 +16,39 @@ class TagNotFoundError(DomainException):
 
 
 class EntityNotFoundError(DomainException):
-    """Raised when linking or unlinking a named entity the collection does not have."""
+    """Raised when linking, renaming or unlinking a named entity the collection does not have."""
 
     # Ideal translation in Litestar: HTTP 404 (Not Found)
     pass
+
+
+class DuplicateEntityNameError(DomainException):
+    """
+    A rename asked for a spelling another entity already carries.
+
+    ``uix_archive_entities_name_normalized`` would raise an ``IntegrityError`` a moment later, and the
+    generic handler answers *"Conflito estrutural no banco de dados"* — a 409 that names neither the
+    twin nor the fact that the twin **is** the merge case. So the check happens before the write and
+    the refusal says which one.
+
+    The pair travels in ``details`` as well as in the sentence, and that is the point of the two: the
+    sentence is Portuguese and the interface is going to be translated (#45), so the SPA reads the
+    facts from ``details`` and wraps them in its own copy.
+    """
+
+    def __init__(self, entity_id: int, name: str, conflicting_entity_id: int, conflicting_name: str) -> None:
+        super().__init__(
+            f"Já existe uma entidade com a grafia '{conflicting_name}' (ID {conflicting_entity_id}). "
+            f"Mescle as duas em vez de renomear."
+        )
+        self.entity_id = entity_id
+        self.name = name
+        self.conflicting_entity_id = conflicting_entity_id
+        self.conflicting_name = conflicting_name
+        self.details: dict[str, Any] = {
+            "entity": {"entity_id": entity_id, "name": name},
+            "conflicting_entity": {"entity_id": conflicting_entity_id, "name": conflicting_name},
+        }
 
 
 class DocumentNotFoundError(DomainException):

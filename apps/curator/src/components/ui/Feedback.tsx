@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { ApiError } from "@/api/client";
 import { Notice } from "@/components/ui/Notice";
 import { cn } from "@/lib/cn";
+import { refusalMessage } from "@/lib/messages";
 
 export function Skeleton({ className }: { className?: string }) {
   return <div className={cn("animate-pulse rounded bg-black/[0.07]", className)} />;
@@ -45,7 +46,20 @@ export function EmptyState({ title, hint, action }: { title: string; hint?: Reac
  * larger corner. Sharing the surface is what keeps the red from being spelled four ways.
  */
 export function ErrorState({ error }: { error: unknown }) {
-  const message = error instanceof Error ? error.message : "Erro inesperado.";
+  /**
+   * The sentence comes from the refusal catalogue and falls back to the API's own (`lib/messages.ts`).
+   *
+   * Not `error.message`: a refusal carries a code, a Portuguese sentence, and — when it has facts to
+   * state — a `details` payload, and printing the sentence here would freeze the server's language
+   * into every screen the day the interface is translated. A code the catalogue does not know yet
+   * still renders the API's sentence, so a refusal added later is never an empty line.
+   */
+  const message =
+    error instanceof ApiError
+      ? refusalMessage(error)
+      : error instanceof Error
+        ? error.message
+        : "Erro inesperado.";
   const ref = error instanceof ApiError ? error.ref : undefined;
   return (
     <Notice tone="danger" as="div" className="rounded-lg px-4 py-3 text-sm">

@@ -47,11 +47,10 @@ import {
   type DocumentSearch,
   type ConflictPairKindFilter,
   type EntityType,
+  type MergeProposalSearch,
   type PlanStatus,
-  type MergeReason,
-  type ProposalStatus,
   type StopwordsScope,
-  type TagCatalogState,
+  type TagCatalogSearch,
   type TemplateStatus,
   type WorkerRunStatus,
 } from "./client";
@@ -102,6 +101,15 @@ export const CATALOG_PAGE_SIZE = 25;
  * problem the expansion is supposed to solve, not reproduce.
  */
 export const CATEGORY_DOCUMENTS_PAGE_SIZE = 10;
+
+/**
+ * An entity's descriptions, read ten at a time **inside** the card.
+ *
+ * The same number and the same reason as the category expansion: the list expands under a card that
+ * is one of hundreds on a page ranked by weight, and a page of 25 would push the next name out of
+ * sight — which is the problem the expansion exists to solve, not reproduce.
+ */
+export const ENTITY_DOCUMENTS_PAGE_SIZE = 10;
 
 /**
  * Server state, declared once per resource.
@@ -290,12 +298,7 @@ export const queries = {
    * "not here" for the tag the card counted. ``placeholderData`` keeps the previous page on screen
    * while the next one loads — the same reason the collection list does.
    */
-  tagCatalog: (filters: {
-    subject_state?: TagCatalogState;
-    macro_category_id?: number;
-    term?: string;
-    offset?: number;
-  }) =>
+  tagCatalog: (filters: TagCatalogSearch) =>
     queryOptions({
       queryKey: ["taxonomy", "tags", "catalog", filters],
       queryFn: () => fetchTagCatalog({ ...filters, limit: CATALOG_PAGE_SIZE, offset: filters.offset ?? 0 }),
@@ -311,13 +314,7 @@ export const queries = {
       staleTime: 60_000,
     }),
 
-  mergeProposals: (filters: {
-    status?: ProposalStatus;
-    reason?: MergeReason;
-    min_documents?: number;
-    flagged_only?: boolean;
-    offset?: number;
-  }) =>
+  mergeProposals: (filters: MergeProposalSearch) =>
     queryOptions({
       queryKey: ["taxonomy", "merge-proposals", filters],
       queryFn: () =>
