@@ -1210,3 +1210,42 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   reasoning at the time, and none of those numbers is a rule the code has to satisfy.
   `src/scrinalia/api/openapi.py`'s docstring keeps "with `pyproject.toml` at 1.1.0" — that is the
   date of a **measurement**, and changing the number would falsify the record rather than update it.
+
+## 2026-10-14 — the held majors adopted on purpose (#40)
+
+- **Range:** `3c108cd..0ec13bb`
+- **Pages:** three were reported stale and all three hold.
+  - `guides/install.md` — **no-change**: the `DB_*` table, the "`DATABASE_URL` is a derived property"
+    paragraph and the `docker-compose.test.yml` section still describe the code. The source this page
+    declares that moved (`pyproject.toml`) is not quoted in its text, and the driver the DSN now
+    names (`postgresql+psycopg2`) is not a setting an installer chooses.
+  - `guides/data-model.md` — **no-change**: no table, column or index moved. `testing/conftest.py`
+    gained a third thing it builds before `create_all` — the native enum types the models declare
+    that the migration owns — and the page does not enumerate that list; it names the two SQL
+    functions because a generated column depends on them.
+  - `guides/operate.md` — **no-change**: no worker's unit, queue predicate, idempotency stamp or
+    governance rule changed. The two rewrites inside them are internal spellings that return the same
+    rows — `SELECT DISTINCT ON (archive_worker_runs.worker_name)`, and a `Row` that no longer needs
+    `Result.tuples()` — and the panel and queue-count tests that read them are green.
+- **Why the round exists:** `pyproject.toml` held two majors behind a comment (`pandas<3`,
+  `sqlalchemy<2.1`), and adopting them changes the environment every installation and CI gets.
+- **What the round measured.** The driver: `postgresql+psycopg2` is spelled out in `core/config.py`,
+  `testing/conftest.py` and the CI environment, so the default cannot move under the project again.
+  SQLAlchemy 2.1.4: `Enum(..., create_type=False)` stopped being ignored — the PostgreSQL impl of
+  `domain_stopwords.word_scope` comes out `create_type=False` on 2.1.4 and came out `True` on
+  2.0.54 — which cost the test schema `stopwords_scope`, `anomaly_type_enum` and
+  `scrape_status_enum` and gave **851 errors at setup** (`type "stopwords_scope" does not exist`)
+  until `conftest.py` created them from the models; nine `basedpyright` errors answered at their
+  sites; `Result.tuples()` and the expression form of `distinct()` removed, the latter measured as
+  `SELECT DISTINCT ON (archive_worker_runs.worker_name)`. pandas 3.0.6: the default string dtype is
+  the new `str` and copy-on-write is on, neither of which this code meets (no frame is mutated in
+  place, and the only frame read is BERTopic's topic info); `Series.__getitem__` now returns a union
+  that includes a `Series`, and the two `int(row[...])` sites answer with a `cast`. Final: **1610
+  passed** on a fresh test database with `-W error::DeprecationWarning`, `basedpyright` **0 errors**,
+  `ruff check` and `ruff format --check` green, `alembic check` reporting no new upgrade operations,
+  and the committed contract byte-identical to `dump_openapi` by hand.
+- **What the round looked at.** No screen was **rendered**, and none needed to be: no file under
+  `apps/curator/` changed.
+- **Not verified, and said so.** The real engines were not run — the suite mocks the registry, so
+  `bertopic` was imported, never used to cluster — and the lock was resolved on this host, not on a
+  GPU installation, which the install page already says is a different lock.
