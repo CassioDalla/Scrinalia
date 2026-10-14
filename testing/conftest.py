@@ -41,7 +41,11 @@ from testing.reference_vocabulary import ARRANGEMENT_TERMS, COLLECTION_TERMS
 # Dynamically discover the absolute path of the 'tests' folder
 TESTS_FOLDER = Path(__file__).parent
 
-TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql://test_user:test_password@localhost:5433/test_db")
+#: The driver is explicit for the reason ``Settings.DATABASE_URL`` documents: SQLAlchemy 2.1 moved
+#: the bare ``postgresql://`` default to psycopg v3, which this project does not install.
+TEST_DATABASE_URL = os.getenv(
+    "TEST_DATABASE_URL", "postgresql+psycopg2://test_user:test_password@localhost:5433/test_db"
+)
 
 #: The account the API integration tests sign in as, and the password they use. Constants and not
 #: literals repeated per file: one login path means one place to change when the policy moves.

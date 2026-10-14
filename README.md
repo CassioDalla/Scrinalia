@@ -348,7 +348,7 @@ docker compose -f docker-compose.test.yml up -d
 
 > If something else already holds 5433 the container starts without publishing a port and the
 > suite silently talks to the wrong database. Run with `TEST_DB_PORT=5434` and
-> `TEST_DATABASE_URL=postgresql://test_user:test_password@localhost:5434/test_db`.
+> `TEST_DATABASE_URL=postgresql+psycopg2://test_user:test_password@localhost:5434/test_db`.
 
 > The suite drops the schema on teardown. Do not serve the API against the test database
 > while pytest is running; re-apply `alembic upgrade head` before starting a server again.
