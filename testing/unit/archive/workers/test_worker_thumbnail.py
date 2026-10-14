@@ -113,7 +113,13 @@ def test_execute_worker_thumbnails_marks_failure_in_json(mocker: MockerFixture) 
     mock_flag = mocker.patch("scrinalia.domains.archive.workers.worker_thumbnail.flag_modified")
     mocker.patch("time.sleep")
 
-    worker_thumbnail.execute(mock_db)
+    # A double, not the real adapter: the worker confirms the destination before the first document,
+    # and a unit test must not depend on the ambient S3 configuration. Building ``S3Storage`` here
+    # passed locally only because the developer's ``.env`` had an endpoint that answered, and failed
+    # on CI, where there is none.
+    fake_storage = mocker.Mock()
+
+    worker_thumbnail.execute(mock_db, storage=fake_storage)
 
     # The document does not receive the URI, but receives the failure flag
     assert fake_doc.execution_log == {"thumbnail_failed": "True"}
@@ -142,7 +148,9 @@ def test_execute_worker_thumbnails_stamps_unexpected_exceptions(mocker: MockerFi
     mock_flag = mocker.patch("scrinalia.domains.archive.workers.worker_thumbnail.flag_modified")
     mocker.patch("time.sleep")
 
-    worker_thumbnail.execute(mock_db)
+    fake_storage = mocker.Mock()
+
+    worker_thumbnail.execute(mock_db, storage=fake_storage)
 
     assert fake_doc.execution_log == {"thumbnail_failed": "True"}
     mock_flag.assert_called_once_with(fake_doc, "execution_log")
