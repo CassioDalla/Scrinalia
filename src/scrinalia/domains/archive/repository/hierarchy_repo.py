@@ -8,7 +8,7 @@ content and the search.
 
 import uuid
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import and_, case, delete, func, or_, select, update
 from sqlalchemy.orm import Session, aliased, selectinload
@@ -432,11 +432,14 @@ class HierarchyRepository:
         observations: list[CodeObservation] = []
         for row in self.db.execute(stmt):
             description_id, reference_code, level_id, path, original_title, final_title, parent_id = row
-            ordinal, name = catalogue.get(level_id, (None, None))
+            # ``level_id`` is a nullable FK, so a description with no rung looks the rung up in
+            # vain; the guard keeps the ``None`` out of a ``dict[int, ...]`` instead of pretending.
+            ordinal, name = catalogue.get(level_id, (None, None)) if level_id is not None else (None, None)
             observations.append(
                 CodeObservation(
                     description_id=description_id,
-                    reference_code=reference_code,
+                    # Non-null by this query's WHERE clause, which the type checker cannot read.
+                    reference_code=cast(str, reference_code),
                     level_id=level_id,
                     level_ordinal=ordinal,
                     level_name=name,

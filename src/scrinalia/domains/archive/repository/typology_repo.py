@@ -62,7 +62,9 @@ class TypologyRepository:
             .where(ArchiveDocument.typology_id.is_not(None))
             .group_by(ArchiveDocument.typology_id)
         ).all()
-        return {int(typology_id): int(count) for typology_id, count in rows}
+        # ``typology_id`` is a nullable FK filtered by the WHERE above; the guard states the
+        # narrowing the type checker cannot read from the SQL.
+        return {int(typology_id): int(count) for typology_id, count in rows if typology_id is not None}
 
     def get_active_typologies(self) -> dict[str, int]:
         """

@@ -85,9 +85,14 @@ def count_pending(db_session: Session, **options: Any) -> int:
     load, never in a loop.
     """
     source = SqlStagingRecordSource(db_session)
-    archived = dict(
-        db_session.execute(select(ArchiveDocument.description_id, ArchiveDocument.staging_content_hash)).tuples().all()
-    )
+    # Built row by row, like ``TagRepository.banned_stopwords``: ``dict(...)`` over ``Row`` objects
+    # is what the checker cannot narrow into a mapping. SQLAlchemy 2.1 deprecated ``.tuples()`` for
+    # the same reason — ``Row`` is the tuple now.
+    archived: dict[str, str | None] = {}
+    for description_id, content_hash in db_session.execute(
+        select(ArchiveDocument.description_id, ArchiveDocument.staging_content_hash)
+    ).all():
+        archived[description_id] = content_hash
     protected = set(db_session.scalars(select(ArchiveDocument.description_id).where(~ai_writable_documents())).all())
 
     pending = 0

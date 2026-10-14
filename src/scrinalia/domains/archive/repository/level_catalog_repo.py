@@ -61,7 +61,9 @@ class LevelCatalogRepository:
             .where(ArchiveDocument.level_id.is_not(None))
             .group_by(ArchiveDocument.level_id)
         ).all()
-        return {int(level_id): int(count) for level_id, count in rows}
+        # ``level_id`` is a nullable FK filtered by the WHERE above; the guard states the
+        # narrowing the type checker cannot read from the SQL.
+        return {int(level_id): int(count) for level_id, count in rows if level_id is not None}
 
     def level_index(self) -> dict[str, int]:
         """``folded spelling -> level_id``, built once per call and reused across a batch."""
