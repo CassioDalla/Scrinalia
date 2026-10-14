@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from typing import Any, Literal, Protocol
 
 from scrinalia.core.author import Author
-from scrinalia.domains.archive.models.enums import StopwordsScope, TagCatalogState, TagFacetType
+from scrinalia.domains.archive.models.enums import StopwordsScope, TagCatalogState
 from scrinalia.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
@@ -15,6 +15,9 @@ from scrinalia.domains.archive.schemas import (
     StopwordPurgeLogEntryDTO,
     StopwordPurgePlan,
     StopwordPurgeResult,
+    SubjectExclusionApplyResult,
+    SubjectExclusionPlan,
+    SubjectExclusionRemovalResult,
     SubjectExclusionSuggestionResponse,
     SynonymCommand,
     TagCatalogRow,
@@ -32,6 +35,11 @@ from scrinalia.domains.archive.schemas import (
 #: Who recorded a subject exclusion: an archivist, or the deterministic guard whose verdict the
 #: archivist confirmed. Both are reversible, and the column exists to tell them apart.
 SubjectExclusionSource = Literal["HUMAN", "RULE"]
+
+#: Who planted a ban. ``HUMAN`` typed it on the Stopwords tab, ``CONFLICT`` came from a tag x entity
+#: resolution and ``EXCLUSION`` from confirming a term as not-a-subject — one of the three is a
+#: consequence and the purge preview has to say which.
+StopwordSource = Literal["HUMAN", "CONFLICT", "EXCLUSION"]
 
 
 class TagRepositoryPort(Protocol):
@@ -90,15 +98,6 @@ class TagRepositoryPort(Protocol):
     ) -> list[TagCatalogRow]:
         raise NotImplementedError
 
-    def read_tag_facets(self, tag_id: int) -> list[TagFacetType]:
-        raise NotImplementedError
-
-    def upsert_tag_facet(self, tag_id: int, facet_type: TagFacetType, value: str, author: Author | None) -> None:
-        raise NotImplementedError
-
-    def delete_tag_facets(self, tag_id: int, facet_type: TagFacetType | None = None) -> int:
-        raise NotImplementedError
-
     def find_merge_suggestions(self, threshold: float, limit: int) -> list[TagMergeSuggestion]:
         raise NotImplementedError
 
@@ -147,7 +146,15 @@ class TagRepositoryPort(Protocol):
     def get_or_create_tags(self, tags_list: list[ArchiveTagDTO]) -> list[int]:
         raise NotImplementedError
 
-    def save_stopwords(self, words_list: list[str], scope: StopwordsScope = StopwordsScope.TAG) -> int:
+    def save_stopwords(
+        self, words_list: list[str], scope: StopwordsScope = StopwordsScope.TAG, source: StopwordSource = "HUMAN"
+    ) -> int:
+        raise NotImplementedError
+
+    def ensure_tag_ban(self, words: Sequence[str], source: StopwordSource = "HUMAN") -> set[str]:
+        raise NotImplementedError
+
+    def get_stopwords_with_source(self) -> dict[str, str]:
         raise NotImplementedError
 
     def plan_stopword_purge(self) -> StopwordPurgePlan:
@@ -209,7 +216,19 @@ class TagRepositoryPort(Protocol):
     ) -> int:
         raise NotImplementedError
 
-    def remove_subject_exclusions(self, terms: Sequence[str]) -> int:
+    def plan_subject_exclusions(self, terms: Sequence[str]) -> SubjectExclusionPlan:
+        raise NotImplementedError
+
+    def apply_subject_exclusions(
+        self,
+        plan: SubjectExclusionPlan,
+        *,
+        source: SubjectExclusionSource = "HUMAN",
+        reason: str | None = None,
+    ) -> SubjectExclusionApplyResult:
+        raise NotImplementedError
+
+    def remove_subject_exclusions(self, terms: Sequence[str]) -> SubjectExclusionRemovalResult:
         raise NotImplementedError
 
     def get_by_id(self, tag_id: int) -> TagIdentity | None:

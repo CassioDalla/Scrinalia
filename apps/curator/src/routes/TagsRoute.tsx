@@ -6,7 +6,6 @@ import {
   applyMergeBatch,
   banStopwords,
   curateTag,
-  declareTagFacet,
   fetchMergeProposals,
   decideMergeProposal,
   mergeTags,
@@ -14,7 +13,6 @@ import {
   previewStopwordPurge,
   previewTagPair,
   purgeStopwords,
-  removeTagFacet,
   suggestMergeProposals,
   unbanStopwords,
   undoMerge,
@@ -29,7 +27,6 @@ import {
   type StopwordsScope,
   type TagCatalogRow,
   type TagCatalogState,
-  type TagFacetType,
   type TagMergeProposal,
   type TagPairSimilarity,
 } from "@/api/client";
@@ -51,8 +48,6 @@ import { useDebounced } from "@/lib/useDebounced";
 import {
   CATALOG_STATE_HINT,
   CATALOG_STATE_LABEL,
-  FACET_TYPE_HINT,
-  FACET_TYPE_LABEL,
   MERGE_REASON_LABEL,
   MERGE_REASON_TONE,
   PROPOSAL_STATUS_LABEL,
@@ -61,6 +56,8 @@ import {
   REVIEW_FLAG_LABEL,
   STOPWORD_SCOPE_HINT,
   STOPWORD_SCOPE_LABEL,
+  STOPWORD_SOURCE_HINT,
+  STOPWORD_SOURCE_LABEL,
   labelOf,
 } from "@/lib/taxonomy";
 
@@ -82,8 +79,7 @@ const TABS = [
 
 const REASONS: MergeReason[] = ["TRIGRAM", "PLURAL", "MIXED"];
 const SCOPE_VALUES: StopwordsScope[] = ["TAG", "ENTITY", "ALL"];
-const CATALOG_STATES: TagCatalogState[] = ["ALL", "PENDING", "NOT_SUBJECT", "FACET", "LOW_CONFIDENCE"];
-const FACET_TYPES: TagFacetType[] = ["INSTITUTION", "PLACE"];
+const CATALOG_STATES: TagCatalogState[] = ["ALL", "PENDING", "NOT_SUBJECT", "LOW_CONFIDENCE"];
 
 /**
  * What a merge panel needs to know about one tag: the row it points at, and what it reads.
@@ -1527,14 +1523,10 @@ function ProposalCard({
 // =============================================================================================
 
 /**
- * The three destinations, and they are exclusive: a category, "not a subject", or the non-subject
- * axis (a producer or a place). One shape for the selection's action, so the bulk path cannot write
- * something the single row cannot.
+ * The two destinations, and they are exclusive: a category, or "not a subject". One shape for the
+ * selection's action, so the bulk path cannot write something the single row cannot.
  */
-type BulkAction =
-  | { kind: "category"; categoryId: number }
-  | { kind: "not-subject" }
-  | { kind: "facet"; facet: TagFacetType };
+type BulkAction = { kind: "category"; categoryId: number } | { kind: "not-subject" };
 
 /**
  * The decision queue of the subject axis: the tab the home screen's two cards open.
@@ -1544,12 +1536,12 @@ type BulkAction =
  * they were — the archivist landed on an unfiltered ranking. Here the state is a filter over the
  * whole catalogue, with the total beside it, and the row is where the decision is taken.
  *
- * The three destinations are the point of the taxonomy: **not a subject** is a verdict about the
- * subject axis (the tag stays in the collection and reachable by search — banning a spelling and
- * purging are the destructive paths, and they live in Stopwords), while **producer** and **place**
- * are the non-subject axis the schema was written for. ``alfa`` reaches 2,376 descriptions and
- * ``cidade`` 1,865; forcing them into a category is a measured cause of the classification defect,
- * which is why the queue can only close if the third destination is real.
+ * There are two destinations because the tag axis is the subject axis (ADR 0013). **Not a subject**
+ * silences the classifier and bans the spelling from coming back, which is the durable half of the
+ * verdict: ``macro_category_id=null`` alone is overwritten the next time the label set changes. A
+ * producer, a place or a person is not a third destination here — the entity axis carries *what it
+ * is* (``LOC``/``PER``/``ORG``, what search and diffusion read), and the tag × entity conflict screen
+ * settles a spelling that is both. Banning and purging remain the destructive paths in Stopwords.
  */
 function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes: Partial<TagsSearch>) => void }) {
   const queryClient = useQueryClient();
@@ -1619,26 +1611,8 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
       setReport(
         result.macro_category_name
           ? `“${result.name}” está em ${result.macro_category_name}. A decisão vale para todas as descrições que carregam a tag.`
-          : `“${result.name}” foi declarada não-assunto: nenhum selo de assunto será mostrado para ela, e o classificador não vai adivinhar de novo.`,
+          : `“${result.name}” foi declarada não-assunto: nenhum selo de assunto será mostrado para ela, o classificador não vai adivinhar de novo e a grafia não volta a virar tag.`,
       );
-      invalidate();
-    },
-  });
-
-  const facet = useMutation({
-    mutationFn: ({ tagId, facet }: { tagId: number; facet: TagFacetType }) => declareTagFacet(tagId, facet),
-    onSuccess: (result, variables) => {
-      setReport(
-        `“${result.name}” entrou no eixo ${labelOf(FACET_TYPE_LABEL, variables.facet).toLowerCase()}: deixa de ser assunto e passa a ser ${labelOf(FACET_TYPE_LABEL, variables.facet).toLowerCase()}.`,
-      );
-      invalidate();
-    },
-  });
-
-  const unmake = useMutation({
-    mutationFn: ({ tagId, facet }: { tagId: number; facet: TagFacetType }) => removeTagFacet(tagId, facet),
-    onSuccess: (result, variables) => {
-      setReport(`“${result.name}” saiu do eixo ${labelOf(FACET_TYPE_LABEL, variables.facet).toLowerCase()}.`);
       invalidate();
     },
   });
@@ -1659,12 +1633,10 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
       const failed: number[] = [];
       for (const tagId of ids) {
         try {
-          if (action.kind === "facet") await declareTagFacet(tagId, action.facet);
-          else
-            await curateTag(tagId, {
-              macro_category_id: action.kind === "category" ? action.categoryId : null,
-              note: null,
-            });
+          await curateTag(tagId, {
+            macro_category_id: action.kind === "category" ? action.categoryId : null,
+            note: null,
+          });
           written.push(tagId);
         } catch {
           failed.push(tagId);
@@ -1677,9 +1649,7 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
       const destination =
         action.kind === "category"
           ? `categoria ${drawers.find((category) => category.category_id === action.categoryId)?.name ?? `#${action.categoryId}`}`
-          : action.kind === "not-subject"
-            ? "não-assunto"
-            : `eixo ${labelOf(FACET_TYPE_LABEL, action.facet).toLowerCase()}`;
+          : "não-assunto (a grafia não volta a virar tag)";
       setReport(
         `${formatCount(written.length)} tag(s) escritas: ${destination}.` +
           (failed.length > 0
@@ -1742,13 +1712,11 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
 
       <p className="max-w-3xl text-xs text-(--color-muted)">
         {CATALOG_STATE_HINT[state]} Decidir aqui é uma decisão <strong>global</strong>: muda o selo de todas as
-        descrições que carregam a tag. Nada nesta aba exclui nada — banir uma grafia e excluir as tags banidas estão
-        na aba Stopwords, cada um no seu passo.
+        descrições que carregam a tag. Declarar não-assunto também bane a grafia de voltar a virar tag (a tag atual
+        fica no acervo); excluir as tags banidas é o passo separado da aba Stopwords.
       </p>
 
       {curate.error ? <ErrorState error={curate.error} /> : null}
-      {facet.error ? <ErrorState error={facet.error} /> : null}
-      {unmake.error ? <ErrorState error={unmake.error} /> : null}
       {bulk.error ? <ErrorState error={bulk.error} /> : null}
       {report ? <Notice tone="ok">{report}</Notice> : null}
 
@@ -1760,7 +1728,7 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
           title="Nenhuma tag neste estado"
           hint={
             state === "PENDING"
-              ? "A fila está vazia: toda tag do acervo tem categoria, foi declarada não-assunto ou está num eixo de produtor ou lugar."
+              ? "A fila está vazia: toda tag do acervo tem categoria ou foi declarada não-assunto."
               : "Troque o estado ou limpe a busca para ver outras tags do catálogo."
           }
         />
@@ -1807,11 +1775,9 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
                     row={row}
                     drawers={drawers}
                     selected={selected.includes(row.tag_id)}
-                    busy={curate.isPending || facet.isPending || unmake.isPending}
+                    busy={curate.isPending}
                     onToggle={() => toggle(row.tag_id)}
                     onCurate={(categoryId) => curate.mutate({ tagId: row.tag_id, categoryId })}
-                    onFacet={(facetType) => facet.mutate({ tagId: row.tag_id, facet: facetType })}
-                    onUnfacet={(facetType) => unmake.mutate({ tagId: row.tag_id, facet: facetType })}
                   />
                 ))}
               </tbody>
@@ -1866,23 +1832,11 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
               size="sm"
               variant="secondary"
               disabled={bulk.isPending}
-              title="Nenhum selo de assunto será mostrado para elas."
+              title="Nenhum selo de assunto será mostrado para elas, e a grafia não volta a virar tag."
               onClick={() => bulk.mutate({ ids: selected, action: { kind: "not-subject" } })}
             >
               não é assunto
             </Button>
-            {FACET_TYPES.map((facetType) => (
-              <Button
-                key={facetType}
-                size="sm"
-                variant="secondary"
-                disabled={bulk.isPending}
-                title={FACET_TYPE_HINT[facetType]}
-                onClick={() => bulk.mutate({ ids: selected, action: { kind: "facet", facet: facetType } })}
-              >
-                {labelOf(FACET_TYPE_LABEL, facetType)}
-              </Button>
-            ))}
             <button className="text-xs text-white/70 hover:text-white" onClick={() => setSelected([])}>
               limpar
             </button>
@@ -1893,7 +1847,7 @@ function ClassificarTab({ search, patch }: { search: TagsSearch; patch: (changes
   );
 }
 
-/** One row of the queue: the evidence, the state, and the three destinations. */
+/** One row of the queue: the evidence, the state, and the two destinations. */
 function CatalogRow({
   row,
   drawers,
@@ -1901,8 +1855,6 @@ function CatalogRow({
   busy,
   onToggle,
   onCurate,
-  onFacet,
-  onUnfacet,
 }: {
   row: TagCatalogRow;
   drawers: MacroCategory[];
@@ -1910,15 +1862,10 @@ function CatalogRow({
   busy: boolean;
   onToggle: () => void;
   onCurate: (categoryId: number | null) => void;
-  onFacet: (facet: TagFacetType) => void;
-  onUnfacet: (facet: TagFacetType) => void;
 }) {
   const drawer = row.macro_category_id
     ? drawers.find((category) => category.category_id === row.macro_category_id)
     : undefined;
-  // The route always sends the list (the schema defaults it), but the generated type marks it
-  // optional and the screen should not depend on that difference.
-  const facets = row.facets ?? [];
 
   return (
     <tr className="border-b border-(--color-line) last:border-b-0">
@@ -1943,14 +1890,8 @@ function CatalogRow({
         <span className="flex flex-wrap items-center gap-1">
           {row.macro_category_id ? (
             <Badge tone="accent">{drawer?.name ?? `#${row.macro_category_id}`}</Badge>
-          ) : facets.length > 0 ? (
-            facets.map((facet) => (
-              <Badge key={facet} tone="neutral" title={FACET_TYPE_HINT[facet]}>
-                {labelOf(FACET_TYPE_LABEL, facet)}
-              </Badge>
-            ))
           ) : row.subject_excluded ? (
-            <Badge tone="neutral" title="Uma pessoa declarou que esta tag não é assunto.">
+            <Badge tone="neutral" title="Uma pessoa declarou que esta tag não é assunto, e a grafia está banida de voltar.">
               não é assunto
             </Badge>
           ) : (
@@ -1978,21 +1919,6 @@ function CatalogRow({
               </option>
             ))}
           </Select>
-          {FACET_TYPES.map((facet) => {
-            const declared = facets.includes(facet);
-            return (
-              <Button
-                key={facet}
-                size="sm"
-                variant={declared ? "primary" : "ghost"}
-                disabled={busy}
-                title={FACET_TYPE_HINT[facet]}
-                onClick={() => (declared ? onUnfacet(facet) : onFacet(facet))}
-              >
-                {declared ? `tirar de ${labelOf(FACET_TYPE_LABEL, facet).toLowerCase()}` : labelOf(FACET_TYPE_LABEL, facet)}
-              </Button>
-            );
-          })}
         </span>
       </td>
     </tr>
@@ -2174,7 +2100,11 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
             <LedgerList
               items={words}
               keyOf={(item) => item.word}
-              termOf={(item) => [item.word, labelOf(STOPWORD_SCOPE_LABEL, item.scope)]}
+              termOf={(item) => [
+                item.word,
+                labelOf(STOPWORD_SCOPE_LABEL, item.scope),
+                labelOf(STOPWORD_SOURCE_LABEL, item.source),
+              ]}
               searchPlaceholder="buscar termo banido…"
               nounSingular="termo banido"
               nounPlural="termos banidos"
@@ -2190,6 +2120,11 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
                     >
                       {labelOf(STOPWORD_SCOPE_LABEL, item.scope)}
                     </Badge>
+                    {item.source !== "HUMAN" ? (
+                      <Badge tone="neutral" title={STOPWORD_SOURCE_HINT[item.source]}>
+                        {labelOf(STOPWORD_SOURCE_LABEL, item.source)}
+                      </Badge>
+                    ) : null}
                   </span>
                   <Button
                     size="sm"
@@ -2297,7 +2232,14 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
                 <ul className="max-h-64 overflow-y-auto">
                   {(preview.tags ?? []).map((tag) => (
                     <li key={tag.tag_id} className="flex items-center justify-between gap-3 py-0.5">
-                      <span className="truncate">{tag.name}</span>
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate">{tag.name}</span>
+                        {tag.source !== "HUMAN" ? (
+                          <Badge tone="neutral" title={STOPWORD_SOURCE_HINT[tag.source]}>
+                            {labelOf(STOPWORD_SOURCE_LABEL, tag.source)}
+                          </Badge>
+                        ) : null}
+                      </span>
                       <span className="shrink-0 tabular-nums text-(--color-muted)">
                         {formatCount(tag.document_count)} doc
                         {tag.macro_category_name ? ` · ${tag.macro_category_name}` : ""}

@@ -36,51 +36,36 @@ class AnomalyType(enum.StrEnum):
     SUBJECT_LOW_CONFIDENCE = "SUBJECT_LOW_CONFIDENCE"
 
 
-class TagFacetType(enum.StrEnum):
-    """
-    Which non-subject axis a tag belongs to.
-
-    ``ArchiveTag.macro_category_id`` answers "what is this about?". Some tags have no honest
-    answer to that question but a very clear answer to a different one: ``alfa`` is *who
-    produced*, ``cidade`` is *where*. Before this existed those terms competed with
-    ``alvenaria`` for the same subject drawer, which is a measured cause of the systematic
-    misclassification (``alvenaria`` landing in "Mobilidade e Transporte").
-
-    Deliberately a separate table rather than a second column: a tag carries at most one
-    subject but can carry a place *and* an institution at once.
-    """
-
-    #: The producer or the body the record is about (``alfa``, ``pmc``, ``theta``).
-    INSTITUTION = "INSTITUTION"
-    #: A toponym or a street address (``cidade``, ``exemplo lugar``, ``rua exemplo``).
-    PLACE = "PLACE"
-
-
 class TagCatalogState(enum.StrEnum):
     """
     Which slice of the tag catalogue one read asks for, by the state of its subject decision.
 
-    The decision has four parts and they are a **partition**: a tag is in a drawer, declared not a
-    subject, claimed by the non-subject axis, or nobody has decided yet. This filter names the three
-    that are states of the *catalogue* — the drawer is reached with ``macro_category_id`` — and
-    ``ALL`` is not a state at all but the absence of a filter. The predicates live in one module
-    (``repository/subject_queue.py``) and the home screen's counters read the same ones, because the
-    number a card promises has to be the number the list it opens reports.
+    The decision has three parts and they are a **partition**: a tag is in a drawer, declared not a
+    subject, or nobody has decided yet. This filter names the two that are states of the *catalogue*
+    — the drawer is reached with ``macro_category_id`` — and ``ALL`` is not a state at all but the
+    absence of a filter. The predicates live in one module (``repository/subject_queue.py``) and the
+    home screen's counters read the same ones, because the number a card promises has to be the number
+    the list it opens reports.
 
     ``LOW_CONFIDENCE`` is the one that is not a state of the tag but of the *work*: the classifier
     ran, was not confident enough to file the tag, and left a row in ``archive_ai_review_queue``.
     It is a subset of ``PENDING`` on purpose — the archivist's two cards answer two questions about
     the same queue, and either one may take the decision.
+
+    A place, a producer or a person is **not** a fourth state: it is a tag the subject axis does not
+    answer for, so it is declared not a subject and its spelling is banned from coming back, while the
+    entity axis carries what it is (ADR 0013). ``FACET`` used to express that distinction here, and the
+    distinction had no reader beyond the chip itself — the entity already reaches the description with
+    a type the search facet and the public projection both use.
     """
 
     #: Everything, paginated. The screen's default, and the only one that is not a filter.
     ALL = "ALL"
-    #: No drawer, no verdict, no facet: the work the home screen counts.
+    #: No drawer and no verdict: the work the home screen counts.
     PENDING = "PENDING"
-    #: A person declared the tag belongs to no subject drawer, and it goes nowhere.
+    #: A person declared the tag belongs to no subject drawer, and its spelling is banned from
+    #: becoming a tag again.
     NOT_SUBJECT = "NOT_SUBJECT"
-    #: A person claimed it for the non-subject axis: a producer or a place.
-    FACET = "FACET"
     #: Queued by the classifier below its confidence floor, still undecided.
     LOW_CONFIDENCE = "LOW_CONFIDENCE"
 

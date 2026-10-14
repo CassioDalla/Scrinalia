@@ -994,16 +994,23 @@ def test_entity_search_route_reaches_the_service_with_the_term(client: TestClien
 
 
 def test_stopword_list_route_carries_the_axis(client: TestClient, mocker):
+    """The axis and the origin both travel with the term: one decides the purge, the other explains it."""
     from scrinalia.domains.archive.models.enums import StopwordsScope
     from scrinalia.domains.archive.schemas.tag_schema import StopwordDTO
 
     mocked = mocker.patch.object(TagService, "list_stopwords")
-    mocked.return_value = [StopwordDTO(word="pessoas", scope=StopwordsScope.TAG)]
+    mocked.return_value = [
+        StopwordDTO(word="pessoas", scope=StopwordsScope.TAG),
+        StopwordDTO(word="alfa", scope=StopwordsScope.TAG, source="CONFLICT"),
+    ]
 
     response = client.get("/api/v1/taxonomy/tags/stopwords")
 
     assert response.status_code == HTTP_200_OK
-    assert response.json() == [{"word": "pessoas", "scope": "TAG"}]
+    assert response.json() == [
+        {"word": "pessoas", "scope": "TAG", "source": "HUMAN"},
+        {"word": "alfa", "scope": "TAG", "source": "CONFLICT"},
+    ]
     mocked.assert_called_once_with(None)
 
 

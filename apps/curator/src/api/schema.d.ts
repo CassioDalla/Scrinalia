@@ -1617,6 +1617,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/taxonomy/tags/subject-exclusions/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** PreviewSubjectExclusions */
+        post: operations["ApiV1TaxonomyTagsSubjectExclusionsPreviewPreviewSubjectExclusions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/taxonomy/tags/subject-exclusions/suggestions": {
         parameters: {
             query?: never;
@@ -1666,24 +1683,6 @@ export interface paths {
         head?: never;
         /** CurateTag */
         patch: operations["ApiV1TaxonomyTagsTagIdCurateTag"];
-        trace?: never;
-    };
-    "/api/v1/taxonomy/tags/{tag_id}/facets/{facet_type}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** DeclareTagFacet */
-        put: operations["ApiV1TaxonomyTagsTagIdFacetsFacetTypeDeclareTagFacet"];
-        post?: never;
-        /** RemoveTagFacet */
-        delete: operations["ApiV1TaxonomyTagsTagIdFacetsFacetTypeRemoveTagFacet"];
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/api/v1/typologies": {
@@ -3470,7 +3469,7 @@ export interface components {
          *         things and a translation catalogue needs to tell them apart.
          * @enum {string}
          */
-        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORD_PURGE_DONE" | "TAG_STOPWORD_PURGE_UNDONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "NER_PURGE_DONE" | "NER_PURGE_UNDONE" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "ENTITY_RENAMED" | "ENTITY_MERGE_UNDONE" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "PASSWORD_CHANGE_REQUIRED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
+        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORD_PURGE_DONE" | "TAG_STOPWORD_PURGE_UNDONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_BLOCKED" | "SUBJECT_EXCLUSIONS_PARTIAL" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "NER_PURGE_DONE" | "NER_PURGE_UNDONE" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "ENTITY_RENAMED" | "ENTITY_MERGE_UNDONE" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "PASSWORD_CHANGE_REQUIRED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
         /** RouteResponse */
         RouteResponse: {
             code: components["schemas"]["RouteMessageCode"];
@@ -3511,6 +3510,8 @@ export interface components {
         /** StopwordDTO */
         StopwordDTO: {
             scope: components["schemas"]["StopwordsScope"];
+            /** @default HUMAN */
+            source: string;
             word: string;
         };
         /** StopwordPurgeLogEntryDTO */
@@ -3565,6 +3566,8 @@ export interface components {
             document_count: number;
             macro_category_name?: string | null;
             name: string;
+            /** @default HUMAN */
+            source: string;
             tag_id: number;
         };
         /** StopwordPurgeUndoResponse */
@@ -3606,9 +3609,17 @@ export interface components {
         };
         /** SubjectExclusionBanResponse */
         SubjectExclusionBanResponse: {
+            /** @default 0 */
+            banned: number;
+            blocked?: components["schemas"]["SubjectExclusionTarget"][];
             code: components["schemas"]["RouteMessageCode"];
             created: number;
             message: string;
+        };
+        /** SubjectExclusionPlan */
+        SubjectExclusionPlan: {
+            applicable?: components["schemas"]["SubjectExclusionTarget"][];
+            blocked?: components["schemas"]["SubjectExclusionTarget"][];
         };
         /** SubjectExclusionRemovalRequest */
         SubjectExclusionRemovalRequest: {
@@ -3620,6 +3631,8 @@ export interface components {
             code: components["schemas"]["RouteMessageCode"];
             message: string;
             removed: number;
+            /** @default 0 */
+            unbanned: number;
         };
         /** SubjectExclusionRequest */
         SubjectExclusionRequest: {
@@ -3637,6 +3650,8 @@ export interface components {
         /** SubjectExclusionSuggestion */
         SubjectExclusionSuggestion: {
             /** @default false */
+            already_banned: boolean;
+            /** @default false */
             already_excluded: boolean;
             /** @default false */
             also_an_entity: boolean;
@@ -3644,6 +3659,8 @@ export interface components {
             document_count: number;
             /** @default false */
             is_place_term: boolean;
+            macro_category_id?: number | null;
+            macro_category_name?: string | null;
             signal: string;
             term: string;
             /** @default 1 */
@@ -3667,6 +3684,24 @@ export interface components {
             place_count: number;
             /** @default 0 */
             total: number;
+        };
+        /** SubjectExclusionTarget */
+        SubjectExclusionTarget: {
+            /** @default false */
+            already_banned: boolean;
+            /** @default false */
+            already_excluded: boolean;
+            /** @default false */
+            also_an_entity: boolean;
+            /** @default 0 */
+            document_count: number;
+            /** @default false */
+            is_place_term: boolean;
+            macro_category_id?: number | null;
+            macro_category_name?: string | null;
+            signal?: string | null;
+            tag_id?: number | null;
+            term: string;
         };
         /** SuggestMacroRequest */
         SuggestMacroRequest: {
@@ -3727,7 +3762,6 @@ export interface components {
             ai_confidence_score?: number | null;
             /** @default 0 */
             document_count: number;
-            facets?: components["schemas"]["TagFacetType"][];
             macro_category_id?: number | null;
             macro_category_name?: string | null;
             name: string;
@@ -3739,21 +3773,27 @@ export interface components {
          * TagCatalogState
          * @description Which slice of the tag catalogue one read asks for, by the state of its subject decision.
          *
-         *         The decision has four parts and they are a **partition**: a tag is in a drawer, declared not a
-         *         subject, claimed by the non-subject axis, or nobody has decided yet. This filter names the three
-         *         that are states of the *catalogue* — the drawer is reached with ``macro_category_id`` — and
-         *         ``ALL`` is not a state at all but the absence of a filter. The predicates live in one module
-         *         (``repository/subject_queue.py``) and the home screen's counters read the same ones, because the
-         *         number a card promises has to be the number the list it opens reports.
+         *         The decision has three parts and they are a **partition**: a tag is in a drawer, declared not a
+         *         subject, or nobody has decided yet. This filter names the two that are states of the *catalogue*
+         *         — the drawer is reached with ``macro_category_id`` — and ``ALL`` is not a state at all but the
+         *         absence of a filter. The predicates live in one module (``repository/subject_queue.py``) and the
+         *         home screen's counters read the same ones, because the number a card promises has to be the number
+         *         the list it opens reports.
          *
          *         ``LOW_CONFIDENCE`` is the one that is not a state of the tag but of the *work*: the classifier
          *         ran, was not confident enough to file the tag, and left a row in ``archive_ai_review_queue``.
          *         It is a subset of ``PENDING`` on purpose — the archivist's two cards answer two questions about
          *         the same queue, and either one may take the decision.
+         *
+         *         A place, a producer or a person is **not** a fourth state: it is a tag the subject axis does not
+         *         answer for, so it is declared not a subject and its spelling is banned from coming back, while the
+         *         entity axis carries what it is (ADR 0013). ``FACET`` used to express that distinction here, and the
+         *         distinction had no reader beyond the chip itself — the entity already reaches the description with
+         *         a type the search facet and the public projection both use.
          * @default ALL
          * @enum {string}
          */
-        TagCatalogState: "ALL" | "PENDING" | "NOT_SUBJECT" | "FACET" | "LOW_CONFIDENCE";
+        TagCatalogState: "ALL" | "PENDING" | "NOT_SUBJECT" | "LOW_CONFIDENCE";
         /** TagCurationRequest */
         TagCurationRequest: {
             /** @description Drawer the tag moves into; ``null`` takes it out of the subject axis. */
@@ -3772,37 +3812,6 @@ export interface components {
             subject_excluded: boolean;
             tag_id: number;
         };
-        /** TagFacetRequest */
-        TagFacetRequest: {
-            /** @description Why; kept in the tag's ledger. */
-            note?: string | null;
-            /** @description Canonical spelling of the facet; the tag name by default. */
-            value?: string | null;
-        };
-        /** TagFacetResult */
-        TagFacetResult: {
-            facets?: components["schemas"]["TagFacetType"][];
-            macro_category_id?: number | null;
-            name: string;
-            /** @default false */
-            subject_excluded: boolean;
-            tag_id: number;
-        };
-        /**
-         * TagFacetType
-         * @description Which non-subject axis a tag belongs to.
-         *
-         *         ``ArchiveTag.macro_category_id`` answers "what is this about?". Some tags have no honest
-         *         answer to that question but a very clear answer to a different one: ``alfa`` is *who
-         *         produced*, ``cidade`` is *where*. Before this existed those terms competed with
-         *         ``alvenaria`` for the same subject drawer, which is a measured cause of the systematic
-         *         misclassification (``alvenaria`` landing in "Mobilidade e Transporte").
-         *
-         *         Deliberately a separate table rather than a second column: a tag carries at most one
-         *         subject but can carry a place *and* an institution at once.
-         * @enum {string}
-         */
-        TagFacetType: "INSTITUTION" | "PLACE";
         /** TagLinkRequest */
         TagLinkRequest: {
             /** @description Por que decidiu; fica no histórico do documento. */
@@ -7371,17 +7380,23 @@ export interface operations {
                 /**
                  * @description Which slice of the tag catalogue one read asks for, by the state of its subject decision.
                  *
-                 *         The decision has four parts and they are a **partition**: a tag is in a drawer, declared not a
-                 *         subject, claimed by the non-subject axis, or nobody has decided yet. This filter names the three
-                 *         that are states of the *catalogue* — the drawer is reached with ``macro_category_id`` — and
-                 *         ``ALL`` is not a state at all but the absence of a filter. The predicates live in one module
-                 *         (``repository/subject_queue.py``) and the home screen's counters read the same ones, because the
-                 *         number a card promises has to be the number the list it opens reports.
+                 *         The decision has three parts and they are a **partition**: a tag is in a drawer, declared not a
+                 *         subject, or nobody has decided yet. This filter names the two that are states of the *catalogue*
+                 *         — the drawer is reached with ``macro_category_id`` — and ``ALL`` is not a state at all but the
+                 *         absence of a filter. The predicates live in one module (``repository/subject_queue.py``) and the
+                 *         home screen's counters read the same ones, because the number a card promises has to be the number
+                 *         the list it opens reports.
                  *
                  *         ``LOW_CONFIDENCE`` is the one that is not a state of the tag but of the *work*: the classifier
                  *         ran, was not confident enough to file the tag, and left a row in ``archive_ai_review_queue``.
                  *         It is a subset of ``PENDING`` on purpose — the archivist's two cards answer two questions about
                  *         the same queue, and either one may take the decision.
+                 *
+                 *         A place, a producer or a person is **not** a fourth state: it is a tag the subject axis does not
+                 *         answer for, so it is declared not a subject and its spelling is banned from coming back, while the
+                 *         entity axis carries what it is (ADR 0013). ``FACET`` used to express that distinction here, and the
+                 *         distinction had no reader beyond the chip itself — the entity already reaches the description with
+                 *         a type the search facet and the public projection both use.
                  */
                 subject_state?: components["schemas"]["TagCatalogState"];
                 macro_category_id?: number | null;
@@ -8165,6 +8180,45 @@ export interface operations {
             };
         };
     };
+    ApiV1TaxonomyTagsSubjectExclusionsPreviewPreviewSubjectExclusions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubjectExclusionRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubjectExclusionPlan"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
     ApiV1TaxonomyTagsSubjectExclusionsSuggestionsSuggestSubjectExclusions: {
         parameters: {
             query?: {
@@ -8265,110 +8319,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TagCurationResult"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                        status_code: number;
-                    };
-                };
-            };
-        };
-    };
-    ApiV1TaxonomyTagsTagIdFacetsFacetTypeDeclareTagFacet: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                tag_id: number;
-                /**
-                 * @description Which non-subject axis a tag belongs to.
-                 *
-                 *         ``ArchiveTag.macro_category_id`` answers "what is this about?". Some tags have no honest
-                 *         answer to that question but a very clear answer to a different one: ``alfa`` is *who
-                 *         produced*, ``cidade`` is *where*. Before this existed those terms competed with
-                 *         ``alvenaria`` for the same subject drawer, which is a measured cause of the systematic
-                 *         misclassification (``alvenaria`` landing in "Mobilidade e Transporte").
-                 *
-                 *         Deliberately a separate table rather than a second column: a tag carries at most one
-                 *         subject but can carry a place *and* an institution at once.
-                 */
-                facet_type: components["schemas"]["TagFacetType"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TagFacetRequest"];
-            };
-        };
-        responses: {
-            /** @description Request fulfilled, document follows */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TagFacetResult"];
-                };
-            };
-            /** @description Bad request syntax or unsupported method */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        detail: string;
-                        extra?: null | {
-                            [key: string]: unknown;
-                        } | unknown[];
-                        status_code: number;
-                    };
-                };
-            };
-        };
-    };
-    ApiV1TaxonomyTagsTagIdFacetsFacetTypeRemoveTagFacet: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                tag_id: number;
-                /**
-                 * @description Which non-subject axis a tag belongs to.
-                 *
-                 *         ``ArchiveTag.macro_category_id`` answers "what is this about?". Some tags have no honest
-                 *         answer to that question but a very clear answer to a different one: ``alfa`` is *who
-                 *         produced*, ``cidade`` is *where*. Before this existed those terms competed with
-                 *         ``alvenaria`` for the same subject drawer, which is a measured cause of the systematic
-                 *         misclassification (``alvenaria`` landing in "Mobilidade e Transporte").
-                 *
-                 *         Deliberately a separate table rather than a second column: a tag carries at most one
-                 *         subject but can carry a place *and* an institution at once.
-                 */
-                facet_type: components["schemas"]["TagFacetType"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Request fulfilled, document follows */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TagFacetResult"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

@@ -38,7 +38,7 @@ class TestVocabularyFromRows:
         assert not vocabulary.is_place("jaime lerner")
         assert not vocabulary.is_person("centro")
 
-    def test_every_place_kind_claims_the_facet(self) -> None:
+    def test_every_place_kind_is_a_place(self) -> None:
         for kind in PLACE_KINDS:
             vocabulary = vocabulary_from_rows([("algum lugar", kind)])
             assert vocabulary.is_place("algum lugar"), f"{kind} é um lugar"

@@ -1012,3 +1012,72 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   entity, so one **temporary** orphan entity (`misto`, `ORG`) was inserted into the zeroed database
   and removed afterwards, together with the ledger row and the scratch session; the round trip was
   driven through the screen. That is the one synthetic input this entry declares.
+
+## 2026-10-13 — the tag axis is the subject axis (#83, #84)
+
+- **Range:** `95796c3..32d19f1`. The range ends at the second of the two commits that carry the
+  change (the API/domain one is `5055312`, the curator one is `32d19f1`), so the floor closes the
+  whole change. `guides/operate.md` declares `models/enums.py`, which moved, so it was read and not
+  skipped.
+- **Pages:**
+  - `guides/curate.md` — **updated**: the *Classificar* tab has **two** destinations now — a drawer,
+    or not-a-subject — instead of three. The `FACET` row leaves the state table, the row's evidence
+    loses the facet, and the producer/place/person cases move to the **entity axis** (a type `LOC`,
+    `PER`, `ORG` that search and the public projection read) and to the tag × entity conflict screen;
+    the `PUT`/`DELETE /api/v1/taxonomy/tags/{tag_id}/facets/{facet_type}` routes are gone. The
+    *Não é assunto* section stops promising that "only the subject classification stops guessing":
+    confirming **also bans the spelling at `TAG` scope**, the ban deletes nothing, and the purge
+    stays a deliberate act behind its preview and ledger. It documents the new read-only
+    `POST /api/v1/taxonomy/tags/subject-exclusions/preview` (`AUTHENTICATED`) with its
+    `applicable`/`blocked`, the refusal of a term whose tag is already in a drawer
+    (`SUBJECT_EXCLUSIONS_BLOCKED` / `SUBJECT_EXCLUSIONS_PARTIAL`, `blocked`, `created`, `banned`), and
+    the undo's `removed` **and** `unbanned` lifting only the ban this decision planted. The Stopwords
+    tab and its purge preview now carry the ban's `source` (`HUMAN` / `CONFLICT` / `EXCLUSION`).
+  - `guides/curate.pt.md` — **updated** (the translation of the same three places).
+  - `guides/data-model.md` — **updated**: `archive_tag_facets` leaves the subject table (a tag is a
+    drawer or not-a-subject; what a place, a producer or a person *is* belongs to the entity axis),
+    `domain_stopwords` gains `source` and `domain_subject_exclusions` gains `ban_created`, the
+    bidirectional-governance section separates `save_stopwords` (moves the scope) from
+    `ensure_tag_ban` (widens and never narrows), and the ledger note says `ban_created` belongs to
+    both writers of a ban.
+  - `guides/data-model.pt.md` — **updated** (the translation of the same).
+  - `README.md` — **updated**: the front door still said a provenance-or-geography tag carries an
+    `archive_tag_facets` row; it now names the entity axis and the ban. (Not a sourced page — the
+    freshness report cannot flag it, and it was found by reading the change.)
+  - `guides/operate.md` — **no-change**: the `macro-category` worker's unit and its pending rule
+    (`is_subject_candidate` + the exclusions) never read the tag catalogue's states, and the
+    diagnostic SQL counts `macro_category_id IS NULL`, which the dropped table never entered. The
+    page declares `models/enums.py`, which moved, so it was read and not skipped.
+  - `adr/index.md` — the implementation change already links ADR 0013; the coverage gate's ADR check
+    is green. `adr/0008-...md` was **updated** in the same commit: it still said `is_place_term`
+    "claims it for the PLACE facet" and that a place kind "claims the PLACE facet", which ADR 0013
+    makes false. The distinction ADR 0008 draws is kept and the destination moves to the entity axis,
+    recorded there as an `Amended by ADR 0013` blockquote and named in ADR 0013's `Amends:`.
+- **Why the round exists:** `freshness.py` printed **"Every page is fresh"** because the hook reads
+  commits and the whole change is uncommitted — the report named nothing, so the triage was driven by
+  the working-tree diff. That diff moves `curate.md`'s declared sources (`api/controllers/**`,
+  `services/tag_service.py`, `repository/tag_repo.py`, `models/enums.py`,
+  `packages/api-contract/openapi.json`, and the SPA `routes/**`) and `data-model.md`'s
+  (`models/**`, `repository/tag_repo.py`). The API delta is two routes removed and one added.
+- **What the round measured.** `uv run pytest testing/unit/docs -q` — **28 passed**;
+  `testing/unit/docs/test_documentation_coverage.py` — **7 passed** (screens, tables, settings,
+  workers, ADRs and the API-resource check); `uv run mkdocs build --strict` green. The full Python
+  suite and the SPA build belong to the round that lands the change and were not re-run here.
+- **What the round looked at.** The screens were **rendered**, not inferred. The built SPA was served
+  by the API (`create_app()` mounts `apps/curator/dist`) against the reference collection, with a
+  scratch session created for the round and deleted after, and the headless shell drove three routes
+  over CDP. Seen in the pixels: *Classificar* (`/assuntos/tags?aba=classificar`) with the four chips
+  — `Todas`, `Sem decisão`, `Não é assunto`, `Confiança baixa`, **no `FACET`** — the row's `Decidir`
+  column reduced to the category select with no producer/place buttons, and the header reading
+  "204 tag(s) neste estado", which is the same 204 the SQL count of undecided tags reports. *Não é
+  assunto* (`/assuntos/excecoes`) with "4 candidatos · 4 são lugares (o eixo de entidades os carrega)",
+  the `é lugar` badge and the new hint "quem carrega o lugar é o eixo de entidades (LOC)", the
+  disclosure sentence naming the ban, and "139 termos fora do eixo de assunto" — the measured
+  population. *Stopwords* (`/assuntos/tags?aba=stopwords`) with the origin badge on the terms the
+  backfill classified `CONFLICT` (`veio de um conflito tag × entidade`) and **no badge** on the
+  `HUMAN` ones (`1924`, `1926`), which is the 83/5 split the migration produced. The **blocked**
+  branch was rendered too, by putting one candidate tag (`ruas`, id 131) into `Mobilidade e
+  Transporte` and shooting again: the row gained the `está em Mobilidade e Transporte` badge and its
+  button went disabled; the mutation was reverted immediately and the pending count returned to 204.
+  **Not** verified in pixels: the write itself from the screen (the refusal and the ban are pinned by
+  the integration suite, which drives the real routes and the real `ban_created`/`source` columns).

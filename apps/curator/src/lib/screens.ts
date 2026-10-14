@@ -126,7 +126,7 @@ export const SCREENS: Record<ScreenId, Screen> = {
     label: "Não é Assunto",
     hint: "O que a regra não considera",
     description:
-      "Os termos que a classificação de assunto não deve adivinhar. Banir não exclui a Tag: ela continua no acervo e alcançável pela busca.",
+      "Os termos que a classificação de assunto não deve adivinhar. Marcar não exclui a Tag — ela continua no acervo e alcançável pela busca — mas bane a grafia de voltar a virar tag.",
   },
   entities: {
     path: "/entidades/lista",

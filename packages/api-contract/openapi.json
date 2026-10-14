@@ -6145,6 +6145,8 @@
           "TAG_STOPWORD_PURGE_DONE",
           "TAG_STOPWORD_PURGE_UNDONE",
           "SUBJECT_EXCLUSIONS_ADDED",
+          "SUBJECT_EXCLUSIONS_BLOCKED",
+          "SUBJECT_EXCLUSIONS_PARTIAL",
           "SUBJECT_EXCLUSIONS_REMOVED",
           "MACRO_CLUSTERING_INSUFFICIENT_TEXTS",
           "NER_EXCLUSIONS_ADDED",
@@ -6286,6 +6288,10 @@
         "properties": {
           "scope": {
             "$ref": "#/components/schemas/StopwordsScope"
+          },
+          "source": {
+            "default": "HUMAN",
+            "type": "string"
           },
           "word": {
             "type": "string"
@@ -6485,6 +6491,10 @@
           "name": {
             "type": "string"
           },
+          "source": {
+            "default": "HUMAN",
+            "type": "string"
+          },
           "tag_id": {
             "type": "integer"
           }
@@ -6635,6 +6645,16 @@
       },
       "SubjectExclusionBanResponse": {
         "properties": {
+          "banned": {
+            "default": 0,
+            "type": "integer"
+          },
+          "blocked": {
+            "items": {
+              "$ref": "#/components/schemas/SubjectExclusionTarget"
+            },
+            "type": "array"
+          },
           "code": {
             "$ref": "#/components/schemas/RouteMessageCode"
           },
@@ -6651,6 +6671,25 @@
           "message"
         ],
         "title": "SubjectExclusionBanResponse",
+        "type": "object"
+      },
+      "SubjectExclusionPlan": {
+        "properties": {
+          "applicable": {
+            "items": {
+              "$ref": "#/components/schemas/SubjectExclusionTarget"
+            },
+            "type": "array"
+          },
+          "blocked": {
+            "items": {
+              "$ref": "#/components/schemas/SubjectExclusionTarget"
+            },
+            "type": "array"
+          }
+        },
+        "required": [],
+        "title": "SubjectExclusionPlan",
         "type": "object"
       },
       "SubjectExclusionRemovalRequest": {
@@ -6679,6 +6718,10 @@
             "type": "string"
           },
           "removed": {
+            "type": "integer"
+          },
+          "unbanned": {
+            "default": 0,
             "type": "integer"
           }
         },
@@ -6729,6 +6772,10 @@
       },
       "SubjectExclusionSuggestion": {
         "properties": {
+          "already_banned": {
+            "default": false,
+            "type": "boolean"
+          },
           "already_excluded": {
             "default": false,
             "type": "boolean"
@@ -6744,6 +6791,26 @@
           "is_place_term": {
             "default": false,
             "type": "boolean"
+          },
+          "macro_category_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "macro_category_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "signal": {
             "type": "string"
@@ -6804,6 +6871,78 @@
         },
         "required": [],
         "title": "SubjectExclusionSuggestionResponse",
+        "type": "object"
+      },
+      "SubjectExclusionTarget": {
+        "properties": {
+          "already_banned": {
+            "default": false,
+            "type": "boolean"
+          },
+          "already_excluded": {
+            "default": false,
+            "type": "boolean"
+          },
+          "also_an_entity": {
+            "default": false,
+            "type": "boolean"
+          },
+          "document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "is_place_term": {
+            "default": false,
+            "type": "boolean"
+          },
+          "macro_category_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "macro_category_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signal": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tag_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "term": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "term"
+        ],
+        "title": "SubjectExclusionTarget",
         "type": "object"
       },
       "SuggestMacroRequest": {
@@ -6963,12 +7102,6 @@
             "default": 0,
             "type": "integer"
           },
-          "facets": {
-            "items": {
-              "$ref": "#/components/schemas/TagFacetType"
-            },
-            "type": "array"
-          },
           "macro_category_id": {
             "oneOf": [
               {
@@ -7009,12 +7142,11 @@
       },
       "TagCatalogState": {
         "default": "ALL",
-        "description": "\n    Which slice of the tag catalogue one read asks for, by the state of its subject decision.\n\n    The decision has four parts and they are a **partition**: a tag is in a drawer, declared not a\n    subject, claimed by the non-subject axis, or nobody has decided yet. This filter names the three\n    that are states of the *catalogue* — the drawer is reached with ``macro_category_id`` — and\n    ``ALL`` is not a state at all but the absence of a filter. The predicates live in one module\n    (``repository/subject_queue.py``) and the home screen's counters read the same ones, because the\n    number a card promises has to be the number the list it opens reports.\n\n    ``LOW_CONFIDENCE`` is the one that is not a state of the tag but of the *work*: the classifier\n    ran, was not confident enough to file the tag, and left a row in ``archive_ai_review_queue``.\n    It is a subset of ``PENDING`` on purpose — the archivist's two cards answer two questions about\n    the same queue, and either one may take the decision.\n    ",
+        "description": "\n    Which slice of the tag catalogue one read asks for, by the state of its subject decision.\n\n    The decision has three parts and they are a **partition**: a tag is in a drawer, declared not a\n    subject, or nobody has decided yet. This filter names the two that are states of the *catalogue*\n    — the drawer is reached with ``macro_category_id`` — and ``ALL`` is not a state at all but the\n    absence of a filter. The predicates live in one module (``repository/subject_queue.py``) and the\n    home screen's counters read the same ones, because the number a card promises has to be the number\n    the list it opens reports.\n\n    ``LOW_CONFIDENCE`` is the one that is not a state of the tag but of the *work*: the classifier\n    ran, was not confident enough to file the tag, and left a row in ``archive_ai_review_queue``.\n    It is a subset of ``PENDING`` on purpose — the archivist's two cards answer two questions about\n    the same queue, and either one may take the decision.\n\n    A place, a producer or a person is **not** a fourth state: it is a tag the subject axis does not\n    answer for, so it is declared not a subject and its spelling is banned from coming back, while the\n    entity axis carries what it is (ADR 0013). ``FACET`` used to express that distinction here, and the\n    distinction had no reader beyond the chip itself — the entity already reaches the description with\n    a type the search facet and the public projection both use.\n    ",
         "enum": [
           "ALL",
           "PENDING",
           "NOT_SUBJECT",
-          "FACET",
           "LOW_CONFIDENCE"
         ],
         "title": "TagCatalogState",
@@ -7094,80 +7226,6 @@
         ],
         "title": "TagCurationResult",
         "type": "object"
-      },
-      "TagFacetRequest": {
-        "properties": {
-          "note": {
-            "description": "Why; kept in the tag's ledger.",
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "value": {
-            "description": "Canonical spelling of the facet; the tag name by default.",
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [],
-        "title": "TagFacetRequest",
-        "type": "object"
-      },
-      "TagFacetResult": {
-        "properties": {
-          "facets": {
-            "items": {
-              "$ref": "#/components/schemas/TagFacetType"
-            },
-            "type": "array"
-          },
-          "macro_category_id": {
-            "oneOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "name": {
-            "type": "string"
-          },
-          "subject_excluded": {
-            "default": false,
-            "type": "boolean"
-          },
-          "tag_id": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "name",
-          "tag_id"
-        ],
-        "title": "TagFacetResult",
-        "type": "object"
-      },
-      "TagFacetType": {
-        "description": "\n    Which non-subject axis a tag belongs to.\n\n    ``ArchiveTag.macro_category_id`` answers \"what is this about?\". Some tags have no honest\n    answer to that question but a very clear answer to a different one: ``alfa`` is *who\n    produced*, ``cidade`` is *where*. Before this existed those terms competed with\n    ``alvenaria`` for the same subject drawer, which is a measured cause of the systematic\n    misclassification (``alvenaria`` landing in \"Mobilidade e Transporte\").\n\n    Deliberately a separate table rather than a second column: a tag carries at most one\n    subject but can carry a place *and* an institution at once.\n    ",
-        "enum": [
-          "INSTITUTION",
-          "PLACE"
-        ],
-        "title": "TagFacetType",
-        "type": "string"
       },
       "TagLinkRequest": {
         "properties": {
@@ -15617,7 +15675,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "\n    Which slice of the tag catalogue one read asks for, by the state of its subject decision.\n\n    The decision has four parts and they are a **partition**: a tag is in a drawer, declared not a\n    subject, claimed by the non-subject axis, or nobody has decided yet. This filter names the three\n    that are states of the *catalogue* — the drawer is reached with ``macro_category_id`` — and\n    ``ALL`` is not a state at all but the absence of a filter. The predicates live in one module\n    (``repository/subject_queue.py``) and the home screen's counters read the same ones, because the\n    number a card promises has to be the number the list it opens reports.\n\n    ``LOW_CONFIDENCE`` is the one that is not a state of the tag but of the *work*: the classifier\n    ran, was not confident enough to file the tag, and left a row in ``archive_ai_review_queue``.\n    It is a subset of ``PENDING`` on purpose — the archivist's two cards answer two questions about\n    the same queue, and either one may take the decision.\n    ",
+            "description": "\n    Which slice of the tag catalogue one read asks for, by the state of its subject decision.\n\n    The decision has three parts and they are a **partition**: a tag is in a drawer, declared not a\n    subject, or nobody has decided yet. This filter names the two that are states of the *catalogue*\n    — the drawer is reached with ``macro_category_id`` — and ``ALL`` is not a state at all but the\n    absence of a filter. The predicates live in one module (``repository/subject_queue.py``) and the\n    home screen's counters read the same ones, because the number a card promises has to be the number\n    the list it opens reports.\n\n    ``LOW_CONFIDENCE`` is the one that is not a state of the tag but of the *work*: the classifier\n    ran, was not confident enough to file the tag, and left a row in ``archive_ai_review_queue``.\n    It is a subset of ``PENDING`` on purpose — the archivist's two cards answer two questions about\n    the same queue, and either one may take the decision.\n\n    A place, a producer or a person is **not** a fourth state: it is a tag the subject axis does not\n    answer for, so it is declared not a subject and its spelling is banned from coming back, while the\n    entity axis carries what it is (ADR 0013). ``FACET`` used to express that distinction here, and the\n    distinction had no reader beyond the chip itself — the entity already reaches the description with\n    a type the search facet and the public projection both use.\n    ",
             "in": "query",
             "name": "subject_state",
             "required": false,
@@ -17349,6 +17407,77 @@
         ]
       }
     },
+    "/api/v1/taxonomy/tags/subject-exclusions/preview": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsSubjectExclusionsPreviewPreviewSubjectExclusions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubjectExclusionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubjectExclusionPlan"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "PreviewSubjectExclusions",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
     "/api/v1/taxonomy/tags/subject-exclusions/suggestions": {
       "get": {
         "deprecated": false,
@@ -17596,178 +17725,6 @@
           }
         },
         "summary": "CurateTag",
-        "tags": [
-          "Taxonomy"
-        ]
-      }
-    },
-    "/api/v1/taxonomy/tags/{tag_id}/facets/{facet_type}": {
-      "delete": {
-        "deprecated": false,
-        "operationId": "ApiV1TaxonomyTagsTagIdFacetsFacetTypeRemoveTagFacet",
-        "parameters": [
-          {
-            "deprecated": false,
-            "in": "path",
-            "name": "tag_id",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "deprecated": false,
-            "description": "\n    Which non-subject axis a tag belongs to.\n\n    ``ArchiveTag.macro_category_id`` answers \"what is this about?\". Some tags have no honest\n    answer to that question but a very clear answer to a different one: ``alfa`` is *who\n    produced*, ``cidade`` is *where*. Before this existed those terms competed with\n    ``alvenaria`` for the same subject drawer, which is a measured cause of the systematic\n    misclassification (``alvenaria`` landing in \"Mobilidade e Transporte\").\n\n    Deliberately a separate table rather than a second column: a tag carries at most one\n    subject but can carry a place *and* an institution at once.\n    ",
-            "in": "path",
-            "name": "facet_type",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/TagFacetType"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TagFacetResult"
-                }
-              }
-            },
-            "description": "Request fulfilled, document follows",
-            "headers": {}
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "detail": "Bad Request",
-                      "extra": {},
-                      "status_code": 400
-                    }
-                  ],
-                  "properties": {
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    },
-                    "status_code": {
-                      "type": "integer"
-                    }
-                  },
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Bad request syntax or unsupported method"
-          }
-        },
-        "summary": "RemoveTagFacet",
-        "tags": [
-          "Taxonomy"
-        ]
-      },
-      "put": {
-        "deprecated": false,
-        "operationId": "ApiV1TaxonomyTagsTagIdFacetsFacetTypeDeclareTagFacet",
-        "parameters": [
-          {
-            "deprecated": false,
-            "in": "path",
-            "name": "tag_id",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "deprecated": false,
-            "description": "\n    Which non-subject axis a tag belongs to.\n\n    ``ArchiveTag.macro_category_id`` answers \"what is this about?\". Some tags have no honest\n    answer to that question but a very clear answer to a different one: ``alfa`` is *who\n    produced*, ``cidade`` is *where*. Before this existed those terms competed with\n    ``alvenaria`` for the same subject drawer, which is a measured cause of the systematic\n    misclassification (``alvenaria`` landing in \"Mobilidade e Transporte\").\n\n    Deliberately a separate table rather than a second column: a tag carries at most one\n    subject but can carry a place *and* an institution at once.\n    ",
-            "in": "path",
-            "name": "facet_type",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/TagFacetType"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TagFacetRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TagFacetResult"
-                }
-              }
-            },
-            "description": "Request fulfilled, document follows",
-            "headers": {}
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "detail": "Bad Request",
-                      "extra": {},
-                      "status_code": 400
-                    }
-                  ],
-                  "properties": {
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    },
-                    "status_code": {
-                      "type": "integer"
-                    }
-                  },
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Bad request syntax or unsupported method"
-          }
-        },
-        "summary": "DeclareTagFacet",
         "tags": [
           "Taxonomy"
         ]

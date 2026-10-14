@@ -7,27 +7,31 @@ page does not contain them is the read lying about the work — so the predicate
 imported by both repositories, and ``testing/integration/api/controller/test_tag_catalog.py`` pins
 that the card's number is the list's ``total``.
 
-The decision has four parts and they are a **partition**, and each part has one durable marker:
+The decision has three parts and they are a **partition**, and each part has one durable marker:
 
-* **pending** — no drawer, no verdict, no facet. ``macro_category_id IS NULL`` alone is *not* this:
+* **pending** — no drawer and no verdict. ``macro_category_id IS NULL`` alone is *not* this:
   ``NULL`` is also what the human verdict writes, which is why a count built on the column alone
   can never reach zero.
 * **not a subject** — the verdict, and the durable half of it is ``domain_subject_exclusions``,
   the table ``worker_macro_category`` actually obeys (``is_subject_candidate`` says nothing about
   the curated terms). Worse than cosmetic: a tag the human emptied comes back to the classifier
   each time the label set changes and gets a drawer again, so a verdict that is only stored in
-  ``macro_category_id`` is a verdict the next run overwrites.
-* **facet** — ``archive_tag_facets``: a producer or a place, which is a *positive* statement about
-  the non-subject axis. A tag on that axis is also excluded from the subject axis, because the
-  classifier must not file it either.
+  ``macro_category_id`` is a verdict the next run overwrites. Since ADR 0013 the same write also
+  bans the spelling at ``TAG`` scope, so the next ingestion does not recreate the term.
 * **a drawer** — ``macro_category_id`` pointing at the catalogue. It is reached with
-  ``macro_category_id`` and not with a state; the three states above are the ones a catalogue filter
+  ``macro_category_id`` and not with a state; the two states above are the ones a catalogue filter
   names.
 
+A place, a producer or a person is not a state of the tag: the entity axis carries *what it is*, with
+a type search and diffusion consume, and the tag x entity conflict resolution is what settles a
+spelling that is both. ``archive_tag_facets`` used to be a third state here and is gone (ADR 0013) —
+its only reader was the chip this partition feeds.
+
 The write path keeps the partition by writing the **whole** state at once
-(``TagService.curate_tag_macro_category`` and ``TagService.declare_tag_facet``): choosing one
-destination clears the others. What each state *means* is decided here, in one place; what the
-writes do about it is composed there.
+(``TagService.curate_tag_macro_category``): choosing one destination clears the other. The exclusion
+write cannot create the collision from its side either: it refuses a term whose tag is in a drawer, so
+no row is "in a category" and "out of the subject axis" at the same time. What each state *means* is
+decided here, in one place; what the writes do about it is composed there.
 """
 
 from sqlalchemy import ColumnElement, and_, exists, func, not_, select
@@ -37,7 +41,6 @@ from scrinalia.domains.archive.models import (
     ArchiveAIReviewQueue,
     ArchiveReviewStatus,
     ArchiveTag,
-    ArchiveTagFacet,
     DomainSubjectExclusion,
     TagCatalogState,
 )
@@ -52,17 +55,11 @@ def subject_not_subject() -> ColumnElement[bool]:
     return exists(select(1).select_from(DomainSubjectExclusion).where(DomainSubjectExclusion.term == _NORMALIZED_NAME))
 
 
-def subject_is_facet() -> ColumnElement[bool]:
-    """The tag is claimed by the non-subject axis: a producer or a place."""
-    return exists(select(1).select_from(ArchiveTagFacet).where(ArchiveTagFacet.tag_id == ArchiveTag.tag_id))
-
-
 def subject_pending() -> ColumnElement[bool]:
-    """Nobody has decided this tag's subject: no drawer, no verdict, no facet."""
+    """Nobody has decided this tag's subject: no drawer and no verdict."""
     return and_(
         ArchiveTag.macro_category_id.is_(None),
         not_(subject_not_subject()),
-        not_(subject_is_facet()),
     )
 
 
@@ -97,18 +94,16 @@ def subject_state_condition(state: TagCatalogState, macro_category_id: int | Non
     The predicate behind one catalogue filter; ``None`` means "every tag".
 
     A drawer filter and a state are different questions and the caller may ask both: the screen
-    offers the four states as chips and a category as a select, and "in this drawer" is answered by
+    offers the three states as chips and a category as a select, and "in this drawer" is answered by
     the column while the state answers "decided how".
     """
     conditions: list[ColumnElement[bool]] = []
     if state is TagCatalogState.PENDING:
         conditions.append(subject_pending())
     elif state is TagCatalogState.NOT_SUBJECT:
-        # "Goes nowhere", which is a different statement from "goes to the non-subject axis": a
-        # facet tag is excluded from the subject axis too, and the two must not both claim it.
-        conditions.append(and_(ArchiveTag.macro_category_id.is_(None), subject_not_subject(), not_(subject_is_facet())))
-    elif state is TagCatalogState.FACET:
-        conditions.append(subject_is_facet())
+        # No drawer as well as the verdict: the column is ``NULL`` for a tag nobody decided about and
+        # for one the archivist emptied, and only the second is this state.
+        conditions.append(and_(ArchiveTag.macro_category_id.is_(None), subject_not_subject()))
     elif state is TagCatalogState.LOW_CONFIDENCE:
         conditions.append(subject_low_confidence())
 

@@ -496,8 +496,9 @@ What *this* collection declares, as opposed to what the language or the software
   (`SMU`) or a whole code (`BR PRADAP`) mapped to the name the arrangement proposal suggests; the
   whole code wins over the last token;
 - **collection terms** — `POST`/`PATCH /api/v1/vocabulary/collection-terms` (`CATALOGUE`): the
-  spellings the collection carries and that are not subjects, typed so the PLACE facet can claim a
-  place while a person's name goes nowhere.
+  spellings the collection carries and that are not subjects, typed so the guard recognises a place
+  or a person name. What the name *is* is carried by the entity axis (`LOC`, `PER`), not by a state
+  of the tag: the subject axis simply stops guessing at it.
 
 What belongs to the Portuguese language itself — *rua*, *não identificado*, *303 anos*, a bare year
 — lives in the language profile and does **not** appear here: changing it would change the meaning
@@ -511,7 +512,7 @@ as a subject again on the next classifier run.
 | Tags — `/assuntos/tags` | the weight, the duplicates, the merge queue, the banned terms **and the subject decision of each tag** | the merge yes (ledger); the purge yes (its own ledger); a subject decision yes (it can be taken back) |
 | Categorias — `/assuntos/categorias` | the subject categories the classifier reads, **and what is inside each one** | yes (retire and reactivate) |
 | Descobrir Categorias — `/assuntos/descobrir` | whether a proposed theme deserves a category | yes (the proposal writes nothing) |
-| Não é assunto — `/assuntos/excecoes` | which terms leave the subject axis | yes (banning deletes nothing) |
+| Não é assunto — `/assuntos/excecoes` | which terms leave the subject axis and have their spelling banned from becoming a tag again | yes (the ban deletes nothing, and the undo lifts the ban this decision planted) |
 
 ### Tags — `/assuntos/tags`
 
@@ -584,12 +585,17 @@ three things apart:
 
 - **Banir** — `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`) records that a term is not worth
   considering on one axis: `TAG` (the subject axis), `ENTITY` (NER) or `ALL`. A word has exactly one
-  scope — re-banning it **moves** it — and banning **deletes nothing**.
+  scope — re-banning it **moves** it — and banning **deletes nothing**. A ban typed here is recorded
+  with `source=HUMAN`; the ban the *Não é assunto* screen plants is `EXCLUSION`, and the one a
+  conflict resolution plants is `CONFLICT`. The list shows the scope on every term and the origin as
+  a badge when it is not `HUMAN` — a term typed here is the default, and the badge marks the ones
+  that arrived as a consequence of another decision.
 - **Desbanir** — `DELETE /api/v1/taxonomy/tags/stopwords` (`CURATE`). Reversible.
 - **Purgar** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), after
   `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. This is the write that deletes the tags. The
-  preview lists the tags that would die, with their document count and category, and the apply button
-  is disabled until the preview exists.
+  preview lists the tags that would die, with their document count, their category **and where the
+  ban came from** (`HUMAN`, `CONFLICT` or `EXCLUSION`), so a term banned with the archive in mind is
+  told apart from one typed by hand; the apply button is disabled until the preview exists.
 
 Each deleted tag is written to a **ledger** (`archive_stopword_purge_log`) before it disappears: the
 snapshot of the row, the documents that carried it and the spellings that pointed at it. The purge
@@ -617,29 +623,31 @@ The state is a **partition**, and `ALL` is the absence of a filter rather than a
 
 | `subject_state` | What it means |
 | --- | --- |
-| `PENDING` | No drawer, no verdict and no facet: nobody has decided. It is what the home card counts |
-| `NOT_SUBJECT` | A person declared the tag is not a subject, and it goes nowhere |
-| `FACET` | The tag is on the non-subject axis: a producer or a place |
+| `PENDING` | No drawer and no verdict: nobody has decided. It is what the home card counts |
+| `NOT_SUBJECT` | A person declared the tag is not a subject; the classifier stops guessing at it and its spelling is banned from becoming a tag again |
 | `LOW_CONFIDENCE` | The classifier ran, was not confident enough to file the tag, and left it undecided |
 
-The row carries the evidence (weight, the classifier's confidence, the facet it is on) and exactly
-one of three destinations, through `PATCH /api/v1/taxonomy/tags/{tag_id}` (`CURATE`):
+The row carries the evidence (weight and the classifier's confidence) and exactly one of two
+destinations, through `PATCH /api/v1/taxonomy/tags/{tag_id}` (`CURATE`):
 
 - **a category** — the drawer the tag joins. The decision is **global**: it changes the badge of
   every description that carries the tag, and the screen says so before the click;
-- **not a subject** — `macro_category_id=null`. The tag stays in the collection and reachable by
-  search; only the subject axis stops guessing at it. The term is registered in
-  `domain_subject_exclusions`, which is the durable half of the verdict: the classifier re-queues a
-  tag whose drawer is empty every time the label set changes, so the column alone would be a decision
-  the next run overwrites. The reversal is `DELETE /api/v1/taxonomy/tags/subject-exclusions`;
-- **a producer or a place** — `PUT /api/v1/taxonomy/tags/{tag_id}/facets/{facet_type}` (`CURATE`),
-  with `INSTITUTION` or `PLACE`, and `DELETE` on the same path to take it back. The declaration
-  settles the whole state: the tag leaves any drawer (a facet is what it is *instead* of a subject)
-  and its term joins the exclusions. It is the destination the schema was written for — `alfa` reaches
-  2,376 descriptions and `cidade` 1,865, and forcing them into a category is a measured cause of the
-  classification defect. Nothing infers a facet: a person declares it.
+- **not a subject** — `macro_category_id=null`, which is the same write the *Não é assunto* screen
+  makes. The tag stays in the collection and reachable by search, and the column alone would be a
+  decision the next run overwrites, so the term is registered in `domain_subject_exclusions` **and its
+  spelling is banned at `TAG` scope**, so the next ingestion does not recreate it. The reversal is
+  `DELETE /api/v1/taxonomy/tags/subject-exclusions`, and it lifts only a ban this decision planted.
 
-The same three actions apply to a **selection**, one request per tag, and the batch reports how many
+A producer, a place or a person is **not** a third destination. What the name *is* belongs to the
+entity axis, where it carries a type (`LOC`, `PER`, `ORG`) that search and the public projection
+read; a spelling that is both a tag and an entity is settled on
+**Conflitos — `/entidades/conflitos`**, which bans the losing spelling and keeps a ledger. Declaring
+the term not a subject is what takes it out of the subject queue; the entity is where it keeps its
+meaning. The measurement behind the removed state still holds — `alfa` reaches 2,376 descriptions and
+`cidade` 1,865, and forcing them into a category is a measured cause of the classification defect —
+but the answer is now the entity and the exclusion, not a fourth state of the tag.
+
+The same two actions apply to a **selection**, one request per tag, and the batch reports how many
 tags it wrote and where. Nothing on this tab deletes: banning a spelling and purging the tags are in
 **Stopwords**, each behind its own step, and the purge keeps a ledger with the undo of each tag.
 
@@ -681,14 +689,37 @@ The curated half of "this is not a subject at all". The deterministic guard catc
 — a date, a placeholder, a street name, a bare number — and on the real measurement it caught 1 of 4
 of the hand-labelled non-subjects; the rest are semantic calls no rule resolves (`pessoas`,
 `vista aérea`, `capanema`). The screen shows the guard's candidates with their evidence (weight,
-whether the PLACE facet claims the term, whether the same spelling is also an entity), and offers to
-register them with `source=RULE` or one at a time.
+whether the term is a place, whether the same spelling is also an entity, the drawer that would block
+it and whether its spelling is already banned), and offers to register them with `source=RULE` or one
+at a time.
 
-The write is `POST /api/v1/taxonomy/tags/subject-exclusions` (`CURATE`) and the reversal is
-`DELETE` (`CURATE`, the screen's "restaurar"). **Banning here deletes nothing**: the tag stays in the
-collection, stays linked and stays reachable by search — only the subject classification stops
-guessing at it. The route deliberately proposes nothing for the semantic half: the available signals
-lie, and a model that does not know how to abstain would answer confidently and wrongly.
+Confirming is a read that writes a plan first: `POST
+/api/v1/taxonomy/tags/subject-exclusions/preview` (`AUTHENTICATED`) returns `applicable` and
+`blocked`, computed by the same function the write consumes, so the preview cannot promise another
+number.
+
+The write is `POST /api/v1/taxonomy/tags/subject-exclusions` (`CURATE`), and it does two things at
+once: it registers the term in `domain_subject_exclusions`, so the subject classifier stops guessing
+at it, **and it bans the spelling at `TAG` scope**, so the next ingestion does not recreate the tag
+that was just decided about. **The ban deletes nothing**: the tag stays in the collection, stays
+linked and stays reachable by search. Removing it is a separate act — the **purge**, in the Stopwords
+tab, behind its own preview and with a ledger that restores each tag — and the purge preview says
+which bans were planted here (`EXCLUSION`) and which by hand (`HUMAN`).
+
+Two answers the screen has to show:
+
+- a term whose tag already sits in a **drawer** is not applied: it comes back in `blocked` with the
+  drawer that has to be emptied first, because "which drawer is this tag in?" is a question about the
+  *tag*, answered on the tag catalogue, and a statement about a *term* must not un-file a human
+  verdict. The code is `SUBJECT_EXCLUSIONS_BLOCKED` when nothing was applied and something was
+  refused, `SUBJECT_EXCLUSIONS_PARTIAL` when some were applied and some refused, and `created` /
+  `banned` / `blocked` carry the three answers;
+- the route deliberately proposes nothing for the semantic half: the available signals lie, and a
+  model that does not know how to abstain would answer confidently and wrongly.
+
+The reversal is `DELETE` (`CURATE`, the screen's "restaurar"). It answers `removed` and `unbanned`,
+and the lift is exact: only a ban this decision planted leaves with it. A spelling a person banned on
+the Stopwords screen, or one a conflict resolution planted first, survives.
 
 ## Entidades
 

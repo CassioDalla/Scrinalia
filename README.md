@@ -69,9 +69,11 @@ installation loads from its own file (`python -m scrinalia.domains.archive.cli i
 replace without a deploy: a fresh clone starts with an empty catalogue and never inherits another
 institution's vocabulary. On top of the deterministic guard sits the curated
 `domain_subject_exclusions` catalogue, for the judgements no rule reaches. Below 0.55 confidence a
-tag is left without a category **and** queued for review rather than guessed at. A tag whose axis is
-provenance or geography carries an `archive_tag_facets` row instead of competing for a subject
-category.
+tag is left without a category **and** queued for review rather than guessed at. A name that is a
+producer, a place or a person belongs to the entity axis, where it carries a type (`LOC`, `PER`,
+`ORG`) that search and diffusion read; a spelling that is both a tag and an entity is settled by the
+tag × entity conflict resolution, and confirming a term as not-a-subject also bans that spelling from
+becoming a tag again.
 
 ## Requirements
 
