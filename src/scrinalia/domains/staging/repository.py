@@ -1,4 +1,4 @@
-from typing import Any
+from typing import TypeVarTuple
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.dialects.postgresql import insert
@@ -7,6 +7,12 @@ from sqlalchemy.orm import Session
 from scrinalia.domains.ingestion.models import RawData
 from scrinalia.domains.staging.models import StagingDocument
 from scrinalia.domains.staging.schemas import RawRecord, StagingDocumentDTO
+
+#: SQLAlchemy 2.1 made ``Select`` generic over **each selected column** instead of one row tuple,
+#: so the columns of whatever statement reaches ``_with_pending`` have to travel through it as a
+#: type-var tuple. ``Select[Any]`` meant "one column of Any" and stopped accepting a four-column
+#: select; this keeps the caller's own types.
+_Ts = TypeVarTuple("_Ts")
 
 
 class SqlRawRecordSource:
@@ -22,7 +28,7 @@ class SqlRawRecordSource:
         self.db = db
 
     @staticmethod
-    def _with_pending(stmt: Select[Any], force: bool, after: str | None) -> Select[Any]:
+    def _with_pending(stmt: Select[*_Ts], force: bool, after: str | None) -> Select[*_Ts]:
         """
         The one definition of "pending", applied to whatever statement needs it.
 

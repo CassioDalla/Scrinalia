@@ -11,6 +11,8 @@ import pytest
 from litestar import Litestar
 from litestar.testing import TestClient
 from sqlalchemy import create_engine, text
+from sqlalchemy.dialects.postgresql import ENUM
+from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session
 
 from scrinalia.api.dependencies import provide_login_rate_limiter
@@ -100,6 +102,25 @@ $$;
 """
 
 
+def _create_migration_owned_enum_types(conn: Connection) -> None:
+    """
+    Creates the native enum types the models declare that the migration owns.
+
+    ``Enum(..., create_type=False)`` is that declaration, and the test schema runs no migration: the
+    tables that use the type were being built only because SQLAlchemy 2.0 ignored the flag. Measured
+    on 2.0.54, the PostgreSQL impl of ``domain_stopwords.word_scope`` came out ``create_type=True``
+    and ``create_all`` emitted the ``CREATE TYPE``; on 2.1.4 the same declaration yields
+    ``create_type=False`` and ``CREATE TABLE domain_stopwords`` fails with ``type "stopwords_scope"
+    does not exist``. The types are built from the models' own enums, so the values cannot drift from
+    the schema the tests exercise.
+    """
+    for table in Base.metadata.sorted_tables:
+        for column in table.columns:
+            column_type = column.type.dialect_impl(conn.dialect)
+            if isinstance(column_type, ENUM) and not column_type.create_type:
+                column_type.create(bind=conn, checkfirst=True)
+
+
 @pytest.fixture
 def mock_registry(monkeypatch):
     """
@@ -161,13 +182,15 @@ def engine():
     # pg_trgm must exist before create_all builds the fuzzy-search GIN indexes, the
     # immutable unaccent wrapper before it builds the generated search_vector, the
     # error-fingerprint function before it builds the generated error_fingerprint
-    # columns, and pgvector before it builds the embedding column and its HNSW index.
+    # columns, pgvector before it builds the embedding column and its HNSW index, and
+    # the migration-owned enum types before the tables that use them.
     with engine.begin() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent"))
         conn.execute(text(IMMUTABLE_UNACCENT_SQL))
         conn.execute(text(ARCHIVE_ERROR_FINGERPRINT_SQL))
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        _create_migration_owned_enum_types(conn)
 
     # Creates all tables based on your Models
     Base.metadata.create_all(bind=engine)

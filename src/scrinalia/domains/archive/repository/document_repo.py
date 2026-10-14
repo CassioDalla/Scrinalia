@@ -2,7 +2,7 @@ import re
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import Float, and_, bindparam, case, delete, exists, func, or_, select, true
+from sqlalchemy import Float, Select, and_, bindparam, case, delete, exists, func, or_, select, true
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.attributes import flag_modified
@@ -663,7 +663,7 @@ class DocumentRepository:
         return self._page_summaries([(doc, None) for doc in self.db.scalars(page_stmt).all()])
 
     def _semantic_search(
-        self, base_stmt: Any, query: DocumentSearchQuery, query_embedding: list[float]
+        self, base_stmt: Select[ArchiveDocument], query: DocumentSearchQuery, query_embedding: list[float]
     ) -> tuple[list[DocumentSummary], int, DocumentFacets]:
         """
         Ranks the embedded documents by cosine similarity to the query vector.
