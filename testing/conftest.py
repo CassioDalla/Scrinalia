@@ -1,6 +1,6 @@
 import os
 import uuid
-from collections.abc import Generator
+from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,7 +12,7 @@ from litestar import Litestar
 from litestar.testing import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.dialects.postgresql import ENUM
-from sqlalchemy.engine import Connection
+from sqlalchemy.engine import Connection, Dialect, Engine
 from sqlalchemy.orm import Session
 
 from scrinalia.api.dependencies import provide_login_rate_limiter
@@ -102,9 +102,9 @@ $$;
 """
 
 
-def _create_migration_owned_enum_types(conn: Connection) -> None:
+def _migration_owned_enum_types(dialect: Dialect) -> Iterator[ENUM]:
     """
-    Creates the native enum types the models declare that the migration owns.
+    The native enum types the models declare that the migration owns.
 
     ``Enum(..., create_type=False)`` is that declaration, and the test schema runs no migration: the
     tables that use the type were being built only because SQLAlchemy 2.0 ignored the flag. Measured
@@ -113,12 +113,36 @@ def _create_migration_owned_enum_types(conn: Connection) -> None:
     ``create_type=False`` and ``CREATE TABLE domain_stopwords`` fails with ``type "stopwords_scope"
     does not exist``. The types are built from the models' own enums, so the values cannot drift from
     the schema the tests exercise.
+
+    The dialect impl is what carries the flag and knows how to emit ``CREATE TYPE``/``DROP TYPE``,
+    not the generic ``Enum`` the column holds. Yielding them from one place is what keeps the create
+    and the drop symmetric — and the drop is not optional: ``drop_all`` skips a ``create_type=False``
+    type, and the CI step that applies the migrations to this same database afterwards fails with
+    ``type "anomaly_type_enum" already exists`` when one survives.
     """
+    seen: set[str] = set()
     for table in Base.metadata.sorted_tables:
         for column in table.columns:
-            column_type = column.type.dialect_impl(conn.dialect)
-            if isinstance(column_type, ENUM) and not column_type.create_type:
-                column_type.create(bind=conn, checkfirst=True)
+            column_type = column.type.dialect_impl(dialect)
+            if not isinstance(column_type, ENUM) or column_type.create_type:
+                continue
+            name = column_type.name
+            if name is not None and name not in seen:
+                seen.add(name)
+                yield column_type
+
+
+def _create_migration_owned_enum_types(conn: Connection) -> None:
+    """Creates them before ``create_all``, which would otherwise emit a table for a missing type."""
+    for enum_type in _migration_owned_enum_types(conn.dialect):
+        enum_type.create(bind=conn, checkfirst=True)
+
+
+def _drop_migration_owned_enum_types(engine: Engine) -> None:
+    """Drops them after ``drop_all``, which leaves them behind, so the migrations meet a clean schema."""
+    with engine.begin() as conn:
+        for enum_type in _migration_owned_enum_types(conn.dialect):
+            enum_type.drop(bind=conn, checkfirst=True)
 
 
 @pytest.fixture
@@ -197,8 +221,10 @@ def engine():
 
     yield engine
 
-    # At the end of all tests, drop the tables
+    # At the end of all tests, drop the tables — and the types `drop_all` does not own, so the
+    # migrations CI applies to this same database afterwards meet the clean schema they expect.
     Base.metadata.drop_all(bind=engine)
+    _drop_migration_owned_enum_types(engine)
     engine.dispose()
 
 
