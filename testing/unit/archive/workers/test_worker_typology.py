@@ -31,6 +31,12 @@ def test_worker_typology_unit_ideal_flow(mocker: MockerFixture) -> None:
     mock_repo_class = mocker.patch("scrinalia.domains.archive.workers.worker_typology.TypologyRepository")
     mock_get_engine = mocker.patch("scrinalia.domains.archive.workers.worker_typology.get_engine")
     mock_flag_modified = mocker.patch("scrinalia.domains.archive.workers.worker_typology.flag_modified")
+    # The producer identity reads the engine configuration through ``describe_config``; a fake
+    # engine name would otherwise be refused by the registry before the run starts.
+    mocker.patch(
+        "scrinalia.domains.archive.workers.worker_typology.describe_config",
+        return_value={"model": "falso", "device": "cpu"},
+    )
 
     # 2. Return Configurations (Faking the DB and the AI)
     mock_repo = mock_repo_class.return_value
@@ -60,7 +66,11 @@ def test_worker_typology_unit_ideal_flow(mocker: MockerFixture) -> None:
 
     # 6. Persistence verifications
     assert test_doc.typology_id == 1
-    assert test_doc.execution_log["worker_typology_classifier_v2"] == "DONE"  # type: ignore
+    # The stamp is the producer identity, not a status: a different engine, preset or threshold
+    # has to put the document back in the queue, which a ``DONE`` never could.
+    stamp = test_doc.execution_log["worker_typology_classifier_v2"]  # type: ignore
+    assert stamp != "DONE"
+    assert len(stamp) == 64
 
     mock_flag_modified.assert_called_once_with(test_doc, "execution_log")
     mock_db.commit.assert_called_once()
@@ -87,7 +97,7 @@ def test_worker_typology_ignores_empty_texts(mocker: MockerFixture) -> None:
     mock_get_engine.return_value.classify.assert_not_called()
 
     # The stamp must have been applied so the Worker does not loop again tomorrow
-    assert empty_doc.execution_log["worker_typology_classifier_v2"] == "DONE"  # type: ignore
+    assert len(empty_doc.execution_log["worker_typology_classifier_v2"]) == 64  # type: ignore
     mock_flag_modified.assert_called_once()
 
 

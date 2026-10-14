@@ -106,8 +106,22 @@ def embedding_text_sql(rules: Sequence[ExcerptRule]) -> ColumnElement[str]:
 
 
 def embedding_hash_sql(rules: Sequence[ExcerptRule]) -> ColumnElement[str]:
-    """MD5 of the effective text, computed by PostgreSQL (the embedding stamp)."""
+    """MD5 of the effective text, computed by PostgreSQL (half of the embedding stamp)."""
     return cast(ColumnElement[str], func.md5(embedding_text_sql(rules)))
+
+
+def embedding_stamp_sql(rules: Sequence[ExcerptRule], producer: str) -> ColumnElement[str]:
+    """
+    The embedding stamp: the MD5 of the effective text **and** the identity of the producer.
+
+    The text half is computed by PostgreSQL from the same expression that builds the text the
+    model reads, so approving an excerpt re-queues its documents by itself. The producer half
+    comes from ``producer_fingerprint`` in Python, so a model bump re-queues the collection by
+    itself too — the failure this exists for: vectors were left stale after a ``torch`` bump while
+    the text hash stayed up to date and the queue stayed empty. Composing the two here is what
+    keeps the read side (the pending predicate) and the write side (the worker) the same string.
+    """
+    return cast(ColumnElement[str], func.concat(embedding_hash_sql(rules), literal(":"), literal(producer)))
 
 
 def composed_text_sql(

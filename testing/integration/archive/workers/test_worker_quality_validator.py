@@ -14,9 +14,24 @@ from scrinalia.domains.archive.models import (
 )
 from scrinalia.domains.archive.schemas.ai_schemas import TitleQualityDecision
 from scrinalia.domains.archive.schemas.cleaning_schema import CleaningRuleCreateDTO
-from scrinalia.domains.archive.workers.worker_quality_validator import execute
+from scrinalia.domains.archive.workers.worker_quality_validator import (
+    DEFAULT_LLM_CONFIDENCE,
+    DEFAULT_REPEAT_THRESHOLD,
+    execute,
+    producer_identity,
+)
 
 LLM_REGISTRY = "scrinalia.domains.archive.engines.title_quality.registry.get_engine"
+
+
+def _identity(db_session) -> str:
+    """The stamp a run writes with no active ``LLM_CHECK`` rule: the deterministic validator."""
+    return producer_identity(
+        db_session,
+        repeat_threshold=DEFAULT_REPEAT_THRESHOLD,
+        llm_confidence=DEFAULT_LLM_CONFIDENCE,
+        engine_kwargs={},
+    )
 
 
 def _complete_document(db_session, **overrides):
@@ -98,7 +113,9 @@ def test_worker_never_touches_a_human_approved_document(db_session, generate_arc
 
 
 def test_worker_does_not_reprocess_a_stamped_document(db_session, generate_archive_doc) -> None:
-    doc = generate_archive_doc(description_id="stamped-1", execution_log={"worker_quality_validator_v1": "DONE"})
+    doc = generate_archive_doc(
+        description_id="stamped-1", execution_log={"worker_quality_validator_v1": _identity(db_session)}
+    )
     description_id = doc.description_id
 
     execute(db=db_session)
@@ -207,4 +224,65 @@ def test_validator_stamp_is_searchable_in_the_execution_log(db_session, generate
     logs = db_session.scalars(
         select(ArchiveDocument.execution_log).where(ArchiveDocument.description_id == "log-1")
     ).one()
-    assert logs["worker_quality_validator_v1"] == "DONE"
+    # The stamp names the producer, so a different threshold or an activated LLM_CHECK rule
+    # re-queues the document by itself.
+    assert logs["worker_quality_validator_v1"] == _identity(db_session)
+
+
+# ==========================================
+# THE STAMP NAMES THE PRODUCER (issue 70)
+# ==========================================
+
+
+def test_a_forced_run_advances_by_cursor(db_session, generate_archive_doc) -> None:
+    """
+    ``force`` ignores the stamp, so the cursor is the only thing that makes the run end.
+
+    The bound keeps the test honest without hanging: with a cap of two and a batch of one, a loop
+    without the cursor would re-validate the first document twice and never reach the second.
+    """
+    docs = [generate_archive_doc(description_id=f"forced-{index}") for index in range(2)]
+    description_ids = [doc.description_id for doc in docs]
+
+    execute(db=db_session, force=True, limit=2, db_batch_size=1)
+
+    db_session.expire_all()
+    for description_id in description_ids:
+        stored = db_session.get(ArchiveDocument, description_id)
+        assert stored.execution_log is not None
+        assert "worker_quality_validator_v1" in stored.execution_log
+
+
+def test_activating_an_llm_rule_requeues_the_validated_documents(db_session, generate_archive_doc, mocker) -> None:
+    """
+    The engine of this worker lives in the active ``LLM_CHECK`` rule, so the identity comes from it.
+
+    Turning the model on changes the verdict from deterministic to model-assisted, and the
+    documents already stamped under the old producer come back by themselves.
+    """
+    from scrinalia.domains.archive.repository.cleaning_repo import CleaningRepository
+
+    mocked_get_engine = mocker.patch(LLM_REGISTRY)
+    mocked_get_engine.return_value.check_title.return_value = TitleQualityDecision(
+        is_suspect=False, confidence=0.99, reason="ok"
+    )
+    generate_archive_doc(description_id="requeue-1", original_title="Rua Izaac")
+
+    execute(db=db_session)
+
+    CleaningRepository(db_session).create_rule(
+        CleaningRuleCreateDTO(
+            rule_name="Revisão de título por LLM",
+            target_column="original_title",
+            regex_pattern=".",
+            replacement_string="",
+            rule_kind="LLM_CHECK",
+            engine_name="ollama_title_check",
+            preset="granite_local",
+        )
+    )
+    db_session.flush()
+
+    execute(db=db_session)
+
+    mocked_get_engine.assert_called_once()

@@ -5,7 +5,7 @@ counter through the same function the operations screen calls. The refactor that
 predicate from every ``execute`` is only worth it if these numbers keep matching the worker.
 """
 
-from scrinalia.domains.archive.domain.vocabulary import label_set_fingerprint
+from scrinalia.core.runner_config import MacroCategoryRunnerConfig, NerRunnerConfig, TypologyRunnerConfig
 from scrinalia.domains.archive.models import (
     ArchiveMacroCategory,
     ArchiveReviewStatus,
@@ -35,30 +35,67 @@ from scrinalia.domains.archive.workers import (
     worker_thumbnail,
     worker_typology,
 )
+from scrinalia.domains.archive.workers.worker_quality_validator import (
+    DEFAULT_LLM_CONFIDENCE,
+    DEFAULT_REPEAT_THRESHOLD,
+)
 from scrinalia.domains.staging.models import StagingDocument
 
 
 def test_ner_counts_unstamped_writable_documents(db_session, generate_archive_doc) -> None:
+    identity = worker_ner.producer_identity(
+        engine_name="spacy_ner",
+        preset="gpu",
+        columns_to_extract=list(NerRunnerConfig().columns_to_extract),
+        engine_kwargs={},
+    )
     generate_archive_doc(original_title="Pendente")
-    generate_archive_doc(original_title="Feito", execution_log={NER.key: "DONE"})
+    generate_archive_doc(original_title="Feito", execution_log={NER.key: identity})
     generate_archive_doc(original_title="Aprovado", review_status=ArchiveReviewStatus.HUMAN_APPROVED)
 
     assert worker_ner.count_pending(db_session) == 1
+    # A stamp from another producer is pending again: the queue is keyed on what produced it.
+    generate_archive_doc(original_title="De outro modelo", execution_log={NER.key: "DONE"})
+    assert worker_ner.count_pending(db_session) == 2
 
 
 def test_typology_counts_orphans_and_respects_the_stamp(db_session, generate_archive_doc, generate_typology) -> None:
     typology = generate_typology()
+    config = TypologyRunnerConfig()
+
+    def identity_at(threshold: float) -> str:
+        return worker_typology.producer_identity(
+            engine_name="deberta_typology",
+            preset="cpu_local",
+            columns_to_classify=list(config.columns_to_classify),
+            confidence_threshold=threshold,
+            engine_kwargs={},
+        )
+
     generate_archive_doc(original_title="Sem tipologia")
     generate_archive_doc(original_title="Com tipologia", typology_id=typology.typology_id)
-    generate_archive_doc(original_title="Carimbado", execution_log={TYPOLOGY.key: "DONE"})
+    generate_archive_doc(original_title="Do produtor atual", execution_log={TYPOLOGY.key: identity_at(0.40)})
+    generate_archive_doc(original_title="Carimbo antigo", execution_log={TYPOLOGY.key: "DONE"})
     generate_archive_doc(original_title="Aprovado", review_status=ArchiveReviewStatus.HUMAN_APPROVED)
 
-    assert worker_typology.count_pending(db_session) == 1
+    # The orphan and the legacy stamp: a document stamped before the producer was recorded is
+    # pending again, which is the one-time re-queue the fix is.
+    assert worker_typology.count_pending(db_session) == 2
+
+    # A simulated change of floor moves the number without writing anything: the document the
+    # 0.40 producer settled is pending under the 0.55 one. This is what the panel must show.
+    assert worker_typology.count_pending(db_session, confidence_threshold=0.55) == 3
 
 
 def test_quality_validator_counts_and_force_widens_it(db_session, generate_archive_doc) -> None:
+    identity = worker_quality_validator.producer_identity(
+        db_session,
+        repeat_threshold=DEFAULT_REPEAT_THRESHOLD,
+        llm_confidence=DEFAULT_LLM_CONFIDENCE,
+        engine_kwargs={},
+    )
     generate_archive_doc()
-    generate_archive_doc(execution_log={QUALITY_VALIDATOR.key: "DONE"})
+    generate_archive_doc(execution_log={QUALITY_VALIDATOR.key: identity})
 
     assert worker_quality_validator.count_pending(db_session) == 1
     assert worker_quality_validator.count_pending(db_session, force=True) == 2
@@ -96,16 +133,24 @@ def test_macro_category_counts_orphan_tags_and_the_fingerprint_matters(db_sessio
     db_session.flush()
 
     categories = TagRepository(db_session).get_active_macro_categories()
-    fingerprint = label_set_fingerprint(categories)
+    identity = worker_macro_category.producer_identity(
+        engine_name="deberta_typology",
+        preset="cpu_local",
+        categories_map=categories,
+        confidence_threshold=MacroCategoryRunnerConfig().confidence_threshold,
+        engine_kwargs={},
+    )
 
     db_session.add(ArchiveTag(name="sem-gaveta"))
-    db_session.add(ArchiveTag(name="ja-classificada", execution_log={MACRO_CATEGORY.key: fingerprint}))
+    db_session.add(ArchiveTag(name="ja-classificada", execution_log={MACRO_CATEGORY.key: identity}))
     db_session.add(ArchiveTag(name="vocabulario-mudou", execution_log={MACRO_CATEGORY.key: "fingerprint antigo"}))
     db_session.add(ArchiveTag(name="curada", macro_category_id=category.category_id))
     db_session.flush()
 
     assert worker_macro_category.count_pending(db_session) == 2
     assert worker_macro_category.count_pending(db_session, force=True) == 3
+    # The floor is part of the identity too: raising it makes the settled tag pending again.
+    assert worker_macro_category.count_pending(db_session, confidence_threshold=0.70) == 3
 
 
 def test_cleaning_counts_per_active_rewrite_rule_only(db_session, generate_archive_doc) -> None:
