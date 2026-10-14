@@ -1249,3 +1249,15 @@ with short or full shas, and part of a `## <date> — <title>` entry.
 - **Not verified, and said so.** The real engines were not run — the suite mocks the registry, so
   `bertopic` was imported, never used to cluster — and the lock was resolved on this host, not on a
   GPU installation, which the install page already says is a different lock.
+
+## 2026-10-14 — the test schema also drops what it creates (#40)
+
+- **Range:** `0ec13bb..3227e3d`
+- **Pages:** `guides/data-model.md` — **no-change** (the previous entry judged the create half of the
+  same helper): CI's migration step, which runs after the suite against the same database, failed
+  with `type "anomaly_type_enum" already exists`, because `drop_all` skips a `create_type=False`
+  type. `testing/conftest.py` now drops them after `drop_all`, from one generator shared with the
+  create, and no table, column or index moved.
+- **What the round measured.** The CI sequence replicated on a fresh test database: 1610 passed,
+  `pg_type` and `pg_tables` empty after the teardown, `alembic upgrade head` applying every
+  migration, and `alembic check` reporting no new upgrade operations.
