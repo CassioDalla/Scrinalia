@@ -1022,6 +1022,12 @@ revisions — both writes `OPERATE`:
   partial on purpose: an empty field keeps following the code, and the precedence is unchanged —
   `explicit argument > the archive_worker_settings row > the signature default`. `config` is still
   refused as an option, because it is a runner dataclass and not a JSON value.
+- **Conferir impacto** — `POST /api/v1/system/workers/{worker_name}/queue/preview` answers how many
+  units the configuration the form is showing would leave in the queue, and writes nothing. It exists
+  because the queue is keyed on the producer identity: saving another engine, preset or threshold
+  re-reads the affected units by itself, and that cost has to be readable before it is paid. The
+  number disappears as soon as a field changes, so it never describes a configuration the form no
+  longer shows.
 - **Voltar ao padrão do código** — `DELETE /api/v1/system/workers/{worker_name}/settings` removes the
   row. Every write leaves a revision
   (`GET /api/v1/system/workers/{worker_name}/settings/revisions`), listed on the card, so the default

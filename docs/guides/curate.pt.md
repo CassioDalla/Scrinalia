@@ -1000,6 +1000,11 @@ suas revisões — as duas escritas são `OPERATE`:
   propósito: um campo vazio continua seguindo o código, e a precedência não muda —
   `argumento explícito > a linha de archive_worker_settings > o default da assinatura`. `config`
   continua recusado como opção, porque é um dataclass do runner e não um valor JSON.
+- **Conferir impacto** — `POST /api/v1/system/workers/{worker_name}/queue/preview` responde quantas
+  unidades a configuração que o formulário mostra deixaria na fila, e não escreve nada. Existe porque a
+  fila é chaveada pela identidade do produtor: salvar outra engine, outro preset ou outro limiar relê
+  as unidades afetadas sozinho, e esse custo precisa ser legível antes de ser pago. O número some assim
+  que um campo muda, então ele nunca descreve uma configuração que o formulário não mostra mais.
 - **Voltar ao padrão do código** — `DELETE /api/v1/system/workers/{worker_name}/settings` remove a
   linha. Toda escrita deixa uma revisão
   (`GET /api/v1/system/workers/{worker_name}/settings/revisions`), listada no cartão, então o padrão é
