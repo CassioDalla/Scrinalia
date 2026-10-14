@@ -53,7 +53,11 @@ de IA. São comandos de linha de comando próprios, descritos em
   qualidade.
 - **`ner`** extrai nomes próprios, lugares e instituições do texto composto da descrição.
 - **`typology`** classifica cada descrição contra o catálogo de tipologias ativas por zero-shot.
-- **`thumbnail`** baixa a imagem original e guarda uma miniatura no storage de objetos.
+- **`thumbnail`** baixa a imagem original e guarda uma miniatura no storage de objetos. Ele confirma
+  que o bucket existe antes do primeiro documento — criando-o só quando
+  `S3_AUTO_CREATE_BUCKET=true` — então um bucket ausente derruba a execução uma vez, com uma frase,
+  em vez de carimbar a fila inteira com o `AccessDenied` enganoso do endpoint. O `--limit N` limita
+  os documentos de uma execução, que é o que torna barato um teste local.
 - **`conflict-judge`** compara o vocabulário de tags com o de entidades e consulta o LLM local para
   decidir se o termo ambíguo é assunto ou nome próprio. Todo veredicto, automático ou enviado a uma
   pessoa, deixa uma linha em `archive_ai_review_queue`.
@@ -103,7 +107,7 @@ repositório:
 
 ```bash
 uv run python -m scrinalia.domains.archive.workers.runner <name> \
-    [--engine X --preset Y --batch N --option key=value --by "quem"]
+    [--engine X --preset Y --batch N --limit N --option key=value --by "quem"]
 ```
 
 Por exemplo:
@@ -126,7 +130,8 @@ uv run python -m scrinalia.domains.archive.workers.runner conflict-judge \
 | `<name>` | um dos nove nomes acima; qualquer outro valor é recusado com a lista de opções |
 | `--engine X` | uma engine registrada do eixo do worker, por exemplo `spacy_ner`, `deberta_typology`, `ollama_judge` |
 | `--preset Y` | um preset desse eixo, por exemplo `gpu`, `lemmatizer`, `cpu_local`, `gpu_cloud`, `granite_local`, `multilingual_minilm` |
-| `--batch N` | tamanho do lote por transação, repassado aos workers que declaram `db_batch_size` |
+| `--batch N` | tamanho do lote por transação, repassado aos workers que declaram `db_batch_size`; um worker sem isso registra no log que o valor foi ignorado |
+| `--limit N` | teto de unidades desta execução, para os workers que declaram `limit` (hoje o `thumbnail`); recusado nos demais, porque um teto que não faz nada em silêncio é pior do que nenhum teto |
 | `--option key=value` | parâmetro extra, repetível; `key` sem `=` é recusado |
 | `--by "quem"` | texto livre com quem está executando; a CLI roda no host e não tem sessão, então isso continua sendo um nome sem conta por trás |
 

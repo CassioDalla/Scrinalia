@@ -95,7 +95,11 @@ stamp. They are host commands of their own, described in
   kind `VALIDATE` or `LLM_CHECK` never rewrites anything — flagging is the quality validator's job.
 - **`ner`** extracts proper names, places and institutions from the composed document text.
 - **`typology`** classifies each description against the active typology catalogue by zero-shot.
-- **`thumbnail`** downloads the original image and stores a miniature in the object storage.
+- **`thumbnail`** downloads the original image and stores a miniature in the object storage. It
+  confirms the bucket exists before the first document — creating it only when
+  `S3_AUTO_CREATE_BUCKET=true` — so a bucket that is missing fails the run once, with a sentence,
+  instead of stamping the whole backlog with the endpoint's misleading `AccessDenied`. `--limit N`
+  caps the documents of one run, which is what makes a local test cheap.
 - **`conflict-judge`** compares the tag vocabulary with the entity vocabulary and asks the local
   LLM whether an ambiguous term is a subject or a proper name. Every verdict, auto-resolved or sent
   to a human, leaves a row in `archive_ai_review_queue`.
@@ -144,7 +148,7 @@ repository root:
 
 ```bash
 uv run python -m scrinalia.domains.archive.workers.runner <name> \
-    [--engine X --preset Y --batch N --option key=value --by "who"]
+    [--engine X --preset Y --batch N --limit N --option key=value --by "who"]
 ```
 
 For example:
@@ -167,7 +171,8 @@ uv run python -m scrinalia.domains.archive.workers.runner conflict-judge \
 | `<name>` | one of the nine names above; any other value is refused with the list of options |
 | `--engine X` | a registered engine of the worker's axis, e.g. `spacy_ner`, `deberta_typology`, `ollama_judge` |
 | `--preset Y` | a preset of that axis, e.g. `gpu`, `lemmatizer`, `cpu_local`, `gpu_cloud`, `granite_local`, `multilingual_minilm` |
-| `--batch N` | batch size per transaction, forwarded to the workers that declare `db_batch_size` |
+| `--batch N` | batch size per transaction, forwarded to the workers that declare `db_batch_size`; a worker without it logs that the value was ignored |
+| `--limit N` | cap on the units this run touches, for the workers that declare `limit` (today `thumbnail`); refused for the others, because a cap that silently does nothing is worse than no cap |
 | `--option key=value` | an extra parameter, repeatable; `key` without `=` is refused |
 | `--by "who"` | free text naming who is running it; the CLI runs on the host and has no session, so this stays a name with no account behind it |
 

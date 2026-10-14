@@ -1,7 +1,9 @@
+import pytest
 from pytest_mock import MockerFixture
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Session
 
+from scrinalia.core.storage import ObjectStorageError
 from scrinalia.domains.archive.workers import worker_thumbnail
 
 # ==========================================
@@ -200,3 +202,84 @@ def test_force_brings_the_failed_documents_back() -> None:
 
     assert "thumbnail_failed" not in _sql(forced)
     assert len(forced) == len(worker_thumbnail.pending_conditions()) - 1
+
+
+# ==========================================
+# 4. THE RUN CAP AND THE DESTINATION CHECK
+# ==========================================
+
+
+def _doc(mocker: MockerFixture, description_id: str = "doc-1"):
+    doc = mocker.Mock()
+    doc.description_id = description_id
+    doc.original_thumbnail_url = "http://link.com"
+    doc.storage_thumbnail_uri = None
+    doc.execution_log = {}
+    return doc
+
+
+def test_limit_caps_the_query(mocker: MockerFixture) -> None:
+    """``--limit`` exists because the queue has no per-transaction page here: without it one command
+    sweeps the backlog, which is what a local test cannot afford."""
+    mock_db = mocker.Mock(spec=Session)
+    mock_db.begin_nested.return_value = mocker.MagicMock()
+    mock_db.scalars.return_value.yield_per.return_value = [_doc(mocker)]
+
+    mocker.patch.object(worker_thumbnail, "download_image_to_memory", return_value=b"bytes")
+    mocker.patch("scrinalia.domains.archive.workers.worker_thumbnail.S3Storage")
+    mocker.patch("time.sleep")
+
+    worker_thumbnail.execute(mock_db, limit=2)
+
+    query = mock_db.scalars.call_args[0][0]
+    sql = str(query.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+    assert "LIMIT 2" in sql
+
+
+def test_without_limit_the_query_has_no_cap(mocker: MockerFixture) -> None:
+    mock_db = mocker.Mock(spec=Session)
+    mock_db.begin_nested.return_value = mocker.MagicMock()
+    mock_db.scalars.return_value.yield_per.return_value = [_doc(mocker)]
+
+    mocker.patch.object(worker_thumbnail, "download_image_to_memory", return_value=b"bytes")
+    mocker.patch("scrinalia.domains.archive.workers.worker_thumbnail.S3Storage")
+    mocker.patch("time.sleep")
+
+    worker_thumbnail.execute(mock_db)
+
+    query = mock_db.scalars.call_args[0][0]
+    sql = str(query.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+    assert "LIMIT" not in sql
+
+
+def test_the_destination_is_confirmed_before_the_first_upload(mocker: MockerFixture) -> None:
+    mock_db = mocker.Mock(spec=Session)
+    mock_db.begin_nested.return_value = mocker.MagicMock()
+    mock_db.scalars.return_value.yield_per.return_value = [_doc(mocker)]
+
+    mocker.patch.object(worker_thumbnail, "download_image_to_memory", return_value=b"bytes")
+    mocker.patch("time.sleep")
+
+    fake_storage = mocker.Mock()
+    fake_storage.upload_file.return_value = "s3://bucket/thumb_doc-1.jpg"
+
+    worker_thumbnail.execute(mock_db, storage=fake_storage)
+
+    fake_storage.ensure_bucket.assert_called_once()
+
+
+def test_an_unusable_destination_aborts_without_stamping_the_backlog(mocker: MockerFixture) -> None:
+    """The 97 stamps of issue #33: one misconfigured bucket must fail the run, not every document."""
+    mock_db = mocker.Mock(spec=Session)
+    mock_db.begin_nested.return_value = mocker.MagicMock()
+    doc = _doc(mocker)
+    mock_db.scalars.return_value.yield_per.return_value = [doc]
+
+    fake_storage = mocker.Mock()
+    fake_storage.ensure_bucket.side_effect = ObjectStorageError("bucket ausente")
+
+    with pytest.raises(ObjectStorageError):
+        worker_thumbnail.execute(mock_db, storage=fake_storage)
+
+    assert doc.execution_log == {}, "a single misconfiguration must not mark the documents as failed"
+    fake_storage.upload_file.assert_not_called()

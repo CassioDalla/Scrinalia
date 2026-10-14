@@ -1,4 +1,3 @@
-from importlib import import_module
 from logging.config import fileConfig
 
 from alembic import context
@@ -6,18 +5,12 @@ from sqlalchemy import engine_from_config, pool
 
 from scrinalia.core.base import Base
 from scrinalia.core.config import settings
+from scrinalia.metadata import load_all_models
 
-# Import every model package so ``Base.metadata`` is fully populated before autogenerate compares it
-# against the database. A loop over ``import_module`` and not four bare imports: with
-# ``import scrinalia.domains.archive.models`` the bound name is never read, which is exactly what
-# CodeQL's ``py/unused-import`` reports — it does not model the side effect the import is for.
-for _model_package in (
-    "scrinalia.domains.archive.models",
-    "scrinalia.domains.identity.models",
-    "scrinalia.domains.ingestion.models",
-    "scrinalia.domains.staging.models",
-):
-    import_module(_model_package)
+# Populate ``Base.metadata`` before autogenerate compares it against the database. The list of model
+# packages lives in one place (``scrinalia.metadata``), because the worker ledger needs the same
+# metadata complete for a different reason — its foreign key into ``auth_users``.
+load_all_models()
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

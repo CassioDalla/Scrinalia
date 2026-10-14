@@ -114,6 +114,13 @@ def probe_storage() -> StorageHealthDTO:
         # Imported here: boto3 costs a few hundred milliseconds and only this probe needs it.
         import boto3
         from botocore.client import Config
+        from botocore.exceptions import ClientError
+
+        # Imported here too, for the same reason: ``core.storage`` imports boto3 at module level,
+        # and this probe is the read-only twin that must not pay for it at API boot. The
+        # classification of "the bucket is missing" lives there once, so the probe and the worker
+        # cannot disagree about which endpoint error means which thing.
+        from scrinalia.core.storage import is_missing_bucket_error
 
         client = boto3.client(
             "s3",
@@ -127,7 +134,36 @@ def probe_storage() -> StorageHealthDTO:
                 retries={"max_attempts": 0},
             ),
         )
-        client.head_bucket(Bucket=bucket)
+        try:
+            client.head_bucket(Bucket=bucket)
+        except ClientError as exc:
+            if not is_missing_bucket_error(exc):
+                raise
+            # The probe never creates the bucket — a ``GET`` that provisions is a write hiding in a
+            # read. It says which of the two states the operator is in, and the worker does the
+            # creating when the flag allows it.
+            if settings.S3_AUTO_CREATE_BUCKET:
+                return StorageHealthDTO(
+                    configured=True,
+                    ok=True,
+                    endpoint=endpoint,
+                    bucket=bucket,
+                    detail=(
+                        f"O bucket '{bucket}' ainda não existe; S3_AUTO_CREATE_BUCKET=true, então o "
+                        "worker o cria no primeiro upload."
+                    ),
+                )
+            return StorageHealthDTO(
+                configured=True,
+                ok=False,
+                endpoint=endpoint,
+                bucket=bucket,
+                detail=(
+                    f"O bucket '{bucket}' não existe em {endpoint}. Crie-o antes de rodar o worker "
+                    f"(por exemplo: aws s3 mb s3://{bucket} --endpoint-url {endpoint}) ou defina "
+                    "S3_AUTO_CREATE_BUCKET=true para que o próprio worker o crie."
+                ),
+            )
         return StorageHealthDTO(configured=True, ok=True, endpoint=endpoint, bucket=bucket)
     except Exception as exc:
         return StorageHealthDTO(configured=True, ok=False, endpoint=endpoint, bucket=bucket, detail=_detail(exc))

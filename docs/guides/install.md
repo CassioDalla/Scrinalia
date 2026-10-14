@@ -241,9 +241,10 @@ pipeline, not the boot — `ACERVO_SOURCE` is required by the staging transform 
 | `ACERVO_SOURCE` | unset | names the active origin — the field labels the staging transform reads and the ports the scrape builds; the only one shipped is `pmc`, `--origin` overrides it for one run, and there is **no default**: a staging run fails fast without it |
 | `ACERVO_LANGUAGE` | `pt-BR` | selects the language profile — stopwords, date grammar, plural rules, the full-text dictionary and the spaCy model. The full-text dictionary reaches a generated column, so changing it is a **migration**, not a restart |
 | `S3_ENDPOINT_URL` | unset | the S3-compatible endpoint (MinIO, Ceph, SeaweedFS, a cloud bucket); from a container, `localhost` is the container itself |
-| `S3_BUCKET_NAME` | unset | the bucket the thumbnails go to; it must already exist |
+| `S3_BUCKET_NAME` | unset | the bucket the thumbnails go to; the worker confirms it once, before the run |
 | `S3_ACCESS_KEY` | unset | credential with read/write on the bucket; a secret |
 | `S3_SECRET_KEY` | unset | credential secret; a secret |
+| `S3_AUTO_CREATE_BUCKET` | `false` | whether the worker may create `S3_BUCKET_NAME` when it is missing; off refuses the run with the command that creates it |
 | `OLLAMA_HOST_URL` | unset → `http://localhost:11434` | the Ollama host every preset-backed engine resolves; an explicit `--option host=...` still wins |
 | `AUTH_SESSION_COOKIE_NAME` | `scrinalia_session` | name of the first-party session cookie |
 | `AUTH_SESSION_TTL_MINUTES` | `720` | how long a session lives; sliding, pushed forward by activity |
@@ -412,11 +413,20 @@ reads as a regression rather than as the mistake it is.
 endpoint and does not care which product serves it — MinIO, Ceph, SeaweedFS or a cloud bucket are
 infrastructure the operator brings, not something this repository ships.
 
-The settings are `S3_ENDPOINT_URL`, `S3_BUCKET_NAME`, `S3_ACCESS_KEY` and `S3_SECRET_KEY`; the
-client is boto3 with signature v4. Two requirements come from the code: the bucket must already
-exist (the worker uploads into it and never creates it), and the credentials need read/write on it.
-From inside the `app` container `localhost` is the container itself, so point the endpoint at the
+The settings are `S3_ENDPOINT_URL`, `S3_BUCKET_NAME`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` and
+`S3_AUTO_CREATE_BUCKET`; the client is boto3 with signature v4. Two requirements come from the code:
+the credentials need read/write on the bucket, and the bucket has to exist — the worker confirms it
+once, before it touches the queue, and creates it only when `S3_AUTO_CREATE_BUCKET=true`. From
+inside the `app` container `localhost` is the container itself, so point the endpoint at the
 service's address on your network (`host.docker.internal` reaches a service running on the host).
+
+The confirmation is deliberate, and it is what makes the failure legible. An endpoint does not
+always say "this bucket does not exist": SeaweedFS answers **`AccessDenied`** to an upload into a
+bucket that was never created, so every document of the run looks like a credential problem. With
+the flag off (the default) the worker refuses the run up front, naming the bucket and the command
+that creates it; with the flag on it creates the bucket and proceeds. `GET /api/v1/system/health`
+reports the same distinction and never creates anything — a probe that provisions is a write hiding
+in a read.
 
 What lives there today is the `thumbnail` worker's JPEGs, under `thumbnails/`. The database stores
 the resulting `s3://bucket/key` reference in `storage_thumbnail_uri`.
