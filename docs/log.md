@@ -1124,3 +1124,89 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   bookkeeping failure by design, so a CLI run left no line while the panel's runs did. Fixed in the
   same change: `scrinalia.metadata.load_all_models` is the one definition of the model packages, and
   `migrations/env.py` and `WorkerRunLedger` both call it.
+
+## 2026-10-13 — the pre-release pass for 1.2.0
+
+- **Range:** `153afb2..HEAD`. The round was **uncommitted during the triage**, so `freshness.py`
+  printed "Every page is fresh"; the triage was driven by the working-tree diff, as the two previous
+  entries' were. Only three commits followed the ledger's floor (`153afb2`) — the entry that closed
+  the thumbnail round and its test — so no page's `sources:` had moved when the reading began, and
+  none of the drift below was a source delta either.
+- **Pages:**
+  - `README.md` — **updated**: the status line moves to `1.2.0`; the *no-undo* paragraph, which
+    named three writes that had since become reversible; the runner snippet gains `--limit N`;
+    `/sistema/workers` is read-only for configuration since #53; the unauthenticated list gains the
+    first-run routes; the `worker_*.py` claim gains its exception.
+  - `docs/index.md` and `docs/index.pt.md` — **updated**: "Scrinalia is at 1.1" → "at 1.2".
+  - `guides/install.md` and `guides/install.pt.md` — **updated**: the two `Sistema › …` breadcrumbs,
+    which name a group the shell does not have; "both doors close forever", which is true of the
+    first-run route and not of the CLI; and the page's `sources:` gains the SPA navigation files it
+    states facts about (`AppShell.tsx`, `lib/screens.ts`, `lib/settings.ts`), which the freshness
+    report could never flag before.
+  - `guides/operate.md` and `guides/operate.pt.md` — **updated**: the worked
+    `conflict-judge --option host=…` example, which the runner **refuses** (measured:
+    `InvalidWorkerSettingsError`); the `cleaning` unit cell; the claim that the CLI formats the
+    duplicate-run refusal the way the API does; the `reset-password --password` comment.
+  - `guides/curate.md` and `guides/curate.pt.md` — **updated**: the "Curadoria" nav group, which
+    does not exist; "Four decisions" under five bullets; the ungoverned-worker count; the
+    subject-exclusion preview no screen calls; the *Trechos* row, which called the removal
+    reversible.
+  - `guides/data-model.md` and `guides/data-model.pt.md` — **updated**: `archive_entity_merge_log`
+    joins the ledger table; the author pair gains the two new ledgers; the ban-undo guard, which was
+    scoped to two writers and belongs to one; four stamp keys and the value-keyed count;
+    `NOT_PUBLIC_FIELDS`; `archive_tags` under the retire-with-`is_active` rule; "both merges".
+  - `CHANGELOG.md` — **updated**: `## [1.2.0] - 2026-10-13` replaces `## [Unreleased]`, which
+    carried **two** entries for ninety-one commits. The cycle's most consequential change — the tag
+    axis becoming the subject axis (ADR 0013) and its route removals — was in neither.
+  - `mkdocs.yml` — **updated**: ADR 0013 joins the site nav.
+- **Why the round exists:** milestone 1.2 is complete, so this is the release preparation
+  `CONTRIBUTING.md` asks for in one pull request — the version, the changelog, and the claims that
+  drifted while no gate looked at them.
+- **How the pages were read.** The freshness report names a page only when a declared source moved,
+  and it cannot see a page with no `sources:` at all, nor a **number or a sentence** inside a page
+  whose sources stayed put. This round therefore read every claim of the five pages against the
+  code, one page per reviewer: the report was **silent** and every defect below was still there.
+  Most predate the cycle; two were introduced by it — the entity rename landed without bumping
+  "Four decisions", and the *Trechos* removal had never been reversible.
+- **The gap no gate covered, now gated.** `docs/adr/0013-the-tag-axis-is-the-subject-axis.md`
+  existed, was linked from `adr/index.md` and passed the ADR coverage check, and was **absent from
+  the site nav**: `mkdocs build --strict` stays green because an unlisted page is an `INFO`, not a
+  warning, so the ADR built and no menu reached it. The nav lists it now, and
+  `testing/unit/docs/test_documentation_coverage.py` gained `test_every_adr_is_in_the_site_nav`,
+  which reads `mkdocs.yml` as text — reachability is the nav, so the nav is what the gate reads.
+- **A code defect the reading surfaced, and its gate.** `NOT_PUBLIC_FIELDS` listed
+  `original_thumbnail_url`, which is **not** a field of `DocumentSummary` (it lives on
+  `ArchiveDocumentDTO`), so the declaration withheld a field the internal summary never carried and
+  the comment justified it as "the source link, superseded by `storage_thumbnail_uri`". The entry is
+  gone, and `test_every_declared_non_public_field_exists` fails on the next name that is not a
+  field: the partition test reads `internal − published − NOT_PUBLIC_FIELDS`, so a dead entry was
+  invisible to it.
+- **Two defects left standing on purpose, both now documented.** The conflict resolution's undo
+  guards on `ban_created` but not on the ban's `source`, so it can lift a ban a person re-planted on
+  the Stopwords screen — a real gap in `EntityRepository._lift_conflict_ban`, recorded in the
+  data-model page rather than fixed here, because changing an undo's reach belongs to its own
+  change. And `WorkerStamp("thumbnail")` is declared and never written, `worker_thumbnail`'s queue
+  being led by `storage_thumbnail_uri`; the page says so now.
+- **What the round measured.** Full suite **1610 passed** (`TEST_DATABASE_URL` pointed at the test
+  database on **5434** — not 5433, which another project holds on this host; the compose file
+  publishes `${TEST_DB_PORT:-5433}`, so 5433 would have talked to the wrong PostgreSQL),
+  `ruff check` and `ruff format --check` green, `basedpyright` **0 errors**, `mkdocs build --strict`
+  green, and the CI contract check replicated by hand: `uv run python -m scrinalia.api.dump_openapi`
+  is **byte-identical** to the committed contract at `info.version` `1.2.0`. `uv.lock` and
+  `bun.lock` carry the number and were regenerated, and
+  `testing/unit/api/test_openapi_metadata.py` pins the served document, the installed distribution,
+  `pyproject.toml` and the committed contract together.
+- **What the round looked at.** No screen was **rendered**, and none needed to be: no SPA file
+  changed. The UI statements corrected here are navigation labels and counts, read from
+  `AppShell.tsx`, `lib/screens.ts` and `lib/settings.ts` — **not** observed in pixels, which is what
+  a screen change would require.
+- **Not verified, and said so.** The reviews did not re-measure the page's hardware figures (disk,
+  RAM, wheel sizes), the Bun argument-forwarding note, or the contents of the `ACERVO_LANGUAGE`
+  profile, and `install.pt.md` was checked by grep rather than read end to end for structural drift.
+  The working tree also moved under the reviewers while the fixes landed, so each verdict above is
+  against the tree at the moment it was read.
+- **Not carried, on purpose:** the ADRs. `0010` still records "24 screens in `router.tsx`", `0012`
+  still quotes the index's old "at 1.0", and `0011` still says "cycle 1.1": an ADR records the
+  reasoning at the time, and none of those numbers is a rule the code has to satisfy.
+  `src/scrinalia/api/openapi.py`'s docstring keeps "with `pyproject.toml` at 1.1.0" — that is the
+  date of a **measurement**, and changing the number would falsify the record rather than update it.

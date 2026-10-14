@@ -237,13 +237,17 @@ As chaves canônicas, definidas uma única vez em `worker_stamp.py`:
 | `worker_macro_category_v1` | `archive_tags` | A decisão de categoria da tag foi tentada |
 | `worker_quality_validator_v1` | `archive_documents` | Validação estrutural feita |
 | `worker_embedding_v1` | `archive_documents` | O valor é o MD5 do texto embutido |
+| `thumbnail` | `archive_documents` | Miniatura no armazenamento de objetos; a fila é guiada por `storage_thumbnail_uri`, então esta chave é declarada mas não gravada |
+| `thumbnail_failed` | `archive_documents` | O download da miniatura falhou; uma execução simples a ignora, `force` a retoma |
+| `hierarchy_parent_v1` | `archive_documents` | O valor é `PENDING:<code>` enquanto o pai declarado falta e `DONE:<description_id>` depois de vinculado |
+| `curated_macro_category` | `archive_tags` | O valor é quem, quando e o destino de uma decisão de assunto de um curador |
 
 As consultas de polling são servidas por índices GIN sobre a coluna JSONB: `ix_archive_exec_log` em
 `archive_documents` e `ix_archive_tags_exec_log` em `archive_tags`. Um worker altera o dicionário e
 precisa chamar `flag_modified` para que o SQLAlchemy perceba a mudança em vigor; esquecer isso é como
 um carimbo é gravado em memória e nunca no banco.
 
-A maioria dos carimbos guarda um status (`DONE`, `ERROR`). Dois são **chaveados por valor**:
+A maioria dos carimbos guarda um status (`DONE`, `ERROR`). Quatro são **chaveados por valor**:
 
 - `worker_embedding_v1` guarda o **MD5 do texto embutido**, calculado pelo PostgreSQL (`func.md5(...)`
   sobre o texto efetivo) e gravado com `WorkerStamp.mark_value`. Seu predicado de pendência é
@@ -251,6 +255,12 @@ A maioria dos carimbos guarda um status (`DONE`, `ERROR`). Dois são **chaveados
   humana — devolve o documento à fila sozinho.
 - `worker_macro_category_v1` guarda o hash do conjunto de rótulos contra o qual a tag foi
   classificada, então reescrever o rótulo de um curador reenfileira a tag.
+- `hierarchy_parent_v1` guarda `"PENDING:<code>"` enquanto o filho espera pelo pai que a origem
+  declarou e `"DONE:<description_id>"` quando o vínculo existe, então a nova tentativa lembra qual pai
+  faltava.
+- `curated_macro_category` guarda quem, quando e o destino de uma decisão de assunto de um curador —
+  texto livre, não um status, então uma tag que uma pessoa classificou se lê como curada, e não como
+  uma que a máquina acertou.
 
 !!! note "Uma exceção documentada"
     `worker_embedding` deliberadamente não usa `ai_writable_documents()`. O embedding é um índice
@@ -311,6 +321,7 @@ intercambiáveis, e só alguns têm desfazer.
 | Ledger | O que registra | O seu desfazer |
 | --- | --- | --- |
 | `archive_taxonomy_merge_log` | Uma linha **por tag absorvida**, fotografada antes de qualquer mudança. | `undo_merge` restaura a linha, os seus vínculos, a sua classificação e o estado das grafias. |
+| `archive_entity_merge_log` | Uma linha **por entidade absorvida** (um **merge**) ou **por nome renomeado** (uma **renomeação**), fotografada antes de qualquer mudança. | `undo_entity_merge` restaura a linha, os seus vínculos, as suas grafias e o nome que a canônica perdeu; uma linha de **renomeação** só devolve o nome. |
 | `archive_stopword_purge_log` | Uma linha **por tag que a purga de stopwords apagou**, fotografada antes do delete: a linha, os documentos que a carregavam e as grafias que apontavam para ela. | `undo_stopword_purge` restaura a linha, os seus vínculos e as suas grafias; o banimento continua, então a próxima purga lista a tag de novo. |
 | `archive_ner_purge_log` | Uma linha **por entidade que o expurgo de NER apagou**, fotografada antes do delete: a entidade, os documentos que a carregavam, as grafias que apontavam para ela e o `excluded_term` que a justificou. | `DELETE /entities/ner-exclusions/purge-log/{id}` restaura a entidade, os seus vínculos e as suas grafias; o veto continua, então o próximo expurgo lista a entidade de novo. |
 | `archive_hierarchy_materialisation_log` | Uma linha por execução de materialização: os nós que ela criou e o pai/caminho anterior de cada linha que ela mudou. | O desfazer restaura `previous_state` e então remove `created_nodes`. |
@@ -320,15 +331,17 @@ intercambiáveis, e só alguns têm desfazer.
 | `archive_api_errors` | Uma linha por falha HTTP inesperada. | **Sem desfazer** — um ledger de erros é um rastro. |
 
 Dois detalhes tornam os ledgers reversíveis exatos em vez de aproximados. `created_link_ids` registra
-os vínculos que a operação *criou*; tanto o merge quanto a resolução de conflito vinculam com
+os vínculos que a operação *criou*; tanto os dois merges quanto a resolução de conflito vinculam com
 `ON CONFLICT DO NOTHING`, então um desfazer que apagasse todo vínculo removeria vínculos que já
 existiam antes dele. `ban_created` cumpre o mesmo papel para as duas escritas que plantam um banimento
 — a resolução de conflito e a exclusão de assunto: o desfazer só pode remover o banimento quando esta
-linha é a que o plantou, e só enquanto o `source` do banimento ainda nomeia esse escritor, senão
-reverter uma decisão levantaria um banimento que uma decisão anterior fez. Para o merge,
-`synonym_created` e `synonym_previous_tag_id`
+linha é a que o plantou, senão reverter uma decisão levantaria um banimento que uma decisão anterior
+fez. A exclusão de assunto acrescenta um segundo guardião — o `source` do banimento precisa ainda
+nomeá-la (`EXCLUSION`), então uma grafia que uma pessoa rebaniu na tela Stopwords mantém o seu
+banimento — enquanto o desfazer da resolução de conflito se guarda apenas por `ban_created`. Para um
+merge, `synonym_created` e `synonym_previous_tag_id` (tag) / `synonym_previous_entity_id` (entidade)
 capturam o estado das grafias antes do merge, e `repointed_synonym_names` registra as grafias que
-apontavam para a tag absorvida e foram movidas para a canônica. `undone_at` mantém o desfazer de uso
+apontavam para a linha absorvida e foram movidas para a canônica. `undone_at` mantém o desfazer de uso
 único e mantém o rastro legível depois: a linha nunca é apagada.
 
 `archive_ai_review_queue` é a companheira de `archive_conflict_resolution_log`, não um ledger de
@@ -389,17 +402,18 @@ membro vivo) em uma consulta por página; `applicable` é a definição única d
 ## Catálogos se aposentam, não se apagam
 
 Os três catálogos que o arquivista estende sem deploy são `archive_description_levels` (a escada de
-níveis), `archive_macro_categories` mais `archive_tags` (as categorias de assunto) e `archive_typologies`
-(as tipologias documentais — a *forma diplomática*: ata, ofício, planta). O vocabulário do acervo
-acrescenta `archive_arrangement_vocabulary` e `archive_collection_terms`. Todos são tabelas em vez de
-enums para que um nome possa mudar sem uma release.
+níveis), `archive_macro_categories` (as categorias de assunto) e `archive_typologies` (as tipologias
+documentais — a *forma diplomática*: ata, ofício, planta). O vocabulário do acervo acrescenta
+`archive_arrangement_vocabulary` e `archive_collection_terms`. Todos são tabelas em vez de enums para
+que um nome possa mudar sem uma release.
 
 Nenhum deles apaga. As chaves estrangeiras são `SET NULL` (`archive_documents.level_id`,
 `archive_documents.typology_id`, `archive_tags.macro_category_id`), então remover uma linha
 desclassificaria toda descrição que aponta para ela e ainda apagaria o registro de que um dia ela
-existiu. Uma linha se aposenta com `is_active=false`, e essa é também a única alavanca que alcança o
-classificador: aposentar uma tipologia a remove dos rótulos candidatos sem tocar em nenhuma descrição
-classificada, então a tela do catálogo continua mostrando o peso das aposentadas.
+existiu. Uma linha se aposenta com `is_active=false` — `archive_tags` é a exceção: uma tag não tem
+essa coluna e sai pelos ledgers de merge e de expurgo de stopwords — e essa é também a única alavanca
+que alcança o classificador: aposentar uma tipologia a remove dos rótulos candidatos sem tocar em
+nenhuma descrição classificada, então a tela do catálogo continua mostrando o peso das aposentadas.
 
 Duas regras sustentam o catálogo de tipologias: `get_active_typologies()` projeta **apenas**
 `(typology_id, name)` e filtra `is_active` — o nome puro é o rótulo, porque acrescentar
@@ -424,7 +438,7 @@ Dois frozensets em `api/schemas/public.py` tornam o padrão privado:
 - `NOT_PUBLIC_FIELDS` — campos de `DocumentSummary` deliberadamente não publicados. Contém
   `review_status`, `is_anomaly`, `anomaly_reasons`, `archivist_notes`, `provenance`,
   `suggested_final_title`, `rank`, `path`, `parent_id`, `level_id`, `typology_id`, `is_published`,
-  `original_thumbnail_url`, `admin_bio_history`, `admin_archival_history` e `access_conditions`.
+  `admin_bio_history`, `admin_archival_history` e `access_conditions`.
 - `NOT_PUBLIC_FACETS` — atualmente apenas `anomaly_reason`.
 
 Junto com os campos e facetas publicados, eles precisam permanecer uma **partição exata** da leitura
@@ -455,7 +469,8 @@ A autoria são **duas colunas, nunca uma**:
 
 O mesmo par aparece onde quer que uma pessoa decida algo: `archive_document_deletions` (`deleted_by` /
 `deleted_by_user_id`), `archive_taxonomy_merge_log` (`changed_by`, `undone_by`),
-`archive_stopword_purge_log` (`changed_by`, `undone_by`),
+`archive_stopword_purge_log` (`changed_by`, `undone_by`), `archive_ner_purge_log` (`changed_by`,
+`undone_by`), `archive_entity_merge_log` (`changed_by`, `undone_by`),
 `archive_conflict_resolution_log` (`decided_by`, `undone_by`), `archive_hierarchy_node_plans` e
 `archive_tag_merge_proposals` (`decided_by`), `archive_cleaning_rules` e
 `domain_text_templates` (`created_by`), `archive_hierarchy_materialisation_log` (`changed_by`),

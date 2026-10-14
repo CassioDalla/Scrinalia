@@ -65,7 +65,7 @@ Nine workers, in pipeline order:
 | # | Name | Module | Unit | Governed | Effective engine from |
 | --- | --- | --- | --- | --- | --- |
 | 1 | `transfer` | `worker_archive_transfer` | staging record | no | — |
-| 2 | `cleaning` | `worker_cleaning_regex` | document × active `REWRITE` rule | yes | — |
+| 2 | `cleaning` | `worker_cleaning_regex` | document | yes | — |
 | 3 | `ner` | `worker_ner` | document | yes | signature |
 | 4 | `typology` | `worker_typology` | document | yes | signature |
 | 5 | `thumbnail` | `worker_thumbnail` | document | yes | — |
@@ -161,9 +161,9 @@ uv run python -m scrinalia.domains.archive.workers.runner typology \
 # Force the embedding of every description, ignoring the text hash.
 uv run python -m scrinalia.domains.archive.workers.runner embedding --option force=true
 
-# Point the conflict judge at another Ollama host for this run only.
-uv run python -m scrinalia.domains.archive.workers.runner conflict-judge \
-    --option host=http://ollama.interno:11434 --by "ana"
+# Override the engine's device for this run only; the worker forwards it to the engine.
+uv run python -m scrinalia.domains.archive.workers.runner ner \
+    --engine spacy_ner --option device=cpu --by "ana"
 ```
 
 | Flag | Meaning |
@@ -180,7 +180,9 @@ uv run python -m scrinalia.domains.archive.workers.runner conflict-judge \
 string, so an option that expects a number or a list is not settable from the command line. The flag
 is validated against the worker's `execute` signature: an option the worker does not declare is
 refused, unless the worker ends with `**engine_kwargs`, which is the documented way to override
-`device`, `host` and similar engine parameters for one run.
+`device`, `host` and similar engine parameters for one run. `conflict-judge` declares no
+`**engine_kwargs`, so its host is not a `--option` at all: it comes from the `OLLAMA_HOST_URL`
+setting (or the local default).
 
 Two things are always refused:
 
@@ -351,7 +353,8 @@ still inside the request's transaction would be invisible to that thread and the
 or `RUNNING`. It, and not a process lock, is the concurrency guard: at most one run per worker may
 be in flight, across processes and across a reload. A second submission becomes an
 `IntegrityError` that the API turns into `409` with a sentence ("Já existe uma execução em
-andamento para o worker '…'"), and that the CLI surfaces the same way.
+andamento para o worker '…'"). The CLI reaches the same error but has no handler for it, so it stops
+with a traceback instead of the sentence.
 
 The panel's executor runs **one worker at a time** (`WORKER_RUNTIME_MAX_WORKERS`, default 1) because
 the workers are CPU-bound — two torch models on the same CPU slow each other down without producing
@@ -529,7 +532,7 @@ Password recovery is guided by the administrator, and which door applies is the 
 # Which accounts exist, and which one is active. The address is what the commands below take.
 uv run python -m scrinalia.domains.identity.cli list
 
-# An explicit password. The account is marked temporary, so it replaces it at the next sign-in.
+# An explicit password. It is set as given; the account is not forced to replace it at the next sign-in.
 uv run python -m scrinalia.domains.identity.cli reset-password --email pessoa@instituicao.org --password 'a nova senha'
 
 # Without --password it generates one, prints it once and marks the account temporary.

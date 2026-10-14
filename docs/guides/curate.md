@@ -197,8 +197,8 @@ collection. The change opens the rest of the API in the same session.
 The shell filters its entries by the area the screen **writes** (`apps/curator/src/lib/permissions.ts`,
 a mirror of the server's role map), and an empty group is not rendered at all. The screens that only
 read carry no permission and stay visible to every role: Início, the collection list, the tree, the
-exclusions trail and the arrangement diagnostic. A `VIEWER` therefore sees exactly the "Curadoria"
-and "Acervo" groups — every other group exists to decide, and is hidden.
+exclusions trail and the arrangement diagnostic. A `VIEWER` therefore sees the "Acervo" group and the
+"Início" entry, which stands with no heading — every other group exists to decide, and is hidden.
 
 The same rule governs the cards of `/configuracoes`, and it is the card catalogue
 (`apps/curator/src/lib/settings.ts`) that both the page and the menu entry read: a card is hidden when
@@ -693,10 +693,10 @@ whether the term is a place, whether the same spelling is also an entity, the dr
 it and whether its spelling is already banned), and offers to register them with `source=RULE` or one
 at a time.
 
-Confirming is a read that writes a plan first: `POST
-/api/v1/taxonomy/tags/subject-exclusions/preview` (`AUTHENTICATED`) returns `applicable` and
-`blocked`, computed by the same function the write consumes, so the preview cannot promise another
-number.
+Confirming plans and applies in one call: the write below consumes the same planner the preview route
+uses, so the two cannot disagree. The preview, `POST
+/api/v1/taxonomy/tags/subject-exclusions/preview` (`AUTHENTICATED`), returns `applicable` and
+`blocked`, but it exists as an API read — no screen calls it.
 
 The write is `POST /api/v1/taxonomy/tags/subject-exclusions` (`CURATE`), and it does two things at
 once: it registers the term in `domain_subject_exclusions`, so the subject classifier stops guessing
@@ -731,7 +731,7 @@ the Stopwords screen, or one a conflict resolution planted first, survives.
 
 ### Entidades — `/entidades/lista`
 
-The named-entity vocabulary, by weight or by similarity. Four decisions:
+The named-entity vocabulary, by weight or by similarity. Five decisions:
 
 - **Reclassify the type** — `PATCH /api/v1/taxonomy/entities/{entity_id}/reclassify` (`CURATE`),
   only between `ORG`, `PER` and `LOC`. This is not renaming a label: the service also writes the
@@ -879,7 +879,7 @@ category is finished when the next page disagrees.
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
-| Trechos — `/qualidade/trechos` | which consumer stops reading a repeated excerpt | yes (retire or remove from the catalogue) |
+| Trechos — `/qualidade/trechos` | which consumer stops reading a repeated excerpt | retiring **yes**; removing it from the catalogue is final |
 | Regras — `/qualidade/regras` | whether a rule rewrites the text or only flags it | yes: retiring has a route back, and the retired rule stays on the screen |
 | Anomalias — `/qualidade/anomalias` | none (the correction is the record's review) | yes (read only) |
 
@@ -961,8 +961,11 @@ write is `OPERATE`:
 
 The panel itself offers no undo for a run. The reversibility of a run is the reversibility of what it
 wrote — a merge undo, a materialisation undo, a conflict undo — and a worker that stamps its queue
-does not redo its work just because it is run again. A worker marked as not respecting the human
-review block is `worker_embedding`, the documented exception.
+does not redo its work just because it is run again. The panel marks **four** workers as outside the
+human review block — the transfer, the conflict judge, the macro-categoriser and `worker_embedding` —
+and only `worker_embedding` rewrites a *description*: it re-embeds a changed text even on an approved
+document, the documented exception. The other three work on units that are not descriptions (a
+staging record, a pair, a tag).
 
 ### Execuções — `/sistema/execucoes`
 

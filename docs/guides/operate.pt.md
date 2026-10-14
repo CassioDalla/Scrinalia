@@ -22,7 +22,7 @@ Nove workers, na ordem do pipeline:
 | # | Nome | Módulo | Unidade | Governança | Engine efetiva vem de |
 | --- | --- | --- | --- | --- | --- |
 | 1 | `transfer` | `worker_archive_transfer` | registro de staging | não | — |
-| 2 | `cleaning` | `worker_cleaning_regex` | documento × regra `REWRITE` ativa | sim | — |
+| 2 | `cleaning` | `worker_cleaning_regex` | documento | sim | — |
 | 3 | `ner` | `worker_ner` | documento | sim | assinatura |
 | 4 | `typology` | `worker_typology` | documento | sim | assinatura |
 | 5 | `thumbnail` | `worker_thumbnail` | documento | sim | — |
@@ -120,9 +120,9 @@ uv run python -m scrinalia.domains.archive.workers.runner typology \
 # Força o embedding de toda descrição, ignorando o hash do texto.
 uv run python -m scrinalia.domains.archive.workers.runner embedding --option force=true
 
-# Aponta o juiz de conflito para outro host Ollama só nesta execução.
-uv run python -m scrinalia.domains.archive.workers.runner conflict-judge \
-    --option host=http://ollama.interno:11434 --by "ana"
+# Sobrescreve o device da engine só nesta execução; o worker repassa a opção para a engine.
+uv run python -m scrinalia.domains.archive.workers.runner ner \
+    --engine spacy_ner --option device=cpu --by "ana"
 ```
 
 | Flag | Significado |
@@ -139,7 +139,9 @@ O `--option` converte exatamente dois valores: `true` e `false` viram booleanos.
 continua string, então uma opção que espera número ou lista não é configurável pela linha de comando.
 A flag é validada contra a assinatura do `execute` do worker: uma opção que o worker não declara é
 recusada, a menos que o worker termine em `**engine_kwargs`, que é a forma documentada de
-sobrescrever `device`, `host` e parâmetros parecidos da engine em uma execução.
+sobrescrever `device`, `host` e parâmetros parecidos da engine em uma execução. O `conflict-judge`
+não declara `**engine_kwargs`, então o host dele não é um `--option`: ele vem da configuração
+`OLLAMA_HOST_URL` (ou do default local).
 
 Duas coisas são sempre recusadas:
 
@@ -309,7 +311,8 @@ sempre.
 ou `RUNNING`. É ele, e não um lock de processo, a trava de concorrência: no máximo uma execução por
 worker em andamento, entre processos e através de um reload. Um segundo envio vira um
 `IntegrityError` que a API transforma em `409` com uma frase ("Já existe uma execução em andamento
-para o worker '…'"), e que a CLI expõe do mesmo jeito.
+para o worker '…'"). A CLI chega ao mesmo erro, mas não tem tratamento para ele, então termina com o
+traceback em vez da frase.
 
 O executor do painel roda **um worker por vez** (`WORKER_RUNTIME_MAX_WORKERS`, padrão 1) porque os
 workers são limitados por CPU — dois modelos torch na mesma CPU se atrasam sem produzir mais. Ele
@@ -487,7 +490,7 @@ A recuperação de senha é guiada pelo administrador, e qual porta se aplica é
 # Quais contas existem e qual está ativa. O endereço é o que os comandos abaixo recebem.
 uv run python -m scrinalia.domains.identity.cli list
 
-# Uma senha explícita. A conta fica marcada como temporária e a troca no primeiro acesso.
+# Uma senha explícita. Ela é gravada como veio; a conta não é obrigada a trocá-la no primeiro acesso.
 uv run python -m scrinalia.domains.identity.cli reset-password --email pessoa@instituicao.org --password 'a nova senha'
 
 # Sem --password, ele gera uma, imprime uma vez e marca a conta como temporária.
