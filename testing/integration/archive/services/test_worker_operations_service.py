@@ -3,12 +3,14 @@
 import pytest
 
 from scrinalia.core.author import Author
+from scrinalia.core.runner_config import TypologyRunnerConfig
 from scrinalia.domains.archive.exceptions import InvalidWorkerSettingsError, WorkerNotFoundError
 from scrinalia.domains.archive.repository.cleaning_repo import CleaningRepository
 from scrinalia.domains.archive.schemas.cleaning_schema import CleaningRuleCreateDTO
 from scrinalia.domains.archive.schemas.system_schema import WorkerSettingsRequest
 from scrinalia.domains.archive.services.worker_operations_service import WorkerOperationsService
-from scrinalia.domains.archive.workers import runner
+from scrinalia.domains.archive.worker_stamp import TYPOLOGY
+from scrinalia.domains.archive.workers import runner, worker_typology
 
 
 @pytest.fixture
@@ -130,3 +132,41 @@ def test_the_engine_of_the_quality_validator_cannot_be_overridden_here(service) 
 def test_an_unknown_worker_is_a_named_error(service) -> None:
     with pytest.raises(WorkerNotFoundError):
         service.get_settings("nao-existe")
+
+
+def test_the_queue_preview_counts_a_proposed_configuration_without_writing(
+    service, generate_archive_doc, generate_typology
+) -> None:
+    """
+    The cost of a change is readable before it is saved, and reading it saves nothing.
+
+    The queue is keyed on the producer identity, so a new threshold re-reads the documents the old
+    one settled — the archivist has to see that number first, and the preview must leave the
+    settings row and its revisions exactly as they were.
+    """
+    generate_typology()
+    config = TypologyRunnerConfig()
+    identity = worker_typology.producer_identity(
+        engine_name="deberta_typology",
+        preset="cpu_local",
+        columns_to_classify=list(config.columns_to_classify),
+        confidence_threshold=config.confidence_threshold,
+        engine_kwargs={},
+    )
+    generate_archive_doc(original_title="Do produtor atual", execution_log={TYPOLOGY.key: identity})
+    generate_archive_doc(original_title="Sem tipologia")
+
+    assert service.preview_queue("typology", WorkerSettingsRequest()).pending == 1
+
+    proposed = service.preview_queue("typology", WorkerSettingsRequest(options={"confidence_threshold": 0.6}))
+    assert proposed.pending == 2
+
+    assert service.get_settings("typology").overridden is False
+    assert service.list_revisions("typology", limit=10, offset=0).total == 0
+
+
+def test_the_preview_of_an_unmeasurable_queue_says_why(service) -> None:
+    preview = service.preview_queue("conflict-judge", WorkerSettingsRequest())
+
+    assert preview.pending is None
+    assert preview.pending_reason

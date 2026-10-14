@@ -318,6 +318,7 @@ export type WorkerSettingsItem = components["schemas"]["WorkerSettingsItemDTO"];
 export type WorkerStatus = components["schemas"]["WorkerStatusDTO"];
 export type WorkerSettings = components["schemas"]["WorkerSettingsDTO"];
 export type WorkerSettingsRequest = components["schemas"]["WorkerSettingsRequest"];
+export type WorkerQueuePreview = components["schemas"]["WorkerQueuePreviewDTO"];
 export type WorkerSettingsRevision = components["schemas"]["WorkerSettingsRevisionDTO"];
 export type WorkerSettingsRevisionList = components["schemas"]["WorkerSettingsRevisionListResponse"];
 export type WorkerEngine = components["schemas"]["WorkerEngineDTO"];
@@ -1549,6 +1550,25 @@ export async function saveWorkerSettings(
 ): Promise<WorkerSettings> {
   return unwrap<WorkerSettings>(
     await client.PUT("/api/v1/system/workers/{worker_name}/settings", {
+      params: { path: { worker_name: worker } },
+      body,
+    }),
+  );
+}
+
+/**
+ * How many units a **proposed** configuration would leave in the worker's queue, without saving it.
+ *
+ * The queue is keyed on the producer identity, so trying another engine, preset or threshold
+ * re-reads units; the screen asks this before the write, and the body is the settings body so the
+ * preview and the save cannot disagree about what was proposed.
+ */
+export async function previewWorkerQueue(
+  worker: string,
+  body: WorkerSettingsRequest,
+): Promise<WorkerQueuePreview> {
+  return unwrap<WorkerQueuePreview>(
+    await client.POST("/api/v1/system/workers/{worker_name}/queue/preview", {
       params: { path: { worker_name: worker } },
       body,
     }),

@@ -27,6 +27,7 @@ from scrinalia.domains.archive.schemas.system_schema import (
     SystemWorkersResponse,
     WorkerEngineDTO,
     WorkerPresetDTO,
+    WorkerQueuePreviewDTO,
     WorkerSettingsDTO,
     WorkerSettingsItemDTO,
     WorkerSettingsRequest,
@@ -133,6 +134,29 @@ class WorkerOperationsService:
             total=total,
         )
 
+    def preview_queue(self, worker_name: str, request: WorkerSettingsRequest) -> WorkerQueuePreviewDTO:
+        """
+        The pending count of a **proposed** configuration, computed without writing anything.
+
+        A queue keyed on the producer identity makes a settings change re-queue units, so the
+        archivist has to be able to read that number before saving it — the plan that precedes the
+        write. The resolution is the one a run uses (explicit argument over persisted override over
+        signature default), so the preview cannot disagree with the run it announces.
+        """
+        spec = self._spec(worker_name)
+        setting = self.settings.get(worker_name)
+        resolved = resolve_configuration(
+            self.db,
+            spec,
+            setting,
+            engine_name=request.engine_name,
+            preset=request.preset,
+            db_batch_size=request.db_batch_size,
+            options=request.options,
+        )
+        pending, reason = self._pending(spec, resolved)
+        return WorkerQueuePreviewDTO(worker_name=worker_name, pending=pending, pending_reason=reason)
+
     # --- writes ----------------------------------------------------------------------------------
 
     def update_settings(
@@ -222,17 +246,29 @@ class WorkerOperationsService:
 
     def _counter_options(self, spec: WorkerSpec, resolved: ResolvedWorkerConfig) -> dict[str, Any]:
         """
-        Only the options the counter declares.
+        Only what the counter declares: the options, plus the engine and the preset it reads.
 
         The counter is a reader, not the worker: handing it ``columns_to_extract`` is useful,
         handing it a parameter it does not read (or a runner dataclass) is not. The filter is by the
         counter's own signature, so a new counter cannot be broken by an unrelated option.
+
+        The engine and the preset travel **resolved** — the same pair the run would use — because the
+        queue is keyed on the producer identity: a counter that fell back to its signature defaults
+        would show the number for a model the next run is not going to use, which is the lying panel
+        the shared predicate exists to prevent. ``quality-validator`` declares neither: its engine
+        lives in the active ``LLM_CHECK`` rule and its counter reads it there.
         """
         counter_name = spec.counter or spec.processed_counter
         if counter_name is None:
             return {}
         parameters = signature(getattr(worker_module(spec.module), counter_name)).parameters
-        return {key: value for key, value in resolved.forwarded_options.items() if key in parameters}
+        resolved_engine = {
+            key: value
+            for key, value in {"engine_name": resolved.engine_name, "preset": resolved.preset}.items()
+            if value
+        }
+        candidates = {**resolved.forwarded_options, **resolved_engine}
+        return {key: value for key, value in candidates.items() if key in parameters}
 
     def _pending(self, spec: WorkerSpec, resolved: ResolvedWorkerConfig) -> tuple[int | None, str | None]:
         """The pending number and, when there is none, the reason a person can read."""

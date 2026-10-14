@@ -843,6 +843,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/workers/{worker_name}/queue/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** PreviewQueue */
+        post: operations["ApiV1SystemWorkersWorkerNameQueuePreviewPreviewQueue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/workers/{worker_name}/runs": {
         parameters: {
             query?: never;
@@ -4046,6 +4063,14 @@ export interface components {
             };
             name: string;
         };
+        /** WorkerQueuePreviewDTO */
+        WorkerQueuePreviewDTO: {
+            /** @description Unidades que a execução proposta leria. */
+            pending?: number | null;
+            /** @description Por que o pendente não foi contado. */
+            pending_reason?: string | null;
+            worker_name: string;
+        };
         /** WorkerRunDTO */
         WorkerRunDTO: {
             /** @description Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código. */
@@ -6158,6 +6183,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SystemWorkerSettingsResponse"];
+                };
+            };
+        };
+    };
+    ApiV1SystemWorkersWorkerNameQueuePreviewPreviewQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkerSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerQueuePreviewDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
                 };
             };
         };
