@@ -160,9 +160,10 @@ respondendo; só não serve interface nenhuma.
 
 ### 6. Crie o primeiro administrador
 
-Uma instalação vazia tem duas portas para a mesma conta, e as duas se fecham atrás dela: a tela de
-primeiro acesso na interface, ou a CLI na máquina. Cada uma cria um `ADMIN` com uma senha que alguém
-escolheu, e depois que a primeira conta existe as duas recusam.
+Uma instalação vazia tem duas portas para a mesma conta: a tela de primeiro acesso na interface, ou
+a CLI na máquina. Cada uma cria um `ADMIN` com uma senha que alguém escolheu, e só a primeira se
+fecha atrás dela — a rota de primeiro acesso responde 409 para sempre depois que uma conta existe,
+enquanto a CLI é administração da máquina e continua criando contas a qualquer momento.
 
 ```bash
 uv run python -m scrinalia.domains.identity.cli create \
@@ -183,12 +184,13 @@ instalação sem conta nenhuma não tem segredo a proteger. O cartão carrega a 
 topo, a mesma placa do cartão de entrada: é a primeira tela que quem instala vê, e é o lugar onde vale
 mostrar o nome inteiro.
 
-As duas portas se fecham **para sempre** depois que a primeira conta existe — desativada ou não,
-porque o predicado é a tabela estar vazia, e uma regra que uma desativação pudesse reabrir seria um
-caminho de volta para uma porta aberta. Até lá, quem alcançar a instância primeiro pode criar essa
-conta; o `POST /api/v1/setup/admin` é serializado por um lock de tabela, então duas tentativas
-simultâneas não podem dar certo as duas, mas o lock não fecha a janela (ADR 0011). **Configure a
-instância antes de expô-la.**
+A rota de primeiro acesso se fecha **para sempre** depois que a primeira conta existe — desativada
+ou não, porque o predicado é a tabela estar vazia, e uma regra que uma desativação pudesse reabrir
+seria um caminho de volta para uma porta aberta. A CLI não é uma porta que a instalação fecha: ela
+roda na máquina, com o mesmo serviço que a API usa, e continua criando contas depois disso. Até lá,
+quem alcançar a instância primeiro pode criar essa conta; o `POST /api/v1/setup/admin` é serializado
+por um lock de tabela, então duas tentativas simultâneas não podem dar certo as duas, mas o lock não
+fecha a janela (ADR 0011). **Configure a instância antes de expô-la.**
 
 ### 7. Suba a API
 
@@ -296,9 +298,9 @@ CUDA_VISIBLE_DEVICES=0 uv run python -m scrinalia.domains.archive.workers.runner
 CUDA_VISIBLE_DEVICES=0 uv run python -m scrinalia.domains.archive.workers.runner embedding --option device=cuda
 ```
 
-Duas consequências a ter em mente. Uma execução disparada pelo painel (`Sistema › Workers de IA`)
-herda o ambiente do processo da API, então uma API subida com `CUDA_VISIBLE_DEVICES=""` roda só na
-CPU, qualquer que seja o preset escolhido no painel. E a configuração efetiva segue
+Duas consequências a ter em mente. Uma execução disparada pelo painel (`Configurações → Operação →
+Workers de IA`) herda o ambiente do processo da API, então uma API subida com `CUDA_VISIBLE_DEVICES=""`
+roda só na CPU, qualquer que seja o preset escolhido no painel. E a configuração efetiva segue
 `argumento explícito > override persistido > padrão da assinatura`, então um preset escolhido no
 painel pode ser sobreposto por uma linha em `archive_worker_settings` — [Operação](operate.md) é
 dona dessa precedência.
@@ -468,7 +470,8 @@ interface serve imagens quebradas. Faça o backup das duas juntas e restaure as 
 As duas probes ficam fora do `/api/v1` e fora do documento OpenAPI de propósito, para um orquestrador
 não precisar conhecer a versão da API. Não as junte: uma probe de liveness que consultasse o banco
 faria o orquestrador reiniciar a API toda vez que o banco reiniciasse. O painel humano é a terceira
-pergunta, a cara, e é o que nomeia a peça quebrada; na interface ele é `Sistema › Diagnóstico`.
+pergunta, a cara, e é o que nomeia a peça quebrada; na interface ele é
+`Configurações → Operação → Saúde do sistema`.
 
 ### O `/health/ready` responde 503
 

@@ -246,13 +246,17 @@ The canonical keys, defined once in `worker_stamp.py`:
 | `worker_macro_category_v1` | `archive_tags` | The tag's category decision was attempted |
 | `worker_quality_validator_v1` | `archive_documents` | Structural validation done |
 | `worker_embedding_v1` | `archive_documents` | Value is the MD5 of the embedded text |
+| `thumbnail` | `archive_documents` | Miniature in the object storage; the queue is led by `storage_thumbnail_uri`, so this key is declared but not written |
+| `thumbnail_failed` | `archive_documents` | The miniature download failed; a plain run skips it, `force` retries it |
+| `hierarchy_parent_v1` | `archive_documents` | Value is `PENDING:<code>` while the declared parent is missing and `DONE:<description_id>` once linked |
+| `curated_macro_category` | `archive_tags` | Value is who, when and the destination of a curator's subject decision |
 
 The polling queries are served by GIN indexes on the JSONB column: `ix_archive_exec_log` on
 `archive_documents` and `ix_archive_tags_exec_log` on `archive_tags`. A worker mutates the dict and
 must call `flag_modified` so SQLAlchemy notices the in-place change; skipping it is how a stamp is
 written in memory and never in the database.
 
-Most stamps hold a status (`DONE`, `ERROR`). Two are **value-keyed** instead:
+Most stamps hold a status (`DONE`, `ERROR`). Four are **value-keyed** instead:
 
 - `worker_embedding_v1` stores the **MD5 of the embedded text**, computed by PostgreSQL
   (`func.md5(...)` over the effective text) and written with `WorkerStamp.mark_value`. Its pending
@@ -260,6 +264,11 @@ Most stamps hold a status (`DONE`, `ERROR`). Two are **value-keyed** instead:
   edit — puts the document back in the queue by itself.
 - `worker_macro_category_v1` stores the hash of the label set the tag was classified against, so
   rewriting a curator's label re-queues the tag.
+- `hierarchy_parent_v1` stores `"PENDING:<code>"` while the child waits for the parent its origin
+  declared and `"DONE:<description_id>"` once the link exists, so the retry remembers which parent was
+  missing.
+- `curated_macro_category` stores who, when and the destination of a curator's subject decision — free
+  text, not a status, so a tag a person filed reads as curated rather than as one the machine got right.
 
 !!! note "One documented exception"
     `worker_embedding` deliberately does not use `ai_writable_documents()`. The embedding is a
@@ -320,6 +329,7 @@ interchangeable, and only some of them have an undo.
 | Ledger | What it records | Its undo |
 | --- | --- | --- |
 | `archive_taxonomy_merge_log` | One row **per absorbed tag**, snapshotted before anything changes. | `undo_merge` restores the row, its links, its classification and the spelling state. |
+| `archive_entity_merge_log` | One row **per absorbed entity** (a **merge**) or **per renamed name** (a **rename**), snapshotted before anything changes. | `undo_entity_merge` restores the row, its links, its spellings and the name the canonical lost; a **rename** row only puts the name back. |
 | `archive_stopword_purge_log` | One row **per tag the stopword purge deleted**, snapshotted before the delete: the row, the documents that carried it and the spellings that pointed at it. | `undo_stopword_purge` restores the row, its links and its spellings; the ban stays, so the next purge lists the tag again. |
 | `archive_ner_purge_log` | One row **per entity the NER purge deleted**, snapshotted before the delete: the entity, the documents that carried it, the spellings that pointed at it and the `excluded_term` that justified it. | `DELETE /entities/ner-exclusions/purge-log/{id}` restores the entity, its links and its spellings; the veto stays, so the next purge lists the entity again. |
 | `archive_hierarchy_materialisation_log` | One row per materialisation run: the nodes it created and the previous parent/path of every row it changed. | The undo restores `previous_state` and then removes `created_nodes`. |
@@ -329,15 +339,17 @@ interchangeable, and only some of them have an undo.
 | `archive_api_errors` | One row per unexpected HTTP failure. | **No undo** — an error ledger is a trace. |
 
 Two details make the reversible ledgers exact rather than approximate. `created_link_ids` records the
-links the operation *created*; both the merge and the conflict resolution link with
+links the operation *created*; both merges and the conflict resolution link with
 `ON CONFLICT DO NOTHING`, so an undo that deleted every link would remove links that existed before
 it. `ban_created` plays the same role for the two writes that plant a ban — the conflict resolution and
-the subject exclusion: the undo must remove the ban only when this row is the one that planted it, and
-only while the ban's `source` still names that writer, or reversing one decision would lift a ban an
-earlier one made. For the merge, `synonym_created` and `synonym_previous_tag_id` capture the spelling
-state before the merge, and `repointed_synonym_names` records the spellings that pointed at the
-absorbed tag and were moved to the canonical. `undone_at` keeps the undo single-shot and keeps the
-trail readable afterwards: the row is never deleted.
+the subject exclusion: the undo must remove the ban only when this row is the one that planted it, or
+reversing one decision would lift a ban an earlier one made. The subject exclusion adds a second guard
+— the ban's `source` must still name it (`EXCLUSION`), so a spelling a person re-banned on the
+Stopwords screen keeps its ban — while the conflict resolution's undo guards on `ban_created` alone.
+For a merge, `synonym_created` and `synonym_previous_tag_id` (tag) / `synonym_previous_entity_id`
+(entity) capture the spelling state before the merge, and `repointed_synonym_names` records the
+spellings that pointed at the absorbed row and were moved to the canonical. `undone_at` keeps the undo
+single-shot and keeps the trail readable afterwards: the row is never deleted.
 
 `archive_ai_review_queue` is the companion of `archive_conflict_resolution_log`, not a ledger of
 writes: it keeps the *decision* (the judge's verdict or the human's), while the resolution log keeps
@@ -397,17 +409,18 @@ member alive) in one query per page; `applicable` is the single definition of "t
 ## Catalogues retire, they do not delete
 
 The three catalogues the archivist extends without a deploy are `archive_description_levels` (the
-level ladder), `archive_macro_categories` plus `archive_tags` (the subject categories) and
-`archive_typologies` (the documental typologies — the *diplomatic form*: ata, ofício, planta). The
-collection vocabulary adds `archive_arrangement_vocabulary` and `archive_collection_terms`. All of
-them are tables instead of enums so a name can change without a release.
+level ladder), `archive_macro_categories` (the subject categories) and `archive_typologies` (the
+documental typologies — the *diplomatic form*: ata, ofício, planta). The collection vocabulary adds
+`archive_arrangement_vocabulary` and `archive_collection_terms`. All of them are tables instead of
+enums so a name can change without a release.
 
 None of them deletes. The foreign keys are `SET NULL` (`archive_documents.level_id`,
 `archive_documents.typology_id`, `archive_tags.macro_category_id`), so removing a row would
 unclassify every description pointing at it while erasing the record that it ever existed. A row
-retires with `is_active=false`, and that is also the only lever that reaches the classifier: retiring
-a typology removes it from the candidate labels without touching a single classified description, so
-the catalogue screen keeps showing the weight of the retired ones.
+retires with `is_active=false` — `archive_tags` is the exception: a tag has no such column and leaves
+through the merge and stopword-purge ledgers — and that is also the only lever that reaches the
+classifier: retiring a typology removes it from the candidate labels without touching a single
+classified description, so the catalogue screen keeps showing the weight of the retired ones.
 
 Two rules hold the typology catalogue: `get_active_typologies()` projects **only**
 `(typology_id, name)` and filters `is_active` — the bare name is the label, because appending
@@ -432,7 +445,7 @@ Two frozensets in `api/schemas/public.py` make the default private:
 - `NOT_PUBLIC_FIELDS` — fields of `DocumentSummary` that are deliberately not published. It contains
   `review_status`, `is_anomaly`, `anomaly_reasons`, `archivist_notes`, `provenance`,
   `suggested_final_title`, `rank`, `path`, `parent_id`, `level_id`, `typology_id`, `is_published`,
-  `original_thumbnail_url`, `admin_bio_history`, `admin_archival_history` and `access_conditions`.
+  `admin_bio_history`, `admin_archival_history` and `access_conditions`.
 - `NOT_PUBLIC_FACETS` — currently just `anomaly_reason`.
 
 Together with the published fields and facets they must remain an **exact partition** of the internal
@@ -461,7 +474,8 @@ Authorship is **two columns, never one**:
 
 The same pair appears wherever a person decides something: `archive_document_deletions` (`deleted_by`
 / `deleted_by_user_id`), `archive_taxonomy_merge_log` (`changed_by`, `undone_by`),
-`archive_stopword_purge_log` (`changed_by`, `undone_by`),
+`archive_stopword_purge_log` (`changed_by`, `undone_by`), `archive_ner_purge_log` (`changed_by`,
+`undone_by`), `archive_entity_merge_log` (`changed_by`, `undone_by`),
 `archive_conflict_resolution_log` (`decided_by`, `undone_by`), `archive_hierarchy_node_plans` and
 `archive_tag_merge_proposals` (`decided_by`), `archive_cleaning_rules` and
 `domain_text_templates` (`created_by`), `archive_hierarchy_materialisation_log` (`changed_by`),

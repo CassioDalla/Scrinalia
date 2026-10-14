@@ -21,7 +21,10 @@ sources:
   - src/scrinalia/api/spa.py
   - src/scrinalia/domains/identity/cli.py
   - src/scrinalia/domains/ingestion/sources.py
+  - apps/curator/src/components/layout/AppShell.tsx
   - apps/curator/src/components/layout/SetupForm.tsx
+  - apps/curator/src/lib/screens.ts
+  - apps/curator/src/lib/settings.ts
   - docs/adr/0004-worker-execution-from-the-api.md
   - docs/adr/0009-authentication-and-authorization.md
   - docs/adr/0011-first-run-setup-without-an-open-door.md
@@ -182,9 +185,10 @@ API still answers; it just serves no UI.
 
 ### 6. Create the first administrator
 
-An empty installation has two doors to the same account, and both close behind it: the first-run
-screen in the UI, or the CLI on the host. Each creates an `ADMIN` whose password somebody chose, and
-after the first account exists both are refused.
+An empty installation has two doors to the same account: the first-run screen in the UI, or the CLI
+on the host. Each creates an `ADMIN` whose password somebody chose, and only the first door closes
+behind it — the first-run route answers 409 forever once an account exists, while the CLI is host
+administration and still creates accounts at any time.
 
 ```bash
 uv run python -m scrinalia.domains.identity.cli create \
@@ -205,9 +209,11 @@ because an installation with no accounts has no secret to protect. The card carr
 logomark at its top, the same plate the sign-in card has: this is the first screen an installer sees,
 and it is the one place the name is worth showing in full.
 
-Both doors close **forever** after the first account exists — deactivated or not, because the
-predicate is that the table is empty, and a rule a deactivation could reopen would be a way back to
-an open door. Until then, whoever reaches the instance first can create that account;
+The first-run route closes **forever** after the first account exists — deactivated or not, because
+the predicate is that the table is empty, and a rule a deactivation could reopen would be a way back
+to an open door. The CLI is not a door the installation closes: it runs on the host with the same
+service the API uses and still creates accounts afterwards. Until then, whoever reaches the instance
+first can create that account;
 `POST /api/v1/setup/admin` is serialized by a table lock so two simultaneous attempts cannot both
 succeed, but the lock cannot close the window (ADR 0011). **Configure the instance before exposing
 it.**
@@ -318,9 +324,9 @@ CUDA_VISIBLE_DEVICES=0 uv run python -m scrinalia.domains.archive.workers.runner
 CUDA_VISIBLE_DEVICES=0 uv run python -m scrinalia.domains.archive.workers.runner embedding --option device=cuda
 ```
 
-Two consequences to keep in mind. A run triggered from the panel (`Sistema › Workers de IA`)
-inherits the API process's environment, so an API started with `CUDA_VISIBLE_DEVICES=""` runs
-CPU-only whatever preset the panel selects. And the effective configuration follows
+Two consequences to keep in mind. A run triggered from the panel (`Configurações → Operação →
+Workers de IA`) inherits the API process's environment, so an API started with `CUDA_VISIBLE_DEVICES=""`
+runs CPU-only whatever preset the panel selects. And the effective configuration follows
 `explicit argument > persisted override > signature default`, so a preset chosen in the panel can be
 overridden by a row in `archive_worker_settings` — [Operations](operate.md) owns that precedence.
 
@@ -491,7 +497,7 @@ The two probes sit outside `/api/v1` and outside the OpenAPI document on purpose
 does not have to know the API version. Do not merge them: a liveness probe that consulted the
 database would make the orchestrator restart the API every time the database restarted. The human
 panel is the third question and the expensive one, and it is the one that names the broken piece;
-in the UI it is `Sistema › Diagnóstico`.
+in the UI it is `Configurações → Operação → Saúde do sistema`.
 
 ### `/health/ready` answers 503
 

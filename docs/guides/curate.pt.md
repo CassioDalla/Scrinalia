@@ -174,8 +174,8 @@ A casca filtra as entradas pela área em que a tela **escreve**
 (`apps/curator/src/lib/permissions.ts`, um espelho do mapa de papéis do servidor), e um grupo vazio
 não é renderizado. As telas que só leem não carregam permissão e ficam visíveis para todo papel:
 Início, a lista do acervo, a árvore, a trilha de excluídas e o diagnóstico do arranjo. Um `VIEWER`
-vê, portanto, exatamente os grupos "Curadoria" e "Acervo" — todos os outros grupos existem para
-decidir, e ficam escondidos.
+vê, portanto, o grupo "Acervo" e a entrada "Início", que fica sem cabeçalho — todos os outros grupos
+existem para decidir, e ficam escondidos.
 
 A mesma regra governa os cartões de `/configuracoes`, e é o catálogo de cartões
 (`apps/curator/src/lib/settings.ts`) que a página e a entrada de menu leem: um cartão fica escondido
@@ -670,9 +670,10 @@ não-assuntos rotulados à mão; o resto é julgamento semântico que nenhuma re
 termo é um lugar, se a mesma grafia também é entidade, a categoria que o bloquearia e se a grafia já
 está banida) e oferece registrá-los com `source=RULE` ou um a um.
 
-Confirmar é uma leitura que escreve um plano primeiro: `POST
-/api/v1/taxonomy/tags/subject-exclusions/preview` (`AUTHENTICATED`) devolve `applicable` e `blocked`,
-calculados pela mesma função que a escrita consome, então a prévia não pode prometer outro número.
+Confirmar planeja e aplica numa só chamada: a escrita abaixo consome o mesmo planejador que a rota de
+prévia usa, então as duas não podem discordar. A prévia, `POST
+/api/v1/taxonomy/tags/subject-exclusions/preview` (`AUTHENTICATED`), devolve `applicable` e
+`blocked`, mas existe como leitura da API — nenhuma tela a chama.
 
 A escrita é `POST /api/v1/taxonomy/tags/subject-exclusions` (`CURATE`), e ela faz duas coisas de uma
 vez: registra o termo em `domain_subject_exclusions`, para o classificador de assunto parar de
@@ -707,7 +708,7 @@ baniu na tela Stopwords, ou que uma resolução de conflito plantou antes, sobre
 
 ### Entidades — `/entidades/lista`
 
-O vocabulário de nomes próprios, por peso ou por similaridade. Quatro decisões:
+O vocabulário de nomes próprios, por peso ou por similaridade. Cinco decisões:
 
 - **Reclassificar o tipo** — `PATCH /api/v1/taxonomy/entities/{entity_id}/reclassify` (`CURATE`), só
   entre `ORG`, `PER` e `LOC`. Isso não é renomear um rótulo: o serviço grava também o sinônimo de
@@ -857,7 +858,7 @@ afirmar que uma categoria acabou quando a página seguinte discorda.
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Trechos — `/qualidade/trechos` | de qual consumidor um trecho repetido sai | sim (aposentar ou remover do catálogo) |
+| Trechos — `/qualidade/trechos` | de qual consumidor um trecho repetido sai | aposentar **sim**; remover do catálogo é definitivo |
 | Regras — `/qualidade/regras` | se uma regra reescreve o texto ou só sinaliza | sim: aposentar tem caminho de volta, e a regra aposentada continua na tela |
 | Anomalias — `/qualidade/anomalias` | nenhuma (a correção é a revisão da ficha) | sim (só leitura) |
 
@@ -937,9 +938,12 @@ fazendo. A linha carrega a fila — pendentes, processados, falhas, última exec
 
 O painel em si não oferece desfazer para uma execução. A reversibilidade de uma execução é a
 reversibilidade do que ela escreveu — um desfazer de merge, de materialização, de conflito — e um
-worker que carimba a própria fila não refaz o trabalho só porque foi rodado de novo. Um worker
-marcado como não respeitando o bloqueio de revisão humana é o `worker_embedding`, a exceção
-documentada.
+worker que carimba a própria fila não refaz o trabalho só porque foi rodado de novo. O painel marca
+**quatro** workers como fora do bloqueio de revisão humana — a transferência staging → archive, o
+juiz de conflito assunto x entidade, a categorização de assunto (tags) e o `worker_embedding` — e só
+o `worker_embedding` reescreve uma *descrição*: ele re-gera o vetor de um texto mudado mesmo numa
+descrição aprovada, a exceção documentada. Os outros três trabalham sobre unidades que não são
+descrições (um registro de staging, um par, uma tag).
 
 ### Execuções — `/sistema/execucoes`
 
