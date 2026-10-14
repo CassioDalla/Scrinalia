@@ -10,6 +10,7 @@ sources:
   - package.json
   - pyproject.toml
   - src/scrinalia/core/config.py
+  - src/scrinalia/core/database_cli.py
   - src/scrinalia/core/logger.py
   - src/scrinalia/core/storage.py
   - src/scrinalia/api/health_probe.py
@@ -20,7 +21,10 @@ sources:
   - src/scrinalia/api/spa.py
   - src/scrinalia/domains/identity/cli.py
   - src/scrinalia/domains/ingestion/sources.py
+  - apps/curator/src/components/layout/AppShell.tsx
   - apps/curator/src/components/layout/SetupForm.tsx
+  - apps/curator/src/lib/screens.ts
+  - apps/curator/src/lib/settings.ts
   - docs/adr/0004-worker-execution-from-the-api.md
   - docs/adr/0009-authentication-and-authorization.md
   - docs/adr/0011-first-run-setup-without-an-open-door.md
@@ -141,17 +145,31 @@ uv sync
 
 Heavy: `torch`, `transformers`, `spacy` and `bertopic` are in the default dependency set.
 
-### 4. Create the schema
+### 4. Create the database and the schema
 
 ```bash
-uv run alembic upgrade head
+bun run db:init
 ```
 
-The schema is owned by Alembic and nothing else creates it; there is no `db-init`. The same command
-creates the `pg_trgm`, `unaccent` and `vector` extensions the schema depends on. Confirm the result
-with `uv run alembic check`, which reports no drift on a healthy installation.
+`db:init` is those two steps in one: it brings the container up, creates the database `DB_NAME` names
+when it is not there yet, and applies the schema. Repeating it is harmless — it is idempotent. It is
+also what recovers a database that was dropped from an existing volume, the case `docker compose up
+-d` cannot recover alone: `POSTGRES_DB` is honoured when the volume is *initialised*, so a database
+deleted afterwards stays deleted and the migration fails on a database that is not there.
 
-The order matters: this step needs a reachable database, which is why the container comes first.
+The schema itself is owned by Alembic and nothing else creates it. `uv run alembic upgrade head`
+applies it, and the same command creates the `pg_trgm`, `unaccent` and `vector` extensions the schema
+depends on. Confirm the result with `uv run alembic check`, which reports no drift on a healthy
+installation.
+
+The order matters: this step needs a reachable database, which is why the container comes first. To
+throw everything in that database away and start from an empty one, `bun run db:recreate` prints what
+it would destroy and asks for the database name before dropping it. Where nobody can type it — a
+provisioning script — the same operation is `uv run python -m scrinalia.core.database_cli recreate
+--yes`; `bun run` does not forward extra arguments to a composed script, so the flag has to go to the
+module. It is database-scoped on purpose: `docker compose down -v` destroys the whole volume — every
+sibling database in it — and is the only way to get a *fresh* volume, where `POSTGRES_DB` is honoured
+again.
 
 ### 5. Build the curator UI
 
@@ -167,9 +185,10 @@ API still answers; it just serves no UI.
 
 ### 6. Create the first administrator
 
-An empty installation has two doors to the same account, and both close behind it: the first-run
-screen in the UI, or the CLI on the host. Each creates an `ADMIN` whose password somebody chose, and
-after the first account exists both are refused.
+An empty installation has two doors to the same account: the first-run screen in the UI, or the CLI
+on the host. Each creates an `ADMIN` whose password somebody chose, and only the first door closes
+behind it — the first-run route answers 409 forever once an account exists, while the CLI is host
+administration and still creates accounts at any time.
 
 ```bash
 uv run python -m scrinalia.domains.identity.cli create \
@@ -190,9 +209,11 @@ because an installation with no accounts has no secret to protect. The card carr
 logomark at its top, the same plate the sign-in card has: this is the first screen an installer sees,
 and it is the one place the name is worth showing in full.
 
-Both doors close **forever** after the first account exists — deactivated or not, because the
-predicate is that the table is empty, and a rule a deactivation could reopen would be a way back to
-an open door. Until then, whoever reaches the instance first can create that account;
+The first-run route closes **forever** after the first account exists — deactivated or not, because
+the predicate is that the table is empty, and a rule a deactivation could reopen would be a way back
+to an open door. The CLI is not a door the installation closes: it runs on the host with the same
+service the API uses and still creates accounts afterwards. Until then, whoever reaches the instance
+first can create that account;
 `POST /api/v1/setup/admin` is serialized by a table lock so two simultaneous attempts cannot both
 succeed, but the lock cannot close the window (ADR 0011). **Configure the instance before exposing
 it.**
@@ -223,12 +244,13 @@ pipeline, not the boot — `ACERVO_SOURCE` is required by the staging transform 
 | `DB_NAME` | `scrinalia` | database name; the compose service creates it on first boot |
 | `PUBLIC_SCRAPE_URL` | unset | base URL of the source site the ingestion worker lists; required to scrape |
 | `PUBLIC_SCRAPE_DETAIL_URL` | unset | detail-page URL prefix the ingestion adapter builds each record from; required to scrape |
-| `ACERVO_SOURCE` | unset | names the origin whose field labels the staging transform reads (the only one shipped is `pmc`); **no default**, and a staging run fails fast without it |
+| `ACERVO_SOURCE` | unset | names the active origin — the field labels the staging transform reads and the ports the scrape builds; the only one shipped is `pmc`, `--origin` overrides it for one run, and there is **no default**: a staging run fails fast without it |
 | `ACERVO_LANGUAGE` | `pt-BR` | selects the language profile — stopwords, date grammar, plural rules, the full-text dictionary and the spaCy model. The full-text dictionary reaches a generated column, so changing it is a **migration**, not a restart |
 | `S3_ENDPOINT_URL` | unset | the S3-compatible endpoint (MinIO, Ceph, SeaweedFS, a cloud bucket); from a container, `localhost` is the container itself |
-| `S3_BUCKET_NAME` | unset | the bucket the thumbnails go to; it must already exist |
+| `S3_BUCKET_NAME` | unset | the bucket the thumbnails go to; the worker confirms it once, before the run |
 | `S3_ACCESS_KEY` | unset | credential with read/write on the bucket; a secret |
 | `S3_SECRET_KEY` | unset | credential secret; a secret |
+| `S3_AUTO_CREATE_BUCKET` | `false` | whether the worker may create `S3_BUCKET_NAME` when it is missing; off refuses the run with the command that creates it |
 | `OLLAMA_HOST_URL` | unset → `http://localhost:11434` | the Ollama host every preset-backed engine resolves; an explicit `--option host=...` still wins |
 | `AUTH_SESSION_COOKIE_NAME` | `scrinalia_session` | name of the first-party session cookie |
 | `AUTH_SESSION_TTL_MINUTES` | `720` | how long a session lives; sliding, pushed forward by activity |
@@ -302,9 +324,9 @@ CUDA_VISIBLE_DEVICES=0 uv run python -m scrinalia.domains.archive.workers.runner
 CUDA_VISIBLE_DEVICES=0 uv run python -m scrinalia.domains.archive.workers.runner embedding --option device=cuda
 ```
 
-Two consequences to keep in mind. A run triggered from the panel (`Sistema › Workers de IA`)
-inherits the API process's environment, so an API started with `CUDA_VISIBLE_DEVICES=""` runs
-CPU-only whatever preset the panel selects. And the effective configuration follows
+Two consequences to keep in mind. A run triggered from the panel (`Configurações → Operação →
+Workers de IA`) inherits the API process's environment, so an API started with `CUDA_VISIBLE_DEVICES=""`
+runs CPU-only whatever preset the panel selects. And the effective configuration follows
 `explicit argument > persisted override > signature default`, so a preset chosen in the panel can be
 overridden by a row in `archive_worker_settings` — [Operations](operate.md) owns that precedence.
 
@@ -397,11 +419,20 @@ reads as a regression rather than as the mistake it is.
 endpoint and does not care which product serves it — MinIO, Ceph, SeaweedFS or a cloud bucket are
 infrastructure the operator brings, not something this repository ships.
 
-The settings are `S3_ENDPOINT_URL`, `S3_BUCKET_NAME`, `S3_ACCESS_KEY` and `S3_SECRET_KEY`; the
-client is boto3 with signature v4. Two requirements come from the code: the bucket must already
-exist (the worker uploads into it and never creates it), and the credentials need read/write on it.
-From inside the `app` container `localhost` is the container itself, so point the endpoint at the
+The settings are `S3_ENDPOINT_URL`, `S3_BUCKET_NAME`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` and
+`S3_AUTO_CREATE_BUCKET`; the client is boto3 with signature v4. Two requirements come from the code:
+the credentials need read/write on the bucket, and the bucket has to exist — the worker confirms it
+once, before it touches the queue, and creates it only when `S3_AUTO_CREATE_BUCKET=true`. From
+inside the `app` container `localhost` is the container itself, so point the endpoint at the
 service's address on your network (`host.docker.internal` reaches a service running on the host).
+
+The confirmation is deliberate, and it is what makes the failure legible. An endpoint does not
+always say "this bucket does not exist": SeaweedFS answers **`AccessDenied`** to an upload into a
+bucket that was never created, so every document of the run looks like a credential problem. With
+the flag off (the default) the worker refuses the run up front, naming the bucket and the command
+that creates it; with the flag on it creates the bucket and proceeds. `GET /api/v1/system/health`
+reports the same distinction and never creates anything — a probe that provisions is a write hiding
+in a read.
 
 What lives there today is the `thumbnail` worker's JPEGs, under `thumbnails/`. The database stores
 the resulting `s3://bucket/key` reference in `storage_thumbnail_uri`.
@@ -466,7 +497,7 @@ The two probes sit outside `/api/v1` and outside the OpenAPI document on purpose
 does not have to know the API version. Do not merge them: a liveness probe that consulted the
 database would make the orchestrator restart the API every time the database restarted. The human
 panel is the third question and the expensive one, and it is the one that names the broken piece;
-in the UI it is `Sistema › Diagnóstico`.
+in the UI it is `Configurações → Operação → Saúde do sistema`.
 
 ### `/health/ready` answers 503
 

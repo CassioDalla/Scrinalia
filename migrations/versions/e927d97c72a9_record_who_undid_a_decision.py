@@ -27,6 +27,10 @@ down_revision: str | Sequence[str] | None = "8fb5a0e9378c"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+#: Alembic reads these four from the module namespace (``alembic/script/base.py``): they are the
+#: module's public API, and ``__all__`` is what keeps a static reader from taking them for dead code.
+__all__ = ["branch_labels", "depends_on", "down_revision", "revision"]
+
 #: ``(table, column)``, iterated by both directions.
 UNDO_COLUMNS: tuple[tuple[str, str], ...] = (
     ("archive_conflict_resolution_log", "undone_by_user_id"),

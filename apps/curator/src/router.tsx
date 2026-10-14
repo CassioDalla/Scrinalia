@@ -2,7 +2,7 @@ import { createRootRoute, createRoute, createRouter } from "@tanstack/react-rout
 
 import { AppShell } from "@/components/layout/AppShell";
 import { AnomaliesRoute, validateAnomaliesSearch } from "@/routes/AnomaliesRoute";
-import { CategoriesRoute } from "@/routes/CategoriesRoute";
+import { CategoriesRoute, validateCategoriesSearch } from "@/routes/CategoriesRoute";
 import { CleaningRulesRoute } from "@/routes/CleaningRulesRoute";
 import { CollectionRoute, validateCollectionSearch } from "@/routes/CollectionRoute";
 import { ConflictsRoute, validateConflictsSearch } from "@/routes/ConflictsRoute";
@@ -143,6 +143,7 @@ const categoriesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/assuntos/categorias",
   component: CategoriesRoute,
+  validateSearch: validateCategoriesSearch,
 });
 
 const discoverRoute = createRoute({

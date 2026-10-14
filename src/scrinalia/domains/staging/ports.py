@@ -13,18 +13,36 @@ class RawRecordSource(Protocol):
     be plugged in.
     """
 
-    def next_batch(self, force: bool = False) -> Sequence[RawRecord]:
+    def next_batch(
+        self, force: bool = False, limit: int | None = None, after: str | None = None
+    ) -> Sequence[RawRecord]:
         """
         Returns the raw records that are new or whose source content changed.
 
         ``force`` ignores the content-hash comparison and returns everything: a parser
         change does not touch the source payload, so the CDC alone would never re-parse
         the collection.
+
+        ``limit`` bounds one run and is applied **after** the comparison, never inside it, so a
+        limited run leaves the rest pending instead of changing which records count as pending.
+        ``after`` is a keyset cursor over ``description_id``: under the CDC a bounded run advances
+        by itself (a processed record stops matching), but a ``force`` re-parse does not, so a
+        bounded forced run names where the next one starts.
         """
-        ...
+        raise NotImplementedError
+
+    def count_pending(self, force: bool = False, after: str | None = None) -> int:
+        """
+        How many records the same predicate still leaves pending.
+
+        It belongs to the port because it is the port's own definition of "pending": the run reports
+        what remains through it instead of a second query written beside the source.
+        """
+        raise NotImplementedError
 
 
 class StagingDocumentWriter(Protocol):
     """Output port: persists a structured document in the Staging layer."""
 
-    def save(self, record: StagingDocumentDTO) -> None: ...
+    def save(self, record: StagingDocumentDTO) -> None:
+        raise NotImplementedError

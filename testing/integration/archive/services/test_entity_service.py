@@ -1,6 +1,7 @@
 from sqlalchemy import select, text
 
-from scrinalia.domains.archive.models import ArchiveEntity, ArchiveTag
+from scrinalia.domains.archive.domain.entity_merge import KIND_MERGE, KIND_RENAME
+from scrinalia.domains.archive.models import ArchiveEntity, ArchiveEntityMergeLog, ArchiveTag
 from scrinalia.domains.archive.repository import EntityRepository
 
 # ==========================================
@@ -177,3 +178,265 @@ def test_create_synonyms_repoints_an_existing_entity_mapping(use_test_db, db_ses
 
     rules = {rule["pattern"]: rule["id"] for rule in repo.get_ner_synonyms_rules()}
     assert rules["ippuc antigo"] == "instituto ippuc"
+
+
+def test_merge_absorbs_a_cluster_whose_absorbed_names_normalize_to_one_key(use_test_db, db_session):
+    """
+    The cluster the issue reproduced: ``A. B. Detter`` absorbs ``A. B. Deter`` and ``a. b. deter``.
+
+    ``EntityService.merge`` builds the spellings as a plain list, and two names that differ only in
+    case normalize to the same ``(synonym_name, category)``; the single multi-row upsert then made
+    PostgreSQL answer ``CardinalityViolation`` and the request failed with a 500, absorbing nothing.
+    The write collapses the commands now, so the merge succeeds and the spelling survives exactly
+    once.
+
+    The unique index the same change adds to ``archive_entities`` is what makes such a pair
+    impossible in a reconciled collection, so the test drops it for its own transaction (the fixture
+    rolls the drop back) and puts the two rows back the way the pre-migration collection carries
+    them — the exact state the archivist hit.
+    """
+    from scrinalia.domains.archive.models import DomainSynonyms
+    from scrinalia.domains.archive.schemas import MergeEntityCommand
+    from scrinalia.domains.archive.services.entity_service import EntityService
+
+    db_session.execute(text("DROP INDEX IF EXISTS uix_archive_entities_name_normalized"))
+
+    repo = EntityRepository(db_session)
+    canonical = ArchiveEntity(name="A. B. Detter", entity_type="PER")
+    title_twin = ArchiveEntity(name="A. B. Deter", entity_type="PER")
+    lower_twin = ArchiveEntity(name="a. b. deter", entity_type="PER")
+    db_session.add_all([canonical, title_twin, lower_twin])
+    db_session.commit()
+
+    response = EntityService(repo).merge(
+        MergeEntityCommand(
+            canonical_id=canonical.entity_id,
+            ids_to_merge=[title_twin.entity_id, lower_twin.entity_id],
+        )
+    )
+    db_session.commit()
+
+    assert response.entities_deleted == 2
+    mapping = dict(
+        db_session.execute(
+            select(DomainSynonyms.synonym_name, DomainSynonyms.canonical_entity_id).where(
+                DomainSynonyms.category == "PER"
+            )
+        ).all()
+    )
+    assert mapping == {"a. b. deter": canonical.entity_id}
+    assert db_session.get(ArchiveEntity, title_twin.entity_id) is None
+    assert db_session.get(ArchiveEntity, lower_twin.entity_id) is None
+
+
+# ==========================================
+# MERGE PREVIEW AND THE LEDGER (issue #34)
+# ==========================================
+
+
+def test_the_entity_preview_and_the_merge_produce_the_same_numbers(use_test_db, db_session, generate_archive_doc):
+    """
+    The dry run cannot lie: preview and apply read one planner, so the counts are one measurement.
+
+    This is the tag-merge rule applied to the entity axis, and it is the whole reason the preview is
+    a route over ``plan_entity_merge`` instead of a second computation of the impact.
+    """
+    from scrinalia.domains.archive.models import ArchiveDocumentEntity
+    from scrinalia.domains.archive.schemas import MergeEntityCommand, MergeEntityPreviewCommand
+    from scrinalia.domains.archive.services.entity_service import EntityService
+
+    repo = EntityRepository(db_session)
+    canonical = ArchiveEntity(name="prefeitura", entity_type="ORG")
+    first = ArchiveEntity(name="prefeitura de curitiba", entity_type="ORG")
+    second = ArchiveEntity(name="pmc antiga", entity_type="ORG")
+    db_session.add_all([canonical, first, second])
+    db_session.flush()
+
+    shared = generate_archive_doc(original_title="As duas")
+    only_second = generate_archive_doc(original_title="Só a segunda")
+    db_session.add_all(
+        [
+            ArchiveDocumentEntity(description_id=shared.description_id, entity_id=first.entity_id),
+            ArchiveDocumentEntity(description_id=only_second.description_id, entity_id=first.entity_id),
+            ArchiveDocumentEntity(description_id=only_second.description_id, entity_id=second.entity_id),
+            ArchiveDocumentEntity(description_id=shared.description_id, entity_id=canonical.entity_id),
+        ]
+    )
+    db_session.flush()
+
+    service = EntityService(repo)
+    preview = service.preview_merge(
+        MergeEntityPreviewCommand(
+            canonical_id=canonical.entity_id,
+            ids_to_merge=[first.entity_id, second.entity_id],
+            new_name="pmc",
+        )
+    )
+    response = service.merge(
+        MergeEntityCommand(
+            canonical_id=canonical.entity_id,
+            ids_to_merge=[first.entity_id, second.entity_id],
+            new_name="pmc",
+            changed_by=None,
+        )
+    )
+    db_session.flush()
+
+    assert preview.documents_updated == response.documents_updated == 2
+    # The links are the absorbed entities' own (2 + 1); the documents are the union (2), never the sum.
+    assert preview.links_rewritten == 3
+    assert len(preview.entities_deleted) == response.entities_deleted == 2
+    assert preview.renamed_from == "prefeitura"
+    assert preview.renamed_to == "pmc"
+    # One ledger row per absorbed entity: the handles the screen needs to undo the click.
+    assert len(response.merge_ids) == 2
+
+
+def test_rename_entity_is_one_definition_shared_with_the_merge(use_test_db, db_session):
+    """
+    The single-entity rename and the merge's optional rename write the same two things.
+
+    The old spelling becomes a synonym so the extractor keeps resolving it; the new spelling is what
+    the catalogue shows. One method owns that pair, so the two entry points cannot drift.
+    """
+    from scrinalia.domains.archive.services.entity_service import EntityService
+
+    repo = EntityRepository(db_session)
+    entity = ArchiveEntity(name="prefeitura muinicipal", entity_type="ORG")
+    db_session.add(entity)
+    db_session.flush()
+
+    renamed, merge_id = EntityService(repo).rename_entity(entity.entity_id, "prefeitura municipal")
+    db_session.flush()
+
+    assert renamed.name == "prefeitura municipal"
+    assert renamed.entity_type == "ORG"
+    assert repo.get_entity_synonym_targets(["prefeitura muinicipal"], "ORG") == {
+        "prefeitura muinicipal": entity.entity_id
+    }
+
+    # One row, and it is a RENAME: it is what makes the pencil on the screen reversible.
+    row = db_session.get(ArchiveEntityMergeLog, merge_id)
+    assert row is not None
+    assert row.kind == KIND_RENAME
+    assert row.canonical_renamed_from == "prefeitura muinicipal"
+    assert row.canonical_name == "prefeitura municipal"
+    # No absorbed entity, and no links invented that the undo would then remove.
+    assert row.absorbed_entity_id is None
+    assert row.absorbed_snapshot is None
+    assert row.document_ids == []
+    assert row.renamed_from_synonym_created is True
+
+
+def test_undoing_a_rename_puts_the_name_back_and_drops_the_spelling_it_planted(use_test_db, db_session):
+    """The undo is the same one the merge uses, because it is the same ledger."""
+    from scrinalia.domains.archive.services.entity_service import EntityService
+
+    repo = EntityRepository(db_session)
+    entity = ArchiveEntity(name="prefeitura muinicipal", entity_type="ORG")
+    db_session.add(entity)
+    db_session.flush()
+
+    _, merge_id = EntityService(repo).rename_entity(entity.entity_id, "prefeitura municipal")
+    db_session.flush()
+
+    repo.undo_entity_merge(merge_id)
+    db_session.flush()
+
+    assert db_session.get(ArchiveEntity, entity.entity_id).name == "prefeitura muinicipal"
+    # The spelling the rename planted is gone: leaving it would keep the corrected typo alive as an
+    # alias of the entity, which is exactly what the archivist undid.
+    assert repo.get_entity_synonym_targets(["prefeitura muinicipal"], "ORG") == {}
+
+
+def test_a_rename_can_decline_to_anchor_the_old_spelling(use_test_db, db_session):
+    """
+    Correcting a typo is not the same decision as unifying two spellings, so it is offered.
+
+    ``Prefeitura Muinicipal`` is not a spelling anybody should keep, and anchoring it is what the
+    toggle turns off. The ledger row still records the previous name, so the undo is the same.
+    """
+    from scrinalia.domains.archive.services.entity_service import EntityService
+
+    repo = EntityRepository(db_session)
+    entity = ArchiveEntity(name="prefeitura muinicipal", entity_type="ORG")
+    db_session.add(entity)
+    db_session.flush()
+
+    _, merge_id = EntityService(repo).rename_entity(entity.entity_id, "prefeitura municipal", keep_old_synonym=False)
+    db_session.flush()
+
+    assert repo.get_entity_synonym_targets(["prefeitura muinicipal"], "ORG") == {}
+    row = db_session.get(ArchiveEntityMergeLog, merge_id)
+    assert row is not None
+    assert row.renamed_from_synonym_created is False
+
+    repo.undo_entity_merge(merge_id)
+    db_session.flush()
+    assert db_session.get(ArchiveEntity, entity.entity_id).name == "prefeitura muinicipal"
+
+
+def test_renaming_onto_a_spelling_that_exists_names_the_twin(use_test_db, db_session):
+    """
+    The collision is a 409 that names the twin, not a structural conflict.
+
+    ``uix_archive_entities_name_normalized`` would raise an ``IntegrityError`` and the archivist would
+    read "Conflito estrutural no banco de dados" — which names neither the twin nor the fact that the
+    twin is the merge case. The refusal carries both, as data, so the screen can say it.
+    """
+    import pytest
+
+    from scrinalia.domains.archive.exceptions import DuplicateEntityNameError
+    from scrinalia.domains.archive.services.entity_service import EntityService
+
+    repo = EntityRepository(db_session)
+    first = ArchiveEntity(name="smu", entity_type="ORG")
+    second = ArchiveEntity(name="Secretaria Municipal do Urbanismo", entity_type="ORG")
+    db_session.add_all([first, second])
+    db_session.flush()
+
+    with pytest.raises(DuplicateEntityNameError) as refusal:
+        EntityService(repo).rename_entity(second.entity_id, "SMU")
+
+    assert refusal.value.conflicting_entity_id == first.entity_id
+    assert refusal.value.conflicting_name == "smu"
+    assert refusal.value.details == {
+        "entity": {"entity_id": second.entity_id, "name": "SMU"},
+        "conflicting_entity": {"entity_id": first.entity_id, "name": "smu"},
+    }
+    # Refused before the write: the entity keeps the name it had and no ledger row was left behind.
+    assert db_session.get(ArchiveEntity, second.entity_id).name == "Secretaria Municipal do Urbanismo"
+
+
+def test_a_merge_with_a_rename_leaves_one_row_per_absorbed_entity_and_no_rename_row(use_test_db, db_session):
+    """
+    The merge's optional rename must not log a second row.
+
+    ``apply_entity_merge`` calls the same ``rename_entity`` the standalone route calls, and its own row
+    already carries ``canonical_renamed_from``. A writer inside ``rename_entity`` would put two rows
+    under one decision — and undoing the RENAME row alone would then rename the canonical back while
+    its absorbed twin stayed deleted.
+    """
+    from scrinalia.domains.archive.schemas.command_schema import MergeEntityCommand
+    from scrinalia.domains.archive.services.entity_service import EntityService
+
+    repo = EntityRepository(db_session)
+    canonical = ArchiveEntity(name="prefeitura de curitiba", entity_type="ORG")
+    absorbed = ArchiveEntity(name="pmc", entity_type="ORG")
+    db_session.add_all([canonical, absorbed])
+    db_session.flush()
+
+    response = EntityService(repo).merge(
+        MergeEntityCommand(
+            canonical_id=canonical.entity_id,
+            ids_to_merge=[absorbed.entity_id],
+            new_name="prefeitura municipal de curitiba",
+        )
+    )
+    db_session.flush()
+
+    assert db_session.get(ArchiveEntity, canonical.entity_id).name == "prefeitura municipal de curitiba"
+    rows = db_session.scalars(select(ArchiveEntityMergeLog)).all()
+    assert [row.kind for row in rows] == [KIND_MERGE]
+    assert len(rows) == len(response.merge_ids) == 1
+    assert rows[0].canonical_renamed_from == "prefeitura de curitiba"

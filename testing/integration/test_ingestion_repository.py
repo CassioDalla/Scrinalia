@@ -3,7 +3,13 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 
 from scrinalia.domains.ingestion.models import ScrapeStatus, ScrapingQueue
-from scrinalia.domains.ingestion.repository import add, add_in_bulk, get_from_queue, update_queue_status
+from scrinalia.domains.ingestion.repository import (
+    add,
+    add_in_bulk,
+    count_pending,
+    get_from_queue,
+    update_queue_status,
+)
 
 # ==========================================
 # 1. SIMPLE INSERT TESTS (ADD)
@@ -187,3 +193,111 @@ def test_update_queue_status_not_found(use_test_db, db_session):
     """Guarantees that trying to update an ID that does not exist safely returns False."""
     result = update_queue_status(db_session, "id_fantasma", ScrapeStatus.DONE)
     assert result is False
+
+
+# ==========================================
+# 5. THE BATCHED RUN
+# ==========================================
+
+
+def test_a_limited_run_is_resumable_and_drains_the_queue(use_test_db, db_session):
+    """
+    A ``--limit`` over a queue larger than it leaves the rest pending, and the next run takes them.
+
+    The property holds by construction: the ordering is ``last_scraped_at NULLS FIRST`` and
+    ``update_queue_status`` stamps ``last_scraped_at = now()`` on done, on a transient failure and
+    on a fatal one — so the batch that just ran moves behind the ones that have not, even the batch
+    that failed. This pins it, because a limit without that ordering would take the same rows every
+    run and the queue would never advance.
+    """
+    ids = [f"lote_{index}" for index in range(5)]
+    add_in_bulk(db_session, ids)
+    db_session.commit()
+
+    policy = [ScrapeStatus.DONE]
+    seen: list[str] = []
+
+    # 2 + 2 + 1, and never the same row twice.
+    for expected in (2, 2, 1):
+        batch = get_from_queue(db_session, ignore_status=policy, limit=2)
+
+        assert len(batch) == expected
+        assert {item.description_id for item in batch}.isdisjoint(seen)
+
+        for item in batch:
+            seen.append(item.description_id)
+            update_queue_status(db_session, item.description_id, ScrapeStatus.DONE)
+        db_session.commit()
+
+    assert sorted(seen) == sorted(ids)
+    assert count_pending(db_session, ignore_status=policy) == 0
+
+
+def test_a_failed_row_moves_to_the_back_of_the_queue(use_test_db, db_session):
+    """
+    Starvation is what a limit makes possible, so the failures have to queue up behind the untried.
+
+    A ``NETWORK_ERROR`` (or a ``FATAL_ERROR``) is stamped like a success, so the row is taken again
+    only after every row that has not been tried — which is what keeps a permanently failing row
+    from occupying the batch forever while the rest of the queue waits.
+    """
+    add_in_bulk(db_session, ["falha_a", "falha_b", "falha_c"])
+    db_session.commit()
+
+    policy = [ScrapeStatus.DONE]
+    seen: list[str] = []
+
+    for _ in range(3):
+        batch = get_from_queue(db_session, ignore_status=policy, limit=1)
+
+        assert len(batch) == 1
+        assert batch[0].description_id not in seen
+
+        seen.append(batch[0].description_id)
+        update_queue_status(db_session, batch[0].description_id, ScrapeStatus.FATAL_ERROR, error_msg="instável")
+        db_session.commit()
+
+    assert sorted(seen) == ["falha_a", "falha_b", "falha_c"]
+    # Every row was tried and all of them failed: the queue is not empty, it is exhausted.
+    assert count_pending(db_session, ignore_status=policy) == 3
+
+
+def test_the_limit_is_applied_after_the_status_policy(use_test_db, db_session):
+    """The status filters pick the rows first; the limit only bounds how many of them are taken."""
+    db_session.add_all(
+        [
+            ScrapingQueue(description_id="filtro_ignorado", scrape_status=ScrapeStatus.FATAL_ERROR),
+            ScrapingQueue(description_id="filtro_pendente_1", scrape_status=ScrapeStatus.PENDING),
+            ScrapingQueue(description_id="filtro_pendente_2", scrape_status=ScrapeStatus.PENDING),
+        ]
+    )
+    db_session.commit()
+
+    policy = [ScrapeStatus.FATAL_ERROR]
+    batch = get_from_queue(db_session, ignore_status=policy, limit=1)
+
+    # Both pending rows share a NULL ``last_scraped_at``, so which one comes first is arbitrary;
+    # what the limit must not do is spend its allowance on the row the policy excluded.
+    assert len(batch) == 1
+    assert batch[0].description_id.startswith("filtro_pendente")
+    assert count_pending(db_session, ignore_status=policy) == 2
+
+
+def test_count_pending_shares_the_run_predicate(use_test_db, db_session):
+    """The count and the batch are the same policy, so the report cannot describe another queue."""
+    now = datetime.now(UTC)
+    db_session.add_all(
+        [
+            ScrapingQueue(description_id="conta_novo"),
+            ScrapingQueue(description_id="conta_vencido", last_scraped_at=now - timedelta(days=7)),
+            ScrapingQueue(description_id="conta_recente", last_scraped_at=now - timedelta(hours=1)),
+        ]
+    )
+    db_session.commit()
+
+    cutoff = now - timedelta(days=3)
+    counted = count_pending(db_session, scraped_before=cutoff)
+    taken = get_from_queue(db_session, scraped_before=cutoff)
+
+    assert counted == len(taken) == 2
+    assert {item.description_id for item in taken} == {"conta_novo", "conta_vencido"}

@@ -145,7 +145,7 @@ export const SIGNAL_HINT: Record<string, string> = {
   PLACEHOLDER: "O parser de origem grava este texto quando o dado não veio; não é sobre coisa nenhuma.",
   YEAR: "Um ano solto é uma data, não um assunto — e o modelo o classificava com 0,73 de confiança.",
   MEASURE: "Número com unidade é medida, não conceito.",
-  STREET: "Logradouro é lugar: sai do assunto e a faceta Lugar o reivindica.",
-  PERSON: "Nome de pessoa é produtor ou biografado, não assunto.",
+  STREET: "Logradouro é lugar: sai do assunto, e quem carrega o lugar é o eixo de entidades (LOC).",
+  PERSON: "Nome de pessoa é produtor ou biografado, não assunto: o eixo de entidades (PER) o carrega.",
   RECORDED: "Não tem forma reconhecível: alguém decidiu, e a decisão é o motivo.",
 };

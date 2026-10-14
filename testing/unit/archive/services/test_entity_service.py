@@ -5,14 +5,19 @@ from pytest_mock import MockerFixture
 from scrinalia.core.author import Author
 from scrinalia.domains.archive.exceptions import InvalidParam
 from scrinalia.domains.archive.repository import EntityRepository
-from scrinalia.domains.archive.schemas import ResolveConflictCommand
+from scrinalia.domains.archive.schemas import ResolveConflictBatchCommand, ResolveConflictCommand
 from scrinalia.domains.archive.schemas.entity_schema import (
+    ConflictBatchResult,
     ConflictResolutionData,
     ConflictResolutionPlan,
     CrossDomainConflict,
     CrossDomainConflictPage,
+    NerPurgeItem,
+    NerPurgePlan,
+    NerPurgeResult,
 )
 from scrinalia.domains.archive.services import EntityService
+from scrinalia.domains.archive.services.entity_service import MAX_CONFLICT_BATCH_PAIRS
 
 # ==========================================
 # TESTS: CROSS DOMAIN
@@ -108,7 +113,8 @@ def test_the_preview_refuses_a_threshold_out_of_range(mocker: MockerFixture) -> 
 
 def test_the_page_forwards_the_pair_kind_that_makes_the_list_usable(mocker: MockerFixture) -> None:
     """
-    ``pair_kind`` is the lever that separates 122 spelling questions from 5 050 structural ones.
+    ``pair_kind`` is the lever that separates the spelling questions from the structural ones, and
+    ``entity_type`` narrows the structural population to the category the batch writes.
 
     It is not called ``scope``: Litestar reserves that name for the ASGI scope, and a handler
     parameter with it silently receives the raw request instead of the query string.
@@ -117,11 +123,46 @@ def test_the_page_forwards_the_pair_kind_that_makes_the_list_usable(mocker: Mock
     mock_ent_repo.page_cross_domain_conflicts.return_value = CrossDomainConflictPage(total=0, limit=50, offset=0)
 
     service = EntityService(mock_ent_repo)
-    service.page_cross_domain_conflicts(threshold=0.9, pair_kind="near_duplicate", limit=10, offset=20)
+    service.page_cross_domain_conflicts(
+        threshold=0.9, pair_kind="near_duplicate", entity_type="LOC", limit=10, offset=20
+    )
 
     mock_ent_repo.page_cross_domain_conflicts.assert_called_once_with(
-        threshold=0.9, pair_kind="near_duplicate", limit=10, offset=20
+        threshold=0.9, pair_kind="near_duplicate", entity_type="LOC", limit=10, offset=20
     )
+
+
+def test_the_batch_forwards_its_selection_and_bounds_it(mocker: MockerFixture) -> None:
+    """
+    The selection is the batch's whole input, and the service is where its bounds are enforced.
+
+    A limit outside the range is refused before any pair is written — a click that writes thousands
+    of ledger rows is a click nobody reviewed.
+    """
+    mock_ent_repo = mocker.Mock(spec=EntityRepository)
+    mock_ent_repo.resolve_conflict_batch.return_value = ConflictBatchResult(winner="ENTITY")
+
+    service = EntityService(mock_ent_repo)
+    service.resolve_conflict_batch(
+        ResolveConflictBatchCommand(winner="ENTITY", pair_kind="exact_name", entity_type="LOC", limit=25)
+    )
+
+    mock_ent_repo.resolve_conflict_batch.assert_called_once_with(
+        winner="ENTITY",
+        pair_kind="exact_name",
+        entity_type="LOC",
+        threshold=0.85,
+        limit=25,
+        decided_by=None,
+        note=None,
+    )
+
+    for out_of_range in (0, MAX_CONFLICT_BATCH_PAIRS + 1):
+        with pytest.raises(InvalidParam):
+            service.resolve_conflict_batch(ResolveConflictBatchCommand(winner="TAG", limit=out_of_range))
+
+    with pytest.raises(InvalidParam):
+        service.resolve_conflict_batch(ResolveConflictBatchCommand(winner="TAG", threshold=1.5))
 
 
 # ==========================================
@@ -129,36 +170,34 @@ def test_the_page_forwards_the_pair_kind_that_makes_the_list_usable(mocker: Mock
 # ==========================================
 
 
-def test_exclude_terms_from_ner_records_and_purges(mocker: MockerFixture) -> None:
-    """The decision is durable *and* retroactive: it bans the term and wipes past entities."""
+def test_exclude_terms_from_ner_only_bans(mocker: MockerFixture) -> None:
+    """The ban deletes nothing: the retroactive loss is a separate, previewed, ledgered act (#94)."""
     mock_ent_repo = mocker.Mock(spec=EntityRepository)
-    mock_ent_repo.delete_entities_by_names.return_value = 3
+    mock_ent_repo.add_ner_exclusions.return_value = 1
 
     service = EntityService(mock_ent_repo)
-    deleted = service.exclude_terms_from_ner([" IPTU ", "iptu"], reason="assunto, não entidade", tag_id=7)
+    created = service.exclude_terms_from_ner([" IPTU ", "iptu"], reason="assunto, não entidade", tag_id=7)
 
-    assert deleted == 3
+    assert created == 1
     mock_ent_repo.add_ner_exclusions.assert_called_once_with(
         ["iptu", "iptu"], source="HUMAN", reason="assunto, não entidade", tag_id=7
     )
-    mock_ent_repo.delete_entities_by_names.assert_called_once_with(["iptu", "iptu"])
 
 
 def test_exclude_terms_from_ner_ignores_blank_input(mocker: MockerFixture) -> None:
-    """A blank term must not reach the catalog nor trigger a purge."""
+    """A blank term must not reach the catalog."""
     mock_ent_repo = mocker.Mock(spec=EntityRepository)
     service = EntityService(mock_ent_repo)
 
     assert service.exclude_terms_from_ner(["   ", ""]) == 0
 
     mock_ent_repo.add_ner_exclusions.assert_not_called()
-    mock_ent_repo.delete_entities_by_names.assert_not_called()
 
 
 def test_exclude_terms_from_ner_defaults_to_human_source(mocker: MockerFixture) -> None:
     """Without an explicit source the decision is attributed to the curator."""
     mock_ent_repo = mocker.Mock(spec=EntityRepository)
-    mock_ent_repo.delete_entities_by_names.return_value = 0
+    mock_ent_repo.add_ner_exclusions.return_value = 1
 
     EntityService(mock_ent_repo).exclude_terms_from_ner(["iptu"])
 
@@ -177,6 +216,64 @@ def test_list_and_remove_ner_exclusions(mocker: MockerFixture) -> None:
     assert service.remove_ner_exclusions(["IPTU"]) == 1
 
     mock_ent_repo.remove_ner_exclusions.assert_called_once_with(["iptu"])
+
+
+def test_preview_ner_purge_reads_the_plan_the_write_consumes(mocker: MockerFixture) -> None:
+    """The preview is the plan: same ids, same weights, and it promises the ledger's undo."""
+    mock_ent_repo = mocker.Mock(spec=EntityRepository)
+    mock_ent_repo.plan_ner_purge.return_value = NerPurgePlan(
+        excluded_terms=["iptu"],
+        items=[
+            NerPurgeItem(
+                entity_id=11,
+                name="iptu",
+                entity_type="ORG",
+                excluded_term="iptu",
+                document_ids=["d1", "d2"],
+                synonym_names=["iptu do batel"],
+            )
+        ],
+    )
+
+    preview = EntityService(mock_ent_repo).preview_ner_purge()
+
+    assert preview.excluded_terms == ["iptu"]
+    assert preview.total_entities == 1
+    assert preview.total_documents == 2
+    assert preview.reversible is True
+    assert preview.entities[0].entity_id == 11
+    assert preview.entities[0].document_count == 2
+    mock_ent_repo.apply_ner_purge.assert_not_called()
+
+
+def test_purge_ner_terms_applies_the_plan_and_reports_the_ledger(mocker: MockerFixture) -> None:
+    """The write consumes the same plan the preview showed and never runs on an empty plan."""
+    mock_ent_repo = mocker.Mock(spec=EntityRepository)
+    plan = NerPurgePlan(
+        excluded_terms=["iptu"],
+        items=[NerPurgeItem(entity_id=11, name="iptu", entity_type="ORG", excluded_term="iptu")],
+    )
+    mock_ent_repo.plan_ner_purge.return_value = plan
+    mock_ent_repo.apply_ner_purge.return_value = NerPurgeResult(entities_deleted=1, purge_ids=[7])
+
+    result = EntityService(mock_ent_repo).purge_ner_terms()
+
+    assert result.entities_deleted == 1
+    assert result.purge_ids == [7]
+    mock_ent_repo.apply_ner_purge.assert_called_once()
+    assert mock_ent_repo.apply_ner_purge.call_args.args[0] is plan
+
+
+def test_purge_ner_terms_writes_nothing_when_nothing_matches(mocker: MockerFixture) -> None:
+    """An empty plan is not a write: no ledger row is claimed for a purge that deleted nothing."""
+    mock_ent_repo = mocker.Mock(spec=EntityRepository)
+    mock_ent_repo.plan_ner_purge.return_value = NerPurgePlan()
+
+    result = EntityService(mock_ent_repo).purge_ner_terms()
+
+    assert result.entities_deleted == 0
+    assert result.purge_ids == []
+    mock_ent_repo.apply_ner_purge.assert_not_called()
 
 
 def test_remove_ner_exclusions_ignores_blank_input(mocker: MockerFixture) -> None:

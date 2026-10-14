@@ -29,17 +29,17 @@ export const TERM_KIND_TONE: Record<string, BadgeTone> = {
 /**
  * What each kind decides, which is the whole point of the catalogue.
  *
- * A place kind claims the ``PLACE`` facet — the term is refused by the subject axis *and* kept
- * somewhere. ``PERSON`` goes nowhere: the name is the producer, and that is the same reasoning that
- * retired the ``Pessoa`` drawer. A screen that did not distinguish the two would make "não é
- * assunto" look like "não serve para nada".
+ * A place kind is refused by the subject axis *and* carried by the entity axis (``LOC``), which is
+ * what search and diffusion read. ``PERSON`` is the producer (``PER``), and that is the same
+ * reasoning that retired the ``Pessoa`` drawer. A screen that did not distinguish the two would make
+ * "não é assunto" look like "não serve para nada" (ADR 0013).
  */
 export const TERM_KIND_HINT: Record<string, string> = {
-  DISTRICT: "Um bairro: o lugar mais fino que a faceta distingue. Vai para a faceta Lugar.",
-  MUNICIPALITY: "Um município (inclusive uma cidade estrangeira). Vai para a faceta Lugar.",
-  STATE: "Um estado ou província. Vai para a faceta Lugar.",
-  REGION: "Uma região mais ampla que um município. Vai para a faceta Lugar.",
-  COUNTRY: "Um país que os registros do acervo alcançam. Vai para a faceta Lugar.",
+  DISTRICT: "Um bairro: o lugar mais fino que a coleção distingue. O eixo de entidades (LOC) o carrega.",
+  MUNICIPALITY: "Um município (inclusive uma cidade estrangeira). O eixo de entidades (LOC) o carrega.",
+  STATE: "Um estado ou província. O eixo de entidades (LOC) o carrega.",
+  REGION: "Uma região mais ampla que um município. O eixo de entidades (LOC) o carrega.",
+  COUNTRY: "Um país que os registros do acervo alcançam. O eixo de entidades (LOC) o carrega.",
   PERSON: "Um nome de pessoa: o produtor ou a pessoa retratada, nunca um assunto.",
 };
 

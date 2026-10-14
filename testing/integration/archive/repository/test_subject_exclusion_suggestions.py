@@ -66,7 +66,7 @@ def test_the_evidence_says_where_the_term_goes_and_what_else_it_is(
     """
     "Not a subject" is not "goes nowhere", and the screen has to be able to say so.
 
-    A street is refused by the guard **and** claimed by the PLACE facet, so excluding it from the
+    A street is refused by the guard **and** carried by the entity axis, so excluding it from the
     subject axis does not discard it. And a spelling that also exists as a named entity is the
     collision screen's business, not this one's.
     """
@@ -84,7 +84,7 @@ def test_the_evidence_says_where_the_term_goes_and_what_else_it_is(
     by_term = {item.term: item for item in response.items}
 
     street = by_term["rua xv de novembro"]
-    assert street.is_place_term is True, "a rua vai para a faceta Lugar"
+    assert street.is_place_term is True, "a rua é um lugar, e quem o carrega é o eixo de entidades"
     assert street.also_an_entity is False
     assert response.place_count == 1
 

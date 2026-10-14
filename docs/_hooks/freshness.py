@@ -29,6 +29,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -48,10 +49,6 @@ _KEY_VALUE = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$")
 
 class GitUnavailable(RuntimeError):
     """Raised when a git command fails; the caller reports it instead of failing the build."""
-
-
-#: Set by :func:`on_config`; the i18n plugin calls the hook once per language.
-_reported = False
 
 
 def git(repo: Path, *args: str) -> str:
@@ -245,18 +242,31 @@ def _docs_dir(repo: Path) -> Path:
     return repo / "docs"
 
 
+@cache
+def _print_report(repo_root: Path, docs_dir: Path) -> None:
+    """
+    Prints the freshness report once per process, however many cycles ask for it.
+
+    ``cache`` and not a module flag: the key is the pair of paths, and the i18n plugin *cannot*
+    vary them per language — ``docs_dir`` is in its own ``forbidden_config_overrides``. A report
+    that fails is caught here so the failure is cached too, and never reaches the build.
+    """
+    try:
+        print(build_report(repo_root, docs_dir))
+    except Exception as error:  # the freshness report is not a gate
+        print(f"[freshness] report unavailable: {error}")
+
+
 def on_config(config: Any, **_kwargs: Any) -> Any:
     """MkDocs hook entry point. A report must never break a build, so it never raises.
 
     The i18n plugin builds each language through a configuration cycle, so this hook runs once per
-    language; the report is about the repository, not about a language, and the flag prints it once.
+    language; the report is about the repository, not about a language, and ``_print_report`` is
+    what makes it appear once.
     """
-    global _reported  # one flag for one process-wide report
     try:
-        if not _reported:
-            _reported = True
-            docs_dir = Path(config["docs_dir"]).resolve()
-            print(build_report(docs_dir.parent, docs_dir))
+        docs_dir = Path(config["docs_dir"]).resolve()
+        _print_report(docs_dir.parent, docs_dir)
     except Exception as error:  # the freshness report is not a gate
         print(f"[freshness] report unavailable: {error}")
     return config

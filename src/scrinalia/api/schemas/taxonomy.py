@@ -3,13 +3,44 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from scrinalia.domains.archive.models.enums import StopwordsScope
-from scrinalia.domains.archive.schemas.entity_schema import ConflictResolutionData
+from scrinalia.domains.archive.schemas.entity_schema import (
+    ConflictBatchResult,
+    ConflictPairKind,
+    ConflictResolutionData,
+    ConflictWinner,
+    EntityKind,
+)
 from scrinalia.domains.archive.schemas.responses import RouteResponse
 
 
 class MergeRequest(BaseModel):
     canonical_id: int
     ids_to_merge: list[int] = Field(min_length=1, description="List of IDs that will be merged and deleted.")
+    new_name: str | None = None
+
+
+class EntityMergeRequest(BaseModel):
+    """
+    The verdict on a cluster of entities, with its authorship.
+
+    ``note`` is not decoration: the merge now leaves a durable ledger row per absorbed entity, and
+    a row that cannot say why the decision was taken is a poorer audit trail. It is a separate
+    schema from ``MergeRequest`` (the tags') because only this route records the note.
+    """
+
+    canonical_id: int
+    ids_to_merge: list[int] = Field(min_length=1, description="List of IDs that will be merged and deleted.")
+    new_name: str | None = Field(
+        default=None, description="Optional new name for the canonical; the old one becomes a synonym."
+    )
+    note: str | None = Field(default=None, description="Why; kept in the merge ledger.")
+
+
+class EntityMergePreviewRequest(BaseModel):
+    """Dry-run of an entity merge. Read-only: the plan, computed by the same planner the write uses."""
+
+    canonical_id: int
+    ids_to_merge: list[int] = Field(min_length=1)
     new_name: str | None = None
 
 
@@ -106,6 +137,24 @@ class ReclassifyEntityRequest(BaseModel):
     new_type: Literal["ORG", "PER", "LOC"]
 
 
+class EntityRenameRequest(BaseModel):
+    """
+    A new spelling for one name, and whether the old one keeps resolving to it.
+
+    ``keep_old_synonym`` defaults to true because that is what the merge does and what the extractor
+    needs: the old spelling stays anchored, so a description extracted tomorrow under it still resolves
+    to this entity. Turning it off is the honest answer to a typo — ``Prefeitura Muinicipal`` is not a
+    spelling anybody should keep — and it is offered rather than assumed because only the archivist
+    knows which of the two an edit is.
+    """
+
+    new_name: str = Field(min_length=1, max_length=255, description="The spelling the catalogue will show.")
+    keep_old_synonym: bool = Field(
+        default=True, description="Whether the previous spelling keeps resolving to this entity."
+    )
+    note: str | None = Field(default=None, description="Why; kept in the merge ledger, with the undo.")
+
+
 class TagCurationRequest(BaseModel):
     """
     The archivist's verdict on which drawer one tag belongs to.
@@ -189,9 +238,38 @@ class ConflictResolutionRequest(BaseModel):
     and a row that cannot say who decided is not an audit trail.
     """
 
-    winner: Literal["TAG", "ENTITY"]
+    winner: ConflictWinner
     tag_id: int
     entity_id: int
     note: str | None = Field(default=None, description="Por que decidiu; fica no ledger da resolução.")
 
     model_config = ConfigDict(extra="forbid")
+
+
+class ConflictBatchRequest(BaseModel):
+    """
+    One verdict for a whole **selection** of collisions, not for a pair.
+
+    The selection is the structural population the batch is meaningful for (``pair_kind``: the same
+    spelling on both axes) narrowed by category (``entity_type``: "a street is an entity" is a
+    decision about a set). ``limit`` bounds one request — the write is undoable pair by pair, but a
+    click that writes thousands of ledger rows is a click nobody reviewed.
+    """
+
+    winner: ConflictWinner
+    pair_kind: ConflictPairKind = "exact_name"
+    entity_type: EntityKind | None = None
+    threshold: float = Field(default=0.85, gt=0, le=1, description="pg_trgm similarity floor.")
+    limit: int = Field(
+        default=50,
+        ge=1,
+        le=200,
+        description="Quantos pares uma requisição pode escrever; o restante continua na seleção.",
+    )
+    note: str | None = Field(default=None, description="Por que decidiu; fica no ledger de cada resolução.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ConflictBatchResponse(RouteResponse):
+    data: ConflictBatchResult

@@ -121,17 +121,30 @@ uv sync
 
 Pesado: `torch`, `transformers`, `spacy` e `bertopic` estão no conjunto padrão de dependências.
 
-### 4. Crie o schema
+### 4. Crie o banco de dados e o schema
 
 ```bash
-uv run alembic upgrade head
+bun run db:init
 ```
 
-O schema é propriedade do Alembic e nada mais o cria; não existe `db-init`. O mesmo comando cria as
-extensões `pg_trgm`, `unaccent` e `vector` de que o schema depende. Confirme o resultado com
-`uv run alembic check`, que não acusa drift em uma instalação saudável.
+O `db:init` é aqueles dois passos em um: sobe o contêiner, cria o banco que `DB_NAME` nomeia quando ele
+ainda não existe e aplica o schema. Repeti-lo é inofensivo — ele é idempotente. É também o que recupera
+um banco apagado de um volume que já existia, o caso que o `docker compose up -d` não recupera sozinho:
+o `POSTGRES_DB` é honrado quando o volume é *inicializado*, então um banco apagado depois continua
+apagado e a migração falha em um banco que não está lá.
+
+O schema em si é propriedade do Alembic e nada mais o cria. O `uv run alembic upgrade head` o aplica, e
+o mesmo comando cria as extensões `pg_trgm`, `unaccent` e `vector` de que o schema depende. Confirme o
+resultado com `uv run alembic check`, que não acusa drift em uma instalação saudável.
 
 A ordem importa: este passo precisa de um banco alcançável, e é por isso que o contêiner vem antes.
+Para jogar tudo o que há nesse banco fora e começar de um vazio, o `bun run db:recreate` imprime o que
+seria destruído e pede o nome do banco antes de apagá-lo. Onde ninguém pode digitá-lo — um script de
+provisionamento — a mesma operação é `uv run python -m scrinalia.core.database_cli recreate --yes`; o
+`bun run` não encaminha argumentos extras para um script composto, então a flag tem de ir ao módulo.
+Ele é limitado ao banco de propósito: o `docker compose down -v` destrói o volume inteiro — todos os
+bancos vizinhos nele — e é a única forma de conseguir um volume *novo*, onde o `POSTGRES_DB` volta a ser
+honrado.
 
 ### 5. Compile a interface do curador
 
@@ -147,9 +160,10 @@ respondendo; só não serve interface nenhuma.
 
 ### 6. Crie o primeiro administrador
 
-Uma instalação vazia tem duas portas para a mesma conta, e as duas se fecham atrás dela: a tela de
-primeiro acesso na interface, ou a CLI na máquina. Cada uma cria um `ADMIN` com uma senha que alguém
-escolheu, e depois que a primeira conta existe as duas recusam.
+Uma instalação vazia tem duas portas para a mesma conta: a tela de primeiro acesso na interface, ou
+a CLI na máquina. Cada uma cria um `ADMIN` com uma senha que alguém escolheu, e só a primeira se
+fecha atrás dela — a rota de primeiro acesso responde 409 para sempre depois que uma conta existe,
+enquanto a CLI é administração da máquina e continua criando contas a qualquer momento.
 
 ```bash
 uv run python -m scrinalia.domains.identity.cli create \
@@ -170,12 +184,13 @@ instalação sem conta nenhuma não tem segredo a proteger. O cartão carrega a 
 topo, a mesma placa do cartão de entrada: é a primeira tela que quem instala vê, e é o lugar onde vale
 mostrar o nome inteiro.
 
-As duas portas se fecham **para sempre** depois que a primeira conta existe — desativada ou não,
-porque o predicado é a tabela estar vazia, e uma regra que uma desativação pudesse reabrir seria um
-caminho de volta para uma porta aberta. Até lá, quem alcançar a instância primeiro pode criar essa
-conta; o `POST /api/v1/setup/admin` é serializado por um lock de tabela, então duas tentativas
-simultâneas não podem dar certo as duas, mas o lock não fecha a janela (ADR 0011). **Configure a
-instância antes de expô-la.**
+A rota de primeiro acesso se fecha **para sempre** depois que a primeira conta existe — desativada
+ou não, porque o predicado é a tabela estar vazia, e uma regra que uma desativação pudesse reabrir
+seria um caminho de volta para uma porta aberta. A CLI não é uma porta que a instalação fecha: ela
+roda na máquina, com o mesmo serviço que a API usa, e continua criando contas depois disso. Até lá,
+quem alcançar a instância primeiro pode criar essa conta; o `POST /api/v1/setup/admin` é serializado
+por um lock de tabela, então duas tentativas simultâneas não podem dar certo as duas, mas o lock não
+fecha a janela (ADR 0011). **Configure a instância antes de expô-la.**
 
 ### 7. Suba a API
 
@@ -203,12 +218,13 @@ pipeline, não o boot — o `ACERVO_SOURCE` é exigido pela transformação de s
 | `DB_NAME` | `scrinalia` | nome do banco; o serviço do compose o cria no primeiro boot |
 | `PUBLIC_SCRAPE_URL` | vazio | URL base do site de origem que o worker de coleta lista; exigida para coletar |
 | `PUBLIC_SCRAPE_DETAIL_URL` | vazio | prefixo da página de detalhe de onde o adaptador monta cada registro; exigido para coletar |
-| `ACERVO_SOURCE` | vazio | nomeia a origem cujos rótulos de campo a transformação de staging lê (a única embarcada é `pmc`); **sem padrão**, e uma execução de staging falha rápido sem ela |
+| `ACERVO_SOURCE` | vazio | nomeia a origem ativa — os rótulos de campo que a transformação de staging lê e as portas que a coleta monta; a única embarcada é `pmc`, o `--origin` a sobrepõe numa execução, e **não há padrão**: uma execução de staging falha rápido sem ela |
 | `ACERVO_LANGUAGE` | `pt-BR` | seleciona o perfil de língua — stopwords, gramática de datas, regras de plural, o dicionário de busca textual e o modelo do spaCy. O dicionário chega a uma coluna gerada, então mudá-lo é uma **migração**, não um reinício |
 | `S3_ENDPOINT_URL` | vazio | o endpoint compatível com S3 (MinIO, Ceph, SeaweedFS, um bucket na nuvem); de dentro de um contêiner, `localhost` é o próprio contêiner |
-| `S3_BUCKET_NAME` | vazio | o bucket para onde vão as miniaturas; ele precisa existir antes |
+| `S3_BUCKET_NAME` | vazio | o bucket para onde vão as miniaturas; o worker o confirma uma vez, antes da execução |
 | `S3_ACCESS_KEY` | vazio | credencial com leitura e escrita no bucket; um segredo |
 | `S3_SECRET_KEY` | vazio | o segredo da credencial; um segredo |
+| `S3_AUTO_CREATE_BUCKET` | `false` | se o worker pode criar o `S3_BUCKET_NAME` quando ele não existe; desligado, a execução é recusada com o comando que o cria |
 | `OLLAMA_HOST_URL` | vazio → `http://localhost:11434` | o host do Ollama que todo motor baseado em preset resolve; um `--option host=...` explícito ainda vence |
 | `AUTH_SESSION_COOKIE_NAME` | `scrinalia_session` | nome do cookie de sessão de primeira parte |
 | `AUTH_SESSION_TTL_MINUTES` | `720` | quanto tempo uma sessão vive; deslizante, empurrada adiante pela atividade |
@@ -282,9 +298,9 @@ CUDA_VISIBLE_DEVICES=0 uv run python -m scrinalia.domains.archive.workers.runner
 CUDA_VISIBLE_DEVICES=0 uv run python -m scrinalia.domains.archive.workers.runner embedding --option device=cuda
 ```
 
-Duas consequências a ter em mente. Uma execução disparada pelo painel (`Sistema › Workers de IA`)
-herda o ambiente do processo da API, então uma API subida com `CUDA_VISIBLE_DEVICES=""` roda só na
-CPU, qualquer que seja o preset escolhido no painel. E a configuração efetiva segue
+Duas consequências a ter em mente. Uma execução disparada pelo painel (`Configurações → Operação →
+Workers de IA`) herda o ambiente do processo da API, então uma API subida com `CUDA_VISIBLE_DEVICES=""`
+roda só na CPU, qualquer que seja o preset escolhido no painel. E a configuração efetiva segue
 `argumento explícito > override persistido > padrão da assinatura`, então um preset escolhido no
 painel pode ser sobreposto por uma linha em `archive_worker_settings` — [Operação](operate.md) é
 dona dessa precedência.
@@ -378,11 +394,19 @@ O `docker compose up -d` sobe o PostgreSQL e nada mais. O projeto precisa de um 
 com S3 e não se importa com qual produto o serve — MinIO, Ceph, SeaweedFS ou um bucket na nuvem são
 infraestrutura que quem opera traz, não algo que este repositório embarca.
 
-As configurações são `S3_ENDPOINT_URL`, `S3_BUCKET_NAME`, `S3_ACCESS_KEY` e `S3_SECRET_KEY`; o
-cliente é o boto3 com assinatura v4. Duas exigências vêm do código: o bucket precisa já existir (o
-worker envia para ele e nunca o cria), e a credencial precisa de leitura e escrita nele. De dentro do
+As configurações são `S3_ENDPOINT_URL`, `S3_BUCKET_NAME`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` e
+`S3_AUTO_CREATE_BUCKET`; o cliente é o boto3 com assinatura v4. Duas exigências vêm do código: a
+credencial precisa de leitura e escrita no bucket, e o bucket precisa existir — o worker o confirma
+uma vez, antes de tocar na fila, e só o cria quando `S3_AUTO_CREATE_BUCKET=true`. De dentro do
 contêiner `app`, `localhost` é o próprio contêiner, então aponte o endpoint para o endereço do
 serviço na sua rede (`host.docker.internal` alcança um serviço rodando na máquina hospedeira).
+
+A confirmação é deliberada, e é ela que torna a falha legível. Nem todo endpoint diz "este bucket
+não existe": o SeaweedFS responde **`AccessDenied`** a um envio para um bucket que nunca foi criado,
+então cada documento da execução parece um problema de credencial. Com a flag desligada (o padrão) o
+worker recusa a execução de antemão, nomeando o bucket e o comando que o cria; com a flag ligada ele
+cria o bucket e segue. O `GET /api/v1/system/health` relata a mesma distinção e nunca cria nada — um
+probe que provisiona é uma escrita escondida dentro de uma leitura.
 
 O que vive lá hoje são os JPEGs do worker `thumbnail`, em `thumbnails/`. O banco guarda a referência
 `s3://bucket/key` resultante em `storage_thumbnail_uri`.
@@ -446,7 +470,8 @@ interface serve imagens quebradas. Faça o backup das duas juntas e restaure as 
 As duas probes ficam fora do `/api/v1` e fora do documento OpenAPI de propósito, para um orquestrador
 não precisar conhecer a versão da API. Não as junte: uma probe de liveness que consultasse o banco
 faria o orquestrador reiniciar a API toda vez que o banco reiniciasse. O painel humano é a terceira
-pergunta, a cara, e é o que nomeia a peça quebrada; na interface ele é `Sistema › Diagnóstico`.
+pergunta, a cara, e é o que nomeia a peça quebrada; na interface ele é
+`Configurações → Operação → Saúde do sistema`.
 
 ### O `/health/ready` responde 503
 

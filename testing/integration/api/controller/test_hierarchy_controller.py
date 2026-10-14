@@ -529,13 +529,15 @@ class TestMaterialisationOverHttp:
             "undo",
             side_effect=MaterialisationAlreadyUndoneError("já foi desfeita"),
         )
-        assert client.delete("/api/v1/hierarchy/materialisation/log/3").status_code == HTTP_409_CONFLICT
+        response = client.delete("/api/v1/hierarchy/materialisation/log/3")
+        assert response.status_code == HTTP_409_CONFLICT
 
     def test_an_unknown_run_is_404(self, client: TestClient, mocker):
         mocker.patch.object(
             HierarchyMaterialisationService, "undo", side_effect=MaterialisationNotFoundError("não existe")
         )
-        assert client.delete("/api/v1/hierarchy/materialisation/log/999").status_code == HTTP_404_NOT_FOUND
+        response = client.delete("/api/v1/hierarchy/materialisation/log/999")
+        assert response.status_code == HTTP_404_NOT_FOUND
 
 
 def _plan_dto() -> HierarchyNodePlanDTO:

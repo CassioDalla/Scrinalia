@@ -9,11 +9,21 @@ from scrinalia.domains.archive.schemas.types import EntityName
 # Who recorded a NER exclusion: a human curator or the LLM conflict judge.
 NerExclusionSource = Literal["JUDGE", "HUMAN"]
 
+#: The three categories of named entity the catalogue holds. Declared once because the same triple
+#: is a filter, a reclassification input and a DTO field, and the batch decides a whole category
+#: ("a street is an entity") rather than one pair.
+EntityKind = Literal["ORG", "PER", "LOC"]
+
 #: The two axes of a tag x entity collision, who may decide it, and the two governance writes
 #: a verdict can plant. Declared once so the DTOs, the plan and the ledger cannot disagree.
 ConflictWinner = Literal["TAG", "ENTITY"]
 ConflictDecider = Literal["JUDGE", "HUMAN"]
 ConflictBanKind = Literal["NER_EXCLUSION", "STOPWORD"]
+
+#: Which of the two populations of the trigram scan a read or a batch selects. ``exact_name`` is the
+#: structural question (the same spelling on both axes) and ``near_duplicate`` the spelling one; the
+#: batch is only meaningful for the structural population, where one decision settles many pairs.
+ConflictPairKind = Literal["all", "exact_name", "near_duplicate"]
 
 
 class NerSynonymRule(TypedDict):
@@ -100,8 +110,120 @@ class EntitySimilarityResponse(BaseModel):
 class EntityMergeResponse(BaseModel):
     documents_updated: int
     entities_deleted: int
+    # Ledger rows written by this merge: the handles a client needs to undo it.
+    merge_ids: list[int] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class EntityMergeImpact(BaseModel):
+    """One entity a merge would absorb, with what disappears along with it."""
+
+    entity_id: int
+    name: str
+    entity_type: str
+    document_count: int = 0
+
+
+class EntityMergePlan(BaseModel):
+    """
+    Everything an entity merge would do, computed before anything is written.
+
+    Read side of the operation: the dry run returns it (trimmed) and the apply consumes it, so the
+    preview cannot promise something different from what the merge does. Same reasoning as the tag
+    ``MergePlan`` and the AI text composition living in one SQL expression.
+    """
+
+    canonical_id: int
+    canonical_name: str
+    canonical_entity_type: str
+    canonical_document_count: int = 0
+    ids_to_merge: list[int] = Field(default_factory=list)
+    impacted: list[EntityMergeImpact] = Field(default_factory=list)
+    document_ids: list[str] = Field(default_factory=list)
+    # The same links, kept per absorbed entity: the ledger needs to know which document carried
+    # which name, because undo restores each entity's links exactly (the union would over-link).
+    documents_by_entity: dict[int, list[str]] = Field(default_factory=dict)
+    synonym_names: list[str] = Field(default_factory=list)
+    repointed_synonyms: list[str] = Field(default_factory=list)
+    # The optional rename of the canonical, carried by the same write.
+    rename_from: str | None = None
+    rename_to: str | None = None
+    review_flags: list[str] = Field(default_factory=list)
+
+    @property
+    def documents_updated(self) -> int:
+        """Distinct documents the merge touches (the union, never the sum)."""
+        return len(self.document_ids)
+
+    @property
+    def links_rewritten(self) -> int:
+        """Links moved: one per document the absorbed entities carried."""
+        return sum(member.document_count for member in self.impacted)
+
+
+class EntityMergePreviewResponse(BaseModel):
+    """Dry-run report: what changes, what is lost and why the archivist should look twice."""
+
+    canonical_id: int
+    canonical_name: str
+    documents_updated: int
+    links_rewritten: int
+    entities_deleted: list[EntityMergeImpact] = Field(default_factory=list)
+    synonyms_created: list[str] = Field(default_factory=list)
+    synonyms_repointed: list[str] = Field(default_factory=list)
+    renamed_from: str | None = None
+    renamed_to: str | None = None
+    review_flags: list[str] = Field(default_factory=list)
+
+
+class EntityMergeLogEntryDTO(BaseModel):
+    """
+    One entry in the entity ledger: what was merged or renamed, by whom, and whether it was undone.
+
+    ``kind`` is ``MERGE`` or ``RENAME`` and the two rows do not carry the same fields: a rename has no
+    absorbed entity, so ``absorbed_*`` are ``None`` and ``canonical_renamed_from`` is what the undo
+    restores. The screen reads the discriminator instead of guessing from a null.
+    """
+
+    merge_id: int
+    kind: str = "MERGE"
+    canonical_id: int | None = None
+    canonical_name: str
+    absorbed_entity_id: int | None = None
+    absorbed_name: str | None = None
+    absorbed_entity_type: str | None = None
+    document_count: int = 0
+    repointed_synonym_names: list[str] = Field(default_factory=list)
+    synonym_created: bool = True
+    #: The name the canonical carried before this write renamed it (``None`` when it did not).
+    canonical_renamed_from: str | None = None
+    changed_by: str | None = None
+    changed_at: datetime | None = None
+    note: str | None = None
+    undone_at: datetime | None = None
+    undone_by: str | None = None
+
+    @computed_field
+    @property
+    def is_undone(self) -> bool:
+        """Computed so the front reads one definition instead of comparing a timestamp itself."""
+        return self.undone_at is not None
+
+    @computed_field
+    @property
+    def is_rename(self) -> bool:
+        """The discriminator the ledger screen branches on, so it never tests a null of its own."""
+        return self.kind == "RENAME"
+
+
+class EntityMergeLogListResponse(BaseModel):
+    """One page of the audit trail, with the total matching the same filters."""
+
+    total: int
+    limit: int
+    offset: int
+    items: list[EntityMergeLogEntryDTO] = Field(default_factory=list)
 
 
 class EntityRelevance(BaseModel):
@@ -332,12 +454,67 @@ class JudgedConflictPage(BaseModel):
 
 
 class ConflictResolutionData(BaseModel):
-    winner: Literal["TAG", "ENTITY"]
+    winner: ConflictWinner
     documents_transferred: int
     #: The ledger row, so the screen can offer the undo of the write it just made.
     resolution_id: int | None = None
     ban_kind: ConflictBanKind | None = None
     ban_term: str | None = None
+
+
+class ConflictBatchEntry(BaseModel):
+    """One pair the batch wrote, carrying the ledger row its own undo needs."""
+
+    resolution_id: int
+    tag_id: int
+    tag_name: str
+    entity_id: int
+    entity_name: str
+    documents_transferred: int = 0
+
+
+class ConflictBatchSkip(BaseModel):
+    """
+    A pair the batch did **not** write, and why.
+
+    Kept apart from ``failed`` on purpose. A pair whose loser an earlier pair of the same batch
+    already removed is *finished* work, not an error — a tag that lost its entity to one pair cannot
+    lose it again in the next — and reporting it as a failure is what turns a clean batch into a wall
+    of red lines. ``failed`` is only ever a real exception.
+    """
+
+    tag_id: int
+    entity_id: int
+    tag_name: str = ""
+    entity_name: str = ""
+    reason: str
+
+
+class ConflictBatchRemaining(BaseModel):
+    """What the same selection still holds after the write, counted over the whole filtered set."""
+
+    total: int = 0
+    exact_name_count: int = 0
+    near_duplicate_count: int = 0
+
+
+class ConflictBatchResult(BaseModel):
+    """
+    What one batch of verdicts wrote, skipped and left behind.
+
+    The unit of the write is still the **pair**: every entry carries its own ``resolution_id``, so
+    the screen offers one undo per pair even when the decision was taken for a whole category at
+    once. ``remaining`` is computed from the same scan the screen reads, with the same filters, so
+    the number before and the number after cannot be two different measurements.
+    """
+
+    winner: ConflictWinner
+    pair_kind: ConflictPairKind = "exact_name"
+    entity_type: EntityKind | None = None
+    applied: list[ConflictBatchEntry] = Field(default_factory=list)
+    skipped: list[ConflictBatchSkip] = Field(default_factory=list)
+    failed: list[ConflictBatchSkip] = Field(default_factory=list)
+    remaining: ConflictBatchRemaining = Field(default_factory=ConflictBatchRemaining)
 
 
 class NerExclusion(BaseModel):
@@ -362,15 +539,141 @@ class NerExclusion(BaseModel):
 
 
 class NerExclusionBanResponse(RouteResponse):
-    """Terms banned from NER, and how many already-extracted entities the ban purged."""
+    """
+    Terms banned from NER. The ban deletes nothing: the entities already extracted by that spelling
+    are removed by the purge, a separate and reversible act.
+    """
 
-    entities_deleted: int
+    created: int = Field(default=0, description="How many exclusions were inserted; a re-ban inserts none.")
 
 
 class NerExclusionRemovalResponse(RouteResponse):
     """The ban was lifted: the extractor will consider those spellings again."""
 
     removed: int
+
+
+# --- The NER purge: the destructive half of the veto, on its own ---
+#
+# Until #94 the ban and the purge were one call and only the ban came back: `POST
+# /entities/ner-exclusions` recorded the exclusion **and** deleted every entity already extracted
+# from that spelling, while the `DELETE` removed only the exclusion rows. These DTOs are the
+# stopword purge's shape applied to the other axis: a plan the preview and the write both read, a
+# ledger of what died, and an undo that restores the row, its links and its spellings.
+
+
+class NerPurgeEntity(BaseModel):
+    """One entity the purge would delete, with the weight that makes the loss concrete."""
+
+    entity_id: int
+    name: str
+    entity_type: str
+    excluded_term: str = Field(description="The banned spelling this entity matched.")
+    document_count: int = 0
+    synonym_names: list[str] = Field(default_factory=list, description="The spellings that point at it.")
+
+
+class NerPurgeItem(BaseModel):
+    """One entity the purge would delete, with the exact state the undo has to rebuild."""
+
+    entity_id: int
+    name: str
+    entity_type: str
+    excluded_term: str
+    document_ids: list[str] = Field(default_factory=list, description="The documents that carried it.")
+    synonym_names: list[str] = Field(default_factory=list, description="The spellings that pointed at it.")
+    created_at: datetime | None = None
+
+
+class NerPurgePlan(BaseModel):
+    """
+    Everything the purge would delete, computed before anything is written.
+
+    Single definition of the operation: the preview reads it and the write consumes it, so the two
+    cannot disagree about which entities die — the same rule ``TagRepository.plan_stopword_purge``
+    follows. The items carry the snapshot the ledger records, which is why the dry run and the
+    write are one computation instead of two that happen to agree today.
+    """
+
+    excluded_terms: list[str] = Field(default_factory=list)
+    items: list[NerPurgeItem] = Field(default_factory=list)
+
+    @property
+    def total_entities(self) -> int:
+        return len(self.items)
+
+    @property
+    def total_documents(self) -> int:
+        """Documents that lose an entity, counted per entity: one document can lose two."""
+        return sum(len(item.document_ids) for item in self.items)
+
+
+class NerPurgePreview(BaseModel):
+    """
+    What the purge would destroy, before it destroys it.
+
+    The purge keeps a ledger (:class:`ArchiveNerPurgeLog`), so ``reversible`` is true: the write is
+    logged per deleted entity before anything changes and the undo restores the row, its links and
+    its spellings. The preview remains the step, not a convenience — the ledger makes the loss
+    recoverable, it does not make it invisible.
+    """
+
+    excluded_terms: list[str] = Field(default_factory=list, description="The banned spellings the purge acts on.")
+    entities: list[NerPurgeEntity] = Field(default_factory=list)
+    total_entities: int = 0
+    total_documents: int = Field(default=0, description="Documents that lose an entity.")
+    reversible: bool = Field(default=True, description="True: the ledger restores the entities and their links.")
+
+
+class NerPurgeResult(BaseModel):
+    """What the purge did, as the repository reports it: the count and the ledger ids to undo."""
+
+    entities_deleted: int = 0
+    purge_ids: list[int] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class NerPurgeLogEntryDTO(BaseModel):
+    """One deleted entity in the ledger: what was purged, by whom, and whether it was restored."""
+
+    purge_id: int
+    purged_entity_id: int
+    purged_name: str
+    entity_type: str
+    excluded_term: str
+    document_count: int = 0
+    synonym_names: list[str] = Field(default_factory=list)
+    changed_by: str | None = None
+    changed_at: datetime | None = None
+    undone_at: datetime | None = None
+    undone_by: str | None = None
+
+    @property
+    def is_undone(self) -> bool:
+        return self.undone_at is not None
+
+
+class NerPurgeLogListResponse(BaseModel):
+    """One page of the NER purge ledger, with the total matching the same filters."""
+
+    total: int
+    limit: int
+    offset: int
+    items: list[NerPurgeLogEntryDTO] = Field(default_factory=list)
+
+
+class NerPurgeResponse(RouteResponse):
+    """What the purge deleted, with the ledger ids the screen needs to offer the undo."""
+
+    entities_deleted: int
+    purge_ids: list[int] = Field(default_factory=list)
+
+
+class NerPurgeUndoResponse(RouteResponse):
+    """The purged entity came back, exactly as the ledger remembered it."""
+
+    data: NerPurgeLogEntryDTO
 
 
 class OrphanEntityPurgeResponse(RouteResponse):
@@ -387,8 +690,31 @@ class EntityReclassifyResponse(RouteResponse):
     future run, which is why the screen has to say so.
     """
 
-    new_type: Literal["ORG", "PER", "LOC"]
+    new_type: EntityKind
 
 
 class EntityDeleteResponse(RouteResponse):
     """One entity removed from the vocabulary."""
+
+
+class EntityRenameResponse(RouteResponse):
+    """
+    The name as it now reads, plus the two facts the screen cannot infer by itself.
+
+    ``merge_id`` is the ledger row this write left, which is what makes the rename reversible from the
+    screen through the same undo the merge uses. ``kept_old_spelling`` says whether the previous
+    spelling still resolves to this entity: the archivist decided it with a toggle, and the answer
+    belongs in the answer.
+    """
+
+    entity_id: int
+    name: str
+    entity_type: str
+    merge_id: int
+    kept_old_spelling: bool
+
+
+class EntityMergeUndoResponse(RouteResponse):
+    """The absorbed entity came back, exactly as the ledger remembered it."""
+
+    data: EntityMergeLogEntryDTO

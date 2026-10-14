@@ -17,6 +17,10 @@ down_revision: str | Sequence[str] | None = "a1f2c3d4e5b6"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+#: Alembic reads these four from the module namespace (``alembic/script/base.py``): they are the
+#: module's public API, and ``__all__`` is what keeps a static reader from taking them for dead code.
+__all__ = ["branch_labels", "depends_on", "down_revision", "revision"]
+
 #: Accent-, case- and punctuation-insensitive fold of a level spelling, in SQL.
 #:
 #: It mirrors ``domain.level_catalog.normalize_level_name`` and exists here so the migration

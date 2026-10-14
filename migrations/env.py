@@ -3,14 +3,14 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-# Import every model package so Base.metadata is fully populated before
-# autogenerate compares it against the database.
-import scrinalia.domains.archive.models
-import scrinalia.domains.identity.models
-import scrinalia.domains.ingestion.models
-import scrinalia.domains.staging.models  # noqa: F401
 from scrinalia.core.base import Base
 from scrinalia.core.config import settings
+from scrinalia.metadata import load_all_models
+
+# Populate ``Base.metadata`` before autogenerate compares it against the database. The list of model
+# packages lives in one place (``scrinalia.metadata``), because the worker ledger needs the same
+# metadata complete for a different reason — its foreign key into ``auth_users``.
+load_all_models()
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

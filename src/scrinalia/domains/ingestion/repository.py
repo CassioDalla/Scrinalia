@@ -5,6 +5,7 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
 from scrinalia.core.content_hash import ContentHash
 from scrinalia.core.logger import logger
@@ -75,11 +76,44 @@ def add_in_bulk(db: Session, description_id_list: list[str]) -> int:
     return len(inserted_ids)
 
 
+def pending_conditions(
+    discovered_after: datetime | None = None,
+    scraped_before: datetime | None = None,
+    ignore_status: list[ScrapeStatus] | None = None,
+) -> list[ColumnElement[bool]]:
+    """
+    The sliding-window policy, as one predicate.
+
+    This is the **single definition** of "pending" in the ingestion queue: the run that takes a
+    batch and the count that reports how much is left both build their statement from it, so a
+    policy change cannot make the two disagree. It used to be written inline in ``get_from_queue``,
+    which left a second counter with no honest way to answer "how many remain".
+    """
+    conditions: list[ColumnElement[bool]] = []
+
+    if discovered_after is not None:
+        conditions.append(ScrapingQueue.discovered_at >= discovered_after)
+
+    if scraped_before is not None:
+        conditions.append(
+            or_(
+                ScrapingQueue.last_scraped_at.is_(None),
+                ScrapingQueue.last_scraped_at <= scraped_before,
+            )
+        )
+
+    if ignore_status:
+        conditions.append(ScrapingQueue.scrape_status.notin_(ignore_status))
+
+    return conditions
+
+
 def get_from_queue(
     db: Session,
     ignore_status: list[ScrapeStatus] | None = None,
     discovered_after: datetime | None = None,
     scraped_before: datetime | None = None,
+    limit: int | None = None,
 ) -> Sequence[ScrapingQueue]:
     """
     Retrieves a batch of documents from the queue pending detail extraction.
@@ -93,29 +127,45 @@ def get_from_queue(
         ignore_status (list[ScrapeStatus] | None): List of statuses to exclude from results.
         discovered_after (datetime | None): Discovery time window filter.
         scraped_before (datetime | None): Obsolescence (TTL) time window filter.
+        limit (int | None): Maximum number of rows this run may take. ``None`` is the whole queue.
 
     Returns:
         Sequence[ScrapingQueue]: List of queue entities ready for the Adapter.
+
+    The ordering is what makes a limited run **resumable without starvation**: ``NULLS FIRST`` puts
+    the never-tried IDs ahead of everything, and ``update_queue_status`` stamps ``last_scraped_at``
+    in all three outcomes (done, transient failure, fatal), so the batch that just ran moves behind
+    the ones that have not — even the batch that failed. The limit is applied to the statement the
+    policy already filtered, never before it.
     """
-    stmt = select(ScrapingQueue)
-
-    if discovered_after is not None:
-        stmt = stmt.where(ScrapingQueue.discovered_at >= discovered_after)
-
-    if scraped_before is not None:
-        stmt = stmt.where(
-            or_(
-                ScrapingQueue.last_scraped_at.is_(None),
-                ScrapingQueue.last_scraped_at <= scraped_before,
-            )
-        )
-
-    if ignore_status:
-        stmt = stmt.where(ScrapingQueue.scrape_status.notin_(ignore_status))
-
+    stmt = select(ScrapingQueue).where(*pending_conditions(discovered_after, scraped_before, ignore_status))
     stmt = stmt.order_by(ScrapingQueue.last_scraped_at.asc().nulls_first())
 
+    if limit is not None:
+        stmt = stmt.limit(limit)
+
     return db.scalars(stmt).all()
+
+
+def count_pending(
+    db: Session,
+    ignore_status: list[ScrapeStatus] | None = None,
+    discovered_after: datetime | None = None,
+    scraped_before: datetime | None = None,
+) -> int:
+    """
+    How many queue rows the same policy still leaves pending.
+
+    Built from :func:`pending_conditions`, so it is the run's own predicate and not a second
+    definition of "pending" that drifts from it — the count a batch reports and the rows the next
+    batch takes cannot disagree.
+    """
+    stmt = (
+        select(func.count())
+        .select_from(ScrapingQueue)
+        .where(*pending_conditions(discovered_after, scraped_before, ignore_status))
+    )
+    return int(db.scalar(stmt) or 0)
 
 
 def update_queue_status(

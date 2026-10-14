@@ -14,9 +14,9 @@ from scrinalia.domains.archive.exceptions import (
     TagMergeProposalNotFoundError,
     TagNotFoundError,
 )
-from scrinalia.domains.archive.models.enums import StopwordsScope
+from scrinalia.domains.archive.models.enums import StopwordsScope, TagCatalogState
 from scrinalia.domains.archive.ports.document import DocumentRepositoryPort
-from scrinalia.domains.archive.ports.taxonomy import SubjectExclusionSource, TagRepositoryPort
+from scrinalia.domains.archive.ports.taxonomy import StopwordSource, SubjectExclusionSource, TagRepositoryPort
 from scrinalia.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
@@ -33,8 +33,16 @@ from scrinalia.domains.archive.schemas import (
     MergeSuggestionRunResponse,
     MergeTagsCommand,
     StopwordDTO,
+    StopwordPurgeLogEntryDTO,
+    StopwordPurgeLogListResponse,
     StopwordPurgePreview,
+    StopwordPurgeResult,
+    StopwordPurgeTag,
+    SubjectExclusionApplyResult,
+    SubjectExclusionPlan,
+    SubjectExclusionRemovalResult,
     SubjectExclusionSuggestionResponse,
+    TagCatalogResponse,
     TagCurationCommand,
     TagCurationResult,
     TagMergeDecisionCommand,
@@ -51,6 +59,23 @@ from scrinalia.domains.archive.schemas import (
 #: Upper bound of one page of proposals. The real collection produced hundreds of clusters,
 #: so paging is the default and a client cannot ask for the whole catalog in one request.
 MAX_MERGE_PROPOSALS_PAGE = 200
+
+#: Upper bound of one page of the tag catalogue. Same reasoning: the reference collection carries
+#: 8k spellings, and a screen that could ask for all of them in one request would.
+MAX_CATALOG_PAGE = 200
+
+
+def _curation_stamp(macro_category_id: int | None, author: Author | None) -> str:
+    """
+    What the tag's ledger records about one subject decision: the destination, who, and when.
+
+    One function for both writes — the drawer verdict and the facet declaration — because they write
+    the *same* stamp. Two shapes of the same value would make the tag's history unreadable, and it
+    is the only trace the decision leaves: tags have no revision table.
+    """
+    destination = macro_category_id if macro_category_id is not None else "NONE"
+    return f"{destination}|{author.name if author else ''}|{datetime.now(UTC).isoformat(timespec='seconds')}"
+
 
 #: Upper bound of one batch. Each cluster is applied in its own savepoint, but the request is
 #: still a single transaction, so it has to stay bounded.
@@ -161,60 +186,108 @@ class TagService:
         # does not receive the same tag ID twice (e.g. if "park" and "parks" come in the same document)
         return list(set(final_ids_for_document))
 
-    def save_new_stopwords(self, word_list: list[str], scope: StopwordsScope = StopwordsScope.TAG) -> int:
-        """Bans terms from one axis. ``TAG`` by default: it is the axis this catalog governs."""
-        return self.repo.save_stopwords(word_list, scope)
+    def save_new_stopwords(
+        self, word_list: list[str], scope: StopwordsScope = StopwordsScope.TAG, source: StopwordSource = "HUMAN"
+    ) -> int:
+        """
+        Bans terms from one axis. ``TAG`` by default: it is the axis this catalog governs.
+
+        ``source`` is ``HUMAN`` for this screen — a term typed here is a deliberate act — while the
+        "not a subject" screen and the conflict resolution write their own origins, which the purge
+        preview reads back (ADR 0013).
+        """
+        return self.repo.save_stopwords(word_list, scope, source)
 
     def list_stopwords(self, scope: StopwordsScope | None = None) -> list[StopwordDTO]:
         """
-        The banned terms, with the axis each one was banned from.
+        The banned terms, with the axis each one was banned from and who planted the ban.
 
         The scope travels with the word because the two axes are different mechanisms: a ``TAG`` ban
         feeds the subject purge, an ``ENTITY`` ban keeps a term out of the NER extraction, and
         ``get_stopwords()`` deliberately reads only ``TAG``/``ALL`` so the first can never delete a
-        tag because of the second.
+        tag because of the second. The source travels with it because a ban planted by the
+        "not a subject" screen or by a conflict resolution is a consequence, and the one typed here
+        is an act.
         """
         return self.repo.list_stopwords(scope)
 
     def remove_stopwords(self, word_list: list[str], scope: StopwordsScope | None = None) -> int:
         """
-        Un-bans terms. This is the only way back from a purge decision, because the purge deletes the
-        tags themselves and has no ledger to restore them from.
+        Un-bans terms.
+
+        Not the only way back from a purge decision anymore: since #36 the purge keeps a ledger, and
+        ``undo_stopword_purge`` restores the tag, its links and its spellings. What this does is
+        remove the ban, which the purge undo deliberately keeps — a restored tag whose spelling is
+        still banned reappears in the next preview.
         """
         return self.repo.remove_stopwords(word_list, scope)
 
     def preview_stopword_purge(self) -> StopwordPurgePreview:
         """
-        What the purge would delete, computed with the same list the purge itself reads.
+        What the purge would delete, computed with the same plan the purge itself consumes.
 
-        The list is ``get_stopwords()`` — ``TAG``/``ALL`` only — so the preview and the write cannot
-        disagree about which words are in play. Same rule as the merge dry run.
+        The words come from ``get_stopwords()`` — ``TAG``/``ALL`` only — so the preview and the
+        write cannot disagree about which tags are in play. Same rule as the merge dry run, and
+        the same plan object: the dry run is not a second implementation of the query.
         """
-        stopwords = self.repo.get_stopwords()
-        tags = self.repo.find_tags_by_stopwords(stopwords)
+        plan = self.repo.plan_stopword_purge()
+        tags = [
+            StopwordPurgeTag(
+                tag_id=item.tag_id,
+                name=item.name,
+                document_count=len(item.document_ids),
+                macro_category_name=item.macro_category_name,
+                source=item.source,
+            )
+            for item in plan.items
+        ]
         return StopwordPurgePreview(
-            stopwords=sorted(stopwords),
+            stopwords=plan.stopwords,
             tags=tags,
-            total_tags=len(tags),
-            total_documents=sum(tag.document_count for tag in tags),
-            reversible=False,
+            total_tags=plan.total_tags,
+            total_documents=plan.total_documents,
+            reversible=True,
         )
 
-    def purge_stopwords(self) -> int:
+    def purge_stopwords(self, changed_by: Author | None = None) -> StopwordPurgeResult:
         """
-        Deletes every tag whose name is a banned term, and **this one has no undo**.
+        Deletes every tag whose name is a banned term, after logging each one in the ledger.
 
-        The merge keeps a ledger and restores the tag, its links and its classification; here the row
-        goes and the links cascade. The route offers a preview first and the screen says so out loud,
-        because a destructive write with no reversal is exactly the case the project's rule — every
-        write is reversible or announced — is about.
+        The write is plan + apply, exactly like the merge: the plan that the preview showed is the
+        plan this consumes, so a tag cannot die without having appeared in the list. The ledger row
+        is the undo the screen offers, and it is written before the row disappears.
         """
+        plan = self.repo.plan_stopword_purge()
+        if not plan.items:
+            return StopwordPurgeResult()
+        return self.repo.apply_stopword_purge(plan, changed_by=changed_by)
 
-        clean_stopwords = self.repo.get_stopwords()
-        if not clean_stopwords:
-            return 0
+    def undo_stopword_purge(self, purge_id: int, undone_by: Author | None = None) -> StopwordPurgeLogEntryDTO:
+        """
+        Restores one purged tag from the ledger: the row, its links and its spellings.
 
-        return self.repo.purge_tags_by_stopwords(clean_stopwords)
+        The ban is not lifted: the term is still a stopword, and the next purge lists it again.
+        The repository raises ``StopwordPurgeLogNotFoundError`` (404) or
+        ``StopwordPurgeAlreadyUndoneError`` (409).
+        """
+        return self.repo.undo_stopword_purge(purge_id, undone_by=undone_by)
+
+    def list_stopword_purge_log(
+        self,
+        include_undone: bool = True,
+        term: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> StopwordPurgeLogListResponse:
+        """The audit trail of the purges: which tag died, when, by whom, and what was restored."""
+        return StopwordPurgeLogListResponse(
+            total=self.repo.count_stopword_purge_log(include_undone=include_undone, term=term),
+            limit=limit,
+            offset=offset,
+            items=list(
+                self.repo.list_stopword_purge_log(include_undone=include_undone, term=term, limit=limit, offset=offset)
+            ),
+        )
 
     def get_tag_relevance_count(self, limit: int = 30) -> Sequence[TagRelevanceCount]:
         """
@@ -261,16 +334,36 @@ class TagService:
         a drawer, or declaring that it is not a subject at all — and the second is what
         ``macro_category_id=None`` means, which is why the field is required and nullable.
 
+        A verdict is settled as a **whole state**, and that is why this method writes more than the
+        column. Declaring the tag not a subject goes through the same plan and the same write the
+        "not a subject" screen uses — one definition of the statement, whichever door it came
+        through: the term joins ``domain_subject_exclusions``, the table ``worker_macro_category``
+        obeys, **and** its spelling is banned at ``TAG`` scope so the next ingestion does not
+        recreate it (``macro_category_id=null`` alone is a decision the next run overwrites the
+        moment the label set changes, which is exactly the direction the governance rule forbids).
+        Filing it in a drawer takes it back off that axis — the exclusion leaves, and with it the ban
+        the exclusion had planted, because a tag in a drawer is a subject again and a spelling the
+        archive decided to file must be able to come back.
+
         The stamp written into the tag's ledger carries who and when, because tags have no revision
         table and this is the only trace the decision leaves.
         """
         if command.macro_category_id is not None and self.repo.get_macro_category(command.macro_category_id) is None:
             raise MacroCategoryNotFoundError(f"Categoria macro {command.macro_category_id} não existe no catálogo.")
 
-        stamp = f"{command.macro_category_id if command.macro_category_id is not None else 'NONE'}|{command.changed_by.name if command.changed_by else ''}|{datetime.now(UTC).isoformat(timespec='seconds')}"
+        stamp = _curation_stamp(command.macro_category_id, command.changed_by)
         updated = self.repo.update_tag_macro_category(tag_id, command.macro_category_id, stamp)
         if updated is None:
             raise TagNotFoundError(f"Tag {tag_id} não existe no vocabulário.")
+
+        excluded = command.macro_category_id is None
+        if excluded:
+            # The order matters: the tag leaves its drawer first, so the plan sees it as applicable
+            # instead of refusing it for sitting in the drawer the archivist is emptying.
+            plan = self.repo.plan_subject_exclusions([updated.name])
+            self.repo.apply_subject_exclusions(plan, source="HUMAN", reason=command.note)
+        else:
+            self.repo.remove_subject_exclusions([updated.name])
 
         return TagCurationResult(
             tag_id=updated.tag_id,
@@ -278,6 +371,38 @@ class TagService:
             macro_category_id=updated.macro_category_id,
             macro_category_name=updated.macro_category_name,
             human_classified=True,
+            subject_excluded=excluded,
+        )
+
+    # --- The catalogue of tags, by the state of their subject ---------------------------------
+
+    def list_catalog(
+        self,
+        state: TagCatalogState = TagCatalogState.ALL,
+        macro_category_id: int | None = None,
+        term: str | None = None,
+        limit: int = 25,
+        offset: int = 0,
+    ) -> TagCatalogResponse:
+        """
+        One page of the tag catalogue, filtered by the state of the subject decision.
+
+        The read the home screen's cards need and the type-ahead cannot give: the type-ahead answers
+        "which spelling did I mean?" and requires a term, while this one answers "list the tags
+        nobody has decided about", which is a filter and not a top-N by weight. The ``total`` comes
+        from the same predicate builder as the page, so the two cannot disagree.
+        """
+        limit = max(1, min(limit, MAX_CATALOG_PAGE))
+        # A negative offset reaches PostgreSQL as ``OFFSET -1``: a DataError and a 500, measured
+        # through the route. The clamp belongs here and not only on the query parameter, because the
+        # service is the boundary every caller goes through.
+        offset = max(0, offset)
+        total = self.repo.count_catalog(state, macro_category_id, term)
+        return TagCatalogResponse(
+            total=total,
+            limit=limit,
+            offset=offset,
+            items=self.repo.list_catalog(state, macro_category_id, term, limit, offset),
         )
 
     def suggest_merges(self, threshold: float = 0.65, limit: int = 50) -> MergeSuggestionRunResponse:
@@ -551,8 +676,9 @@ class TagService:
 
         if source_type == "tags":
             texts_to_analyze = self.repo.fetch_tags_for_clustering()
-        elif source_type == "documents":
-            # Hack that will be refactored
+        else:
+            # ``documents``, the only other value the guard above admits. An ``elif`` would leave
+            # ``texts_to_analyze`` unbound on a path the reader has to prove cannot happen.
             texts_to_analyze = self.document_repo.fetch_documents_for_clustering(columns_to_extract=columns_to_extract)
 
         return texts_to_analyze
@@ -580,34 +706,63 @@ class TagService:
             limit=limit, offset=offset, include_excluded=include_excluded
         )
 
+    def plan_subject_exclusions(self, words: list[str]) -> SubjectExclusionPlan:
+        """
+        What confirming these terms as "not a subject" would do, computed before anything is written.
+
+        The dry run of the write below: a term whose tag already sits in a drawer is **blocked**, and
+        the rest are applicable, each with the guard's signal, whether the term is a place and whether
+        an entity with the same spelling exists. The route shows the plan; the write consumes it, so
+        the two cannot disagree (ADR 0013, issue #83 option C).
+        """
+        clean_words = [normalize_tag(word) for word in words if word.strip()]
+        if not clean_words:
+            raise InvalidParam("Nenhum termo válido foi informado.")
+        return self.repo.plan_subject_exclusions(clean_words)
+
     def exclude_terms_from_subjects(
         self, words: list[str], reason: str | None = None, source: SubjectExclusionSource = "HUMAN"
-    ) -> int:
+    ) -> SubjectExclusionApplyResult:
         """
-        Records that a term is not a subject, so the classifier stops guessing at it.
+        Records that a term is not a subject and bans its spelling from coming back.
 
         This is the curated half of the NENHUMA class. The deterministic guard in
         ``domain.vocabulary`` matches a form; the terms that reach here have none — a generic
         ``pessoas``, a photographic ``vista aérea``, an unknown proper noun — and the model,
         unable to abstain, answers them confidently and wrongly.
 
+        Two halves, one statement. The exclusion silences the classifier, and the ``TAG``-scoped ban
+        stops the next ingestion from recreating the term and parking it in the queue forever; the ban
+        never deletes, and the purge remains the deliberate act behind its own preview and ledger. A
+        term whose tag is already in a **drawer** is refused and reported instead: that drawer is a
+        human verdict about the tag, and a statement about a term must not un-file it. The caller
+        decides on the tag catalogue first.
+
         Unlike the NER exclusion this does **not** purge anything: the term stays a tag of the
-        collection and stays reachable by search. Only the subject classifier is silenced.
+        collection and stays reachable by search until the archivist purges it.
+        """
+        plan = self.plan_subject_exclusions(words)
+        logger.info(
+            f"🚫 Marking {len(plan.applicable)} term(s) as not-a-subject"
+            f" ({len(plan.blocked)} refused for sitting in a drawer)..."
+        )
+        # The provenance is the point of the column: a term the guard refused and the archivist
+        # confirmed is a ``RULE`` decision, and one they typed is ``HUMAN``. Both are reversible, and
+        # the ban they plant carries its own origin (``EXCLUSION``) for the purge preview.
+        return self.repo.apply_subject_exclusions(plan, source=source, reason=reason)
+
+    def remove_subject_exclusions(self, words: list[str]) -> SubjectExclusionRemovalResult:
+        """
+        Undoes the decision: the terms return to the classification queue and the ban this write
+        planted leaves with them.
+
+        The lift is exact — only a ban the exclusion itself created, and only while its source is
+        still ``EXCLUSION`` — so a spelling a person banned on the Stopwords screen, or one a conflict
+        resolution planted first, survives (ADR 0013).
         """
         clean_words = [normalize_tag(word) for word in words if word.strip()]
         if not clean_words:
-            raise InvalidParam("Nenhum termo válido foi informado.")
-
-        logger.info(f"🚫 Marking {len(clean_words)} term(s) as not-a-subject...")
-        # The provenance is the point of the column: a term the guard refused and the archivist
-        # confirmed is a ``RULE`` decision, and one they typed is ``HUMAN``. Both are reversible.
-        return self.repo.add_subject_exclusions(clean_words, source=source, reason=reason)
-
-    def remove_subject_exclusions(self, words: list[str]) -> int:
-        """Undoes the decision and puts the terms back in the classification queue."""
-        clean_words = [normalize_tag(word) for word in words if word.strip()]
-        if not clean_words:
-            return 0
+            return SubjectExclusionRemovalResult()
 
         return self.repo.remove_subject_exclusions(clean_words)
 

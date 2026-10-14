@@ -100,5 +100,5 @@ Signed-off-by: CassioDalla <cassiodalla@hotmail.com>
 - **The pre-commit hook stashes what is not staged**, so it type-checks the **staged** tree: a commit
   that stages half of a Python change can fail `basedpyright` on code that is fine in the working
   tree. Commit the Python of one change together, or order the commits so each one is self-consistent.
-- If the hook dies writing its cache with `Read-only file system`, point the cache into the checkout
-  and retry: `PRE_COMMIT_HOME="$PWD/.cache-pre-commit" UV_CACHE_DIR="$PWD/.cache-uv" git commit -s`.
+- If the hook dies writing its cache with `Read-only file system`, the rule file `environment` owns the
+  cause and the flags; the fix is to point `UV_CACHE_DIR`/`PRE_COMMIT_HOME` into the checkout.

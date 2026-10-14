@@ -8,6 +8,7 @@ from typing import Any
 from scrinalia.core.author import Author
 from scrinalia.core.database import get_db
 from scrinalia.core.logger import logger
+from scrinalia.domains.archive.exceptions import InvalidWorkerSettingsError
 from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
 from scrinalia.domains.archive.repository.worker_settings_repo import WorkerSettingsRepository
 from scrinalia.domains.archive.workers import (
@@ -60,6 +61,11 @@ PIPELINE_ORDER = [
 ]
 
 
+def _workers_declaring(key: str) -> list[str]:
+    """The registered workers whose ``execute`` declares ``key``; used to keep a refusal honest."""
+    return sorted(name for name, fn in WORKERS.items() if key in inspect.signature(fn).parameters)
+
+
 def _coerce_option(value: Any) -> Any:
     """Turns the CLI ``true``/``false`` strings into booleans.
 
@@ -82,6 +88,7 @@ def _forward_kwargs(
     engine_name: str | None,
     preset: str | None,
     db_batch_size: int | None,
+    limit: int | None,
     extra: dict[str, Any],
 ) -> dict[str, Any]:
     """
@@ -90,14 +97,27 @@ def _forward_kwargs(
     The same CLI has to work for workers with different signatures (and the session parameter may be
     named either ``db`` or ``db_session``); a value the worker does not declare is dropped, except
     through ``**engine_kwargs``, which is the documented way to override ``device`` or ``host``.
+
+    A dropped value is logged: ``--batch`` was accepted by every name and silently ignored by the
+    workers without ``db_batch_size``, so a run that asked for a small batch swept the whole backlog
+    and looked like it had honoured the flag. A flag nobody reads is worse than a refused one.
     """
     params = inspect.signature(fn).parameters
     accepts_var_kwargs = any(param.kind == inspect.Parameter.VAR_KEYWORD for param in params.values())
 
     kwargs: dict[str, Any] = {}
-    for key, value in (("engine_name", engine_name), ("preset", preset), ("db_batch_size", db_batch_size)):
-        if value is not None and (key in params or accepts_var_kwargs):
+    for key, value in (
+        ("engine_name", engine_name),
+        ("preset", preset),
+        ("db_batch_size", db_batch_size),
+        ("limit", limit),
+    ):
+        if value is None:
+            continue
+        if key in params or accepts_var_kwargs:
             kwargs[key] = value
+        else:
+            logger.warning(f"⚠️ The worker does not declare '{key}': the value {value!r} was ignored.")
 
     for key, value in extra.items():
         if key in params or accepts_var_kwargs:
@@ -111,6 +131,7 @@ def run_worker(
     engine_name: str | None = None,
     preset: str | None = None,
     db_batch_size: int | None = None,
+    limit: int | None = None,
     extra: dict[str, Any] | None = None,
     db_factory: Callable[[], Any] = get_db,
     ledger: WorkerRunLedger | None = None,
@@ -126,6 +147,10 @@ def run_worker(
     opens. When a worker is registered in ``WORKERS`` but not in the catalogue (the tests inject
     doubles that way), the resolution is skipped and the explicit arguments are forwarded as before.
 
+    ``limit`` caps the units of this one run and is **not** a persisted setting: it exists so a local
+    test does not sweep the backlog, and a cap that outlived the command would be a trap. It is
+    refused for a worker whose ``execute`` does not declare it, instead of being dropped.
+
     ``ledger``/``run_id`` are how the execution becomes visible in the panel: the CLI passes a
     ledger and no id (the runner opens the row), the API passes the id of the row it queued. A
     programmatic caller that passes neither runs without a ledger line — explicit, not silent.
@@ -136,6 +161,15 @@ def run_worker(
     fn = WORKERS[name]
     params = inspect.signature(fn).parameters
     session_arg = "db_session" if "db_session" in params else "db"
+
+    if limit is not None and "limit" not in params:
+        # ``**engine_kwargs`` does not count: it is the documented door for engine-constructor
+        # overrides (``device``, ``host``), and a run cap that fell into it would be handed to the
+        # engine and ignored — exactly the silent drop this refusal exists to prevent.
+        raise InvalidWorkerSettingsError(
+            f"O worker '{name}' não aceita --limit: ele não declara 'limit' no execute. "
+            f"Quem declara hoje: {_workers_declaring('limit')}."
+        )
 
     spec = WORKER_CATALOGUE.get(name)
     explicit_extra = extra or {}
@@ -183,6 +217,7 @@ def run_worker(
             engine_name=resolved_engine,
             preset=resolved_preset,
             db_batch_size=resolved_batch,
+            limit=limit,
             extra=forwarded,
         )
         kwargs[session_arg] = db
@@ -204,6 +239,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--engine", dest="engine_name", help="Registered AI engine (e.g. spacy_ner).")
     parser.add_argument("--preset", dest="preset", help="Engine preset (e.g. gpu, cpu_local).")
     parser.add_argument("--batch", dest="db_batch_size", type=int, help="Batch size per transaction.")
+    parser.add_argument(
+        "--limit",
+        dest="limit",
+        type=int,
+        help="Cap on the units this run touches; accepted by the workers that declare 'limit'.",
+    )
     parser.add_argument(
         "--by",
         dest="requested_by",
@@ -230,6 +271,7 @@ def main(argv: list[str] | None = None) -> int:
         engine_name=args.engine_name,
         preset=args.preset,
         db_batch_size=args.db_batch_size,
+        limit=args.limit,
         extra=extra,
         ledger=WorkerRunLedger(),
         trigger=WorkerRunTrigger.CLI,

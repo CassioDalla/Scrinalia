@@ -24,6 +24,9 @@ from scrinalia.core.types import Vector
 
 from .enums import ArchiveReviewStatus
 
+# Type-checker only, and load-bearing: the ``Mapped[...]`` strings below need these names. Keeping
+# them inside the guard is what makes CodeQL's ``py/unsafe-cyclic-import`` finding a false positive
+# (dismissed); ``testing/unit/quality/test_model_import_cycles.py`` fails if the cycle becomes real.
 if TYPE_CHECKING:
     from .entity import ArchiveEntity
     from .hierarchy import ArchiveDescriptionLevel

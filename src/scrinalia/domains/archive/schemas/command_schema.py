@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from scrinalia.core.author import Author
+from scrinalia.domains.archive.schemas.entity_schema import ConflictPairKind, ConflictWinner, EntityKind
 from scrinalia.domains.archive.schemas.types import SynonymName
 
 
@@ -33,7 +34,24 @@ class MergeTagsCommand(BaseModel):
 
 
 class MergeEntityCommand(BaseModel):
-    """Command to merge entities into a canonical one, optionally renaming it."""
+    """
+    Command to merge entities into a canonical one, optionally renaming it.
+
+    ``changed_by`` and ``note`` travel with the verdict because the merge now leaves a durable
+    ledger row per absorbed entity, and a row that cannot say who merged is not an audit trail.
+    """
+
+    canonical_id: int
+    ids_to_merge: list[int]
+    new_name: str | None = None
+    changed_by: Author | None = Field(
+        default=None, description="Who merged: the account when there is one, the name alone when there is not."
+    )
+    note: str | None = Field(default=None, description="Why; kept in the merge ledger.")
+
+
+class MergeEntityPreviewCommand(BaseModel):
+    """Asks what an entity merge would change. Read-only: the plan, computed by the writer's planner."""
 
     canonical_id: int
     ids_to_merge: list[int]
@@ -48,9 +66,28 @@ class ResolveConflictCommand(BaseModel):
     row: the ledger has to say who decided and why, not only what changed.
     """
 
-    winner: Literal["TAG", "ENTITY"]
+    winner: ConflictWinner
     tag_id: int
     entity_id: int
+    decided_by: Author | None = None
+    note: str | None = None
+
+
+class ResolveConflictBatchCommand(BaseModel):
+    """
+    One verdict applied to a whole **selection** of collisions, not to a pair.
+
+    The archivist's decision is categorical — "a street is an entity" — so the unit of the request is
+    the selection and the unit of the write is still the pair: every pair gets its own ledger row and
+    its own undo. ``pair_kind`` picks the population the batch is meaningful for (the structural one,
+    where the two spellings are the same word) and ``entity_type`` narrows it to a category.
+    """
+
+    winner: ConflictWinner
+    pair_kind: ConflictPairKind = "exact_name"
+    entity_type: EntityKind | None = None
+    threshold: float = 0.85
+    limit: int = 50
     decided_by: Author | None = None
     note: str | None = None
 

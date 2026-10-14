@@ -10,9 +10,14 @@ from litestar.params import FromPath, FromQuery
 
 from scrinalia.api.dependencies import provide_current_user, provide_entity_service, provide_tag_service
 from scrinalia.api.schemas.taxonomy import (
+    ConflictBatchRequest,
+    ConflictBatchResponse,
     ConflictPreviewRequest,
     ConflictResolutionRequest,
     ConflictResolutionResponse,
+    EntityMergePreviewRequest,
+    EntityMergeRequest,
+    EntityRenameRequest,
     MacroCategoryCreateRequest,
     MacroCategoryUpdateRequest,
     MergeBatchRequest,
@@ -31,7 +36,7 @@ from scrinalia.api.schemas.taxonomy import (
     TagCurationRequest,
 )
 from scrinalia.api.security import Access, AuthenticatedUser
-from scrinalia.domains.archive.models.enums import StopwordsScope
+from scrinalia.domains.archive.models.enums import StopwordsScope, TagCatalogState
 from scrinalia.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     BatchMergeResponse,
@@ -39,19 +44,24 @@ from scrinalia.domains.archive.schemas import (
     ConflictResolutionPlan,
     CreateMacroCategoryCommand,
     CrossDomainConflictPage,
+    EntityKind,
     JudgedConflictPage,
     MergeBatchCommand,
     MergeEntityCommand,
+    MergeEntityPreviewCommand,
     MergeLogListResponse,
     MergePreviewCommand,
     MergePreviewResponse,
     MergeSuggestionRunResponse,
     MergeTagsCommand,
+    ResolveConflictBatchCommand,
     ResolveConflictCommand,
     RouteMessageCode,
     StopwordDTO,
+    StopwordPurgeLogListResponse,
     StopwordPurgePreview,
     SubjectExclusionSuggestionResponse,
+    TagCatalogResponse,
     TagCurationCommand,
     TagCurationResult,
     TagMergeDecisionCommand,
@@ -61,14 +71,22 @@ from scrinalia.domains.archive.schemas import (
 )
 from scrinalia.domains.archive.schemas.entity_schema import (
     EntityDeleteResponse,
+    EntityMergeLogListResponse,
+    EntityMergePreviewResponse,
     EntityMergeResponse,
+    EntityMergeUndoResponse,
     EntityReclassifyResponse,
     EntityRelevance,
     EntityRelevanceResponse,
+    EntityRenameResponse,
     EntitySimilarityResponse,
     NerExclusion,
     NerExclusionBanResponse,
     NerExclusionRemovalResponse,
+    NerPurgeLogListResponse,
+    NerPurgePreview,
+    NerPurgeResponse,
+    NerPurgeUndoResponse,
     OrphanEntityPurgeResponse,
 )
 from scrinalia.domains.archive.schemas.tag_schema import (
@@ -76,8 +94,10 @@ from scrinalia.domains.archive.schemas.tag_schema import (
     MergeResponse,
     StopwordBanResponse,
     StopwordPurgeResponse,
+    StopwordPurgeUndoResponse,
     StopwordRemovalResponse,
     SubjectExclusionBanResponse,
+    SubjectExclusionPlan,
     SubjectExclusionRemovalResponse,
     TagMergeProposalDecisionResponse,
     TagMergeUndoResponse,
@@ -131,6 +151,35 @@ class TaxonomyController(Controller):
         """
         return tag_service.curate_tag_macro_category(
             tag_id, TagCurationCommand(**data.model_dump(), changed_by=current_user.author)
+        )
+
+    @get("/tags/catalog", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
+    def list_tag_catalog(
+        self,
+        tag_service: NamedDependency[TagService],
+        # NOT ``state``: Litestar reserves that parameter name for the ASGI state, and a handler that
+        # uses it silently receives the request's ``State`` instead of the query value. ``scope`` was
+        # the first of these (the stopwords route renamed its key to ``axis``) and the reserved-name
+        # failure is a 500 at app construction, which is how this one was found.
+        subject_state: FromQuery[TagCatalogState] = TagCatalogState.ALL,
+        macro_category_id: FromQuery[int | None] = None,
+        term: FromQuery[str | None] = None,
+        limit: FromQuery[int] = 25,
+        offset: FromQuery[int] = 0,
+    ) -> TagCatalogResponse:
+        """
+        One page of the tag catalogue, filtered by the state of the subject decision.
+
+        The read the home screen's cards land on, and one the type-ahead cannot answer: a list of the
+        tags **nobody has decided about** is a filter over the catalogue, while the relevance lists
+        are a top-N by weight with no notion of state at all — the card promised 76 tags and the
+        screen it opened could not mark which rows they were.
+
+        ``subject_state`` and ``macro_category_id`` are different questions and the caller may ask
+        both: "decided how" and "in which drawer".
+        """
+        return tag_service.list_catalog(
+            state=subject_state, macro_category_id=macro_category_id, term=term, limit=limit, offset=offset
         )
 
     @get("/tags/relevance/{method:str}", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
@@ -362,7 +411,7 @@ class TaxonomyController(Controller):
         tag_service: NamedDependency[TagService],
         data: StopwordRemovalRequest,
     ) -> StopwordRemovalResponse:
-        """Un-bans terms — the only way back from a purge decision, since the purge has no undo."""
+        """Un-bans terms. The purge keeps a ledger, so this is no longer the only way back."""
         removed = tag_service.remove_stopwords(data.words, data.scope)
         return StopwordRemovalResponse(
             code=RouteMessageCode.TAG_STOPWORDS_REMOVED,
@@ -373,32 +422,81 @@ class TaxonomyController(Controller):
     @post("/tags/stopwords/purge/preview", opt={"access": Access.AUTHENTICATED}, status_code=200, sync_to_thread=True)
     def preview_stopword_purge(self, tag_service: NamedDependency[TagService]) -> StopwordPurgePreview:
         """
-        The dry run of the only destructive operation in the taxonomy without an undo.
+        The dry run of the purge: the tags that would die, and the ledger that can bring them back.
 
         It lists the tags the purge would delete, with how many descriptions carry each and which
-        drawer dies with it, so the screen can show the loss before it happens.
+        drawer dies with it, so the screen can show the loss before it happens. The list is the plan
+        the purge itself consumes, so the preview and the write cannot disagree.
         """
         return tag_service.preview_stopword_purge()
 
     @post("/tags/stopwords/purge", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def purge_stopwords(
-        self, tag_service: NamedDependency[TagService], data: StopwordsRequest
+        self,
+        tag_service: NamedDependency[TagService],
+        data: StopwordsRequest,
+        current_user: NamedDependency[AuthenticatedUser],
     ) -> StopwordPurgeResponse:
         """
-        Deletes every tag whose name is a banned term. **There is no undo for this one.**
+        Deletes every tag whose name is a banned term, after logging each one in the ledger.
 
         ``words`` is optional and, when sent, is registered before the purge, so a client may ban and
         purge in one call. The screen sends an **empty body**: it purges with the list it already
-        showed in the preview, so the numbers the archivist approved are the numbers that die.
+        showed in the preview, so the numbers the archivist approved are the numbers that die. The
+        response carries the ``purge_ids`` the screen needs to offer the undo — without them the
+        archivist would have to find the row in the ledger to reverse the click they just made.
         """
         if data.words:
             tag_service.save_new_stopwords(data.words)
 
-        deleted_count = tag_service.purge_stopwords()
+        result = tag_service.purge_stopwords(current_user.author)
         return StopwordPurgeResponse(
             code=RouteMessageCode.TAG_STOPWORD_PURGE_DONE,
             message="Limpeza concluída com sucesso.",
-            tags_deleted=deleted_count,
+            tags_deleted=result.tags_deleted,
+            purge_ids=result.purge_ids,
+        )
+
+    @get("/tags/stopwords/purge-log", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
+    def list_stopword_purge_log(
+        self,
+        tag_service: NamedDependency[TagService],
+        include_undone: FromQuery[bool] = True,
+        # ``q`` and not ``term``: the collection search already owns ``term`` for its own meaning,
+        # and this one is a filter *inside* a ledger. The front reads the same name it sends.
+        q: FromQuery[str | None] = None,
+        limit: FromQuery[int] = 50,
+        offset: FromQuery[int] = 0,
+    ) -> StopwordPurgeLogListResponse:
+        """
+        The audit trail of the purges: what died, by whom, and what was restored.
+
+        ``q`` matches the purged tag's name — the question that sends an archivist here is "where
+        did this spelling go?", and the answer is a row that can be put back.
+        """
+        return tag_service.list_stopword_purge_log(include_undone=include_undone, term=q, limit=limit, offset=offset)
+
+    @delete(
+        "/tags/stopwords/purge-log/{purge_id:int}", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True
+    )
+    def undo_stopword_purge(
+        self,
+        tag_service: NamedDependency[TagService],
+        purge_id: FromPath[int],
+        current_user: NamedDependency[AuthenticatedUser],
+    ) -> StopwordPurgeUndoResponse:
+        """
+        Undoes one purge from the ledger: the tag, its links and its spellings come back.
+
+        The second attempt is **409** and an unknown id is **404**; the ledger entry is never
+        deleted, so the history of "this was purged, then restored" survives. The ban stays: the
+        term is still a stopword, and the next purge lists it again.
+        """
+        entry = tag_service.undo_stopword_purge(purge_id, undone_by=current_user.author)
+        return StopwordPurgeUndoResponse(
+            code=RouteMessageCode.TAG_STOPWORD_PURGE_UNDONE,
+            message=f"Purga desfeita: a tag '{entry.purged_name}' foi restaurada.",
+            data=entry,
         )
 
     # ``AUTHENTICATED`` and not ``CURATE``: the route computes candidates and writes nothing, and
@@ -462,41 +560,95 @@ class TaxonomyController(Controller):
         The guard has always skipped these terms inside ``worker_macro_category``, and until now the
         archivist could not see a single one of them: 1.489 of the 8.155 real tags, including
         ``local não identificado`` (310 documents), 689 streets and 707 bare numbers. Each candidate
-        carries its evidence — weight, whether the PLACE facet claims it, whether the same spelling is
-        also a named entity — and the route deliberately proposes **nothing** for the semantic half
-        (``pessoas``, ``vista aérea``), where the measurement says the model answers confidently and
-        wrongly.
+        carries its evidence — weight, whether the term is a place (the entity axis owns it), whether
+        the same spelling is also a named entity, the drawer that would block it and whether its
+        spelling is already banned — and the route deliberately proposes **nothing** for the semantic
+        half (``pessoas``, ``vista aérea``), where the measurement says the model answers confidently
+        and wrongly.
         """
         return tag_service.suggest_subject_exclusions(limit=limit, offset=offset, include_excluded=include_excluded)
+
+    @post(
+        "/tags/subject-exclusions/preview", opt={"access": Access.AUTHENTICATED}, status_code=200, sync_to_thread=True
+    )
+    def preview_subject_exclusions(
+        self, tag_service: NamedDependency[TagService], data: SubjectExclusionRequest
+    ) -> SubjectExclusionPlan:
+        """
+        What confirming these terms would do, without writing anything.
+
+        ``applicable`` is what the write will record — the exclusion and the ``TAG``-scoped ban — and
+        ``blocked`` is what it refuses, each with the drawer in the way. A term whose tag already sits
+        in a subject drawer is a subject question already answered, and the write that settles a *tag*
+        is the tag catalogue's ``PATCH``; asking for the opposite here would destroy a human verdict
+        with a statement about a term.
+        """
+        return tag_service.plan_subject_exclusions(data.words)
 
     @post("/tags/subject-exclusions", opt={"access": Access.CURATE}, status_code=201, sync_to_thread=True)
     def create_subject_exclusions(
         self, tag_service: NamedDependency[TagService], data: SubjectExclusionRequest
     ) -> SubjectExclusionBanResponse:
         """
-        Records that a term is not a subject, so the classifier stops guessing at it.
+        Records that a term is not a subject and bans its spelling from becoming a tag again.
 
-        Nothing is deleted: the term stays a tag of the collection and stays reachable by
-        search. Only the subject classification is silenced, which is what turns "the model
-        answers confidently and wrongly" into "the curator decided".
+        Nothing is deleted: the term stays a tag of the collection and stays reachable by search until
+        the archivist purges it, which is a separate act behind its own preview and ledger. The ban
+        only stops the next ingestion from recreating the term — and it is written at ``TAG`` scope,
+        so the NER keeps extracting the name as an entity. A term whose tag sits in a drawer is
+        refused and reported in ``blocked`` instead of silently un-filing it.
         """
-        created = tag_service.exclude_terms_from_subjects(data.words, reason=data.reason, source=data.source)
+        result = tag_service.exclude_terms_from_subjects(data.words, reason=data.reason, source=data.source)
+        if result.blocked and result.created == 0:
+            return SubjectExclusionBanResponse(
+                code=RouteMessageCode.SUBJECT_EXCLUSIONS_BLOCKED,
+                message=(
+                    "Nenhum termo foi marcado: as tags abaixo já estão numa categoria de assunto. "
+                    "Tire-as da categoria no catálogo de tags antes de declará-las não-assunto."
+                ),
+                created=result.created,
+                banned=result.banned,
+                blocked=result.blocked,
+            )
+        if result.blocked:
+            return SubjectExclusionBanResponse(
+                code=RouteMessageCode.SUBJECT_EXCLUSIONS_PARTIAL,
+                message=(
+                    f"{result.created} termo(s) marcados como não-assunto e banidos de voltar; "
+                    f"{len(result.blocked)} recusado(s) por já estarem numa categoria de assunto."
+                ),
+                created=result.created,
+                banned=result.banned,
+                blocked=result.blocked,
+            )
         return SubjectExclusionBanResponse(
             code=RouteMessageCode.SUBJECT_EXCLUSIONS_ADDED,
-            message="Termos marcados como não-assunto: o classificador de assuntos vai ignorá-los.",
-            created=created,
+            message=(
+                "Termos marcados como não-assunto: o classificador de assuntos vai ignorá-los e as "
+                "grafias não voltam a virar tag."
+            ),
+            created=result.created,
+            banned=result.banned,
+            blocked=result.blocked,
         )
 
     @delete("/tags/subject-exclusions", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def remove_subject_exclusions(
         self, tag_service: NamedDependency[TagService], data: SubjectExclusionRemovalRequest
     ) -> SubjectExclusionRemovalResponse:
-        """Undoes the decision and puts the terms back in the classification queue."""
-        removed = tag_service.remove_subject_exclusions(data.words)
+        """
+        Undoes the decision: the terms return to the classification queue and the ban this write
+        planted leaves with them.
+
+        The lift is exact — only a ban the exclusion itself created — so a spelling a person banned
+        on the Stopwords screen, or one a conflict resolution planted first, survives.
+        """
+        result = tag_service.remove_subject_exclusions(data.words)
         return SubjectExclusionRemovalResponse(
             code=RouteMessageCode.SUBJECT_EXCLUSIONS_REMOVED,
             message="Exclusões removidas: o classificador voltará a considerar esses termos.",
-            removed=removed,
+            removed=result.removed,
+            unbanned=result.unbanned,
         )
 
     @get("/macro-categories", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
@@ -575,12 +727,94 @@ class TaxonomyController(Controller):
         return EntitySimilarityResponse.from_payload(list(results))
 
     @post("/entities/merge", opt={"access": Access.CURATE}, sync_to_thread=True)
-    def merge_entities(self, entity_service: NamedDependency[EntityService], data: MergeRequest) -> EntityMergeResponse:
-        """Merges entities into the canonical one, answering with the same shape the tag merge uses."""
-        res = entity_service.merge(
-            MergeEntityCommand(canonical_id=data.canonical_id, ids_to_merge=data.ids_to_merge, new_name=data.new_name)
+    def merge_entities(
+        self,
+        entity_service: NamedDependency[EntityService],
+        data: EntityMergeRequest,
+        current_user: NamedDependency[AuthenticatedUser],
+    ) -> EntityMergeResponse:
+        """
+        Unifies entities into the canonical one, optionally renaming it.
+
+        The write is logged per absorbed entity in the ledger before anything changes, so the
+        response carries the ``merge_ids`` the screen needs to offer the undo — without them the
+        archivist would have to go find the row in the ledger to reverse the click they just made.
+        """
+        return entity_service.merge(
+            MergeEntityCommand(
+                canonical_id=data.canonical_id,
+                ids_to_merge=data.ids_to_merge,
+                new_name=data.new_name,
+                changed_by=current_user.author,
+                note=data.note,
+            )
         )
-        return EntityMergeResponse(documents_updated=res.documents_updated, entities_deleted=res.entities_deleted)
+
+    @post("/entities/merge/preview", opt={"access": Access.AUTHENTICATED}, status_code=200, sync_to_thread=True)
+    def preview_entity_merge(
+        self,
+        entity_service: NamedDependency[EntityService],
+        data: EntityMergePreviewRequest,
+    ) -> EntityMergePreviewResponse:
+        """
+        Dry-run of an entity merge: how many links move, what is absorbed and what to review.
+
+        Read-only, computed by the same planner the merge executes, so the preview cannot promise
+        a different number from the write.
+        """
+        return entity_service.preview_merge(
+            MergeEntityPreviewCommand(
+                canonical_id=data.canonical_id, ids_to_merge=data.ids_to_merge, new_name=data.new_name
+            )
+        )
+
+    @get("/entities/merge-log", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
+    def list_entity_merge_log(
+        self,
+        entity_service: NamedDependency[EntityService],
+        canonical_id: FromQuery[int | None] = None,
+        changed_by: FromQuery[str | None] = None,
+        include_undone: FromQuery[bool] = True,
+        # ``q`` and not ``term``: the collection search already owns ``term`` for its own meaning,
+        # and this one is a filter *inside* a ledger. The front reads the same name it sends.
+        q: FromQuery[str | None] = None,
+        limit: FromQuery[int] = 50,
+        offset: FromQuery[int] = 0,
+    ) -> EntityMergeLogListResponse:
+        """
+        The audit trail of the entity merges: what was merged, by whom, and what was undone.
+
+        ``q`` matches both sides of the entry — the absorbed and the canonical name — because the
+        archivist asking "where did this spelling go?" does not know which side it was on.
+        """
+        return entity_service.list_merge_log(
+            canonical_id=canonical_id,
+            changed_by_name=changed_by,
+            include_undone=include_undone,
+            term=q,
+            limit=limit,
+            offset=offset,
+        )
+
+    @delete("/entities/merge-log/{merge_id:int}", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
+    def undo_entity_merge(
+        self,
+        entity_service: NamedDependency[EntityService],
+        merge_id: FromPath[int],
+        current_user: NamedDependency[AuthenticatedUser],
+    ) -> EntityMergeUndoResponse:
+        """
+        Undoes one merge from the ledger: the entity, its links and the canonical name come back.
+
+        The second attempt is **409** and an unknown id is **404**; the ledger entry is never
+        deleted, so the history of "this was merged, then undone" survives.
+        """
+        entry = entity_service.undo_merge(merge_id, undone_by=current_user.author)
+        return EntityMergeUndoResponse(
+            code=RouteMessageCode.ENTITY_MERGE_UNDONE,
+            message=f"Mesclagem desfeita: a entidade '{entry.absorbed_name}' foi restaurada.",
+            data=entry,
+        )
 
     @post("/entities/orphans/purge", opt={"access": Access.CURATE}, sync_to_thread=True)
     def purge_orphan_entities(self, entity_service: NamedDependency[EntityService]) -> OrphanEntityPurgeResponse:
@@ -603,6 +837,40 @@ class TaxonomyController(Controller):
             code=RouteMessageCode.ENTITY_RECLASSIFIED,
             message="Entidade reclassificada com sucesso e sinônimo de ancoragem gerado.",
             new_type=data.new_type,
+        )
+
+    @patch("/entities/{entity_id:int}", opt={"access": Access.CURATE}, sync_to_thread=True)
+    def rename_entity(
+        self,
+        entity_service: NamedDependency[EntityService],
+        entity_id: FromPath[int],
+        data: EntityRenameRequest,
+        current_user: NamedDependency[AuthenticatedUser],
+    ) -> EntityRenameResponse:
+        """
+        Renames one name, with an undo of its own.
+
+        Not a side effect of absorbing a twin — that is the merge — and not a label change either: the
+        previous spelling stays anchored as a synonym unless the archivist said the edit was a typo,
+        which is what ``keep_old_synonym`` decides. The ledger row is the undo the screen offers, the
+        same one the merge writes; a name another entity already carries is a **409** that names the
+        twin, because that twin is the merge case and not a collision to invent.
+        """
+        renamed, merge_id = entity_service.rename_entity(
+            entity_id,
+            data.new_name,
+            keep_old_synonym=data.keep_old_synonym,
+            changed_by=current_user.author,
+            note=data.note,
+        )
+        return EntityRenameResponse(
+            code=RouteMessageCode.ENTITY_RENAMED,
+            message="Entidade renomeada com sucesso.",
+            entity_id=renamed.entity_id,
+            name=renamed.name,
+            entity_type=renamed.entity_type,
+            merge_id=merge_id,
+            kept_old_spelling=data.keep_old_synonym,
         )
 
     @delete("/entities/{entity_id:int}", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
@@ -630,26 +898,113 @@ class TaxonomyController(Controller):
     def create_ner_exclusions(
         self, entity_service: NamedDependency[EntityService], data: NerExclusionRequest
     ) -> NerExclusionBanResponse:
-        """Bans terms from NER and purges the entities already extracted from them."""
-        entities_deleted = entity_service.exclude_terms_from_ner(data.words, reason=data.reason)
+        """
+        Bans terms from NER. **Nothing is deleted**: the entities already extracted from a banned
+        spelling are removed by the purge below, a separate act with its own preview and ledger
+        (#94). The ban is reversible through the ``DELETE`` on this same path.
+        """
+        created = entity_service.exclude_terms_from_ner(data.words, reason=data.reason)
 
         return NerExclusionBanResponse(
             code=RouteMessageCode.NER_EXCLUSIONS_ADDED,
             message="Termos marcados como assunto: o extrator não os tratará mais como entidade.",
-            entities_deleted=entities_deleted,
+            created=created,
         )
 
     @delete("/entities/ner-exclusions", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def remove_ner_exclusions(
         self, entity_service: NamedDependency[EntityService], data: NerExclusionRequest
     ) -> NerExclusionRemovalResponse:
-        """Undoes the ban and re-opens the terms for the NER engine."""
+        """
+        Undoes the ban and re-opens the terms for the NER engine.
+
+        It does not bring back what a purge deleted: that is the purge ledger's undo, which is where
+        the entities and their links were recorded.
+        """
         removed = entity_service.remove_ner_exclusions(data.words)
 
         return NerExclusionRemovalResponse(
             code=RouteMessageCode.NER_EXCLUSIONS_REMOVED,
-            message="Exclusões removidas: o extrator voltará a considerar esses termos.",
+            message=(
+                "Exclusões removidas: o extrator voltará a considerar esses termos. "
+                "As entidades já expurgadas voltam pelo desfazer da purga, não por aqui."
+            ),
             removed=removed,
+        )
+
+    @post(
+        "/entities/ner-exclusions/purge/preview",
+        opt={"access": Access.AUTHENTICATED},
+        status_code=200,
+        sync_to_thread=True,
+    )
+    def preview_ner_purge(self, entity_service: NamedDependency[EntityService]) -> NerPurgePreview:
+        """
+        The dry run of the purge: the entities that would die, and the ledger that can bring them back.
+
+        Every entity extracted from a banned spelling, with how many descriptions carry it, so the
+        screen can show the loss before it happens. The list is the plan the purge itself consumes,
+        so the preview and the write cannot disagree.
+        """
+        return entity_service.preview_ner_purge()
+
+    @post("/entities/ner-exclusions/purge", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
+    def purge_ner_entities(
+        self, entity_service: NamedDependency[EntityService], current_user: NamedDependency[AuthenticatedUser]
+    ) -> NerPurgeResponse:
+        """
+        Deletes every entity whose spelling is a banned term, after logging each one in the ledger.
+
+        The write consumes the same plan the preview showed — no body, because the screen applies
+        the list it approved. The response carries the ``purge_ids`` the screen needs to offer the
+        undo; the veto itself stays in place.
+        """
+        result = entity_service.purge_ner_terms(current_user.author)
+        return NerPurgeResponse(
+            code=RouteMessageCode.NER_PURGE_DONE,
+            message="Expurgo concluído: as entidades já extraídas foram removidas e podem ser restauradas.",
+            entities_deleted=result.entities_deleted,
+            purge_ids=result.purge_ids,
+        )
+
+    @get("/entities/ner-exclusions/purge-log", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
+    def list_ner_purge_log(
+        self,
+        entity_service: NamedDependency[EntityService],
+        include_undone: FromQuery[bool] = True,
+        # ``q`` and not ``term``: the taxonomy search already owns ``term`` for its own meaning, and
+        # this one is a filter *inside* a ledger. The front reads the same name it sends.
+        q: FromQuery[str | None] = None,
+        limit: FromQuery[int] = 50,
+        offset: FromQuery[int] = 0,
+    ) -> NerPurgeLogListResponse:
+        """The audit trail of the NER purges: what died, by whom, and what was restored."""
+        return entity_service.list_ner_purge_log(include_undone=include_undone, term=q, limit=limit, offset=offset)
+
+    @delete(
+        "/entities/ner-exclusions/purge-log/{purge_id:int}",
+        opt={"access": Access.CURATE},
+        status_code=200,
+        sync_to_thread=True,
+    )
+    def undo_ner_purge(
+        self,
+        entity_service: NamedDependency[EntityService],
+        purge_id: FromPath[int],
+        current_user: NamedDependency[AuthenticatedUser],
+    ) -> NerPurgeUndoResponse:
+        """
+        Undoes one purge from the ledger: the entity, its links and its spellings come back.
+
+        The second attempt is **409** and an unknown id is **404**; the ledger entry is never
+        deleted, so the history of "this was purged, then restored" survives. The veto stays: the
+        term is still excluded, and the next purge lists the restored entity again.
+        """
+        entry = entity_service.undo_ner_purge(purge_id, undone_by=current_user.author)
+        return NerPurgeUndoResponse(
+            code=RouteMessageCode.NER_PURGE_UNDONE,
+            message=f"Expurgo desfeito: a entidade '{entry.purged_name}' foi restaurada.",
+            data=entry,
         )
 
     # ==========================================
@@ -662,20 +1017,23 @@ class TaxonomyController(Controller):
         entity_service: NamedDependency[EntityService],
         threshold: FromQuery[float] = 0.85,
         pair_kind: FromQuery[Literal["all", "exact_name", "near_duplicate"]] = "all",
+        entity_type: FromQuery[EntityKind | None] = None,
         limit: FromQuery[int] = 50,
         offset: FromQuery[int] = 0,
     ) -> CrossDomainConflictPage:
         """
         The collisions that exist **today**, annotated with what has already been decided.
 
-        ``scope`` is what makes the list usable rather than overwhelming: the trigram join returns
-        5 408 pairs on the real collection, of which 5 050 are the same spelling on both axes (a
-        structural question) and 122 are the same word written differently (a spelling question).
+        ``pair_kind`` is what makes the list usable rather than overwhelming: the trigram join returns
+        thousands of pairs, most of them the same spelling on both axes (a structural question) and a
+        minority the same word written differently (a spelling question). ``entity_type`` narrows the
+        structural population to a category — the same selection the batch writes.
+
         Each pair carries the judge's verdict when there is one, so a pair the judge already doubted
         is not put in front of the archivist as if it were new.
         """
         return entity_service.page_cross_domain_conflicts(
-            threshold=threshold, pair_kind=pair_kind, limit=limit, offset=offset
+            threshold=threshold, pair_kind=pair_kind, entity_type=entity_type, limit=limit, offset=offset
         )
 
     @get("/conflicts/judged", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
@@ -737,6 +1095,45 @@ class TaxonomyController(Controller):
             ),
             data=result,
         )
+
+    @post("/conflicts/resolve/batch", opt={"access": Access.CURATE}, sync_to_thread=True)
+    def resolve_cross_domain_conflict_batch(
+        self,
+        entity_service: NamedDependency[EntityService],
+        data: ConflictBatchRequest,
+        current_user: NamedDependency[AuthenticatedUser],
+    ) -> ConflictBatchResponse:
+        """
+        Forces one verdict over a whole **selection**, one ledger row — and one undo — per pair.
+
+        ``pair_kind`` picks the structural population the batch is meaningful for and ``entity_type``
+        narrows it to a category: "a street is an entity" is a decision about a set, and a screen that
+        asks one pair at a time cannot express it. The report keeps ``skipped`` apart from ``failed``
+        — a pair an earlier one of the same batch already finished is not an error — and the
+        remaining count is the read the screen already uses, taken again.
+        """
+        result = entity_service.resolve_conflict_batch(
+            ResolveConflictBatchCommand(
+                winner=data.winner,
+                pair_kind=data.pair_kind,
+                entity_type=data.entity_type,
+                threshold=data.threshold,
+                limit=data.limit,
+                decided_by=current_user.author,
+                note=data.note,
+            )
+        )
+
+        message = (
+            f"{len(result.applied)} colisão(ões) resolvida(s) a favor de {data.winner} em lote; "
+            f"{result.remaining.total} continua(m) na seleção."
+        )
+        if result.skipped:
+            message += f" {len(result.skipped)} já não tinha(m) o que resolver."
+        if result.failed:
+            message += f" {len(result.failed)} falhou(aram)."
+
+        return ConflictBatchResponse(code=RouteMessageCode.CONFLICT_BATCH_RESOLVED, message=message, data=result)
 
     @get("/conflicts/resolutions", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_conflict_resolutions(

@@ -71,7 +71,7 @@ export function SystemRunsRoute() {
   });
 
   const patch = (changes: Partial<SystemRunsSearch>) =>
-    navigate({ to: "/sistema/execucoes", search: { ...search, ...changes, offset: 0 } });
+    navigate({ to: "/sistema/execucoes", search: { ...search, ...changes, offset: changes.offset } });
 
   const labelOf = (name: string) => (catalogue.data?.workers ?? []).find((worker) => worker.name === name)?.label ?? name;
   const total = page.data?.total ?? 0;

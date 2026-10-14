@@ -24,8 +24,15 @@ from .enums import AnomalyType, ArchiveReviewStatus, StopwordsScope
 
 
 class DomainStopwords(Base):
-    """List of stopwords specific to the archival
-    domain for NLP cleaning."""
+    """
+    A spelling banned from one axis, with the origin of the ban.
+
+    ``word_scope`` says *what* the ban protects (the subject axis, the extraction axis, or both) and
+    is the only thing the readers obey. ``source`` says *who planted it*, which is what the purge
+    preview needs to tell a term banned with the archive in mind from one typed by hand — the same
+    question the conflict ledger answers with its own ``ban_created`` (ADR 0013). It is preserved on
+    conflict: a later write that widens the scope does not rewrite the origin of the ban.
+    """
 
     __tablename__ = "domain_stopwords"
 
@@ -37,6 +44,13 @@ class DomainStopwords(Base):
         nullable=False,
         index=True,
     )
+    #: ``HUMAN`` (typed on the Stopwords tab), ``CONFLICT`` (the winning entity of a tag x entity
+    #: collision) or ``EXCLUSION`` (confirmed on the "not a subject" screen). Migration ``3f9c1a7be204``
+    #: backfilled the existing rows by evidence: a term the conflict ledger recorded planting is
+    #: ``CONFLICT``, and everything else predates the column and came from a person.
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="HUMAN", server_default="HUMAN")
+
+    __table_args__ = (CheckConstraint("source IN ('HUMAN', 'CONFLICT', 'EXCLUSION')", name="chk_stopword_source"),)
 
 
 class DomainSynonyms(Base):
@@ -140,6 +154,13 @@ class DomainSubjectExclusion(Base):
     Unlike ``DomainNerExclusion`` the verdict is not merely "do not extract": an excluded term
     must also never be **classified**, and it stays a tag of the collection, reachable by
     search. The exclusion silences the subject classifier, not the term.
+
+    Since ADR 0013 confirming the term also **bans the spelling** at ``TAG`` scope, so the next
+    ingestion does not recreate what was just decided — the ban never deletes, and the purge remains
+    the deliberate act behind its preview and its ledger. ``ban_created`` is the exactness that makes
+    the two writers of one ban distinguishable: this row records whether *this* decision planted it,
+    and the undo lifts only what it planted, the same rule
+    :class:`ArchiveConflictResolutionLog` already carries.
     """
 
     __tablename__ = "domain_subject_exclusions"
@@ -153,6 +174,10 @@ class DomainSubjectExclusion(Base):
 
     # Who decided: a human curator, or the deterministic guard recorded for auditability.
     source: Mapped[str] = mapped_column(String(20), nullable=False, default="HUMAN", server_default="HUMAN")
+
+    #: Whether writing this exclusion inserted the ``TAG``-scoped ban (and not merely found one an
+    #: earlier decision had planted). The undo reads it to lift exactly what this row created.
+    ban_created: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -238,6 +263,12 @@ class ArchiveConflictResolutionLog(Base):
 
     #: The subset this resolution newly linked. The undo removes exactly these.
     created_link_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+
+    #: The spellings that pointed *at* the losing row. ``domain_synonyms`` cascades on the entity
+    #: and on the tag, so the delete took them with the row; the undo has to put them back or the
+    #: next ingestion recreates the absorbed spelling as a brand-new row. Shared with
+    #: :class:`ArchiveNerPurgeLog`, because the same operation has to restore the same things.
+    synonym_names: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
 
     #: The governance write in the winning axis: ``NER_EXCLUSION`` (tag won) or ``STOPWORD``
     #: (entity won), the spelling it names, and whether this resolution is what created it.

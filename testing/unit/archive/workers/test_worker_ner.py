@@ -30,6 +30,20 @@ def test_clean_raw_text_removes_urls_and_emails():
     assert result == "Visite  ou  e mande email para  Texto limpo."
 
 
+def test_clean_raw_text_reads_the_whole_url_and_nothing_else():
+    """
+    The URL alphabet is RFC 3986's, not the accidental range ``$`` to ``_``.
+
+    Read as a range, that class swallowed ``[ \\ ] ^`` with the URL and stopped the match at ``#``
+    and ``~``, which a URL really carries. Measured on these four inputs, the previous pattern left
+    ``#frag~x`` behind and took the ``>`` that closes a bracketed URL with it.
+    """
+    assert worker_ner._clean_raw_text("http://site.com:8080/a/b?q=1&r=2#frag~x") == ""
+    assert worker_ner._clean_raw_text("Veja <http://site.com/x> agora") == "Veja <> agora"
+    assert worker_ner._clean_raw_text(r"http://site.com\^x y") == r"\^x y"
+    assert worker_ner._clean_raw_text("http://site.com/100%25 done") == "done"
+
+
 def test_clean_raw_text_empty():
     assert worker_ner._clean_raw_text(None) == ""  # type: ignore
     assert worker_ner._clean_raw_text("   ") == ""

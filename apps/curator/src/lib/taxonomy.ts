@@ -79,7 +79,53 @@ export const STOPWORD_SCOPE_LABEL: Record<string, string> = {
 };
 
 export const STOPWORD_SCOPE_HINT: Record<string, string> = {
-  TAG: "O termo sai do eixo de assunto. A purga exclui as tags com esse nome — e a purga não tem desfazer.",
+  TAG: "O termo sai do eixo de assunto. A purga exclui as tags com esse nome e guarda cada uma no ledger, com desfazer.",
   ENTITY: "O termo sai da extração de nomes próprios. Não afeta tag nenhuma.",
   ALL: "O termo sai dos dois eixos, e a purga o alcança.",
+};
+
+/**
+ * Who planted a ban.
+ *
+ * The column exists because the purge preview has to tell a term banned **with the archive in mind**
+ * from one typed by hand: ``CONFLICT`` came from settling a tag × entity collision and ``EXCLUSION``
+ * from declaring the term not-a-subject — both are consequences of another decision — while
+ * ``HUMAN`` is an act taken on the Stopwords screen.
+ */
+export const STOPWORD_SOURCE_LABEL: Record<string, string> = {
+  HUMAN: "digitado aqui",
+  CONFLICT: "veio de um conflito tag × entidade",
+  EXCLUSION: "veio de “não é assunto”",
+};
+
+export const STOPWORD_SOURCE_HINT: Record<string, string> = {
+  HUMAN: "Alguém digitou este termo na aba Stopwords: é um ato deliberado.",
+  CONFLICT: "O termo foi banido ao resolver um conflito entre a tag e a entidade de mesma grafia.",
+  EXCLUSION:
+    "O termo foi banido junto com a decisão “não é assunto”. O desfazer daquela decisão levanta este ban.",
+};
+
+/**
+ * The state of a tag's subject decision, as the archivist reads it.
+ *
+ * The three states are a partition of the tags with no category (see
+ * ``repository/subject_queue.py``), and the labels say which question each one answers. ``ALL`` is
+ * not a state: it is the absence of a filter. A producer, a place or a person is **not** a fourth
+ * state: the entity axis carries what it is, and the tag × entity conflict screen settles a spelling
+ * that is both (ADR 0013).
+ */
+export const CATALOG_STATE_LABEL: Record<string, string> = {
+  ALL: "Todas",
+  PENDING: "Sem decisão",
+  NOT_SUBJECT: "Não é assunto",
+  LOW_CONFIDENCE: "Confiança baixa",
+};
+
+export const CATALOG_STATE_HINT: Record<string, string> = {
+  ALL: "O catálogo inteiro, mais pesado primeiro.",
+  PENDING: "Nenhuma pessoa decidiu ainda, e o classificador também não: é a fila que o Início conta.",
+  NOT_SUBJECT:
+    "Uma pessoa declarou que a tag não é assunto: o classificador para de adivinhar e a grafia não volta a virar tag. A tag atual fica no acervo, alcançável pela busca.",
+  LOW_CONFIDENCE:
+    "O classificador rodou e não teve confiança para arquivar a tag; ela continua sem decisão. A nota dele aparece na linha.",
 };

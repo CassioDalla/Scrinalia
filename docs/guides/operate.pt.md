@@ -22,7 +22,7 @@ Nove workers, na ordem do pipeline:
 | # | Nome | Módulo | Unidade | Governança | Engine efetiva vem de |
 | --- | --- | --- | --- | --- | --- |
 | 1 | `transfer` | `worker_archive_transfer` | registro de staging | não | — |
-| 2 | `cleaning` | `worker_cleaning_regex` | documento × regra `REWRITE` ativa | sim | — |
+| 2 | `cleaning` | `worker_cleaning_regex` | documento | sim | — |
 | 3 | `ner` | `worker_ner` | documento | sim | assinatura |
 | 4 | `typology` | `worker_typology` | documento | sim | assinatura |
 | 5 | `thumbnail` | `worker_thumbnail` | documento | sim | — |
@@ -38,6 +38,11 @@ painel mostra:
 transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-category -> quality-validator -> embedding
 ```
 
+As duas etapas **à frente** dessa tabela — ler a origem para o `raw_data` e estruturá-lo em
+`staging_documents` — não são workers deste catálogo, porque não carregam engine nem gravam carimbo
+de IA. São comandos de linha de comando próprios, descritos em
+[a leitura da origem e o transform](#a-leitura-da-origem-e-o-transform).
+
 - **`transfer`** copia o registro estruturado do staging para a descrição do Acervo, tendo como
   chave o hash do registro interpretado (`staging_content_hash`). É a única etapa que reescreve
   conteúdo: quando o hash muda, o `execution_log` gravado é zerado e os enriquecimentos de IA
@@ -48,7 +53,11 @@ transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-
   qualidade.
 - **`ner`** extrai nomes próprios, lugares e instituições do texto composto da descrição.
 - **`typology`** classifica cada descrição contra o catálogo de tipologias ativas por zero-shot.
-- **`thumbnail`** baixa a imagem original e guarda uma miniatura no storage de objetos.
+- **`thumbnail`** baixa a imagem original e guarda uma miniatura no storage de objetos. Ele confirma
+  que o bucket existe antes do primeiro documento — criando-o só quando
+  `S3_AUTO_CREATE_BUCKET=true` — então um bucket ausente derruba a execução uma vez, com uma frase,
+  em vez de carimbar a fila inteira com o `AccessDenied` enganoso do endpoint. O `--limit N` limita
+  os documentos de uma execução, que é o que torna barato um teste local.
 - **`conflict-judge`** compara o vocabulário de tags com o de entidades e consulta o LLM local para
   decidir se o termo ambíguo é assunto ou nome próprio. Todo veredicto, automático ou enviado a uma
   pessoa, deixa uma linha em `archive_ai_review_queue`.
@@ -98,7 +107,7 @@ repositório:
 
 ```bash
 uv run python -m scrinalia.domains.archive.workers.runner <name> \
-    [--engine X --preset Y --batch N --option key=value --by "quem"]
+    [--engine X --preset Y --batch N --limit N --option key=value --by "quem"]
 ```
 
 Por exemplo:
@@ -111,9 +120,9 @@ uv run python -m scrinalia.domains.archive.workers.runner typology \
 # Força o embedding de toda descrição, ignorando o hash do texto.
 uv run python -m scrinalia.domains.archive.workers.runner embedding --option force=true
 
-# Aponta o juiz de conflito para outro host Ollama só nesta execução.
-uv run python -m scrinalia.domains.archive.workers.runner conflict-judge \
-    --option host=http://ollama.interno:11434 --by "ana"
+# Sobrescreve o device da engine só nesta execução; o worker repassa a opção para a engine.
+uv run python -m scrinalia.domains.archive.workers.runner ner \
+    --engine spacy_ner --option device=cpu --by "ana"
 ```
 
 | Flag | Significado |
@@ -121,7 +130,8 @@ uv run python -m scrinalia.domains.archive.workers.runner conflict-judge \
 | `<name>` | um dos nove nomes acima; qualquer outro valor é recusado com a lista de opções |
 | `--engine X` | uma engine registrada do eixo do worker, por exemplo `spacy_ner`, `deberta_typology`, `ollama_judge` |
 | `--preset Y` | um preset desse eixo, por exemplo `gpu`, `lemmatizer`, `cpu_local`, `gpu_cloud`, `granite_local`, `multilingual_minilm` |
-| `--batch N` | tamanho do lote por transação, repassado aos workers que declaram `db_batch_size` |
+| `--batch N` | tamanho do lote por transação, repassado aos workers que declaram `db_batch_size`; um worker sem isso registra no log que o valor foi ignorado |
+| `--limit N` | teto de unidades desta execução, para os workers que declaram `limit` (hoje o `thumbnail`); recusado nos demais, porque um teto que não faz nada em silêncio é pior do que nenhum teto |
 | `--option key=value` | parâmetro extra, repetível; `key` sem `=` é recusado |
 | `--by "quem"` | texto livre com quem está executando; a CLI roda no host e não tem sessão, então isso continua sendo um nome sem conta por trás |
 
@@ -129,7 +139,9 @@ O `--option` converte exatamente dois valores: `true` e `false` viram booleanos.
 continua string, então uma opção que espera número ou lista não é configurável pela linha de comando.
 A flag é validada contra a assinatura do `execute` do worker: uma opção que o worker não declara é
 recusada, a menos que o worker termine em `**engine_kwargs`, que é a forma documentada de
-sobrescrever `device`, `host` e parâmetros parecidos da engine em uma execução.
+sobrescrever `device`, `host` e parâmetros parecidos da engine em uma execução. O `conflict-judge`
+não declara `**engine_kwargs`, então o host dele não é um `--option`: ele vem da configuração
+`OLLAMA_HOST_URL` (ou do default local).
 
 Duas coisas são sempre recusadas:
 
@@ -156,6 +168,51 @@ Uma execução direta é ferramenta de depuração, não o caminho de operação
 overrides persistidos, a trava de concorrência e a conversão de `--option`, e usa o `engine_name` e
 o `preset` que o bloco `__main__` do módulo fixa (para `ner`, `db_batch_size=100` e, no resto, os
 padrões da assinatura). Nada aparece no histórico de execuções, então nada avisa que ela aconteceu.
+
+### A leitura da origem e o transform
+
+As duas etapas à frente do Acervo não estão no runner nem no painel, e os comandos delas são o
+caminho de operação dessas camadas, não um atalho de depuração:
+
+```bash
+# Lista os identificadores da origem na fila, percorrendo no máximo dez páginas.
+uv run python -m scrinalia.domains.ingestion.worker discover --pages 10
+
+# Lê a página de detalhe de no máximo cem dos identificadores que a fila guarda.
+uv run python -m scrinalia.domains.ingestion.worker scrape --limit 100
+
+# As duas fases num processo, que é o que um agendador rodaria.
+uv run python -m scrinalia.domains.ingestion.worker run --pages 10 --limit 100
+
+# Estrutura no máximo cem registros brutos no staging.
+uv run python -m scrinalia.domains.staging.worker --limit 100
+```
+
+Os dois aceitam `--origin` para nomear a origem daquela execução; sem ele, o código é o que
+`ACERVO_SOURCE` nomeia, e continua não havendo padrão. O `scrape` também aceita `--audit-ttl-days N`
+para reler as descrições concluídas há mais de N dias, `--force-retry-fatal` para incluir as linhas
+marcadas como `FATAL_ERROR`, `--ignore-sliding-window` para descartar as janelas de descoberta e de
+TTL, e `--max-retries`, `--discovery-window-days` e `--scraped-ttl-days` para sobrepor a política
+daquela execução.
+
+**Uma execução limitada retoma sozinha.** A fila é ordenada por `last_scraped_at`, com as nunca
+tentadas na frente, e todo desfecho — concluída, falha transitória, falha fatal — carimba esse
+campo, então o lote que acabou de rodar vai para trás dos que ainda não rodaram. O transform tem
+como chave o hash do payload bruto, então o que uma execução estruturou deixa de estar pendente.
+`--limit 100` sobre uma fila de milhares pega os próximos cem na execução seguinte, e os dois
+comandos registram no log quanto ainda falta quando terminam. A única exceção é uma leitura cuja
+gravação sofre rollback: a linha mantém seu lugar e ocupa uma vaga em toda execução até que a
+gravação dê certo.
+
+`--force` reinterpreta todos os registros brutos, que é o que uma correção de parser exige, e
+também ignora a comparação de hash da qual o transform avança, então uma execução forçada e
+limitada não retoma sozinha. É para isso que existe `--after <description_id>`: a execução registra
+no log o id em que a janela terminou e o comando para continuar dali. Não use `--after` sem
+`--force`: sob a comparação de hash, pular à frente pularia registros pendentes em vez de registros
+já estruturados.
+
+Nenhum dos dois comandos escreve em `archive_worker_runs` — o ledger é do runner — e nenhum dos
+dois aparece no painel de sistema, o que é uma mudança à parte.
 
 ## Configuração: o que uma execução realmente usa
 
@@ -254,7 +311,8 @@ sempre.
 ou `RUNNING`. É ele, e não um lock de processo, a trava de concorrência: no máximo uma execução por
 worker em andamento, entre processos e através de um reload. Um segundo envio vira um
 `IntegrityError` que a API transforma em `409` com uma frase ("Já existe uma execução em andamento
-para o worker '…'"), e que a CLI expõe do mesmo jeito.
+para o worker '…'"). A CLI chega ao mesmo erro, mas não tem tratamento para ele, então termina com o
+traceback em vez da frase.
 
 O executor do painel roda **um worker por vez** (`WORKER_RUNTIME_MAX_WORKERS`, padrão 1) porque os
 workers são limitados por CPU — dois modelos torch na mesma CPU se atrasam sem produzir mais. Ele
@@ -432,7 +490,7 @@ A recuperação de senha é guiada pelo administrador, e qual porta se aplica é
 # Quais contas existem e qual está ativa. O endereço é o que os comandos abaixo recebem.
 uv run python -m scrinalia.domains.identity.cli list
 
-# Uma senha explícita. A conta fica marcada como temporária e a troca no primeiro acesso.
+# Uma senha explícita. Ela é gravada como veio; a conta não é obrigada a trocá-la no primeiro acesso.
 uv run python -m scrinalia.domains.identity.cli reset-password --email pessoa@instituicao.org --password 'a nova senha'
 
 # Sem --password, ele gera uma, imprime uma vez e marca a conta como temporária.

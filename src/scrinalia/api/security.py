@@ -36,6 +36,7 @@ from scrinalia.core.author import Author
 from scrinalia.core.config import get_settings
 from scrinalia.core.database import get_db
 from scrinalia.core.logger import logger
+from scrinalia.domains.archive.schemas.responses import RouteMessageCode
 from scrinalia.domains.identity.domain.permissions import Permission, Role, has_permission
 from scrinalia.domains.identity.repository.session_repo import SessionRepository
 from scrinalia.domains.identity.repository.user_repo import UserRepository
@@ -45,6 +46,17 @@ from scrinalia.domains.identity.services.auth_service import AuthService
 #: partition test, so "what does this route require?" has exactly one answer per operation.
 ACCESS_OPT_KEY = "access"
 
+#: The route ``opt`` key that marks the operations the **forced password change** still reaches.
+#:
+#: ``must_change_password`` is enforced here, in the guard, and not only on the screen: the flag
+#: exists so that the temporary password the CLI printed (or an administrator typed) stops being a
+#: credential, and a control that lives in one consumer is not a control — a script or a second
+#: surface would keep the account's whole role. Every operation of ``/api/v1`` is refused while the
+#: flag is set, except the three a forced screen cannot work without: reading its own session,
+#: ending it, and replacing the password. The exemption is declared on the route and pinned by
+#: ``testing/unit/api/test_route_access.py``, so the next route lands inside the rule.
+PASSWORD_CHANGE_EXEMPT_OPT_KEY = "password_change_exempt"
+
 #: The only prefix the guard touches. ``/health/*``, ``/schema*`` and the SPA are outside it by
 #: construction, which is why the orchestrator's probes and the OpenAPI document need no exception.
 API_PREFIX = "/api/v1"
@@ -53,6 +65,24 @@ SESSION_REQUIRED_MESSAGE = "É preciso entrar para acessar o sistema."
 PERMISSION_DENIED_MESSAGE = "Sua conta não tem permissão para esta ação."
 UNCLASSIFIED_ROUTE_MESSAGE = "Rota sem classificação de acesso."
 CROSS_ORIGIN_MESSAGE = "Requisição recusada: a origem não é a deste sistema."
+PASSWORD_CHANGE_REQUIRED_MESSAGE = "Troque a senha temporária antes de usar o sistema."
+
+
+class PasswordChangeRequiredException(PermissionDeniedException):
+    """
+    The account still owes the password change its temporary password forced on it.
+
+    A ``PermissionDeniedException`` (403) and not a ``DomainException``: the route exists and the
+    account is signed in, so this is an answer the API owes the client, not a business refusal to be
+    mapped to a 400, and not a defect to be recorded. It is **not** the missing-permission 403 either:
+    the account's role is intact — it is the credential that is temporary — which is why the refusal
+    carries its own ``code``, so a client can tell the two apart without reading the sentence.
+    """
+
+    #: The stable identity of the outcome, next to the sentence — the contract rule for a route that
+    #: answers a sentence. ``permission_denied_handler`` reads it and emits it in the error body.
+    code = RouteMessageCode.PASSWORD_CHANGE_REQUIRED
+
 
 #: The methods a browser can send from another site, and therefore the ones a CSRF check applies to.
 #: ``GET``/``HEAD``/``OPTIONS`` are excluded because they must not change anything in the first place.
@@ -128,6 +158,11 @@ def access_of(route_handler: BaseRouteHandler | None) -> Access | None:
         return None
 
 
+def is_password_change_exempt(route_handler: BaseRouteHandler | None) -> bool:
+    """Whether a route stays reachable while the account owes the forced password change."""
+    return bool(route_handler is not None and route_handler.opt.get(PASSWORD_CHANGE_EXEMPT_OPT_KEY))
+
+
 def resolve_authenticated_user(token: str) -> AuthenticatedUser | None:
     """
     Resolves a session token to the account it identifies.
@@ -186,6 +221,13 @@ def access_guard(connection: ASGIConnection, route_handler: BaseRouteHandler) ->
     # Published for the handlers: ``provide_current_user`` reads it, and it is the *only* place the
     # account comes from, so a handler cannot disagree with the authorization that just ran.
     scope["user"] = user
+
+    # The temporary credential is checked before the permission, and the order is deliberate: the
+    # account is not usable *at all* until the password is replaced, so the actionable answer is
+    # "change the password" and not "your role may not do this". Every level below is refused,
+    # ``AUTHENTICATED`` reads included — reading is the reconnaissance the flag exists to stop.
+    if user.must_change_password and not is_password_change_exempt(route_handler):
+        raise PasswordChangeRequiredException(PASSWORD_CHANGE_REQUIRED_MESSAGE)
 
     if access is Access.AUTHENTICATED:
         return

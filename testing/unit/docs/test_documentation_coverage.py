@@ -36,7 +36,6 @@ GUIDES = {
     "adrs": "adr/index.md",
 }
 
-_METHODS = ("get", "put", "post", "delete", "patch", "options", "head", "trace")
 _ROUTE_PATH = re.compile(r'path:\s*"([^"]+)"')
 
 
@@ -131,6 +130,27 @@ def test_every_adr_is_linked_from_the_index() -> None:
     assert not missing, (
         f"`{GUIDES['adrs']}` does not link these decisions: {missing}. "
         "An ADR nobody can reach is a decision nobody reads."
+    )
+
+
+def test_every_adr_is_in_the_site_nav() -> None:
+    """A linked ADR is still invisible when the site nav omits it.
+
+    The index check above passes and ``mkdocs build`` stays green: an unlisted page is an
+    ``INFO`` ("exists in the docs directory, but is not included in the nav configuration"), not a
+    warning, so ``--strict`` never fails on it. Measured on ADR 0013, which existed, was linked
+    from the index, and appeared in no menu. Reachability is the nav, so the nav is what the gate
+    reads.
+    """
+    nav = (REPO_ROOT / "mkdocs.yml").read_text(encoding="utf-8")
+    missing = [
+        f"adr/{path.name}"
+        for path in sorted((DOCS / "adr").glob("*.md"))
+        if path.name != "index.md" and f"adr/{path.name}" not in nav
+    ]
+    assert not missing, (
+        f"`mkdocs.yml` does not list these decisions in the nav: {missing}. "
+        "An ADR outside the nav is a page the site builds and never shows."
     )
 
 

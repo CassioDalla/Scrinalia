@@ -58,19 +58,31 @@ class RouteMessageCode(enum.StrEnum):
     TAG_STOPWORDS_BANNED = "TAG_STOPWORDS_BANNED"
     TAG_STOPWORDS_REMOVED = "TAG_STOPWORDS_REMOVED"
     TAG_STOPWORD_PURGE_DONE = "TAG_STOPWORD_PURGE_DONE"
+    TAG_STOPWORD_PURGE_UNDONE = "TAG_STOPWORD_PURGE_UNDONE"
     SUBJECT_EXCLUSIONS_ADDED = "SUBJECT_EXCLUSIONS_ADDED"
+    #: The write refused every term because its tag sits in a subject drawer (issue #83, option C).
+    SUBJECT_EXCLUSIONS_BLOCKED = "SUBJECT_EXCLUSIONS_BLOCKED"
+    #: Some terms were recorded and some refused: the screen has to say both numbers.
+    SUBJECT_EXCLUSIONS_PARTIAL = "SUBJECT_EXCLUSIONS_PARTIAL"
     SUBJECT_EXCLUSIONS_REMOVED = "SUBJECT_EXCLUSIONS_REMOVED"
     MACRO_CLUSTERING_INSUFFICIENT_TEXTS = "MACRO_CLUSTERING_INSUFFICIENT_TEXTS"
 
     # --- The named entities (NER) ---
     NER_EXCLUSIONS_ADDED = "NER_EXCLUSIONS_ADDED"
     NER_EXCLUSIONS_REMOVED = "NER_EXCLUSIONS_REMOVED"
+    #: The destructive half of the NER veto: the entities already extracted from a banned spelling.
+    NER_PURGE_DONE = "NER_PURGE_DONE"
+    NER_PURGE_UNDONE = "NER_PURGE_UNDONE"
     ORPHAN_ENTITIES_PURGED = "ORPHAN_ENTITIES_PURGED"
     ENTITY_RECLASSIFIED = "ENTITY_RECLASSIFIED"
     ENTITY_DELETED = "ENTITY_DELETED"
+    ENTITY_RENAMED = "ENTITY_RENAMED"
+    ENTITY_MERGE_UNDONE = "ENTITY_MERGE_UNDONE"
 
     # --- The tag x entity collision ---
     CONFLICT_RESOLVED = "CONFLICT_RESOLVED"
+    #: One categorical verdict written over a whole selection of pairs, one ledger row each.
+    CONFLICT_BATCH_RESOLVED = "CONFLICT_BATCH_RESOLVED"
 
     # --- The session and the account (identity) ---
     # The codes of the identity routes live in the same enum because the enum is the shared
@@ -79,6 +91,10 @@ class RouteMessageCode(enum.StrEnum):
     # and already speaks both domains; the identity domain itself imports nothing from the archive.
     SESSION_ENDED = "SESSION_ENDED"
     PASSWORD_CHANGED = "PASSWORD_CHANGED"
+    #: The account still carries the temporary password the CLI generated (or an administrator
+    #: typed), so the guard refuses every operation but the change itself and the ways out the
+    #: forced screen needs. An outcome and not a wording: it names the refusal, not the sentence.
+    PASSWORD_CHANGE_REQUIRED = "PASSWORD_CHANGE_REQUIRED"
     #: An administrator replaced somebody's password, which ended every session of that account.
     USER_PASSWORD_RESET = "USER_PASSWORD_RESET"
     #: Every session of one account was ended at once.

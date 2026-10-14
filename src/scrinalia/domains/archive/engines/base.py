@@ -50,7 +50,8 @@ class TypologyEngine(Protocol):
     Contract that every archive classification engine must follow.
     """
 
-    def classify(self, texts: list[str], candidate_labels: list[str], **kwargs) -> list[dict]: ...
+    def classify(self, texts: list[str], candidate_labels: list[str], **kwargs) -> list[dict]:
+        raise NotImplementedError
 
 
 class EntityExtractionEngine(Protocol):
@@ -66,16 +67,18 @@ class EntityExtractionEngine(Protocol):
         Receives a list of texts and returns a list of results.
         Each result is a list of Entities found in that respective text.
         """
-        ...
+        raise NotImplementedError
 
-    def lemmatize(self, text: str, stopwords: Collection[str]) -> list[str]: ...
+    def lemmatize(self, text: str, stopwords: Collection[str]) -> list[str]:
+        raise NotImplementedError
 
 
 class TopicDiscoveryEngine(Protocol):
     """Contract used by clustering engines to
     discover topics in the archive."""
 
-    def discover_topics(self, texts: list[str]) -> tuple[list[int], DataFrame]: ...
+    def discover_topics(self, texts: list[str]) -> tuple[list[int], DataFrame]:
+        raise NotImplementedError
 
 
 class EmbeddingEngine(Protocol):
@@ -87,7 +90,8 @@ class EmbeddingEngine(Protocol):
     are guarded by a test.
     """
 
-    def embed(self, texts: list[str]) -> list[list[float]]: ...
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        raise NotImplementedError
 
 
 class ResolveTagEntityConflictEngine(Protocol):
@@ -96,7 +100,8 @@ class ResolveTagEntityConflictEngine(Protocol):
     between two taxonomies (e.g. Tag vs Entity).
     """
 
-    def decide_conflict(self, tag_name: str, entity_name: str, entity_type: str) -> EntityTagDecisionSchema: ...
+    def decide_conflict(self, tag_name: str, entity_name: str, entity_type: str) -> EntityTagDecisionSchema:
+        raise NotImplementedError
 
 
 class TitleQualityEngine(Protocol):
@@ -107,4 +112,5 @@ class TitleQualityEngine(Protocol):
     has to register an active ``LLM_CHECK`` rule, and only then is an engine built.
     """
 
-    def check_title(self, title: str) -> TitleQualityDecision: ...
+    def check_title(self, title: str) -> TitleQualityDecision:
+        raise NotImplementedError

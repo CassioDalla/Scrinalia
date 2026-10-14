@@ -48,6 +48,13 @@ Two facts forced the split rather than a preference:
   The collection's two families have destinations; the language's three are refusals with no
   destination. Mixing them in one table would erase that distinction.
 
+> **Amended by [ADR 0013](0013-the-tag-axis-is-the-subject-axis.md):** the `archive_tag_facets`
+> table is gone, so the destination of a street or a person's name is no longer a facet of the tag
+> axis. Both are still refused by the subject axis, and both are carried by the **entity axis**
+> (`LOC` and `PER`), which is what search and diffusion read. The distinction this ADR draws — the
+> collection's two families have destinations, the language's three do not — is unchanged; only
+> where the destination lives is.
+
 ## Decision
 
 **Three families, three homes.**
@@ -68,8 +75,9 @@ carrying a copy of its data, so a second language adds a profile rather than a s
   suggests. The whole code wins over its last token, which is what lets `BR PRADAP` have a name of
   its own next to `SMU`.
 - `archive_collection_terms` — the non-subject terms, typed by `CollectionTermKind`
-  (`DISTRICT`, `MUNICIPALITY`, `STATE`, `REGION`, `COUNTRY`, `PERSON`). A place kind claims the
-  PLACE facet; `PERSON` goes nowhere.
+  (`DISTRICT`, `MUNICIPALITY`, `STATE`, `REGION`, `COUNTRY`, `PERSON`). A place kind is refused by
+  the subject axis and carried by the entity axis as `LOC`; `PERSON` is the producer, carried as
+  `PER` (ADR 0013).
 
 `GET/POST/PATCH /api/v1/vocabulary` exposes both and `apps/curator` renders them at
 `/vocabulario`. Like the other three catalogues, **neither deletes**: `is_active=false` retires a

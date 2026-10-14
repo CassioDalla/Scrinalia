@@ -35,7 +35,8 @@ from scrinalia.domains.archive.workers.ledger import WorkerRunLedger
 class WorkerRuntimePort(Protocol):
     """What the service needs from the executor: hand it a resolved run, do not wait for it."""
 
-    def submit(self, worker_name: str, run_id: int, resolved: ResolvedWorkerConfig) -> None: ...
+    def submit(self, worker_name: str, run_id: int, resolved: ResolvedWorkerConfig) -> None:
+        raise NotImplementedError
 
 
 class WorkerRunService:

@@ -19,6 +19,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from scrinalia.core.base import Base
 
+# Type-checker only, and load-bearing: the ``Mapped[...]`` strings below need this name. Keeping it
+# inside the guard is what makes CodeQL's ``py/unsafe-cyclic-import`` finding a false positive
+# (dismissed); ``testing/unit/quality/test_model_import_cycles.py`` fails if the cycle becomes real.
 if TYPE_CHECKING:
     from .document import ArchiveDocument
 
@@ -83,9 +86,6 @@ class ArchiveTag(Base):
         secondary="archive_document_tags", back_populates="tags"
     )
     macro_category: Mapped["ArchiveMacroCategory"] = relationship(back_populates="tags")
-    facets: Mapped[list["ArchiveTagFacet"]] = relationship(
-        back_populates="tag", cascade="all, delete-orphan", passive_deletes=True
-    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -98,49 +98,10 @@ class ArchiveTag(Base):
         ),
         # GIN index used by the macro-category worker to poll unprocessed tags.
         Index("ix_archive_tags_exec_log", execution_log, postgresql_using="gin"),
-    )
-
-
-class ArchiveTagFacet(Base):
-    """
-    The non-subject axis of a tag: what it *is*, when it is not an *about*.
-
-    ``archive_tags.macro_category_id`` holds one subject drawer and nothing else. A tag like
-    ``alfa`` (2.376 documents) or ``cidade`` (1.865) has no subject but is unmistakably a
-    producer or a place; forcing them into the subject axis is a measured cause of the
-    classification defect, because they competed with ``alvenaria`` for the same slot. This
-    table is where those statements live instead.
-
-    The primary key is ``(tag_id, facet_type)``: a tag can be a place *and* an institution,
-    but not twice the same one. ``value`` carries the canonical spelling the curator chose,
-    which is what the facets read — the tag name is the evidence, the value is the decision.
-    Nothing writes here automatically: a facet is a curation act, never an AI inference.
-    """
-
-    __tablename__ = "archive_tag_facets"
-
-    tag_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("archive_tags.tag_id", ondelete="CASCADE"), primary_key=True
-    )
-    facet_type: Mapped[str] = mapped_column(String(20), primary_key=True)
-
-    #: The canonical value of the facet (``ALFA``, ``Cidade``). Falls back to the tag
-    #: name when the curator only confirms the axis without renaming the spelling.
-    value: Mapped[str] = mapped_column(String(100), nullable=False)
-
-    created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    #: The account behind the name above. ``SET NULL`` and not ``CASCADE``: an account is deactivated, never deleted,
-    #: and if one ever were, the decision it took must survive with its author's name.
-    created_by_user_id: Mapped[int | None] = mapped_column(
-        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    tag: Mapped["ArchiveTag"] = relationship(back_populates="facets")
-
-    __table_args__ = (
-        CheckConstraint("facet_type IN ('INSTITUTION', 'PLACE')", name="chk_tag_facet_type"),
-        Index("ix_archive_tag_facets_type_value", facet_type, value),
+        # The same normalized-identity rule the entity table carries, and for the same reason: the
+        # tag vocabulary has no case-collision group today, but the uniqueness it relies on is the
+        # one ``normalize_tag`` declares, and only this index enforces that shape.
+        Index("uix_archive_tags_name_normalized", func.lower(func.btrim(name)), unique=True),
     )
 
 
@@ -270,6 +231,116 @@ class ArchiveTaxonomyMergeLog(Base):
     undone_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     undone_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
     #: The account behind the name above, exactly like every other authorship in the schema.
+    undone_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class ArchiveStopwordPurgeLog(Base):
+    """
+    Ledger of every tag the stopword purge deleted, with enough detail to undo it without loss.
+
+    One row **per deleted tag**, not per call: the unit of undo is the tag, exactly as in
+    :class:`ArchiveTaxonomyMergeLog`. The purge is the destructive write the taxonomy used to
+    keep apart from the merge — it deleted the row and let the links cascade, and nothing
+    restored it. This table makes it symmetric: a full snapshot of the tag (name, category,
+    confidence, the AI execution log), the exact documents that carried it and the spellings
+    that pointed at it, so the reverse rebuilds the row instead of approximating it.
+
+    ``synonym_names`` is captured because ``domain_synonyms.canonical_tag_id`` is
+    ``ON DELETE CASCADE``: deleting the tag destroys the spellings an earlier curation
+    absorbed, and an undo that did not put them back would leave the next ingestion free to
+    recreate the term as a brand-new tag.
+
+    ``undone_at`` makes the undo single-shot and keeps the trail readable afterwards; the row
+    is never deleted, so the history of "this was purged, then restored" survives. The ledger
+    deliberately holds no foreign key to ``archive_tags``: it has to outlive the catalogue it
+    describes, which is the whole point of a snapshot.
+    """
+
+    __tablename__ = "archive_stopword_purge_log"
+
+    purge_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    purged_tag_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    purged_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    purged_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+    # Exactly the documents that carried the tag when it died (a union would over-link on undo).
+    document_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+
+    # The spellings that pointed *at* the purged tag; the cascade takes them with the row.
+    synonym_names: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+
+    changed_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    #: The account behind the name above. ``SET NULL`` and not ``CASCADE``: an account is deactivated,
+    #: never deleted, and if one ever were, the act it took must survive with its author's name.
+    changed_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    undone_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    undone_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    undone_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class ArchiveNerPurgeLog(Base):
+    """
+    Ledger of every entity the NER purge deleted, with enough detail to undo it without loss.
+
+    One row **per deleted entity**, not per call: the unit of undo is the entity, exactly as in
+    :class:`ArchiveStopwordPurgeLog`. The purge is the destructive half of the NER veto — the
+    veto itself is a reversible row in ``domain_ner_exclusions``, and until this table existed the
+    purge was the one part of that decision with no way back: ``exclude_terms_from_ner`` planted
+    the exclusion **and** called ``delete_entities_by_names``, and removing the exclusion brought
+    the ban back and nothing else (#94).
+
+    ``excluded_term`` is the banned spelling that justified the deletion, kept apart from the
+    entity's own name so a reader can tell *why* this row died from *what* died.
+
+    ``document_ids`` is exactly the set of descriptions that carried the entity when it died (a
+    union would over-link on undo), and ``synonym_names`` is captured because
+    ``domain_synonyms.canonical_entity_id`` is ``ON DELETE CASCADE``: the delete takes the
+    spellings an earlier curation absorbed, and an undo that did not put them back would leave the
+    next ingestion free to recreate the name as a brand-new entity.
+
+    ``undone_at`` makes the undo single-shot and keeps the trail readable afterwards; the row is
+    never deleted, so the history of "this was purged, then restored" survives. The ledger
+    deliberately holds no foreign key to ``archive_entities``: it has to outlive the catalogue it
+    describes, which is the whole point of a snapshot. The undo does **not** lift the veto — the
+    term is still excluded, exactly like the stopword purge does not lift the ban.
+    """
+
+    __tablename__ = "archive_ner_purge_log"
+
+    purge_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    #: The excluded spelling that justified this deletion, normalized like ``DomainNerExclusion.term``.
+    excluded_term: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+
+    purged_entity_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    purged_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    purged_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+    # Exactly the documents that carried the entity when it died (a union would over-link on undo).
+    document_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+
+    # The spellings that pointed *at* the purged entity; the cascade takes them with the row.
+    synonym_names: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+
+    changed_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    #: The account behind the name above. ``SET NULL`` and not ``CASCADE``: an account is deactivated,
+    #: never deleted, and if one ever were, the act it took must survive with its author's name.
+    changed_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    undone_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    undone_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
     undone_by_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
     )

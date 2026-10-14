@@ -980,6 +980,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/taxonomy/conflicts/resolve/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ResolveCrossDomainConflictBatch */
+        post: operations["ApiV1TaxonomyConflictsResolveBatchResolveCrossDomainConflictBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/taxonomy/conflicts/resolve/preview": {
         parameters: {
             query?: never;
@@ -1031,6 +1048,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/taxonomy/entities/merge-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListEntityMergeLog */
+        get: operations["ApiV1TaxonomyEntitiesMergeLogListEntityMergeLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxonomy/entities/merge-log/{merge_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** UndoEntityMerge */
+        delete: operations["ApiV1TaxonomyEntitiesMergeLogMergeIdUndoEntityMerge"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxonomy/entities/merge/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** PreviewEntityMerge */
+        post: operations["ApiV1TaxonomyEntitiesMergePreviewPreviewEntityMerge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/taxonomy/entities/ner-exclusions": {
         parameters: {
             query?: never;
@@ -1045,6 +1113,74 @@ export interface paths {
         post: operations["ApiV1TaxonomyEntitiesNerExclusionsCreateNerExclusions"];
         /** RemoveNerExclusions */
         delete: operations["ApiV1TaxonomyEntitiesNerExclusionsRemoveNerExclusions"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxonomy/entities/ner-exclusions/purge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** PurgeNerEntities */
+        post: operations["ApiV1TaxonomyEntitiesNerExclusionsPurgePurgeNerEntities"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxonomy/entities/ner-exclusions/purge-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListNerPurgeLog */
+        get: operations["ApiV1TaxonomyEntitiesNerExclusionsPurgeLogListNerPurgeLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxonomy/entities/ner-exclusions/purge-log/{purge_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** UndoNerPurge */
+        delete: operations["ApiV1TaxonomyEntitiesNerExclusionsPurgeLogPurgeIdUndoNerPurge"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxonomy/entities/ner-exclusions/purge/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** PreviewNerPurge */
+        post: operations["ApiV1TaxonomyEntitiesNerExclusionsPurgePreviewPreviewNerPurge"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1115,7 +1251,8 @@ export interface paths {
         delete: operations["ApiV1TaxonomyEntitiesEntityIdDeleteEntity"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** RenameEntity */
+        patch: operations["ApiV1TaxonomyEntitiesEntityIdRenameEntity"];
         trace?: never;
     };
     "/api/v1/taxonomy/entities/{entity_id}/reclassify": {
@@ -1179,6 +1316,23 @@ export interface paths {
         };
         /** SearchTags */
         get: operations["ApiV1TaxonomyTagsSearchTags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxonomy/tags/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListTagCatalog */
+        get: operations["ApiV1TaxonomyTagsCatalogListTagCatalog"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1393,6 +1547,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/taxonomy/tags/stopwords/purge-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListStopwordPurgeLog */
+        get: operations["ApiV1TaxonomyTagsStopwordsPurgeLogListStopwordPurgeLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxonomy/tags/stopwords/purge-log/{purge_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** UndoStopwordPurge */
+        delete: operations["ApiV1TaxonomyTagsStopwordsPurgeLogPurgeIdUndoStopwordPurge"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/taxonomy/tags/stopwords/purge/preview": {
         parameters: {
             query?: never;
@@ -1424,6 +1612,23 @@ export interface paths {
         post: operations["ApiV1TaxonomyTagsSubjectExclusionsCreateSubjectExclusions"];
         /** RemoveSubjectExclusions */
         delete: operations["ApiV1TaxonomyTagsSubjectExclusionsRemoveSubjectExclusions"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxonomy/tags/subject-exclusions/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** PreviewSubjectExclusions */
+        post: operations["ApiV1TaxonomyTagsSubjectExclusionsPreviewPreviewSubjectExclusions"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1843,6 +2048,81 @@ export interface components {
             arrangement_terms: components["schemas"]["ArrangementTermDTO"][];
             collection_terms: components["schemas"]["CollectionTermDTO"][];
             kinds: components["schemas"]["CollectionTermKind"][];
+        };
+        /** ConflictBatchEntry */
+        ConflictBatchEntry: {
+            /** @default 0 */
+            documents_transferred: number;
+            entity_id: number;
+            entity_name: string;
+            resolution_id: number;
+            tag_id: number;
+            tag_name: string;
+        };
+        /** ConflictBatchRemaining */
+        ConflictBatchRemaining: {
+            /** @default 0 */
+            exact_name_count: number;
+            /** @default 0 */
+            near_duplicate_count: number;
+            /** @default 0 */
+            total: number;
+        };
+        /** ConflictBatchRequest */
+        ConflictBatchRequest: {
+            /** @enum {null|string} */
+            entity_type?: "ORG" | "PER" | "LOC" | null;
+            /**
+             * @description Quantos pares uma requisição pode escrever; o restante continua na seleção.
+             * @default 50
+             */
+            limit: number;
+            /** @description Por que decidiu; fica no ledger de cada resolução. */
+            note?: string | null;
+            /**
+             * @default exact_name
+             * @enum {string}
+             */
+            pair_kind: "all" | "exact_name" | "near_duplicate";
+            /**
+             * @description pg_trgm similarity floor.
+             * @default 0.85
+             */
+            threshold: number;
+            /** @enum {string} */
+            winner: "TAG" | "ENTITY";
+        };
+        /** ConflictBatchResponse */
+        ConflictBatchResponse: {
+            code: components["schemas"]["RouteMessageCode"];
+            data: components["schemas"]["ConflictBatchResult"];
+            message: string;
+        };
+        /** ConflictBatchResult */
+        ConflictBatchResult: {
+            applied?: components["schemas"]["ConflictBatchEntry"][];
+            /** @enum {null|string} */
+            entity_type?: "ORG" | "PER" | "LOC" | null;
+            failed?: components["schemas"]["ConflictBatchSkip"][];
+            /**
+             * @default exact_name
+             * @enum {string}
+             */
+            pair_kind: "all" | "exact_name" | "near_duplicate";
+            remaining?: components["schemas"]["ConflictBatchRemaining"];
+            skipped?: components["schemas"]["ConflictBatchSkip"][];
+            /** @enum {string} */
+            winner: "TAG" | "ENTITY";
+        };
+        /** ConflictBatchSkip */
+        ConflictBatchSkip: {
+            entity_id: number;
+            /** @default  */
+            entity_name: string;
+            reason: string;
+            tag_id: number;
+            /** @default  */
+            tag_name: string;
         };
         /** ConflictPreviewRequest */
         ConflictPreviewRequest: {
@@ -2341,10 +2621,87 @@ export interface components {
             /** @description Por que decidiu; fica no histórico do documento. */
             review_note?: string | null;
         };
+        /** EntityMergeImpact */
+        EntityMergeImpact: {
+            /** @default 0 */
+            document_count: number;
+            entity_id: number;
+            entity_type: string;
+            name: string;
+        };
+        /** EntityMergeLogEntryDTO */
+        EntityMergeLogEntryDTO: {
+            absorbed_entity_id?: number | null;
+            absorbed_entity_type?: string | null;
+            absorbed_name?: string | null;
+            canonical_id?: number | null;
+            canonical_name: string;
+            canonical_renamed_from?: string | null;
+            changed_at?: string | null;
+            changed_by?: string | null;
+            /** @default 0 */
+            document_count: number;
+            /** @description The discriminator the ledger screen branches on, so it never tests a null of its own. */
+            readonly is_rename: boolean;
+            /** @description Computed so the front reads one definition instead of comparing a timestamp itself. */
+            readonly is_undone: boolean;
+            /** @default MERGE */
+            kind: string;
+            merge_id: number;
+            note?: string | null;
+            repointed_synonym_names?: string[];
+            /** @default true */
+            synonym_created: boolean;
+            undone_at?: string | null;
+            undone_by?: string | null;
+        };
+        /** EntityMergeLogListResponse */
+        EntityMergeLogListResponse: {
+            items?: components["schemas"]["EntityMergeLogEntryDTO"][];
+            limit: number;
+            offset: number;
+            total: number;
+        };
+        /** EntityMergePreviewRequest */
+        EntityMergePreviewRequest: {
+            canonical_id: number;
+            ids_to_merge: number[];
+            new_name?: string | null;
+        };
+        /** EntityMergePreviewResponse */
+        EntityMergePreviewResponse: {
+            canonical_id: number;
+            canonical_name: string;
+            documents_updated: number;
+            entities_deleted?: components["schemas"]["EntityMergeImpact"][];
+            links_rewritten: number;
+            renamed_from?: string | null;
+            renamed_to?: string | null;
+            review_flags?: string[];
+            synonyms_created?: string[];
+            synonyms_repointed?: string[];
+        };
+        /** EntityMergeRequest */
+        EntityMergeRequest: {
+            canonical_id: number;
+            /** @description List of IDs that will be merged and deleted. */
+            ids_to_merge: number[];
+            /** @description Optional new name for the canonical; the old one becomes a synonym. */
+            new_name?: string | null;
+            /** @description Why; kept in the merge ledger. */
+            note?: string | null;
+        };
         /** EntityMergeResponse */
         EntityMergeResponse: {
             documents_updated: number;
             entities_deleted: number;
+            merge_ids?: number[];
+        };
+        /** EntityMergeUndoResponse */
+        EntityMergeUndoResponse: {
+            code: components["schemas"]["RouteMessageCode"];
+            data: components["schemas"]["EntityMergeLogEntryDTO"];
+            message: string;
         };
         /** EntityPairSimilarity */
         EntityPairSimilarity: {
@@ -2373,6 +2730,28 @@ export interface components {
         /** EntityRelevanceResponse */
         EntityRelevanceResponse: {
             data: components["schemas"]["EntityRelevance"][];
+        };
+        /** EntityRenameRequest */
+        EntityRenameRequest: {
+            /**
+             * @description Whether the previous spelling keeps resolving to this entity.
+             * @default true
+             */
+            keep_old_synonym: boolean;
+            /** @description The spelling the catalogue will show. */
+            new_name: string;
+            /** @description Why; kept in the merge ledger, with the undo. */
+            note?: string | null;
+        };
+        /** EntityRenameResponse */
+        EntityRenameResponse: {
+            code: components["schemas"]["RouteMessageCode"];
+            entity_id: number;
+            entity_type: string;
+            kept_old_spelling: boolean;
+            merge_id: number;
+            message: string;
+            name: string;
         };
         /** EntitySimilarity */
         EntitySimilarity: {
@@ -2887,7 +3266,11 @@ export interface components {
         /** NerExclusionBanResponse */
         NerExclusionBanResponse: {
             code: components["schemas"]["RouteMessageCode"];
-            entities_deleted: number;
+            /**
+             * @description How many exclusions were inserted; a re-ban inserts none.
+             * @default 0
+             */
+            created: number;
             message: string;
         };
         /** NerExclusionRemovalResponse */
@@ -2902,6 +3285,71 @@ export interface components {
             reason?: string | null;
             /** @description Terms to keep out of the NER extraction. */
             words: string[];
+        };
+        /** NerPurgeEntity */
+        NerPurgeEntity: {
+            /** @default 0 */
+            document_count: number;
+            entity_id: number;
+            entity_type: string;
+            /** @description The banned spelling this entity matched. */
+            excluded_term: string;
+            name: string;
+            /** @description The spellings that point at it. */
+            synonym_names?: string[];
+        };
+        /** NerPurgeLogEntryDTO */
+        NerPurgeLogEntryDTO: {
+            changed_at?: string | null;
+            changed_by?: string | null;
+            /** @default 0 */
+            document_count: number;
+            entity_type: string;
+            excluded_term: string;
+            purge_id: number;
+            purged_entity_id: number;
+            purged_name: string;
+            synonym_names?: string[];
+            undone_at?: string | null;
+            undone_by?: string | null;
+        };
+        /** NerPurgeLogListResponse */
+        NerPurgeLogListResponse: {
+            items?: components["schemas"]["NerPurgeLogEntryDTO"][];
+            limit: number;
+            offset: number;
+            total: number;
+        };
+        /** NerPurgePreview */
+        NerPurgePreview: {
+            entities?: components["schemas"]["NerPurgeEntity"][];
+            /** @description The banned spellings the purge acts on. */
+            excluded_terms?: string[];
+            /**
+             * @description True: the ledger restores the entities and their links.
+             * @default true
+             */
+            reversible: boolean;
+            /**
+             * @description Documents that lose an entity.
+             * @default 0
+             */
+            total_documents: number;
+            /** @default 0 */
+            total_entities: number;
+        };
+        /** NerPurgeResponse */
+        NerPurgeResponse: {
+            code: components["schemas"]["RouteMessageCode"];
+            entities_deleted: number;
+            message: string;
+            purge_ids?: number[];
+        };
+        /** NerPurgeUndoResponse */
+        NerPurgeUndoResponse: {
+            code: components["schemas"]["RouteMessageCode"];
+            data: components["schemas"]["NerPurgeLogEntryDTO"];
+            message: string;
         };
         /** OllamaHealthDTO */
         OllamaHealthDTO: {
@@ -3021,7 +3469,7 @@ export interface components {
          *         things and a translation catalogue needs to tell them apart.
          * @enum {string}
          */
-        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORD_PURGE_DONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "CONFLICT_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
+        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORD_PURGE_DONE" | "TAG_STOPWORD_PURGE_UNDONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_BLOCKED" | "SUBJECT_EXCLUSIONS_PARTIAL" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "NER_PURGE_DONE" | "NER_PURGE_UNDONE" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "ENTITY_RENAMED" | "ENTITY_MERGE_UNDONE" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "PASSWORD_CHANGE_REQUIRED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
         /** RouteResponse */
         RouteResponse: {
             code: components["schemas"]["RouteMessageCode"];
@@ -3062,13 +3510,36 @@ export interface components {
         /** StopwordDTO */
         StopwordDTO: {
             scope: components["schemas"]["StopwordsScope"];
+            /** @default HUMAN */
+            source: string;
             word: string;
+        };
+        /** StopwordPurgeLogEntryDTO */
+        StopwordPurgeLogEntryDTO: {
+            changed_at?: string | null;
+            changed_by?: string | null;
+            /** @default 0 */
+            document_count: number;
+            macro_category_name?: string | null;
+            purge_id: number;
+            purged_name: string;
+            purged_tag_id: number;
+            synonym_names?: string[];
+            undone_at?: string | null;
+            undone_by?: string | null;
+        };
+        /** StopwordPurgeLogListResponse */
+        StopwordPurgeLogListResponse: {
+            items?: components["schemas"]["StopwordPurgeLogEntryDTO"][];
+            limit: number;
+            offset: number;
+            total: number;
         };
         /** StopwordPurgePreview */
         StopwordPurgePreview: {
             /**
-             * @description Always false: the purge has no ledger to restore from.
-             * @default false
+             * @description True: the ledger restores the tags and their links.
+             * @default true
              */
             reversible: boolean;
             /** @description The TAG/ALL terms the purge would act on, in lowercase. */
@@ -3086,6 +3557,7 @@ export interface components {
         StopwordPurgeResponse: {
             code: components["schemas"]["RouteMessageCode"];
             message: string;
+            purge_ids?: number[];
             tags_deleted: number;
         };
         /** StopwordPurgeTag */
@@ -3094,7 +3566,15 @@ export interface components {
             document_count: number;
             macro_category_name?: string | null;
             name: string;
+            /** @default HUMAN */
+            source: string;
             tag_id: number;
+        };
+        /** StopwordPurgeUndoResponse */
+        StopwordPurgeUndoResponse: {
+            code: components["schemas"]["RouteMessageCode"];
+            data: components["schemas"]["StopwordPurgeLogEntryDTO"];
+            message: string;
         };
         /** StopwordRemovalRequest */
         StopwordRemovalRequest: {
@@ -3129,9 +3609,17 @@ export interface components {
         };
         /** SubjectExclusionBanResponse */
         SubjectExclusionBanResponse: {
+            /** @default 0 */
+            banned: number;
+            blocked?: components["schemas"]["SubjectExclusionTarget"][];
             code: components["schemas"]["RouteMessageCode"];
             created: number;
             message: string;
+        };
+        /** SubjectExclusionPlan */
+        SubjectExclusionPlan: {
+            applicable?: components["schemas"]["SubjectExclusionTarget"][];
+            blocked?: components["schemas"]["SubjectExclusionTarget"][];
         };
         /** SubjectExclusionRemovalRequest */
         SubjectExclusionRemovalRequest: {
@@ -3143,6 +3631,8 @@ export interface components {
             code: components["schemas"]["RouteMessageCode"];
             message: string;
             removed: number;
+            /** @default 0 */
+            unbanned: number;
         };
         /** SubjectExclusionRequest */
         SubjectExclusionRequest: {
@@ -3160,6 +3650,8 @@ export interface components {
         /** SubjectExclusionSuggestion */
         SubjectExclusionSuggestion: {
             /** @default false */
+            already_banned: boolean;
+            /** @default false */
             already_excluded: boolean;
             /** @default false */
             also_an_entity: boolean;
@@ -3167,6 +3659,8 @@ export interface components {
             document_count: number;
             /** @default false */
             is_place_term: boolean;
+            macro_category_id?: number | null;
+            macro_category_name?: string | null;
             signal: string;
             term: string;
             /** @default 1 */
@@ -3190,6 +3684,24 @@ export interface components {
             place_count: number;
             /** @default 0 */
             total: number;
+        };
+        /** SubjectExclusionTarget */
+        SubjectExclusionTarget: {
+            /** @default false */
+            already_banned: boolean;
+            /** @default false */
+            already_excluded: boolean;
+            /** @default false */
+            also_an_entity: boolean;
+            /** @default 0 */
+            document_count: number;
+            /** @default false */
+            is_place_term: boolean;
+            macro_category_id?: number | null;
+            macro_category_name?: string | null;
+            signal?: string | null;
+            tag_id?: number | null;
+            term: string;
         };
         /** SuggestMacroRequest */
         SuggestMacroRequest: {
@@ -3235,6 +3747,53 @@ export interface components {
             generated_at: string;
             workers?: components["schemas"]["WorkerStatusDTO"][];
         };
+        /** TagCatalogResponse */
+        TagCatalogResponse: {
+            items?: components["schemas"]["TagCatalogRow"][];
+            /** @default 25 */
+            limit: number;
+            /** @default 0 */
+            offset: number;
+            /** @default 0 */
+            total: number;
+        };
+        /** TagCatalogRow */
+        TagCatalogRow: {
+            ai_confidence_score?: number | null;
+            /** @default 0 */
+            document_count: number;
+            macro_category_id?: number | null;
+            macro_category_name?: string | null;
+            name: string;
+            /** @default false */
+            subject_excluded: boolean;
+            tag_id: number;
+        };
+        /**
+         * TagCatalogState
+         * @description Which slice of the tag catalogue one read asks for, by the state of its subject decision.
+         *
+         *         The decision has three parts and they are a **partition**: a tag is in a drawer, declared not a
+         *         subject, or nobody has decided yet. This filter names the two that are states of the *catalogue*
+         *         — the drawer is reached with ``macro_category_id`` — and ``ALL`` is not a state at all but the
+         *         absence of a filter. The predicates live in one module (``repository/subject_queue.py``) and the
+         *         home screen's counters read the same ones, because the number a card promises has to be the number
+         *         the list it opens reports.
+         *
+         *         ``LOW_CONFIDENCE`` is the one that is not a state of the tag but of the *work*: the classifier
+         *         ran, was not confident enough to file the tag, and left a row in ``archive_ai_review_queue``.
+         *         It is a subset of ``PENDING`` on purpose — the archivist's two cards answer two questions about
+         *         the same queue, and either one may take the decision.
+         *
+         *         A place, a producer or a person is **not** a fourth state: it is a tag the subject axis does not
+         *         answer for, so it is declared not a subject and its spelling is banned from coming back, while the
+         *         entity axis carries what it is (ADR 0013). ``FACET`` used to express that distinction here, and the
+         *         distinction had no reader beyond the chip itself — the entity already reaches the description with
+         *         a type the search facet and the public projection both use.
+         * @default ALL
+         * @enum {string}
+         */
+        TagCatalogState: "ALL" | "PENDING" | "NOT_SUBJECT" | "LOW_CONFIDENCE";
         /** TagCurationRequest */
         TagCurationRequest: {
             /** @description Drawer the tag moves into; ``null`` takes it out of the subject axis. */
@@ -3249,6 +3808,8 @@ export interface components {
             macro_category_id?: number | null;
             macro_category_name?: string | null;
             name: string;
+            /** @default false */
+            subject_excluded: boolean;
             tag_id: number;
         };
         /** TagLinkRequest */
@@ -3779,6 +4340,7 @@ export interface operations {
                 level_id?: number | null;
                 ancestor_id?: string | null;
                 entity_type?: string | null;
+                entity_id?: number | null;
                 date_from?: string | null;
                 date_to?: string | null;
                 status?: components["schemas"]["ArchiveReviewStatus"] | null;
@@ -5764,6 +6326,7 @@ export interface operations {
             query?: {
                 threshold?: number;
                 pair_kind?: "all" | "exact_name" | "near_duplicate";
+                entity_type?: "ORG" | "PER" | "LOC" | null;
                 limit?: number;
                 offset?: number;
             };
@@ -5952,6 +6515,45 @@ export interface operations {
             };
         };
     };
+    ApiV1TaxonomyConflictsResolveBatchResolveCrossDomainConflictBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConflictBatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictBatchResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
     ApiV1TaxonomyConflictsResolvePreviewPreviewConflictResolution: {
         parameters: {
             query?: never;
@@ -6038,7 +6640,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["MergeRequest"];
+                "application/json": components["schemas"]["EntityMergeRequest"];
             };
         };
         responses: {
@@ -6049,6 +6651,124 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EntityMergeResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyEntitiesMergeLogListEntityMergeLog: {
+        parameters: {
+            query?: {
+                canonical_id?: number | null;
+                changed_by?: string | null;
+                include_undone?: boolean;
+                q?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityMergeLogListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyEntitiesMergeLogMergeIdUndoEntityMerge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                merge_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityMergeUndoResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyEntitiesMergePreviewPreviewEntityMerge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntityMergePreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityMergePreviewResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -6162,6 +6882,123 @@ export interface operations {
                         } | unknown[];
                         status_code: number;
                     };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyEntitiesNerExclusionsPurgePurgeNerEntities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NerPurgeResponse"];
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyEntitiesNerExclusionsPurgeLogListNerPurgeLog: {
+        parameters: {
+            query?: {
+                include_undone?: boolean;
+                q?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NerPurgeLogListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyEntitiesNerExclusionsPurgeLogPurgeIdUndoNerPurge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                purge_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NerPurgeUndoResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyEntitiesNerExclusionsPurgePreviewPreviewNerPurge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NerPurgePreview"];
                 };
             };
         };
@@ -6281,6 +7118,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EntityDeleteResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyEntitiesEntityIdRenameEntity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntityRenameRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityRenameResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -6477,6 +7355,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TagSearchResult"][];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyTagsCatalogListTagCatalog: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Which slice of the tag catalogue one read asks for, by the state of its subject decision.
+                 *
+                 *         The decision has three parts and they are a **partition**: a tag is in a drawer, declared not a
+                 *         subject, or nobody has decided yet. This filter names the two that are states of the *catalogue*
+                 *         — the drawer is reached with ``macro_category_id`` — and ``ALL`` is not a state at all but the
+                 *         absence of a filter. The predicates live in one module (``repository/subject_queue.py``) and the
+                 *         home screen's counters read the same ones, because the number a card promises has to be the number
+                 *         the list it opens reports.
+                 *
+                 *         ``LOW_CONFIDENCE`` is the one that is not a state of the tag but of the *work*: the classifier
+                 *         ran, was not confident enough to file the tag, and left a row in ``archive_ai_review_queue``.
+                 *         It is a subset of ``PENDING`` on purpose — the archivist's two cards answer two questions about
+                 *         the same queue, and either one may take the decision.
+                 *
+                 *         A place, a producer or a person is **not** a fourth state: it is a tag the subject axis does not
+                 *         answer for, so it is declared not a subject and its spelling is banned from coming back, while the
+                 *         entity axis carries what it is (ADR 0013). ``FACET`` used to express that distinction here, and the
+                 *         distinction had no reader beyond the chip itself — the entity already reaches the description with
+                 *         a type the search facet and the public projection both use.
+                 */
+                subject_state?: components["schemas"]["TagCatalogState"];
+                macro_category_id?: number | null;
+                term?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagCatalogResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -7045,6 +7985,83 @@ export interface operations {
             };
         };
     };
+    ApiV1TaxonomyTagsStopwordsPurgeLogListStopwordPurgeLog: {
+        parameters: {
+            query?: {
+                include_undone?: boolean;
+                q?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopwordPurgeLogListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyTagsStopwordsPurgeLogPurgeIdUndoStopwordPurge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                purge_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopwordPurgeUndoResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
     ApiV1TaxonomyTagsStopwordsPurgePreviewPreviewStopwordPurge: {
         parameters: {
             query?: never;
@@ -7144,6 +8161,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SubjectExclusionRemovalResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyTagsSubjectExclusionsPreviewPreviewSubjectExclusions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubjectExclusionRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubjectExclusionPlan"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

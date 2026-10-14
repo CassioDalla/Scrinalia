@@ -50,8 +50,8 @@ accounts and the deployment around the screens.
 
 ## The one rule
 
-Every write either has an undo, or it announces that it does not. The merge keeps a ledger; the
-purge has a preview and no undo; editing a description keeps the before and after. When a screen has
+Every write either has an undo, or it announces that it does not. The merge, the stopwords purge and
+the NER purge keep a ledger; editing a description keeps the before and after. When a screen has
 neither, this page says so in bold.
 
 Read-only work declares no permission: reading is what an authenticated session is. The screens that
@@ -62,16 +62,8 @@ does not carry it.
 
 !!! warning "These writes have no undo"
 
-    The operations below delete or dissolve a row that nothing else rebuilds. The stopwords purge
-    shows a preview; the deletion asks you to type the reference code; the entity merge has neither
-    — its panel warns instead. Read the confirmation.
-
-- **Stopwords purge** — `POST /api/v1/taxonomy/tags/stopwords/purge`. Deletes every tag whose name
-  is a banned term on the `TAG` or `ALL` axis. The links cascade and the tag's classification goes
-  with it. It has a preview (`POST /api/v1/taxonomy/tags/stopwords/purge/preview`, which lists the
-  tags that would die) and **no undo**: the merge keeps the previous state and restores it, the
-  purge does not. Banning (`POST /api/v1/taxonomy/tags/stopwords`) deletes nothing; only the purge
-  does, and the success message says it does not appear in the merge ledger.
+    The operations below delete or dissolve a row that nothing else rebuilds. The deletion asks you
+    to type the reference code. Read the confirmation.
 
 - **Excluding a description** — `DELETE /api/v1/documents/{description_id}`. Definitive. The API
   writes an ISAD(G) snapshot of the whole row into the deletion ledger first, and that snapshot is a
@@ -81,23 +73,10 @@ does not carry it.
   exclude or move the children first. The screen asks the archivist to type the reference code (or
   the id, when there is no code) before the button unlocks.
 
-- **Merging entities** — `POST /api/v1/taxonomy/entities/merge`. The absorbed entities stop
-  existing, their links move to the canonical one, and their spellings become synonyms so the
-  extractor keeps recognising them. Entities have **no proposal catalogue and no ledger**, so this
-  is the one merge with no undo — the tags' privilege is a ledger. The panel warns instead of
-  offering a button back, and there is no preview route: the screen states the documented effect
-  rather than inventing numbers. Renaming the canonical is part of the same write, and the old name
-  becomes a synonym.
-
 - **Deleting or purging entities without links** — `DELETE /api/v1/taxonomy/entities/{entity_id}`
   and `POST /api/v1/taxonomy/entities/orphans/purge`. The screen offers the delete only on a row
   whose use count is zero, and the purge removes every entity no description carries, so no link is
   lost — but the row is gone and there is no ledger to restore it.
-
-There is also one write whose effect reaches backwards: **an NER veto** (`POST
-/api/v1/taxonomy/entities/ner-exclusions`) purges the entities already extracted from that spelling,
-with their links. Removing the veto (`DELETE`, the screen's "remover veto") re-opens the term for
-future extractions; it **does not bring back** what the veto already deleted.
 
 ### The batch that does have an undo
 
@@ -204,13 +183,22 @@ account and lifts a lockout — and if the last active administrator is the one 
 host's terminal is the way back ([Operations](operate.md) owns that procedure). Nothing on the screen
 promises a message, because no message is sent.
 
+**The temporary password is a credential for the change and nothing else.** While the account still
+carries it, the API refuses every operation of `/api/v1` — reads included — with
+`PASSWORD_CHANGE_REQUIRED`, and the shell draws the forced password change in the place of every
+screen. The three operations that forced screen stands on stay reachable: reading the session
+(`GET /auth/me`), ending it (`POST /auth/logout`) and replacing the password (`POST /auth/password`,
+which clears the flag). The refusal does not depend on the screen: a script holding the password that
+was printed to a terminal, or typed by an administrator, gets the same sentence and no access to the
+collection. The change opens the rest of the API in the same session.
+
 ### The menu hides; it never grants
 
 The shell filters its entries by the area the screen **writes** (`apps/curator/src/lib/permissions.ts`,
 a mirror of the server's role map), and an empty group is not rendered at all. The screens that only
 read carry no permission and stay visible to every role: Início, the collection list, the tree, the
-exclusions trail and the arrangement diagnostic. A `VIEWER` therefore sees exactly the "Curadoria"
-and "Acervo" groups — every other group exists to decide, and is hidden.
+exclusions trail and the arrangement diagnostic. A `VIEWER` therefore sees the "Acervo" group and the
+"Início" entry, which stands with no heading — every other group exists to decide, and is hidden.
 
 The same rule governs the cards of `/configuracoes`, and it is the card catalogue
 (`apps/curator/src/lib/settings.ts`) that both the page and the menu entry read: a card is hidden when
@@ -508,8 +496,9 @@ What *this* collection declares, as opposed to what the language or the software
   (`SMU`) or a whole code (`BR PRADAP`) mapped to the name the arrangement proposal suggests; the
   whole code wins over the last token;
 - **collection terms** — `POST`/`PATCH /api/v1/vocabulary/collection-terms` (`CATALOGUE`): the
-  spellings the collection carries and that are not subjects, typed so the PLACE facet can claim a
-  place while a person's name goes nowhere.
+  spellings the collection carries and that are not subjects, typed so the guard recognises a place
+  or a person name. What the name *is* is carried by the entity axis (`LOC`, `PER`), not by a state
+  of the tag: the subject axis simply stops guessing at it.
 
 What belongs to the Portuguese language itself — *rua*, *não identificado*, *303 anos*, a bare year
 — lives in the language profile and does **not** appear here: changing it would change the meaning
@@ -520,15 +509,17 @@ as a subject again on the next classifier run.
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
-| Tags — `/assuntos/tags` | the weight, the duplicates, the merge queue and the banned terms | the merge yes (ledger); the purge **no** |
-| Categorias — `/assuntos/categorias` | the subject categories the classifier reads | yes (retire and reactivate) |
+| Tags — `/assuntos/tags` | the weight, the duplicates, the merge queue, the banned terms **and the subject decision of each tag** | the merge yes (ledger); the purge yes (its own ledger); a subject decision yes (it can be taken back) |
+| Categorias — `/assuntos/categorias` | the subject categories the classifier reads, **and what is inside each one** | yes (retire and reactivate) |
 | Descobrir Categorias — `/assuntos/descobrir` | whether a proposed theme deserves a category | yes (the proposal writes nothing) |
-| Não é assunto — `/assuntos/excecoes` | which terms leave the subject axis | yes (banning deletes nothing) |
+| Não é assunto — `/assuntos/excecoes` | which terms leave the subject axis and have their spelling banned from becoming a tag again | yes (the ban deletes nothing, and the undo lifts the ban this decision planted) |
 
 ### Tags — `/assuntos/tags`
 
-One route, four questions, one conversation: the archivist sees that `alvenarias` weighs little,
-finds its near-duplicate and decides whether to absorb it. The active tab is in the URL.
+One route, five questions, one conversation: the archivist sees that `alvenarias` weighs little,
+finds its near-duplicate and decides whether to absorb it. Four of the tabs are how they look; the
+fifth, **Classificar**, is where the subject decision is taken, and it is where the home screen's two
+subject cards land. The active tab is in the URL.
 
 #### Relevância
 
@@ -556,6 +547,13 @@ links the merge created, so it cannot detach a document that already carried the
 also be marked across lines and unified as a cluster, which is how one merge spans several pairs
 (`carlos de carvalho` appears in more than one row).
 
+A marked selection has a **second destination**, and it is the other kind of write: **Banir N
+marcadas** registers the spellings in `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`), on the axis
+chosen beside the button. Banning **deletes nothing** — the tags stay in the collection, linked and
+reachable by search, and the step that removes them is the **purge** in the Stopwords tab, behind its
+own preview and with a ledger that restores each tag. The marks survive the ban: the merge they were
+made for is still possible.
+
 #### Propostas de merge
 
 The machine's clusters, with the decision kept apart from the write:
@@ -582,23 +580,76 @@ ledger is the write's history and the status is the decision's.
 
 #### Stopwords
 
-The banned terms, and the one destructive write in the taxonomy. The screen keeps three things
-apart:
+The banned terms, and the destructive write in the taxonomy that keeps a ledger. The screen keeps
+three things apart:
 
 - **Banir** — `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`) records that a term is not worth
   considering on one axis: `TAG` (the subject axis), `ENTITY` (NER) or `ALL`. A word has exactly one
-  scope — re-banning it **moves** it — and banning **deletes nothing**.
+  scope — re-banning it **moves** it — and banning **deletes nothing**. A ban typed here is recorded
+  with `source=HUMAN`; the ban the *Não é assunto* screen plants is `EXCLUSION`, and the one a
+  conflict resolution plants is `CONFLICT`. The list shows the scope on every term and the origin as
+  a badge when it is not `HUMAN` — a term typed here is the default, and the badge marks the ones
+  that arrived as a consequence of another decision.
 - **Desbanir** — `DELETE /api/v1/taxonomy/tags/stopwords` (`CURATE`). Reversible.
 - **Purgar** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), after
-  `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. This is the write that deletes the tags, and
-  it has **no undo**. The preview lists the tags that would die, with their document count and
-  category, and the apply button is disabled until the preview exists.
+  `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. This is the write that deletes the tags. The
+  preview lists the tags that would die, with their document count, their category **and where the
+  ban came from** (`HUMAN`, `CONFLICT` or `EXCLUSION`), so a term banned with the archive in mind is
+  told apart from one typed by hand; the apply button is disabled until the preview exists.
+
+Each deleted tag is written to a **ledger** (`archive_stopword_purge_log`) before it disappears: the
+snapshot of the row, the documents that carried it and the spellings that pointed at it. The purge
+response carries the `purge_ids`, the Stopwords tab shows them in **Ledger das purgas**, and
+`DELETE /api/v1/taxonomy/tags/stopwords/purge-log/{purge_id}` (`CURATE`) restores the tag, its links
+and its spellings; an unknown id is **404** and a second attempt is **409**. The undo does **not**
+lift the ban — the term is still a stopword, and the next purge lists the restored tag again.
 
 !!! warning "The scope protects the other axis"
 
     The purge reads only `TAG`/`ALL`. A term banned on the `ENTITY` axis is a NER veto and can never
     make the subject purge delete a tag the curator kept — the two are stored in different places on
     purpose.
+
+#### Classificar
+
+Where a tag's subject is decided, and the tab the home screen's cards open. The read is
+`GET /api/v1/taxonomy/tags/catalog` (`AUTHENTICATED`), filtered by `subject_state` and optionally by
+`macro_category_id`, paged, and ordered by weight — the tag the most descriptions carry is the
+decision worth taking first. It exists because the type-ahead cannot answer it: that one requires a
+term and returns a top-N by weight, so a card promising "76 tags without a subject" had no read that
+could mark which rows they were.
+
+The state is a **partition**, and `ALL` is the absence of a filter rather than a state:
+
+| `subject_state` | What it means |
+| --- | --- |
+| `PENDING` | No drawer and no verdict: nobody has decided. It is what the home card counts |
+| `NOT_SUBJECT` | A person declared the tag is not a subject; the classifier stops guessing at it and its spelling is banned from becoming a tag again |
+| `LOW_CONFIDENCE` | The classifier ran, was not confident enough to file the tag, and left it undecided |
+
+The row carries the evidence (weight and the classifier's confidence) and exactly one of two
+destinations, through `PATCH /api/v1/taxonomy/tags/{tag_id}` (`CURATE`):
+
+- **a category** — the drawer the tag joins. The decision is **global**: it changes the badge of
+  every description that carries the tag, and the screen says so before the click;
+- **not a subject** — `macro_category_id=null`, which is the same write the *Não é assunto* screen
+  makes. The tag stays in the collection and reachable by search, and the column alone would be a
+  decision the next run overwrites, so the term is registered in `domain_subject_exclusions` **and its
+  spelling is banned at `TAG` scope**, so the next ingestion does not recreate it. The reversal is
+  `DELETE /api/v1/taxonomy/tags/subject-exclusions`, and it lifts only a ban this decision planted.
+
+A producer, a place or a person is **not** a third destination. What the name *is* belongs to the
+entity axis, where it carries a type (`LOC`, `PER`, `ORG`) that search and the public projection
+read; a spelling that is both a tag and an entity is settled on
+**Conflitos — `/entidades/conflitos`**, which bans the losing spelling and keeps a ledger. Declaring
+the term not a subject is what takes it out of the subject queue; the entity is where it keeps its
+meaning. The measurement behind the removed state still holds — `alfa` reaches 2,376 descriptions and
+`cidade` 1,865, and forcing them into a category is a measured cause of the classification defect —
+but the answer is now the entity and the exclusion, not a fourth state of the tag.
+
+The same two actions apply to a **selection**, one request per tag, and the batch reports how many
+tags it wrote and where. Nothing on this tab deletes: banning a spelling and purging the tags are in
+**Stopwords**, each behind its own step, and the purge keeps a ledger with the undo of each tag.
 
 ### Categorias — `/assuntos/categorias`
 
@@ -609,6 +660,19 @@ gives: the **classifier label** is a curator override, not an improvement — me
 hand-labelled tags, a phrase instead of a bare name scores 0.000 with 65% of the tags in one category
 — and a **new category only takes effect when the classifier runs again**, because the worker's stamp
 is the hash of the label set, which returns the tags to the queue on its own.
+
+Each card opens on two tabs. **Descrições** lists the descriptions the category holds, ten at a time,
+through the collection search (`GET /api/v1/documents?macro_category_id=`, `AUTHENTICATED`); the
+card's badge counts **distinct** descriptions through the same join, so the number on the card and
+the `total` of the list are one definition counted twice. A category with none says so — the retired
+ones are not a defect. **Editar** is the form: name, classifier label and description.
+
+The button on the row opens a **read-only preview** of one description — reference code, title, date,
+level and typology, arrangement path, its tags with their drawers, and the review status — over the
+list, so the description can be recognised without a round trip to the dossier. The panel writes
+nothing: its **Editar** leaves for `/acervo/{description_id}?aba=descricao`. The open category, its
+page and the previewed description live in the URL, so the back button closes the panel and the page
+survives it.
 
 ### Descobrir Categorias — `/assuntos/descobrir`
 
@@ -625,51 +689,126 @@ The curated half of "this is not a subject at all". The deterministic guard catc
 — a date, a placeholder, a street name, a bare number — and on the real measurement it caught 1 of 4
 of the hand-labelled non-subjects; the rest are semantic calls no rule resolves (`pessoas`,
 `vista aérea`, `capanema`). The screen shows the guard's candidates with their evidence (weight,
-whether the PLACE facet claims the term, whether the same spelling is also an entity), and offers to
-register them with `source=RULE` or one at a time.
+whether the term is a place, whether the same spelling is also an entity, the drawer that would block
+it and whether its spelling is already banned), and offers to register them with `source=RULE` or one
+at a time.
 
-The write is `POST /api/v1/taxonomy/tags/subject-exclusions` (`CURATE`) and the reversal is
-`DELETE` (`CURATE`, the screen's "restaurar"). **Banning here deletes nothing**: the tag stays in the
-collection, stays linked and stays reachable by search — only the subject classification stops
-guessing at it. The route deliberately proposes nothing for the semantic half: the available signals
-lie, and a model that does not know how to abstain would answer confidently and wrongly.
+Confirming plans and applies in one call: the write below consumes the same planner the preview route
+uses, so the two cannot disagree. The preview, `POST
+/api/v1/taxonomy/tags/subject-exclusions/preview` (`AUTHENTICATED`), returns `applicable` and
+`blocked`, but it exists as an API read — no screen calls it.
+
+The write is `POST /api/v1/taxonomy/tags/subject-exclusions` (`CURATE`), and it does two things at
+once: it registers the term in `domain_subject_exclusions`, so the subject classifier stops guessing
+at it, **and it bans the spelling at `TAG` scope**, so the next ingestion does not recreate the tag
+that was just decided about. **The ban deletes nothing**: the tag stays in the collection, stays
+linked and stays reachable by search. Removing it is a separate act — the **purge**, in the Stopwords
+tab, behind its own preview and with a ledger that restores each tag — and the purge preview says
+which bans were planted here (`EXCLUSION`) and which by hand (`HUMAN`).
+
+Two answers the screen has to show:
+
+- a term whose tag already sits in a **drawer** is not applied: it comes back in `blocked` with the
+  drawer that has to be emptied first, because "which drawer is this tag in?" is a question about the
+  *tag*, answered on the tag catalogue, and a statement about a *term* must not un-file a human
+  verdict. The code is `SUBJECT_EXCLUSIONS_BLOCKED` when nothing was applied and something was
+  refused, `SUBJECT_EXCLUSIONS_PARTIAL` when some were applied and some refused, and `created` /
+  `banned` / `blocked` carry the three answers;
+- the route deliberately proposes nothing for the semantic half: the available signals lie, and a
+  model that does not know how to abstain would answer confidently and wrongly.
+
+The reversal is `DELETE` (`CURATE`, the screen's "restaurar"). It answers `removed` and `unbanned`,
+and the lift is exact: only a ban this decision planted leaves with it. A spelling a person banned on
+the Stopwords screen, or one a conflict resolution planted first, survives.
 
 ## Entidades
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
-| Entidades — `/entidades/lista` | the type of a name, and whether two names are one | the type yes; the merge **no** |
-| Exclusões de NER — `/entidades/excecoes` | which spellings are subjects, not proper names | the veto row yes; the entities it purged **no** |
-| Conflitos — `/entidades/conflitos` | whether a collision belongs to the subject axis or to the names | yes (ledger and undo) |
+| Entidades — `/entidades/lista` | the type of a name, the spelling of a name, and whether two names are one | the type yes; the rename **yes** (one ledger row); the merge **yes** (one ledger row per absorbed entity) |
+| Exclusões de NER — `/entidades/excecoes` | which spellings are subjects, not proper names, and the retroactive purge that follows | both **yes**: the veto row by its own `DELETE`, the purge by its ledger (`archive_ner_purge_log`) |
+| Conflitos — `/entidades/conflitos` | whether a collision belongs to the subject axis or to the names, one pair at a time or a whole category at once | yes (one ledger row per pair, with the undo) |
 
 ### Entidades — `/entidades/lista`
 
-The named-entity vocabulary, by weight or by similarity. Three decisions:
+The named-entity vocabulary, by weight or by similarity. Five decisions:
 
 - **Reclassify the type** — `PATCH /api/v1/taxonomy/entities/{entity_id}/reclassify` (`CURATE`),
   only between `ORG`, `PER` and `LOC`. This is not renaming a label: the service also writes the
   anchoring synonym, so the extractor returns that spelling with the new type in every future run.
+- **Renomear** — `PATCH /api/v1/taxonomy/entities/{entity_id}` (`CURATE`): corrects the spelling of
+  one name, and it is **not** a merge. The previous spelling stays anchored as a synonym unless the
+  archivist turns `keep_old_synonym` off, which is what keeps a future extraction of the old spelling
+  resolving to this entity — and a typo is exactly the case where it should not. The write leaves one
+  `RENAME` row in the same ledger the merge uses, so the screen's "desfazer" restores the name and
+  drops the spelling it planted. A spelling another entity already carries is a **409** that names the
+  twin and points at the merge, never a silent overwrite and never a bare structural conflict.
 - **Excluir** an entity — `DELETE /api/v1/taxonomy/entities/{entity_id}` (`CURATE`), offered only on
   a row no description carries, where deleting loses no link. No undo.
 - **Purgar órfãs** — `POST /api/v1/taxonomy/entities/orphans/purge` (`CURATE`): the same decision in
   batch. No undo.
 - **Mesclar** — `POST /api/v1/taxonomy/entities/merge` (`CURATE`): the absorbed entities stop
   existing, their links move to the canonical, their spellings become synonyms, and an optional new
-  name for the canonical makes the old one a synonym too. Entities have no proposal catalogue and
-  **no ledger**: there is no undo, and the panel says so instead of offering a button back. There is
-  no preview route either — the screen states the documented effect rather than inventing numbers.
-  The pair list is raw evidence, with both ids, because two rows can read the same name and the
-  canonical is a choice the archivist has to be able to tell apart.
+  name for the canonical makes the old one a synonym too. The decision is preceded by the preview
+  (`POST /api/v1/taxonomy/entities/merge/preview`, a read): it returns how many descriptions gain the
+  canonical, how many links are rewritten, which entities are absorbed and the warnings to look at,
+  computed by the **same planner** the write executes. Entities have no proposal catalogue, but they
+  do have a ledger: each absorbed entity is logged **before** anything changes, and the undo
+  (`DELETE /api/v1/taxonomy/entities/merge-log/{merge_id}`, the screen's "desfazer") restores the row,
+  its links, its spellings and the name the canonical lost. `GET /api/v1/taxonomy/entities/merge-log`
+  is the trail, searchable by either spelling of each entry.
+  The pair list is raw evidence, with both ids, because two rows can read almost the same name and
+  the canonical is a choice the archivist has to be able to tell apart.
+
+The merge has three doors and one panel behind all of them: the selection on **Relevância**, a pair on
+**Similaridade**, and the **Mesclar pelo nome** card above the tabs. The card exists because the other
+two are list-driven and the archivist controls neither list — relevance is ordered by weight and
+capped, so two names carried by very different numbers of descriptions are never on the same page, and
+similarity is trigram, the one measure that fails on the pair they are most sure about (`smu` and
+`smcs secretaria municipal de comunicação social`: 68 descriptions against 1, and 0.045 of trigram
+similarity). The card takes the names through the type-ahead the dossier's Assuntos tab already uses,
+so it inherits the API's two-character floor instead of inventing one; it shows each name's weight, so
+the canonical is chosen with the numbers in view; and **its list is its own** — it does not consume the
+checkboxes of Relevância, and with fewer than two names nothing is written.
+
+Reading is the other half of this screen, and the card opens into it. A name expands into the
+**descriptions that carry it** — the collection search (`GET /api/v1/documents`) with `entity_id`,
+paged ten at a time inside the card, so the badge above and the list's `total` are one number counted
+twice; `testing/integration/api/controller/test_entity_documents.py` fails when they stop agreeing.
+Clicking a row opens the read-only preview (`?descricao=`) that the category screen already uses, and
+nothing in it writes. Its "Editar" lands on the dossier's **Assuntos** tab, which is where a
+description's entities are added and removed. One card is open at a time, and `?aberta=`, `?offset=`
+and `?descricao=` carry that state in the URL — so the back button closes the panel and a colleague
+can be sent the exact view.
+
+The card's second tab is the rename, and the **Renomear** button beside the name opens it. It is the
+row's own affordance and never merges: the merge starts from two or more names and only renames the
+canonical as a side effect.
 
 ### Exclusões de NER — `/entidades/excecoes`
 
-The veto "this spelling is a subject, not a proper name". The write is `POST
-/api/v1/taxonomy/entities/ner-exclusions` (`CURATE`), with a reason kept for audit; the reversal is
-`DELETE` (the screen's "remover veto"). Two behaviours the screen states because neither is visible
-in the list: the block is **by token boundary**, not by exact name (spaCy merges neighbouring tokens,
-so a banned `iptu` would not stop `"IPTU do Batel"` under an exact comparison), and it **applies to
-the past** — the entities already extracted from that spelling are deleted, with their links, and
-removing the veto does not bring them back.
+The veto "this spelling is a subject, not a proper name". **Vetoing deletes nothing.** The write is
+`POST /api/v1/taxonomy/entities/ner-exclusions` (`CURATE`), with a reason kept for audit, and the
+reversal is `DELETE` (the screen's "remover veto"), which re-opens the term for future extractions.
+One behaviour the screen states because it is not visible in the list: the block is **by token
+boundary**, not by exact name (spaCy merges neighbouring tokens, so a banned `iptu` would not stop
+`"IPTU do Batel"` under an exact comparison).
+
+The retroactive half is a separate act, **Expurgar do passado**:
+`POST /api/v1/taxonomy/entities/ner-exclusions/purge` (`CURATE`), after
+`POST /api/v1/taxonomy/entities/ner-exclusions/purge/preview`. The preview lists every entity already
+extracted from a banned spelling, with the descriptions that carry it, and the write consumes the same
+plan. Each deleted entity is written to a **ledger** (`archive_ner_purge_log`) before it disappears:
+the snapshot of the row, the documents that carried it, the spellings that pointed at it and the
+`excluded_term` that justified it. The response carries the `purge_ids`, the screen shows them in
+**Ledger dos expurgos**, and `DELETE /api/v1/taxonomy/entities/ner-exclusions/purge-log/{purge_id}`
+restores the entity, its links and its spellings — **without** lifting the veto, so the next purge
+lists the restored entity again. Use it to reverse the loss; use "remover veto" to re-open the term.
+
+The conflict screen resolves the same clash with the same pair of writes, and it is reversible there
+in the same shape: one ledger row per pair (`archive_conflict_resolution_log`), with the losing row,
+its links and its spellings restored by the undo. Reaching the operation from either screen now
+restores the same things.
 
 This is the other half of the bidirectional governance: it records the curator or the judge saying
 "this belongs to the subject axis", and it is stored apart from the subject-axis stopwords on
@@ -681,9 +820,10 @@ The same spelling on both axes: "is this a subject or a proper name?". Three rea
 questions, and reading only the first is what used to hide the judge's work:
 
 - **Pendentes** — the live trigram scan (`GET /api/v1/taxonomy/conflicts/cross-domain`), annotated
-  with the judge's verdict where there is one and separated by `pair_kind`: "grafias diferentes" (a
+  with the judge's verdict where there is one and filtered by `pair_kind`: "grafias diferentes" (a
   spelling question) and "nomes idênticos" (a structural question) are not the same list, and mixed
-  together neither is visible.
+  together neither is visible. The same read takes `entity_type` (`ORG`/`PER`/`LOC`), because "a
+  street is an entity" is a decision about a category of collisions and not about a pair.
 - **Decididos pelo juiz** — the review queue (`GET /api/v1/taxonomy/conflicts/judged`). An
   auto-resolution deletes the losing row, so most of the judge's decisions cannot appear in the live
   scan at all.
@@ -708,6 +848,27 @@ nor delete a link that predated it. The ledger restores the losing row from its 
 already resolved can be decided again — the second resolution is independent, and each has its own
 undo.
 
+#### Deciding a category at once
+
+A collision is decided one pair at a time, but the decision the archivist is actually making is
+categorical — "a street is an entity" — and a collection can hold dozens of the same spelling on both
+axes. The batch, `POST /api/v1/taxonomy/conflicts/resolve/batch` (`CURATE`), applies one verdict to
+the whole **selection** the list is showing: the same `pair_kind` and `entity_type` filters, the same
+`threshold`, and nothing else.
+
+The unit of the decision is the selection; the unit of the write is still the pair. Every pair is
+planned by the same planner the single preview uses and written inside its own savepoint, so one pair
+failing does not roll back the others, and every pair gets its own ledger row and its own
+`resolution_id` — the undo stays per pair even though the click was categorical. A pair whose loser an
+earlier pair of the same batch already removed is reported in `skipped` **with its reason**, never as
+a failure: it is finished work, and calling it a failure is what once turned a clean batch into a wall
+of red lines.
+
+`limit` bounds one request, because a click that writes thousands of ledger rows is a click nobody
+reviewed. `remaining` is the same read the list makes, taken again with the same filters, so the
+number before the click and the number after it are one measurement — the screen cannot claim a
+category is finished when the next page disagrees.
+
 !!! note "A resolved pair leaves the live scan"
 
     The resolution deletes the losing row, so the trigram join cannot return it and the live list has
@@ -718,7 +879,7 @@ undo.
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
-| Trechos — `/qualidade/trechos` | which consumer stops reading a repeated excerpt | yes (retire or remove from the catalogue) |
+| Trechos — `/qualidade/trechos` | which consumer stops reading a repeated excerpt | retiring **yes**; removing it from the catalogue is final |
 | Regras — `/qualidade/regras` | whether a rule rewrites the text or only flags it | yes: retiring has a route back, and the retired rule stays on the screen |
 | Anomalias — `/qualidade/anomalias` | none (the correction is the record's review) | yes (read only) |
 
@@ -800,8 +961,11 @@ write is `OPERATE`:
 
 The panel itself offers no undo for a run. The reversibility of a run is the reversibility of what it
 wrote — a merge undo, a materialisation undo, a conflict undo — and a worker that stamps its queue
-does not redo its work just because it is run again. A worker marked as not respecting the human
-review block is `worker_embedding`, the documented exception.
+does not redo its work just because it is run again. The panel marks **four** workers as outside the
+human review block — the transfer, the conflict judge, the macro-categoriser and `worker_embedding` —
+and only `worker_embedding` rewrites a *description*: it re-embeds a changed text even on an approved
+document, the documented exception. The other three work on units that are not descriptions (a
+staging record, a pair, a tag).
 
 ### Execuções — `/sistema/execucoes`
 

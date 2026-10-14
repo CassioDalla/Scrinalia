@@ -7,7 +7,9 @@ from scrinalia.domains.archive.exceptions import InvalidParam
 from scrinalia.domains.archive.models import (
     ArchiveDocumentTag,
     ArchiveMacroCategory,
+    ArchiveStopwordPurgeLog,
     ArchiveTag,
+    DomainSynonyms,
 )
 from scrinalia.domains.archive.repository.tag_repo import TagRepository
 from scrinalia.domains.archive.schemas.command_schema import TagLinkCommand
@@ -108,21 +110,28 @@ def test_save_and_get_stopwords(use_test_db, db_session):
     assert len(stopwords_db) == 4
 
 
-def test_purge_tags_by_stopwords(use_test_db, db_session):
-    """Guarantees the bulk deletion of tags that 'match' the stopword list."""
+def test_plan_and_apply_stopword_purge(use_test_db, db_session):
+    """The plan lists exactly what the apply deletes, and the apply leaves one ledger row per tag."""
     repo = TagRepository(db_session)
 
     db_session.add_all([ArchiveTag(name="curitiba"), ArchiveTag(name="estado"), ArchiveTag(name="importante")])
     db_session.commit()
-
-    stopwords = {"estado", "importante", "irrelevante"}
-
-    deleted = repo.purge_tags_by_stopwords(stopwords)
+    repo.save_stopwords(["estado", "importante", "irrelevante"])
     db_session.commit()
 
-    assert deleted == 2
+    plan = repo.plan_stopword_purge()
+    assert {item.name for item in plan.items} == {"estado", "importante"}
+    assert plan.stopwords == ["estado", "importante", "irrelevante"]
+
+    result = repo.apply_stopword_purge(plan)
+    db_session.commit()
+
+    assert result.tags_deleted == 2
+    assert len(result.purge_ids) == 2
     remaining_tags = db_session.scalars(select(ArchiveTag.name)).all()
-    assert "curitiba" in remaining_tags
+    assert remaining_tags == ["curitiba"]
+    rows = db_session.scalars(select(ArchiveStopwordPurgeLog).order_by(ArchiveStopwordPurgeLog.purge_id)).all()
+    assert {row.purged_name for row in rows} == {"estado", "importante"}
 
 
 def test_link_tags_to_document_with_duplicates(use_test_db, db_session, generate_archive_doc):
@@ -371,6 +380,34 @@ def test_create_synonyms_repoints_an_existing_mapping(use_test_db, db_session):
     db_session.flush()
 
     assert repo.get_synonyms_mapping(["fotu"]) == {"fotu": second.tag_id}
+
+
+def test_create_synonyms_collapses_commands_that_normalize_to_one_key(use_test_db, db_session):
+    """
+    The same collapse on the tag side, because the write is one definition shared by both axes.
+
+    The tag vocabulary has no case-collision group today, so this path only ever carried the defect
+    latently — measured, ``archive_tags`` has 0 non-normalized names. Pinning it here is what keeps
+    the fix from being "the entity caller was changed" instead of "the write cannot emit an invalid
+    command": two spellings that differ only in case are one key, and one command cannot repeat it.
+    """
+    from scrinalia.domains.archive.schemas import SynonymCommand
+
+    repo = TagRepository(db_session)
+    tag = ArchiveTag(name="imagem")
+    db_session.add(tag)
+    db_session.commit()
+
+    repo.create_synonyms(
+        [
+            SynonymCommand(synonym_name="Fotu", category="TAG", canonical_tag_id=tag.tag_id, canonical_entity_id=None),
+            SynonymCommand(synonym_name="fotu", category="TAG", canonical_tag_id=tag.tag_id, canonical_entity_id=None),
+        ]
+    )
+    db_session.flush()
+
+    stored = db_session.scalars(select(DomainSynonyms).where(DomainSynonyms.category == "TAG")).all()
+    assert [(row.synonym_name, row.canonical_tag_id) for row in stored] == [("fotu", tag.tag_id)]
 
 
 # ==========================================

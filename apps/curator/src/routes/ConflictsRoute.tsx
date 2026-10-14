@@ -5,12 +5,15 @@ import { useState } from "react";
 import {
   previewConflictResolution,
   resolveConflict,
+  resolveConflictBatch,
   undoConflictResolution,
+  type ConflictBatchResult,
   type ConflictPairKindFilter,
   type ConflictResolutionPlan,
   type ConflictWinner,
+  type EntityType,
 } from "@/api/client";
-import { CONFLICTS_PAGE_SIZE, queries } from "@/api/queries";
+import { CONFLICTS_BATCH_LIMIT, CONFLICTS_PAGE_SIZE, queries } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -22,7 +25,7 @@ import { Input } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { PageBody } from "@/components/layout/PageBody";
 import { ACTION } from "@/lib/copy";
-import { CONFLICT_WINNER_HINT, CONFLICT_WINNER_LABEL, CONFLICT_WINNER_TONE, ENTITY_TYPE_LABEL } from "@/lib/entities";
+import { CONFLICT_WINNER_HINT, CONFLICT_WINNER_LABEL, CONFLICT_WINNER_TONE, ENTITY_TYPE_HINT, ENTITY_TYPE_LABEL } from "@/lib/entities";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { labelOf } from "@/lib/hierarchy";
 import { asNumber } from "@/lib/search";
@@ -30,7 +33,13 @@ import { routeMessage } from "@/lib/messages";
 
 const routeApi = getRouteApi("/entidades/conflitos");
 
-export type ConflictsSearch = { limiar?: number; ver?: ConflictView; tipo?: ConflictPairKindFilter; pagina?: number };
+export type ConflictsSearch = {
+  limiar?: number;
+  ver?: ConflictView;
+  tipo?: ConflictPairKindFilter;
+  categoria?: EntityType;
+  pagina?: number;
+};
 
 /** The three reads this screen makes: the live pairs, the judge's verdicts, and the ledger. */
 export type ConflictView = "pendentes" | "decididos" | "resolucoes";
@@ -50,20 +59,35 @@ const PAIR_KINDS: { key: ConflictPairKindFilter; label: string; hint: string }[]
   {
     key: "exact_name",
     label: "nomes idênticos",
-    hint: "A mesma grafia nos dois eixos. É uma pergunta estrutural, e no acervo real são milhares.",
+    hint: "A mesma grafia nos dois eixos. É uma pergunta estrutural, e é a população que um lote consegue decidir.",
   },
   { key: "all", label: "todos", hint: "Nenhum filtro: as duas populações juntas." },
 ];
+
+/** The categories of named entity, as the filter and the batch name them: "a street is an entity". */
+const ENTITY_KINDS: { key: EntityType | "all"; label: string; hint: string }[] = [
+  { key: "all", label: "todas as categorias", hint: "Nenhum filtro de categoria: a população inteira." },
+  { key: "LOC", label: labelOf(ENTITY_TYPE_LABEL, "LOC"), hint: labelOf(ENTITY_TYPE_HINT, "LOC") },
+  { key: "PER", label: labelOf(ENTITY_TYPE_LABEL, "PER"), hint: labelOf(ENTITY_TYPE_HINT, "PER") },
+  { key: "ORG", label: labelOf(ENTITY_TYPE_LABEL, "ORG"), hint: labelOf(ENTITY_TYPE_HINT, "ORG") },
+];
+
+/** The Portuguese name of the population, for the batch panel: it must say what it is about to write. */
+function pairKindLabel(kind: ConflictPairKindFilter): string {
+  return PAIR_KINDS.find((item) => item.key === kind)?.label ?? "todos";
+}
 
 export function validateConflictsSearch(search: Record<string, unknown>): ConflictsSearch {
   const limiar = asNumber(search.limiar);
   const pagina = asNumber(search.pagina);
   const ver = search.ver;
   const tipo = search.tipo;
+  const categoria = search.categoria;
   return {
     limiar: limiar !== undefined && limiar > 0 && limiar <= 1 ? limiar : undefined,
     ver: ver === "decididos" || ver === "resolucoes" ? ver : undefined,
     tipo: tipo === "exact_name" || tipo === "all" || tipo === "near_duplicate" ? tipo : undefined,
+    categoria: categoria === "ORG" || categoria === "PER" || categoria === "LOC" ? categoria : undefined,
     pagina: pagina !== undefined && pagina > 0 ? pagina : undefined,
   };
 }
@@ -96,6 +120,7 @@ export function ConflictsRoute() {
   const threshold = search.limiar ?? 0.85;
   const view = search.ver ?? "pendentes";
   const pairKind = search.tipo ?? "near_duplicate";
+  const entityType = search.categoria;
   const page = search.pagina ?? 0;
 
   /**
@@ -117,7 +142,18 @@ export function ConflictsRoute() {
   const [note, setNote] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  const conflicts = useQuery(queries.crossDomainConflicts(threshold, pairKind, page));
+  /**
+   * The categorical decision, and the report it leaves behind.
+   *
+   * The panel is opened by hand and states the selection before anything is written: the count comes
+   * from the same read the list is drawn from, so "36 pairs" cannot mean one thing in the button and
+   * another in the write. The response's ``remaining`` is that same read, taken again.
+   */
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchNote, setBatchNote] = useState("");
+  const [batchResult, setBatchResult] = useState<ConflictBatchResult | null>(null);
+
+  const conflicts = useQuery(queries.crossDomainConflicts(threshold, pairKind, entityType, page));
   const judged = useQuery({ ...queries.judgedConflicts(page), enabled: view === "decididos" });
   const ledger = useQuery({ ...queries.conflictResolutions(page), enabled: view === "resolucoes" });
 
@@ -152,6 +188,32 @@ export function ConflictsRoute() {
     mutationFn: (resolutionId: number) => undoConflictResolution(resolutionId),
     onSuccess: (response) => {
       setFeedback(routeMessage(response));
+      invalidate();
+    },
+  });
+
+  /**
+   * One verdict, the whole on-screen selection, one ledger row per pair.
+   *
+   * ``pair_kind`` and ``entity_type`` travel exactly as the list is filtered — what the archivist
+   * sees is what the batch writes — and ``limit`` bounds one click so a large population is settled
+   * in reviewed chunks instead of one anonymous sweep.
+   */
+  const resolveBatch = useMutation({
+    mutationFn: (winner: ConflictWinner) =>
+      resolveConflictBatch({
+        winner,
+        pair_kind: pairKind,
+        entity_type: entityType ?? null,
+        threshold,
+        limit: CONFLICTS_BATCH_LIMIT,
+        note: batchNote || null,
+      }),
+    onSuccess: (response) => {
+      setFeedback(routeMessage(response));
+      setBatchResult(response.data);
+      setBatchOpen(false);
+      setBatchNote("");
       invalidate();
     },
   });
@@ -274,6 +336,87 @@ export function ConflictsRoute() {
                 </Button>
               ))}
             </div>
+
+            {/*
+              The category narrows the structural population to the set a categorical decision can
+              name: "a street is an entity" is about the LOC collisions, not about one pair at a time.
+              It lives in the URL because it is also the selection the batch writes.
+            */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-(--color-muted)">Categoria:</span>
+              {ENTITY_KINDS.map((kind) => (
+                <Button
+                  key={kind.key}
+                  size="sm"
+                  variant={(entityType ?? "all") === kind.key ? "primary" : "ghost"}
+                  title={kind.hint}
+                  onClick={() => goTo({ categoria: kind.key === "all" ? undefined : kind.key })}
+                >
+                  {kind.label}
+                </Button>
+              ))}
+            </div>
+
+            {conflicts.data && conflicts.data.total > 0 ? (
+              <Card>
+                <CardBody className="grid gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold">Decidir a seleção em lote</span>
+                    <Badge tone="neutral">
+                      {formatCount(conflicts.data.total)} par(es) · {pairKindLabel(pairKind)}
+                      {entityType ? ` · ${ENTITY_TYPE_LABEL[entityType]}` : ""}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-(--color-muted)">
+                    Uma decisão vale para a seleção inteira e escreve uma linha no ledger por par, então
+                    cada par continua com o seu próprio desfazer. Até {formatCount(CONFLICTS_BATCH_LIMIT)}{" "}
+                    pares por clique; o que sobrar continua nesta seleção.
+                  </p>
+                  {batchOpen ? (
+                    <div className="grid gap-2">
+                      <Field label="Nota da decisão">
+                        <Input value={batchNote} onChange={(event) => setBatchNote(event.target.value)} />
+                      </Field>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="primary"
+                          disabled={resolveBatch.isPending}
+                          title={CONFLICT_WINNER_HINT.TAG}
+                          onClick={() => resolveBatch.mutate("TAG")}
+                        >
+                          {ACTION.apply.label}: lote {CONFLICT_WINNER_LABEL.TAG} vence
+                        </Button>
+                        <Button
+                          variant="primary"
+                          disabled={resolveBatch.isPending}
+                          title={CONFLICT_WINNER_HINT.ENTITY}
+                          onClick={() => resolveBatch.mutate("ENTITY")}
+                        >
+                          {ACTION.apply.label}: lote {CONFLICT_WINNER_LABEL.ENTITY} vence
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          disabled={resolveBatch.isPending}
+                          onClick={() => setBatchOpen(false)}
+                        >
+                          {ACTION.cancel.label}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="secondary"
+                        title="Mostra a seleção e só então escreve: um veredito para todos estes pares."
+                        onClick={() => setBatchOpen(true)}
+                      >
+                        Decidir em lote
+                      </Button>
+                    </div>
+                  )}
+                </CardBody>
+              </Card>
+            ) : null}
           </>
         ) : null}
 
@@ -282,9 +425,11 @@ export function ConflictsRoute() {
             {feedback}
           </Notice>
         ) : null}
+        {batchResult ? <BatchReport result={batchResult} /> : null}
         {active.error ? <ErrorState error={active.error} /> : null}
         {active.isPending ? <Spinner label="Lendo a colisão…" /> : null}
         {resolve.error ? <ErrorState error={resolve.error} /> : null}
+        {resolveBatch.error ? <ErrorState error={resolveBatch.error} /> : null}
         {undo.error ? <ErrorState error={undo.error} /> : null}
         {ask.error ? <ErrorState error={ask.error} /> : null}
 
@@ -505,6 +650,56 @@ export function ConflictsRoute() {
         </p>
       </PageBody>
     </>
+  );
+}
+
+/**
+ * What the batch wrote, what it left, and what it skipped.
+ *
+ * Three counts and never two: a pair an earlier pair of the same batch already finished is *work
+ * done*, not an error, and mixing it into a failure count is how a clean batch starts reading like a
+ * broken one. The list of skipped pairs keeps the reason, so the archivist can see which ones they
+ * were. Every applied pair carries the `resolution_id` its own desfazer needs — the write is still
+ * per pair even though the click was categorical.
+ */
+function BatchReport({ result }: { result: ConflictBatchResult }) {
+  const skipped = result.skipped ?? [];
+  const failed = result.failed ?? [];
+
+  return (
+    <Card className="ring-1 ring-(--color-line)">
+      <CardBody className="grid gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold">Resultado do lote</span>
+          <Badge tone="ok">{formatCount(result.applied?.length ?? 0)} resolvido(s)</Badge>
+          <Badge tone="neutral">{formatCount(skipped.length)} já sem o que resolver</Badge>
+          {failed.length ? <Badge tone="warn">{formatCount(failed.length)} falhou(aram)</Badge> : null}
+          <Badge tone="accent">{formatCount(result.remaining?.total ?? 0)} na seleção</Badge>
+        </div>
+        {skipped.length ? (
+          <ul className="grid gap-1 text-xs text-(--color-muted)">
+            {skipped.slice(0, 10).map((item) => (
+              <li key={`${item.tag_id}-${item.entity_id}`}>
+                {item.tag_name} × {item.entity_name} — {item.reason}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {failed.length ? (
+          <ul className="grid gap-1 text-xs text-(--color-muted)">
+            {failed.slice(0, 10).map((item) => (
+              <li key={`${item.tag_id}-${item.entity_id}`}>
+                {item.tag_name} × {item.entity_name} — {item.reason}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <p className="text-xs text-(--color-muted)">
+          Cada par resolvido tem a sua própria linha no ledger: a aba <em>Resoluções</em> desfaz um de
+          cada vez, mesmo quando a decisão foi tomada para a categoria inteira.
+        </p>
+      </CardBody>
+    </Card>
   );
 }
 

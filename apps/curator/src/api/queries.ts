@@ -12,6 +12,7 @@ import {
   fetchDocument,
   fetchDocuments,
   fetchEntityRelevance,
+  fetchEntityMergeLog,
   fetchHierarchyNode,
   fetchHierarchyPlans,
   fetchHierarchyTree,
@@ -26,9 +27,11 @@ import {
   fetchMergeLog,
   fetchMergeProposals,
   fetchNerExclusions,
+  fetchNerPurgeLog,
   fetchRevisions,
   fetchSimilarEntities,
   fetchSimilarTags,
+  fetchStopwordPurgeLog,
   fetchStopwords,
   fetchSubjectExclusionSuggestions,
   fetchSubjectExclusions,
@@ -38,6 +41,7 @@ import {
   fetchSystemWorkerSettings,
   fetchSystemWorkers,
   fetchTagRelevance,
+  fetchTagCatalog,
   fetchTextTemplates,
   fetchUserSessions,
   fetchUsers,
@@ -45,10 +49,10 @@ import {
   type DocumentSearch,
   type ConflictPairKindFilter,
   type EntityType,
+  type MergeProposalSearch,
   type PlanStatus,
-  type MergeReason,
-  type ProposalStatus,
   type StopwordsScope,
+  type TagCatalogSearch,
   type TemplateStatus,
   type WorkerRunStatus,
 } from "./client";
@@ -63,6 +67,13 @@ export const MERGE_LOG_PAGE_SIZE = 20;
 export const TREE_PAGE_SIZE = 500;
 /** The collision lists are read one page at a time; the trigram join itself is the expensive part. */
 export const CONFLICTS_PAGE_SIZE = 25;
+/**
+ * How many collisions one categorical click may write.
+ *
+ * The batch is undoable pair by pair, but a click that writes the whole structural population of a
+ * large collection is a click nobody reviewed: the screen writes this many and says what is left.
+ */
+export const CONFLICTS_BATCH_LIMIT = 50;
 /** The entity and tag vocabularies are read by weight, so the head of the list is what matters. */
 export const RELEVANCE_PAGE_SIZE = 50;
 export const ANOMALIES_PAGE_SIZE = 20;
@@ -77,6 +88,30 @@ export const SETTINGS_REVISIONS_PAGE_SIZE = 10;
 export const SUBJECT_SUGGESTIONS_PAGE_SIZE = 25;
 /** The deletion ledger only grows, so it pages like the proposals queue. */
 export const DELETIONS_PAGE_SIZE = 20;
+/**
+ * A page of the tag catalogue, and the same one the home screen's cards count.
+ *
+ * Bigger than the relevance lists' head and smaller than the collection page: the archivist works
+ * this list tag by tag, and a page has to fit a screening.
+ */
+export const CATALOG_PAGE_SIZE = 25;
+/**
+ * A category's descriptions, read ten at a time **inside** the card.
+ *
+ * Smaller than the list screen's 25 on purpose: this list expands under a card that is already one
+ * of many on the page, and a page of 25 would push the next category out of sight — which is the
+ * problem the expansion is supposed to solve, not reproduce.
+ */
+export const CATEGORY_DOCUMENTS_PAGE_SIZE = 10;
+
+/**
+ * An entity's descriptions, read ten at a time **inside** the card.
+ *
+ * The same number and the same reason as the category expansion: the list expands under a card that
+ * is one of hundreds on a page ranked by weight, and a page of 25 would push the next name out of
+ * sight — which is the problem the expansion exists to solve, not reproduce.
+ */
+export const ENTITY_DOCUMENTS_PAGE_SIZE = 10;
 
 /**
  * Server state, declared once per resource.
@@ -257,6 +292,22 @@ export const queries = {
       staleTime: 60_000,
     }),
 
+  /**
+   * The tag catalogue, filtered by the state of the subject decision.
+   *
+   * Server-side filter and paging, unlike the relevance lists: "list the tags nobody has decided
+   * about" is a filter over 8k spellings, and a client that filtered the page it holds would answer
+   * "not here" for the tag the card counted. ``placeholderData`` keeps the previous page on screen
+   * while the next one loads — the same reason the collection list does.
+   */
+  tagCatalog: (filters: TagCatalogSearch) =>
+    queryOptions({
+      queryKey: ["taxonomy", "tags", "catalog", filters],
+      queryFn: () => fetchTagCatalog({ ...filters, limit: CATALOG_PAGE_SIZE, offset: filters.offset ?? 0 }),
+      staleTime: 15_000,
+      placeholderData: (previous) => previous,
+    }),
+
   /** Every pair above the threshold: the evidence a merge proposal is built from. */
   similarTagPairs: (threshold: number) =>
     queryOptions({
@@ -265,13 +316,7 @@ export const queries = {
       staleTime: 60_000,
     }),
 
-  mergeProposals: (filters: {
-    status?: ProposalStatus;
-    reason?: MergeReason;
-    min_documents?: number;
-    flagged_only?: boolean;
-    offset?: number;
-  }) =>
+  mergeProposals: (filters: MergeProposalSearch) =>
     queryOptions({
       queryKey: ["taxonomy", "merge-proposals", filters],
       queryFn: () =>
@@ -285,6 +330,14 @@ export const queries = {
     queryOptions({
       queryKey: ["taxonomy", "merge-log", limit, term ?? ""],
       queryFn: () => fetchMergeLog({ include_undone: true, q: term, limit, offset: 0 }),
+      staleTime: 5_000,
+    }),
+
+  /** The purge ledger: the same shape as the merge one, because it offers the same undo. */
+  stopwordPurgeLog: (limit: number, term: string | undefined) =>
+    queryOptions({
+      queryKey: ["taxonomy", "stopword-purge-log", limit, term ?? ""],
+      queryFn: () => fetchStopwordPurgeLog({ includeUndone: true, q: term, limit, offset: 0 }),
       staleTime: 5_000,
     }),
 
@@ -350,6 +403,14 @@ export const queries = {
       staleTime: 60_000,
     }),
 
+  /** The entity merge ledger: server-side term, growing window — same reasoning as the tags'. */
+  entityMergeLog: (limit: number, term: string | undefined) =>
+    queryOptions({
+      queryKey: ["taxonomy", "entities", "merge-log", limit, term ?? ""],
+      queryFn: () => fetchEntityMergeLog({ include_undone: true, q: term, limit, offset: 0 }),
+      staleTime: 5_000,
+    }),
+
   nerExclusions: () =>
     queryOptions({
       queryKey: ["taxonomy", "ner-exclusions"],
@@ -357,20 +418,35 @@ export const queries = {
       staleTime: 30_000,
     }),
 
+  /** The NER purge ledger: the same shape as the stopword one, because it offers the same undo. */
+  nerPurgeLog: (limit: number, term: string | undefined) =>
+    queryOptions({
+      queryKey: ["taxonomy", "ner-purge-log", limit, term ?? ""],
+      queryFn: () => fetchNerPurgeLog({ includeUndone: true, q: term, limit, offset: 0 }),
+      staleTime: 5_000,
+    }),
+
   /**
-   * The live collisions, filtered by population and paged on the server.
+   * The live collisions, filtered by population and category, and paged on the server.
    *
    * The trigram join is measured in seconds on the real vocabulary, so a threshold change is a
    * deliberate read and the answer is kept while the archivist works through the queue. ``pair_kind``
-   * is part of the key because it is a different question, not a refinement of the same one.
+   * and ``entity_type`` are part of the key because each one is a different question, not a
+   * refinement of the same one — and they are also the selection the batch writes.
    */
-  crossDomainConflicts: (threshold: number, pairKind: ConflictPairKindFilter, offset: number) =>
+  crossDomainConflicts: (
+    threshold: number,
+    pairKind: ConflictPairKindFilter,
+    entityType: EntityType | undefined,
+    offset: number,
+  ) =>
     queryOptions({
-      queryKey: ["taxonomy", "conflicts", threshold, pairKind, offset],
+      queryKey: ["taxonomy", "conflicts", threshold, pairKind, entityType, offset],
       queryFn: () =>
         fetchCrossDomainConflicts({
           threshold,
           pair_kind: pairKind,
+          entity_type: entityType,
           limit: CONFLICTS_PAGE_SIZE,
           offset,
         }),

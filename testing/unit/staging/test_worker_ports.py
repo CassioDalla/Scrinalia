@@ -11,9 +11,17 @@ class InMemoryRawSource:
 
     def __init__(self, records: Sequence[RawRecord]):
         self._records = list(records)
+        self.counted = 0
 
-    def next_batch(self, force: bool = False) -> Sequence[RawRecord]:
-        return self._records
+    def next_batch(
+        self, force: bool = False, limit: int | None = None, after: str | None = None
+    ) -> Sequence[RawRecord]:
+        records = [record for record in self._records if after is None or record.description_id > after]
+        return records[:limit] if limit is not None else records
+
+    def count_pending(self, force: bool = False, after: str | None = None) -> int:
+        self.counted += 1
+        return len([record for record in self._records if after is None or record.description_id > after])
 
 
 class RecordingWriter:
@@ -80,3 +88,41 @@ def test_run_staging_pipeline_skips_invalid_records() -> None:
 
     saved_ids = [record.description_id for record in writer.saved]
     assert "good" in saved_ids
+
+
+# ==========================================
+# THE BOUND, AND WHERE A FORCED RUN RESUMES
+# ==========================================
+
+
+def test_run_staging_pipeline_honours_the_limit() -> None:
+    """A limited run persists what the limit allowed and asks the source how much is left."""
+    raw_records = [
+        RawRecord(description_id=f"doc-{index}", content_hash=f"h{index}", payload={"title": f"Título {index}"})
+        for index in range(3)
+    ]
+    source = InMemoryRawSource(raw_records)
+    writer = RecordingWriter()
+
+    run_staging_pipeline(MagicMock(), PMC_SOURCE_SCHEMA, source=source, writer=writer, limit=2)
+
+    assert [record.description_id for record in writer.saved] == ["doc-0", "doc-1"]
+    # "Still pending" is the source's own predicate, never a second query written beside it.
+    assert source.counted == 1
+
+
+def test_run_staging_pipeline_resumes_a_forced_reparse_from_the_cursor() -> None:
+    """Under ``force`` the CDC cannot advance; the cursor is what makes the second run different."""
+    raw_records = [
+        RawRecord(description_id=f"doc-{index}", content_hash=f"h{index}", payload={"title": f"Título {index}"})
+        for index in range(3)
+    ]
+    source = InMemoryRawSource(raw_records)
+    writer = RecordingWriter()
+
+    run_staging_pipeline(MagicMock(), PMC_SOURCE_SCHEMA, source=source, writer=writer, force=True, limit=1)
+    run_staging_pipeline(
+        MagicMock(), PMC_SOURCE_SCHEMA, source=source, writer=writer, force=True, limit=1, after="doc-0"
+    )
+
+    assert [record.description_id for record in writer.saved] == ["doc-0", "doc-1"]

@@ -88,6 +88,14 @@ export const ACTION = {
   run: { label: "Rodar agora", pending: "Rodando…" },
   /** Unifies two vocabulary entries into one. */
   merge: { label: "Mesclar", pending: "Mesclando…" },
+  /**
+   * Corrects the spelling of one row's name, without absorbing anything.
+   *
+   * Its own verb and not `save`: `save` commits a form of fields, while a rename is a decision about
+   * the vocabulary — the previous spelling may stay anchored as a synonym — and it is the one action
+   * on this screen whose subject is a single name rather than a pair.
+   */
+  rename: { label: "Renomear", pending: "Renomeando…" },
   /** Commits a computed plan — an arrangement proposal, a batch of clusters, a conflict verdict. */
   apply: { label: "Aplicar", pending: "Aplicando…" },
   /**

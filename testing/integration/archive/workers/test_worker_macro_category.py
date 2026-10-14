@@ -490,6 +490,8 @@ def test_undoing_an_exclusion_reopens_the_classifier(use_test_db, db_session, mo
     category_id = category.category_id
 
     repository = TagRepository(db_session)
+    # The uncoupled write, which records the exclusion and plants no ban — so the undo reports that
+    # it removed the verdict and lifted nothing, because there was nothing it had planted (ADR 0013).
     repository.add_subject_exclusions(["pessoas"], reason="engano")
     db_session.commit()
 
@@ -497,7 +499,8 @@ def test_undoing_an_exclusion_reopens_the_classifier(use_test_db, db_session, mo
     execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
     ai_instance.classify.assert_not_called()
 
-    assert repository.remove_subject_exclusions(["pessoas"]) == 1
+    result = repository.remove_subject_exclusions(["pessoas"])
+    assert (result.removed, result.unbanned) == (1, 0)
     db_session.commit()
 
     execute(db=db_session, engine_name="motor_fake", preset="preset_teste", force=True)  # type: ignore

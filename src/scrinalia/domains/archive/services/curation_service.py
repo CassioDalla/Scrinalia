@@ -37,13 +37,13 @@ QUEUE_CATALOGUE: tuple[tuple[str, str, str, str], ...] = (
     (
         "subject_low_confidence",
         "Assunto com confiança baixa",
-        "/assuntos/tags",
+        "/assuntos/tags?aba=classificar&subject_state=LOW_CONFIDENCE",
         "Tags que o classificador não teve confiança para arquivar numa categoria.",
     ),
     (
         "orphan_subject_tags",
         "Tags sem categoria de assunto",
-        "/assuntos/tags",
+        "/assuntos/tags?aba=classificar&subject_state=PENDING",
         "Tags sem categoria: nenhum selo de assunto pode ser mostrado para elas.",
     ),
     (

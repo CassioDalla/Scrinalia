@@ -15,7 +15,7 @@ three-layer pipeline, and enriches them with named entities, typologies and subj
 categories. Every AI decision is advisory: an archivist reviews and approves, and approved
 documents are locked against further automatic rewrites.
 
-> **Status:** `1.1.0`. The curator surface is complete: the pipeline, the AI workers, the review
+> **Status:** `1.2.0`. The curator surface is complete: the pipeline, the AI workers, the review
 > governance, the authentication and the 26 screens are in place, and the documentation covers
 > install, operation, curation and the data model. The curator UI is a React SPA (`apps/curator/`)
 > served by the API; the HTTP API is the stable contract, and the TypeScript client is generated from
@@ -69,9 +69,11 @@ installation loads from its own file (`python -m scrinalia.domains.archive.cli i
 replace without a deploy: a fresh clone starts with an empty catalogue and never inherits another
 institution's vocabulary. On top of the deterministic guard sits the curated
 `domain_subject_exclusions` catalogue, for the judgements no rule reaches. Below 0.55 confidence a
-tag is left without a category **and** queued for review rather than guessed at. A tag whose axis is
-provenance or geography carries an `archive_tag_facets` row instead of competing for a subject
-category.
+tag is left without a category **and** queued for review rather than guessed at. A name that is a
+producer, a place or a person belongs to the entity axis, where it carries a type (`LOC`, `PER`,
+`ORG`) that search and diffusion read; a spelling that is both a tag and an entity is settled by the
+tag × entity conflict resolution, and confirming a term as not-a-subject also bans that spelling from
+becoming a tag again.
 
 ## Requirements
 
@@ -93,8 +95,8 @@ cp .env.example .env      # then edit the values
 # 3. Start the database (PostGIS on 5432)
 docker compose up -d
 
-# 4. Create the schema
-uv run alembic upgrade head
+# 4. Create the database and the schema (idempotent: it creates DB_NAME when it is not there)
+bun run db:init
 
 # 5. Create the first administrator (prints a temporary password, to be changed at first sign-in)
 uv run python -m scrinalia.domains.identity.cli create \
@@ -168,8 +170,10 @@ either way.
 ### Authentication
 
 Every operation of `/api/v1` requires a session, and the **only** things reachable without one are the
-login, the diffusion routes (`/api/v1/public/*`), the health probes and the OpenAPI document. The
-decision and its alternatives are in [ADR 0009](docs/adr/0009-authentication-and-authorization.md).
+login, the first-run setup routes (`/api/v1/setup/status` and `/api/v1/setup/admin`, the second
+answering 409 once an account exists), the diffusion routes (`/api/v1/public/*`), the health probes
+and the OpenAPI document. The decision and its alternatives are in
+[ADR 0009](docs/adr/0009-authentication-and-authorization.md).
 
 Accounts live in the database (`auth_users`), passwords are hashed with **argon2id**, and the session
 is a first-party cookie whose row lives in `auth_sessions` — only the SHA-256 of the token is stored,
@@ -226,6 +230,8 @@ starts the API and starts the SPA. Run the pieces separately when you only want 
 
 ```bash
 bun run db:up      # docker compose up -d — PostgreSQL (the object storage is yours)
+bun run db:init    # the above, plus DB_NAME created if it is missing, plus alembic upgrade head
+bun run db:recreate  # drops DB_NAME and creates it empty — asks for the name at the prompt first
 bun run api:dev    # uv run uvicorn main:app --reload — the API alone, on :8000
 bun run curator:dev  # the SPA alone, on :5173
 ```
@@ -277,11 +283,11 @@ The screens that exist today, in the order the work happens:
 
 The arrangement screens offer no silent correction: every write is a decision taken on a screen
 that showed its impact first, and the applied materialisations are reversible from the ledger.
-Where a write has no undo — the stopword purge, merging or deleting an entity, the deletion of a
-description, and the NER veto — the screen says so before the click instead of after it. The
-deletion is the only write that removes a record: it refuses a node that still has children, asks
-for the reference code to be typed, and leaves the whole ISAD(G) snapshot in
-`archive_document_deletions`, which is a trail and not a recycle bin.
+Where a write has no undo — excluding a description, and deleting or purging an entity that no
+description carries — the screen says so before the click instead of after it. Excluding a
+description refuses a node that still has children, asks for the reference code to be typed, and
+leaves the whole ISAD(G) snapshot in `archive_document_deletions`, which is a trail and not a
+recycle bin.
 
 ## Running the workers
 
@@ -289,17 +295,19 @@ Prefer the unified runner, which exposes every worker behind one interface:
 
 ```bash
 uv run python -m scrinalia.domains.archive.workers.runner <name> \
-    [--engine X --preset Y --batch N --option key=value --by "who"]
+    [--engine X --preset Y --batch N --limit N --option key=value --by "who"]
 ```
 
 Available names: `transfer`, `cleaning`, `ner`, `typology`, `thumbnail`, `conflict-judge`,
 `macro-category`, `quality-validator`, `embedding`.
-Each `worker_*.py` also carries an `execute(db, ...)` function and a `__main__` block, so a
-single worker can be run directly while developing.
+Each of the nine workers above also carries an `execute(db, ...)` function and a `__main__` block, so
+a single worker can be run directly while developing; `worker_suggest_macro_category.py` is the
+exception, a helper the API's category-suggestion route imports instead of running on its own.
 
 A worker runs with the **effective configuration**, which is `explicit argument > persisted
-override > signature default`; `/sistema/workers` in the curator UI shows it, changes it and runs
-the worker, and every run — from the CLI or from the screen — leaves a row in
+override > signature default`; `/sistema/workers` in the curator UI shows it read-only and runs the
+worker, while `/configuracoes/workers` is where the persisted default is changed, and every run —
+from the CLI or from the screen — leaves a row in
 `archive_worker_runs` with the resolved configuration, the duration and the outcome. The screen's
 executor runs one worker at a time and is not a scheduler: there is no retry and no cron
 (`docs/adr/0004-worker-execution-from-the-api.md`).

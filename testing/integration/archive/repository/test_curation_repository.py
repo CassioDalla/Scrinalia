@@ -2,9 +2,11 @@
 
 from scrinalia.domains.archive.models import (
     ArchiveHierarchyNodePlan,
+    ArchiveMacroCategory,
     ArchiveReviewStatus,
     ArchiveTag,
     ArchiveTagMergeProposal,
+    DomainSubjectExclusion,
 )
 from scrinalia.domains.archive.models.governance import AnomalyType, ArchiveAIReviewQueue
 from scrinalia.domains.archive.repository.curation_repo import CurationRepository
@@ -41,11 +43,70 @@ def test_anomalies_counts_the_flagged_documents(db_session, generate_archive_doc
     assert CurationRepository(db_session).count_anomalies() == 1
 
 
-def test_orphan_subject_tags_counts_the_tags_without_a_drawer(db_session) -> None:
-    db_session.add_all([ArchiveTag(name="com-gaveta", macro_category_id=None), ArchiveTag(name="sem-gaveta")])
+def test_orphan_subject_tags_counts_the_tags_nobody_has_decided(db_session) -> None:
+    """
+    *Pending* is not ``macro_category_id IS NULL``, and that is the whole point of #64.
+
+    The column holds the absence of a classification and the human verdict "this tag is not a
+    subject" in the same value. Counting it alone made the home card a debt the archivist could
+    never pay; the two decided tags below are exactly the ones that used to keep it non-zero.
+    """
+    db_session.add_all(
+        [
+            ArchiveTag(name="pendente-1", macro_category_id=None),
+            ArchiveTag(name="pendente-2"),
+            ArchiveTag(name="decidida-nao-assunto", macro_category_id=None),
+        ]
+    )
+    category = ArchiveMacroCategory(name="Urbanismo", description=None, classifier_label=None, is_active=True)
+    db_session.add(category)
+    db_session.flush()
+    db_session.add(ArchiveTag(name="decidida-com-categoria", macro_category_id=category.category_id))
+    db_session.add(DomainSubjectExclusion(term="decidida-nao-assunto", source="HUMAN"))
     db_session.flush()
 
     assert CurationRepository(db_session).count_subject_orphan_tags() == 2
+
+
+def test_a_low_confidence_tag_counts_once_even_when_two_runs_queued_it(db_session) -> None:
+    """
+    The card counts the decision to take, not the rows the classifier left behind.
+
+    Two runs whose label set changed insert two queue rows for the same tag, and filing the tag in a
+    drawer answers the question without deleting either — so the count has to read the tags.
+    """
+    first = ArchiveTag(name="incerta", macro_category_id=None)
+    second = ArchiveTag(name="tambem-incerta", macro_category_id=None)
+    db_session.add_all([first, second])
+    db_session.flush()
+
+    for _ in range(2):
+        db_session.add(
+            ArchiveAIReviewQueue(
+                anomaly_type=AnomalyType.SUBJECT_LOW_CONFIDENCE,
+                status=ArchiveReviewStatus.NEEDS_REVIEW,
+                context_payload={"tag_id": first.tag_id},
+            )
+        )
+    db_session.add(
+        ArchiveAIReviewQueue(
+            anomaly_type=AnomalyType.SUBJECT_LOW_CONFIDENCE,
+            status=ArchiveReviewStatus.NEEDS_REVIEW,
+            context_payload={"tag_id": second.tag_id},
+        )
+    )
+    db_session.flush()
+
+    repo = CurationRepository(db_session)
+    assert repo.count_subject_low_confidence_tags() == 2
+
+    # The verdict answers the question; the evidence row survives it.
+    category = ArchiveMacroCategory(name="Saúde", description=None, classifier_label=None, is_active=True)
+    db_session.add(category)
+    db_session.flush()
+    second.macro_category_id = category.category_id
+    db_session.flush()
+    assert repo.count_subject_low_confidence_tags() == 1
 
 
 def test_pending_proposals_are_counted_and_decided_ones_are_not(db_session) -> None:
@@ -92,18 +153,14 @@ def test_only_the_human_queue_of_a_conflict_is_counted(db_session) -> None:
                 status=ArchiveReviewStatus.AI_APPROVED,
                 context_payload={"tag_id": 3, "entity_id": 4},
             ),
-            ArchiveAIReviewQueue(
-                anomaly_type=AnomalyType.SUBJECT_LOW_CONFIDENCE,
-                status=ArchiveReviewStatus.NEEDS_REVIEW,
-                context_payload={"tag_id": 5},
-            ),
         ]
     )
     db_session.flush()
 
-    repo = CurationRepository(db_session)
-    assert repo.count_queue(AnomalyType.CROSS_DOMAIN_COLLISION) == 1
-    assert repo.count_queue(AnomalyType.SUBJECT_LOW_CONFIDENCE) == 1
+    # The low-confidence queue is counted per tag and not per row
+    # (``count_subject_low_confidence_tags``): a row is the evidence of a run, and the decision is
+    # about a tag. The collision queue has no such asymmetry — one row, one pair.
+    assert CurationRepository(db_session).count_queue(AnomalyType.CROSS_DOMAIN_COLLISION) == 1
 
 
 def test_the_inbox_serialises_every_queue_with_a_label_and_a_route(db_session) -> None:

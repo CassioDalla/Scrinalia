@@ -15,7 +15,8 @@ from scrinalia.core.config import settings
 class SessionContext(Protocol):
     """A session that can be opened with ``with`` — the shape ``create_session`` returns."""
 
-    def __enter__(self) -> Session: ...
+    def __enter__(self) -> Session:
+        raise NotImplementedError
 
     # The signature is the standard context-manager protocol's, argument by argument, and every
     # detail is load-bearing. ``bool | None`` is what every ``@contextmanager`` returns. The
@@ -30,7 +31,8 @@ class SessionContext(Protocol):
         value: BaseException | None,
         traceback: TracebackType | None,
         /,
-    ) -> bool | None: ...
+    ) -> bool | None:
+        raise NotImplementedError
 
 
 #: What a writer takes so a test can hand it the test's own session. Two ledgers share it — the

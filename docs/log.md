@@ -539,3 +539,674 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   guide: it is the API's own word for a proposed grouping (`clusters_found`,
   `TRIGRAM/PLURAL/MIXED`), which is the distinction the rename round drew and this one keeps.
 
+## 2026-10-10 — the collection pagination
+
+- **Range:** `b291d36..b99408e`
+- **Pages:**
+  - `guides/curate.md` — **no-change**: the *Lista e busca — `/acervo/lista`* section says "the URL is
+    the state, so a filtered list is shareable and the back button works", lists the facets and
+    states that nothing is written. It never describes the page buttons, and the fix makes "Próxima"
+    obey the sentence that was already there — a screen changed one expression, not a decision.
+  - `guides/operate.md` — **no-change**: the `/sistema/execucoes` row describes the ledger, the
+    failures of the last 30 days grouped by root cause and the click that filters the ledger to its
+    occurrences; it never states how the ledger pages. The expression that moved keeps the page a
+    caller sends and returns to the first page for a filter, which is what the row already implies.
+- **Why the round exists:** the freshness report named both pages after `e89bfbb`/`b99408e` touched
+  four route files. Two `no-change` verdicts are the honest outcome here: a defect that stopped a
+  documented behaviour from happening is repaired in the code, and a page does not change because the
+  code started keeping a promise the page already made.
+- **What the round measured.** `/acervo/lista` builds its request from the URL (`CollectionRoute.tsx`,
+  `toRequest`), so the page's claim was true of the read and false of the two buttons; the gate that
+  keeps it true is `testing/unit/curator/test_curator_search_state.py`, which fails on an object that
+  spreads `changes` and then writes a literal `offset`. The three other screens with the same fold
+  (`DeletionsRoute`, `SystemRunsRoute`, `DiagnosticsRoute`) are normalized in the same change.
+
+## 2026-10-12 — the entity merge and the normalized identity
+
+- **Range:** `b99408e..c1a6fbf`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the *Entidades — `/entidades/lista`* section justified the pair
+    list's two ids with "two rows can read the same name". That sentence described the defect: case
+    twins scored 1.000 on the trigram scan (`#1167 A. B. Deter ≈ #92610 a. b. deter`). The migration
+    reconciles them, so no two entity rows share a normalized name any more and the reason now reads
+    "almost the same name" — the similarity list is about spellings that are close, not identical.
+  - `guides/data-model.md` — **updated**: the *Subjects, categories and entities* table marks
+    `archive_tags.name` and `archive_entities.name` as unique, which is still true, and said nothing
+    about the identity rule the schema now enforces. One paragraph states it: `lower(btrim(name))` is
+    unique on both tables next to the unique `name`, and the insert path normalizes the spelling
+    before it looks an existing id up.
+- **Why the round exists:** the freshness report named both pages after `eae9943` and `c1a6fbf`, the
+  two commits of issue #68 — the shared synonym upsert and the reconciliation migration.
+- **What the round measured.** The migration was replayed on a `pg_dump` copy of the reference
+  collection before it touched the collection: 8 322 entities with 3 523 twin groups and 82 317
+  links became 4 799 entities with 0 twin groups, 0 non-normalized names and 64 504 links — exactly
+  the number of distinct `(description_id, survivor)` pairs computed before the run, with the 266
+  synonyms intact and none dangling and the surviving ids equal to the predicted ones. The upgrade
+  then ran on the collection itself and measured the same numbers, and `alembic check` reports no
+  drift on both. Not looked at in a browser: the evidence is the integration tests (the merge of the
+  issue's cluster, the dedup on both axes, the index rejecting a case twin), `basedpyright` and that
+  measurement.
+
+
+## 2026-10-12 — the tag decision queue and the category expansion
+
+- **Range:** `c1a6fbf..820f3c9`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the *Tags* route had four tabs and the page said so ("One route,
+    four questions"). The fifth, **Classificar**, is the subject decision itself, so the page gains a
+    subsection for it: the `GET /tags/catalog` read and its `subject_state` partition, the three
+    destinations of one tag (`PATCH` into a category, `PATCH` with `null`, `PUT`/`DELETE` on the
+    facet), the durability of "not a subject" through `domain_subject_exclusions`, and the fact that
+    the selection writes the same three. The *Categorias* section gains the expansion it never had:
+    the two tabs of a card, the list read through `macro_category_id` with the badge and the `total`
+    being one definition, and the read-only preview with its `Editar`. The summary table's two rows
+    name the new decisions.
+  - `guides/data-model.md` — **updated**: the facet paragraph said "nothing writes a facet
+    automatically" and named no writer, which was true and incomplete — the table had none at all.
+    One clause now names the act (`PUT /tags/{id}/facets/{facet_type}`, undone by `DELETE`) and the
+    two things it settles with it: the drawer it empties and the subject exclusion it registers.
+  - `guides/install.md` — **no-change**: its only source in the range is `SetupForm.tsx`, and the
+    paragraph that describes it says the first-run card carries the logomark at the top "on the same
+    plate the sign-in card has". The commit made the two plates identical — it dropped the tagline the
+    sign-in card had already dropped and moved the padding inside the card — so the sentence became
+    truer, not staler. Nothing the page states about the setup flow, the routes or the closing of both
+    doors moved.
+  - `guides/operate.md` — **no-change**: `e2ecd04` memoizes the once-only log sink (the page describes
+    what is written, not how the sink is held), `4ff8144` reads the URL alphabet of `worker_ner` from
+    the RFC (the page documents the panel and the ledger, never the character classes), `bc7fc07` only
+    gives the port stubs a body that has an effect, and from #64 the page's sources gained
+    `TagCatalogState` in `models/enums.py` and one `validateSearch` in `router.tsx` — a subject-axis
+    filter and an SPA route, neither of which the operations panel reads.
+- **Why the round exists:** the freshness report named four pages after 30 commits landed on `dev`
+  since the last entry, three of them the work of issues #64 and #65, and it printed the three new
+  operations (`GET /tags/catalog`, `PUT`/`DELETE /tags/{id}/facets/{facet_type}`) beside
+  `guides/curate.md`.
+- **What the round measured on the collection.** On the reference collection (`memoriacuritibana`:
+  8 103 tags, 55 345 links, 5 subject exclusions, 0 facets) the partition holds and the numbers are
+  those of the change: `PENDING` 7 407 + `NOT_SUBJECT` 3 + `FACET` 0 = 7 410, exactly the tags with
+  `macro_category_id IS NULL` that the card used to count. So the card's number barely moves *today* —
+  what the change makes reachable is the other 7 407, which had no screen and no durable write. The new
+  predicate costs 4.43 ms against the old column's 0.87 ms (both a sequential scan of 8 103 rows; the
+  two `NOT EXISTS` read a 0-row table and a 5-row one), and the catalogue's first page — the page, its
+  total aside — plans and executes in 19.6 ms with `limit 25` over the grouped link count. Neither is a
+  home-screen cost.
+- **What the round looked at.** The two screens were **looked at**, not inferred: the built SPA was
+  rendered with the dev stack (Vite on `:5173`, the API on the zeroed database) through the headless
+  shell, with scratch rows seeded into that database — 7 tags, 40 descriptions, 79 links, one facet and
+  two exclusions — and removed again afterwards, because a zeroed collection shows no row to judge.
+  That found one defect no gate could see: the batch bar's drawer select inherited the bar's white text
+  on its own white background, so its placeholder rendered invisible. Measured with `getComputedStyle`:
+  `color` and `background-color` were both `rgb(255, 255, 255)` before the fix and `oklch(0.24 0.012 60)`
+  on white after it. The rest of what the pixels confirmed: `PENDING` listed 4 tags with the classifier's
+  confidence beside each, `FACET` listed `rua exemplo` with the *Lugar* badge and its "tirar de lugar"
+  button, the category card's badge said 12 descrições while the list answered "1–10 de 12", the
+  read-only panel showed the title, both badges, the ISAD(G) fields and every tag with its category, and
+  the card's `Editar` tab rendered the form with `Salvar` disabled while nothing was dirty. **Not**
+  verified: the collection's own screens. The API was pointed at the zeroed database, so the pixels are
+  of a seeded scratch collection, not of `memoriacuritibana`; what was measured there was the SQL, read
+  through `psql`, not the screen.
+
+## 2026-10-12 — the review of the decision queue (no page changed)
+
+- **Range:** `820f3c9..b759393`
+- **Pages:**
+  - `guides/curate.md` — **no-change**: the range *is* the review of the change the previous entry
+    documented. The offset clamp answers 200 where the route answered 500 (`offset=-1`), the contract
+    pair moved only in the docstring of `TagCatalogState`, and the four curator fixes changed the
+    search box's debounce guard, the counts rendered while `placeholderData` held the previous filter,
+    the row's select (retired categories now included and marked) and the batch's report of what it
+    wrote and what did not answer. No sentence of the page described any of those behaviours as they
+    were — and the page already said the batch "reports how many tags it wrote and where", which the
+    fix made true for the failure case too.
+- **Why the round exists:** the two `fix` commits landed *after* the documentation commit, which is
+  exactly the signal the report is for: a page whose sources moved is a candidate, and a candidate is
+  closed with a reason rather than an edit.
+
+## 2026-10-13 — the collision batch
+
+- **Range:** `b759393..0fd528e`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the collisions screen gained the category filter (`entity_type`,
+    the same read the batch selects with) and the batch itself,
+    `POST /api/v1/taxonomy/conflicts/resolve/batch`. A new subsection, *Deciding a category at once*,
+    says what the unit of the write is (the pair, never the selection), why `skipped` is not `failed`,
+    and why `remaining` is the same read taken twice. The `Pendentes` bullet now names the filter, and
+    the summary table's row says the decision covers one pair or a whole category, with one ledger row
+    per pair.
+- **Why the round exists:** the freshness report named one page after the two commits landed on the
+  branch — the API route and the SPA screen — and printed the one new operation,
+  `POST /api/v1/taxonomy/conflicts/resolve/batch`, beside `guides/curate.md`. The range also carries
+  three commits no earlier entry had closed (`1f28807`, `7012898`, `e745466`); the report named no page
+  for them, so they are closed here by absence.
+- **What the round looked at.** The screen was **looked at**, not inferred: the built SPA was served by
+  the API against the zeroed collection with a scratch account (created for the round, deleted after),
+  and the headless shell rendered the route. Measured in the pixels: the category row (`todas as
+  categorias` / `Local` / `Pessoa` / `Organização`) with `nomes idênticos` selected; the batch card
+  reading "80 par(es) · nomes idênticos"; and the panel opening on a click, with the note field and
+  the two verdict buttons. With `?tipo=exact_name&categoria=LOC` the header, the card and the list move
+  together — 36 collisions, all `Local` — which is the selection the batch writes. **Not** verified in
+  pixels: the write itself. Resolving a category from the screen would have destroyed 36 pairs of the
+  working collection, so the write is verified by the integration suite, which drives the real route
+  and the real ledger (814 integration tests passed); the screenshots show the selection and the
+  panel, not a resolution.
+
+## 2026-10-13 — the entity merge ledger (issue #34)
+
+- **Range:** `0fd528e..318f8e0`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the *Mesclar* bullet of *Entidades — `/entidades/lista`* said
+    entities had "no proposal catalogue and no ledger", so there was no undo and no preview route.
+    It now names the preview (`POST /api/v1/taxonomy/entities/merge/preview`, the plan the write
+    executes), the ledger (`GET /api/v1/taxonomy/entities/merge-log`, one row per absorbed entity)
+    and the undo (`DELETE /api/v1/taxonomy/entities/merge-log/{merge_id}`), and the summary table's
+    row says the merge is reversible. The entity merge also **left** the *What has no way back*
+    warning: it is no longer one of the writes that announce they have no undo.
+  - `guides/data-model.md` — **updated**: the subjects-and-entities table gained the
+    `archive_entity_merge_log` row — one row per absorbed entity, snapshotted before anything
+    changes, and what `undo_entity_merge` restores from it.
+- **Why the round exists:** the freshness report named both pages after the two code commits landed
+  on the branch (the API and the SPA screen) and printed the three new operations beside
+  `guides/curate.md`: `POST /entities/merge/preview`, `GET /entities/merge-log` and
+  `DELETE /entities/merge-log/{merge_id}`. The range also carries `a63b6c9` and `402d657` (the
+  collision batch's documentation and API commits), which no earlier entry closed; the report named
+  no page for them, so they are closed here by absence.
+- **What the round measured.** The write and its reverse are pinned by the integration suite, which
+  drives the real repository and the real ledger: the undo restores the row, the per-entity links and
+  the spelling state exactly, removes only the links the merge created (`created_link_ids`) and puts
+  back the canonical name the optional rename changed; the preview and the apply are asserted to
+  produce the same numbers; and the `pair_kind` partition of the conflict routes, which this change
+  must not disturb, keeps its own tests green. Measured: 1 511 tests passed, `basedpyright` 0 errors,
+  `alembic check` reports no drift after the new table.
+- **What the round looked at.** The screen was **rendered**, not inferred: the built SPA was served by
+  the API (`create_app()` mounts `apps/curator/dist`) against the reference collection, with a scratch
+  session created for the round and deleted after, and the headless shell drove `/entidades/lista` over
+  CDP. Seen in the pixels: the list with the new sentence ("mesclar tem desfazer: cada entidade
+  absorvida entra no ledger antes de a escrita acontecer"); the merge panel opened by marking two rows,
+  reading "33 descrição(ões) passam a carregar **smu** · 33 vínculo(s) reescrito(s) · 1 entidade(s)
+  absorvida(s)" — the planner's real numbers over the real collection, not a copy — with the updated
+  warning below it; and the new *Ledger dos merges de entidades* section at the bottom, with its
+  server-side search box and the empty state ("Nenhum merge aplicado ainda"). **Not** verified in
+  pixels: a merge actually written and undone from the screen. Applying one would have written to the
+  reference collection's ledger, so the write rests on the integration suite, which drives the real
+  repository and the real ledger.
+
+## 2026-10-13 — an entity opens into its descriptions (issue #86)
+
+- **Range:** `08500a9..HEAD`
+- **Pages:**
+  - `guides/curate.md` — **updated**: *Entidades — `/entidades/lista`* gained the read half of the
+    screen, which it never described. A name expands into the **descriptions that carry it**
+    (`GET /api/v1/documents` with the new `entity_id` filter, paged ten at a time inside the card);
+    the badge above and the list's `total` are one number counted twice, pinned by
+    `testing/integration/api/controller/test_entity_documents.py`; a row opens the read-only preview
+    the category screen already uses, and its "Editar" lands on the dossier's **Assuntos** tab, which
+    is where a description's entities are added and removed. `?aberta=`, `?offset=` and `?descricao=`
+    are named as the state the URL carries.
+  - `guides/curate.pt.md` — **updated**: the translation of the same paragraph.
+- **Why the round exists:** the section listed the screen's decisions and said nothing about reading
+  it, while the card promised "3.152 descrições" and the screen had no way to show which ones. The
+  freshness report named `guides/curate.md` for the SPA and API commits of this change.
+- **What the round measured.** The pairing was measured on the **reference collection**, through the
+  routes the screen calls and not against a fixture: `entity_id=10` (*Curitiba*) answers
+  `total=3152` where the card shows `total_usage=3152`, and `2679`/`2670` answer `2467` against
+  `2467`. Measured: 1 513 tests passed, `basedpyright` 0 errors, `alembic check` reports no drift (the
+  change adds no migration), and the SPA's `tsc`, ESLint and Vite build are green. The new test seeds
+  one description carrying **two** entities on purpose, so the join it forbids would answer 2 where
+  the card promises 1 — the same trap `test_category_documents.py` pins for the drawers.
+- **Found and deliberately not fixed.** `EntityRepository.get_relevance_count` **inner-joins** the
+  link table, so the ranking never lists an entity that no description carries: `EntityRow`'s orphan
+  branch, and the per-row *Excluir* button with it, is unreachable from the Relevância tab. That is a
+  separate defect about a separate decision (whether the ranking should left-join and list orphans at
+  zero), so it was left alone and pinned as measured in
+  `test_an_orphan_is_not_ranked_and_its_expansion_is_empty`.
+- **What the round looked at.** The screen was **rendered**, not inferred: the built SPA served by the
+  API (`create_app()` mounts `apps/curator/dist`) against the reference collection, with a scratch
+  session created for the round and deleted after, and the headless shell driven over CDP. Seen in the
+  pixels: `/entidades/lista?aberta=10` with the *Curitiba* card open, the badge "3.152 descrições"
+  above the expansion's own "1–10 de 3.152", the controls (checkbox, `tipo`, *Excluir*) outside the
+  toggle and the name and badges inside it — which is the click that used to mean two things; the
+  preview panel over the list, rendering the shared `DescriptionPreview`; and
+  `/assuntos/categorias?aberta=4` still rendering its own expansion after the component was lifted out
+  of `CategoriesRoute.tsx` ("2.312 descrições" against "1–10 de 2.312"). Read from the DOM and not
+  inferred: the entity panel's *Editar* carries `href="/acervo/53617?aba=assuntos"`, and the category
+  panel's still carries `?aba=descricao`. **Not** verified in pixels: the empty expansion ("Nenhuma
+  descrição carrega este nome"), unreachable from this screen for the reason above, and any write —
+  the round only read.
+
+## 2026-10-13 — renaming a name, with an undo (issue #85)
+
+- **Range:** `6c79880..HEAD`
+- **Pages:**
+  - `guides/curate.md` — **updated**: *Entidades — `/entidades/lista`* gained its fourth decision,
+    **Renomear** (`PATCH /api/v1/taxonomy/entities/{entity_id}`), with the three facts the screen has
+    to state: the previous spelling stays anchored as a synonym unless `keep_old_synonym` is turned
+    off, the write leaves one `RENAME` row in the merge's own ledger so the ledger's "desfazer"
+    reverses it, and a spelling another entity already carries is a **409** that names the twin and
+    points at the merge. The summary table's row now says the rename is reversible, and the read
+    paragraph names the card's second tab, which is where the rename lives.
+  - `guides/curate.pt.md` — **updated**: the translation of the same.
+  - `guides/data-model.md` — **updated**: the `archive_entity_merge_log` row now says the table holds
+    a **merge** (one row per absorbed entity) or a **rename** (one per name), and names `kind` as the
+    checked discriminator the undo branches on.
+  - `guides/data-model.pt.md` — **updated**: the translation of the same.
+- **Why the round exists:** the name was the one field of the entity vocabulary with no write of its
+  own. The rename already existed in the repository and the service — with a test, and shared with the
+  merge's optional rename — but no route reached it, and the screen's only rename field lived *inside*
+  the merge panel, so a plain typo had no path that did not absorb another entity. The freshness
+  report named `guides/curate.md` for the API and SPA commits of this change.
+- **What the round measured.** Measured: 1 524 tests passed, `basedpyright` 0 errors, and the
+  migration applied, reversed and re-applied on the reference database with `alembic check` reporting
+  no drift. The write and its reverse are pinned by the integration suite against the real repository:
+  the rename leaves exactly one `RENAME` row (no absorbed entity, no links), the undo restores the
+  name and drops the spelling the rename planted, `keep_old_synonym=False` writes no spelling at all,
+  the collision raises `DuplicateEntityNameError` with the twin in `details` **before** the write, and
+  a **merge with a rename leaves one row per absorbed entity and no `RENAME` row** — the trap the
+  shared writer would otherwise have created. `refusalMessage` is what turns that payload into the
+  sentence, so the copy the archivist reads is the interface's, not the server's.
+- **What the round looked at.** The screen was **rendered** against the reference collection
+  (`scrinalia_zeroed`, the ~100-description collection, already at head): the built SPA served by the
+  API, a scratch session created for the round and deleted after, and the headless shell driven over
+  CDP. Seen in the pixels: `/entidades/lista` with the row's **Renomear** in `actions`, outside the
+  toggle, and the card opened by it on the **Editar** tab, with the name input and the "manter a
+  grafia antiga como sinônimo" box checked; the same form refusing `curitiba` with "Já existe uma
+  entidade chamada \"curitiba\". Mescle as duas em vez de renomear." and the request reference, with
+  the row still reading `paço da liberdade` — the refusal happened before the write; and the ledger
+  card, reading **"paço da liberdade → paço da liberdade de curitiba · renomeação · 13/10/2026, 15:21
+  · por Cassio"**, which is the rename applied through the route on that collection. The **desfazer**
+  was then clicked *on the screen*, and the ledger row came back as "desfeito em 13/10/2026, 15:23"
+  with the row reading `paço da liberdade` again; read back from the database, the entity carries its
+  original name and no spelling row survives, which is the undo doing its job rather than the screen
+  redrawing. The round's own artifacts were then removed — the scratch session and the ledger row it
+  left — so the collection is as it was and no test write remains in its audit trail.
+
+## 2026-10-13 — the merge card fed by the type-ahead (issue #87)
+
+- **Range:** `e0c0720..bbd0189`
+- **Pages:**
+  - `guides/curate.md` — **updated**: *Entidades — `/entidades/lista`* now says the merge has **three
+    doors** — the selection on Relevância, a pair on Similaridade and the **Mesclar pelo nome** card
+    above the tabs — and why the third exists: the other two are list-driven, relevance is ordered by
+    weight and capped, and similarity is trigram, the one measure that fails on the pair the archivist
+    is most sure about. It names the card's three decisions: the type-ahead with the API's own
+    two-character floor, each name's weight shown so the canonical is chosen with the numbers in view,
+    and a list of its own that does not consume the relevance checkboxes.
+  - `guides/curate.pt.md` — **updated**: the translation of the same.
+- **Why the round exists:** the screen had two ways into the merge panel and the archivist controls
+  neither list, so the pair they already know is one entity was the pair the screen was least likely
+  to show them. The freshness report named `guides/curate.md` for the SPA commit.
+- **What the round measured.** Measured: 1 528 tests passed, `basedpyright` 0 errors, the SPA's `tsc`,
+  ESLint and Vite build green, and `mkdocs build --strict` clean. The acceptance pair was measured
+  against the reference collection before it was rendered: `smu` (entity 45) carries **68**
+  descriptions and `smcs secretaria municipal de comunicação social` (entity 349) carries **1**, so the
+  relevance ranking — capped at fifty rows, whose lightest entry carries two — can never show both;
+  and `similarity('smu', 'smcs secretaria municipal de comunicação social')` is **0.045**, far under
+  any threshold the similarity tab accepts. Neither list reaches the pair; the card does.
+  `testing/unit/curator/test_entities_merge_doors.py` is the gate for the shape: it fails when the
+  write gains a second call site, when a door stops rendering `<MergePanel`, or when the card starts
+  calling the write, the preview or `navigate` itself. It is a **textual** gate and says so — the SPA
+  has no test runner of its own.
+- **What the round looked at.** The screen was **rendered** against the reference collection: the
+  built SPA served by the API, a scratch session created for the round and deleted after, the headless
+  shell driven over CDP. Seen in the pixels: the card **collapsed** between the irreversibility
+  `Notice` and the tabs, with the labelled "+ Mesclar pelo nome" button; and the card **open** after
+  the two names were typed and picked one at a time, each row carrying its own weight ("smu · Local ·
+  68 descrições", "smcs secretaria municipal de comunicação social · Local · 1 descrição"), with the
+  panel below stating the **real** plan — "1 descrição(ões) passam a carregar smu · 1 vínculo(s)
+  reescrito(s) · 1 entidade(s) absorvida(s)" — and its warning once, not twice. **Not** verified in
+  pixels: an actual merge from this card. The round wrote nothing to the collection, and the write
+  itself rests on the suite that pins the three doors to the one call site.
+
+## 2026-10-13 — the SPA stops re-declaring the contract's query shapes (no page changed)
+
+- **Range:** `e0c0720..HEAD`
+- **Pages:** **none**, and that is the verdict this entry records. The change lives inside
+  `apps/curator/src/api/`, and no page declares that path among its `sources:` — the freshness report
+  named no page for it. What changed is a **rule file**,
+  `.dsh/skills/curator-ui/SKILL.md`: it now states that a query shape is derived from the route and
+  never typed out, with the measured failure beside it.
+- **Why the round exists:** the last change to this surface (#86) added `entity_id` to the contract and
+  had to add it to the hand-written mirror by hand. Sizing that mirror found it had **already** lost a
+  field, and that seventeen more shapes shared the pattern. A convention with no gate is what principle V
+  is about, so the round closed the convention and left a test that fails on the next one.
+- **What the round measured.** `DocumentSearch` declared **14** keys against the route's **15**, missing
+  `is_anomaly`, and nothing failed: `CollectionRoute.toRequest` spreads a wider `CollectionSearch` into
+  it, the extra key survives the return type, and `openapi-fetch` sent it — so the screen filtered
+  correctly through a field its own type denied. What that was hiding, measured with a session against
+  the reference collection: `GET /api/v1/documents?is_anomaly=true` answers **28**, `?is_anomaly=false`
+  **73** (28 + 73 = 101, the whole collection), and a misspelled `?is_anomalyy=true` or a nonsense
+  `?non_sense=42` answers **101 with HTTP 200 and no warning** — an unknown query parameter is ignored,
+  not refused. A contract that renamed the filter would therefore have left the list unfiltered with a
+  chip on the screen saying it was filtered, and `tsc`, ESLint, the build and the suite green.
+  **19** shapes derive from their route now (three of them named), and the ten call sites that build a
+  one-key value inline — `query: { only_active: true }`, `query: { term, limit }` — are measured and left
+  alone: they are values, not declared shapes, and deriving them would change the client's own signature
+  and every caller. Measured: 1 528 tests passed (four of them the new gate), `tsc`, ESLint and the Vite
+  build green. The derivation needed **no** reinterpretation — the generated type already spells an
+  omitted filter `campo?: T | null` — and an earlier `Exclude<T[K], null>` mapping was measured to be
+  both unnecessary and wrong (it rejected two callers that legitimately hold `null`).
+- **What the round looked at.** The screen was **rendered**: `/acervo/lista?is_anomaly=true` against the
+  reference collection, with a scratch session created for the round and deleted after, the headless
+  shell driven over CDP. Seen in the pixels: the header reading **"28 descrições"** with the chip
+  **"Somente anomalias ✕"** and every row carrying its `anomalia` badge — the same 28 the route answers,
+  now filtering through a field the type declares instead of one it denied.
+
+## 2026-10-13 — the stopword purge stops being the write with no way back (#36)
+
+- **Range:** `f0ba7c2..HEAD`
+- **Pages:**
+  - `guides/curate.md` — updated (the purge moved out of "what has no way back", the Stopwords
+    section describes the ledger and the undo, and the reversibility table says yes)
+  - `guides/curate.pt.md` — updated (the translation of the same three passages)
+  - `guides/data-model.md` — updated (`archive_stopword_purge_log` joined the ledger table and the
+    list of tables that carry an author pair)
+  - `.dsh/skills/taxonomy/SKILL.md` — updated (the rule file said the purge "has no undo"; it now
+    states the plan/apply/undo, the `synonym_names` snapshot and the ban that the undo must not lift)
+- **Why the round exists:** the decision on #36 was a ledger, scoped to destructive writes — and the
+  page had been describing the exception as if it were the rule. The docs were not stale by drift;
+  they were stale because the decision changed what is true.
+- **What the round measured.** The round trip through the routes, against `scrinalia_zeroed`: a
+  scratch tag `1924` carrying **2** documents, `POST /tags/stopwords/purge/preview` answering
+  `reversible=true, total_tags=1, total_documents=2`, the purge answering `tags_deleted=1,
+  purge_ids=[1]`, and `DELETE /tags/stopwords/purge-log/1` putting the row and both links back while
+  `domain_stopwords` kept `1924 | TAG`. The scratch tag, the ledger row and the scratch session were
+  deleted after the round. Measured: **1540** tests passed, `ruff check`/`format --check` and
+  `basedpyright` (0 errors) green, `alembic check` reporting no drift, the contract regenerated and
+  stable, and `tsc`, ESLint and the Vite build green.
+- **What the round looked at.** The screen was **rendered**: `/assuntos/tags?aba=stopwords` with the
+  scratch session, the headless shell driven over CDP. Seen in the pixels: the notice reading
+  **"Como o merge, ela guarda um ledger"**, the card **"Ledger das purgas"** with the row
+  **"1924 · 2 doc(s) · por Cassio"** and its **desfazer** button, and — after clicking it — the same
+  row showing **"restaurada em 13/10/2026, 18:13"**. **Not** looked at: a purge over a real
+  stopword of the collection (none of the 88 matched a tag, which is why the scratch tag existed).
+
+## 2026-10-13 — the API enforces the temporary password (#79)
+
+- **Range:** `bbd0189..feed903`
+- **Pages:**
+  - `guides/curate.md` — updated (the sign-in section now says the API refuses every operation but
+    the change, and names the three it still reaches, instead of leaving the refusal to the shell)
+  - `guides/curate.pt.md` — updated (the translation of the same paragraph)
+- **Why the round exists:** the section described the temporary password as the screen's promise —
+  "the account replaces it at the next sign-in" — while the guard read nothing, so a script holding
+  the password the CLI printed kept the account's whole role. The decision that the **API**, not the
+  screen, owns the refusal changed what is true on a page that documents the guard
+  (`src/scrinalia/api/security.py` is in its `sources:`), which is why this is a `updated` and not a
+  `no-change`.
+- **What the round measured.** The route through HTTP, against the test database: an account with
+  `must_change_password=True` signed in, `GET /api/v1/curation/inbox` answering **403** with
+  `error_code: "PasswordChangeRequiredException"` and `code: "PASSWORD_CHANGE_REQUIRED"`,
+  `GET /auth/me` and `POST /auth/logout` answering **200**, and the same inbox answering **200**
+  after `POST /auth/password`. Before the fix the same inbox answered **200** with the flag set —
+  the defect, measured in this checkout before the guard changed. Measured: **1550** tests passed,
+  `ruff check`/`format --check` and `basedpyright` (0 errors) green, and the contract regenerated
+  with one additive enum member (`PASSWORD_CHANGE_REQUIRED`) and the committed client rebuilt from it.
+- **What the round looked at.** No screen was **rendered**, and none needed to be: no SPA file
+  changed, the forced screen already reads the flag from `/auth/me` and calls `/auth/password`, and
+  this change moves the enforcement behind that screen. **Not** looked at in a browser; the evidence
+  is the integration test over HTTP, the unit guard test and the regenerated contract.
+
+## 2026-10-13 — the scrape and the transform can be bounded per run (#47, #48)
+
+- **Range:** `feed903..84bb5f0`
+- **Pages:**
+  - `guides/operate.md` — updated (the pipeline table said "Nine workers, in pipeline order" and
+    started at `transfer`; the page now names the two stages in front of it and documents their host
+    commands, their flags, how a bounded run resumes by itself, and that a forced one resumes only
+    with `--after`)
+  - `guides/operate.pt.md` — updated (the translation of the same two pieces)
+  - `guides/install.md` — updated (`ACERVO_SOURCE` also selects the origin's ports now, and
+    `--origin` overrides it for one run, which is that row's business)
+  - `guides/install.pt.md` — updated (the translation of that row)
+- **Why the round exists:** the report named `guides/install.md`, whose `sources:` include
+  `ingestion/sources.py`, because that module gained the origin's port registry. `operate.md` was
+  **not** reported stale — it declared neither ingestion nor staging — and that was the gap: the two
+  stages that produce everything the archive reads had no page, and this change turns them into a
+  batched operation an operator has to be able to run.
+- **What the round measured.** Full suite **1574 passed** (`uv run pytest`, with
+  `TEST_DATABASE_URL` pointed at the test database on 5434), `ruff check` and `ruff format --check`
+  green, `basedpyright` **0 errors**, `alembic check` reporting no new upgrade operations (no schema
+  change), `mkdocs build --strict` green.
+  The batched run was measured on a **throwaway database** — created on the test server, migrated
+  with `alembic upgrade head`, seeded through the repositories and dropped afterwards — because the
+  reference collection cannot reproduce the issue's "queue of thousands": measured there,
+  `scraping_queue` holds **100** rows, all `DONE`, with **100** `raw_data`, **100**
+  `staging_documents` and **101** `archive_documents`, and **nothing pending to transform**. On the
+  scratch database, with a 250-row queue and a port double in place of the site: `--limit 100` took
+  **100** and left **150**, then **100** and left **50**, then **50** and left **0**; the transform
+  bounded at 100 left staging at 100, 200 and 250 rows with 150, 50 and 0 pending; and the forced
+  run bounded by the cursor walked windows of 100, 100 and 50, ending with 0 left.
+- **What the round looked at.** No screen was **rendered**, and none needed to be: no SPA file
+  changed. The commands were exercised — the parsers by the unit tests, the workers by the
+  integration tests over the test database — but **no scrape against the origin site was run**, and
+  the numeric evidence above is synthetic in that sense. That is the gap this entry declares.
+
+## 2026-10-13 — the NER purge stops being the write with no way back (#94)
+
+- **Range:** `84bb5f0..95796c3`
+- **Pages:**
+  - `guides/curate.md` — updated (the NER veto no longer claims to reach backwards: it bans and
+    deletes nothing; the retroactive half is **Expurgar do passado**, with its preview, its
+    `archive_ner_purge_log` and its undo, and the screen's table now says both halves are reversible;
+    the paragraph that put the veto under "What has no way back" is gone)
+  - `guides/curate.pt.md` — updated (the translation of the same section)
+  - `guides/data-model.md` — updated (`archive_ner_purge_log` joins the ledger table, the conflict
+    ledger row names the spellings it now restores, and `domain_ner_exclusions` says the row itself
+    deletes nothing)
+  - `guides/data-model.pt.md` — updated (the translation of those rows)
+- **Why the round exists:** the report named `guides/curate.md` and `guides/data-model.md`, and the
+  API delta was the four purge routes. The change moves a destructive write out of a reversible
+  toggle, so every sentence that described the old coupling had to be re-read, not just the routes.
+- **What the round measured.** Full suite **1591 passed** (`uv run pytest`, with
+  `TEST_DATABASE_URL` pointed at the test database on 5434), `ruff check` and `ruff format --check`
+  green, `basedpyright` **0 errors**, `alembic check` reporting no new upgrade operations after the
+  new migration was applied, `bun run --cwd apps/curator typecheck lint build` green, and
+  `mkdocs build --strict` green. The five new integration tests pin the plan/apply/ledger round trip,
+  the spelling restore on both the NER purge and the conflict undo, the 409 on a second undo and the
+  veto surviving the undo.
+- **What the round looked at.** `/entidades/excecoes` was **rendered** on the dev stack (the API on
+  `scrinalia_zeroed`, the built SPA served by the API, a scratch session created for the round and
+  deleted after, the headless shell driven over CDP). Seen in the pixels: the veto card stating
+  "Vetar não exclui nada", the **Expurgar do passado** card with its preview button, the
+  **Ledger dos expurgos** card, the preview reporting the entities and their links, the purge writing
+  a ledger row, and the undo marking that row "restaurada". The non-empty preview needed a matching
+  entity, so one **temporary** orphan entity (`misto`, `ORG`) was inserted into the zeroed database
+  and removed afterwards, together with the ledger row and the scratch session; the round trip was
+  driven through the screen. That is the one synthetic input this entry declares.
+
+## 2026-10-13 — the tag axis is the subject axis (#83, #84)
+
+- **Range:** `95796c3..32d19f1`. The range ends at the second of the two commits that carry the
+  change (the API/domain one is `5055312`, the curator one is `32d19f1`), so the floor closes the
+  whole change. `guides/operate.md` declares `models/enums.py`, which moved, so it was read and not
+  skipped.
+- **Pages:**
+  - `guides/curate.md` — **updated**: the *Classificar* tab has **two** destinations now — a drawer,
+    or not-a-subject — instead of three. The `FACET` row leaves the state table, the row's evidence
+    loses the facet, and the producer/place/person cases move to the **entity axis** (a type `LOC`,
+    `PER`, `ORG` that search and the public projection read) and to the tag × entity conflict screen;
+    the `PUT`/`DELETE /api/v1/taxonomy/tags/{tag_id}/facets/{facet_type}` routes are gone. The
+    *Não é assunto* section stops promising that "only the subject classification stops guessing":
+    confirming **also bans the spelling at `TAG` scope**, the ban deletes nothing, and the purge
+    stays a deliberate act behind its preview and ledger. It documents the new read-only
+    `POST /api/v1/taxonomy/tags/subject-exclusions/preview` (`AUTHENTICATED`) with its
+    `applicable`/`blocked`, the refusal of a term whose tag is already in a drawer
+    (`SUBJECT_EXCLUSIONS_BLOCKED` / `SUBJECT_EXCLUSIONS_PARTIAL`, `blocked`, `created`, `banned`), and
+    the undo's `removed` **and** `unbanned` lifting only the ban this decision planted. The Stopwords
+    tab and its purge preview now carry the ban's `source` (`HUMAN` / `CONFLICT` / `EXCLUSION`).
+  - `guides/curate.pt.md` — **updated** (the translation of the same three places).
+  - `guides/data-model.md` — **updated**: `archive_tag_facets` leaves the subject table (a tag is a
+    drawer or not-a-subject; what a place, a producer or a person *is* belongs to the entity axis),
+    `domain_stopwords` gains `source` and `domain_subject_exclusions` gains `ban_created`, the
+    bidirectional-governance section separates `save_stopwords` (moves the scope) from
+    `ensure_tag_ban` (widens and never narrows), and the ledger note says `ban_created` belongs to
+    both writers of a ban.
+  - `guides/data-model.pt.md` — **updated** (the translation of the same).
+  - `README.md` — **updated**: the front door still said a provenance-or-geography tag carries an
+    `archive_tag_facets` row; it now names the entity axis and the ban. (Not a sourced page — the
+    freshness report cannot flag it, and it was found by reading the change.)
+  - `guides/operate.md` — **no-change**: the `macro-category` worker's unit and its pending rule
+    (`is_subject_candidate` + the exclusions) never read the tag catalogue's states, and the
+    diagnostic SQL counts `macro_category_id IS NULL`, which the dropped table never entered. The
+    page declares `models/enums.py`, which moved, so it was read and not skipped.
+  - `adr/index.md` — the implementation change already links ADR 0013; the coverage gate's ADR check
+    is green. `adr/0008-...md` was **updated** in the same commit: it still said `is_place_term`
+    "claims it for the PLACE facet" and that a place kind "claims the PLACE facet", which ADR 0013
+    makes false. The distinction ADR 0008 draws is kept and the destination moves to the entity axis,
+    recorded there as an `Amended by ADR 0013` blockquote and named in ADR 0013's `Amends:`.
+- **Why the round exists:** `freshness.py` printed **"Every page is fresh"** because the hook reads
+  commits and the whole change is uncommitted — the report named nothing, so the triage was driven by
+  the working-tree diff. That diff moves `curate.md`'s declared sources (`api/controllers/**`,
+  `services/tag_service.py`, `repository/tag_repo.py`, `models/enums.py`,
+  `packages/api-contract/openapi.json`, and the SPA `routes/**`) and `data-model.md`'s
+  (`models/**`, `repository/tag_repo.py`). The API delta is two routes removed and one added.
+- **What the round measured.** `uv run pytest testing/unit/docs -q` — **28 passed**;
+  `testing/unit/docs/test_documentation_coverage.py` — **7 passed** (screens, tables, settings,
+  workers, ADRs and the API-resource check); `uv run mkdocs build --strict` green. The full Python
+  suite and the SPA build belong to the round that lands the change and were not re-run here.
+- **What the round looked at.** The screens were **rendered**, not inferred. The built SPA was served
+  by the API (`create_app()` mounts `apps/curator/dist`) against the reference collection, with a
+  scratch session created for the round and deleted after, and the headless shell drove three routes
+  over CDP. Seen in the pixels: *Classificar* (`/assuntos/tags?aba=classificar`) with the four chips
+  — `Todas`, `Sem decisão`, `Não é assunto`, `Confiança baixa`, **no `FACET`** — the row's `Decidir`
+  column reduced to the category select with no producer/place buttons, and the header reading
+  "204 tag(s) neste estado", which is the same 204 the SQL count of undecided tags reports. *Não é
+  assunto* (`/assuntos/excecoes`) with "4 candidatos · 4 são lugares (o eixo de entidades os carrega)",
+  the `é lugar` badge and the new hint "quem carrega o lugar é o eixo de entidades (LOC)", the
+  disclosure sentence naming the ban, and "139 termos fora do eixo de assunto" — the measured
+  population. *Stopwords* (`/assuntos/tags?aba=stopwords`) with the origin badge on the terms the
+  backfill classified `CONFLICT` (`veio de um conflito tag × entidade`) and **no badge** on the
+  `HUMAN` ones (`1924`, `1926`), which is the 83/5 split the migration produced. The **blocked**
+  branch was rendered too, by putting one candidate tag (`ruas`, id 131) into `Mobilidade e
+  Transporte` and shooting again: the row gained the `está em Mobilidade e Transporte` badge and its
+  button went disabled; the mutation was reverted immediately and the pending count returned to 204.
+  **Not** verified in pixels: the write itself from the screen (the refusal and the ban are pinned by
+  the integration suite, which drives the real routes and the real `ban_created`/`source` columns).
+
+## 2026-10-13 — the thumbnail worker runs against a local endpoint (#33)
+
+- **Range:** `480fd36..153afb2` — the merge that carried the previous round, then this change. The
+  change was **uncommitted during the triage**, so `freshness.py` printed "Every page is fresh"; the
+  triage was driven by the working-tree diff, as the previous entry's was.
+- **Pages:**
+  - `guides/install.md` — **updated**: the settings table gains `S3_AUTO_CREATE_BUCKET` (default
+    `false`) and the `S3_BUCKET_NAME` row stops saying the bucket "must already exist" without
+    qualification; the *Object storage is not shipped* section now says the worker confirms the
+    bucket once, before the queue, creates it only with the flag on, and that SeaweedFS answers
+    `AccessDenied` to an upload into a bucket that does not exist — which is why the confirmation
+    exists. It also states that `GET /system/health` reports the distinction and never creates
+    anything.
+  - `guides/install.pt.md` — **updated** (the translation of both places).
+  - `guides/operate.md` — **updated**: the runner's flag table gains `--limit N` (a cap on the units
+    of one run, honored by the workers that declare `limit` and refused by the others) and now says
+    that `--batch` is **logged** when the worker does not declare `db_batch_size`; the `thumbnail`
+    bullet names the bucket confirmation and the cap.
+  - `guides/operate.pt.md` — **updated** (the translation of the same).
+- **Why the round exists:** the change moves `core/config.py` (the install page's declared source)
+  and `core/storage.py`, `api/system_health.py`, `workers/runner.py` and `workers/worker_*.py` (the
+  operate page's), so both guides were read and both needed a text.
+- **What the round measured.** Full suite **1608 passed** (`TEST_DATABASE_URL` pointed at the test
+  database on 5434), `ruff check`/`ruff format --check` green, `basedpyright` **0 errors**,
+  `alembic check` reporting no new upgrade operations, `mkdocs build --strict` green. Against the
+  local SeaweedFS and the reference collection the worker went from **0/97** to **97/97**
+  descriptions with `storage_thumbnail_uri`, **97** objects under `thumbnails/`, **0**
+  `thumbnail_failed`, and a `SUCCESS` row in `archive_worker_runs` (id 14, `trigger=CLI`, 55.5 s).
+  The refusals were exercised: `--limit 2` processed exactly 2, `--limit 2` on `ner` was refused
+  with the list of workers that declare it, and `--batch 2` on `thumbnail` logged that the value was
+  ignored. `S3_AUTO_CREATE_BUCKET=true` created a scratch bucket on the endpoint (deleted after the
+  measurement), and the flag-off path refused with the bucket and the `aws s3 mb` command named.
+- **What the round looked at.** No screen was **rendered**, and none needed to be: no SPA file
+  changed. The storage refusals are pinned by unit tests and were also exercised by hand against the
+  real endpoint. **Not** verified in pixels: the *Diagnóstico* storage card, which the probe's two
+  branches feed — those branches are pinned by `testing/unit/api/test_system_health.py`.
+- **Divergence the round surfaced.** The CLI could not write its own ledger row:
+  `archive_worker_runs` carries a foreign key into `auth_users`, and a process that imported only the
+  archive models failed to flush the insert with `NoReferencedTableError`; the ledger swallows a
+  bookkeeping failure by design, so a CLI run left no line while the panel's runs did. Fixed in the
+  same change: `scrinalia.metadata.load_all_models` is the one definition of the model packages, and
+  `migrations/env.py` and `WorkerRunLedger` both call it.
+
+## 2026-10-13 — the pre-release pass for 1.2.0
+
+- **Range:** `153afb2..HEAD`. The round was **uncommitted during the triage**, so `freshness.py`
+  printed "Every page is fresh"; the triage was driven by the working-tree diff, as the two previous
+  entries' were. Only three commits followed the ledger's floor (`153afb2`) — the entry that closed
+  the thumbnail round and its test — so no page's `sources:` had moved when the reading began, and
+  none of the drift below was a source delta either.
+- **Pages:**
+  - `README.md` — **updated**: the status line moves to `1.2.0`; the *no-undo* paragraph, which
+    named three writes that had since become reversible; the runner snippet gains `--limit N`;
+    `/sistema/workers` is read-only for configuration since #53; the unauthenticated list gains the
+    first-run routes; the `worker_*.py` claim gains its exception.
+  - `docs/index.md` and `docs/index.pt.md` — **updated**: "Scrinalia is at 1.1" → "at 1.2".
+  - `guides/install.md` and `guides/install.pt.md` — **updated**: the two `Sistema › …` breadcrumbs,
+    which name a group the shell does not have; "both doors close forever", which is true of the
+    first-run route and not of the CLI; and the page's `sources:` gains the SPA navigation files it
+    states facts about (`AppShell.tsx`, `lib/screens.ts`, `lib/settings.ts`), which the freshness
+    report could never flag before.
+  - `guides/operate.md` and `guides/operate.pt.md` — **updated**: the worked
+    `conflict-judge --option host=…` example, which the runner **refuses** (measured:
+    `InvalidWorkerSettingsError`); the `cleaning` unit cell; the claim that the CLI formats the
+    duplicate-run refusal the way the API does; the `reset-password --password` comment.
+  - `guides/curate.md` and `guides/curate.pt.md` — **updated**: the "Curadoria" nav group, which
+    does not exist; "Four decisions" under five bullets; the ungoverned-worker count; the
+    subject-exclusion preview no screen calls; the *Trechos* row, which called the removal
+    reversible.
+  - `guides/data-model.md` and `guides/data-model.pt.md` — **updated**: `archive_entity_merge_log`
+    joins the ledger table; the author pair gains the two new ledgers; the ban-undo guard, which was
+    scoped to two writers and belongs to one; four stamp keys and the value-keyed count;
+    `NOT_PUBLIC_FIELDS`; `archive_tags` under the retire-with-`is_active` rule; "both merges".
+  - `CHANGELOG.md` — **updated**: `## [1.2.0] - 2026-10-13` replaces `## [Unreleased]`, which
+    carried **two** entries for ninety-one commits. The cycle's most consequential change — the tag
+    axis becoming the subject axis (ADR 0013) and its route removals — was in neither.
+  - `mkdocs.yml` — **updated**: ADR 0013 joins the site nav.
+- **Why the round exists:** milestone 1.2 is complete, so this is the release preparation
+  `CONTRIBUTING.md` asks for in one pull request — the version, the changelog, and the claims that
+  drifted while no gate looked at them.
+- **How the pages were read.** The freshness report names a page only when a declared source moved,
+  and it cannot see a page with no `sources:` at all, nor a **number or a sentence** inside a page
+  whose sources stayed put. This round therefore read every claim of the five pages against the
+  code, one page per reviewer: the report was **silent** and every defect below was still there.
+  Most predate the cycle; two were introduced by it — the entity rename landed without bumping
+  "Four decisions", and the *Trechos* removal had never been reversible.
+- **The gap no gate covered, now gated.** `docs/adr/0013-the-tag-axis-is-the-subject-axis.md`
+  existed, was linked from `adr/index.md` and passed the ADR coverage check, and was **absent from
+  the site nav**: `mkdocs build --strict` stays green because an unlisted page is an `INFO`, not a
+  warning, so the ADR built and no menu reached it. The nav lists it now, and
+  `testing/unit/docs/test_documentation_coverage.py` gained `test_every_adr_is_in_the_site_nav`,
+  which reads `mkdocs.yml` as text — reachability is the nav, so the nav is what the gate reads.
+- **A code defect the reading surfaced, and its gate.** `NOT_PUBLIC_FIELDS` listed
+  `original_thumbnail_url`, which is **not** a field of `DocumentSummary` (it lives on
+  `ArchiveDocumentDTO`), so the declaration withheld a field the internal summary never carried and
+  the comment justified it as "the source link, superseded by `storage_thumbnail_uri`". The entry is
+  gone, and `test_every_declared_non_public_field_exists` fails on the next name that is not a
+  field: the partition test reads `internal − published − NOT_PUBLIC_FIELDS`, so a dead entry was
+  invisible to it.
+- **Two defects left standing on purpose, both now documented.** The conflict resolution's undo
+  guards on `ban_created` but not on the ban's `source`, so it can lift a ban a person re-planted on
+  the Stopwords screen — a real gap in `EntityRepository._lift_conflict_ban`, recorded in the
+  data-model page rather than fixed here, because changing an undo's reach belongs to its own
+  change. And `WorkerStamp("thumbnail")` is declared and never written, `worker_thumbnail`'s queue
+  being led by `storage_thumbnail_uri`; the page says so now.
+- **What the round measured.** Full suite **1610 passed** (`TEST_DATABASE_URL` pointed at the test
+  database on **5434** — not 5433, which another project holds on this host; the compose file
+  publishes `${TEST_DB_PORT:-5433}`, so 5433 would have talked to the wrong PostgreSQL),
+  `ruff check` and `ruff format --check` green, `basedpyright` **0 errors**, `mkdocs build --strict`
+  green, and the CI contract check replicated by hand: `uv run python -m scrinalia.api.dump_openapi`
+  is **byte-identical** to the committed contract at `info.version` `1.2.0`. `uv.lock` and
+  `bun.lock` carry the number and were regenerated, and
+  `testing/unit/api/test_openapi_metadata.py` pins the served document, the installed distribution,
+  `pyproject.toml` and the committed contract together.
+- **What the round looked at.** No screen was **rendered**, and none needed to be: no SPA file
+  changed. The UI statements corrected here are navigation labels and counts, read from
+  `AppShell.tsx`, `lib/screens.ts` and `lib/settings.ts` — **not** observed in pixels, which is what
+  a screen change would require.
+- **Not verified, and said so.** The reviews did not re-measure the page's hardware figures (disk,
+  RAM, wheel sizes), the Bun argument-forwarding note, or the contents of the `ACERVO_LANGUAGE`
+  profile, and `install.pt.md` was checked by grep rather than read end to end for structural drift.
+  The working tree also moved under the reviewers while the fixes landed, so each verdict above is
+  against the tree at the moment it was read.
+- **Not carried, on purpose:** the ADRs. `0010` still records "24 screens in `router.tsx`", `0012`
+  still quotes the index's old "at 1.0", and `0011` still says "cycle 1.1": an ADR records the
+  reasoning at the time, and none of those numbers is a rule the code has to satisfy.
+  `src/scrinalia/api/openapi.py`'s docstring keeps "with `pyproject.toml` at 1.1.0" — that is the
+  date of a **measurement**, and changing the number would falsify the record rather than update it.

@@ -26,8 +26,9 @@ implantação em volta das telas.
 
 ## A única regra
 
-Toda escrita ou tem desfazer, ou avisa que não tem. O merge guarda um ledger; a purga tem prévia e
-não tem desfazer; a edição da descrição guarda o antes e o depois. Quando uma tela não tem nem uma
+Toda escrita ou tem desfazer, ou avisa que não tem. O merge, a purga de stopwords e o expurgo de NER
+guardam um ledger;
+a edição da descrição guarda o antes e o depois. Quando uma tela não tem nem uma
 coisa nem outra, esta página diz em negrito.
 
 O trabalho de leitura não declara permissão: ler é o que uma sessão autenticada é. As telas que
@@ -38,17 +39,8 @@ carrega.
 
 !!! warning "Estas escritas não têm desfazer"
 
-    As operações abaixo apagam ou dissolvem uma linha que nada mais reconstrói. A purga de stopwords
-    mostra uma prévia; a exclusão pede que você digite o código de referência; o merge de entidades
-    não tem nem uma coisa nem outra — o painel avisa. Leia a confirmação.
-
-- **Purga de stopwords** — `POST /api/v1/taxonomy/tags/stopwords/purge`. Apaga toda tag cujo nome
-  seja um termo banido nos eixos `TAG` ou `ALL`. Os vínculos caem em cascata e a classificação de
-  assunto da tag vai junto. Ela tem prévia (`POST
-  /api/v1/taxonomy/tags/stopwords/purge/preview`, que lista as tags que morreriam) e **não tem
-  desfazer**: o merge guarda o estado anterior e restaura, a purga não. Banir
-  (`POST /api/v1/taxonomy/tags/stopwords`) não apaga nada; só a purga apaga, e a mensagem de sucesso
-  avisa que isso não aparece no ledger de merges.
+    As operações abaixo apagam ou dissolvem uma linha que nada mais reconstrói. A exclusão pede que
+    você digite o código de referência. Leia a confirmação.
 
 - **Excluir uma descrição** — `DELETE /api/v1/documents/{description_id}`. Definitivo. A API grava
   antes um retrato ISAD(G) da linha inteira no ledger de exclusões, e esse retrato é uma **trilha,
@@ -58,22 +50,10 @@ carrega.
   filhos primeiro. A tela pede que o arquivista digite o código de referência (ou o identificador,
   quando não há código) antes de o botão liberar.
 
-- **Mesclar entidades** — `POST /api/v1/taxonomy/entities/merge`. As entidades absorvidas deixam de
-  existir, seus vínculos passam para a canônica e suas grafias viram sinônimos, para o extrator
-  continuar reconhecendo-as. Entidades **não têm catálogo de propostas nem ledger**, então este é o
-  merge sem desfazer — o privilégio das tags é ter ledger. O painel avisa em vez de oferecer um
-  botão de volta, e não há rota de prévia: a tela declara o efeito documentado em vez de inventar
-  números. Renomear a canônica faz parte da mesma escrita, e o nome antigo vira sinônimo.
-
 - **Excluir ou purgar entidades sem vínculo** — `DELETE /api/v1/taxonomy/entities/{entity_id}` e
   `POST /api/v1/taxonomy/entities/orphans/purge`. A tela só oferece a exclusão numa linha cuja
   contagem de uso é zero, e a purga remove toda entidade que nenhuma descrição carrega, então nenhum
   vínculo se perde — mas a linha vai embora e não há ledger que a restaure.
-
-Há ainda uma escrita cujo efeito alcança o passado: **um veto de NER** (`POST
-/api/v1/taxonomy/entities/ner-exclusions`) expurga as entidades já extraídas daquela grafia, com os
-vínculos. Remover o veto (`DELETE`, o "remover veto" da tela) reabre o termo para as próximas
-extrações; **não traz de volta** o que o veto já apagou.
 
 ### O lote que tem desfazer
 
@@ -179,14 +159,23 @@ administrador ativo for justamente quem não consegue entrar, o terminal do serv
 ([Operação](operate.md) é dona desse procedimento). Nada na tela promete uma mensagem, porque
 nenhuma mensagem é enviada.
 
+**A senha temporária é credencial para a troca e para nada mais.** Enquanto a conta ainda a carrega,
+a API recusa toda operação de `/api/v1` — leituras inclusive — com `PASSWORD_CHANGE_REQUIRED`, e a
+casca desenha a troca de senha forçada no lugar de toda tela. As três operações em que esse
+formulário se apoia continuam alcançáveis: ler a sessão (`GET /auth/me`), encerrá-la
+(`POST /auth/logout`) e trocar a senha (`POST /auth/password`, que limpa a marca). A recusa não
+depende da tela: um script com a senha que foi impressa num terminal, ou digitada por um
+administrador, recebe a mesma frase e nenhum acesso ao acervo. A troca abre o resto da API na mesma
+sessão.
+
 ### O menu esconde; nunca concede
 
 A casca filtra as entradas pela área em que a tela **escreve**
 (`apps/curator/src/lib/permissions.ts`, um espelho do mapa de papéis do servidor), e um grupo vazio
 não é renderizado. As telas que só leem não carregam permissão e ficam visíveis para todo papel:
 Início, a lista do acervo, a árvore, a trilha de excluídas e o diagnóstico do arranjo. Um `VIEWER`
-vê, portanto, exatamente os grupos "Curadoria" e "Acervo" — todos os outros grupos existem para
-decidir, e ficam escondidos.
+vê, portanto, o grupo "Acervo" e a entrada "Início", que fica sem cabeçalho — todos os outros grupos
+existem para decidir, e ficam escondidos.
 
 A mesma regra governa os cartões de `/configuracoes`, e é o catálogo de cartões
 (`apps/curator/src/lib/settings.ts`) que a página e a entrada de menu leem: um cartão fica escondido
@@ -486,8 +475,9 @@ O que *este* acervo declara, em oposição ao que a língua ou o software fixam.
   (`SMU`) ou o código inteiro (`BR PRADAP`) mapeado para o nome que a proposta de arranjo sugere; o
   código inteiro tem precedência sobre o último token;
 - **termos do acervo** — `POST`/`PATCH /api/v1/vocabulary/collection-terms` (`CATALOGUE`): as
-  grafias que o acervo carrega e que não são assunto, tipadas para a faceta Lugar reivindicar um
-  lugar enquanto o nome de uma pessoa não vai a lugar nenhum.
+  grafias que o acervo carrega e que não são assunto, tipadas para o guarda reconhecer um lugar ou
+  um nome de pessoa. O que o nome *é* fica no eixo de entidades (`LOC`, `PER`), não num estado da
+  tag: o eixo de assunto simplesmente para de adivinhar sobre ele.
 
 O que é propriedade da língua portuguesa — *rua*, *não identificado*, *303 anos*, um ano solto — fica
 no perfil de idioma e **não** aparece aqui: mudá-lo seria mudar o significado que o software dá à
@@ -498,15 +488,17 @@ próxima execução do classificador.
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Tags — `/assuntos/tags` | o peso, as duplicatas, a fila de merges e os termos banidos | o merge sim (ledger); a purga **não** |
-| Categorias — `/assuntos/categorias` | as categorias de assunto que o classificador lê | sim (aposentar e reativar) |
+| Tags — `/assuntos/tags` | o peso, as duplicatas, a fila de merges, os termos banidos **e a decisão de assunto de cada tag** | o merge sim (ledger); a purga sim (ledger próprio); a decisão de assunto sim (dá para voltar atrás) |
+| Categorias — `/assuntos/categorias` | as categorias de assunto que o classificador lê, **e o que está dentro de cada uma** | sim (aposentar e reativar) |
 | Descobrir Categorias — `/assuntos/descobrir` | se um tema proposto merece uma categoria | sim (a proposta não escreve nada) |
-| Não é assunto — `/assuntos/excecoes` | quais termos saem do eixo de assunto | sim (banir não apaga nada) |
+| Não é assunto — `/assuntos/excecoes` | quais termos saem do eixo de assunto e têm a grafia banida de voltar a ser tag | sim (o banimento não apaga nada, e o desfazer levanta o banimento que esta decisão plantou) |
 
 ### Tags — `/assuntos/tags`
 
-Uma rota, quatro perguntas, uma conversa só: o arquivista vê que `alvenarias` pesa pouco, encontra a
-quase-duplicata dela e decide se a absorve. A aba ativa está na URL.
+Uma rota, cinco perguntas, uma conversa só: o arquivista vê que `alvenarias` pesa pouco, encontra a
+quase-duplicata dela e decide se a absorve. Quatro das abas são o jeito de olhar; a quinta,
+**Classificar**, é onde a decisão de assunto se toma, e é onde os dois cartões de assunto do Início
+caem. A aba ativa está na URL.
 
 #### Relevância
 
@@ -534,6 +526,12 @@ vínculos que o merge criou, então não solta um documento que já carregava a 
 podem ser marcadas entre si e unificadas como um conjunto, que é como um merge atravessa vários pares
 (`carlos de carvalho` aparece em mais de uma linha).
 
+Uma seleção marcada tem um **segundo destino**, e ele é o outro tipo de escrita: **Banir N marcadas**
+registra as grafias em `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`), no eixo escolhido ao lado do
+botão. Banir **não apaga nada** — as tags continuam no acervo, vinculadas e alcançáveis pela busca, e o
+passo que as exclui é a **purga** na aba Stopwords, atrás da própria prévia e com um ledger que restaura cada tag. A marcação
+sobrevive ao banimento: a mesclagem para a qual ela foi feita continua possível.
+
 #### Propostas de merge
 
 Os conjuntos da máquina, com a decisão separada da escrita:
@@ -559,22 +557,77 @@ a história da escrita e o status é a da decisão.
 
 #### Stopwords
 
-Os termos banidos, e a única escrita destrutiva da taxonomia. A tela separa três coisas:
+Os termos banidos, e a escrita destrutiva da taxonomia que guarda um ledger. A tela separa três
+coisas:
 
 - **Banir** — `POST /api/v1/taxonomy/tags/stopwords` (`CURATE`) registra que um termo não vale a pena
   num eixo: `TAG` (o eixo de assunto), `ENTITY` (NER) ou `ALL`. Uma palavra tem exatamente um escopo
-  — banir de novo **move** — e banir **não apaga nada**.
+  — banir de novo **move** — e banir **não apaga nada**. Um banimento digitado aqui é gravado com
+  `source=HUMAN`; o que a tela *Não é assunto* planta é `EXCLUSION`, e o que uma resolução de
+  conflito planta é `CONFLICT`. A lista mostra o escopo em todo termo e a origem como selo quando ela
+  não é `HUMAN` — um termo digitado aqui é o padrão, e o selo marca os que chegaram como consequência
+  de outra decisão.
 - **Desbanir** — `DELETE /api/v1/taxonomy/tags/stopwords` (`CURATE`). Reversível.
 - **Purgar** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), depois de
-  `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. Esta é a escrita que apaga as tags, e ela
-  **não tem desfazer**. A prévia lista as tags que morreriam, com a contagem de documentos e a
-  categoria, e o botão de aplicar fica desabilitado até a prévia existir.
+  `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. Esta é a escrita que apaga as tags. A prévia
+  lista as tags que morreriam, com a contagem de documentos, a categoria **e de onde veio o
+  banimento** (`HUMAN`, `CONFLICT` ou `EXCLUSION`), para um termo banido com o acervo em mente não se
+  confundir com um digitado à mão; o botão de aplicar fica desabilitado até a prévia existir.
+
+Cada tag apagada é gravada num **ledger** (`archive_stopword_purge_log`) antes de sumir: o retrato da
+linha, os documentos que a carregavam e as grafias que apontavam para ela. A resposta da purga traz os
+`purge_ids`, a aba Stopwords os mostra em **Ledger das purgas**, e `DELETE
+/api/v1/taxonomy/tags/stopwords/purge-log/{purge_id}` (`CURATE`) restaura a tag, os vínculos e as
+grafias; um identificador desconhecido é **404** e uma segunda tentativa é **409**. O desfazer **não**
+levanta o banimento — o termo continua stopword, e a próxima purga lista a tag restaurada de novo.
 
 !!! warning "O escopo protege o outro eixo"
 
     A purga lê apenas `TAG`/`ALL`. Um termo banido no eixo `ENTITY` é um veto de NER e nunca pode
     fazer a purga de assunto excluir uma tag que o curador manteve — os dois são guardados em lugares
     diferentes de propósito.
+
+#### Classificar
+
+Onde o assunto de uma tag se decide, e a aba que os cartões do Início abrem. A leitura é
+`GET /api/v1/taxonomy/tags/catalog` (`AUTHENTICATED`), filtrada por `subject_state` e opcionalmente
+por `macro_category_id`, paginada e ordenada por peso — a tag que mais descrições carrega é a decisão
+que vale mais primeiro. Ela existe porque o type-ahead não responde a essa pergunta: ele exige um
+termo e devolve um topo por peso, então o cartão que prometia "76 tags sem categoria de assunto" não
+tinha leitura que marcasse quais linhas eram.
+
+O estado é uma **partição**, e `ALL` é a ausência de filtro, não um estado:
+
+| `subject_state` | O que significa |
+| --- | --- |
+| `PENDING` | Sem categoria e sem veredito: ninguém decidiu. É o que o cartão do Início conta |
+| `NOT_SUBJECT` | Uma pessoa declarou que a tag não é assunto; o classificador para de adivinhar sobre ela e a grafia fica banida de voltar a ser tag |
+| `LOW_CONFIDENCE` | O classificador rodou, não teve confiança para arquivar a tag e a deixou sem decisão |
+
+A linha carrega a evidência (peso e a confiança do classificador) e exatamente um de dois destinos,
+por `PATCH /api/v1/taxonomy/tags/{tag_id}` (`CURATE`):
+
+- **uma categoria** — a categoria em que a tag entra. A decisão é **global**: muda o selo de todas as
+  descrições que carregam a tag, e a tela diz isso antes do clique;
+- **não é assunto** — `macro_category_id=null`, que é a mesma escrita que a tela *Não é assunto* faz.
+  A tag continua no acervo e alcançável pela busca, e só a coluna seria uma decisão que a próxima
+  execução sobrescreve; por isso o termo entra em `domain_subject_exclusions` **e a grafia é banida no
+  escopo `TAG`**, para a próxima ingestão não recriá-la. O caminho de volta é
+  `DELETE /api/v1/taxonomy/tags/subject-exclusions`, e ele levanta só o banimento que esta decisão
+  plantou.
+
+Um produtor, um lugar ou uma pessoa **não** é um terceiro destino. O que o nome *é* pertence ao eixo
+de entidades, onde ele carrega um tipo (`LOC`, `PER`, `ORG`) que a busca e a projeção pública leem;
+uma grafia que é tag e entidade ao mesmo tempo se resolve em **Conflitos — `/entidades/conflitos`**,
+que bane a grafia perdedora e guarda um ledger. Declarar o termo não-assunto é o que o tira da fila de
+assunto; a entidade é onde ele mantém o significado. A medição por trás do estado removido continua
+valendo — `alfa` alcança 2.376 descrições e `cidade` 1.865, e forçá-las para dentro de uma categoria é
+causa medida do defeito de classificação —, mas a resposta agora é a entidade e a exclusão, não um
+quarto estado da tag.
+
+As mesmas duas ações valem para uma **seleção**, uma requisição por tag, e o lote informa quantas tags
+escreveu e para onde. Nada nesta aba exclui: banir uma grafia e purgar as tags ficam em **Stopwords**,
+cada um no seu passo, e a purga guarda um ledger com o desfazer de cada tag.
 
 ### Categorias — `/assuntos/categorias`
 
@@ -585,6 +638,18 @@ aposentam e reativam; uma categoria aposentada mantém o peso visível. Duas not
 mão, uma frase em vez do nome nu leva a 0,000 com 65% das tags numa única categoria — e uma **categoria nova
 só passa a valer quando o classificador rodar de novo**, porque o carimbo do worker é o hash do
 conjunto de rótulos, o que devolve as tags à fila sozinho.
+
+Cada cartão abre em duas abas. **Descrições** lista as descrições que a categoria contém, dez por vez,
+pela busca do acervo (`GET /api/v1/documents?macro_category_id=`, `AUTHENTICATED`); o selo do cartão
+conta descrições **distintas** pela mesma junção, então o número do cartão e o `total` da lista são uma
+definição contada duas vezes. Uma categoria sem nenhuma diz isso — as aposentadas não são um defeito.
+**Editar** é o formulário: nome, rótulo do classificador e descrição.
+
+O botão da linha abre uma **prévia somente leitura** de uma descrição — código de referência, título,
+data, nível e tipologia, caminho no arranjo, as tags com as suas categorias e a situação de revisão —
+sobre a lista, para reconhecer a descrição sem uma ida ao dossiê. O painel não escreve nada: o
+**Editar** dele sai para `/acervo/{description_id}?aba=descricao`. A categoria aberta, a página dela e
+a descrição em prévia vivem na URL, então o botão voltar fecha o painel e a página sobrevive a ele.
 
 ### Descobrir Categorias — `/assuntos/descobrir`
 
@@ -601,52 +666,127 @@ erro.
 A metade curada do "isto não é assunto de jeito nenhum". O guarda determinístico pega o que tem forma
 — uma data, um placeholder, um logradouro, um número solto — e, na medição real, pegou 1 de 4 dos
 não-assuntos rotulados à mão; o resto é julgamento semântico que nenhuma regra resolve (`pessoas`,
-`vista aérea`, `capanema`). A tela mostra os candidatos do guarda com a evidência deles (peso, se a
-faceta Lugar reivindica o termo, se a mesma grafia também é entidade) e oferece registrá-los com
-`source=RULE` ou um a um.
+`vista aérea`, `capanema`). A tela mostra os candidatos do guarda com a evidência deles (peso, se o
+termo é um lugar, se a mesma grafia também é entidade, a categoria que o bloquearia e se a grafia já
+está banida) e oferece registrá-los com `source=RULE` ou um a um.
 
-A escrita é `POST /api/v1/taxonomy/tags/subject-exclusions` (`CURATE`) e a reversão é `DELETE`
-(`CURATE`, o "restaurar" da tela). **Banir aqui não apaga nada**: a tag continua no acervo, continua
-vinculada e continua alcançável pela busca — só a classificação de assunto para de adivinhar. A rota
-deliberadamente não propõe nada para a metade semântica: os sinais disponíveis mentem, e um modelo que
-não sabe se abster responderia com confiança e errado.
+Confirmar planeja e aplica numa só chamada: a escrita abaixo consome o mesmo planejador que a rota de
+prévia usa, então as duas não podem discordar. A prévia, `POST
+/api/v1/taxonomy/tags/subject-exclusions/preview` (`AUTHENTICATED`), devolve `applicable` e
+`blocked`, mas existe como leitura da API — nenhuma tela a chama.
+
+A escrita é `POST /api/v1/taxonomy/tags/subject-exclusions` (`CURATE`), e ela faz duas coisas de uma
+vez: registra o termo em `domain_subject_exclusions`, para o classificador de assunto parar de
+adivinhar sobre ele, **e bane a grafia no escopo `TAG`**, para a próxima ingestão não recriar a tag
+que acabou de ser decidida. **O banimento não apaga nada**: a tag continua no acervo, continua
+vinculada e continua alcançável pela busca. Removê-la é um ato separado — a **purga**, na aba
+Stopwords, atrás da própria prévia e com um ledger que restaura cada tag — e a prévia da purga diz
+quais banimentos foram plantados aqui (`EXCLUSION`) e quais à mão (`HUMAN`).
+
+Duas respostas que a tela precisa mostrar:
+
+- um termo cuja tag já está numa **categoria** não é aplicado: ele volta em `blocked` com a categoria
+  que precisa ser esvaziada primeiro, porque "em que categoria esta tag está?" é uma pergunta sobre a
+  *tag*, respondida no catálogo de tags, e uma afirmação sobre um *termo* não pode desarquivar um
+  veredito humano. O código é `SUBJECT_EXCLUSIONS_BLOCKED` quando nada foi aplicado e algo foi
+  recusado, `SUBJECT_EXCLUSIONS_PARTIAL` quando alguns foram aplicados e alguns recusados, e
+  `created` / `banned` / `blocked` levam as três respostas;
+- a rota deliberadamente não propõe nada para a metade semântica: os sinais disponíveis mentem, e um
+  modelo que não sabe se abster responderia com confiança e errado.
+
+A reversão é `DELETE` (`CURATE`, o "restaurar" da tela). Ela responde `removed` e `unbanned`, e o
+levantamento é exato: só um banimento que esta decisão plantou sai com ela. Uma grafia que uma pessoa
+baniu na tela Stopwords, ou que uma resolução de conflito plantou antes, sobrevive.
 
 ## Entidades
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Entidades — `/entidades/lista` | o tipo de um nome, e se dois nomes são um | o tipo sim; o merge **não** |
-| Exclusões de NER — `/entidades/excecoes` | quais grafias são assunto, não nome próprio | a linha do veto sim; as entidades expurgadas **não** |
-| Conflitos — `/entidades/conflitos` | se uma colisão pertence ao eixo de assunto ou aos nomes | sim (ledger e desfazer) |
+| Entidades — `/entidades/lista` | o tipo de um nome, a grafia de um nome, e se dois nomes são um | o tipo sim; a renomeação **sim** (uma linha no ledger); o merge **sim** (uma linha por entidade absorvida) |
+| Exclusões de NER — `/entidades/excecoes` | quais grafias são assunto, não nome próprio, e o expurgo retroativo que as segue | ambos **sim**: a linha do veto pelo seu próprio `DELETE`, o expurgo pelo seu ledger (`archive_ner_purge_log`) |
+| Conflitos — `/entidades/conflitos` | se uma colisão pertence ao eixo de assunto ou aos nomes, um par de cada vez ou uma categoria inteira de uma vez | sim (uma linha no ledger por par, com o desfazer) |
 
 ### Entidades — `/entidades/lista`
 
-O vocabulário de nomes próprios, por peso ou por similaridade. Três decisões:
+O vocabulário de nomes próprios, por peso ou por similaridade. Cinco decisões:
 
 - **Reclassificar o tipo** — `PATCH /api/v1/taxonomy/entities/{entity_id}/reclassify` (`CURATE`), só
   entre `ORG`, `PER` e `LOC`. Isso não é renomear um rótulo: o serviço grava também o sinônimo de
   ancoragem, então o extrator devolve aquela grafia com o tipo novo em toda execução futura.
+- **Renomear** — `PATCH /api/v1/taxonomy/entities/{entity_id}` (`CURATE`): corrige a grafia de um
+  nome, e **não** é um merge. A grafia anterior continua ancorada como sinônimo a menos que o
+  arquivista desligue `keep_old_synonym`, que é o que faz uma extração futura da grafia antiga
+  continuar resolvendo para esta entidade — e um erro de digitação é exatamente o caso em que ela não
+  deveria. A escrita deixa uma linha `RENAME` no mesmo ledger que o merge usa, então o "desfazer" da
+  tela restaura o nome e remove a grafia que ele plantou. Uma grafia que outra entidade já carrega é um
+  **409** que nomeia o gêmeo e aponta para o merge, nunca uma sobrescrita silenciosa e nunca um
+  conflito estrutural cru.
 - **Excluir** uma entidade — `DELETE /api/v1/taxonomy/entities/{entity_id}` (`CURATE`), oferecido só
   numa linha que nenhuma descrição carrega, onde excluir não perde vínculo. Sem desfazer.
 - **Purgar órfãs** — `POST /api/v1/taxonomy/entities/orphans/purge` (`CURATE`): a mesma decisão em
   lote. Sem desfazer.
 - **Mesclar** — `POST /api/v1/taxonomy/entities/merge` (`CURATE`): as entidades absorvidas deixam de
   existir, seus vínculos passam para a canônica, suas grafias viram sinônimos, e um nome novo opcional
-  para a canônica faz o antigo virar sinônimo também. Entidades não têm catálogo de propostas nem
-  **ledger**: não há desfazer, e o painel avisa em vez de oferecer um botão de volta. Também não há
-  rota de prévia — a tela declara o efeito documentado em vez de inventar números. A lista de pares é
-  evidência crua, com os dois identificadores, porque duas linhas podem ler o mesmo nome e a canônica
-  é uma escolha que o arquivista precisa conseguir distinguir.
+  para a canônica faz o antigo virar sinônimo também. A decisão é precedida da prévia
+  (`POST /api/v1/taxonomy/entities/merge/preview`, uma leitura): ela devolve quantas descrições passam
+  a carregar a canônica, quantos vínculos são reescritos, quais entidades são absorvidas e os avisos a
+  olhar, calculada pelo **mesmo planejador** que a escrita executa. Entidades não têm catálogo de
+  propostas, mas têm ledger: cada absorvida é registrada **antes** de qualquer mudança, e o desfazer
+  (`DELETE /api/v1/taxonomy/entities/merge-log/{merge_id}`, o "desfazer" da tela) restaura a linha,
+  seus vínculos, suas grafias e o nome que a canônica perdeu.
+  `GET /api/v1/taxonomy/entities/merge-log` é a trilha, buscável pelas duas grafias de cada entrada.
+  A lista de pares é evidência crua, com os dois identificadores, porque duas linhas podem ler nomes
+  quase iguais e a canônica é uma escolha que o arquivista precisa conseguir distinguir.
+
+O merge tem três portas e um único painel atrás de todas: a seleção na **Relevância**, um par na
+**Similaridade** e o cartão **Mesclar pelo nome** acima das abas. O cartão existe porque as outras duas
+são guiadas por listas que o arquivista não controla — a relevância é ordenada por peso e limitada,
+então dois nomes carregados por números muito diferentes de descrições nunca ficam na mesma página, e
+a similaridade é trigrama, a única medida que falha no par de que ele tem mais certeza (`smu` e `smcs
+secretaria municipal de comunicação social`: 68 descrições contra 1, e 0.045 de similaridade). O cartão
+recebe os nomes pelo type-ahead que a aba Assuntos do dossiê já usa, então herda o piso de dois
+caracteres da API em vez de inventar um; mostra o peso de cada nome, para a canônica ser escolhida com
+os números à vista; e **a lista é dele** — não consome as caixas marcadas na Relevância, e com menos de
+dois nomes nada é escrito.
+
+Ler é a outra metade desta tela, e o cartão se abre nela. Um nome se expande nas **descrições que o
+carregam** — a busca do acervo (`GET /api/v1/documents`) com `entity_id`, paginada de dez em dez
+dentro do cartão, de modo que o selo acima e o `total` da lista são um número contado duas vezes;
+`testing/integration/api/controller/test_entity_documents.py` falha quando os dois deixam de
+concordar. Clicar numa linha abre a prévia somente-leitura (`?descricao=`) que a tela de categorias já
+usa, e nada nela escreve. O "Editar" dela cai na aba **Assuntos** do dossiê, que é onde as entidades
+de uma descrição são adicionadas e removidas. Um cartão fica aberto por vez, e `?aberta=`, `?offset=`
+e `?descricao=` carregam esse estado na URL — então o botão voltar fecha o painel e um colega pode
+receber a mesma vista exata.
+
+A segunda aba do cartão é a renomeação, e o botão **Renomear** ao lado do nome é quem a abre. Ele é o
+recurso da própria linha e nunca mescla: o merge parte de dois ou mais nomes e só renomeia a canônica
+como efeito colateral.
 
 ### Exclusões de NER — `/entidades/excecoes`
 
-O veto "esta grafia é assunto, não nome próprio". A escrita é `POST
-/api/v1/taxonomy/entities/ner-exclusions` (`CURATE`), com um motivo guardado para auditoria; a
-reversão é `DELETE` (o "remover veto" da tela). Dois comportamentos que a tela declara porque nenhum
-deles é visível na lista: o bloqueio é **por limite de token**, não por nome exato (o spaCy funde
-tokens vizinhos, então um `iptu` vetado não barraria `"IPTU do Batel"` numa comparação exata), e ele
-**vale para trás** — as entidades já extraídas daquela grafia são apagadas, com os vínculos, e
-remover o veto não as traz de volta.
+O veto "esta grafia é assunto, não nome próprio". **Vetar não apaga nada.** A escrita é `POST
+/api/v1/taxonomy/entities/ner-exclusions` (`CURATE`), com um motivo guardado para auditoria, e a
+reversão é `DELETE` (o "remover veto" da tela), que reabre o termo para as próximas extrações. Um
+comportamento que a tela declara porque não é visível na lista: o bloqueio é **por limite de token**,
+não por nome exato (o spaCy funde tokens vizinhos, então um `iptu` vetado não barraria `"IPTU do
+Batel"` numa comparação exata).
+
+A metade retroativa é um ato separado, **Expurgar do passado**:
+`POST /api/v1/taxonomy/entities/ner-exclusions/purge` (`CURATE`), depois de
+`POST /api/v1/taxonomy/entities/ner-exclusions/purge/preview`. O impacto lista toda entidade já
+extraída de uma grafia vetada, com as descrições que a carregam, e a escrita consome o mesmo plano.
+Cada entidade apagada entra num **ledger** (`archive_ner_purge_log`) antes de sair: o snapshot da
+linha, os documentos que a carregavam, as grafias que apontavam para ela e o `excluded_term` que a
+justificou. A resposta carrega os `purge_ids`, a tela os mostra em **Ledger dos expurgos**, e
+`DELETE /api/v1/taxonomy/entities/ner-exclusions/purge-log/{purge_id}` restaura a entidade, os seus
+vínculos e as suas grafias — **sem** levantar o veto, então o próximo expurgo lista a entidade
+restaurada de novo. Use-o para reverter a perda; use "remover veto" para reabrir o termo.
+
+A tela de conflitos resolve o mesmo choque com o mesmo par de escritas, e lá também é reversível na
+mesma forma: uma linha de ledger por par (`archive_conflict_resolution_log`), com a linha perdedora, os
+seus vínculos e as suas grafias restauradas pelo desfazer. Chegar à operação por qualquer das telas
+restaura as mesmas coisas.
 
 Esta é a outra metade da governança bidirecional: ela registra o curador ou o juiz dizendo "isto
 pertence ao eixo de assunto", e é guardada separada das stopwords do eixo de assunto de propósito,
@@ -658,9 +798,10 @@ A mesma grafia nos dois eixos: "isto é assunto ou nome próprio?". Três leitur
 perguntas, e ler só a primeira era o que escondia o trabalho do juiz:
 
 - **Pendentes** — a varredura ao vivo de trigrama (`GET /api/v1/taxonomy/conflicts/cross-domain`),
-  anotada com o veredito do juiz onde existe e separada por `pair_kind`: "grafias diferentes" (uma
+  anotada com o veredito do juiz onde existe e filtrada por `pair_kind`: "grafias diferentes" (uma
   pergunta de grafia) e "nomes idênticos" (uma pergunta estrutural) não são a mesma lista, e juntas
-  nenhuma das duas fica visível.
+  nenhuma das duas fica visível. A mesma leitura aceita `entity_type` (`ORG`/`PER`/`LOC`), porque "rua
+  é entidade" é uma decisão sobre uma categoria de colisões e não sobre um par.
 - **Decididos pelo juiz** — a fila de revisão (`GET /api/v1/taxonomy/conflicts/judged`). Uma
   auto-resolução apaga a linha perdedora, então a maior parte das decisões do juiz não pode aparecer
   na varredura ao vivo.
@@ -693,11 +834,31 @@ próprio desfazer.
     vivo não tem o que anotar. É por isso que o trabalho sobrevive na fila do juiz e no ledger, e é
     por isso que as abas `Decididos` e `Resoluções` existem.
 
+#### Decidir uma categoria de uma vez
+
+Uma colisão é decidida um par de cada vez, mas a decisão que o arquivista está de fato tomando é
+categórica — "rua é entidade" — e um acervo pode ter dezenas da mesma grafia nos dois eixos. O lote,
+`POST /api/v1/taxonomy/conflicts/resolve/batch` (`CURATE`), aplica um veredito à **seleção** inteira
+que a lista mostra: os mesmos filtros `pair_kind` e `entity_type`, o mesmo `threshold`, e nada além.
+
+A unidade da decisão é a seleção; a unidade da escrita continua sendo o par. Cada par é planejado pelo
+mesmo planejador que a prévia de um par usa e escrito dentro do seu próprio savepoint, então um par que
+falha não desfaz os outros, e cada par fica com a sua linha no ledger e o seu `resolution_id` — o
+desfazer continua sendo por par mesmo quando o clique foi categórico. Um par cujo perdedor um par
+anterior do mesmo lote já removeu é relatado em `skipped` **com o motivo**, nunca como falha: é
+trabalho terminado, e chamá-lo de falha é o que já transformou um lote limpo numa parede de linhas
+vermelhas.
+
+O `limit` limita uma requisição, porque um clique que escreve milhares de linhas no ledger é um clique
+que ninguém revisou. O `remaining` é a mesma leitura que a lista faz, feita de novo com os mesmos
+filtros, então o número antes do clique e o número depois dele são uma só medição — a tela não pode
+afirmar que uma categoria acabou quando a página seguinte discorda.
+
 ## Qualidade
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Trechos — `/qualidade/trechos` | de qual consumidor um trecho repetido sai | sim (aposentar ou remover do catálogo) |
+| Trechos — `/qualidade/trechos` | de qual consumidor um trecho repetido sai | aposentar **sim**; remover do catálogo é definitivo |
 | Regras — `/qualidade/regras` | se uma regra reescreve o texto ou só sinaliza | sim: aposentar tem caminho de volta, e a regra aposentada continua na tela |
 | Anomalias — `/qualidade/anomalias` | nenhuma (a correção é a revisão da ficha) | sim (só leitura) |
 
@@ -777,9 +938,12 @@ fazendo. A linha carrega a fila — pendentes, processados, falhas, última exec
 
 O painel em si não oferece desfazer para uma execução. A reversibilidade de uma execução é a
 reversibilidade do que ela escreveu — um desfazer de merge, de materialização, de conflito — e um
-worker que carimba a própria fila não refaz o trabalho só porque foi rodado de novo. Um worker
-marcado como não respeitando o bloqueio de revisão humana é o `worker_embedding`, a exceção
-documentada.
+worker que carimba a própria fila não refaz o trabalho só porque foi rodado de novo. O painel marca
+**quatro** workers como fora do bloqueio de revisão humana — a transferência staging → archive, o
+juiz de conflito assunto x entidade, a categorização de assunto (tags) e o `worker_embedding` — e só
+o `worker_embedding` reescreve uma *descrição*: ele re-gera o vetor de um texto mudado mesmo numa
+descrição aprovada, a exceção documentada. Os outros três trabalham sobre unidades que não são
+descrições (um registro de staging, um par, uma tag).
 
 ### Execuções — `/sistema/execucoes`
 

@@ -538,6 +538,225 @@
         "title": "CollectionVocabularyResponse",
         "type": "object"
       },
+      "ConflictBatchEntry": {
+        "properties": {
+          "documents_transferred": {
+            "default": 0,
+            "type": "integer"
+          },
+          "entity_id": {
+            "type": "integer"
+          },
+          "entity_name": {
+            "type": "string"
+          },
+          "resolution_id": {
+            "type": "integer"
+          },
+          "tag_id": {
+            "type": "integer"
+          },
+          "tag_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id",
+          "entity_name",
+          "resolution_id",
+          "tag_id",
+          "tag_name"
+        ],
+        "title": "ConflictBatchEntry",
+        "type": "object"
+      },
+      "ConflictBatchRemaining": {
+        "properties": {
+          "exact_name_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "near_duplicate_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "title": "ConflictBatchRemaining",
+        "type": "object"
+      },
+      "ConflictBatchRequest": {
+        "properties": {
+          "entity_type": {
+            "enum": [
+              "ORG",
+              "PER",
+              "LOC",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "limit": {
+            "default": 50,
+            "description": "Quantos pares uma requisição pode escrever; o restante continua na seleção.",
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "type": "integer"
+          },
+          "note": {
+            "description": "Por que decidiu; fica no ledger de cada resolução.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pair_kind": {
+            "default": "exact_name",
+            "enum": [
+              "all",
+              "exact_name",
+              "near_duplicate"
+            ],
+            "type": "string"
+          },
+          "threshold": {
+            "default": 0.85,
+            "description": "pg_trgm similarity floor.",
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "type": "number"
+          },
+          "winner": {
+            "enum": [
+              "TAG",
+              "ENTITY"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "winner"
+        ],
+        "title": "ConflictBatchRequest",
+        "type": "object"
+      },
+      "ConflictBatchResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ConflictBatchResult"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "title": "ConflictBatchResponse",
+        "type": "object"
+      },
+      "ConflictBatchResult": {
+        "properties": {
+          "applied": {
+            "items": {
+              "$ref": "#/components/schemas/ConflictBatchEntry"
+            },
+            "type": "array"
+          },
+          "entity_type": {
+            "enum": [
+              "ORG",
+              "PER",
+              "LOC",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "failed": {
+            "items": {
+              "$ref": "#/components/schemas/ConflictBatchSkip"
+            },
+            "type": "array"
+          },
+          "pair_kind": {
+            "default": "exact_name",
+            "enum": [
+              "all",
+              "exact_name",
+              "near_duplicate"
+            ],
+            "type": "string"
+          },
+          "remaining": {
+            "$ref": "#/components/schemas/ConflictBatchRemaining"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/ConflictBatchSkip"
+            },
+            "type": "array"
+          },
+          "winner": {
+            "enum": [
+              "TAG",
+              "ENTITY"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "winner"
+        ],
+        "title": "ConflictBatchResult",
+        "type": "object"
+      },
+      "ConflictBatchSkip": {
+        "properties": {
+          "entity_id": {
+            "type": "integer"
+          },
+          "entity_name": {
+            "default": "",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "tag_id": {
+            "type": "integer"
+          },
+          "tag_name": {
+            "default": "",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id",
+          "reason",
+          "tag_id"
+        ],
+        "title": "ConflictBatchSkip",
+        "type": "object"
+      },
       "ConflictPreviewRequest": {
         "properties": {
           "entity_id": {
@@ -2582,6 +2801,345 @@
         "title": "EntityLinkRequest",
         "type": "object"
       },
+      "EntityMergeImpact": {
+        "properties": {
+          "document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "entity_id": {
+            "type": "integer"
+          },
+          "entity_type": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id",
+          "entity_type",
+          "name"
+        ],
+        "title": "EntityMergeImpact",
+        "type": "object"
+      },
+      "EntityMergeLogEntryDTO": {
+        "properties": {
+          "absorbed_entity_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "absorbed_entity_type": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "absorbed_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "canonical_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "canonical_name": {
+            "type": "string"
+          },
+          "canonical_renamed_from": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "changed_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "changed_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "is_rename": {
+            "description": "The discriminator the ledger screen branches on, so it never tests a null of its own.",
+            "readOnly": true,
+            "type": "boolean"
+          },
+          "is_undone": {
+            "description": "Computed so the front reads one definition instead of comparing a timestamp itself.",
+            "readOnly": true,
+            "type": "boolean"
+          },
+          "kind": {
+            "default": "MERGE",
+            "type": "string"
+          },
+          "merge_id": {
+            "type": "integer"
+          },
+          "note": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "repointed_synonym_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "synonym_created": {
+            "default": true,
+            "type": "boolean"
+          },
+          "undone_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "undone_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "canonical_name",
+          "is_rename",
+          "is_undone",
+          "merge_id"
+        ],
+        "title": "EntityMergeLogEntryDTO",
+        "type": "object"
+      },
+      "EntityMergeLogListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EntityMergeLogEntryDTO"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "offset",
+          "total"
+        ],
+        "title": "EntityMergeLogListResponse",
+        "type": "object"
+      },
+      "EntityMergePreviewRequest": {
+        "properties": {
+          "canonical_id": {
+            "type": "integer"
+          },
+          "ids_to_merge": {
+            "items": {
+              "type": "integer"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "new_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "canonical_id",
+          "ids_to_merge"
+        ],
+        "title": "EntityMergePreviewRequest",
+        "type": "object"
+      },
+      "EntityMergePreviewResponse": {
+        "properties": {
+          "canonical_id": {
+            "type": "integer"
+          },
+          "canonical_name": {
+            "type": "string"
+          },
+          "documents_updated": {
+            "type": "integer"
+          },
+          "entities_deleted": {
+            "items": {
+              "$ref": "#/components/schemas/EntityMergeImpact"
+            },
+            "type": "array"
+          },
+          "links_rewritten": {
+            "type": "integer"
+          },
+          "renamed_from": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "renamed_to": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "review_flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "synonyms_created": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "synonyms_repointed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "canonical_id",
+          "canonical_name",
+          "documents_updated",
+          "links_rewritten"
+        ],
+        "title": "EntityMergePreviewResponse",
+        "type": "object"
+      },
+      "EntityMergeRequest": {
+        "properties": {
+          "canonical_id": {
+            "type": "integer"
+          },
+          "ids_to_merge": {
+            "description": "List of IDs that will be merged and deleted.",
+            "items": {
+              "type": "integer"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "new_name": {
+            "description": "Optional new name for the canonical; the old one becomes a synonym.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "description": "Why; kept in the merge ledger.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "canonical_id",
+          "ids_to_merge"
+        ],
+        "title": "EntityMergeRequest",
+        "type": "object"
+      },
       "EntityMergeResponse": {
         "properties": {
           "documents_updated": {
@@ -2589,6 +3147,12 @@
           },
           "entities_deleted": {
             "type": "integer"
+          },
+          "merge_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -2596,6 +3160,26 @@
           "entities_deleted"
         ],
         "title": "EntityMergeResponse",
+        "type": "object"
+      },
+      "EntityMergeUndoResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/EntityMergeLogEntryDTO"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "title": "EntityMergeUndoResponse",
         "type": "object"
       },
       "EntityPairSimilarity": {
@@ -2696,6 +3280,73 @@
           "data"
         ],
         "title": "EntityRelevanceResponse",
+        "type": "object"
+      },
+      "EntityRenameRequest": {
+        "properties": {
+          "keep_old_synonym": {
+            "default": true,
+            "description": "Whether the previous spelling keeps resolving to this entity.",
+            "type": "boolean"
+          },
+          "new_name": {
+            "description": "The spelling the catalogue will show.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "note": {
+            "description": "Why; kept in the merge ledger, with the undo.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "new_name"
+        ],
+        "title": "EntityRenameRequest",
+        "type": "object"
+      },
+      "EntityRenameResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "entity_id": {
+            "type": "integer"
+          },
+          "entity_type": {
+            "type": "string"
+          },
+          "kept_old_spelling": {
+            "type": "boolean"
+          },
+          "merge_id": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "entity_id",
+          "entity_type",
+          "kept_old_spelling",
+          "merge_id",
+          "message",
+          "name"
+        ],
+        "title": "EntityRenameResponse",
         "type": "object"
       },
       "EntitySimilarity": {
@@ -4744,7 +5395,9 @@
           "code": {
             "$ref": "#/components/schemas/RouteMessageCode"
           },
-          "entities_deleted": {
+          "created": {
+            "default": 0,
+            "description": "How many exclusions were inserted; a re-ban inserts none.",
             "type": "integer"
           },
           "message": {
@@ -4753,7 +5406,6 @@
         },
         "required": [
           "code",
-          "entities_deleted",
           "message"
         ],
         "title": "NerExclusionBanResponse",
@@ -4805,6 +5457,228 @@
           "words"
         ],
         "title": "NerExclusionRequest",
+        "type": "object"
+      },
+      "NerPurgeEntity": {
+        "properties": {
+          "document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "entity_id": {
+            "type": "integer"
+          },
+          "entity_type": {
+            "type": "string"
+          },
+          "excluded_term": {
+            "description": "The banned spelling this entity matched.",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "synonym_names": {
+            "description": "The spellings that point at it.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "entity_id",
+          "entity_type",
+          "excluded_term",
+          "name"
+        ],
+        "title": "NerPurgeEntity",
+        "type": "object"
+      },
+      "NerPurgeLogEntryDTO": {
+        "properties": {
+          "changed_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "changed_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "entity_type": {
+            "type": "string"
+          },
+          "excluded_term": {
+            "type": "string"
+          },
+          "purge_id": {
+            "type": "integer"
+          },
+          "purged_entity_id": {
+            "type": "integer"
+          },
+          "purged_name": {
+            "type": "string"
+          },
+          "synonym_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "undone_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "undone_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "entity_type",
+          "excluded_term",
+          "purge_id",
+          "purged_entity_id",
+          "purged_name"
+        ],
+        "title": "NerPurgeLogEntryDTO",
+        "type": "object"
+      },
+      "NerPurgeLogListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NerPurgeLogEntryDTO"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "offset",
+          "total"
+        ],
+        "title": "NerPurgeLogListResponse",
+        "type": "object"
+      },
+      "NerPurgePreview": {
+        "properties": {
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/NerPurgeEntity"
+            },
+            "type": "array"
+          },
+          "excluded_terms": {
+            "description": "The banned spellings the purge acts on.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reversible": {
+            "default": true,
+            "description": "True: the ledger restores the entities and their links.",
+            "type": "boolean"
+          },
+          "total_documents": {
+            "default": 0,
+            "description": "Documents that lose an entity.",
+            "type": "integer"
+          },
+          "total_entities": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "title": "NerPurgePreview",
+        "type": "object"
+      },
+      "NerPurgeResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "entities_deleted": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "purge_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "code",
+          "entities_deleted",
+          "message"
+        ],
+        "title": "NerPurgeResponse",
+        "type": "object"
+      },
+      "NerPurgeUndoResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/NerPurgeLogEntryDTO"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "title": "NerPurgeUndoResponse",
         "type": "object"
       },
       "OllamaHealthDTO": {
@@ -5269,17 +6143,26 @@
           "TAG_STOPWORDS_BANNED",
           "TAG_STOPWORDS_REMOVED",
           "TAG_STOPWORD_PURGE_DONE",
+          "TAG_STOPWORD_PURGE_UNDONE",
           "SUBJECT_EXCLUSIONS_ADDED",
+          "SUBJECT_EXCLUSIONS_BLOCKED",
+          "SUBJECT_EXCLUSIONS_PARTIAL",
           "SUBJECT_EXCLUSIONS_REMOVED",
           "MACRO_CLUSTERING_INSUFFICIENT_TEXTS",
           "NER_EXCLUSIONS_ADDED",
           "NER_EXCLUSIONS_REMOVED",
+          "NER_PURGE_DONE",
+          "NER_PURGE_UNDONE",
           "ORPHAN_ENTITIES_PURGED",
           "ENTITY_RECLASSIFIED",
           "ENTITY_DELETED",
+          "ENTITY_RENAMED",
+          "ENTITY_MERGE_UNDONE",
           "CONFLICT_RESOLVED",
+          "CONFLICT_BATCH_RESOLVED",
           "SESSION_ENDED",
           "PASSWORD_CHANGED",
+          "PASSWORD_CHANGE_REQUIRED",
           "USER_PASSWORD_RESET",
           "USER_SESSIONS_REVOKED",
           "SESSION_REVOKED"
@@ -5406,6 +6289,10 @@
           "scope": {
             "$ref": "#/components/schemas/StopwordsScope"
           },
+          "source": {
+            "default": "HUMAN",
+            "type": "string"
+          },
           "word": {
             "type": "string"
           }
@@ -5417,11 +6304,119 @@
         "title": "StopwordDTO",
         "type": "object"
       },
+      "StopwordPurgeLogEntryDTO": {
+        "properties": {
+          "changed_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "changed_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "macro_category_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "purge_id": {
+            "type": "integer"
+          },
+          "purged_name": {
+            "type": "string"
+          },
+          "purged_tag_id": {
+            "type": "integer"
+          },
+          "synonym_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "undone_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "undone_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "purge_id",
+          "purged_name",
+          "purged_tag_id"
+        ],
+        "title": "StopwordPurgeLogEntryDTO",
+        "type": "object"
+      },
+      "StopwordPurgeLogListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StopwordPurgeLogEntryDTO"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "offset",
+          "total"
+        ],
+        "title": "StopwordPurgeLogListResponse",
+        "type": "object"
+      },
       "StopwordPurgePreview": {
         "properties": {
           "reversible": {
-            "default": false,
-            "description": "Always false: the purge has no ledger to restore from.",
+            "default": true,
+            "description": "True: the ledger restores the tags and their links.",
             "type": "boolean"
           },
           "stopwords": {
@@ -5459,6 +6454,12 @@
           "message": {
             "type": "string"
           },
+          "purge_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
           "tags_deleted": {
             "type": "integer"
           }
@@ -5490,6 +6491,10 @@
           "name": {
             "type": "string"
           },
+          "source": {
+            "default": "HUMAN",
+            "type": "string"
+          },
           "tag_id": {
             "type": "integer"
           }
@@ -5499,6 +6504,26 @@
           "tag_id"
         ],
         "title": "StopwordPurgeTag",
+        "type": "object"
+      },
+      "StopwordPurgeUndoResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/StopwordPurgeLogEntryDTO"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "title": "StopwordPurgeUndoResponse",
         "type": "object"
       },
       "StopwordRemovalRequest": {
@@ -5620,6 +6645,16 @@
       },
       "SubjectExclusionBanResponse": {
         "properties": {
+          "banned": {
+            "default": 0,
+            "type": "integer"
+          },
+          "blocked": {
+            "items": {
+              "$ref": "#/components/schemas/SubjectExclusionTarget"
+            },
+            "type": "array"
+          },
           "code": {
             "$ref": "#/components/schemas/RouteMessageCode"
           },
@@ -5636,6 +6671,25 @@
           "message"
         ],
         "title": "SubjectExclusionBanResponse",
+        "type": "object"
+      },
+      "SubjectExclusionPlan": {
+        "properties": {
+          "applicable": {
+            "items": {
+              "$ref": "#/components/schemas/SubjectExclusionTarget"
+            },
+            "type": "array"
+          },
+          "blocked": {
+            "items": {
+              "$ref": "#/components/schemas/SubjectExclusionTarget"
+            },
+            "type": "array"
+          }
+        },
+        "required": [],
+        "title": "SubjectExclusionPlan",
         "type": "object"
       },
       "SubjectExclusionRemovalRequest": {
@@ -5664,6 +6718,10 @@
             "type": "string"
           },
           "removed": {
+            "type": "integer"
+          },
+          "unbanned": {
+            "default": 0,
             "type": "integer"
           }
         },
@@ -5714,6 +6772,10 @@
       },
       "SubjectExclusionSuggestion": {
         "properties": {
+          "already_banned": {
+            "default": false,
+            "type": "boolean"
+          },
           "already_excluded": {
             "default": false,
             "type": "boolean"
@@ -5729,6 +6791,26 @@
           "is_place_term": {
             "default": false,
             "type": "boolean"
+          },
+          "macro_category_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "macro_category_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "signal": {
             "type": "string"
@@ -5789,6 +6871,78 @@
         },
         "required": [],
         "title": "SubjectExclusionSuggestionResponse",
+        "type": "object"
+      },
+      "SubjectExclusionTarget": {
+        "properties": {
+          "already_banned": {
+            "default": false,
+            "type": "boolean"
+          },
+          "already_excluded": {
+            "default": false,
+            "type": "boolean"
+          },
+          "also_an_entity": {
+            "default": false,
+            "type": "boolean"
+          },
+          "document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "is_place_term": {
+            "default": false,
+            "type": "boolean"
+          },
+          "macro_category_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "macro_category_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signal": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tag_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "term": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "term"
+        ],
+        "title": "SubjectExclusionTarget",
         "type": "object"
       },
       "SuggestMacroRequest": {
@@ -5907,6 +7061,97 @@
         "title": "SystemWorkersResponse",
         "type": "object"
       },
+      "TagCatalogResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TagCatalogRow"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "default": 25,
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "title": "TagCatalogResponse",
+        "type": "object"
+      },
+      "TagCatalogRow": {
+        "properties": {
+          "ai_confidence_score": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "document_count": {
+            "default": 0,
+            "type": "integer"
+          },
+          "macro_category_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "macro_category_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "subject_excluded": {
+            "default": false,
+            "type": "boolean"
+          },
+          "tag_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "tag_id"
+        ],
+        "title": "TagCatalogRow",
+        "type": "object"
+      },
+      "TagCatalogState": {
+        "default": "ALL",
+        "description": "\n    Which slice of the tag catalogue one read asks for, by the state of its subject decision.\n\n    The decision has three parts and they are a **partition**: a tag is in a drawer, declared not a\n    subject, or nobody has decided yet. This filter names the two that are states of the *catalogue*\n    — the drawer is reached with ``macro_category_id`` — and ``ALL`` is not a state at all but the\n    absence of a filter. The predicates live in one module (``repository/subject_queue.py``) and the\n    home screen's counters read the same ones, because the number a card promises has to be the number\n    the list it opens reports.\n\n    ``LOW_CONFIDENCE`` is the one that is not a state of the tag but of the *work*: the classifier\n    ran, was not confident enough to file the tag, and left a row in ``archive_ai_review_queue``.\n    It is a subset of ``PENDING`` on purpose — the archivist's two cards answer two questions about\n    the same queue, and either one may take the decision.\n\n    A place, a producer or a person is **not** a fourth state: it is a tag the subject axis does not\n    answer for, so it is declared not a subject and its spelling is banned from coming back, while the\n    entity axis carries what it is (ADR 0013). ``FACET`` used to express that distinction here, and the\n    distinction had no reader beyond the chip itself — the entity already reaches the description with\n    a type the search facet and the public projection both use.\n    ",
+        "enum": [
+          "ALL",
+          "PENDING",
+          "NOT_SUBJECT",
+          "LOW_CONFIDENCE"
+        ],
+        "title": "TagCatalogState",
+        "type": "string"
+      },
       "TagCurationRequest": {
         "properties": {
           "macro_category_id": {
@@ -5966,6 +7211,10 @@
           },
           "name": {
             "type": "string"
+          },
+          "subject_excluded": {
+            "default": false,
+            "type": "boolean"
           },
           "tag_id": {
             "type": "integer"
@@ -7480,7 +8729,7 @@
   },
   "info": {
     "title": "Scrinalia API",
-    "version": "1.1.0"
+    "version": "1.2.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -7817,6 +9066,24 @@
               "oneOf": [
                 {
                   "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "entity_id",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "integer"
                 },
                 {
                   "type": "null"
@@ -12193,6 +13460,26 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
+            "name": "entity_type",
+            "required": false,
+            "schema": {
+              "enum": [
+                "ORG",
+                "PER",
+                "LOC",
+                null
+              ],
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -12599,6 +13886,77 @@
         ]
       }
     },
+    "/api/v1/taxonomy/conflicts/resolve/batch": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyConflictsResolveBatchResolveCrossDomainConflictBatch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConflictBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictBatchResponse"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ResolveCrossDomainConflictBatch",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
     "/api/v1/taxonomy/conflicts/resolve/preview": {
       "post": {
         "deprecated": false,
@@ -12767,7 +14125,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/MergeRequest"
+                "$ref": "#/components/schemas/EntityMergeRequest"
               }
             }
           },
@@ -12825,6 +14183,302 @@
           }
         },
         "summary": "MergeEntities",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/entities/merge-log": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyEntitiesMergeLogListEntityMergeLog",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "canonical_id",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "changed_by",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "include_undone",
+            "required": false,
+            "schema": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityMergeLogListResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListEntityMergeLog",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/entities/merge-log/{merge_id}": {
+      "delete": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyEntitiesMergeLogMergeIdUndoEntityMerge",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "merge_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityMergeUndoResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "UndoEntityMerge",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/entities/merge/preview": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyEntitiesMergePreviewPreviewEntityMerge",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityMergePreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityMergePreviewResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "PreviewEntityMerge",
         "tags": [
           "Taxonomy"
         ]
@@ -12989,6 +14643,241 @@
           }
         },
         "summary": "CreateNerExclusions",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/entities/ner-exclusions/purge": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyEntitiesNerExclusionsPurgePurgeNerEntities",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NerPurgeResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "PurgeNerEntities",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/entities/ner-exclusions/purge-log": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyEntitiesNerExclusionsPurgeLogListNerPurgeLog",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "include_undone",
+            "required": false,
+            "schema": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NerPurgeLogListResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListNerPurgeLog",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/entities/ner-exclusions/purge-log/{purge_id}": {
+      "delete": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyEntitiesNerExclusionsPurgeLogPurgeIdUndoNerPurge",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "purge_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NerPurgeUndoResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "UndoNerPurge",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/entities/ner-exclusions/purge/preview": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyEntitiesNerExclusionsPurgePreviewPreviewNerPurge",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NerPurgePreview"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "PreviewNerPurge",
         "tags": [
           "Taxonomy"
         ]
@@ -13292,6 +15181,86 @@
           }
         },
         "summary": "DeleteEntity",
+        "tags": [
+          "Taxonomy"
+        ]
+      },
+      "patch": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyEntitiesEntityIdRenameEntity",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityRenameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityRenameResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "RenameEntity",
         "tags": [
           "Taxonomy"
         ]
@@ -13692,6 +15661,141 @@
           }
         },
         "summary": "SearchTags",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/tags/catalog": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsCatalogListTagCatalog",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "\n    Which slice of the tag catalogue one read asks for, by the state of its subject decision.\n\n    The decision has three parts and they are a **partition**: a tag is in a drawer, declared not a\n    subject, or nobody has decided yet. This filter names the two that are states of the *catalogue*\n    — the drawer is reached with ``macro_category_id`` — and ``ALL`` is not a state at all but the\n    absence of a filter. The predicates live in one module (``repository/subject_queue.py``) and the\n    home screen's counters read the same ones, because the number a card promises has to be the number\n    the list it opens reports.\n\n    ``LOW_CONFIDENCE`` is the one that is not a state of the tag but of the *work*: the classifier\n    ran, was not confident enough to file the tag, and left a row in ``archive_ai_review_queue``.\n    It is a subset of ``PENDING`` on purpose — the archivist's two cards answer two questions about\n    the same queue, and either one may take the decision.\n\n    A place, a producer or a person is **not** a fourth state: it is a tag the subject axis does not\n    answer for, so it is declared not a subject and its spelling is banned from coming back, while the\n    entity axis carries what it is (ADR 0013). ``FACET`` used to express that distinction here, and the\n    distinction had no reader beyond the chip itself — the entity already reaches the description with\n    a type the search facet and the public projection both use.\n    ",
+            "in": "query",
+            "name": "subject_state",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TagCatalogState"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "macro_category_id",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "term",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagCatalogResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListTagCatalog",
         "tags": [
           "Taxonomy"
         ]
@@ -14927,6 +17031,195 @@
         ]
       }
     },
+    "/api/v1/taxonomy/tags/stopwords/purge-log": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsStopwordsPurgeLogListStopwordPurgeLog",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "include_undone",
+            "required": false,
+            "schema": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopwordPurgeLogListResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListStopwordPurgeLog",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/tags/stopwords/purge-log/{purge_id}": {
+      "delete": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsStopwordsPurgeLogPurgeIdUndoStopwordPurge",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "purge_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopwordPurgeUndoResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "UndoStopwordPurge",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
     "/api/v1/taxonomy/tags/stopwords/purge/preview": {
       "post": {
         "deprecated": false,
@@ -15109,6 +17402,77 @@
           }
         },
         "summary": "CreateSubjectExclusions",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/tags/subject-exclusions/preview": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsSubjectExclusionsPreviewPreviewSubjectExclusions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubjectExclusionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubjectExclusionPlan"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "PreviewSubjectExclusions",
         "tags": [
           "Taxonomy"
         ]

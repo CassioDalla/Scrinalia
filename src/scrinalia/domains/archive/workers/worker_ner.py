@@ -76,6 +76,17 @@ def is_blocked_entity_name(name: str, blacklist: set[str]) -> bool:
     return bool(tokens & blacklist)
 
 
+#: What a URL may carry, from RFC 3986: the unreserved characters, the gen-delims, the sub-delims
+#: and ``%``.
+#:
+#: Spelled out character by character on purpose. What this replaced was ``[$-_@.&+]``, which Python
+#: reads as the **range** ``$`` to ``_``: it swallowed every digit, every uppercase letter and
+#: ``[ \ ] ^``, while ``#`` and ``~`` — which a URL really carries — stopped the match. The class
+#: beside it, ``[!*\\(\\),]``, listed ``\`` twice. CodeQL flagged both (``py/overly-large-range``
+#: and ``py/regex/duplicate-in-character-class``).
+_URL_PATTERN = re.compile(r"https?://[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]+")
+
+
 def _clean_raw_text(text: str) -> str:
     """Helper to clean basic noise before sending it to the AI."""
 
@@ -83,7 +94,7 @@ def _clean_raw_text(text: str) -> str:
         return ""
 
     # 1. Removes URLs (http, https, www)
-    text_no_urls = re.sub(r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+", "", text)
+    text_no_urls = _URL_PATTERN.sub("", text)
     text_no_urls = re.sub(r"www\.\S+", "", text_no_urls)
 
     # 2. Removes e-mails

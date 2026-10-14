@@ -28,6 +28,12 @@ sources:
   - src/scrinalia/core/config.py
   - src/scrinalia/domains/identity/cli.py
   - src/scrinalia/domains/identity/services/auth_service.py
+  - src/scrinalia/domains/ingestion/worker.py
+  - src/scrinalia/domains/ingestion/repository.py
+  - src/scrinalia/domains/ingestion/sources.py
+  - src/scrinalia/domains/staging/worker.py
+  - src/scrinalia/domains/staging/repository.py
+  - src/scrinalia/core/cli.py
   - src/scrinalia/api/controllers/users_controller.py
   - docs/adr/0009-authentication-and-authorization.md
   - docs/adr/0011-first-run-setup-without-an-open-door.md
@@ -59,7 +65,7 @@ Nine workers, in pipeline order:
 | # | Name | Module | Unit | Governed | Effective engine from |
 | --- | --- | --- | --- | --- | --- |
 | 1 | `transfer` | `worker_archive_transfer` | staging record | no | — |
-| 2 | `cleaning` | `worker_cleaning_regex` | document × active `REWRITE` rule | yes | — |
+| 2 | `cleaning` | `worker_cleaning_regex` | document | yes | — |
 | 3 | `ner` | `worker_ner` | document | yes | signature |
 | 4 | `typology` | `worker_typology` | document | yes | signature |
 | 5 | `thumbnail` | `worker_thumbnail` | document | yes | — |
@@ -75,6 +81,11 @@ section of the panel shows:
 transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-category -> quality-validator -> embedding
 ```
 
+The two stages **in front** of that table — reading the origin into `raw_data` and structuring it into
+`staging_documents` — are not workers of this catalogue, because they load no engine and write no AI
+stamp. They are host commands of their own, described in
+[the scrape and the transform](#the-scrape-and-the-transform).
+
 - **`transfer`** copies the structured staging record into the archive description, keyed on the
   hash of the parsed record (`staging_content_hash`). It is the only stage that rewrites content:
   when the hash changes, the written `execution_log` is reset and the AI enrichments have to run
@@ -84,7 +95,11 @@ transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-
   kind `VALIDATE` or `LLM_CHECK` never rewrites anything — flagging is the quality validator's job.
 - **`ner`** extracts proper names, places and institutions from the composed document text.
 - **`typology`** classifies each description against the active typology catalogue by zero-shot.
-- **`thumbnail`** downloads the original image and stores a miniature in the object storage.
+- **`thumbnail`** downloads the original image and stores a miniature in the object storage. It
+  confirms the bucket exists before the first document — creating it only when
+  `S3_AUTO_CREATE_BUCKET=true` — so a bucket that is missing fails the run once, with a sentence,
+  instead of stamping the whole backlog with the endpoint's misleading `AccessDenied`. `--limit N`
+  caps the documents of one run, which is what makes a local test cheap.
 - **`conflict-judge`** compares the tag vocabulary with the entity vocabulary and asks the local
   LLM whether an ambiguous term is a subject or a proper name. Every verdict, auto-resolved or sent
   to a human, leaves a row in `archive_ai_review_queue`.
@@ -133,7 +148,7 @@ repository root:
 
 ```bash
 uv run python -m scrinalia.domains.archive.workers.runner <name> \
-    [--engine X --preset Y --batch N --option key=value --by "who"]
+    [--engine X --preset Y --batch N --limit N --option key=value --by "who"]
 ```
 
 For example:
@@ -146,9 +161,9 @@ uv run python -m scrinalia.domains.archive.workers.runner typology \
 # Force the embedding of every description, ignoring the text hash.
 uv run python -m scrinalia.domains.archive.workers.runner embedding --option force=true
 
-# Point the conflict judge at another Ollama host for this run only.
-uv run python -m scrinalia.domains.archive.workers.runner conflict-judge \
-    --option host=http://ollama.interno:11434 --by "ana"
+# Override the engine's device for this run only; the worker forwards it to the engine.
+uv run python -m scrinalia.domains.archive.workers.runner ner \
+    --engine spacy_ner --option device=cpu --by "ana"
 ```
 
 | Flag | Meaning |
@@ -156,7 +171,8 @@ uv run python -m scrinalia.domains.archive.workers.runner conflict-judge \
 | `<name>` | one of the nine names above; any other value is refused with the list of options |
 | `--engine X` | a registered engine of the worker's axis, e.g. `spacy_ner`, `deberta_typology`, `ollama_judge` |
 | `--preset Y` | a preset of that axis, e.g. `gpu`, `lemmatizer`, `cpu_local`, `gpu_cloud`, `granite_local`, `multilingual_minilm` |
-| `--batch N` | batch size per transaction, forwarded to the workers that declare `db_batch_size` |
+| `--batch N` | batch size per transaction, forwarded to the workers that declare `db_batch_size`; a worker without it logs that the value was ignored |
+| `--limit N` | cap on the units this run touches, for the workers that declare `limit` (today `thumbnail`); refused for the others, because a cap that silently does nothing is worse than no cap |
 | `--option key=value` | an extra parameter, repeatable; `key` without `=` is refused |
 | `--by "who"` | free text naming who is running it; the CLI runs on the host and has no session, so this stays a name with no account behind it |
 
@@ -164,7 +180,9 @@ uv run python -m scrinalia.domains.archive.workers.runner conflict-judge \
 string, so an option that expects a number or a list is not settable from the command line. The flag
 is validated against the worker's `execute` signature: an option the worker does not declare is
 refused, unless the worker ends with `**engine_kwargs`, which is the documented way to override
-`device`, `host` and similar engine parameters for one run.
+`device`, `host` and similar engine parameters for one run. `conflict-judge` declares no
+`**engine_kwargs`, so its host is not a `--option` at all: it comes from the `OLLAMA_HOST_URL`
+setting (or the local default).
 
 Two things are always refused:
 
@@ -192,6 +210,49 @@ A direct run is a debugging tool, not the operational path. It bypasses the ledg
 overrides, the concurrency guard and the `--option` coercion, and it uses whatever `engine_name`
 and `preset` the module's `__main__` block hardcodes (for `ner`, `db_batch_size=100` and otherwise
 the signature defaults). Nothing appears in the run history, so nothing tells you it happened.
+
+### The scrape and the transform
+
+The two stages in front of the archive are not in the runner and not in the panel, and their
+commands are the operational path for those layers rather than a debugging shortcut:
+
+```bash
+# List the origin's identifiers into the queue, walking at most ten listing pages.
+uv run python -m scrinalia.domains.ingestion.worker discover --pages 10
+
+# Read the detail page of at most a hundred of the identifiers the queue holds.
+uv run python -m scrinalia.domains.ingestion.worker scrape --limit 100
+
+# Both phases in one process, which is what a scheduler would run.
+uv run python -m scrinalia.domains.ingestion.worker run --pages 10 --limit 100
+
+# Structure at most a hundred raw records into staging.
+uv run python -m scrinalia.domains.staging.worker --limit 100
+```
+
+Both take `--origin` to name the origin for that run; without it, the code is the one
+`ACERVO_SOURCE` names, and there is still no default. `scrape` also takes `--audit-ttl-days N` to
+re-read the descriptions completed more than N days ago, `--force-retry-fatal` to include the rows
+marked `FATAL_ERROR`, `--ignore-sliding-window` to drop the discovery and TTL windows, and
+`--max-retries`, `--discovery-window-days` and `--scraped-ttl-days` to override the run policy for
+that run only.
+
+**A bounded run resumes by itself.** The queue is ordered by `last_scraped_at`, never-tried first,
+and every outcome — done, a transient failure, a fatal one — stamps it, so the batch that just ran
+moves behind the ones that have not. The transform is keyed on the hash of the raw payload, so
+whatever a run structured stops being pending. `--limit 100` over a queue of thousands therefore
+takes the next hundred on the next run, and both commands log how much is still pending when they
+finish. The one exception is a scrape whose write rolls back: the row keeps its place and holds a
+slot of every run until the write succeeds.
+
+`--force` re-parses every raw record, which is what a parser fix needs, and it also bypasses the
+comparison the transform advances on, so a bounded forced run is not resumable by itself. That is
+what `--after <description_id>` is for: the run logs the id its window ended at and the command to
+continue from there. Do not use `--after` without `--force`: under the comparison, skipping ahead
+would skip pending records instead of already-structured ones.
+
+Neither command writes to `archive_worker_runs` — the ledger belongs to the runner — and neither
+shows up in the operations panel, which is a separate change.
 
 ## Configuration: what a run actually uses
 
@@ -292,7 +353,8 @@ still inside the request's transaction would be invisible to that thread and the
 or `RUNNING`. It, and not a process lock, is the concurrency guard: at most one run per worker may
 be in flight, across processes and across a reload. A second submission becomes an
 `IntegrityError` that the API turns into `409` with a sentence ("Já existe uma execução em
-andamento para o worker '…'"), and that the CLI surfaces the same way.
+andamento para o worker '…'"). The CLI reaches the same error but has no handler for it, so it stops
+with a traceback instead of the sentence.
 
 The panel's executor runs **one worker at a time** (`WORKER_RUNTIME_MAX_WORKERS`, default 1) because
 the workers are CPU-bound — two torch models on the same CPU slow each other down without producing
@@ -470,7 +532,7 @@ Password recovery is guided by the administrator, and which door applies is the 
 # Which accounts exist, and which one is active. The address is what the commands below take.
 uv run python -m scrinalia.domains.identity.cli list
 
-# An explicit password. The account is marked temporary, so it replaces it at the next sign-in.
+# An explicit password. It is set as given; the account is not forced to replace it at the next sign-in.
 uv run python -m scrinalia.domains.identity.cli reset-password --email pessoa@instituicao.org --password 'a nova senha'
 
 # Without --password it generates one, prints it once and marks the account temporary.

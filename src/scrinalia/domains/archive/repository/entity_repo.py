@@ -1,23 +1,39 @@
+from collections import defaultdict
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any, Literal, cast
 
-from sqlalchemy import CursorResult, delete, desc, func, select, text, update
+from sqlalchemy import CursorResult, delete, desc, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
 from scrinalia.core.author import Author, assign_author, author_columns
+from scrinalia.domains.archive.domain.entity_merge import (
+    KIND_MERGE,
+    KIND_RENAME,
+    REVIEW_MEMBER_IS_SYNONYM,
+    REVIEW_MEMBER_WITH_DIGITS,
+    REVIEW_MIXED_TYPES,
+    REVIEW_ORPHAN_MEMBER,
+    EntityRenameRecord,
+)
 from scrinalia.domains.archive.domain.normalization import (
     LIKE_ESCAPE,
     escape_like,
     normalize_entity,
     normalize_stopword,
-    normalize_synonym,
 )
+from scrinalia.domains.archive.domain.tag_merge import has_digits
 from scrinalia.domains.archive.exceptions import (
     ConflictResolutionAlreadyUndoneError,
     ConflictResolutionNotFoundError,
+    DuplicateEntityNameError,
+    InvalidMergeError,
     InvalidParam,
+    MergeAlreadyUndoneError,
+    MergeLogNotFoundError,
+    NerPurgeAlreadyUndoneError,
+    NerPurgeLogNotFoundError,
     UnresolvableConflictError,
 )
 from scrinalia.domains.archive.models import (
@@ -28,6 +44,8 @@ from scrinalia.domains.archive.models import (
     ArchiveDocumentEntity,
     ArchiveDocumentTag,
     ArchiveEntity,
+    ArchiveEntityMergeLog,
+    ArchiveNerPurgeLog,
     ArchiveReviewStatus,
     ArchiveTag,
     DomainNerExclusion,
@@ -35,11 +53,17 @@ from scrinalia.domains.archive.models import (
     DomainSynonyms,
     StopwordsScope,
 )
+from scrinalia.domains.archive.repository.synonym_upsert import upsert_synonyms
 from scrinalia.domains.archive.schemas.command_schema import EntityLinkCommand, SynonymCommand
 from scrinalia.domains.archive.schemas.entity_schema import (
     ArchiveEntityDTO,
     ConflictBanKind,
+    ConflictBatchEntry,
+    ConflictBatchRemaining,
+    ConflictBatchResult,
+    ConflictBatchSkip,
     ConflictDecider,
+    ConflictPairKind,
     ConflictResolutionData,
     ConflictResolutionLogEntry,
     ConflictResolutionPlan,
@@ -47,6 +71,11 @@ from scrinalia.domains.archive.schemas.entity_schema import (
     CrossDomainConflict,
     CrossDomainConflictPage,
     EntityIdentity,
+    EntityKind,
+    EntityMergeImpact,
+    EntityMergeLogEntryDTO,
+    EntityMergePlan,
+    EntityMergeResponse,
     EntityPairSimilarity,
     EntityRelevance,
     EntitySimilarity,
@@ -54,8 +83,17 @@ from scrinalia.domains.archive.schemas.entity_schema import (
     JudgedConflictPage,
     NerExclusion,
     NerExclusionSource,
+    NerPurgeItem,
+    NerPurgeLogEntryDTO,
+    NerPurgeLogListResponse,
+    NerPurgePlan,
+    NerPurgeResult,
     NerSynonymRule,
 )
+
+#: The three categories a named-entity synonym can live in. Declared once because the spelling
+#: dictionary is looked up by category, and a merge writes and restores the canonical's own.
+ENTITY_SYNONYM_CATEGORIES = ("ORG", "PER", "LOC")
 
 
 def _jsonable(value: Any) -> Any:
@@ -207,7 +245,10 @@ class EntityRepository:
                 sim_score.label("similarity"),
             )
             .join(ArchiveEntity, ArchiveTag.name.op("%")(ArchiveEntity.name))
-            .order_by(desc("similarity"))
+            # The id tie-breakers make the order **total**, which is what lets a batch slice the
+            # selection without the set it writes depending on the planner's mood: ``similarity``
+            # alone is full of ties (every ``EXACT_NAME`` pair scores exactly 1).
+            .order_by(desc("similarity"), ArchiveTag.tag_id, ArchiveEntity.entity_id)
         )
         return [CrossDomainConflict.model_validate(dict(row._mapping)) for row in self.db.execute(stmt).all()]
 
@@ -252,39 +293,43 @@ class EntityRepository:
             for tag_id, entity_id, resolution_id, winner, source in self.db.execute(stmt).all()
         }
 
-    def page_cross_domain_conflicts(
+    def _select_conflicts(
         self,
         threshold: float = 0.85,
-        pair_kind: Literal["all", "exact_name", "near_duplicate"] = "all",
-        limit: int = 50,
-        offset: int = 0,
-    ) -> CrossDomainConflictPage:
+        pair_kind: ConflictPairKind = "all",
+        entity_type: EntityKind | None = None,
+    ) -> list[CrossDomainConflict]:
         """
-        One page of the live scan, annotated with what has already been decided about each pair.
+        The annotated live scan, filtered by population and category — **the** definition of "the
+        selection".
 
-        The scan itself is not paginable in SQL — the trigram join has to produce and sort the whole
-        candidate set before a page means anything — so the page is sliced after the scan. What the
-        API returns is bounded by ``limit``; what it reads is not. That is the honest trade, and it
-        is why the counts below are over the **whole** filtered set rather than the page: the
-        screen's "122 grafias diferentes / 5 050 nomes idênticos" cannot come from a page.
+        The page, the counts and the batch all read this one method, so the number the archivist sees
+        and the set the batch writes cannot become two different measurements. The scan is not
+        paginable in SQL (the trigram join produces and sorts the whole candidate set before a page
+        means anything), so the selection is materialised in Python; ``get_cross_domain_conflicts``
+        orders it by similarity with the id tie-breakers, which is what makes the order total and a
+        batch slice deterministic.
 
-        ``pair_kind`` is the lever that makes the list usable. ``exact_name`` is a structural
-        question (the same spelling on both axes) and ``near_duplicate`` is a spelling question; the
-        default is ``all`` so nothing is hidden, and the screen chooses which population to open.
-
-        The parameter is not called ``scope`` because Litestar reserves that name for the ASGI scope:
-        a handler parameter called ``scope`` silently receives the raw request instead of the query
-        string. The stopwords route was bitten by the same trap and renamed its key to ``axis``.
+        ``pair_kind`` is the lever that makes the list usable: ``exact_name`` is a structural question
+        (the same spelling on both axes) and ``near_duplicate`` a spelling question. ``entity_type``
+        narrows it to a category, because "a street is an entity" is a decision about a set and not
+        about a pair.
         """
         verdicts = self._judge_verdicts()
         resolutions = self._active_resolutions()
 
-        annotated: list[CrossDomainConflict] = []
+        selected: list[CrossDomainConflict] = []
         for conflict in self.get_cross_domain_conflicts(threshold):
+            if entity_type is not None and conflict.entity_type != entity_type:
+                continue
+            if pair_kind == "exact_name" and conflict.pair_kind != "EXACT_NAME":
+                continue
+            if pair_kind == "near_duplicate" and conflict.pair_kind != "NEAR_DUPLICATE":
+                continue
             pair = (conflict.tag_id, conflict.entity_id)
             verdict = verdicts.get(pair, {})
             resolution = resolutions.get(pair)
-            annotated.append(
+            selected.append(
                 conflict.model_copy(
                     update={
                         **verdict,
@@ -294,13 +339,28 @@ class EntityRepository:
                     }
                 )
             )
+        return selected
 
-        if pair_kind == "exact_name":
-            filtered = [row for row in annotated if row.pair_kind == "EXACT_NAME"]
-        elif pair_kind == "near_duplicate":
-            filtered = [row for row in annotated if row.pair_kind == "NEAR_DUPLICATE"]
-        else:
-            filtered = annotated
+    def page_cross_domain_conflicts(
+        self,
+        threshold: float = 0.85,
+        pair_kind: ConflictPairKind = "all",
+        entity_type: EntityKind | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> CrossDomainConflictPage:
+        """
+        One page of the live scan, annotated with what has already been decided about each pair.
+
+        The page is sliced after the scan, and the counts are over the **whole** filtered set rather
+        than the page: the screen's "122 grafias diferentes / 5 050 nomes idênticos" cannot come from
+        a page.
+
+        The parameter is not called ``scope`` because Litestar reserves that name for the ASGI scope:
+        a handler parameter called ``scope`` silently receives the raw request instead of the query
+        string. The stopwords route was bitten by the same trap and renamed its key to ``axis``.
+        """
+        filtered = self._select_conflicts(threshold, pair_kind, entity_type)
 
         return CrossDomainConflictPage(
             total=len(filtered),
@@ -310,6 +370,104 @@ class EntityRepository:
             exact_name_count=sum(1 for row in filtered if row.pair_kind == "EXACT_NAME"),
             near_duplicate_count=sum(1 for row in filtered if row.pair_kind == "NEAR_DUPLICATE"),
             judged_count=sum(1 for row in filtered if row.judge_winner is not None or row.resolution_id is not None),
+        )
+
+    def resolve_conflict_batch(
+        self,
+        winner: ConflictWinner,
+        pair_kind: ConflictPairKind = "exact_name",
+        entity_type: EntityKind | None = None,
+        threshold: float = 0.85,
+        limit: int = 50,
+        source: ConflictDecider = "HUMAN",
+        decided_by: Author | None = None,
+        note: str | None = None,
+    ) -> ConflictBatchResult:
+        """
+        Applies one verdict to a whole selection, one ledger row — and one undo — per pair.
+
+        The unit of the write is still the **pair**: each one is planned by
+        ``plan_conflict_resolution`` and written by ``apply_conflict_resolution`` inside its own
+        SAVEPOINT, so a pair that fails does not roll back the ones that succeeded and the request
+        still ends in the single commit the unit of work owns.
+
+        The selection is read **once**, before the first write. A resolution deletes the losing row,
+        so a later pair whose loser an earlier one already removed can no longer be planned; it is
+        reported in ``skipped`` with the reason — finished work, not a failure. Counting it as a
+        failure is what turned a clean batch of merges into twenty red lines once already.
+
+        ``remaining`` is recomputed through ``_select_conflicts`` with the same filters, so "before"
+        and "after" are the same measurement taken twice.
+        """
+        selected = self._select_conflicts(threshold, pair_kind, entity_type)[:limit]
+        # One read of the queue and one of the ledger for the whole batch, handed to the shared
+        # planner: without this, planning N pairs reads the review queue and the ledger N times, and
+        # the ledger grows with every resolution ever written.
+        verdicts = self._judge_verdicts()
+        resolutions = self._active_resolutions()
+
+        applied: list[ConflictBatchEntry] = []
+        skipped: list[ConflictBatchSkip] = []
+        failed: list[ConflictBatchSkip] = []
+
+        for conflict in selected:
+            plan = self.plan_conflict_resolution(
+                conflict.tag_id,
+                conflict.entity_id,
+                conflict.similarity,
+                verdicts=verdicts,
+                resolutions=resolutions,
+            )
+            if not plan.resolvable:
+                skipped.append(
+                    ConflictBatchSkip(
+                        tag_id=conflict.tag_id,
+                        entity_id=conflict.entity_id,
+                        tag_name=conflict.tag_name,
+                        entity_name=conflict.entity_name,
+                        reason=plan.blocker or "Este par não pode mais ser resolvido.",
+                    )
+                )
+                continue
+
+            try:
+                with self.db.begin_nested():
+                    data = self.apply_conflict_resolution(plan, winner, source=source, decided_by=decided_by, note=note)
+            except Exception as exc:
+                failed.append(
+                    ConflictBatchSkip(
+                        tag_id=conflict.tag_id,
+                        entity_id=conflict.entity_id,
+                        tag_name=conflict.tag_name,
+                        entity_name=conflict.entity_name,
+                        reason=str(exc),
+                    )
+                )
+            else:
+                applied.append(
+                    ConflictBatchEntry(
+                        resolution_id=data.resolution_id or 0,
+                        tag_id=conflict.tag_id,
+                        tag_name=conflict.tag_name,
+                        entity_id=conflict.entity_id,
+                        entity_name=conflict.entity_name,
+                        documents_transferred=data.documents_transferred,
+                    )
+                )
+
+        remaining = self._select_conflicts(threshold, pair_kind, entity_type)
+        return ConflictBatchResult(
+            winner=winner,
+            pair_kind=pair_kind,
+            entity_type=entity_type,
+            applied=applied,
+            skipped=skipped,
+            failed=failed,
+            remaining=ConflictBatchRemaining(
+                total=len(remaining),
+                exact_name_count=sum(1 for row in remaining if row.pair_kind == "EXACT_NAME"),
+                near_duplicate_count=sum(1 for row in remaining if row.pair_kind == "NEAR_DUPLICATE"),
+            ),
         )
 
     def list_judged_conflicts(self, limit: int = 50, offset: int = 0) -> JudgedConflictPage:
@@ -410,7 +568,14 @@ class EntityRepository:
             ).all()
         )
 
-    def plan_conflict_resolution(self, tag_id: int, entity_id: int, similarity: float = 0.0) -> ConflictResolutionPlan:
+    def plan_conflict_resolution(
+        self,
+        tag_id: int,
+        entity_id: int,
+        similarity: float = 0.0,
+        verdicts: dict[tuple[int, int], dict[str, Any]] | None = None,
+        resolutions: dict[tuple[int, int], tuple[int, str, str]] | None = None,
+    ) -> ConflictResolutionPlan:
         """
         Everything a resolution would change, computed without writing anything.
 
@@ -422,6 +587,11 @@ class EntityRepository:
         that decide it are: how many documents follow the loser to the winner, how many of those
         already carry the winner (so the transfer changes nothing for them), and whether the ban the
         resolution would plant is already in place.
+
+        ``verdicts`` and ``resolutions`` are the two whole-table reads the plan annotates itself with,
+        accepted as arguments so a **batch** can read each once for all of its pairs instead of once
+        per pair. Passing them changes nothing about the computation; leaving them out keeps the
+        single-pair behaviour.
         """
         tag = self.db.get(ArchiveTag, tag_id)
         entity = self.db.get(ArchiveEntity, entity_id)
@@ -433,8 +603,9 @@ class EntityRepository:
         entity_linked = set(entity_docs)
 
         # The judge's verdict, so the preview can show what has already been decided.
-        verdict = self._judge_verdicts().get((tag_id, entity_id), {})
-        already_resolved = (tag_id, entity_id) in self._active_resolutions()
+        verdict = (self._judge_verdicts() if verdicts is None else verdicts).get((tag_id, entity_id), {})
+        active_resolutions = self._active_resolutions() if resolutions is None else resolutions
+        already_resolved = (tag_id, entity_id) in active_resolutions
 
         entity_name = entity.name if entity is not None else ""
         tag_name = tag.name if tag is not None else ""
@@ -550,6 +721,10 @@ class EntityRepository:
             entity_name=plan.entity_name,
             entity_type=plan.entity_type,
             loser_snapshot=self._loser_snapshot(winner, plan),
+            # The spellings the delete cascades. Recorded here because this path deletes the loser
+            # by id while the NER purge deletes by name, and the two have to restore the same things
+            # (#94, constitution IV).
+            synonym_names=self._loser_synonym_names(winner, plan),
             transferred_document_ids=sorted(loser_docs),
             created_link_ids=created_link_ids,
             ban_kind=ban_kind,
@@ -580,6 +755,22 @@ class EntityRepository:
         if loser is None:
             return {}
         return {column.name: _jsonable(getattr(loser, column.name)) for column in loser.__table__.columns}
+
+    def _loser_synonym_names(self, winner: ConflictWinner, plan: ConflictResolutionPlan) -> list[str]:
+        """
+        The spellings the losing row absorbs today, in its own axis.
+
+        ``domain_synonyms`` cascades on both canonical keys, so the delete takes these with the row;
+        recording them is what lets ``undo_conflict_resolution`` put them back, exactly as the NER
+        purge records the entity's. Two axes, one rule.
+        """
+        if winner == "TAG":
+            return self._entity_synonym_names_by_id([plan.entity_id]).get(plan.entity_id, [])
+
+        stmt = select(DomainSynonyms.synonym_name).where(
+            DomainSynonyms.category == "TAG", DomainSynonyms.canonical_tag_id == plan.tag_id
+        )
+        return sorted(set(self.db.scalars(stmt).all()))
 
     def _transfer_conflict_winner(
         self,
@@ -680,6 +871,9 @@ class EntityRepository:
                     restored_tag.created_at = datetime.fromisoformat(str(snapshot["created_at"]))
                 self.db.add(restored_tag)
             self.db.flush()
+            # After the row exists (its FK is the target of these spellings) and before the ledger
+            # row is marked undone.
+            self._restore_conflict_spellings(row)
 
         self._remove_created_conflict_links(row)
         self._restore_conflict_links(row)
@@ -737,6 +931,26 @@ class EntityRepository:
             )
         self.db.execute(stmt.on_conflict_do_nothing())
         return len(existing)
+
+    def _restore_conflict_spellings(self, row: ArchiveConflictResolutionLog) -> None:
+        """
+        Puts back the spellings the delete cascaded, pointed at the restored row.
+
+        ``on_conflict_do_nothing``: a mapping somebody re-created after the resolution points
+        wherever they put it, and that is not this undo's business — the same care
+        ``TagRepository._restore_purged_spellings`` takes.
+        """
+        names = list(row.synonym_names or [])
+        if not names:
+            return
+
+        if row.winner == "TAG":
+            self._restore_entity_spelling_names(row.entity_id, names, row.entity_type)
+            return
+
+        rows = [{"synonym_name": name, "category": "TAG", "canonical_tag_id": row.tag_id} for name in names]
+        stmt = insert(DomainSynonyms).values(rows).on_conflict_do_nothing(index_elements=["synonym_name", "category"])
+        self.db.execute(stmt)
 
     def _lift_conflict_ban(self, row: ArchiveConflictResolutionLog) -> int:
         """
@@ -896,6 +1110,222 @@ class EntityRepository:
         result = self.db.execute(delete(DomainNerExclusion).where(DomainNerExclusion.term.in_(clean_terms)))
         return cast(CursorResult, result).rowcount
 
+    # --- The NER purge: the destructive half of the veto, on its own ---
+    #
+    # One operation in two halves, exactly like the stopword purge: ``plan_ner_purge`` describes
+    # what would die without writing, and ``apply_ner_purge`` executes that same plan after
+    # snapshotting every entity in ``archive_ner_purge_log``. The preview reads the plan and the
+    # write consumes it, so the two cannot disagree about which entities the purge acts on. There
+    # is no repoint step, unlike the merge: the spelling is banned, so its entity's spellings have
+    # nowhere to go — they are recorded for the undo and the forward write leaves them to the
+    # cascade. The undo does **not** lift the veto: restoring the entity is not un-banning the term.
+
+    def plan_ner_purge(self) -> NerPurgePlan:
+        """
+        Every entity the purge would delete, with the state the undo has to rebuild.
+
+        The terms come from ``domain_ner_exclusions`` — the banned spellings — and the per-entity
+        documents and spellings are read here so the ledger records what the delete is about to
+        cascade instead of reconstructing it afterwards.
+        """
+        terms = sorted(self.get_ner_exclusion_terms())
+        if not terms:
+            return NerPurgePlan()
+
+        entities = self.db.scalars(select(ArchiveEntity).where(func.lower(ArchiveEntity.name).in_(terms))).all()
+        if not entities:
+            return NerPurgePlan(excluded_terms=terms)
+
+        entity_ids = [entity.entity_id for entity in entities]
+        documents_by_entity = self.get_document_ids_grouped_by_entities(entity_ids)
+        spellings_by_entity = self._entity_synonym_names_by_id(entity_ids)
+        items = [
+            NerPurgeItem(
+                entity_id=entity.entity_id,
+                name=entity.name,
+                entity_type=entity.entity_type,
+                excluded_term=normalize_entity(entity.name),
+                document_ids=documents_by_entity.get(entity.entity_id, []),
+                synonym_names=spellings_by_entity.get(entity.entity_id, []),
+                created_at=entity.created_at,
+            )
+            for entity in entities
+        ]
+        # Heaviest first, then by name: the order the stopword preview already shows, so the two
+        # surfaces read the same way and the screen does not reshuffle under the archivist.
+        items.sort(key=lambda item: (-len(item.document_ids), item.name))
+        return NerPurgePlan(excluded_terms=terms, items=items)
+
+    def write_ner_purge_log(self, plan: NerPurgePlan, changed_by: Author | None = None) -> list[int]:
+        """
+        Snapshots every entity the plan deletes. Returns the ledger ids, oldest first.
+
+        Written **before** anything changes, because what it captures — the documents and the
+        spellings that pointed at the entity — is exactly what the delete cascades.
+        """
+        if not plan.items:
+            return []
+
+        rows = [
+            {
+                "excluded_term": item.excluded_term,
+                "purged_entity_id": item.entity_id,
+                "purged_name": normalize_entity(item.name),
+                "purged_snapshot": {
+                    "name": item.name,
+                    "entity_type": item.entity_type,
+                    "created_at": item.created_at.isoformat() if item.created_at else None,
+                },
+                "document_ids": item.document_ids,
+                "synonym_names": item.synonym_names,
+                **author_columns("changed_by", changed_by),
+            }
+            for item in plan.items
+        ]
+        stmt = insert(ArchiveNerPurgeLog).values(rows).returning(ArchiveNerPurgeLog.purge_id)
+        return list(self.db.scalars(stmt).all())
+
+    def apply_ner_purge(self, plan: NerPurgePlan, changed_by: Author | None = None) -> NerPurgeResult:
+        """Executes exactly what ``plan_ner_purge`` described, after writing the undo ledger."""
+        purge_ids = self.write_ner_purge_log(plan, changed_by=changed_by)
+        deleted = self.delete_entities([item.entity_id for item in plan.items]) if plan.items else 0
+        return NerPurgeResult(entities_deleted=deleted, purge_ids=purge_ids)
+
+    def undo_ner_purge(self, purge_id: int, undone_by: Author | None = None) -> NerPurgeLogEntryDTO:
+        """
+        Reverses one purge: restores the entity, its links and its spellings.
+
+        Exact by construction, like ``undo_stopword_purge``: the id and the row come from the
+        snapshot, the links from the per-entity list and the spellings from what was captured
+        before the delete. Only documents that still exist are re-linked. The veto is **not**
+        lifted — the term is still excluded; the undo restores the entity, it does not undo the
+        decision to ban the spelling.
+        """
+        row = self.db.get(ArchiveNerPurgeLog, purge_id)
+        if row is None:
+            raise NerPurgeLogNotFoundError(f"Registro de purga de NER {purge_id} não encontrado no ledger.")
+        if row.undone_at is not None:
+            raise NerPurgeAlreadyUndoneError(
+                f"A purga de NER {purge_id} já foi desfeita em {row.undone_at:%Y-%m-%d %H:%M:%S}."
+            )
+
+        snapshot = row.purged_snapshot or {}
+        entity_type = snapshot.get("entity_type") or "ORG"
+        restored = ArchiveEntity(
+            entity_id=row.purged_entity_id,
+            name=snapshot.get("name") or row.purged_name,
+            entity_type=entity_type,
+        )
+        created_at = snapshot.get("created_at")
+        if created_at:
+            restored.created_at = datetime.fromisoformat(created_at)
+        self.db.add(restored)
+        self.db.flush()
+
+        self._relink_entity_documents(row.purged_entity_id, row.document_ids or [])
+        self._restore_entity_spelling_names(row.purged_entity_id, row.synonym_names or [], entity_type)
+
+        row.undone_at = datetime.now(UTC)
+        assign_author(row, "undone_by", undone_by)
+        self.db.flush()
+        return self._to_ner_purge_log_dto(row)
+
+    def _restore_entity_spelling_names(self, entity_id: int, names: Sequence[str], category: str | None) -> None:
+        """
+        Puts the spellings back the cascade took with the entity.
+
+        ``on_conflict_do_nothing`` on ``(synonym_name, category)``: a mapping somebody re-created
+        after the purge points wherever they put it, and that is not this undo's business. The
+        category is the entity's own type, snapshotted at purge time — the one the spellings were
+        written under.
+        """
+        if not names or not category:
+            return
+
+        rows = [{"synonym_name": name, "category": category, "canonical_entity_id": entity_id} for name in names]
+        stmt = insert(DomainSynonyms).values(rows).on_conflict_do_nothing(index_elements=["synonym_name", "category"])
+        self.db.execute(stmt)
+
+    def _entity_synonym_names_by_id(self, entity_ids: Sequence[int]) -> dict[int, list[str]]:
+        """Spellings each entity absorbs today, keyed by the entity they point at."""
+        if not entity_ids:
+            return {}
+
+        stmt = select(DomainSynonyms.canonical_entity_id, DomainSynonyms.synonym_name).where(
+            DomainSynonyms.category.in_(list(ENTITY_SYNONYM_CATEGORIES)),
+            DomainSynonyms.canonical_entity_id.in_(list(entity_ids)),
+        )
+        grouped: dict[int, list[str]] = defaultdict(list)
+        for canonical_entity_id, synonym_name in self.db.execute(stmt).all():
+            if canonical_entity_id is not None:
+                grouped[canonical_entity_id].append(synonym_name)
+        return {entity_id: sorted(names) for entity_id, names in grouped.items()}
+
+    def _ner_purge_log_filters(self, include_undone: bool, term: str | None = None) -> list[Any]:
+        """The filters of the purge ledger, including the free-text one over the entity name."""
+        filters: list[Any] = []
+        if not include_undone:
+            filters.append(ArchiveNerPurgeLog.undone_at.is_(None))
+        if term:
+            pattern = f"%{escape_like(term)}%"
+            filters.append(ArchiveNerPurgeLog.purged_name.ilike(pattern, escape=LIKE_ESCAPE))
+        return filters
+
+    def count_ner_purge_log(self, include_undone: bool = True, term: str | None = None) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(ArchiveNerPurgeLog)
+            .where(*self._ner_purge_log_filters(include_undone, term))
+        )
+        return self.db.scalar(stmt) or 0
+
+    def list_ner_purge_log(
+        self,
+        include_undone: bool = True,
+        term: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> NerPurgeLogListResponse:
+        """The audit trail: most recent first, undone entries included unless filtered out."""
+        total = self.count_ner_purge_log(include_undone=include_undone, term=term)
+        stmt = (
+            select(ArchiveNerPurgeLog)
+            .where(*self._ner_purge_log_filters(include_undone, term))
+            .order_by(ArchiveNerPurgeLog.purge_id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        rows = self.db.scalars(stmt).all()
+        return NerPurgeLogListResponse(
+            total=total,
+            limit=limit,
+            offset=offset,
+            items=[self._to_ner_purge_log_dto(row) for row in rows],
+        )
+
+    def get_ner_purge_log_entry(self, purge_id: int) -> NerPurgeLogEntryDTO | None:
+        row = self.db.get(ArchiveNerPurgeLog, purge_id)
+        if row is None:
+            return None
+        return self._to_ner_purge_log_dto(row)
+
+    def _to_ner_purge_log_dto(self, row: ArchiveNerPurgeLog) -> NerPurgeLogEntryDTO:
+        """Maps the row to the read contract, exposing the document *count* and not the ids."""
+        snapshot = row.purged_snapshot or {}
+        return NerPurgeLogEntryDTO(
+            purge_id=row.purge_id,
+            purged_entity_id=row.purged_entity_id,
+            purged_name=row.purged_name,
+            entity_type=snapshot.get("entity_type") or "",
+            excluded_term=row.excluded_term,
+            document_count=len(row.document_ids or []),
+            synonym_names=list(row.synonym_names or []),
+            changed_by=row.changed_by,
+            changed_at=row.changed_at,
+            undone_at=row.undone_at,
+            undone_by=row.undone_by,
+        )
+
     def get_or_create_entities(self, entities_list: list[ArchiveEntityDTO]) -> list[int]:
         """
         Manages the entity dimension (NER).
@@ -931,10 +1361,6 @@ class EntityRepository:
         return list(self.db.scalars(stmt_select).all())
 
     # --- Methods for the Merge ---
-
-    def get_document_ids_by_entities(self, entity_ids: list[int]) -> Sequence[str]:
-        stmt = select(ArchiveDocumentEntity.description_id).where(ArchiveDocumentEntity.entity_id.in_(entity_ids))
-        return self.db.scalars(stmt).all()
 
     def link_documents_to_entity(self, doc_ids: set[str], target_entity_id: int) -> None:
         new_links = [{"description_id": doc_id, "entity_id": target_entity_id} for doc_id in doc_ids]
@@ -972,32 +1398,11 @@ class EntityRepository:
         """
         Registers the spellings the NER must redirect to a canonical entity.
 
-        Upsert, not ``on_conflict_do_nothing``: when a canonical entity is absorbed into
-        another one, a spelling that already had a mapping has to *move*. Keeping the old
-        target made a re-merge look successful while changing nothing, and left the extraction
-        pointing at an entity that no longer exists. Same defect and same fix as the tag path.
+        The write itself is defined once, in
+        :func:`scrinalia.domains.archive.repository.synonym_upsert.upsert_synonyms`, because the two
+        axes used to carry the same command twice and one of them drifted into a 500.
         """
-        if not synonyms_data:
-            return
-
-        rows = [
-            {
-                "synonym_name": normalize_synonym(item.synonym_name),
-                "category": item.category,
-                "canonical_tag_id": item.canonical_tag_id,
-                "canonical_entity_id": item.canonical_entity_id,
-            }
-            for item in synonyms_data
-        ]
-        stmt = insert(DomainSynonyms).values(rows)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["synonym_name", "category"],
-            set_={
-                "canonical_tag_id": stmt.excluded.canonical_tag_id,
-                "canonical_entity_id": stmt.excluded.canonical_entity_id,
-            },
-        )
-        self.db.execute(stmt)
+        upsert_synonyms(self.db, synonyms_data)
 
     def repoint_synonyms(self, from_entity_ids: list[int], to_entity_id: int) -> int:
         """
@@ -1035,22 +1440,639 @@ class EntityRepository:
         if entity:
             entity.entity_type = new_type
 
-    def update_entity_name(self, entity_id: int, new_name: str) -> None:
-        entity = self.db.query(ArchiveEntity).filter(ArchiveEntity.entity_id == entity_id).first()
-        if entity:
-            entity.name = new_name
+    # --- The entity merge: plan, ledger, apply and undo ---
+    #
+    # One operation in two halves, exactly like the tag merge: ``plan_entity_merge`` describes the
+    # impact without writing and ``apply_entity_merge`` executes that same plan, so the dry run and
+    # the write cannot promise different numbers. The write is logged **before** anything changes,
+    # and the undo restores the row, its links and the spelling state from that snapshot.
 
-    def delete_entities_by_names(self, names: list[str]) -> int:
-        """Deletes entities from the collection by searching for a list of exact names."""
-        clean_names = [normalize_entity(n) for n in names]
+    def get_entities_with_counts(self, entity_ids: Sequence[int]) -> dict[int, EntityMergeImpact]:
+        """
+        Name, type and weight of each entity, orphans included.
 
-        deleted_rows = (
-            self.db.query(ArchiveEntity)
-            .filter(func.lower(ArchiveEntity.name).in_(clean_names))
-            .delete(synchronize_session=False)
+        ``get_relevance_count`` is the screen's read: it orders by weight and drops the names no
+        description carries. The plan cannot use it — an orphan is exactly a row a merge can absorb
+        and a preview has to name — so the count is an outer join and the limit is the id list.
+        """
+        ids = list(dict.fromkeys(entity_ids))
+        if not ids:
+            return {}
+
+        counts = (
+            select(ArchiveDocumentEntity.entity_id, func.count().label("document_count"))
+            .where(ArchiveDocumentEntity.entity_id.in_(ids))
+            .group_by(ArchiveDocumentEntity.entity_id)
+            .subquery()
+        )
+        stmt = (
+            select(
+                ArchiveEntity.entity_id,
+                ArchiveEntity.name,
+                ArchiveEntity.entity_type,
+                func.coalesce(counts.c.document_count, 0),
+            )
+            .outerjoin(counts, counts.c.entity_id == ArchiveEntity.entity_id)
+            .where(ArchiveEntity.entity_id.in_(ids))
+        )
+        return {
+            entity_id: EntityMergeImpact(
+                entity_id=entity_id, name=name, entity_type=entity_type, document_count=document_count
+            )
+            for entity_id, name, entity_type, document_count in self.db.execute(stmt).all()
+        }
+
+    def get_document_ids_grouped_by_entities(self, entity_ids: Sequence[int]) -> dict[int, list[str]]:
+        """Which documents carry each entity, in one query (the ledger needs the per-entity links)."""
+        if not entity_ids:
+            return {}
+
+        stmt = select(ArchiveDocumentEntity.entity_id, ArchiveDocumentEntity.description_id).where(
+            ArchiveDocumentEntity.entity_id.in_(list(entity_ids))
+        )
+        grouped: dict[int, list[str]] = defaultdict(list)
+        for entity_id, description_id in self.db.execute(stmt).all():
+            grouped[entity_id].append(description_id)
+        return {entity_id: sorted(ids) for entity_id, ids in grouped.items()}
+
+    def get_entity_synonym_names(self) -> set[str]:
+        """Every spelling already anchored to an entity, on any of the three categories."""
+        stmt = select(DomainSynonyms.synonym_name).where(DomainSynonyms.category.in_(list(ENTITY_SYNONYM_CATEGORIES)))
+        return set(self.db.scalars(stmt).all())
+
+    def get_synonym_names_pointing_to_entities(self, entity_ids: Sequence[int]) -> list[str]:
+        """Spellings each entity absorbs today (a merge moves them to the canonical)."""
+        if not entity_ids:
+            return []
+
+        stmt = select(DomainSynonyms.synonym_name).where(
+            DomainSynonyms.category.in_(list(ENTITY_SYNONYM_CATEGORIES)),
+            DomainSynonyms.canonical_entity_id.in_(list(entity_ids)),
+        )
+        return sorted(set(self.db.scalars(stmt).all()))
+
+    def get_entity_synonym_targets(self, names: Sequence[str], category: str) -> dict[str, int]:
+        """Where each spelling points today, in one category, so the undo can restore that mapping."""
+        if not names:
+            return {}
+
+        stmt = select(DomainSynonyms.synonym_name, DomainSynonyms.canonical_entity_id).where(
+            DomainSynonyms.category == category, DomainSynonyms.synonym_name.in_(list(names))
+        )
+        return {
+            synonym_name: canonical_entity_id
+            for synonym_name, canonical_entity_id in self.db.execute(stmt).all()
+            if canonical_entity_id is not None
+        }
+
+    def _entity_synonym_names_by_canonical(self, entity_ids: Sequence[int]) -> dict[int, list[str]]:
+        """Spellings each entity absorbs today, keyed by the entity they point at."""
+        if not entity_ids:
+            return {}
+
+        stmt = select(DomainSynonyms.canonical_entity_id, DomainSynonyms.synonym_name).where(
+            DomainSynonyms.category.in_(list(ENTITY_SYNONYM_CATEGORIES)),
+            DomainSynonyms.canonical_entity_id.in_(list(entity_ids)),
+        )
+        grouped: dict[int, list[str]] = defaultdict(list)
+        for canonical_entity_id, synonym_name in self.db.execute(stmt).all():
+            if canonical_entity_id is not None:
+                grouped[canonical_entity_id].append(synonym_name)
+        return grouped
+
+    def plan_entity_merge(
+        self, canonical_id: int, ids_to_merge: Sequence[int], new_name: str | None = None
+    ) -> EntityMergePlan:
+        """
+        Everything the merge would change, computed without writing anything.
+
+        Single definition of the operation: the dry-run returns this plan (trimmed) and
+        ``apply_entity_merge`` executes it, so the preview cannot promise something different from
+        what the merge does. Same reasoning as the tag ``plan_merge``.
+        """
+        catalog = self.get_entities_with_counts([canonical_id, *ids_to_merge])
+        canonical = catalog.get(canonical_id)
+        if canonical is None:
+            raise InvalidParam(f"A entidade canônica informada (ID {canonical_id}) não existe no acervo.")
+
+        dead_ids = [
+            entity_id for entity_id in dict.fromkeys(ids_to_merge) if entity_id != canonical_id and entity_id in catalog
+        ]
+        impacted = [catalog[entity_id] for entity_id in dead_ids]
+
+        documents_by_entity = self.get_document_ids_grouped_by_entities(dead_ids)
+        document_ids = sorted({doc for docs in documents_by_entity.values() for doc in docs})
+        synonym_names = [normalize_entity(member.name) for member in impacted]
+        repointed = sorted(set(self.get_synonym_names_pointing_to_entities(dead_ids)))
+
+        rename_from: str | None = None
+        rename_to: str | None = None
+        if new_name and new_name.strip() and normalize_entity(new_name) != normalize_entity(canonical.name):
+            rename_from = canonical.name
+            rename_to = new_name.strip()
+            # The old canonical spelling becomes a synonym, so the extractor keeps resolving it.
+            synonym_names.append(normalize_entity(canonical.name))
+
+        flags: list[str] = []
+        if any(has_digits(member.name) for member in impacted):
+            flags.append(REVIEW_MEMBER_WITH_DIGITS)
+        if any(member.entity_type != canonical.entity_type for member in impacted):
+            flags.append(REVIEW_MIXED_TYPES)
+        if any(member.document_count == 0 for member in impacted):
+            flags.append(REVIEW_ORPHAN_MEMBER)
+        if set(synonym_names) & self.get_entity_synonym_names():
+            flags.append(REVIEW_MEMBER_IS_SYNONYM)
+
+        return EntityMergePlan(
+            canonical_id=canonical_id,
+            canonical_name=canonical.name,
+            canonical_entity_type=canonical.entity_type,
+            canonical_document_count=canonical.document_count,
+            ids_to_merge=dead_ids,
+            impacted=impacted,
+            document_ids=document_ids,
+            documents_by_entity=documents_by_entity,
+            synonym_names=synonym_names,
+            repointed_synonyms=repointed,
+            rename_from=rename_from,
+            rename_to=rename_to,
+            review_flags=flags,
         )
 
-        return deleted_rows
+    def apply_entity_merge(
+        self, plan: EntityMergePlan, changed_by: Author | None = None, note: str | None = None
+    ) -> EntityMergeResponse:
+        """
+        Executes exactly what ``plan_entity_merge`` described, after writing the undo ledger.
+
+        The order matters twice, and for the same reasons as the tag path. The ledger is written
+        **before** anything changes, because what it snapshots (the spelling state and the name the
+        canonical is about to lose) is exactly what the merge is about to modify. And the spellings
+        already absorbed by the entities being deleted are moved to the canonical *before* the
+        delete, because the synonym FK cascades and deleting first would forget the earlier
+        curation.
+        """
+        merge_ids = self.write_entity_merge_log(plan, changed_by=changed_by, note=note)
+
+        if plan.document_ids:
+            self.link_documents_to_entity(set(plan.document_ids), plan.canonical_id)
+
+        self.repoint_synonyms(list(plan.ids_to_merge), plan.canonical_id)
+
+        # Only the absorbed spellings: the rename below owns the old canonical name, so the two
+        # definitions of "which spelling becomes a synonym" stay in one place each.
+        absorbed_names = [normalize_entity(member.name) for member in plan.impacted]
+        if absorbed_names:
+            self.create_synonyms(
+                [
+                    SynonymCommand(
+                        synonym_name=name,
+                        category=cast("Literal['ORG', 'PER', 'LOC']", plan.canonical_entity_type),
+                        canonical_tag_id=None,
+                        canonical_entity_id=plan.canonical_id,
+                    )
+                    for name in absorbed_names
+                ]
+            )
+
+        if plan.rename_to:
+            self.rename_entity(plan.canonical_id, plan.rename_to)
+
+        entities_deleted = self.delete_entities(list(plan.ids_to_merge)) if plan.ids_to_merge else 0
+        return EntityMergeResponse(
+            documents_updated=len(plan.document_ids), entities_deleted=entities_deleted, merge_ids=merge_ids
+        )
+
+    def rename_entity(
+        self, entity_id: int, new_name: str, *, keep_old_synonym: bool = True
+    ) -> EntityRenameRecord | None:
+        """
+        Renames one entity and optionally anchors the old spelling as a synonym.
+
+        The single definition of "rename a name", shared by the merge and by the rename route: the old
+        spelling becomes a synonym so a future extraction still resolves to the entity, and the new
+        spelling is what the catalogue shows. ``None`` when the entity does not exist. A spelling that
+        only differs in case is the same name, so no synonym is written for it.
+
+        The **spelling state is captured before the write** and returned instead of being logged here,
+        because the two callers differ: the merge already wrote its own ledger row (which carries
+        ``canonical_renamed_from``) and must not write a second one, while the rename route has nothing
+        else to log. One implementation, one place per caller that logs it.
+
+        A spelling another entity already carries is refused *before* the write, as
+        :class:`DuplicateEntityNameError` naming that entity: ``uix_archive_entities_name_normalized``
+        would raise an ``IntegrityError`` a moment later and the archivist would read a structural
+        conflict that names neither the twin nor the fact that the twin is the merge case.
+        """
+        entity = self.db.get(ArchiveEntity, entity_id)
+        if entity is None:
+            return None
+
+        trimmed = new_name.strip()
+        key = normalize_entity(trimmed)
+        twin = self.db.scalars(
+            select(ArchiveEntity).where(
+                func.lower(func.btrim(ArchiveEntity.name)) == key,
+                ArchiveEntity.entity_id != entity_id,
+            )
+        ).one_or_none()
+        if twin is not None:
+            raise DuplicateEntityNameError(entity.entity_id, trimmed, twin.entity_id, twin.name)
+
+        old_name = entity.name
+        old_key = normalize_entity(old_name)
+        # The pre-state the undo has to restore: whether the old spelling already pointed somewhere,
+        # read before ``create_synonyms`` (an upsert) can quietly answer "nothing to do". Stored
+        # spellings are normalized (``upsert_synonyms``), so the lookup is keyed the same way.
+        previous_target = self.get_entity_synonym_targets([old_key], entity.entity_type).get(old_key)
+        plants_synonym = keep_old_synonym and old_key != key
+
+        entity.name = trimmed
+        self.db.flush()
+
+        if plants_synonym:
+            self.create_synonyms(
+                [
+                    SynonymCommand(
+                        synonym_name=old_name,
+                        category=cast("Literal['ORG', 'PER', 'LOC']", entity.entity_type),
+                        canonical_tag_id=None,
+                        canonical_entity_id=entity_id,
+                    )
+                ]
+            )
+        return EntityRenameRecord(
+            entity_id=entity_id,
+            entity_type=entity.entity_type,
+            previous_name=old_name,
+            new_name=trimmed,
+            synonym_created=plants_synonym and previous_target is None,
+            synonym_previous_entity_id=previous_target,
+        )
+
+    def write_entity_rename_log(
+        self,
+        record: EntityRenameRecord,
+        changed_by: Author | None = None,
+        note: str | None = None,
+    ) -> int:
+        """
+        Records one rename as a ``RENAME`` row, so the pencil on the screen has an undo.
+
+        No absorbed entity, hence ``absorbed_*`` NULL, and the state that matters is the pair
+        ``canonical_renamed_from`` / ``renamed_from_synonym_*`` — the same columns a merge's optional
+        rename uses, restored by the same :meth:`_restore_canonical_name`. That is the whole reason the
+        rename shares this ledger instead of growing a second one.
+
+        ``synonym_created`` and ``document_ids`` are set explicitly rather than left to their column
+        defaults: a rename links no document and absorbs no spelling, and a row that said otherwise
+        would make the undo remove links nobody wrote.
+        """
+        stmt = (
+            insert(ArchiveEntityMergeLog)
+            .values(
+                kind=KIND_RENAME,
+                canonical_id=record.entity_id,
+                canonical_name=record.new_name,
+                canonical_entity_type=record.entity_type,
+                absorbed_entity_id=None,
+                absorbed_name=None,
+                absorbed_snapshot=None,
+                document_ids=[],
+                created_link_ids=[],
+                synonym_created=False,
+                synonym_previous_entity_id=None,
+                repointed_synonym_names=[],
+                canonical_renamed_from=record.previous_name,
+                renamed_from_synonym_created=record.synonym_created,
+                renamed_from_synonym_previous_entity_id=record.synonym_previous_entity_id,
+                **author_columns("changed_by", changed_by),
+                note=note,
+            )
+            .returning(ArchiveEntityMergeLog.merge_id)
+        )
+        return int(self.db.scalars(stmt).one())
+
+    def write_entity_merge_log(
+        self, plan: EntityMergePlan, changed_by: Author | None = None, note: str | None = None
+    ) -> list[int]:
+        """
+        Snapshots every entity the plan absorbs. Returns the ledger ids, oldest first.
+
+        Reads the current rows instead of trusting the plan for the fields the dry-run does not
+        carry (``entity_type``, ``created_at``) and captures the spelling state before the merge
+        touches it — an undo that guesses either of those is not a lossless undo.
+        """
+        if not plan.ids_to_merge:
+            return []
+
+        entities = {
+            entity.entity_id: entity
+            for entity in self.db.scalars(
+                select(ArchiveEntity).where(ArchiveEntity.entity_id.in_(plan.ids_to_merge))
+            ).all()
+        }
+        category = plan.canonical_entity_type
+        spellings_of_dead = self._entity_synonym_names_by_canonical(plan.ids_to_merge)
+        mapped_spellings = self.get_entity_synonym_targets(plan.synonym_names, category)
+        # Documents that already carried the canonical: the merge does not create those links, so
+        # undo must not remove them either.
+        already_canonical = set(
+            self.get_document_ids_grouped_by_entities([plan.canonical_id]).get(plan.canonical_id, [])
+        )
+
+        renamed_from_key = normalize_entity(plan.rename_from) if plan.rename_from else None
+        renamed_from_created = renamed_from_key is not None and renamed_from_key not in mapped_spellings
+        renamed_from_previous = mapped_spellings.get(renamed_from_key) if renamed_from_key else None
+
+        rows = []
+        for entity_id in plan.ids_to_merge:
+            entity = entities.get(entity_id)
+            if entity is None:
+                continue
+
+            name = normalize_entity(entity.name)
+            previous_target = mapped_spellings.get(name)
+            documents = plan.documents_by_entity.get(entity_id, [])
+            rows.append(
+                {
+                    "kind": KIND_MERGE,
+                    "canonical_id": plan.canonical_id,
+                    "canonical_name": plan.canonical_name,
+                    "canonical_entity_type": category,
+                    "absorbed_entity_id": entity.entity_id,
+                    "absorbed_name": name,
+                    "absorbed_snapshot": {
+                        "name": entity.name,
+                        "entity_type": entity.entity_type,
+                        "created_at": entity.created_at.isoformat() if entity.created_at else None,
+                    },
+                    # Only for the restore path: the live links are the ones in the plan.
+                    "document_ids": documents,
+                    "created_link_ids": [doc for doc in documents if doc not in already_canonical],
+                    "synonym_created": previous_target is None,
+                    "synonym_previous_entity_id": previous_target,
+                    "repointed_synonym_names": spellings_of_dead.get(entity_id, []),
+                    "canonical_renamed_from": plan.rename_from,
+                    "renamed_from_synonym_created": renamed_from_created,
+                    "renamed_from_synonym_previous_entity_id": renamed_from_previous,
+                    **author_columns("changed_by", changed_by),
+                    "note": note,
+                }
+            )
+
+        if not rows:
+            return []
+
+        stmt = insert(ArchiveEntityMergeLog).values(rows).returning(ArchiveEntityMergeLog.merge_id)
+        return list(self.db.scalars(stmt).all())
+
+    def undo_entity_merge(self, merge_id: int, undone_by: Author | None = None) -> EntityMergeLogEntryDTO:
+        """
+        Reverses one entry of the ledger: a merge restores the entity, a rename only the name.
+
+        Exact by construction — the id and the row come from the snapshot, the links from the
+        per-entity list, and the spelling state from what was captured before the merge. Only
+        documents that still exist are re-linked: a document deleted after the merge must not make
+        the undo impossible.
+
+        A ``RENAME`` row has nothing to bring back, so it takes the branch below and reuses
+        :meth:`_restore_canonical_name` — the same code that reverses the optional rename inside a
+        merge. Sharing it is the point of sharing the ledger.
+        """
+        row = self.db.get(ArchiveEntityMergeLog, merge_id)
+        if row is None:
+            raise MergeLogNotFoundError(f"Registro de mesclagem {merge_id} não encontrado no ledger.")
+        if row.undone_at is not None:
+            raise MergeAlreadyUndoneError(
+                f"A mesclagem {merge_id} já foi desfeita em {row.undone_at:%Y-%m-%d %H:%M:%S}."
+            )
+
+        if row.kind == KIND_RENAME:
+            self._restore_canonical_name(row)
+            row.undone_at = datetime.now(UTC)
+            assign_author(row, "undone_by", undone_by)
+            self.db.flush()
+            return self._to_entity_merge_log_dto(row)
+
+        snapshot = row.absorbed_snapshot or {}
+        if row.absorbed_entity_id is None:
+            # A ``MERGE`` row always snapshots what it absorbed, so this is a row the write cannot
+            # produce. Refusing beats guessing: restoring an id read out of a null would bring back
+            # the wrong entity and the ledger would record an undo that never happened.
+            raise InvalidMergeError(f"O registro {merge_id} não guarda a entidade absorvida a restaurar.")
+        absorbed_entity_id = row.absorbed_entity_id
+
+        restored = ArchiveEntity(
+            entity_id=absorbed_entity_id,
+            name=snapshot.get("name") or row.absorbed_name,
+            entity_type=snapshot.get("entity_type") or row.canonical_entity_type,
+        )
+        created_at = snapshot.get("created_at")
+        if created_at:
+            restored.created_at = datetime.fromisoformat(created_at)
+        self.db.add(restored)
+        self.db.flush()
+
+        # The sequence already allocated this id once, so re-using it cannot collide with the next
+        # insert (unlike a hand-written seed, which is the known pitfall with explicit ids).
+        self._remove_created_entity_links(row)
+        self._relink_entity_documents(absorbed_entity_id, row.document_ids or [])
+        self._restore_entity_spellings(row)
+        self._restore_canonical_name(row)
+
+        row.undone_at = datetime.now(UTC)
+        assign_author(row, "undone_by", undone_by)
+        self.db.flush()
+        return self._to_entity_merge_log_dto(row)
+
+    def _relink_entity_documents(self, entity_id: int, document_ids: Sequence[str]) -> int:
+        """Re-links the recorded documents that still exist, ignoring the ones that do not."""
+        if not document_ids:
+            return 0
+
+        existing = self.db.scalars(
+            select(ArchiveDocument.description_id).where(ArchiveDocument.description_id.in_(list(document_ids)))
+        ).all()
+        if existing:
+            self.link_documents_to_entity(set(existing), entity_id)
+        return len(existing)
+
+    def _remove_created_entity_links(self, row: ArchiveEntityMergeLog) -> int:
+        """
+        Drops the canonical links the merge created, so undo restores the pre-merge state.
+
+        Only the recorded subset: a document that already carried the canonical before the merge
+        keeps it, and a link somebody added afterwards is not touched because it is not in the ledger.
+        """
+        created = row.created_link_ids or []
+        if not created or row.canonical_id is None:
+            return 0
+
+        stmt = delete(ArchiveDocumentEntity).where(
+            ArchiveDocumentEntity.entity_id == row.canonical_id,
+            ArchiveDocumentEntity.description_id.in_(list(created)),
+        )
+        return cast(CursorResult, self.db.execute(stmt)).rowcount
+
+    def _restore_entity_spellings(self, row: ArchiveEntityMergeLog) -> None:
+        """
+        Puts the spelling state back the way it was before the merge.
+
+        Three cases, all captured at merge time: the spelling equal to the absorbed name was created
+        by the merge (drop it), it already existed (point it back), and spellings that pointed at the
+        absorbed entity were moved to the canonical (move them back). A mapping somebody changed
+        later is left alone — the undo restores this merge, not the next one.
+        """
+        created_synonym = self.db.scalars(
+            select(DomainSynonyms).where(
+                DomainSynonyms.category == row.canonical_entity_type,
+                DomainSynonyms.synonym_name == row.absorbed_name,
+            )
+        ).one_or_none()
+
+        if created_synonym is not None:
+            if row.synonym_created and created_synonym.canonical_entity_id == row.canonical_id:
+                self.db.delete(created_synonym)
+            elif not row.synonym_created and created_synonym.canonical_entity_id == row.canonical_id:
+                created_synonym.canonical_entity_id = row.synonym_previous_entity_id
+            elif row.synonym_created and created_synonym.canonical_entity_id != row.canonical_id:
+                # Somebody re-pointed it after the merge: not this undo's business.
+                pass
+
+        if row.repointed_synonym_names:
+            self.db.execute(
+                update(DomainSynonyms)
+                .where(
+                    DomainSynonyms.category == row.canonical_entity_type,
+                    DomainSynonyms.canonical_entity_id == row.canonical_id,
+                    DomainSynonyms.synonym_name.in_(row.repointed_synonym_names),
+                )
+                .values(canonical_entity_id=row.absorbed_entity_id)
+            )
+
+    def _restore_canonical_name(self, row: ArchiveEntityMergeLog) -> None:
+        """
+        Puts back the canonical name the same merge renamed, and undoes the spelling it planted.
+
+        Skipped silently when the canonical no longer exists (a later merge absorbed it): the
+        absorbed entity still comes back, and failing here would make an unrelated undo impossible.
+        """
+        if not row.canonical_renamed_from or row.canonical_id is None:
+            return
+
+        canonical = self.db.get(ArchiveEntity, row.canonical_id)
+        if canonical is None:
+            return
+
+        canonical.name = row.canonical_renamed_from
+        self.db.flush()
+
+        spelling = self.db.scalars(
+            select(DomainSynonyms).where(
+                DomainSynonyms.category == row.canonical_entity_type,
+                DomainSynonyms.synonym_name == normalize_entity(row.canonical_renamed_from),
+            )
+        ).one_or_none()
+        if spelling is None or spelling.canonical_entity_id != row.canonical_id:
+            return
+
+        if row.renamed_from_synonym_created:
+            self.db.delete(spelling)
+        else:
+            spelling.canonical_entity_id = row.renamed_from_synonym_previous_entity_id
+
+    def _entity_merge_log_filters(
+        self,
+        canonical_id: int | None,
+        changed_by_name: str | None,
+        include_undone: bool,
+        term: str | None = None,
+    ) -> list[Any]:
+        """
+        The filters of the ledger, including the free-text one.
+
+        The term matches **both names** of the entry: the question that sends an archivist here is
+        "where did *this* spelling go?", and which side of the merge it was is what they do not know
+        yet. ``escape_like`` keeps a ``%`` in the box a character instead of "match everything".
+        """
+        filters: list[Any] = []
+        if canonical_id is not None:
+            filters.append(ArchiveEntityMergeLog.canonical_id == canonical_id)
+        if changed_by_name is not None:
+            filters.append(ArchiveEntityMergeLog.changed_by == changed_by_name)
+        if not include_undone:
+            filters.append(ArchiveEntityMergeLog.undone_at.is_(None))
+        if term:
+            pattern = f"%{escape_like(term)}%"
+            filters.append(
+                or_(
+                    ArchiveEntityMergeLog.absorbed_name.ilike(pattern, escape=LIKE_ESCAPE),
+                    ArchiveEntityMergeLog.canonical_name.ilike(pattern, escape=LIKE_ESCAPE),
+                )
+            )
+        return filters
+
+    def count_entity_merge_log(
+        self,
+        canonical_id: int | None = None,
+        changed_by_name: str | None = None,
+        include_undone: bool = True,
+        term: str | None = None,
+    ) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(ArchiveEntityMergeLog)
+            .where(*self._entity_merge_log_filters(canonical_id, changed_by_name, include_undone, term))
+        )
+        return self.db.scalar(stmt) or 0
+
+    def list_entity_merge_log(
+        self,
+        canonical_id: int | None = None,
+        changed_by_name: str | None = None,
+        include_undone: bool = True,
+        term: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[EntityMergeLogEntryDTO]:
+        """The audit trail: most recent first, undone entries included unless filtered out."""
+        stmt = (
+            select(ArchiveEntityMergeLog)
+            .where(*self._entity_merge_log_filters(canonical_id, changed_by_name, include_undone, term))
+            .order_by(ArchiveEntityMergeLog.merge_id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return [self._to_entity_merge_log_dto(row) for row in self.db.scalars(stmt).all()]
+
+    def get_entity_merge_log_entry(self, merge_id: int) -> EntityMergeLogEntryDTO | None:
+        row = self.db.get(ArchiveEntityMergeLog, merge_id)
+        return self._to_entity_merge_log_dto(row) if row else None
+
+    def _to_entity_merge_log_dto(self, row: ArchiveEntityMergeLog) -> EntityMergeLogEntryDTO:
+        """Maps the row to the read contract, exposing the document *count* and not the ids."""
+        snapshot = row.absorbed_snapshot or {}
+        return EntityMergeLogEntryDTO(
+            merge_id=row.merge_id,
+            kind=row.kind,
+            canonical_id=row.canonical_id,
+            canonical_name=row.canonical_name,
+            absorbed_entity_id=row.absorbed_entity_id,
+            absorbed_name=row.absorbed_name,
+            # A rename row has no snapshot: the entity that changed IS the canonical, so its type is
+            # the only honest answer and the screen can label the row without a second read.
+            absorbed_entity_type=snapshot.get("entity_type") or row.canonical_entity_type,
+            document_count=len(row.document_ids or []),
+            repointed_synonym_names=list(row.repointed_synonym_names or []),
+            synonym_created=row.synonym_created,
+            canonical_renamed_from=row.canonical_renamed_from,
+            changed_by=row.changed_by,
+            changed_at=row.changed_at,
+            note=row.note,
+            undone_at=row.undone_at,
+            undone_by=row.undone_by,
+        )
 
     # --- Analytical Queries and Maintenance ---
 

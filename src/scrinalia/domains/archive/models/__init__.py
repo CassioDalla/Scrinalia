@@ -1,7 +1,7 @@
 from .associations import ArchiveDocumentEntity, ArchiveDocumentTag
 from .collection_vocabulary import ArchiveArrangementTerm, ArchiveCollectionTerm
 from .document import ArchiveDocument, ArchiveDocumentDeletion, ArchiveDocumentRevision
-from .entity import ArchiveEntity
+from .entity import ArchiveEntity, ArchiveEntityMergeLog
 from .enums import (
     ACTIVE_WORKER_RUN_STATUSES,
     PLACE_TERM_KINDS,
@@ -11,7 +11,7 @@ from .enums import (
     CollectionTermKind,
     FailureSource,
     StopwordsScope,
-    TagFacetType,
+    TagCatalogState,
     WorkerRunStatus,
     WorkerRunTrigger,
 )
@@ -29,8 +29,9 @@ from .hierarchy import ArchiveDescriptionLevel, ArchiveHierarchyMaterialisationL
 from .operations import ApiError, WorkerRun, WorkerSetting, WorkerSettingRevision
 from .taxonomy import (
     ArchiveMacroCategory,
+    ArchiveNerPurgeLog,
+    ArchiveStopwordPurgeLog,
     ArchiveTag,
-    ArchiveTagFacet,
     ArchiveTagMergeProposal,
     ArchiveTaxonomyMergeLog,
     ArchiveTypology,
@@ -54,12 +55,14 @@ __all__ = [
     "ArchiveDocumentRevision",
     "ArchiveDocumentTag",
     "ArchiveEntity",
+    "ArchiveEntityMergeLog",
     "ArchiveHierarchyMaterialisationLog",
     "ArchiveHierarchyNodePlan",
     "ArchiveMacroCategory",
+    "ArchiveNerPurgeLog",
     "ArchiveReviewStatus",
+    "ArchiveStopwordPurgeLog",
     "ArchiveTag",
-    "ArchiveTagFacet",
     "ArchiveTagMergeProposal",
     "ArchiveTaxonomyMergeLog",
     "ArchiveTypology",
@@ -71,7 +74,7 @@ __all__ = [
     "DomainTextTemplate",
     "FailureSource",
     "StopwordsScope",
-    "TagFacetType",
+    "TagCatalogState",
     "WorkerRun",
     "WorkerRunStatus",
     "WorkerRunTrigger",

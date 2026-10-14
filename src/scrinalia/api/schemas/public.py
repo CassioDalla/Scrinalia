@@ -32,9 +32,8 @@ from scrinalia.domains.archive.schemas.document_schema import (
 #: * metadata about the *curation process* — ``review_status``, ``is_anomaly``, ``anomaly_reasons``,
 #:   ``archivist_notes``, ``provenance``, ``suggested_final_title``;
 #: * machinery and redundancy — ``rank`` (the search score), ``path``/``parent_id`` (the
-#:   materialised arrangement), ``level_id``/``typology_id`` (the public reads the resolved *name*),
-#:   ``is_published`` (every record on this surface is published by construction) and
-#:   ``original_thumbnail_url`` (the source link, superseded by ``storage_thumbnail_uri``);
+#:   materialised arrangement), ``level_id``/``typology_id`` (the public reads the resolved *name*)
+#:   and ``is_published`` (every record on this surface is published by construction);
 #: * diffusion still undecided by the product — ``admin_bio_history`` and ``admin_archival_history``
 #:   (narrative about people and institutions) and ``access_conditions`` (free text from the origin,
 #:   never reviewed for publication). The gate today is ``is_published``; widening it is deliberate.
@@ -52,7 +51,6 @@ NOT_PUBLIC_FIELDS = frozenset(
         "level_id",
         "typology_id",
         "is_published",
-        "original_thumbnail_url",
         "admin_bio_history",
         "admin_archival_history",
         "access_conditions",

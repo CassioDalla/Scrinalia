@@ -9,7 +9,6 @@ from scrinalia.domains.archive.schemas import ArchiveEntityDTO
 
 if TYPE_CHECKING:
     from spacy.language import Language
-    from spacy.pipeline import EntityRuler
 
 
 class SpacyEngine:
@@ -17,9 +16,9 @@ class SpacyEngine:
     Named Entity Recognition (NER) extraction engine using spaCy.
 
     ``spacy`` is imported at module level because it is relatively cheap; the trained
-    pipeline is loaded on instantiation, which is where the real cost lives. The
-    ``EntityRuler`` and ``Language`` imports are type-only so that merely importing
-    the engine does not build the spacy pipeline modules.
+    pipeline is loaded on instantiation, which is where the real cost lives. ``Language``
+    is a type-only import and ``EntityRuler`` is imported where a ruler is actually added,
+    so merely importing the engine does not build the spacy pipeline modules.
     """
 
     def __init__(
@@ -49,7 +48,12 @@ class SpacyEngine:
 
         # Injection of institutional rules (dynamic dictionaries from the Database)
         if custom_rules:
-            ruler = cast("EntityRuler", self.nlp.add_pipe("entity_ruler", before="ner"))
+            # Imported here and not at module level: the pipeline module is only worth loading when
+            # a ruler is about to be added, and the import is real rather than type-only because
+            # ``cast`` needs the class itself (``add_pipe`` is typed as returning ``PipeCallable``).
+            from spacy.pipeline import EntityRuler
+
+            ruler = cast(EntityRuler, self.nlp.add_pipe("entity_ruler", before="ner"))
             ruler.add_patterns(custom_rules)
             logger.info(f"⚙️ {len(custom_rules)} institutional rules loaded into the NER engine.")
 

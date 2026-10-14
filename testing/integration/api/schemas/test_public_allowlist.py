@@ -91,6 +91,22 @@ def test_no_public_field_is_invented() -> None:
     assert not invented, f"Campos públicos sem origem no domínio: {sorted(invented)}"
 
 
+def test_every_declared_non_public_field_exists() -> None:
+    """The allowlist names fields of the internal view, not names it remembers.
+
+    The partition above reads ``internal - published - NOT_PUBLIC_FIELDS``, so it is blind to a stale
+    entry: a name that is not a field of ``DocumentSummary`` refuses nothing and can sit there for
+    ever. Measured: ``original_thumbnail_url`` was listed here while living on
+    ``ArchiveDocumentDTO``, so the declaration withheld a field the summary never carried and the
+    comment justified it as "the source link, superseded by ``storage_thumbnail_uri``".
+    """
+    unknown = NOT_PUBLIC_FIELDS - set(DocumentSummary.model_fields)
+    assert not unknown, (
+        f"NOT_PUBLIC_FIELDS name fields DocumentSummary does not have: {sorted(unknown)}. "
+        "A dead entry refuses nothing: remove it or classify the field it meant."
+    )
+
+
 @pytest.mark.parametrize(
     "field",
     [

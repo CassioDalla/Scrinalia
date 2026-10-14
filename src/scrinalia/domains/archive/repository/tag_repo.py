@@ -28,7 +28,6 @@ from scrinalia.domains.archive.domain.normalization import (
     LIKE_ESCAPE,
     escape_like,
     normalize_stopword,
-    normalize_synonym,
     normalize_tag,
     singular_candidates,
 )
@@ -50,12 +49,15 @@ from scrinalia.domains.archive.exceptions import (
     InvalidParam,
     MergeAlreadyUndoneError,
     MergeLogNotFoundError,
+    StopwordPurgeAlreadyUndoneError,
+    StopwordPurgeLogNotFoundError,
 )
 from scrinalia.domains.archive.models import (
     ArchiveDocument,
     ArchiveDocumentTag,
     ArchiveEntity,
     ArchiveMacroCategory,
+    ArchiveStopwordPurgeLog,
     ArchiveTag,
     ArchiveTagMergeProposal,
     ArchiveTaxonomyMergeLog,
@@ -63,9 +65,12 @@ from scrinalia.domains.archive.models import (
     DomainSubjectExclusion,
     DomainSynonyms,
     StopwordsScope,
+    TagCatalogState,
 )
-from scrinalia.domains.archive.ports.taxonomy import SubjectExclusionSource
+from scrinalia.domains.archive.ports.taxonomy import StopwordSource, SubjectExclusionSource
 from scrinalia.domains.archive.repository.collection_vocabulary_repo import CollectionVocabularyRepository
+from scrinalia.domains.archive.repository.subject_queue import subject_not_subject, subject_state_condition
+from scrinalia.domains.archive.repository.synonym_upsert import upsert_synonyms
 from scrinalia.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
@@ -77,10 +82,18 @@ from scrinalia.domains.archive.schemas import (
     MergePlan,
     MergeResponse,
     StopwordDTO,
-    StopwordPurgeTag,
+    StopwordPurgeItem,
+    StopwordPurgeLogEntryDTO,
+    StopwordPurgePlan,
+    StopwordPurgeResult,
+    SubjectExclusionApplyResult,
+    SubjectExclusionPlan,
+    SubjectExclusionRemovalResult,
     SubjectExclusionSuggestion,
     SubjectExclusionSuggestionResponse,
+    SubjectExclusionTarget,
     SynonymCommand,
+    TagCatalogRow,
     TagCount,
     TagIdentity,
     TagLinkCommand,
@@ -159,9 +172,11 @@ class TagRepository:
 
         return list(self.db.scalars(stmt_select).all())
 
-    def save_stopwords(self, words_list: list[str], scope: StopwordsScope = StopwordsScope.TAG) -> int:
+    def save_stopwords(
+        self, words_list: list[str], scope: StopwordsScope = StopwordsScope.TAG, source: StopwordSource = "HUMAN"
+    ) -> int:
         """
-        Bans a list of words from one axis, in batch.
+        Bans a list of words from one axis, in batch, and records who planted the ban.
 
         The scope defaults to ``TAG`` because that is the axis this catalog governs, and it is
         explicit so a ban on the NER axis cannot be created here by accident.
@@ -169,23 +184,99 @@ class TagRepository:
         **A word has exactly one scope** — ``domain_stopwords.word`` is unique — so re-banning an
         existing term **moves** it instead of being silently ignored. Ignoring would leave the screen
         showing the axis the archivist just changed away from, which is the kind of quiet
-        disagreement the scope exists to prevent.
+        disagreement the scope exists to prevent. The ``source`` follows the same rule: this is the
+        deliberate, typed ban, so it takes ownership of the row and the purge preview reads it.
+
+        Widening a ban is **not** this method's job: a statement about the subject axis must not
+        un-veto the extraction axis, so ``ensure_tag_ban`` is the write that never narrows. Calling
+        this one with ``TAG`` on a term already banned ``ENTITY`` is a deliberate move by the
+        archivist on the Stopwords screen, and the screen shows the axis it is moving away from.
 
         Returns how many rows were written (inserted or moved).
         """
         if not words_list:
             return 0
 
-        clean_words = [{"word": normalize_stopword(w), "word_scope": scope} for w in words_list if w.strip()]
+        clean_words = [
+            {"word": normalize_stopword(w), "word_scope": scope, "source": source} for w in words_list if w.strip()
+        ]
 
         if not clean_words:
             return 0
 
         stmt = insert(DomainStopwords).values(clean_words)
-        stmt = stmt.on_conflict_do_update(index_elements=["word"], set_={"word_scope": stmt.excluded.word_scope})
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["word"],
+            set_={"word_scope": stmt.excluded.word_scope, "source": stmt.excluded.source},
+        )
 
         result = cast(CursorResult, self.db.execute(stmt))
         return result.rowcount
+
+    def ensure_tag_ban(self, words: Sequence[str], source: StopwordSource = "HUMAN") -> set[str]:
+        """
+        Guarantees a ``TAG`` ban on each word, without ever narrowing an existing one.
+
+        The difference from :meth:`save_stopwords` is the whole safety of coupling the "not a
+        subject" screen to the ban: ``word_scope`` is one column and ``word`` is unique, so an
+        upsert that wrote ``TAG`` over an ``ENTITY`` veto would silently stop the NER from extracting
+        a name the archivist had deliberately kept. Here an ``ENTITY`` ban becomes ``ALL`` — the term
+        is now banned on both axes — and an existing ``TAG``/``ALL`` is left alone.
+
+        The ``source`` of an existing row is preserved: this write is a consequence of another
+        decision, and the origin of the ban is whoever planted it. Only a newly inserted row carries
+        the given source. Returns the set of words **this call inserted**, which is what the caller
+        records as ``ban_created`` for the exact undo.
+        """
+        clean = [normalize_stopword(word) for word in words if word.strip()]
+        if not clean:
+            return set()
+
+        # Read first so the caller can tell "I planted it" from "it was already there" — the same
+        # question the conflict ledger answers with its own ``ban_created``.
+        existing = set(
+            self.db.scalars(
+                select(DomainStopwords.word).where(
+                    DomainStopwords.word.in_(clean),
+                    DomainStopwords.word_scope.in_([StopwordsScope.TAG, StopwordsScope.ALL]),
+                )
+            ).all()
+        )
+
+        # Widen first: an ENTITY-only veto has to become ALL before the insert below finds the row.
+        self.db.execute(
+            update(DomainStopwords)
+            .where(
+                DomainStopwords.word.in_(clean),
+                DomainStopwords.word_scope == StopwordsScope.ENTITY,
+            )
+            .values(word_scope=StopwordsScope.ALL)
+        )
+
+        rows = [{"word": word, "word_scope": StopwordsScope.TAG, "source": source} for word in clean]
+        stmt = insert(DomainStopwords).values(rows).on_conflict_do_nothing(index_elements=["word"])
+        self.db.execute(stmt)
+        return {word for word in clean if word not in existing}
+
+    def get_stopwords_with_source(self) -> dict[str, str]:
+        """
+        The banned terms that apply to the subject axis, mapped to who planted the ban.
+
+        The single definition of "which bans the purge reads": ``TAG``/``ALL`` only, because an
+        ``ENTITY``-scoped word is a NER veto and reading it here made the curation purge delete tags
+        the curator had deliberately kept. The source travels with the word because the purge preview
+        has to name the origin — the terms banned with the archive in mind are not the ones typed by
+        hand.
+        """
+        stmt = select(DomainStopwords.word, DomainStopwords.source).where(
+            DomainStopwords.word_scope.in_([StopwordsScope.TAG, StopwordsScope.ALL])
+        )
+        # Built row by row instead of ``dict(...)``: the driver hands back ``Row`` objects, which the
+        # checker cannot narrow into a mapping, and the loop is the same query either way.
+        banned: dict[str, str] = {}
+        for word, source in self.db.execute(stmt).all():
+            banned[word] = source
+        return banned
 
     def list_stopwords(self, scope: StopwordsScope | None = None) -> list[StopwordDTO]:
         """
@@ -194,7 +285,9 @@ class TagRepository:
         Alphabetical and not by scope: the screen groups them itself, and a list that reorders as
         words are added is harder to scan than one that grows in place.
         """
-        stmt = select(DomainStopwords.word, DomainStopwords.word_scope.label("scope"))
+        stmt = select(
+            DomainStopwords.word, DomainStopwords.word_scope.label("scope"), DomainStopwords.source.label("source")
+        )
         if scope is not None:
             stmt = stmt.where(DomainStopwords.word_scope == scope)
         return [StopwordDTO.model_validate(row) for row in self.db.execute(stmt.order_by(DomainStopwords.word)).all()]
@@ -216,32 +309,6 @@ class TagRepository:
         result = self.db.execute(stmt)
         return cast(CursorResult, result).rowcount
 
-    def find_tags_by_stopwords(self, stopwords: set[str]) -> list[StopwordPurgeTag]:
-        """
-        The tags a purge would delete, with the weight that makes the loss concrete.
-
-        Read side of the only destructive operation here that has **no undo**: it exists so the
-        screen can show what dies — the name, how many descriptions carry it and which drawer is
-        lost with it — before anything is deleted.
-        """
-        if not stopwords:
-            return []
-
-        stmt = (
-            select(
-                ArchiveTag.tag_id,
-                ArchiveTag.name,
-                func.count(ArchiveDocumentTag.description_id).label("document_count"),
-                ArchiveMacroCategory.name.label("macro_category_name"),
-            )
-            .outerjoin(ArchiveDocumentTag, ArchiveDocumentTag.tag_id == ArchiveTag.tag_id)
-            .outerjoin(ArchiveMacroCategory, ArchiveMacroCategory.category_id == ArchiveTag.macro_category_id)
-            .where(func.lower(ArchiveTag.name).in_(stopwords))
-            .group_by(ArchiveTag.tag_id, ArchiveTag.name, ArchiveMacroCategory.name)
-            .order_by(func.count(ArchiveDocumentTag.description_id).desc(), ArchiveTag.name)
-        )
-        return [StopwordPurgeTag.model_validate(row) for row in self.db.execute(stmt).mappings().all()]
-
     def get_stopwords(self) -> set[str]:
         """
         Retrieves the stopwords that apply to the TAG axis, in lowercase.
@@ -251,14 +318,13 @@ class TagRepository:
         here made the curation purge delete tags that the curator had deliberately
         kept — the exact opposite of the recorded decision.
 
+        Derived from :meth:`get_stopwords_with_source`, which is the one query: adding the ban's
+        origin must not become a second definition of which bans the subject axis reads.
+
         Returns:
             set[str]: Set containing the stopwords in lowercase letters.
         """
-        stmt = select(DomainStopwords.word).where(
-            DomainStopwords.word_scope.in_([StopwordsScope.TAG, StopwordsScope.ALL])
-        )
-        results = self.db.scalars(stmt).all()
-        return set(results)
+        return set(self.get_stopwords_with_source())
 
     def search_tags(self, term: str, limit: int) -> list[TagSearchResult]:
         """
@@ -350,6 +416,75 @@ class TagRepository:
         )
         row = self.db.execute(stmt).mappings().first()
         return TagSearchResult.model_validate(row) if row else None
+
+    # --- The catalogue read, by the state of the subject decision ------------------------------
+
+    def _catalog_filters(self, state: TagCatalogState, macro_category_id: int | None, term: str | None) -> list[Any]:
+        """
+        The predicate behind the catalogue, shared by the page and its total.
+
+        One builder for both halves on purpose: a ``total`` computed with a different filter than the
+        page is the way a count starts lying about the list under it.
+        """
+        filters: list[Any] = []
+        state_condition = subject_state_condition(state, macro_category_id)
+        if state_condition is not None:
+            filters.append(state_condition)
+
+        needle = (term or "").strip()
+        if needle:
+            # Served by ``idx_archive_tags_name_trgm``, like the type-ahead's box; the wildcards the
+            # archivist typed are escaped so a ``%`` cannot turn this into a scan of 8k spellings.
+            filters.append(ArchiveTag.name.ilike(f"%{escape_like(needle)}%", escape=LIKE_ESCAPE))
+        return filters
+
+    def count_catalog(
+        self, state: TagCatalogState, macro_category_id: int | None = None, term: str | None = None
+    ) -> int:
+        """How many tags the same filter answers, so the screen can page without guessing."""
+        stmt = (
+            select(func.count()).select_from(ArchiveTag).where(*self._catalog_filters(state, macro_category_id, term))
+        )
+        return int(self.db.scalar(stmt) or 0)
+
+    def list_catalog(
+        self,
+        state: TagCatalogState,
+        macro_category_id: int | None = None,
+        term: str | None = None,
+        limit: int = 25,
+        offset: int = 0,
+    ) -> list[TagCatalogRow]:
+        """
+        One page of the catalogue, heaviest first, with the state of each tag.
+
+        Ordered by weight because the decision that matters most is the tag the most descriptions
+        carry: filing ``cidade`` is worth more than filing a spelling nobody used.
+        """
+        counts = (
+            select(ArchiveDocumentTag.tag_id, func.count().label("document_count"))
+            .group_by(ArchiveDocumentTag.tag_id)
+            .subquery()
+        )
+        weight = func.coalesce(counts.c.document_count, 0)
+        stmt = (
+            select(
+                ArchiveTag.tag_id,
+                ArchiveTag.name,
+                weight.label("document_count"),
+                ArchiveTag.macro_category_id,
+                ArchiveMacroCategory.name.label("macro_category_name"),
+                ArchiveTag.ai_confidence_score,
+                subject_not_subject().label("subject_excluded"),
+            )
+            .outerjoin(counts, counts.c.tag_id == ArchiveTag.tag_id)
+            .outerjoin(ArchiveMacroCategory, ArchiveMacroCategory.category_id == ArchiveTag.macro_category_id)
+            .where(*self._catalog_filters(state, macro_category_id, term))
+            .order_by(weight.desc(), ArchiveTag.name)
+            .limit(limit)
+            .offset(offset)
+        )
+        return [TagCatalogRow.model_validate(dict(row)) for row in self.db.execute(stmt).mappings().all()]
 
     def get_macro_categories(self, only_active: bool = False) -> list[ArchiveMacroCategoryEntityDTO]:
         """
@@ -497,6 +632,7 @@ class TagRepository:
         hardcoded examples the screen used to offer.
         """
         excluded = self.get_subject_exclusions()
+        banned = self.get_stopwords()
         entity_names = set(self.db.scalars(select(func.lower(ArchiveEntity.name))).all())
         # The collection's own families — the toponyms and the person names — come from the
         # catalogue, not from a regex: the guard is still pure, it is just handed the data.
@@ -523,6 +659,9 @@ class TagRepository:
                 also_an_entity=normalized in entity_names,
                 word_count=len(normalized.split()),
                 already_excluded=is_excluded,
+                macro_category_id=row.macro_category_id,
+                macro_category_name=row.macro_category_name,
+                already_banned=normalized in banned,
             )
             (already if is_excluded else candidates).append(suggestion)
 
@@ -546,6 +685,175 @@ class TagRepository:
             place_count=sum(1 for item in candidates if item.is_place_term),
         )
 
+    def _subject_exclusion_targets(self, terms: Sequence[str]) -> dict[str, SubjectExclusionTarget]:
+        """
+        One target per term: the tag it names, the drawer in the way and the evidence around it.
+
+        One query for the tags and one for the entity spellings, never one per term: the screen
+        confirms a list, and an N+1 here is what the type-ahead was written to avoid. The vocabulary
+        is loaded once so ``is_place_term`` and the guard's signal are the same functions the worker
+        obeys (``domain.vocabulary``), not a second implementation of them.
+        """
+        normalized = [normalize_tag(term) for term in terms if term.strip()]
+        if not normalized:
+            return {}
+
+        vocabulary = self.collection_vocabulary()
+        excluded = self.get_subject_exclusions()
+        banned = self.get_stopwords()
+
+        counts = (
+            select(ArchiveDocumentTag.tag_id, func.count().label("document_count"))
+            .group_by(ArchiveDocumentTag.tag_id)
+            .subquery()
+        )
+        rows = (
+            self.db.execute(
+                select(
+                    func.lower(func.btrim(ArchiveTag.name)).label("term"),
+                    ArchiveTag.tag_id,
+                    ArchiveTag.name,
+                    ArchiveTag.macro_category_id,
+                    ArchiveMacroCategory.name.label("macro_category_name"),
+                    func.coalesce(counts.c.document_count, 0).label("document_count"),
+                )
+                .outerjoin(ArchiveMacroCategory, ArchiveMacroCategory.category_id == ArchiveTag.macro_category_id)
+                .outerjoin(counts, counts.c.tag_id == ArchiveTag.tag_id)
+                .where(func.lower(func.btrim(ArchiveTag.name)).in_(normalized))
+            )
+            .mappings()
+            .all()
+        )
+        by_term = {row["term"]: row for row in rows}
+
+        entity_names = set(
+            self.db.scalars(
+                select(func.lower(func.btrim(ArchiveEntity.name))).where(
+                    func.lower(func.btrim(ArchiveEntity.name)).in_(normalized)
+                )
+            ).all()
+        )
+
+        targets: dict[str, SubjectExclusionTarget] = {}
+        for term in normalized:
+            row = by_term.get(term)
+            tag_id = int(row["tag_id"]) if row else None
+            targets[term] = SubjectExclusionTarget(
+                term=term,
+                signal=subject_exclusion_signal(term, vocabulary),
+                is_place_term=is_place_term(term, vocabulary),
+                also_an_entity=term in entity_names,
+                document_count=int(row["document_count"]) if row else 0,
+                tag_id=tag_id,
+                macro_category_id=row["macro_category_id"] if row else None,
+                macro_category_name=row["macro_category_name"] if row else None,
+                already_excluded=term in excluded,
+                already_banned=term in banned,
+            )
+        return targets
+
+    def plan_subject_exclusions(self, terms: Sequence[str]) -> SubjectExclusionPlan:
+        """
+        What the "not a subject" write would record and what it refuses, before anything changes.
+
+        A term whose tag already sits in a drawer is **blocked**: the drawer is a human verdict about
+        the tag, and this write is about a term, so it must not un-file it (issue #83, option C).
+        Everything else is applicable, and the two lists are what the preview shows and the write
+        consumes — one computation, so the dry run cannot promise another number.
+        """
+        targets = self._subject_exclusion_targets(terms)
+        blocked = [target for target in targets.values() if target.macro_category_id is not None]
+        applicable = [target for target in targets.values() if target.macro_category_id is None]
+        return SubjectExclusionPlan(
+            applicable=sorted(applicable, key=lambda item: item.term),
+            blocked=sorted(blocked, key=lambda item: item.term),
+        )
+
+    def apply_subject_exclusions(
+        self,
+        plan: SubjectExclusionPlan,
+        *,
+        source: SubjectExclusionSource = "HUMAN",
+        reason: str | None = None,
+    ) -> SubjectExclusionApplyResult:
+        """
+        Records the exclusions the plan allows and bans each spelling from becoming a tag again.
+
+        The two writes are one statement ("this term is not a subject"), which is why they live
+        together: the exclusion silences the classifier and the ``TAG``-scoped ban stops the next
+        ingestion from recreating the term and parking it in the queue again. The ban deletes
+        nothing — the purge remains a deliberate act behind its own preview and ledger — and
+        ``ensure_tag_ban`` guarantees it never narrows a NER veto.
+
+        The insert is ``ON CONFLICT DO NOTHING``, so it reports what it wrote and never rewrites an
+        earlier decision; ``ban_created`` records whether **this** write planted the ban, which is
+        what makes :meth:`remove_subject_exclusions` exact when two writes can plant one ban.
+        """
+        terms = [target.term for target in plan.applicable]
+        if not terms:
+            return SubjectExclusionApplyResult(blocked=plan.blocked)
+
+        ban_created = self.ensure_tag_ban(terms, source="EXCLUSION")
+        rows = [
+            {
+                "term": target.term,
+                "source": source,
+                "reason": reason,
+                "ban_created": target.term in ban_created,
+            }
+            for target in plan.applicable
+        ]
+        stmt = insert(DomainSubjectExclusion).values(rows).on_conflict_do_nothing(index_elements=["term"])
+        created = int(cast(CursorResult, self.db.execute(stmt)).rowcount or 0)
+        return SubjectExclusionApplyResult(created=created, banned=len(ban_created), blocked=plan.blocked)
+
+    def remove_subject_exclusions(self, terms: Sequence[str]) -> SubjectExclusionRemovalResult:
+        """
+        Re-opens the subject classifier and lifts the ban the exclusion itself planted.
+
+        The lift is exact by construction, the same rule ``undo_conflict_resolution`` follows: only a
+        row whose ``ban_created`` is true owns a ban, and only while the ban's ``source`` is still
+        ``EXCLUSION``. A human who re-banned the spelling on the Stopwords screen, or a conflict
+        resolution that planted it first, keeps it.
+        """
+        clean_terms = [normalize_tag(term) for term in terms if term.strip()]
+        if not clean_terms:
+            return SubjectExclusionRemovalResult()
+
+        owned = set(
+            self.db.scalars(
+                select(DomainSubjectExclusion.term).where(
+                    DomainSubjectExclusion.term.in_(clean_terms),
+                    DomainSubjectExclusion.ban_created.is_(True),
+                )
+            ).all()
+        )
+        lift = set(
+            self.db.scalars(
+                select(DomainStopwords.word).where(
+                    DomainStopwords.word.in_(owned),
+                    DomainStopwords.source == "EXCLUSION",
+                )
+            ).all()
+        )
+
+        removed = int(
+            cast(
+                CursorResult,
+                self.db.execute(delete(DomainSubjectExclusion).where(DomainSubjectExclusion.term.in_(clean_terms))),
+            ).rowcount
+            or 0,
+        )
+        unbanned = 0
+        if lift:
+            unbanned = int(
+                cast(
+                    CursorResult, self.db.execute(delete(DomainStopwords).where(DomainStopwords.word.in_(lift)))
+                ).rowcount
+                or 0,
+            )
+        return SubjectExclusionRemovalResult(removed=removed, unbanned=unbanned)
+
     def add_subject_exclusions(
         self,
         terms: Sequence[str],
@@ -553,7 +861,14 @@ class TagRepository:
         source: SubjectExclusionSource = "HUMAN",
         reason: str | None = None,
     ) -> int:
-        """Registers exclusions idempotently. Returns how many terms were actually inserted."""
+        """
+        Records exclusions idempotently, without coupling them to a ban.
+
+        Kept for the paths that record a term the caller has already reasoned about — the conflict
+        ledger and the tests — while the curator's screen goes through
+        :meth:`plan_subject_exclusions` + :meth:`apply_subject_exclusions`, which is where the
+        refusal and the ban live. Returns how many terms were actually inserted.
+        """
         rows = [{"term": normalize_tag(term), "source": source, "reason": reason} for term in terms if term.strip()]
 
         if not rows:
@@ -563,22 +878,236 @@ class TagRepository:
         result = cast(CursorResult, self.db.execute(stmt))
         return result.rowcount
 
-    def remove_subject_exclusions(self, terms: Sequence[str]) -> int:
-        """Re-opens the subject classifier for the given terms. Returns how many were removed."""
-        clean_terms = [normalize_tag(term) for term in terms if term.strip()]
+    # --- The stopword purge: plan, ledger, apply and undo ---
+    #
+    # One operation in two halves, exactly like the tag merge: ``plan_stopword_purge`` describes
+    # what would die without writing, and ``apply_stopword_purge`` executes that same plan after
+    # snapshotting every tag in ``archive_stopword_purge_log``. The preview reads the plan and the
+    # write consumes it, so the two cannot disagree about which tags the purge acts on. There is no
+    # repoint step here, unlike the merge: the tag is banned, so its spellings have nowhere to go —
+    # they are recorded for the undo and the forward write leaves them to the cascade.
 
-        if not clean_terms:
-            return 0
+    def plan_stopword_purge(self) -> StopwordPurgePlan:
+        """
+        Every tag the purge would delete, with the state the undo has to rebuild.
 
-        stmt = delete(DomainSubjectExclusion).where(DomainSubjectExclusion.term.in_(clean_terms))
-        result = cast(CursorResult, self.db.execute(stmt))
-        return result.rowcount
+        The words come from ``get_stopwords_with_source()`` — ``TAG``/``ALL`` only, deliberately — and
+        the per-tag documents and spellings are read here so the ledger records what the delete is
+        about to cascade instead of reconstructing it afterwards. The ban's ``source`` travels into
+        the item because the preview has to name it: a term banned with the archive in mind and one
+        typed by hand reach the purge the same way, and the archivist is deciding about both.
+        """
+        stopwords = self.get_stopwords_with_source()
+        if not stopwords:
+            return StopwordPurgePlan()
 
-    def purge_tags_by_stopwords(self, stopwords: set[str]) -> int:
-        """Mass deletes all tags that match the stopwords list."""
-        stmt = delete(ArchiveTag).where(func.lower(ArchiveTag.name).in_(stopwords))
-        result = self.db.execute(stmt)
-        return cast(CursorResult, result).rowcount
+        tags = self.db.scalars(select(ArchiveTag).where(func.lower(ArchiveTag.name).in_(stopwords))).all()
+        if not tags:
+            return StopwordPurgePlan(stopwords=sorted(stopwords))
+
+        tag_ids = [tag.tag_id for tag in tags]
+        documents_by_tag = self.get_document_ids_grouped_by_tags(tag_ids)
+        spellings_by_tag = self._synonym_names_by_canonical(tag_ids)
+        category_names = self._macro_category_names(
+            [tag.macro_category_id for tag in tags if tag.macro_category_id is not None]
+        )
+        items = [
+            StopwordPurgeItem(
+                tag_id=tag.tag_id,
+                name=tag.name,
+                document_ids=documents_by_tag.get(tag.tag_id, []),
+                synonym_names=spellings_by_tag.get(tag.tag_id, []),
+                macro_category_id=tag.macro_category_id,
+                macro_category_name=(
+                    category_names.get(tag.macro_category_id) if tag.macro_category_id is not None else None
+                ),
+                ai_confidence_score=tag.ai_confidence_score,
+                execution_log=tag.execution_log,
+                created_at=tag.created_at,
+                source=stopwords.get(normalize_stopword(tag.name), "HUMAN"),
+            )
+            for tag in tags
+        ]
+        # Heaviest first, then by name: the order the preview always showed, so the screen does not
+        # reshuffle under the archivist when the read moves from a SQL order-by to this plan.
+        items.sort(key=lambda item: (-len(item.document_ids), item.name))
+        return StopwordPurgePlan(stopwords=sorted(stopwords), items=items)
+
+    def write_stopword_purge_log(self, plan: StopwordPurgePlan, changed_by: Author | None = None) -> list[int]:
+        """
+        Snapshots every tag the plan deletes. Returns the ledger ids, oldest first.
+
+        Written **before** anything changes, because what it captures — the documents and the
+        spellings that pointed at the tag — is exactly what the delete cascades.
+        """
+        if not plan.items:
+            return []
+
+        rows = [
+            {
+                "purged_tag_id": item.tag_id,
+                "purged_name": normalize_tag(item.name),
+                "purged_snapshot": {
+                    "name": item.name,
+                    "macro_category_id": item.macro_category_id,
+                    "ai_confidence_score": item.ai_confidence_score,
+                    "execution_log": item.execution_log,
+                    "created_at": item.created_at.isoformat() if item.created_at else None,
+                },
+                "document_ids": item.document_ids,
+                "synonym_names": item.synonym_names,
+                **author_columns("changed_by", changed_by),
+            }
+            for item in plan.items
+        ]
+        stmt = insert(ArchiveStopwordPurgeLog).values(rows).returning(ArchiveStopwordPurgeLog.purge_id)
+        return list(self.db.scalars(stmt).all())
+
+    def apply_stopword_purge(self, plan: StopwordPurgePlan, changed_by: Author | None = None) -> StopwordPurgeResult:
+        """Executes exactly what ``plan_stopword_purge`` described, after writing the undo ledger."""
+        purge_ids = self.write_stopword_purge_log(plan, changed_by=changed_by)
+        tags_deleted = self.delete_tags([item.tag_id for item in plan.items]) if plan.items else 0
+        return StopwordPurgeResult(tags_deleted=tags_deleted, purge_ids=purge_ids)
+
+    def undo_stopword_purge(self, purge_id: int, undone_by: Author | None = None) -> StopwordPurgeLogEntryDTO:
+        """
+        Reverses one purge: restores the tag, its links and its spellings.
+
+        Exact by construction, like ``undo_merge``: the id and the row come from the snapshot, the
+        links from the per-tag list and the spellings from what was captured before the delete.
+        Only documents that still exist are re-linked. The ban is **not** lifted — the term is still
+        a stopword; the undo restores the tag, it does not undo the decision to ban it.
+        """
+        row = self.db.get(ArchiveStopwordPurgeLog, purge_id)
+        if row is None:
+            raise StopwordPurgeLogNotFoundError(f"Registro de purga {purge_id} não encontrado no ledger.")
+        if row.undone_at is not None:
+            raise StopwordPurgeAlreadyUndoneError(
+                f"A purga {purge_id} já foi desfeita em {row.undone_at:%Y-%m-%d %H:%M:%S}."
+            )
+
+        snapshot = row.purged_snapshot or {}
+        restored = ArchiveTag(
+            tag_id=row.purged_tag_id,
+            name=snapshot.get("name") or row.purged_name,
+            macro_category_id=snapshot.get("macro_category_id"),
+            ai_confidence_score=snapshot.get("ai_confidence_score"),
+            execution_log=snapshot.get("execution_log"),
+        )
+        created_at = snapshot.get("created_at")
+        if created_at:
+            restored.created_at = datetime.fromisoformat(created_at)
+        self.db.add(restored)
+        self.db.flush()
+
+        # The sequence already allocated this id once, so re-using it cannot collide with the next
+        # insert (the same argument ``undo_merge`` makes).
+        self._relink_documents(row.purged_tag_id, row.document_ids or [])
+        self._restore_purged_spellings(row)
+
+        row.undone_at = datetime.now(UTC)
+        assign_author(row, "undone_by", undone_by)
+        self.db.flush()
+        return self._to_stopword_purge_log_dto(row, self._macro_category_names(self._snapshot_category_ids([row])))
+
+    def _restore_purged_spellings(self, row: ArchiveStopwordPurgeLog) -> None:
+        """
+        Puts back the spellings the cascade took with the tag.
+
+        ``on_conflict_do_nothing`` on ``(synonym_name, category)``: a mapping somebody re-created
+        after the purge points wherever they put it, and that is not this undo's business.
+        """
+        names = list(row.synonym_names or [])
+        if not names:
+            return
+
+        rows = [{"synonym_name": name, "category": "TAG", "canonical_tag_id": row.purged_tag_id} for name in names]
+        stmt = insert(DomainSynonyms).values(rows).on_conflict_do_nothing(index_elements=["synonym_name", "category"])
+        self.db.execute(stmt)
+
+    def _stopword_purge_log_filters(self, include_undone: bool, term: str | None = None) -> list[Any]:
+        """The filters of the purge ledger, including the free-text one over the tag name."""
+        filters: list[Any] = []
+        if not include_undone:
+            filters.append(ArchiveStopwordPurgeLog.undone_at.is_(None))
+        if term:
+            pattern = f"%{escape_like(term)}%"
+            filters.append(ArchiveStopwordPurgeLog.purged_name.ilike(pattern, escape=LIKE_ESCAPE))
+        return filters
+
+    def count_stopword_purge_log(self, include_undone: bool = True, term: str | None = None) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(ArchiveStopwordPurgeLog)
+            .where(*self._stopword_purge_log_filters(include_undone, term))
+        )
+        return self.db.scalar(stmt) or 0
+
+    def list_stopword_purge_log(
+        self,
+        include_undone: bool = True,
+        term: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[StopwordPurgeLogEntryDTO]:
+        """The audit trail: most recent first, undone entries included unless filtered out."""
+        stmt = (
+            select(ArchiveStopwordPurgeLog)
+            .where(*self._stopword_purge_log_filters(include_undone, term))
+            .order_by(ArchiveStopwordPurgeLog.purge_id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        rows = self.db.scalars(stmt).all()
+        names = self._macro_category_names(self._snapshot_category_ids(rows))
+        return [self._to_stopword_purge_log_dto(row, names) for row in rows]
+
+    def get_stopword_purge_log_entry(self, purge_id: int) -> StopwordPurgeLogEntryDTO | None:
+        row = self.db.get(ArchiveStopwordPurgeLog, purge_id)
+        if row is None:
+            return None
+        return self._to_stopword_purge_log_dto(row, self._macro_category_names(self._snapshot_category_ids([row])))
+
+    def _snapshot_category_ids(self, rows: Sequence[ArchiveStopwordPurgeLog]) -> list[int]:
+        """The drawer ids the snapshots name, deduplicated, for one lookup instead of one per row."""
+        return list(
+            dict.fromkeys(
+                category_id
+                for row in rows
+                if (category_id := (row.purged_snapshot or {}).get("macro_category_id")) is not None
+            )
+        )
+
+    def _macro_category_names(self, category_ids: Sequence[int]) -> dict[int, str]:
+        """The drawer names behind the snapshot ids, in one query for the whole page."""
+        if not category_ids:
+            return {}
+        stmt = select(ArchiveMacroCategory.category_id, ArchiveMacroCategory.name).where(
+            ArchiveMacroCategory.category_id.in_(list(category_ids))
+        )
+        names: dict[int, str] = {}
+        for category_id, name in self.db.execute(stmt).all():
+            names[category_id] = name
+        return names
+
+    def _to_stopword_purge_log_dto(
+        self, row: ArchiveStopwordPurgeLog, macro_category_names: dict[int, str]
+    ) -> StopwordPurgeLogEntryDTO:
+        """Maps the row to the read contract, exposing the document *count* and not the ids."""
+        snapshot = row.purged_snapshot or {}
+        category_id = snapshot.get("macro_category_id")
+        return StopwordPurgeLogEntryDTO(
+            purge_id=row.purge_id,
+            purged_tag_id=row.purged_tag_id,
+            purged_name=row.purged_name,
+            document_count=len(row.document_ids or []),
+            synonym_names=list(row.synonym_names or []),
+            macro_category_name=(macro_category_names.get(category_id) if isinstance(category_id, int) else None),
+            changed_by=row.changed_by,
+            changed_at=row.changed_at,
+            undone_at=row.undone_at,
+            undone_by=row.undone_by,
+        )
 
     def get_relevance_count(self, limit: int) -> Sequence[TagRelevanceCount]:
         stmt = (
@@ -660,23 +1189,27 @@ class TagRepository:
         Every tag with how many documents link to it, and its own classification.
 
         One grouped join instead of a count per cluster: the merge suggestions compare the
-        whole taxonomy at once. The macro category and the confidence score travel with the
-        row because ``CATEGORY_WOULD_BE_LOST`` is a warning the curator must see before
-        approving a merge, and asking per tag would be an N+1.
+        whole taxonomy at once. The macro category, its name and the confidence score travel with the
+        row because ``CATEGORY_WOULD_BE_LOST`` is a warning the curator must see before approving a
+        merge, and the "not a subject" screen refuses a term whose tag sits in a drawer — asking per
+        tag would be an N+1 in both.
         """
         stmt = (
             select(
                 ArchiveTag.tag_id,
                 ArchiveTag.name,
                 ArchiveTag.macro_category_id,
+                ArchiveMacroCategory.name.label("macro_category_name"),
                 ArchiveTag.ai_confidence_score,
                 func.count(ArchiveDocumentTag.description_id).label("document_count"),
             )
             .outerjoin(ArchiveDocumentTag, ArchiveDocumentTag.tag_id == ArchiveTag.tag_id)
+            .outerjoin(ArchiveMacroCategory, ArchiveMacroCategory.category_id == ArchiveTag.macro_category_id)
             .group_by(
                 ArchiveTag.tag_id,
                 ArchiveTag.name,
                 ArchiveTag.macro_category_id,
+                ArchiveMacroCategory.name,
                 ArchiveTag.ai_confidence_score,
             )
         )
@@ -1528,32 +2061,11 @@ class TagRepository:
         """
         Registers the spellings the ingestion must redirect to a canonical label.
 
-        The upsert (instead of ``on_conflict_do_nothing``) matters when a canonical is
-        absorbed into a new one: the spelling already had a mapping and it has to *move*.
-        Silently keeping the old target made a re-merge look successful while changing
-        nothing, and left the ingestion pointing at a tag that no longer exists.
+        The write itself is defined once, in
+        :func:`scrinalia.domains.archive.repository.synonym_upsert.upsert_synonyms`, because the two
+        axes used to carry the same command twice and one of them drifted into a 500.
         """
-        if not synonyms_data:
-            return
-
-        rows = [
-            {
-                "synonym_name": normalize_synonym(item.synonym_name),
-                "category": item.category,
-                "canonical_tag_id": item.canonical_tag_id,
-                "canonical_entity_id": item.canonical_entity_id,
-            }
-            for item in synonyms_data
-        ]
-        stmt = insert(DomainSynonyms).values(rows)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["synonym_name", "category"],
-            set_={
-                "canonical_tag_id": stmt.excluded.canonical_tag_id,
-                "canonical_entity_id": stmt.excluded.canonical_entity_id,
-            },
-        )
-        self.db.execute(stmt)
+        upsert_synonyms(self.db, synonyms_data)
 
     def repoint_synonyms(self, from_tag_ids: list[int], to_tag_id: int) -> int:
         """
