@@ -219,9 +219,10 @@ pipeline, não o boot — o `ACERVO_SOURCE` é exigido pela transformação de s
 | `ACERVO_SOURCE` | vazio | nomeia a origem ativa — os rótulos de campo que a transformação de staging lê e as portas que a coleta monta; a única embarcada é `pmc`, o `--origin` a sobrepõe numa execução, e **não há padrão**: uma execução de staging falha rápido sem ela |
 | `ACERVO_LANGUAGE` | `pt-BR` | seleciona o perfil de língua — stopwords, gramática de datas, regras de plural, o dicionário de busca textual e o modelo do spaCy. O dicionário chega a uma coluna gerada, então mudá-lo é uma **migração**, não um reinício |
 | `S3_ENDPOINT_URL` | vazio | o endpoint compatível com S3 (MinIO, Ceph, SeaweedFS, um bucket na nuvem); de dentro de um contêiner, `localhost` é o próprio contêiner |
-| `S3_BUCKET_NAME` | vazio | o bucket para onde vão as miniaturas; ele precisa existir antes |
+| `S3_BUCKET_NAME` | vazio | o bucket para onde vão as miniaturas; o worker o confirma uma vez, antes da execução |
 | `S3_ACCESS_KEY` | vazio | credencial com leitura e escrita no bucket; um segredo |
 | `S3_SECRET_KEY` | vazio | o segredo da credencial; um segredo |
+| `S3_AUTO_CREATE_BUCKET` | `false` | se o worker pode criar o `S3_BUCKET_NAME` quando ele não existe; desligado, a execução é recusada com o comando que o cria |
 | `OLLAMA_HOST_URL` | vazio → `http://localhost:11434` | o host do Ollama que todo motor baseado em preset resolve; um `--option host=...` explícito ainda vence |
 | `AUTH_SESSION_COOKIE_NAME` | `scrinalia_session` | nome do cookie de sessão de primeira parte |
 | `AUTH_SESSION_TTL_MINUTES` | `720` | quanto tempo uma sessão vive; deslizante, empurrada adiante pela atividade |
@@ -391,11 +392,19 @@ O `docker compose up -d` sobe o PostgreSQL e nada mais. O projeto precisa de um 
 com S3 e não se importa com qual produto o serve — MinIO, Ceph, SeaweedFS ou um bucket na nuvem são
 infraestrutura que quem opera traz, não algo que este repositório embarca.
 
-As configurações são `S3_ENDPOINT_URL`, `S3_BUCKET_NAME`, `S3_ACCESS_KEY` e `S3_SECRET_KEY`; o
-cliente é o boto3 com assinatura v4. Duas exigências vêm do código: o bucket precisa já existir (o
-worker envia para ele e nunca o cria), e a credencial precisa de leitura e escrita nele. De dentro do
+As configurações são `S3_ENDPOINT_URL`, `S3_BUCKET_NAME`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` e
+`S3_AUTO_CREATE_BUCKET`; o cliente é o boto3 com assinatura v4. Duas exigências vêm do código: a
+credencial precisa de leitura e escrita no bucket, e o bucket precisa existir — o worker o confirma
+uma vez, antes de tocar na fila, e só o cria quando `S3_AUTO_CREATE_BUCKET=true`. De dentro do
 contêiner `app`, `localhost` é o próprio contêiner, então aponte o endpoint para o endereço do
 serviço na sua rede (`host.docker.internal` alcança um serviço rodando na máquina hospedeira).
+
+A confirmação é deliberada, e é ela que torna a falha legível. Nem todo endpoint diz "este bucket
+não existe": o SeaweedFS responde **`AccessDenied`** a um envio para um bucket que nunca foi criado,
+então cada documento da execução parece um problema de credencial. Com a flag desligada (o padrão) o
+worker recusa a execução de antemão, nomeando o bucket e o comando que o cria; com a flag ligada ele
+cria o bucket e segue. O `GET /api/v1/system/health` relata a mesma distinção e nunca cria nada — um
+probe que provisiona é uma escrita escondida dentro de uma leitura.
 
 O que vive lá hoje são os JPEGs do worker `thumbnail`, em `thumbnails/`. O banco guarda a referência
 `s3://bucket/key` resultante em `storage_thumbnail_uri`.

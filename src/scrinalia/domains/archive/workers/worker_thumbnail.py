@@ -100,7 +100,12 @@ def download_image_to_memory(url: str) -> BytesIO | None:
         return None
 
 
-def execute(db: Session, storage: ThumbnailStoragePort | None = None, force: bool = False) -> None:
+def execute(
+    db: Session,
+    storage: ThumbnailStoragePort | None = None,
+    force: bool = False,
+    limit: int | None = None,
+) -> None:
     """
     Asynchronous orchestrator responsible for migrating images from an ephemeral
     external link to a secure Object Storage (any S3-compatible endpoint).
@@ -109,6 +114,15 @@ def execute(db: Session, storage: ThumbnailStoragePort | None = None, force: boo
     whose local storage URI is still empty. ``force`` also picks up the documents marked
     ``thumbnail_failed``, which is what a transient storage outage left behind: without it a
     bucket that was down for an afternoon is indistinguishable from a dead link, forever.
+
+    ``limit`` caps the documents this run touches, which is what makes a local test cheap: the
+    queue has no per-transaction page here, so without it one command downloads and uploads the
+    whole backlog. It is ``None`` by default — a production run is still the whole queue.
+
+    The destination is confirmed **before the first document**, not inside the per-document
+    ``try``: a bucket that does not exist used to fail every upload with the endpoint's
+    ``AccessDenied``, and the loop stamped the whole backlog ``thumbnail_failed`` for what was a
+    single misconfiguration.
     """
     logger.info("📸 Starting the Thumbnails Worker...")
 
@@ -118,13 +132,22 @@ def execute(db: Session, storage: ThumbnailStoragePort | None = None, force: boo
     # Fetches images that have not yet been uploaded AND that have not failed. HUMAN_APPROVED
     # documents are left untouched.
     query = select(ArchiveDocument).where(*pending_conditions(force))
+    if limit is not None:
+        query = query.limit(limit)
 
     pending_documents = db.scalars(query).yield_per(50)
 
     processed = 0
     successes = 0
+    bucket_checked = False
 
     for doc in pending_documents:
+        # Outside the ``try`` below on purpose: an unusable destination aborts the run once instead
+        # of being recorded as a failure of the first document.
+        if not bucket_checked:
+            storage.ensure_bucket()
+            bucket_checked = True
+
         try:
             with db.begin_nested():
                 target_url = doc.original_thumbnail_url

@@ -1081,3 +1081,46 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   button went disabled; the mutation was reverted immediately and the pending count returned to 204.
   **Not** verified in pixels: the write itself from the screen (the refusal and the ban are pinned by
   the integration suite, which drives the real routes and the real `ban_created`/`source` columns).
+
+## 2026-10-13 — the thumbnail worker runs against a local endpoint (#33)
+
+- **Range:** `480fd36..153afb2` — the merge that carried the previous round, then this change. The
+  change was **uncommitted during the triage**, so `freshness.py` printed "Every page is fresh"; the
+  triage was driven by the working-tree diff, as the previous entry's was.
+- **Pages:**
+  - `guides/install.md` — **updated**: the settings table gains `S3_AUTO_CREATE_BUCKET` (default
+    `false`) and the `S3_BUCKET_NAME` row stops saying the bucket "must already exist" without
+    qualification; the *Object storage is not shipped* section now says the worker confirms the
+    bucket once, before the queue, creates it only with the flag on, and that SeaweedFS answers
+    `AccessDenied` to an upload into a bucket that does not exist — which is why the confirmation
+    exists. It also states that `GET /system/health` reports the distinction and never creates
+    anything.
+  - `guides/install.pt.md` — **updated** (the translation of both places).
+  - `guides/operate.md` — **updated**: the runner's flag table gains `--limit N` (a cap on the units
+    of one run, honored by the workers that declare `limit` and refused by the others) and now says
+    that `--batch` is **logged** when the worker does not declare `db_batch_size`; the `thumbnail`
+    bullet names the bucket confirmation and the cap.
+  - `guides/operate.pt.md` — **updated** (the translation of the same).
+- **Why the round exists:** the change moves `core/config.py` (the install page's declared source)
+  and `core/storage.py`, `api/system_health.py`, `workers/runner.py` and `workers/worker_*.py` (the
+  operate page's), so both guides were read and both needed a text.
+- **What the round measured.** Full suite **1608 passed** (`TEST_DATABASE_URL` pointed at the test
+  database on 5434), `ruff check`/`ruff format --check` green, `basedpyright` **0 errors**,
+  `alembic check` reporting no new upgrade operations, `mkdocs build --strict` green. Against the
+  local SeaweedFS and the reference collection the worker went from **0/97** to **97/97**
+  descriptions with `storage_thumbnail_uri`, **97** objects under `thumbnails/`, **0**
+  `thumbnail_failed`, and a `SUCCESS` row in `archive_worker_runs` (id 14, `trigger=CLI`, 55.5 s).
+  The refusals were exercised: `--limit 2` processed exactly 2, `--limit 2` on `ner` was refused
+  with the list of workers that declare it, and `--batch 2` on `thumbnail` logged that the value was
+  ignored. `S3_AUTO_CREATE_BUCKET=true` created a scratch bucket on the endpoint (deleted after the
+  measurement), and the flag-off path refused with the bucket and the `aws s3 mb` command named.
+- **What the round looked at.** No screen was **rendered**, and none needed to be: no SPA file
+  changed. The storage refusals are pinned by unit tests and were also exercised by hand against the
+  real endpoint. **Not** verified in pixels: the *Diagnóstico* storage card, which the probe's two
+  branches feed — those branches are pinned by `testing/unit/api/test_system_health.py`.
+- **Divergence the round surfaced.** The CLI could not write its own ledger row:
+  `archive_worker_runs` carries a foreign key into `auth_users`, and a process that imported only the
+  archive models failed to flush the insert with `NoReferencedTableError`; the ledger swallows a
+  bookkeeping failure by design, so a CLI run left no line while the panel's runs did. Fixed in the
+  same change: `scrinalia.metadata.load_all_models` is the one definition of the model packages, and
+  `migrations/env.py` and `WorkerRunLedger` both call it.

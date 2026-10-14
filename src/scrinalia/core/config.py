@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     S3_BUCKET_NAME: str | None = None
     S3_ACCESS_KEY: SecretStr | None = None
     S3_SECRET_KEY: SecretStr | None = None
+    #: Whether the worker may create the bucket it is configured with. **Off by default**: the
+    #: project treats object storage as infrastructure the operator brings, so the app does not
+    #: provision it unless the operator says so. With it on, a local endpoint (MinIO, SeaweedFS)
+    #: works without a manual ``mb``; with it off, a missing bucket is refused once, up front,
+    #: instead of failing every upload with the endpoint's misleading ``AccessDenied``.
+    S3_AUTO_CREATE_BUCKET: bool = False
 
     # LLM hosts
     OLLAMA_HOST_URL: str | None = None

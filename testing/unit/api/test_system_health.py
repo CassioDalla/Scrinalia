@@ -7,6 +7,7 @@ security incident, so the process probe reports presence, not content.
 
 import sys
 
+from botocore.exceptions import ClientError
 from pydantic import SecretStr
 
 from scrinalia.api import system_health
@@ -92,6 +93,55 @@ def test_storage_probe_reports_a_bucket_that_does_not_answer(monkeypatch) -> Non
     assert health.configured is True
     assert health.ok is False
     assert "NoSuchBucket" in (health.detail or "")
+
+
+def _configured_storage(monkeypatch, *, auto_create: bool) -> None:
+    monkeypatch.setattr(system_health.settings, "S3_ENDPOINT_URL", "http://localhost:9000")
+    monkeypatch.setattr(system_health.settings, "S3_BUCKET_NAME", "bronze")
+    monkeypatch.setattr(system_health.settings, "S3_ACCESS_KEY", SecretStr("chave"))
+    monkeypatch.setattr(system_health.settings, "S3_SECRET_KEY", SecretStr("segredo"))
+    monkeypatch.setattr(system_health.settings, "S3_AUTO_CREATE_BUCKET", auto_create)
+
+
+def _install_s3_client(monkeypatch, client) -> None:
+    class _Boto3:
+        @staticmethod
+        def client(*args, **kwargs):
+            return client
+
+    monkeypatch.setitem(sys.modules, "boto3", _Boto3)
+
+
+class _MissingBucketClient:
+    """The endpoint answering ``404`` on the HEAD — what SeaweedFS does for a bucket not created."""
+
+    def head_bucket(self, Bucket):
+        raise ClientError({"Error": {"Code": "404"}, "ResponseMetadata": {"HTTPStatusCode": 404}}, "HeadBucket")
+
+
+def test_storage_probe_names_a_missing_bucket_instead_of_a_permission_error(monkeypatch) -> None:
+    """With auto-create off, "down" has to say *which* piece is missing and how to create it."""
+    _configured_storage(monkeypatch, auto_create=False)
+    _install_s3_client(monkeypatch, _MissingBucketClient())
+
+    health = system_health.probe_storage()
+
+    assert health.configured is True
+    assert health.ok is False
+    assert "não existe" in (health.detail or "")
+    assert "S3_AUTO_CREATE_BUCKET=true" in (health.detail or "")
+
+
+def test_storage_probe_reports_up_when_the_worker_will_create_the_bucket(monkeypatch) -> None:
+    """The probe never creates — a GET that provisions is a write hiding in a read — but it must not
+    call the endpoint down when the worker is allowed to provision it on the first upload."""
+    _configured_storage(monkeypatch, auto_create=True)
+    _install_s3_client(monkeypatch, _MissingBucketClient())
+
+    health = system_health.probe_storage()
+
+    assert health.ok is True
+    assert "S3_AUTO_CREATE_BUCKET=true" in (health.detail or "")
 
 
 def test_the_database_probe_answers_instead_of_raising(monkeypatch) -> None:

@@ -26,12 +26,19 @@ from scrinalia.domains.archive.exceptions import WorkerRunAlreadyActiveError
 from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
 from scrinalia.domains.archive.schemas.system_schema import WorkerRunDTO
+from scrinalia.metadata import load_all_models
 
 
 class WorkerRunLedger:
     """Writes one line per execution, with its own transaction."""
 
     def __init__(self, session_factory: SessionFactory = create_session) -> None:
+        # The row carries a foreign key into ``auth_users``, and SQLAlchemy resolves a foreign key
+        # when it flushes the insert. A process that imported only the archive models (the CLI did)
+        # could not open the ledger at all, and the ledger swallows a bookkeeping failure by design:
+        # the run happened and left no line. Loading the model packages here makes the guarantee the
+        # ledger's own instead of the caller's.
+        load_all_models()
         self._session_factory = session_factory
 
     def enqueue(
