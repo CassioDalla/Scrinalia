@@ -7,6 +7,48 @@ All notable changes to this project are documented here. The format is
 `1.0.0` was the first release; the newest one is at the top. Entries describe **behaviour**, not
 commits — the history is the detail.
 
+## [Unreleased]
+
+### Added
+
+- **The typology classifier has a bench, and the first measurement puts the failure somewhere other
+  than where the issue expected it** (issue #69): `testing/evaluation/typology_quality.py` scores the
+  classifier against a labelled set and prints agreement, per-typology precision/recall/F1, the
+  confusion matrix, the label distribution (largest share, entropy, abstentions) and seconds per
+  document — one line per configuration, `--config engine:preset:columns:threshold`, the four fields
+  `worker_typology.producer_identity` signs. `--pick` proposes the labelled set, which is collection
+  data and stays out of the repository, with its shape versioned in `testing/evaluation/README.md`.
+  Nothing reaches the database: the session is opened, read and rolled back. An integration test pins
+  the scored text to the text the worker hands the model, with an approved excerpt in the middle so
+  the pin bites.
+
+  **Measured on 2026-10-14 against `memoriacuritibana` (4.813 descriptions), on 111 labelled rows,
+  with the gabarito pre-labelled by an agent and not yet reviewed by a curator.** The bench refuses to
+  score such a set without `--allow-draft`, and these numbers carry that caveat:
+
+  | configuration | agreement | macro-F1 | abstention | s/doc |
+  | --- | ---: | ---: | ---: | ---: |
+  | `original_title,admin_bio_history` @ 0.40 | 0.847 | 0.701 | 0.207 | 6.36 |
+  | `original_title` @ 0.40 (the shipping one) | 0.775 | 0.484 | 0.054 | 2.06 |
+  | `original_title` @ 0.30 | 0.757 | 0.481 | 0.018 | 2.05 |
+  | `original_title` @ 0.55 | 0.739 | 0.479 | 0.171 | 2.00 |
+  | `original_title` @ 0.70 | 0.721 | 0.449 | 0.324 | 1.96 |
+
+  Two readings the numbers force. **The columns matter more than the floor**: reading the archival
+  history beside the title lifts agreement by 7 points and macro-F1 by 22, and turns the control
+  bucket — 11 descriptions no typology covers — into 11 abstentions; with the title alone the model
+  puts 8 of those 11 into "Ofício / Memorando", the label it uses as a dustbin (18 answers there, 0
+  of them right). The price is 3.1x the seconds per document. **The confidence floor is a band, not a
+  cliff**: 0.30/0.40/0.55/0.70 agree at 0.757/0.775/0.739/0.721, so the 0.40 has a measurement behind
+  it for the first time and is the best of the four on this set — by four rows out of 111, which is
+  not a decisive difference. The floor stays 0.40, and moving it is its own issue.
+
+  On this sample the model does **not** collapse: the largest drawer holds 42% of the answers in a
+  sample that is already 40% "Planta Arquitetônica". The sample is balanced by construction, so it
+  cannot refute the collapse the issue measured on the unbalanced reference collection — the whole
+  collection is what a collapse measurement needs, and the stored mode prints that distribution in
+  one query (4.205 of 4.813 descriptions carry no typology at all).
+
 ## [1.2.0] - 2026-10-13
 
 ### Added
