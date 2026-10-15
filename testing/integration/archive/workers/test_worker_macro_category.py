@@ -1,22 +1,28 @@
 import pytest
 
-from scrinalia.domains.archive.domain.vocabulary import label_set_fingerprint
+from scrinalia.core.runner_config import MacroCategoryRunnerConfig
 from scrinalia.domains.archive.engines.classification import registry as typology_registry
 from scrinalia.domains.archive.models import ArchiveMacroCategory, ArchiveTag
-from scrinalia.domains.archive.workers.worker_macro_category import execute
+from scrinalia.domains.archive.workers.worker_macro_category import execute, producer_identity
 
 
-def _fingerprint(*categories) -> str:
+def _identity(*categories) -> str:
     """
-    The stamp value the worker writes for a given vocabulary.
+    The stamp value the worker writes for a given vocabulary and the fake engine of these tests.
 
     Keyed by the **resolved label** (``classifier_label`` when the curator wrote one, the
     bare name otherwise), because that is what the model reasons about — and therefore what
-    the stamp has to identify. The names and ids are read eagerly: the worker calls
-    ``expunge_all()``, so the ORM instances are detached by the time a test inspects them.
+    the stamp has to identify — composed with the producer. The names and ids are read eagerly:
+    the worker calls ``expunge_all()``, so the ORM instances are detached by the time a test
+    inspects them. Call it *after* ``mock_registry``: it reads the preset through
+    ``describe_config``.
     """
-    return label_set_fingerprint(
-        {(category.classifier_label or category.name): category.category_id for category in categories}
+    return producer_identity(
+        engine_name="motor_fake",  # type: ignore[arg-type]
+        preset="preset_teste",  # type: ignore[arg-type]
+        categories_map={(category.classifier_label or category.name): category.category_id for category in categories},
+        confidence_threshold=MacroCategoryRunnerConfig().confidence_threshold,
+        engine_kwargs={},
     )
 
 
@@ -47,9 +53,8 @@ def test_worker_links_orphan_tags_and_persists_score(use_test_db, db_session, mo
     db_session.commit()
     tag_ids = [tag.tag_id for tag in tags]
 
-    expected = _fingerprint(category)
-
     _fake_engine(mock_registry, "Urbanismo", 0.90)
+    expected = _identity(category)
 
     execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
 
@@ -73,9 +78,8 @@ def test_worker_leaves_tag_orphan_on_low_confidence(use_test_db, db_session, moc
     db_session.commit()
     tag_id = tag.tag_id
 
-    expected = _fingerprint(category)
-
     _fake_engine(mock_registry, "Urbanismo", 0.30)
+    expected = _identity(category)
 
     execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
 
@@ -103,13 +107,13 @@ def test_worker_skips_stamped_orphan_until_forced(use_test_db, db_session, mock_
     db_session.commit()
     category_id = category.category_id
 
-    # Stamped with the *current* vocabulary: this tag is settled.
-    tag = ArchiveTag(name="ambíguo", execution_log={"worker_macro_category_v1": _fingerprint(category)})
+    ai_instance = _fake_engine(mock_registry, "Urbanismo", 0.90)
+
+    # Stamped by the current producer — this vocabulary and this engine: the tag is settled.
+    tag = ArchiveTag(name="ambíguo", execution_log={"worker_macro_category_v1": _identity(category)})
     db_session.add(tag)
     db_session.commit()
     tag_id = tag.tag_id
-
-    ai_instance = _fake_engine(mock_registry, "Urbanismo", 0.90)
 
     execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
     ai_instance.classify.assert_not_called()
@@ -216,17 +220,17 @@ def test_rewriting_a_label_requeues_the_stamped_tags(use_test_db, db_session, mo
     category = ArchiveMacroCategory(name="Urbanismo")
     db_session.add(category)
     db_session.commit()
-    tag = ArchiveTag(name="alvenaria", execution_log={"worker_macro_category_v1": _fingerprint(category)})
-    db_session.add(tag)
-    db_session.commit()
-    tag_id = tag.tag_id
-
     # The engine answers with whatever label it was asked about, like the real model does.
     MockClass = mock_registry(typology_registry)
     ai_instance = MockClass.return_value
     ai_instance.classify.side_effect = lambda texts, candidate_labels, **kwargs: [
         {"labels": [candidate_labels[0]], "scores": [0.90]} for _ in texts
     ]
+
+    tag = ArchiveTag(name="alvenaria", execution_log={"worker_macro_category_v1": _identity(category)})
+    db_session.add(tag)
+    db_session.commit()
+    tag_id = tag.tag_id
 
     # Settled under the current vocabulary: nothing to do.
     execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
@@ -251,10 +255,10 @@ def test_rewriting_a_label_back_to_the_same_value_does_not_requeue(use_test_db, 
     category = ArchiveMacroCategory(name="Urbanismo", classifier_label="um assunto sobre urbanismo")
     db_session.add(category)
     db_session.commit()
-    db_session.add(ArchiveTag(name="alvenaria", execution_log={"worker_macro_category_v1": _fingerprint(category)}))
-    db_session.commit()
-
     ai_instance = _fake_engine(mock_registry, "Urbanismo", 0.90)
+
+    db_session.add(ArchiveTag(name="alvenaria", execution_log={"worker_macro_category_v1": _identity(category)}))
+    db_session.commit()
 
     execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
     ai_instance.classify.assert_not_called()
@@ -269,7 +273,13 @@ def test_registering_a_new_drawer_requeues_the_orphans_only(use_test_db, db_sess
     db_session.add(urbanism)
     db_session.commit()
 
-    orphan = ArchiveTag(name="igrejas", execution_log={"worker_macro_category_v1": _fingerprint(urbanism)})
+    MockClass = mock_registry(typology_registry)
+    ai_instance = MockClass.return_value
+    ai_instance.classify.side_effect = lambda texts, candidate_labels, **kwargs: [
+        {"labels": ["Religião"], "scores": [0.95]} for _ in texts
+    ]
+
+    orphan = ArchiveTag(name="igrejas", execution_log={"worker_macro_category_v1": _identity(urbanism)})
     linked = ArchiveTag(name="alvenaria", macro_category_id=urbanism.category_id)
     db_session.add_all([orphan, linked])
     db_session.commit()
@@ -279,12 +289,6 @@ def test_registering_a_new_drawer_requeues_the_orphans_only(use_test_db, db_sess
     db_session.add(religion)
     db_session.commit()
     religion_id = religion.category_id
-
-    MockClass = mock_registry(typology_registry)
-    ai_instance = MockClass.return_value
-    ai_instance.classify.side_effect = lambda texts, candidate_labels, **kwargs: [
-        {"labels": ["Religião"], "scores": [0.95]} for _ in texts
-    ]
 
     execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
 
@@ -506,3 +510,34 @@ def test_undoing_an_exclusion_reopens_the_classifier(use_test_db, db_session, mo
     execute(db=db_session, engine_name="motor_fake", preset="preset_teste", force=True)  # type: ignore
     ai_instance.classify.assert_called_once()
     assert db_session.query(ArchiveTag).filter_by(name="pessoas").one().macro_category_id == category_id
+
+
+def test_a_different_threshold_requeues_the_orphans(use_test_db, db_session, mock_registry):
+    """
+    The floor is part of the producer identity: a tag the old floor left orphan comes back.
+
+    Without this, a value measured by the bench would never reach the collection — the tag keeps
+    the stamp of the run that refused it.
+    """
+    category = ArchiveMacroCategory(name="Urbanismo")
+    db_session.add(category)
+    db_session.commit()
+    category_id = category.category_id
+    db_session.add(ArchiveTag(name="pavimentação"))
+    db_session.commit()
+
+    ai_instance = _fake_engine(mock_registry, "Urbanismo", 0.50)
+
+    # 0.50 is below the 0.55 default floor: orphan, and stamped with that producer.
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
+    ai_instance.classify.assert_called_once()
+
+    # The same floor again is free.
+    ai_instance.classify.reset_mock()
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
+    ai_instance.classify.assert_not_called()
+
+    # Lowering the floor changes the identity: the orphan comes back and is linked.
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste", confidence_threshold=0.45)  # type: ignore
+    ai_instance.classify.assert_called_once()
+    assert db_session.query(ArchiveTag).filter_by(name="pavimentação").one().macro_category_id == category_id

@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 from sqlalchemy import select
 
+from scrinalia.core.runner_config import NerRunnerConfig
 from scrinalia.domains.archive.models import (
     ArchiveDocument,
     ArchiveDocumentEntity,
@@ -14,7 +15,18 @@ from scrinalia.domains.archive.models import (
 from scrinalia.domains.archive.repository.document_repo import DocumentRepository
 from scrinalia.domains.archive.repository.entity_repo import EntityRepository
 from scrinalia.domains.archive.schemas.entity_schema import ArchiveEntityDTO
-from scrinalia.domains.archive.workers.worker_ner import execute, load_entity_blacklist
+from scrinalia.domains.archive.worker_stamp import NER
+from scrinalia.domains.archive.workers.worker_ner import execute, load_entity_blacklist, producer_identity
+
+
+def _identity() -> str:
+    """The stamp a run with the signature defaults writes: the real preset, no engine override."""
+    return producer_identity(
+        engine_name="spacy_ner",
+        preset="gpu",
+        columns_to_extract=list(NerRunnerConfig().columns_to_extract),
+        engine_kwargs={},
+    )
 
 
 @patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
@@ -75,7 +87,8 @@ def test_worker_ner_integration_real_database(
 
     # Checks whether the JSONB was written perfectly to disk
     assert updated_doc.execution_log is not None
-    assert updated_doc.execution_log["worker_ner_v2"] == "DONE"
+    # The stamp names the extractor, not the fact that it ran.
+    assert updated_doc.execution_log[NER.key] == _identity()
 
     # Confirms the correct sending of the concatenated text to the AI
     args, _ = ner_engine_mock.extract.call_args
@@ -100,7 +113,8 @@ def test_worker_ner_integration_ignores_already_processed_documents(mock_get_eng
     """Integration: Validates whether the SQLAlchemy WHERE query respects the JSONB negation in PostgreSQL."""
     # We insert a document into the real database that ALREADY HAS the stamp
     old_doc = generate_archive_doc(
-        original_title="Documento Antigo", execution_log={"worker_ner_v2": "DONE", "algum_outro_worker": "ERROR"}
+        original_title="Documento Antigo",
+        execution_log={NER.key: _identity(), "algum_outro_worker": "ERROR"},
     )
     db_session.add(old_doc)
     db_session.commit()
@@ -136,10 +150,10 @@ def test_worker_ner_integration_processes_multiple_batches(mock_get_engine, db_s
 
     db_session.expire_all()
 
-    # All 3 documents must have the DONE stamp saved in the database
-    assert db_session.get(ArchiveDocument, "doc-1").execution_log["worker_ner_v2"] == "DONE"
-    assert db_session.get(ArchiveDocument, "doc-2").execution_log["worker_ner_v2"] == "DONE"
-    assert db_session.get(ArchiveDocument, "doc-3").execution_log["worker_ner_v2"] == "DONE"
+    # All 3 documents must carry the producer identity saved in the database
+    assert db_session.get(ArchiveDocument, "doc-1").execution_log[NER.key] == _identity()
+    assert db_session.get(ArchiveDocument, "doc-2").execution_log[NER.key] == _identity()
+    assert db_session.get(ArchiveDocument, "doc-3").execution_log[NER.key] == _identity()
 
     # The AI inference (batch extract) must have been called exactly 2 times
     assert ner_engine_mock.extract.call_count == 2
@@ -199,7 +213,7 @@ def test_worker_ner_does_not_recreate_an_excluded_entity(mock_get_engine, db_ses
 
     The judge decided the term is a TAG, so the exclusion is in the catalog. On the
     next run the engine still returns the same entity (a real spaCy would), and the
-    worker must drop it: no entity row, no link, but the document is stamped DONE so
+    worker must drop it: no entity row, no link, but the document is stamped with the producer
     the queue advances instead of retrying forever.
     """
     mock_get_engine.return_value.extract.return_value = [
@@ -231,7 +245,7 @@ def test_worker_ner_does_not_recreate_an_excluded_entity(mock_get_engine, db_ses
     links = db_session.scalars(select(ArchiveDocumentEntity)).all()
     assert len(links) == 1
 
-    assert db_session.get(ArchiveDocument, "doc_excluded").execution_log["worker_ner_v2"] == "DONE"
+    assert db_session.get(ArchiveDocument, "doc_excluded").execution_log[NER.key] == _identity()
 
 
 @patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
@@ -383,3 +397,56 @@ def test_worker_ner_extracts_from_the_text_without_the_approved_excerpt(
     execute(db=db_session, columns_to_extract=["original_title", "scope_content"])
 
     assert mock_get_engine.return_value.extract.call_args.args[0] == ["Rua Izaac"]
+
+
+# ==========================================
+# THE STAMP NAMES THE PRODUCER (issue 70)
+# ==========================================
+
+
+@patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
+def test_a_different_producer_requeues_the_documents(mock_get_engine, db_session, generate_archive_doc):
+    """Another engine, preset or column set changes the identity, so the extraction is redone."""
+    mock_get_engine.return_value.extract.return_value = [[]]
+    doc = generate_archive_doc(description_id="ner_prod", original_title="Relatório", scope_content="Escopo")
+    description_id = doc.description_id
+
+    execute(db=db_session)
+
+    # The same producer is free: the document left the queue under its own identity.
+    mock_get_engine.return_value.extract.reset_mock()
+    execute(db=db_session)
+    mock_get_engine.return_value.extract.assert_not_called()
+
+    # Reading a different column is a different producer: the document is pending again.
+    execute(db=db_session, columns_to_extract=["scope_content"])
+    mock_get_engine.return_value.extract.assert_called_once()
+
+    db_session.expire_all()
+    stored = db_session.get(ArchiveDocument, description_id)
+    assert stored.execution_log[NER.key] == producer_identity(
+        engine_name="spacy_ner",
+        preset="gpu",
+        columns_to_extract=["scope_content"],
+        engine_kwargs={},
+    )
+
+
+@patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
+def test_a_forced_run_advances_by_cursor_and_honours_the_limit(mock_get_engine, db_session, generate_archive_doc):
+    """``force`` drops the stamp clause, so the cursor is what makes the run end (issue 70)."""
+    mock_get_engine.return_value.extract.side_effect = [[[]], [[]]]
+    docs = [
+        generate_archive_doc(description_id="ner_cap_a", original_title="Primeiro"),
+        generate_archive_doc(description_id="ner_cap_b", original_title="Segundo"),
+    ]
+    description_ids = [doc.description_id for doc in docs]
+
+    execute(db=db_session, force=True, limit=2, db_batch_size=1)
+
+    # Without the cursor the second batch would re-read the first document and never reach the
+    # second one, which is what the two calls and the two stamps below pin.
+    assert mock_get_engine.return_value.extract.call_count == 2
+    db_session.expire_all()
+    for description_id in description_ids:
+        assert NER.key in db_session.get(ArchiveDocument, description_id).execution_log

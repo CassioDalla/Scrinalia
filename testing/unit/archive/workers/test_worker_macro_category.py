@@ -2,14 +2,10 @@ import pytest
 from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 
+from scrinalia.core.runner_config import MacroCategoryRunnerConfig
 from scrinalia.domains.archive.domain.collection_vocabulary import CollectionVocabulary
 from scrinalia.domains.archive.domain.vocabulary import label_set_fingerprint
 from scrinalia.domains.archive.workers import worker_macro_category
-
-#: The stamp value a tag gets after being classified against a given label set. The worker
-#: stores the *identity of the vocabulary*, not a status, so this changes whenever a drawer
-#: is added, retired or relabelled — which is what re-queues the collection.
-FINGERPRINT = label_set_fingerprint({"Urbanismo": 7})
 
 
 class MockArchiveTag:
@@ -31,11 +27,21 @@ class MockArchiveTag:
 
 
 def _prepare(mocker: MockerFixture, categories: dict[str, int], vocabulary: CollectionVocabulary | None = None):
-    """Patches the repository and the engine, returning (db, engine, repo)."""
+    """Patches the repository and the engine, returning (db, engine, expected stamp).
+
+    The expected stamp is the **producer identity** the run writes for this label set: the label
+    hash and the engine are both in it, so a different vocabulary and a different model each put
+    the orphan tags back in the queue. Computing it through the worker keeps the assertion about
+    *which* tags were stamped from re-implementing the hash.
+    """
     mock_db = mocker.Mock(spec=Session)
     mock_repo_class = mocker.patch("scrinalia.domains.archive.workers.worker_macro_category.TagRepository")
     mock_get_engine = mocker.patch("scrinalia.domains.archive.workers.worker_macro_category.get_engine")
     mocker.patch("scrinalia.domains.archive.workers.worker_macro_category.flag_modified")
+    mocker.patch(
+        "scrinalia.domains.archive.workers.worker_macro_category.describe_config",
+        return_value={"model": "falso", "device": "cpu"},
+    )
 
     mock_repo_class.return_value.get_active_macro_categories.return_value = categories
     # The collection's own two families are rows now, so the worker reads them from the repository.
@@ -43,7 +49,14 @@ def _prepare(mocker: MockerFixture, categories: dict[str, int], vocabulary: Coll
     # its own test below.
     mock_repo_class.return_value.collection_vocabulary.return_value = vocabulary or CollectionVocabulary()
 
-    return mock_db, mock_get_engine.return_value
+    identity = worker_macro_category.producer_identity(
+        engine_name="motor_fake",  # type: ignore[arg-type]
+        preset="preset_teste",  # type: ignore[arg-type]
+        categories_map=categories,
+        confidence_threshold=MacroCategoryRunnerConfig().confidence_threshold,
+        engine_kwargs={},
+    )
+    return mock_db, mock_get_engine.return_value, identity
 
 
 # ==========================================
@@ -53,7 +66,7 @@ def _prepare(mocker: MockerFixture, categories: dict[str, int], vocabulary: Coll
 
 def test_worker_links_category_and_persists_score(mocker: MockerFixture) -> None:
     """Good Scenario: the AI wins the tag, the category is linked and the score persisted."""
-    mock_db, engine = _prepare(mocker, {"Urbanismo": 7})
+    mock_db, engine, identity = _prepare(mocker, {"Urbanismo": 7})
     engine.classify.return_value = [{"labels": ["Urbanismo"], "scores": [0.93]}]
 
     tag = MockArchiveTag(1, "pavimentação")
@@ -63,12 +76,12 @@ def test_worker_links_category_and_persists_score(mocker: MockerFixture) -> None
 
     assert tag.macro_category_id == 7
     assert tag.ai_confidence_score == pytest.approx(0.93)
-    assert tag.execution_log == {"worker_macro_category_v1": FINGERPRINT}
+    assert tag.execution_log == {"worker_macro_category_v1": identity}
 
 
 def test_worker_keeps_score_but_does_not_link_below_threshold(mocker: MockerFixture) -> None:
     """Sad Path: below the threshold the tag stays orphan, but the score is observable."""
-    mock_db, engine = _prepare(mocker, {"Urbanismo": 7})
+    mock_db, engine, identity = _prepare(mocker, {"Urbanismo": 7})
     engine.classify.return_value = [{"labels": ["Urbanismo"], "scores": [0.20]}]
 
     tag = MockArchiveTag(1, "termo ambíguo")
@@ -79,12 +92,12 @@ def test_worker_keeps_score_but_does_not_link_below_threshold(mocker: MockerFixt
     assert tag.macro_category_id is None
     assert tag.ai_confidence_score == pytest.approx(0.20)
     # Still stamped: the tag leaves the queue instead of looping forever.
-    assert tag.execution_log == {"worker_macro_category_v1": FINGERPRINT}
+    assert tag.execution_log == {"worker_macro_category_v1": identity}
 
 
 def test_worker_survives_hallucinated_label(mocker: MockerFixture) -> None:
     """The engine cannot force a KeyError by returning a label that is not in the map."""
-    mock_db, engine = _prepare(mocker, {"Urbanismo": 7})
+    mock_db, engine, identity = _prepare(mocker, {"Urbanismo": 7})
     engine.classify.return_value = [{"labels": ["Categoria Inexistente"], "scores": [0.99]}]
 
     tag = MockArchiveTag(1, "algo")
@@ -93,12 +106,12 @@ def test_worker_survives_hallucinated_label(mocker: MockerFixture) -> None:
     worker_macro_category.execute(db=mock_db, engine_name="motor_fake", preset="preset_teste")  # type: ignore
 
     assert tag.macro_category_id is None
-    assert tag.execution_log == {"worker_macro_category_v1": FINGERPRINT}
+    assert tag.execution_log == {"worker_macro_category_v1": identity}
 
 
 def test_worker_aborts_without_registered_categories(mocker: MockerFixture) -> None:
     """Without an active macro category there is nothing to classify against."""
-    mock_db, engine = _prepare(mocker, {})
+    mock_db, engine, _identity = _prepare(mocker, {})
 
     worker_macro_category.execute(db=mock_db, engine_name="motor_fake", preset="preset_teste")  # type: ignore
 
@@ -108,7 +121,7 @@ def test_worker_aborts_without_registered_categories(mocker: MockerFixture) -> N
 
 def test_worker_aborts_without_pending_tags(mocker: MockerFixture) -> None:
     """When the count query says zero, the AI must not even be instantiated."""
-    mock_db, engine = _prepare(mocker, {"Urbanismo": 7})
+    mock_db, engine, _identity = _prepare(mocker, {"Urbanismo": 7})
     mock_db.scalar.return_value = 0
 
     worker_macro_category.execute(db=mock_db, engine_name="motor_fake", preset="preset_teste")  # type: ignore
@@ -118,7 +131,7 @@ def test_worker_aborts_without_pending_tags(mocker: MockerFixture) -> None:
 
 def test_worker_rolls_back_on_ai_failure(mocker: MockerFixture) -> None:
     """OOM/engine failure must roll back the batch and leave the tags unstamped for a retry."""
-    mock_db, engine = _prepare(mocker, {"Urbanismo": 7})
+    mock_db, engine, _identity = _prepare(mocker, {"Urbanismo": 7})
     engine.classify.side_effect = Exception("CUDA Out of Memory")
 
     tag = MockArchiveTag(1, "texto")
@@ -141,7 +154,7 @@ def test_worker_never_sends_a_bare_year_to_the_model(mocker: MockerFixture) -> N
     ``1924`` reaches 260 documents, is a date, and was classified as "Mobilidade e
     Transporte" with 0.73 confidence — no threshold can catch a confident wrong answer.
     """
-    mock_db, engine = _prepare(mocker, {"Urbanismo": 7})
+    mock_db, engine, identity = _prepare(mocker, {"Urbanismo": 7})
     year = MockArchiveTag(1, "1924")
     real = MockArchiveTag(2, "alvenaria")
     engine.classify.return_value = [{"labels": ["Urbanismo"], "scores": [0.93]}]
@@ -155,12 +168,12 @@ def test_worker_never_sends_a_bare_year_to_the_model(mocker: MockerFixture) -> N
     assert real.macro_category_id == 7
     assert year.macro_category_id is None
     assert year.ai_confidence_score is None
-    assert year.execution_log == {"worker_macro_category_v1": FINGERPRINT}
+    assert year.execution_log == {"worker_macro_category_v1": identity}
 
 
 def test_worker_skips_a_placeholder_and_a_street(mocker: MockerFixture) -> None:
     """``local não identificado`` (166 docs) and ``rua xv de novembro`` (118) are not subjects."""
-    mock_db, engine = _prepare(mocker, {"Urbanismo": 7})
+    mock_db, engine, _identity = _prepare(mocker, {"Urbanismo": 7})
     tags = [
         MockArchiveTag(1, "local não identificado"),
         MockArchiveTag(2, "rua xv de novembro"),
@@ -186,7 +199,7 @@ def test_worker_refuses_a_person_name_the_collection_declared(mocker: MockerFixt
     collection nobody has described.
     """
     declared = CollectionVocabulary(person_terms=frozenset({"jaime lerner"}))
-    mock_db, engine = _prepare(mocker, {"Urbanismo": 7}, vocabulary=declared)
+    mock_db, engine, _identity = _prepare(mocker, {"Urbanismo": 7}, vocabulary=declared)
     tags = [MockArchiveTag(1, "jaime lerner"), MockArchiveTag(2, "parque")]
     engine.classify.return_value = [{"labels": ["Urbanismo"], "scores": [0.93]}]
     mock_db.scalars.return_value.all.side_effect = [tags, []]
@@ -200,7 +213,7 @@ def test_worker_refuses_a_person_name_the_collection_declared(mocker: MockerFixt
 
 def test_worker_does_not_instantiate_the_engine_for_an_all_guarded_batch(mocker: MockerFixture) -> None:
     """A batch of only dates must not pay for inference at all."""
-    mock_db, engine = _prepare(mocker, {"Urbanismo": 7})
+    mock_db, engine, identity = _prepare(mocker, {"Urbanismo": 7})
     tags = [MockArchiveTag(1, "1924"), MockArchiveTag(2, "1915")]
     mock_db.scalars.return_value.all.side_effect = [tags, []]
 
@@ -209,12 +222,12 @@ def test_worker_does_not_instantiate_the_engine_for_an_all_guarded_batch(mocker:
     engine.classify.assert_not_called()
     for tag in tags:
         assert tag.macro_category_id is None
-        assert tag.execution_log == {"worker_macro_category_v1": FINGERPRINT}
+        assert tag.execution_log == {"worker_macro_category_v1": identity}
 
 
 def test_guarded_tags_are_still_stamped_so_the_queue_advances(mocker: MockerFixture) -> None:
     """The guard is a verdict, not a failure: without a stamp the batch would loop forever."""
-    mock_db, _engine = _prepare(mocker, {"Urbanismo": 7})
+    mock_db, _engine, _identity = _prepare(mocker, {"Urbanismo": 7})
     mock_db.scalars.return_value.all.side_effect = [[MockArchiveTag(1, "1924")], []]
 
     worker_macro_category.execute(db=mock_db, engine_name="motor_fake", preset="preset_teste")  # type: ignore
@@ -223,7 +236,7 @@ def test_guarded_tags_are_still_stamped_so_the_queue_advances(mocker: MockerFixt
 
 
 # ==========================================
-# THE STAMP IS THE IDENTITY OF THE VOCABULARY
+# THE STAMP IS THE IDENTITY OF THE PRODUCER
 # ==========================================
 
 

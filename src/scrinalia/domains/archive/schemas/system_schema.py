@@ -197,6 +197,20 @@ class WorkerSettingsRequest(BaseModel):
     options: dict[str, Any] = Field(default_factory=dict)
 
 
+class WorkerQueuePreviewDTO(BaseModel):
+    """
+    What a **proposed** configuration would leave in a worker's queue.
+
+    The queue is keyed on the producer identity, so changing the engine, the preset or a declared
+    option re-queues units by itself — which is the point, and also a cost the archivist has to see
+    *before* saving it. Computed with the same precedence a run uses, and writing nothing.
+    """
+
+    worker_name: str
+    pending: int | None = Field(default=None, description="Unidades que a execução proposta leria.")
+    pending_reason: str | None = Field(default=None, description="Por que o pendente não foi contado.")
+
+
 class WorkerSettingsRevisionDTO(BaseModel):
     revision_id: int
     worker_name: str

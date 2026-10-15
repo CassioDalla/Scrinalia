@@ -6,38 +6,74 @@ from scrinalia.core.database import get_db
 from scrinalia.core.logger import logger
 from scrinalia.core.unit_of_work import UnitOfWork
 from scrinalia.domains.archive.engines.base import EmbeddingEngine
-from scrinalia.domains.archive.engines.embeddings.registry import EngineName, PresetName, get_engine
+from scrinalia.domains.archive.engines.embeddings.registry import (
+    EngineName,
+    PresetName,
+    describe_config,
+    get_engine,
+)
 from scrinalia.domains.archive.models import ArchiveDocument, ArchiveReviewStatus
 from scrinalia.domains.archive.repository.text_quality_repo import (
     TextQualityRepository,
-    embedding_hash_sql,
+    embedding_stamp_sql,
     embedding_text_sql,
 )
-from scrinalia.domains.archive.worker_stamp import EMBEDDING
+from scrinalia.domains.archive.worker_stamp import EMBEDDING, producer_fingerprint
+from scrinalia.domains.archive.workers.run_budget import RunBudget
 
 
-def pending_conditions(db: Session, force: bool = False) -> list[ColumnElement[bool]]:
+def producer_identity(engine_name: EngineName, preset: PresetName | None, engine_kwargs: dict) -> str:
+    """
+    Identity of the model that produced — or is about to produce — the vectors.
+
+    The configuration comes from ``describe_config``, the read-only twin of ``get_engine``, so
+    this names exactly what the engine receives and never a value re-derived from the preset. The
+    axis adds the installed versions of ``torch`` and ``sentence-transformers``, because a bump of
+    either changes every vector while the preset stays identical.
+    """
+    config = describe_config(engine_name, preset, **engine_kwargs)
+    return producer_fingerprint(axis="embeddings", engine_name=engine_name, preset=preset, engine_config=config)
+
+
+def pending_conditions(
+    db: Session,
+    force: bool = False,
+    engine_name: EngineName = "sentence_transformer",
+    preset: PresetName | None = "multilingual_minilm",
+    **engine_kwargs,
+) -> list[ColumnElement[bool]]:
     """
     Predicate of the embedding queue, shared by ``execute`` and the operations panel.
 
-    The stamp is the MD5 of the effective text, so ``IS DISTINCT FROM`` covers both the first run
-    and every later text change in a single predicate. The effective text depends on the approved
-    excerpts, which is why the repository is read here.
+    The stamp is the MD5 of the effective text **and the identity of the model**, so
+    ``IS DISTINCT FROM`` covers the first run, every later text change and a model or dependency
+    bump in a single predicate. The effective text depends on the approved excerpts, which is why
+    the repository is read here; the identity depends on the engine, which is why the caller hands
+    it over already resolved — the panel resolves it from the same precedence the run uses.
     """
     rules = TextQualityRepository(db).get_active_rules("EMBEDDING")
     conditions: list[ColumnElement[bool]] = [
         ArchiveDocument.review_status != ArchiveReviewStatus.REJECTED,
     ]
     if not force:
-        conditions.append(
-            ArchiveDocument.execution_log[EMBEDDING.key].astext.is_distinct_from(embedding_hash_sql(rules))
-        )
+        stamp = embedding_stamp_sql(rules, producer_identity(engine_name, preset, engine_kwargs))
+        conditions.append(ArchiveDocument.execution_log[EMBEDDING.key].astext.is_distinct_from(stamp))
     return conditions
 
 
-def count_pending(db: Session, force: bool = False, **options) -> int:
-    """Documents the next embedding run would embed."""
-    stmt = select(func.count()).select_from(ArchiveDocument).where(*pending_conditions(db, force))
+def count_pending(
+    db: Session,
+    force: bool = False,
+    engine_name: EngineName = "sentence_transformer",
+    preset: PresetName | None = "multilingual_minilm",
+    **engine_kwargs,
+) -> int:
+    """Documents the next embedding run would embed, under the identity it would write."""
+    stmt = (
+        select(func.count())
+        .select_from(ArchiveDocument)
+        .where(*pending_conditions(db, force, engine_name=engine_name, preset=preset, **engine_kwargs))
+    )
     return int(db.scalar(stmt) or 0)
 
 
@@ -47,6 +83,7 @@ def execute(
     preset: PresetName = "multilingual_minilm",
     db_batch_size: int = 64,
     force: bool = False,
+    limit: int | None = None,
     **engine_kwargs,
 ) -> None:
     """
@@ -54,8 +91,10 @@ def execute(
 
     Fills ``ArchiveDocument.embedding`` with the vector of the document text, so the
     collection can be searched by concept instead of by lexeme. The stamp written in
-    ``execution_log`` is the MD5 of the embedded text, not a status: a document whose
-    text changed is pending again, even when a human edited it.
+    ``execution_log`` is the MD5 of the embedded text **plus the identity of the model**, not a
+    status: a document whose text changed is pending again even when a human edited it, and a
+    document embedded by another engine, preset or dependency version is pending again too. The
+    second half is what a bump of ``torch`` used to erase silently.
 
     ⚠️ GOVERNANCE EXCEPTION: this is the only AI worker that does **not** use
     ``ai_writable_documents()``. The embedding is a derived index of the text, not
@@ -82,6 +121,8 @@ def execute(
             transaction. Default is 64.
         force (bool, optional): When ``True``, ignores the content stamp and re-embeds
             every non-rejected document once. Default is ``False``.
+        limit (int | None, optional): Cap on the documents this run touches, so a trial costs
+            N documents instead of the collection. Not persisted. Default is ``None``.
         **engine_kwargs: Arbitrary arguments forwarded to the engine constructor,
             overriding the ``preset`` (e.g. ``device="cuda:0"``).
 
@@ -109,10 +150,18 @@ def execute(
     rules = TextQualityRepository(db).get_active_rules("EMBEDDING")
     logger.info(f"🧹 {len(rules)} approved excerpt(s) will be kept out of the embedded text.")
 
-    text_hash = embedding_hash_sql(rules)
+    # The stamp of a document is the MD5 of the text it read followed by the identity of the
+    # model that read it. Both halves is what makes the vector self-healing: the text half moves
+    # with the catalogue, the identity half with the model and the installed libraries.
+    identity = producer_identity(engine_name, preset, engine_kwargs)
+    stamp_expression = embedding_stamp_sql(rules, identity)
     text_expression = embedding_text_sql(rules)
+    logger.info(f"🔖 Producer identity: {identity[:12]}")
 
-    where_cond: list[ColumnElement[bool]] = pending_conditions(db, force)
+    where_cond: list[ColumnElement[bool]] = pending_conditions(
+        db, force, engine_name=engine_name, preset=preset, **engine_kwargs
+    )
+    budget = RunBudget(limit)
 
     total_pending = db.scalar(select(func.count()).select_from(ArchiveDocument).where(*where_cond))
 
@@ -128,10 +177,10 @@ def execute(
     while True:
         try:
             query = (
-                select(ArchiveDocument, text_expression.label("effective_text"), text_hash.label("text_hash"))
+                select(ArchiveDocument, text_expression.label("effective_text"), stamp_expression.label("stamp"))
                 .where(*where_cond, ArchiveDocument.description_id > last_id)
                 .order_by(ArchiveDocument.description_id)
-                .limit(db_batch_size)
+                .limit(budget.batch_size(db_batch_size))
             )
             rows = db.execute(query).all()
 
@@ -139,19 +188,20 @@ def execute(
                 break
 
             last_id = rows[-1][0].description_id
+            budget.spend(len(rows))
 
             texts: list[str] = []
             pending_docs: list[tuple[ArchiveDocument, str]] = []
 
-            for doc, text, current_hash in rows:
+            for doc, text, current_stamp in rows:
                 if not text:
                     # Nothing to embed: stamp it so it leaves the queue for good.
-                    doc.execution_log = EMBEDDING.mark_value(doc.execution_log, current_hash)
+                    doc.execution_log = EMBEDDING.mark_value(doc.execution_log, current_stamp)
                     flag_modified(doc, "execution_log")
                     continue
 
                 texts.append(text)
-                pending_docs.append((doc, current_hash))
+                pending_docs.append((doc, current_stamp))
 
             if texts:
                 logger.info(f"🧠 Embedding a batch of {len(texts)} documents...")
@@ -163,10 +213,10 @@ def execute(
                     uow.rollback()
                     break
 
-                for (doc, current_hash), vector in zip(pending_docs, vectors, strict=True):
+                for (doc, current_stamp), vector in zip(pending_docs, vectors, strict=True):
                     try:
                         doc.embedding = vector
-                        doc.execution_log = EMBEDDING.mark_value(doc.execution_log, current_hash)
+                        doc.execution_log = EMBEDDING.mark_value(doc.execution_log, current_stamp)
                         total_processed += 1
                     except Exception as e:
                         logger.error(f"❌ Error updating document {doc.description_id}: {e}")

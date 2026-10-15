@@ -23,6 +23,7 @@ from scrinalia.domains.archive.schemas.system_schema import (
     SystemHealthResponse,
     SystemWorkerSettingsResponse,
     SystemWorkersResponse,
+    WorkerQueuePreviewDTO,
     WorkerRunDTO,
     WorkerRunListResponse,
     WorkerRunRequest,
@@ -153,6 +154,27 @@ class SystemController(Controller):
     ) -> WorkerSettingsRevisionListResponse:
         """Who changed what, when — an audit trail nobody can read is half a feature."""
         return operations_service.list_revisions(worker_name, limit=limit, offset=offset)
+
+    @post(
+        "/workers/{worker_name:str}/queue/preview",
+        opt={"access": Access.AUTHENTICATED},
+        status_code=200,
+        sync_to_thread=True,
+    )
+    def preview_queue(
+        self,
+        operations_service: NamedDependency[WorkerOperationsService],
+        worker_name: FromPath[str],
+        data: WorkerSettingsRequest,
+    ) -> WorkerQueuePreviewDTO:
+        """
+        How many units the proposed configuration would queue — a preview, never a write.
+
+        The queue is keyed on the producer identity, so trying a threshold or another model costs a
+        re-read of the affected units; this answers the size of that cost before it is saved. The
+        body is the same shape as the settings write, so the screen previews exactly what it saves.
+        """
+        return operations_service.preview_queue(worker_name, data)
 
     @get("/health", opt={"access": Access.OPERATE}, sync_to_thread=True)
     def health(self) -> SystemHealthResponse:

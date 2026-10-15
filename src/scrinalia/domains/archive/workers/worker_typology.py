@@ -8,7 +8,12 @@ from scrinalia.core.logger import logger
 from scrinalia.core.runner_config import TypologyRunnerConfig
 from scrinalia.core.unit_of_work import UnitOfWork
 from scrinalia.domains.archive.engines.base import TypologyEngine
-from scrinalia.domains.archive.engines.classification.registry import EngineName, PresetName, get_engine
+from scrinalia.domains.archive.engines.classification.registry import (
+    EngineName,
+    PresetName,
+    describe_config,
+    get_engine,
+)
 from scrinalia.domains.archive.models import ArchiveDocument
 from scrinalia.domains.archive.repository import TypologyRepository
 from scrinalia.domains.archive.repository.governance import ai_writable_documents
@@ -16,38 +21,102 @@ from scrinalia.domains.archive.repository.text_quality_repo import (
     TextQualityRepository,
     composed_text_sql,
 )
-from scrinalia.domains.archive.worker_stamp import TYPOLOGY
+from scrinalia.domains.archive.worker_stamp import TYPOLOGY, identity_stamp_conditions, producer_fingerprint
+from scrinalia.domains.archive.workers.run_budget import RunBudget
 
 
-def pending_conditions(columns_to_classify: list[str]) -> list[ColumnElement[bool]]:
+def resolved_parameters(
+    config: TypologyRunnerConfig | None,
+    columns_to_classify: list[str] | None,
+    confidence_threshold: float | None,
+) -> tuple[list[str], float]:
+    """
+    The two business parameters a run really uses, resolved once for ``execute`` and the panel.
+
+    They are resolved here for the same reason the predicate is shared: the panel has to count the
+    queue under the configuration it is about to run, and a second resolution could disagree about
+    what "the threshold" is — which is exactly the disagreement that leaves a measured value
+    unreachable.
+    """
+    resolved = config or TypologyRunnerConfig()
+    columns = list(columns_to_classify or resolved.columns_to_classify)
+    threshold = resolved.confidence_threshold if confidence_threshold is None else float(confidence_threshold)
+    return columns, threshold
+
+
+def producer_identity(
+    *,
+    engine_name: EngineName,
+    preset: PresetName | None,
+    columns_to_classify: list[str],
+    confidence_threshold: float,
+    engine_kwargs: dict,
+) -> str:
+    """
+    Identity of the classifier that produced the typology of a document.
+
+    The engine configuration comes from ``describe_config``, the read-only twin of ``get_engine``.
+    The columns and the threshold are part of it because they change the answer: raising the
+    threshold from the panel has to re-queue the documents the old one classified, or the value the
+    bench measured would never reach the collection.
+    """
+    config = describe_config(engine_name, preset, **engine_kwargs)
+    return producer_fingerprint(
+        axis="classification",
+        engine_name=engine_name,
+        preset=preset,
+        engine_config=config,
+        worker_options={
+            "columns_to_classify": columns_to_classify,
+            "confidence_threshold": confidence_threshold,
+        },
+    )
+
+
+def pending_conditions(
+    columns_to_classify: list[str],
+    producer: str,
+    force: bool = False,
+) -> list[ColumnElement[bool]]:
     """
     Predicate of the typology queue, shared by ``execute`` and the operations panel.
 
     A document that already carries a typology is out, and so is one a human approved: the AI must
-    not reclassify a decision someone made.
+    not reclassify a decision someone made. A document stamped by **another producer** — engine,
+    preset, threshold or columns — is pending again, which is what makes the classifier
+    re-runnable; ``force`` widens it to everything ai-writable, and the worker advances by cursor
+    so a forced run still ends.
     """
     filters_columns = [getattr(ArchiveDocument, col).is_not(None) for col in columns_to_classify]
-    return [
+    conditions: list[ColumnElement[bool]] = [
         ArchiveDocument.typology_id.is_(None),
         ai_writable_documents(),
         or_(*filters_columns),
-        or_(
-            ArchiveDocument.execution_log.is_(None),
-            ~ArchiveDocument.execution_log.has_key(TYPOLOGY.key),
-        ),
     ]
+    conditions.extend(identity_stamp_conditions(ArchiveDocument.execution_log, TYPOLOGY, producer, force=force))
+    return conditions
 
 
 def count_pending(
     db: Session,
     columns_to_classify: list[str] | None = None,
     config: TypologyRunnerConfig | None = None,
-    **options,
+    confidence_threshold: float | None = None,
+    force: bool = False,
+    engine_name: EngineName = "deberta_typology",
+    preset: PresetName | None = "cpu_local",
+    **engine_kwargs,
 ) -> int:
-    """Documents the next typology run would classify."""
-    resolved = config or TypologyRunnerConfig()
-    columns = columns_to_classify or list(resolved.columns_to_classify)
-    stmt = select(func.count()).select_from(ArchiveDocument).where(*pending_conditions(columns))
+    """Documents the next typology run would classify, under the identity it would write."""
+    columns, threshold = resolved_parameters(config, columns_to_classify, confidence_threshold)
+    identity = producer_identity(
+        engine_name=engine_name,
+        preset=preset,
+        columns_to_classify=columns,
+        confidence_threshold=threshold,
+        engine_kwargs=engine_kwargs,
+    )
+    stmt = select(func.count()).select_from(ArchiveDocument).where(*pending_conditions(columns, identity, force=force))
     return int(db.scalar(stmt) or 0)
 
 
@@ -58,6 +127,9 @@ def execute(
     db_batch_size: int = 64,
     columns_to_classify: list[str] | None = None,
     config: TypologyRunnerConfig | None = None,
+    confidence_threshold: float | None = None,
+    force: bool = False,
+    limit: int | None = None,
     **engine_kwargs,
 ) -> None:
     """
@@ -69,10 +141,17 @@ def execute(
     an Artificial Intelligence engine injected via the Registry to classify
     the document into one of the active typologies in the system.
 
-    If the inference confidence (confidence score) is above 40%, it links the
+    If the inference confidence (confidence score) is above the threshold, it links the
     `typology_id` to the document. Regardless of the classification success,
-    the document is stamped as "DONE" so it does not enter a loop. The processing
-    is shielded with memory protection (expunge_all) after each completed transaction.
+    the document is stamped with the **identity of the classifier** so it does not enter a
+    loop — and so that a different engine, preset or threshold puts it back in the queue,
+    which is what makes a classification revisable. A human decision still wins: an approved
+    document is out of reach of the plain queue, and only ``force`` re-reads it.
+
+    The processing is shielded with memory protection (expunge_all) after each completed
+    transaction, and the loop advances by a ``description_id`` cursor: the stamp is what leaves
+    the queue in a plain run, but a ``force`` run ignores the stamp, and without the cursor it
+    would refetch the same documents forever.
 
     Args:
         db (Session): Database session.
@@ -85,6 +164,16 @@ def execute(
         columns_to_classify (list[str] | None, optional): List with the exact names of the
             `ArchiveDocument` model columns that will form the text read by the AI. If `None`,
             it internally uses `["original_title"]`.
+        config (TypologyRunnerConfig | None, optional): Business thresholds; when `None`, the
+            defaults are used. The declared ``confidence_threshold`` wins over it, so a value
+            measured by the bench can be tried without editing code.
+        confidence_threshold (float | None, optional): Confidence floor to link a typology.
+            `None` uses the one in ``config`` (0.40 by default).
+        force (bool, optional): When ``True``, ignores the producer identity and re-reads every
+            ai-writable document once, which is the way back from a prompt, a vocabulary table or
+            a rule a hash cannot see. Default is ``False``.
+        limit (int | None, optional): Cap on the documents this run touches, so a trial costs N
+            documents instead of the collection. Not persisted. Default is ``None``.
         **engine_kwargs: Arbitrary arguments that will be forwarded directly to
             the AI engine constructor, overriding the `preset` configurations
             (e.g. `device="cuda:0"`, `max_length=256`).
@@ -97,10 +186,12 @@ def execute(
         None. The process runs until the database queue is emptied.
     """
 
-    logger.info(f"🚀 Starting the Typology Classifier Worker (Engine: {engine_name} | Preset: {preset})")
+    logger.info(
+        f"🚀 Starting the Typology Classifier Worker (Engine: {engine_name} | Preset: {preset} | Force: {force})"
+    )
 
     config = config or TypologyRunnerConfig()
-    columns_to_classify = columns_to_classify or list(config.columns_to_classify)
+    columns_to_classify, confidence_threshold = resolved_parameters(config, columns_to_classify, confidence_threshold)
 
     repository = TypologyRepository(db)
     uow = UnitOfWork(db)
@@ -112,6 +203,15 @@ def execute(
         logger.error(f"❌ Error loading the model: {e}")
         raise
 
+    identity = producer_identity(
+        engine_name=engine_name,
+        preset=preset,
+        columns_to_classify=columns_to_classify,
+        confidence_threshold=confidence_threshold,
+        engine_kwargs=engine_kwargs,
+    )
+    logger.info(f"🔖 Producer identity: {identity[:12]} (threshold {confidence_threshold:.2f})")
+
     typologies_map = repository.get_active_typologies()
     if not typologies_map:
         logger.warning("⚠️ No typology registered in the database. Aborting Classification.")
@@ -121,7 +221,7 @@ def execute(
     logger.info(f"📂 {len(candidate_labels)} typologies loaded.")
 
     # Fetches the ArchiveDocument class attributes at runtime
-    where_cond = pending_conditions(columns_to_classify)
+    where_cond = pending_conditions(columns_to_classify, identity, force=force)
 
     query_count = select(func.count()).select_from(ArchiveDocument).where(*where_cond)
     total_documents = db.scalar(query_count)
@@ -139,17 +239,25 @@ def execute(
     logger.info(f"🧹 {len(rules)} approved excerpt(s) will be kept out of the classified text.")
 
     total_processed = 0
+    last_id = ""
+    budget = RunBudget(limit)
 
     while True:
         try:
             query = (
-                select(ArchiveDocument, text_expression.label("effective_text")).where(*where_cond).limit(db_batch_size)
+                select(ArchiveDocument, text_expression.label("effective_text"))
+                .where(*where_cond, ArchiveDocument.description_id > last_id)
+                .order_by(ArchiveDocument.description_id)
+                .limit(budget.batch_size(db_batch_size))
             )
 
             batch_rows = db.execute(query).all()
 
             if not batch_rows:
                 break
+
+            last_id = batch_rows[-1][0].description_id
+            budget.spend(len(batch_rows))
 
             texts_buffer = []
             valid_docs = []
@@ -159,7 +267,7 @@ def execute(
                 text_to_classify = (raw_text or "").strip()
 
                 if not text_to_classify:
-                    doc.execution_log = TYPOLOGY.mark(doc.execution_log)
+                    doc.execution_log = TYPOLOGY.mark_value(doc.execution_log, identity)
                     flag_modified(doc, "execution_log")
 
                     continue
@@ -179,12 +287,12 @@ def execute(
 
                 # Application of the results
                 for doc, result in zip(valid_docs, results, strict=True):
-                    stamp_status = "DONE"
+                    stamp_value = identity
                     try:
                         best_label = result["labels"][0]
                         confidence_score = result["scores"][0]
 
-                        if confidence_score > config.confidence_threshold:
+                        if confidence_score > confidence_threshold:
                             t_id = typologies_map.get(best_label)
 
                             if t_id is not None:
@@ -203,9 +311,11 @@ def execute(
 
                     except Exception as e:
                         logger.error(f"❌ Error updating document {doc.description_id}: {e}")
-                        stamp_status = "ERROR"
+                        # A failure must not be recorded as the current identity, or the document
+                        # would look processed by this producer and never be retried.
+                        stamp_value = "ERROR"
                     try:
-                        doc.execution_log = TYPOLOGY.mark(doc.execution_log, status=stamp_status)
+                        doc.execution_log = TYPOLOGY.mark_value(doc.execution_log, stamp_value)
                         flag_modified(doc, "execution_log")
                     except Exception as e:
                         logger.critical(f"Critical failure trying to stamp the error on doc {doc.description_id}: {e}")

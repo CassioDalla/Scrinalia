@@ -240,12 +240,12 @@ The canonical keys, defined once in `worker_stamp.py`:
 
 | Stamp key | Written on | Meaning |
 | --- | --- | --- |
-| `worker_ner_v2` | `archive_documents` | NER extraction done |
-| `worker_typology_classifier_v2` | `archive_documents` | Typology classification done |
+| `worker_ner_v2` | `archive_documents` | Value is the identity of the extractor that ran |
+| `worker_typology_classifier_v2` | `archive_documents` | Value is the identity of the classifier that ran |
 | `cleaning_rule_{id}` | `archive_documents` | The dynamic cleaning rule with that id has run |
-| `worker_macro_category_v1` | `archive_tags` | The tag's category decision was attempted |
-| `worker_quality_validator_v1` | `archive_documents` | Structural validation done |
-| `worker_embedding_v1` | `archive_documents` | Value is the MD5 of the embedded text |
+| `worker_macro_category_v1` | `archive_tags` | Value is the label set composed with the identity of the classifier |
+| `worker_quality_validator_v1` | `archive_documents` | Value is the identity of the active `LLM_CHECK` rule, or of "no model" |
+| `worker_embedding_v1` | `archive_documents` | Value is the MD5 of the embedded text followed by `:` and the identity of the model |
 | `thumbnail` | `archive_documents` | Miniature in the object storage; the queue is led by `storage_thumbnail_uri`, so this key is declared but not written |
 | `thumbnail_failed` | `archive_documents` | The miniature download failed; a plain run skips it, `force` retries it |
 | `hierarchy_parent_v1` | `archive_documents` | Value is `PENDING:<code>` while the declared parent is missing and `DONE:<description_id>` once linked |
@@ -256,14 +256,22 @@ The polling queries are served by GIN indexes on the JSONB column: `ix_archive_e
 must call `flag_modified` so SQLAlchemy notices the in-place change; skipping it is how a stamp is
 written in memory and never in the database.
 
-Most stamps hold a status (`DONE`, `ERROR`). Four are **value-keyed** instead:
+Most stamps hold a status (`DONE`, `ERROR`). The six that key a queue on **what produced the answer**
+hold a value instead: the *producer identity*, a fingerprint of the engine, the preset, the resolved
+engine configuration, the installed versions of the libraries of that axis and the declared
+behavioural options (`producer_fingerprint` in `worker_stamp.py`). A unit stamped by another producer
+is pending again by itself:
 
-- `worker_embedding_v1` stores the **MD5 of the embedded text**, computed by PostgreSQL
-  (`func.md5(...)` over the effective text) and written with `WorkerStamp.mark_value`. Its pending
-  predicate is `execution_log[key] IS DISTINCT FROM <md5>`, so a text change — including a human
-  edit — puts the document back in the queue by itself.
-- `worker_macro_category_v1` stores the hash of the label set the tag was classified against, so
-  rewriting a curator's label re-queues the tag.
+- `worker_ner_v2`, `worker_typology_classifier_v2` and `worker_quality_validator_v1` store that
+  identity — the last one taken from the engine of the active `LLM_CHECK` rule, or from "no model" —
+  so another engine, preset, threshold, column set or dependency version re-queues the units. `force`
+  is the way back from a reason a hash cannot see (an edited rule, a curated exclusion, a prompt).
+- `worker_embedding_v1` composes it with the **MD5 of the embedded text**, computed by PostgreSQL
+  (`func.md5(...)` over the effective text) in the same expression that builds the text
+  (`embedding_stamp_sql`), so a text change — including a human edit — and a model or dependency bump
+  each put the document back in the queue by itself.
+- `worker_macro_category_v1` composes it with the hash of the label set the tag was classified
+  against, so rewriting a curator's label re-queues the tag.
 - `hierarchy_parent_v1` stores `"PENDING:<code>"` while the child waits for the parent its origin
   declared and `"DONE:<description_id>"` once the link exists, so the retry remembers which parent was
   missing.

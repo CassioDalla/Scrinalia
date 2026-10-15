@@ -11,7 +11,7 @@ import re
 from datetime import date
 from typing import Any
 
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -33,7 +33,12 @@ from scrinalia.domains.archive.repository.text_quality_repo import (
     effective_column_sql,
 )
 from scrinalia.domains.archive.schemas.cleaning_schema import CleaningRuleDTO
-from scrinalia.domains.archive.worker_stamp import QUALITY_VALIDATOR
+from scrinalia.domains.archive.worker_stamp import (
+    QUALITY_VALIDATOR,
+    identity_stamp_conditions,
+    producer_fingerprint,
+)
+from scrinalia.domains.archive.workers.run_budget import RunBudget
 
 #: Titles that appear at least this many times are suspicious as a template leftover.
 DEFAULT_REPEAT_THRESHOLD = 3
@@ -132,27 +137,80 @@ def evaluate_document(
     return reasons
 
 
-def pending_conditions(force: bool = False) -> list[ColumnElement[bool]]:
+def active_llm_check_rule(db: Session) -> CleaningRuleDTO | None:
+    """
+    The rule that decides the engine of this worker, or ``None`` when there is no model.
+
+    Defined once so ``execute``, ``count_pending`` and the operations panel cannot disagree about
+    *which* rule the identity comes from. The panel refuses to let a person override the engine
+    here for the same reason: a second place to choose it would be a second source of truth.
+    """
+    rules = CleaningRepository(db).get_active_rules("LLM_CHECK")
+    return rules[0] if rules else None
+
+
+def producer_identity(
+    db: Session,
+    *,
+    repeat_threshold: int,
+    llm_confidence: float,
+    engine_kwargs: dict,
+) -> str:
+    """
+    Identity of the validator: the engine of the active ``LLM_CHECK`` rule and its own thresholds.
+
+    With no active rule there is no model, and the identity says so — which is why *activating* a
+    rule re-queues the collection: the verdict changes from deterministic validation to one that
+    also asks a language model.
+    """
+    from scrinalia.domains.archive.engines.title_quality.registry import describe_config
+
+    rule = active_llm_check_rule(db)
+    # The rule carries free text, not the registry's Literals; ``execute`` resolves the same pair
+    # with the same fallback before calling ``get_engine``.
+    engine_name = (rule.engine_name or "ollama_title_check") if rule is not None else None
+    preset = rule.preset if rule is not None else None
+    config = describe_config(engine_name, preset, **engine_kwargs) if engine_name else {}  # type: ignore[arg-type]
+    return producer_fingerprint(
+        axis="title_quality",
+        engine_name=engine_name,
+        preset=preset,
+        engine_config=config,
+        worker_options={"repeat_threshold": repeat_threshold, "llm_confidence": llm_confidence},
+    )
+
+
+def pending_conditions(producer: str, force: bool = False) -> list[ColumnElement[bool]]:
     """
     Predicate of the quality-validator queue, shared by ``execute`` and the operations panel.
 
-    ``force`` re-reads every ai-writable document; the default only reads the ones without the
-    stamp, so a second run of the worker is free.
+    ``force`` re-reads every ai-writable document; the default only reads the ones the current
+    producer has not stamped, so a second run of the worker is free. The identity is the engine of
+    the active ``LLM_CHECK`` rule and the thresholds, so editing the rule re-queues the collection
+    without a person having to remember to.
     """
-    if force:
-        return [ai_writable_documents()]
-    return [
-        ai_writable_documents(),
-        or_(
-            ArchiveDocument.execution_log.is_(None),
-            ~ArchiveDocument.execution_log.has_key(QUALITY_VALIDATOR.key),
-        ),
-    ]
+    conditions: list[ColumnElement[bool]] = [ai_writable_documents()]
+    conditions.extend(
+        identity_stamp_conditions(ArchiveDocument.execution_log, QUALITY_VALIDATOR, producer, force=force)
+    )
+    return conditions
 
 
-def count_pending(db: Session, force: bool = False, **options: Any) -> int:
-    """Documents the next validation run would read."""
-    stmt = select(func.count()).select_from(ArchiveDocument).where(*pending_conditions(force))
+def count_pending(
+    db: Session,
+    force: bool = False,
+    repeat_threshold: int = DEFAULT_REPEAT_THRESHOLD,
+    llm_confidence: float = DEFAULT_LLM_CONFIDENCE,
+    **engine_kwargs: Any,
+) -> int:
+    """Documents the next validation run would read, under the identity it would write."""
+    identity = producer_identity(
+        db,
+        repeat_threshold=repeat_threshold,
+        llm_confidence=llm_confidence,
+        engine_kwargs=engine_kwargs,
+    )
+    stmt = select(func.count()).select_from(ArchiveDocument).where(*pending_conditions(identity, force=force))
     return int(db.scalar(stmt) or 0)
 
 
@@ -160,6 +218,7 @@ def execute(
     db: Session,
     db_batch_size: int = 64,
     force: bool = False,
+    limit: int | None = None,
     repeat_threshold: int = DEFAULT_REPEAT_THRESHOLD,
     llm_confidence: float = DEFAULT_LLM_CONFIDENCE,
     **engine_kwargs: Any,
@@ -167,21 +226,45 @@ def execute(
     """
     Marks documents whose data cannot be trusted as it stands.
 
-    Every document is stamped, with or without anomalies, so the queue advances. A
+    Every document is stamped with the **identity of the producer**, with or without anomalies, so
+    the queue advances; a document validated with another engine or threshold is pending again. A
     ``HUMAN_APPROVED`` document is never touched: a human already looked at it.
 
     The language model is only built when an active ``LLM_CHECK`` rule exists — the
     default is deterministic validation at zero model cost.
+
+    The loop advances by a ``description_id`` cursor. Without it a forced run would re-read the
+    same first batch forever, because ``force`` drops the only clause that used to make a
+    document leave the queue.
+
+    Args:
+        db (Session): Database session.
+        db_batch_size (int, optional): Documents fetched and committed per transaction.
+        force (bool, optional): Re-reads every ai-writable document instead of only the ones this
+            producer has not stamped; the reasons also depend on the catalog, which a hash of the
+            engine cannot see. Default is ``False``.
+        limit (int | None, optional): Cap on the documents this run touches. Not persisted.
+        repeat_threshold (int, optional): How many equal titles make a template leftover.
+        llm_confidence (float, optional): Below this the language-model opinion is ignored.
+        **engine_kwargs (Any): Extra keyword arguments forwarded to the title-quality engine.
     """
     logger.info("🚀 Starting the Quality Validator Worker")
 
     repository = CleaningRepository(db)
     validate_rules = _compile_rules([r for r in repository.get_active_rules() if r.rule_kind == "VALIDATE"])
-    llm_rules = [r for r in repository.get_active_rules() if r.rule_kind == "LLM_CHECK"]
+    llm_rules = repository.get_active_rules("LLM_CHECK")
 
     text_repository = TextQualityRepository(db)
     title_rules = text_repository.get_active_rules("TITLE")
     text_rules = text_repository.get_active_rules("EMBEDDING")
+
+    identity = producer_identity(
+        db,
+        repeat_threshold=repeat_threshold,
+        llm_confidence=llm_confidence,
+        engine_kwargs=engine_kwargs,
+    )
+    logger.info(f"🔖 Producer identity: {identity[:12]}")
 
     llm_engine: TitleQualityEngine | None = None
     if llm_rules:
@@ -213,7 +296,7 @@ def execute(
         .exists()
     )
 
-    where_cond: list[ColumnElement[bool]] = pending_conditions(force)
+    where_cond: list[ColumnElement[bool]] = pending_conditions(identity, force=force)
 
     pending = db.scalar(select(func.count()).select_from(ArchiveDocument).where(*where_cond))
     if not pending:
@@ -225,6 +308,8 @@ def execute(
     processed = 0
     total_anomalies = 0
     today = date.today()
+    last_id = ""
+    budget = RunBudget(limit)
     uow = UnitOfWork(db)
 
     while True:
@@ -237,13 +322,16 @@ def execute(
                     has_tags.label("has_tags"),
                     has_entities.label("has_entities"),
                 )
-                .where(*where_cond)
+                .where(*where_cond, ArchiveDocument.description_id > last_id)
                 .order_by(ArchiveDocument.description_id)
-                .limit(db_batch_size)
+                .limit(budget.batch_size(db_batch_size))
             )
             rows = db.execute(stmt).all()
             if not rows:
                 break
+
+            last_id = rows[-1][0].description_id
+            budget.spend(len(rows))
 
             for doc, effective_title, effective_scope, has_tags_value, has_entities_value in (
                 (row[0], row[1], row[2], row[3], row[4]) for row in rows
@@ -268,7 +356,7 @@ def execute(
                     if doc.review_status in (ArchiveReviewStatus.PENDING_AI, ArchiveReviewStatus.AI_APPROVED):
                         doc.review_status = ArchiveReviewStatus.NEEDS_REVIEW
 
-                doc.execution_log = QUALITY_VALIDATOR.mark(doc.execution_log)
+                doc.execution_log = QUALITY_VALIDATOR.mark_value(doc.execution_log, identity)
                 flag_modified(doc, "execution_log")
                 processed += 1
 

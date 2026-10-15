@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import {
   clearWorkerSettings,
+  previewWorkerQueue,
   saveWorkerSettings,
   type WorkerSettingsItem,
   type WorkerSettingsRequest,
@@ -18,7 +19,7 @@ import { Field } from "@/components/ui/Field";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { ACTION } from "@/lib/copy";
-import { formatDateTime } from "@/lib/format";
+import { formatCount, formatDateTime } from "@/lib/format";
 import { describeConfig, optionsToText, parseOptions } from "@/lib/system";
 
 /**
@@ -129,25 +130,44 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
     void queryClient.invalidateQueries({ queryKey: ["system"] });
   };
 
+  /**
+   * The configuration the form is proposing, built once for the preview and for the save.
+   *
+   * Two builders would be two answers to "what would this screen save?", and the preview exists
+   * precisely to answer it before the write.
+   */
+  const buildBody = (): WorkerSettingsRequest => {
+    const parsed = parseOptions(optionsText);
+    if (parsed.error) throw new Error(parsed.error);
+    const body: WorkerSettingsRequest = {
+      db_batch_size: batch ? Number(batch) : null,
+      options: parsed.options ?? {},
+    };
+    if (settings.engine_source === "signature") {
+      body.engine_name = engine || null;
+      body.preset = preset || null;
+    }
+    return body;
+  };
+
   const save = useMutation({
-    mutationFn: () => {
-      const parsed = parseOptions(optionsText);
-      if (parsed.error) throw new Error(parsed.error);
-      const body: WorkerSettingsRequest = {
-        db_batch_size: batch ? Number(batch) : null,
-        options: parsed.options ?? {},
-      };
-      if (settings.engine_source === "signature") {
-        body.engine_name = engine || null;
-        body.preset = preset || null;
-      }
-      return saveWorkerSettings(worker.name, body);
-    },
+    mutationFn: () => saveWorkerSettings(worker.name, buildBody()),
     onSuccess: () => {
       invalidate();
       onDone("Padrão salvo; a próxima execução usa esta configuração.");
     },
   });
+
+  /**
+   * The queue of the proposed configuration, cleared as soon as a field moves.
+   *
+   * A number that stayed on screen after the threshold changed would be a measurement of something
+   * else under the label of what the form now says.
+   */
+  const preview = useMutation({
+    mutationFn: () => previewWorkerQueue(worker.name, buildBody()),
+  });
+  const clearPreview = () => preview.reset();
 
   const clear = useMutation({
     mutationFn: () => clearWorkerSettings(worker.name),
@@ -172,6 +192,7 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
               onChange={(event) => {
                 setEngine(event.target.value);
                 setPreset("");
+                clearPreview();
               }}
             >
               <option value="">(a do código)</option>
@@ -183,7 +204,13 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
             </Select>
           </Field>
           <Field label="Preset">
-            <Select value={preset} onChange={(event) => setPreset(event.target.value)}>
+            <Select
+              value={preset}
+              onChange={(event) => {
+                setPreset(event.target.value);
+                clearPreview();
+              }}
+            >
               <option value="">(o do código)</option>
               {((settings.available_engines ?? []).find((item) => item.name === engine)?.presets ?? []).map(
                 (item) => (
@@ -209,7 +236,10 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
             type="number"
             min={1}
             value={batch}
-            onChange={(event) => setBatch(event.target.value)}
+            onChange={(event) => {
+              setBatch(event.target.value);
+              clearPreview();
+            }}
             placeholder={String(settings.db_batch_size ?? "")}
           />
         </Field>
@@ -222,15 +252,32 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
           </>
         }
       >
-        <Textarea rows={2} value={optionsText} onChange={(event) => setOptionsText(event.target.value)} placeholder="{}" />
+        <Textarea
+          rows={2}
+          value={optionsText}
+          onChange={(event) => {
+            setOptionsText(event.target.value);
+            clearPreview();
+          }}
+          placeholder="{}"
+        />
       </Field>
 
       {save.error ? <ErrorState error={save.error} /> : null}
       {clear.error ? <ErrorState error={clear.error} /> : null}
+      {preview.error ? <ErrorState error={preview.error} /> : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="primary" onClick={() => save.mutate()} disabled={save.isPending}>
           {ACTION.save.label} padrão
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => preview.mutate()}
+          disabled={preview.isPending}
+          title="Contar a fila que esta configuração leria, sem salvar nada"
+        >
+          {preview.isPending ? ACTION.preview.pending : ACTION.preview.label}
         </Button>
         <Button
           variant="secondary"
@@ -241,6 +288,14 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
           Voltar ao padrão do código
         </Button>
       </div>
+
+      {preview.data ? (
+        <p className="text-xs text-(--color-muted)">
+          {preview.data.pending == null
+            ? (preview.data.pending_reason ?? "A fila deste worker não é mensurável.")
+            : `${formatCount(preview.data.pending)} na fila com esta configuração (nada foi salvo).`}
+        </p>
+      ) : null}
 
       {settings.note ? <p className="text-xs text-(--color-muted)">{settings.note}</p> : null}
 

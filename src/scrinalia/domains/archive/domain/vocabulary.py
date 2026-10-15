@@ -32,9 +32,9 @@ diffusion read; ADR 0013 removed the ``archive_tag_facets`` table that used to d
 inside the subject axis. Deciding is still the archivist's.
 """
 
-import hashlib
 import re
 
+from scrinalia.core.content_hash import ContentHash
 from scrinalia.core.language import get_language
 from scrinalia.domains.archive.domain.collection_vocabulary import (
     SUBJECT_EXCLUSION_SIGNALS,
@@ -220,7 +220,7 @@ def label_set_fingerprint(labels: dict[str, int]) -> str:
     Sorted and joined before hashing, so the order the rows came back in cannot produce two
     different hashes for the same vocabulary (which would re-queue the collection forever).
     The category ids are part of the payload because a drawer that is *replaced* under the
-    same label must also invalidate the stamp.
+    same label must also invalidate the stamp. The canonicalisation is ``ContentHash.of``,
+    the repository's one definition of a payload hash.
     """
-    payload = "\x1f".join(f"{label}\x1e{category_id}" for label, category_id in sorted(labels.items()))
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    return str(ContentHash.of({"labels": {label: int(category_id) for label, category_id in labels.items()}}))

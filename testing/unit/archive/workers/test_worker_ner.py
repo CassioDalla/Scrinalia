@@ -111,6 +111,11 @@ def test_worker_ner_unit_ideal_flow(mocker: MockerFixture) -> None:
 
     mock_ner_engine = mock_get_engine.return_value
     mock_ner_engine.extract.return_value = [[ArchiveEntityDTO(name="Prefeitura", entity_type="ORG")]]
+    # The producer identity reads the engine configuration through ``describe_config``.
+    mocker.patch(
+        "scrinalia.domains.archive.workers.worker_ner.describe_config",
+        return_value={"model": "falso", "device": "cpu"},
+    )
 
     # 1 document on the first round, empty on the second to break the while
     test_doc = MockArchiveDocument("doc-1", "Ofício", "Conteúdo sobre obras.")
@@ -127,8 +132,11 @@ def test_worker_ner_unit_ideal_flow(mocker: MockerFixture) -> None:
     mock_repo.get_or_create_entities.assert_called_once()
     mock_repo.bulk_link_entities.assert_called_once_with([EntityLinkCommand(description_id="doc-1", entity_id=101)])
 
-    # Was the success stamp applied in the document's memory?
-    assert test_doc.execution_log["worker_ner_v2"] == "DONE"  # type: ignore
+    # Was the success stamp applied in the document's memory? It is the producer identity, not a
+    # status: another extractor has to put the document back in the queue.
+    stamp = test_doc.execution_log["worker_ner_v2"]  # type: ignore
+    assert stamp != "DONE"
+    assert len(stamp) == 64
     mock_flag_modified.assert_called_once_with(test_doc, "execution_log")
     mock_db.commit.assert_called_once()
 
@@ -152,7 +160,7 @@ def test_worker_ner_ignores_empty_texts(mocker: MockerFixture) -> None:
     mock_get_engine.return_value.extract.assert_not_called()
 
     # But the document MUST be stamped so it does not loop forever in the queue
-    assert empty_doc.execution_log["worker_ner_v2"] == "DONE"  # type: ignore
+    assert len(empty_doc.execution_log["worker_ner_v2"]) == 64  # type: ignore
     mock_flag_modified.assert_called_once()
 
 

@@ -1261,3 +1261,48 @@ with short or full shas, and part of a `## <date> — <title>` entry.
 - **What the round measured.** The CI sequence replicated on a fresh test database: 1610 passed,
   `pg_type` and `pg_tables` empty after the teardown, `alembic upgrade head` applying every
   migration, and `alembic check` reporting no new upgrade operations.
+
+## 2026-10-14 — the stamp names the producer (#41, #70)
+
+- **Range:** `f240c71..52ed890`
+- **Pages:** three were reported stale by `docs/_hooks/freshness.py` and all three changed.
+  - `guides/operate.md` — **updated**: the queue table and the identity paragraph (five of the nine
+    stamps now carry the producer), the `--limit` row (six workers, not `thumbnail` alone), the
+    `--option` coercion (the declared type, not just `true`/`false`), the reprocessing section (a new
+    producer re-queues by itself; `force` reaches `ner` and `typology` and clears the `ERROR`), the
+    new *Trying a configuration before saving it* section with the measured `0` → `4.465`, and the
+    route table's preview row. The paragraph that recorded the old trap — "`embedding_v1` is the MD5
+    of the text, not the identity of the model, so changing `torch` does not put a single description
+    back in the queue" — was the defect this round removes, and it now says what `?` does and does
+    not answer.
+  - `guides/data-model.md` — **updated**: the `execution_log` key table and the value-keyed paragraph
+    (six keys, the identity, the two producers deliberately outside it).
+  - `guides/curate.md` — **updated**: the `Conferir impacto` button of `/configuracoes/workers`, and
+    why the number clears when a field moves.
+- **What the round measured.** The forced-run defect, with a throwaway test (deleted) against the
+  test database: `quality-validator` with `force=True` counts the same unit *after* it is stamped
+  (`before=1 after=1`), and its loop had no cursor, so the documented command
+  `runner quality-validator --option force=true` never ended. `ner` and `typology` advance only
+  because the stamp leaves the queue (`before=1 after=0`), which is exactly the clause `force` drops.
+  The identity itself: `describe_config` for `cpu_local` and `gpu_cloud` differs only in `device`, and
+  the whole output is hashed on purpose. The suite: **1660 passed, 1 skipped** (the skip is the
+  conflict-judge's counter-parity case, which has no queue); `basedpyright` **0 errors**;
+  `ruff check` and `ruff format --check` green; `alembic check` reporting no new upgrade operations;
+  the committed contract regenerated from `dump_openapi`.
+- **What the round looked at.** The settings screen **was rendered**: headless shell + CDP against the
+  dev server and a scratch database (`scrinalia_render`, 4.842 documents) with a session row inserted
+  and deleted for the round. With the collection stamped by the producer in the code, the default
+  configuration answered `0 na fila com esta configuração (nada foi salvo).`; typing
+  `{"confidence_threshold": 0.9}` into the options field and pressing **Conferir impacto** answered
+  `4.465 na fila com esta configuração (nada foi salvo).` The screenshots are under `.render/`
+  (gitignored), not in the repository.
+- **Not verified, and said so.** The real engines were not run — the suite mocks the registry, and no
+  vector, entity or typology was produced by a model in this round. The queue numbers of the *real*
+  collection were not measured; the `4.465` above is the scratch database the render used. The
+  installed versions are read for `torch`, `transformers`, `sentence-transformers` and `spacy` only:
+  the spaCy model package (`pt_core_news_lg`) and the digest of the Ollama model stay outside the
+  identity, because the first lives in the language profile and the second would take a network call
+  on the panel's path — both documented on the page and left as a follow-up, not as a silent gap.
+- **Consequence to expect.** Every unit stamped before this change — including a `DONE` — is pending
+  again under the producer now configured, so the first run after upgrading re-reads the collection
+  once. That is the fix working, and the preview is how to size it before paying it.

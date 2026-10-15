@@ -2,7 +2,7 @@ from scrinalia.domains.archive.engines.embeddings import registry as embeddings_
 from scrinalia.domains.archive.models import ArchiveDocument, ArchiveReviewStatus
 from scrinalia.domains.archive.repository.text_quality_repo import TextQualityRepository
 from scrinalia.domains.archive.schemas.text_quality_schema import TemplateCreateCommand, TemplateUpdateCommand
-from scrinalia.domains.archive.workers.worker_embedding import execute
+from scrinalia.domains.archive.workers.worker_embedding import execute, producer_identity
 
 # The fake engine must answer with the column dimension, or PostgreSQL rejects the insert.
 VECTOR = [0.0] * 383 + [1.0]
@@ -29,8 +29,11 @@ def test_worker_embeds_pending_documents_and_stamps_the_content_hash(
     assert stored is not None
     assert stored.embedding is not None
     assert len(stored.embedding) == 384
-    # The stamp is the MD5 of the embedded text, not a status.
-    assert len(stored.execution_log["worker_embedding_v1"]) == 32
+    # The stamp is the MD5 of the embedded text **and** the identity of the model: the first
+    # half re-queues a text change, the second a model or dependency bump.
+    text_hash, _, producer = stored.execution_log["worker_embedding_v1"].partition(":")
+    assert len(text_hash) == 32
+    assert producer == producer_identity("motor_fake", "preset_teste", {})  # type: ignore[arg-type]
 
     # Nothing changed, so a second run must not call the model again.
     engine.embed.reset_mock()
@@ -214,3 +217,42 @@ def test_worker_reembeds_when_an_approved_excerpt_is_undone(
 
     engine.embed.assert_called_once()
     assert engine.embed.call_args.args[0] == [f"Rua A\n{BLOCK}"]
+
+
+def test_worker_reembeds_when_the_producer_identity_changes(
+    use_test_db, db_session, mock_registry, generate_archive_doc
+):
+    """
+    The same text, a different model: the vectors are stale even though the text hash is current.
+
+    This is the failure the issue measured — a ``torch``/``sentence-transformers`` bump left every
+    vector invalidated while the stamp stayed up to date and the queue stayed empty. The identity
+    half of the stamp is what puts the document back in the queue by itself.
+    """
+    generate_archive_doc(description_id="emb3", original_title="Enchentes no Batel", scope_content="alagamento")
+    engine = _fake_engine(mock_registry)
+
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
+    engine.embed.reset_mock()
+
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste", model="outro-modelo")  # type: ignore
+
+    engine.embed.assert_called_once()
+
+    # And going back to the first model re-embeds again: the stamp records one producer, not a set.
+    engine.embed.reset_mock()
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste")  # type: ignore
+    engine.embed.assert_called_once()
+
+
+def test_worker_limit_caps_the_documents_of_one_run(use_test_db, db_session, mock_registry, generate_archive_doc):
+    """A trial costs N documents instead of the collection, and the rest stays pending."""
+    for index in range(3):
+        generate_archive_doc(description_id=f"cap{index}", original_title=f"Documento {index}")
+    engine = _fake_engine(mock_registry)
+
+    execute(db=db_session, engine_name="motor_fake", preset="preset_teste", limit=2)  # type: ignore
+
+    embedded = [db_session.get(ArchiveDocument, f"cap{index}") for index in range(3)]
+    assert sum(1 for doc in embedded if doc.embedding is not None) == 2
+    assert engine.embed.call_count == 1
