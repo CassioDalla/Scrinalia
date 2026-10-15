@@ -1,0 +1,1305 @@
+"""
+The typology bench (issue #69): the picker that builds its labelled set, and the scorer.
+
+The typology classifier is the only AI worker with no measurement of its own. Nothing in the
+repository said whether the model labels a description correctly, how much of the collection it
+refuses to label, or whether it collapses the collection onto one typology. Measured in this
+checkout on 2026-10-14, the collapse is not a hypothesis:
+
+* On the reference collection (101 descriptions) 92 carried a typology and **78 of them were
+  "Planta Arquitetônica"** — including all 21 records of the Fundação Cultural de Curitiba, whose
+  titles are "Concerto na Pedreira do Pilarzinho" and "Vista interna das obras do Palácio 29 de
+  Março". The catalogue has "Fotografia" and "Audiovisual" for exactly those.
+* On the larger collection (4.831 descriptions) the same shape: of the 255 records whose title
+  starts with "Registros Fotográficos", 189 were labelled "Fotografia" and **64 were labelled
+  "Planta Arquitetônica"**.
+
+A bench that prints accuracy alone would have called that a success. This one prints the label
+distribution next to the score, on purpose, because the defect that opened this issue was a
+collapse and not a low score.
+
+**The labelled set is human.** ``--pick`` proposes rows by keyword stratum and writes the skeleton;
+a curator confirms or corrects every ``expected``. The rows are collection data and are deliberately
+not versioned (``testing/evaluation/README.md`` documents the shape); the scoring is what is
+versioned.
+
+Two modes, and the split is deliberate (principle VI — the decision, the write and the read are
+separate):
+
+``--pick``
+    Reads the collection and writes the skeleton of the labelled set. Nothing reaches the database.
+
+``--sheet``
+    Regenerates the human sheet from the labelled set, reading the text from the database, so the
+    sheet can never disagree with what the scorer will read.
+
+Run it from the repository root, against the real database::
+
+    uv run python -m testing.evaluation.typology_quality --pick
+    uv run python -m testing.evaluation.typology_quality --sheet
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import inspect
+import json
+import math
+import time
+from collections import Counter
+from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import date
+from pathlib import Path
+from typing import Any, cast
+
+from sqlalchemy import case, func, literal, select
+from sqlalchemy.orm import Session
+
+from scrinalia.core.config import settings
+from scrinalia.core.database import get_db
+from scrinalia.core.logger import logger
+from scrinalia.domains.archive.domain.text_quality import AI_TEXT_COLUMNS
+from scrinalia.domains.archive.engines.classification.registry import (
+    EngineName,
+    PresetName,
+    get_engine,
+)
+from scrinalia.domains.archive.models import ArchiveDocument, ArchiveTypology
+from scrinalia.domains.archive.repository import TypologyRepository
+from scrinalia.domains.archive.repository.text_quality_repo import (
+    TextQualityRepository,
+    composed_text_sql,
+)
+from scrinalia.domains.archive.workers.worker_typology import execute, resolved_parameters
+from testing.evaluation.dataset import DATA_DIR, load_dataset
+
+PAIRS_FILENAME = "typology_pairs.json"
+SHEET_FILENAME = "typology_pairs.sheet.md"
+
+#: Ordering key of the sample. Recorded in ``sampling`` so the same run can be reproduced: the
+#: picker sorts every stratum by ``md5(semente:description_id)``, never by insertion order, so a
+#: re-run after the collection grew proposes the same rows for the rows that already existed.
+DEFAULT_SEED = "scrinalia-typology-v1"
+
+#: The class of "this description has no typology at all". It is not a typology and the catalogue
+#: does not name it: it is the bucket that turns "the model abstained" into a measured false
+#: positive instead of an invisible one.
+NONE_CLASS = "NENHUMA"
+
+#: How many rows one stratum contributes by default, and how many the NENHUMA bucket contributes.
+DEFAULT_PER_FORM = 40
+DEFAULT_NONE_ROWS = 25
+
+#: ``confidence`` is the curator's own certainty, the same vocabulary the subject set uses.
+CONFIDENCE_VALUES = ("alta", "media", "baixa")
+
+
+# =============================================================================
+# Strata: the keyword rules that propose rows for a human to confirm
+# =============================================================================
+
+
+@dataclass(frozen=True)
+class Stratum:
+    """One keyword rule, and the reason it exists."""
+
+    key: str
+    pattern: str
+    why: str
+
+
+#: The photographic stratum is checked **before every other rule**, and that order is the whole
+#: point: measured on 2026-10-14, every one of the 40 title matches for "ofício" in this collection
+#: was a photograph ("Registros Fotográficos - Estofaria em Vila de Ofícios"), and so were the
+#: matches for "ata" and "vistoria" ("... - Reunião com o Prefeito Erasto Gaertner"). Hunting the
+#: rare forms without excluding the photographs first proposes a gabarito that measures Fotografia
+#: forty times.
+PHOTO_STRATUM = Stratum(
+    key="Fotografia",
+    pattern=r"^Registros Fotogr",
+    why="The IPPUC fonds is a photographic record: the title prefix is the form, and the bio describes the image.",
+)
+
+#: The narrow forms come before the broad one, because the first match wins. "Projeto de Croqui de
+#: Terreno" is proposed as Mapa/Croqui and not as Planta; a row the curator disagrees with is
+#: corrected, and a row the *catalogue* cannot decide is marked ``needs_decision``.
+FORM_STRATA: tuple[Stratum, ...] = (
+    Stratum(
+        key="Mapa / Croqui Urbanístico",
+        pattern=r"croqui|loteamento|zoneamento|arruamento|\mmapa\M|cartograf",
+        why="Loteamento, zoneamento and croqui are the urbanistic reading of a plan.",
+    ),
+    Stratum(
+        key="Processo Administrativo",
+        pattern=r"\mprocesso\M|licita|autos de infra",
+        why="A building-approval process is an administrative file, not the drawing inside it.",
+    ),
+    Stratum(
+        key="Decreto / Lei / Portaria",
+        pattern=r"decreto|portaria|\mlei\M|legisla",
+        why="Normative acts.",
+    ),
+    Stratum(
+        key="Relatório Técnico",
+        pattern=r"relat[óo]rio|laudo|vistoria|diagn[óo]stico",
+        why="Studies, inspections and technical opinions.",
+    ),
+    Stratum(
+        key="Ofício / Memorando",
+        pattern=r"of[íi]cio|memorando|correspond",
+        why="Official correspondence.",
+    ),
+    Stratum(
+        key="Ata de Reunião",
+        pattern=r"\mata\M|reuni[ãa]o|delibera",
+        why="Records of a meeting; a photograph *of* a meeting is a Fotografia, which is why the photo stratum runs first.",
+    ),
+    Stratum(
+        key="Dossiê Funcional",
+        pattern=r"dossi[êe]|funcion[áa]rio|servidor|prontu[áa]rio",
+        why="Personnel files.",
+    ),
+    Stratum(
+        key="Audiovisual",
+        pattern=r"v[íi]deo|\mfita\M|filme|audiovisual|grava[çc]|microfilme",
+        why="Moving image and sound recordings.",
+    ),
+    Stratum(
+        key="Planta Arquitetônica",
+        pattern=r"^Projeto|^Planta|fachada",
+        why="The dominant form of the SMU fonds: architectural projects and elevations.",
+    ),
+)
+
+#: The control bucket: descriptions the ten typologies do not cover. Without these rows the bench
+#: cannot measure a false positive — a model that labels everything would look perfect.
+NONE_STRATUM = Stratum(
+    key=NONE_CLASS,
+    pattern=r"requerimento|alvar[áa]|certid[ãa]o|escritura|invent[áa]rio|livro|boletim|registro de",
+    why="Forms the catalogue has no entry for; the curator confirms that no typology applies.",
+)
+
+#: Every stratum in decision order. The first one whose pattern matches owns the row.
+STRATA: tuple[Stratum, ...] = (PHOTO_STRATUM, *FORM_STRATA, NONE_STRATUM)
+
+
+# =============================================================================
+# Reading the collection
+# =============================================================================
+
+
+@dataclass
+class Row:
+    """One item of the collection, the text the worker reads, and the stratum its title proposes."""
+
+    description_id: str
+    title: str
+    evidence: str
+    provenance: str
+    input_text: str
+    stratum: str | None
+
+
+#: How much of the description reaches the sheet and the skeleton. The first clause carries the form
+#: ("Fachada do Matadouro Municipal do Guabirotuba em reforma"); the rest of a long paragraph is
+#: research prose that does not change the label, and it is still in the database for whoever wants it.
+EVIDENCE_LIMIT = 400
+
+
+def _evidence(scope: str | None, bio: str | None, title: str) -> str:
+    """
+    The text that lets a person decide the form.
+
+    The archival history comes first and ``scope_content`` second, and that order is measured: in this
+    collection ``scope_content`` carries the same "Acervo de 35.327 fotografias…" paragraph for the
+    3.163 items of the IPPUC fonds, so preferring it made every photographic row look identical — and
+    the first run of this picker proposed 3 rows for a stratum with 3.163 candidates. The history is
+    the field that describes each item.
+    """
+    for value in (bio, scope):
+        text = " ".join((value or "").split())
+        if text and text.lower() != title.strip().lower():
+            return text[:EVIDENCE_LIMIT] + ("…" if len(text) > EVIDENCE_LIMIT else "")
+    return title
+
+
+def read_collection(db: Session) -> list[Row]:
+    """
+    Every item of the collection, the text the worker reads, and the stratum its title proposes.
+
+    The hierarchy nodes (``node_*``) are out: they are fundos and séries, not items, and the
+    classifier never sees them. The text is composed by ``composed_text_sql`` — the very expression
+    ``worker_typology.execute`` builds — and not by a Python re-implementation of the columns and the
+    approved excerpts: a bench that composed the text itself would measure a text the worker never
+    sees (principle IV).
+    """
+    columns, _threshold = resolved_parameters(None, None, None)
+    rules = TextQualityRepository(db).get_active_rules("NER")
+    text_expression = composed_text_sql(columns, rules, separator=". ")
+
+    # One CASE, so the priority between the strata is stated once and in one place: the first
+    # pattern that matches owns the row.
+    stratum_expression = case(
+        *[(ArchiveDocument.original_title.op("~*")(s.pattern), literal(s.key)) for s in STRATA],
+        else_=literal(None),
+    ).label("stratum")
+
+    stmt = (
+        select(
+            ArchiveDocument.description_id,
+            ArchiveDocument.original_title,
+            ArchiveDocument.scope_content,
+            ArchiveDocument.admin_bio_history,
+            ArchiveDocument.provenance,
+            text_expression.label("input_text"),
+            stratum_expression,
+        )
+        .where(ArchiveDocument.description_id.op("!~")("^node_"))
+        .order_by(ArchiveDocument.description_id)
+    )
+
+    rows: list[Row] = []
+    for description_id, title, scope, bio, provenance, input_text, stratum in db.execute(stmt).all():
+        clean_title = " ".join((title or "").split())
+        rows.append(
+            Row(
+                description_id=description_id,
+                title=clean_title,
+                evidence=_evidence(scope, bio, clean_title),
+                provenance=" ".join((provenance or "").split()),
+                input_text=" ".join((input_text or "").split()),
+                stratum=stratum,
+            )
+        )
+    return rows
+
+
+# =============================================================================
+# The picker
+# =============================================================================
+
+
+def _order_key(seed: str, description_id: str) -> str:
+    """Deterministic ordering key of the sample: the same seed proposes the same rows."""
+    return hashlib.md5(f"{seed}:{description_id}".encode()).hexdigest()
+
+
+def _one_per_input(rows: list[Row]) -> list[Row]:
+    """
+    Keeps one row per distinct text the worker reads.
+
+    Measured: the photographic fonds has 3.164 items over **1.240 distinct titles**, and two titles in
+    the reference collection repeat ten times each. Two documents with the same input cannot disagree,
+    so a second copy adds no measurement and only weights whatever the collection happens to repeat.
+    The cap is applied after this, so the sample spreads across events instead of across duplicates.
+    """
+    seen: set[str] = set()
+    kept: list[Row] = []
+    for row in rows:
+        key = row.input_text.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        kept.append(row)
+    return kept
+
+
+def pick(rows: list[Row], seed: str, per_form: int, none_rows: int) -> dict[str, list[Row]]:
+    """
+    One sample per stratum, deterministic under ``seed``.
+
+    Every stratum is deduplicated by the text the worker reads, for the reason ``_one_per_input``
+    gives; the rare forms are small enough that the cap only bites on Planta and Fotografia.
+    """
+    pools: dict[str, list[Row]] = {stratum.key: [] for stratum in STRATA}
+    unbucketed = 0
+    for row in rows:
+        if row.stratum is None:
+            unbucketed += 1
+            continue
+        pools[row.stratum].append(row)
+
+    picked: dict[str, list[Row]] = {}
+    for stratum in STRATA:
+        pool = sorted(pools[stratum.key], key=lambda r: _order_key(seed, r.description_id))
+        pool = _one_per_input(pool)
+        cap = none_rows if stratum.key == NONE_CLASS else per_form
+        picked[stratum.key] = pool[:cap]
+
+    logger.info(f"🔎 {len(rows)} items read · {unbucketed} matched no stratum (outside the sample)")
+    return picked
+
+
+def build_payload(
+    picked: dict[str, list[Row]], catalogue: list[str], seed: str, per_form: int, none_rows: int
+) -> dict[str, Any]:
+    """The skeleton of the labelled set, with the proposal pre-filled for the curator to correct."""
+    pairs: list[dict[str, Any]] = []
+    for stratum in STRATA:
+        for row in picked[stratum.key]:
+            pairs.append(
+                {
+                    "description_id": row.description_id,
+                    "candidate": stratum.key,
+                    "title": row.title,
+                    "evidence": row.evidence,
+                    "expected": None if stratum.key == NONE_CLASS else stratum.key,
+                    "confidence": None,
+                    "needs_decision": False,
+                    "note": "",
+                }
+            )
+
+    counts = {stratum.key: len(picked[stratum.key]) for stratum in STRATA}
+    missing = [stratum.key for stratum in STRATA if not picked[stratum.key]]
+    sampling = (
+        f"Estrato por expressão regular no título, na ordem de STRATA, com o prefixo fotográfico "
+        f"({PHOTO_STRATUM.pattern!r}) avaliado ANTES das outras formas: medido em 2026-10-14, os 40 "
+        f"casamentos de 'ofício' nesta coleção eram todos fotografias ('Vila de Ofícios'). A semente "
+        f"{seed!r} ordena cada estrato por md5(semente:description_id), então o recorte é "
+        f"reproduzível. Dentro de cada estrato fica 1 linha por TEXTO DISTINTO que o worker lê "
+        f"(título já sem os trechos aprovados): dois documentos com a mesma entrada não podem "
+        f"discordar, e o acervo tem 3.164 fotografias sobre 1.240 títulos. "
+        f"Teto por estrato: {per_form}; o balde {NONE_CLASS}: {none_rows}. Linhas propostas: {counts}. "
+        f"Sem candidato nenhum: {missing or 'nenhuma'} — as formas ausentes não podem ser medidas "
+        f"nesta coleção e o relatório tem de imprimir 'não medida' em vez de um F1 de dois exemplos."
+    )
+
+    return {
+        "description": (
+            "Conjunto rotulado do eixo de tipologia documental (issue #69). Cada linha traz o "
+            "estrato que a propôs em 'candidate' e o texto que permite decidir; 'expected' é a "
+            "verdade do curador, e é ela que a bancada pontua. O rótulo é humano: é isto que separa "
+            "este conjunto do que o modelo já escreveu no banco."
+        ),
+        "collection": "",  # filled by the caller
+        "sampling": sampling,
+        "catalogue_at_labelling": catalogue,
+        "instructions_for_the_curator": [
+            "Cada linha vem com o estrato que a propôs em 'candidate'. Se ele estiver certo, não "
+            "mexa em 'expected'; se estiver errado, corrija.",
+            "'expected' aceita o nome de uma tipologia, uma LISTA de nomes aceitáveis (quando o "
+            "documento é duas coisas ao mesmo tempo) ou null quando nenhuma tipologia se aplica.",
+            "'confidence' é a SUA certeza: alta, media ou baixa.",
+            "Marque 'needs_decision': true quando a ambiguidade for do catálogo e não sua — um "
+            "'Projeto de Croqui de Terreno' é Planta ou Mapa? O relatório exclui essas linhas do "
+            "placar e as conta em separado, para não punir o modelo por uma pergunta mal feita.",
+            "Escreva o motivo em 'note': é a parte que um leitor posterior precisa.",
+            "As linhas com 'candidate': 'NENHUMA' são o controle: confirme que nenhuma tipologia se "
+            "aplica, ou dê a elas a tipologia que o catálogo não tem.",
+            "Quando terminar, troque 'status' por 'aprovado por <quem> em <data>' e registre em "
+            "'approved_note' o que mudou. A bancada se recusa a pontuar um conjunto 'draft'.",
+        ],
+        "pairs": pairs,
+        "status": "draft — nenhum curador revisou este conjunto ainda",
+        "approved_note": "",
+    }
+
+
+def _labelled(payload: dict[str, Any]) -> int:
+    """How many rows a human already touched, so a re-run can say what it would discard."""
+    return sum(1 for pair in payload.get("pairs", []) if pair.get("confidence") or pair.get("note"))
+
+
+def write_skeleton(out: Path, payload: dict[str, Any], force: bool) -> None:
+    """
+    Writes the skeleton, refusing to overwrite a curator's work.
+
+    A re-run of the picker would destroy labels that have no undo, so the default is to refuse. The
+    preview of what would die is printed before ``--force`` does it (principle VI).
+    """
+    if out.exists() and not force:
+        existing = json.loads(out.read_text(encoding="utf-8"))
+        raise SystemExit(
+            f"{out} already exists with {_labelled(existing)} labelled row(s). The labelled set is a "
+            "curator's work and re-running the picker would overwrite it. Pass --force only if you "
+            "mean to discard it, or point --out at another file."
+        )
+    if out.exists():
+        existing = json.loads(out.read_text(encoding="utf-8"))
+        logger.warning(f"⚠️ --force discards {_labelled(existing)} labelled row(s) in {out}")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    logger.success(f"💾 skeleton written to {out} ({len(payload['pairs'])} rows, nothing written to the database)")
+
+
+# =============================================================================
+# The sheet
+# =============================================================================
+
+
+def sheet_lines(payload: dict[str, Any], effective_text: dict[str, str]) -> list[str]:
+    """The human sheet: what the curator reads to decide each row, in the file's own order."""
+    lines = [
+        "# Conjunto rotulado de tipologia — folha de revisão",
+        "",
+        f"Coleção: {payload.get('collection', '')}",
+        "",
+        f"Status: {payload.get('status', '')}",
+        "",
+        "`expected` já vem com o estrato que propôs a linha. Corrija o que estiver errado.",
+        "",
+    ]
+    for index, pair in enumerate(payload["pairs"], start=1):
+        lines.append(f"## {index}. `{pair['description_id']}` — {pair.get('candidate', '')}")
+        lines.append("")
+        lines.append(f"- **Título:** {pair.get('title', '')}")
+        if pair.get("evidence"):
+            lines.append(f"- **Evidência:** {pair['evidence']}")
+        text = effective_text.get(pair["description_id"], "")
+        if text and text != pair.get("title"):
+            lines.append(f"- **Texto que o modelo lê:** {text}")
+        expected = pair.get("expected")
+        shown = "nenhuma" if expected is None else expected
+        lines.append(f"- **esperado:** {shown}   _(confiança: {pair.get('confidence') or '—'})_")
+        if pair.get("needs_decision"):
+            lines.append("- **decisão de catálogo pendente**")
+        if pair.get("note"):
+            lines.append(f"- **nota:** {pair['note']}")
+        lines.append("")
+    return lines
+
+
+def load_payload(path: Path) -> dict[str, Any]:
+    """
+    Reads the labelled set, through the shared drawer loader when it lives in the standard place.
+
+    Going through ``dataset.load_dataset`` is what makes a missing file say where it belongs and why
+    it is not versioned, instead of a bare ``FileNotFoundError`` whose reflex fix is to re-create the
+    set from the code — the one thing that must not happen. An explicit path elsewhere still fails
+    with the same instruction.
+    """
+    if path.parent.resolve() == DATA_DIR.resolve():
+        return load_dataset(path.name)
+    if not path.exists():
+        raise SystemExit(
+            f"{path} does not exist. Build it with `--pick`, label it by hand, then score it. The "
+            "expected shape is documented in testing/evaluation/README.md."
+        )
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def print_sheet(payload: dict[str, Any], out: Path) -> None:
+    """Writes the sheet next to the labelled set; the text comes from the database, never from the file."""
+    ids = [pair["description_id"] for pair in payload["pairs"]]
+    columns, _threshold = resolved_parameters(None, None, None)
+    with get_db() as db:
+        effective = read_input_text(db, ids, columns)
+        db.rollback()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("\n".join(sheet_lines(payload, effective)) + "\n", encoding="utf-8")
+    logger.success(f"📄 sheet written to {out} ({len(ids)} rows)")
+
+
+# =============================================================================
+# Metrics — pure functions, no session and no model
+# =============================================================================
+#
+# This is the part a unit test can hold: the arithmetic that turns a list of (truth, prediction)
+# into a number. The model and the database are exercised elsewhere, so a defect in the metrics
+# cannot hide behind "it needs a GPU".
+
+#: The bucket a prediction falls into when the classifier refuses to answer. It is not a typology:
+#: it is the outcome the confidence floor produces, and it belongs in the distribution because a
+#: model that abstains on everything must not look like a model with a clean spread.
+ABSTAINED = "(abstained)"
+
+#: Below this many labelled positives a typology's F1 is noise wearing a number's clothes, and the
+#: report says "não medida" instead. Measured on this collection: five forms have two examples or
+#: none at all, and a "F1 = 1.000" built on two rows would be quoted as if it meant something.
+MIN_POSITIVES = 5
+
+
+@dataclass(frozen=True)
+class Truth:
+    """What the curator said about one row: one label, several acceptable ones, or none at all."""
+
+    labels: frozenset[str] | None
+
+    @property
+    def is_none(self) -> bool:
+        """``None`` is the NENHUMA class: no typology applies, so abstaining is the right answer."""
+        return self.labels is None
+
+
+@dataclass(frozen=True)
+class Prediction:
+    """What the classifier answered, and with how much confidence."""
+
+    label: str | None
+    score: float | None = None
+
+
+@dataclass(frozen=True)
+class Scored:
+    """One labelled row after the classifier answered it."""
+
+    description_id: str
+    truth: Truth
+    prediction: Prediction
+
+    @property
+    def key(self) -> str:
+        """The predicted bucket, with the abstention named instead of dropped."""
+        return self.prediction.label or ABSTAINED
+
+    @property
+    def truth_key(self) -> str:
+        """The gabarito as one cell of the confusion matrix; a list of acceptable names is joined."""
+        if self.truth.is_none:
+            return NONE_CLASS
+        return " | ".join(sorted(self.truth.labels or ()))
+
+    @property
+    def correct(self) -> bool:
+        """
+        Agreement with the gabarito.
+
+        A row the curator marked NENHUMA is right exactly when the classifier abstained, and a row
+        with a list of acceptable names is right when the answer is any of them. Both rules exist
+        because the catalogue mixes support and species; without them the bench would score a
+        legitimate answer as an error.
+        """
+        if self.truth.is_none:
+            return self.prediction.label is None
+        return self.prediction.label in (self.truth.labels or frozenset())
+
+
+@dataclass
+class ClassMetrics:
+    """Precision, recall and F1 of one typology, over the rows the curator labelled."""
+
+    label: str
+    support: int = 0
+    true_positives: int = 0
+    false_positives: int = 0
+    false_negatives: int = 0
+    min_positives: int = MIN_POSITIVES
+
+    @property
+    def measured(self) -> bool:
+        return self.support >= self.min_positives
+
+    @property
+    def precision(self) -> float:
+        denominator = self.true_positives + self.false_positives
+        return self.true_positives / denominator if denominator else 0.0
+
+    @property
+    def recall(self) -> float:
+        return self.true_positives / self.support if self.support else 0.0
+
+    @property
+    def f1(self) -> float:
+        precision, recall = self.precision, self.recall
+        return 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+
+
+def agreement(rows: Sequence[Scored]) -> float:
+    """Share of the scored rows the classifier got right."""
+    return sum(1 for row in rows if row.correct) / len(rows) if rows else 0.0
+
+
+def distribution(rows: Sequence[Scored]) -> Counter[str]:
+    """How many rows each predicted bucket took — the collapse, as a number."""
+    return Counter(row.key for row in rows)
+
+
+def confusion(rows: Sequence[Scored]) -> Counter[tuple[str, str]]:
+    """``(gabarito, predito)`` counts, so a systematic confusion is visible and not only its total."""
+    return Counter((row.truth_key, row.key) for row in rows)
+
+
+def entropy_bits(counts: Counter[str]) -> float:
+    """
+    Shannon entropy of the predicted buckets, in bits.
+
+    Over the buckets **including** the abstention, because abstaining is an outcome and a model that
+    abstains on everything should not look concentrated. ``largest_share`` is the same symptom
+    without the logarithm.
+    """
+    total = sum(counts.values())
+    if total <= 0:
+        return 0.0
+    # ``max(0.0, ...)`` is not decoration: one bucket gives ``-0.0``, and "-0.00 bits" in a report
+    # reads like a bug in the metric rather than a perfectly concentrated answer.
+    return max(0.0, -sum((count / total) * math.log2(count / total) for count in counts.values() if count > 0))
+
+
+def largest_share(counts: Counter[str]) -> tuple[str, float]:
+    """The biggest predicted bucket and its share: the one number that denounces a collapse."""
+    total = sum(counts.values())
+    if not counts or total <= 0:
+        return ("", 0.0)
+    label, count = counts.most_common(1)[0]
+    return (label, count / total)
+
+
+def abstention_rate(rows: Sequence[Scored]) -> float:
+    """Share of the scored rows the classifier refused to label."""
+    return sum(1 for row in rows if row.prediction.label is None) / len(rows) if rows else 0.0
+
+
+def per_class(
+    rows: Sequence[Scored], labels: Sequence[str], min_positives: int = MIN_POSITIVES
+) -> dict[str, ClassMetrics]:
+    """
+    Precision, recall and F1 per typology, with the any-of truth treated as multi-label.
+
+    A row whose gabarito is ``["Mapa / Croqui Urbanístico", "Planta Arquitetônica"]`` and whose answer
+    is Planta gives Planta a true positive and Mapa a false negative: both readings are true at once,
+    and collapsing them into one column would hide which of the two the model can find.
+    """
+    metrics = {label: ClassMetrics(label=label, min_positives=min_positives) for label in labels}
+    for row in rows:
+        truth = row.truth.labels or frozenset()
+        predicted = row.prediction.label
+        for label in truth:
+            if label not in metrics:
+                continue  # the curator named a typology the active catalogue no longer has
+            metrics[label].support += 1
+            if predicted == label:
+                metrics[label].true_positives += 1
+            else:
+                metrics[label].false_negatives += 1
+        if predicted is not None and predicted in metrics and predicted not in truth:
+            metrics[predicted].false_positives += 1
+    return metrics
+
+
+def macro_f1(metrics: dict[str, ClassMetrics]) -> float:
+    """Mean F1 over the **measured** classes only: an unmeasured class is absent, not zero."""
+    measured = [metric.f1 for metric in metrics.values() if metric.measured]
+    return sum(measured) / len(measured) if measured else 0.0
+
+
+# =============================================================================
+# Configurations
+# =============================================================================
+
+
+@dataclass(frozen=True)
+class BenchConfig:
+    """One scored configuration: the same four things ``worker_typology.producer_identity`` signs."""
+
+    engine: str
+    preset: str | None
+    columns: tuple[str, ...]
+    threshold: float
+
+    @property
+    def label(self) -> str:
+        return f"{self.engine}:{self.preset or '-'}:{','.join(self.columns)}:{self.threshold:.2f}"
+
+
+def parse_config(text: str, default_columns: tuple[str, ...], default_threshold: float) -> BenchConfig:
+    """
+    Reads ``engine[:preset[:columns[:threshold]]]``, filling the empty fields from the worker.
+
+    The four fields are exactly what the worker stamps as the producer identity, and that is the
+    point: the bench can only measure a configuration the worker can be told to run. The model is
+    never named here — a new model is a preset in the engine registry, not an edit to this script.
+    """
+    parts = text.split(":")
+    if len(parts) > 4:
+        raise SystemExit(f"--config {text!r} has {len(parts)} fields; expected engine[:preset[:columns[:threshold]]].")
+    engine = parts[0].strip()
+    if not engine:
+        raise SystemExit(f"--config {text!r} names no engine.")
+    preset = parts[1].strip() if len(parts) > 1 and parts[1].strip() else None
+    columns = (
+        tuple(part.strip() for part in parts[2].split(",") if part.strip())
+        if len(parts) > 2 and parts[2].strip()
+        else default_columns
+    )
+    try:
+        threshold = float(parts[3]) if len(parts) > 3 and parts[3].strip() else default_threshold
+    except ValueError as error:
+        raise SystemExit(f"--config {text!r} has a threshold that is not a number: {parts[3]!r}") from error
+
+    unknown = [column for column in columns if column not in AI_TEXT_COLUMNS]
+    if unknown:
+        raise SystemExit(
+            f"--config {text!r} names columns the AI text does not have: {unknown}. Known: {AI_TEXT_COLUMNS}"
+        )
+
+    return BenchConfig(engine=engine, preset=preset, columns=columns, threshold=threshold)
+
+
+# =============================================================================
+# Reading the labelled set
+# =============================================================================
+
+
+@dataclass(frozen=True)
+class LabelledRow:
+    """One row of the labelled set, as the scorer needs it."""
+
+    description_id: str
+    truth: Truth
+    needs_decision: bool
+    note: str
+
+
+def _truth(value: Any, index: int, description_id: str) -> Truth:
+    """Validates one ``expected`` field: a name, a list of acceptable names, or null."""
+    if value is None:
+        return Truth(labels=None)
+    if isinstance(value, str):
+        if not value.strip():
+            raise SystemExit(f"row {index} ({description_id}) has an empty 'expected'.")
+        return Truth(labels=frozenset({value.strip()}))
+    if isinstance(value, list) and value and all(isinstance(item, str) and item.strip() for item in value):
+        return Truth(labels=frozenset(item.strip() for item in value))
+    raise SystemExit(
+        f"row {index} ({description_id}) has 'expected': {value!r}, which is not a typology name, a "
+        "list of acceptable names, or null. The shape is in testing/evaluation/README.md."
+    )
+
+
+def load_labelled(path: Path, catalogue: Sequence[str], allow_draft: bool) -> tuple[list[LabelledRow], dict[str, Any]]:
+    """
+    Reads the labelled set, refusing a draft unless ``--allow-draft`` says otherwise.
+
+    The human signature is what makes the number quotable: a set nobody reviewed produces a figure
+    that reads exactly like a reviewed one, and that is the failure ``status`` exists to prevent.
+    """
+    payload = load_payload(path)
+    status = str(payload.get("status", ""))
+    if status.strip().lower().startswith("draft") and not allow_draft:
+        raise SystemExit(
+            f"{path} still says {status!r}. The bench refuses to score a set no curator signed, "
+            "because the number would be quoted as if someone had. Review the rows, write the "
+            "signature into 'status', or pass --allow-draft to explore."
+        )
+
+    rows: list[LabelledRow] = []
+    for index, pair in enumerate(payload.get("pairs", []), start=1):
+        if "expected" not in pair:
+            raise SystemExit(f"row {index} ({pair.get('description_id')}) has no 'expected' field at all.")
+        description_id = str(pair.get("description_id", "")).strip()
+        if not description_id:
+            raise SystemExit(f"row {index} has no 'description_id'.")
+        confidence = pair.get("confidence")
+        if confidence is not None and confidence not in CONFIDENCE_VALUES:
+            raise SystemExit(
+                f"row {index} ({description_id}) has confidence {confidence!r}; expected one of {CONFIDENCE_VALUES} or null."
+            )
+        rows.append(
+            LabelledRow(
+                description_id=description_id,
+                truth=_truth(pair["expected"], index, description_id),
+                needs_decision=bool(pair.get("needs_decision", False)),
+                note=str(pair.get("note", "")),
+            )
+        )
+    return rows, payload
+
+
+def unknown_truth_labels(rows: Sequence[LabelledRow], catalogue: Sequence[str]) -> list[str]:
+    """
+    Typologies the gabarito names that the active catalogue no longer has.
+
+    Reported instead of ignored: the classifier can only answer with an active label, so such a row
+    is a guaranteed miss, and the curator has to decide whether the label was retired or mistyped.
+    """
+    known = set(catalogue)
+    named = {label for row in rows for label in (row.truth.labels or ())}
+    return sorted(named - known)
+
+
+# =============================================================================
+# Scoring
+# =============================================================================
+
+
+def read_input_text(db: Session, description_ids: Sequence[str], columns: Sequence[str]) -> dict[str, str]:
+    """
+    The text the worker reads, for these ids and columns.
+
+    Composed by ``composed_text_sql`` — the expression ``worker_typology.execute`` builds — with the
+    worker's own scope (``NER``) and separator (``". "``). The pinning test runs the worker with a
+    fake engine and compares what it handed to the model with what this function returns for the same
+    document: a bench that composed the text itself would measure a text the worker never sees.
+    """
+    if not description_ids:
+        return {}
+    rules = TextQualityRepository(db).get_active_rules("NER")
+    text_expression = composed_text_sql(columns, rules, separator=". ")
+    stmt = select(ArchiveDocument.description_id, text_expression).where(
+        ArchiveDocument.description_id.in_(list(description_ids))
+    )
+    return {description_id: " ".join((text or "").split()) for description_id, text in db.execute(stmt).all()}
+
+
+def score_stored(db: Session, rows: Sequence[LabelledRow]) -> list[Scored]:
+    """
+    Scores the typology the last run already wrote, without loading a model.
+
+    This is the "how did the run that shipped do?" question, and it is also the only view that
+    covers the whole collection for free. The confidence is not stored, so the floor is not applied
+    here: the stored answer *is* the post-threshold outcome.
+    """
+    ids = [row.description_id for row in rows]
+    stmt = (
+        select(ArchiveDocument.description_id, ArchiveTypology.name)
+        .outerjoin(ArchiveTypology, ArchiveTypology.typology_id == ArchiveDocument.typology_id)
+        .where(ArchiveDocument.description_id.in_(ids))
+    )
+    stored = dict(db.execute(stmt).all())
+    return [
+        Scored(
+            description_id=row.description_id,
+            truth=row.truth,
+            prediction=Prediction(label=stored.get(row.description_id)),
+        )
+        for row in rows
+    ]
+
+
+def score_live(
+    db: Session, config: BenchConfig, rows: Sequence[LabelledRow], limit: int | None = None
+) -> tuple[list[Scored], float]:
+    """
+    Runs the engine over the labelled rows and mirrors the worker's decision exactly.
+
+    The mirror matters: the worker links a typology only when ``score > confidence_threshold``
+    (strictly), and skips a document whose composed text is empty, stamping it without asking the
+    model. A bench that used ``>=`` would report an abstention rate the worker never produces.
+
+    Returns the scored rows and the seconds spent inside the model, so the report can print seconds
+    per document instead of an estimate.
+    """
+    engine = get_engine(cast("EngineName", config.engine), cast("PresetName", config.preset))
+    catalogue = list(TypologyRepository(db).get_active_typologies())
+    if not catalogue:
+        raise SystemExit("The active typology catalogue is empty; there is nothing to classify against.")
+
+    selected = list(rows[:limit] if limit else rows)
+    texts = read_input_text(db, [row.description_id for row in selected], config.columns)
+
+    scored: list[Scored] = []
+    seconds = 0.0
+    classified = 0
+    batch_size = 8
+    for start in range(0, len(selected), batch_size):
+        chunk = selected[start : start + batch_size]
+        pending = [row for row in chunk if texts.get(row.description_id, "")]
+        if pending:
+            started = time.perf_counter()
+            results = engine.classify([texts[row.description_id] for row in pending], catalogue, batch_size=1)
+            seconds += time.perf_counter() - started
+            classified += len(pending)
+            by_id = {row.description_id: result for row, result in zip(pending, results, strict=True)}
+        else:
+            by_id = {}
+        for row in chunk:
+            result = by_id.get(row.description_id)
+            if result is None:
+                # The worker never asks the model about an empty text; it stamps the document and
+                # moves on. Abstaining is the same outcome for the measurement.
+                scored.append(
+                    Scored(description_id=row.description_id, truth=row.truth, prediction=Prediction(label=None))
+                )
+                continue
+            label = result["labels"][0]
+            score = float(result["scores"][0])
+            linked = label if score > config.threshold else None
+            scored.append(
+                Scored(
+                    description_id=row.description_id,
+                    truth=row.truth,
+                    prediction=Prediction(label=linked, score=score),
+                )
+            )
+    return scored, (seconds / classified if classified else 0.0)
+
+
+def stored_collection_distribution(db: Session) -> Counter[str]:
+    """
+    The distribution of what the last run wrote, over the **whole** collection.
+
+    The sample answers "is it right"; this answers "does it collapse", and the collapse is a property
+    of the collection and not of the sample. It is free in the stored mode because it is one query.
+    """
+    stmt = (
+        select(ArchiveTypology.name, func.count())
+        .select_from(ArchiveDocument)
+        .outerjoin(ArchiveTypology, ArchiveTypology.typology_id == ArchiveDocument.typology_id)
+        .where(ArchiveDocument.description_id.op("!~")("^node_"))
+        .group_by(ArchiveTypology.name)
+    )
+    counts: Counter[str] = Counter()
+    for name, count in db.execute(stmt).all():
+        counts[name or ABSTAINED] += int(count)
+    return counts
+
+
+def stored_mode_note(collection: Counter[str]) -> str:
+    """
+    The limitation of the stored mode, with the number that makes it concrete.
+
+    ``typology_id`` is NULL both when the run abstained and when it never reached the document, and
+    the column does not say which. Without this sentence, "agreement 0.259" reads as the model's
+    quality when most of it is the run's coverage — the exact kind of confidently wrong statement
+    this repository treats as more expensive than a declared gap.
+    """
+    total = sum(collection.values())
+    answered = total - collection.get(ABSTAINED, 0)
+    return (
+        "O modo `stored` lê a coluna `typology_id`, e ela é NULL tanto quando a execução absteve "
+        f"quanto quando ela nunca chegou ao documento: o banco não distingue as duas. Medido agora, "
+        f"{answered} de {total} itens carregam tipologia ({answered / max(1, total):.1%}), então a maior "
+        "parte das linhas conta como abstenção e derruba toda métrica. Este modo serve para o colapso "
+        "— a distribuição da coleção inteira, impressa acima — e o modo `live` é o que mede o modelo."
+    )
+
+
+# =============================================================================
+# Report
+# =============================================================================
+
+
+def report_for(
+    config: BenchConfig,
+    scored: Sequence[Scored],
+    catalogue: Sequence[str],
+    labelled: int,
+    needs_decision: int,
+    missing: int,
+    seconds_per_document: float,
+    min_positives: int,
+    predictions: str,
+) -> dict[str, Any]:
+    """Everything the decision needs about one configuration, as data the JSON can carry."""
+    metrics = per_class(scored, catalogue, min_positives)
+    counts = distribution(scored)
+    label, share = largest_share(counts)
+    return {
+        "config": config.label,
+        "engine": config.engine,
+        "preset": config.preset,
+        "columns": list(config.columns),
+        "threshold": config.threshold,
+        "predictions": predictions,
+        "rows": {
+            "labelled": labelled,
+            "scored": len(scored),
+            "needs_decision": needs_decision,
+            "missing_from_collection": missing,
+        },
+        "agreement": agreement(scored),
+        "macro_f1": macro_f1(metrics),
+        "measured_classes": sum(1 for metric in metrics.values() if metric.measured),
+        "abstention_rate": abstention_rate(scored),
+        "largest_share": [label, share],
+        "entropy_bits": entropy_bits(counts),
+        "seconds_per_document": seconds_per_document,
+        "distribution": dict(counts),
+        "confusion": {
+            f"{truth} → {predicted}": count for (truth, predicted), count in sorted(confusion(scored).items())
+        },
+        "classes": [
+            {
+                "label": metric.label,
+                "support": metric.support,
+                "precision": metric.precision,
+                "recall": metric.recall,
+                "f1": metric.f1,
+                "measured": metric.measured,
+            }
+            for metric in sorted(metrics.values(), key=lambda m: (-m.support, m.label))
+        ],
+        "unmeasured": [metric.label for metric in metrics.values() if not metric.measured],
+        "notes": [],
+        "misses": [
+            {
+                "description_id": row.description_id,
+                "expected": row.truth_key,
+                "predicted": row.key,
+                "score": row.prediction.score,
+            }
+            for row in scored
+            if not row.correct
+        ],
+    }
+
+
+def _f1(report: dict[str, Any]) -> str:
+    """
+    Macro-F1, or an em dash when no class was measured.
+
+    "0.000" next to "no class was measured" reads like a bad model, when the truth is that this
+    collection does not have the examples. The dash says which of the two it is.
+    """
+    return f"{report['macro_f1']:.3f}" if report.get("measured_classes") else "—"
+
+
+def summary_table(reports: Sequence[dict[str, Any]]) -> str:
+    """The comparison: one line per configuration, ordered by agreement."""
+    lines = [
+        "| Configuração | Concordância | Macro-F1 | Abstenção | Maior gaveta | Entropia (bits) | s/doc |",
+        "| --- | ---: | ---: | ---: | --- | ---: | ---: |",
+    ]
+    for report in sorted(reports, key=lambda r: -r["agreement"]):
+        label, share = report["largest_share"]
+        lines.append(
+            f"| `{report['config']}` | {report['agreement']:.3f} | {_f1(report)} "
+            f"| {report['abstention_rate']:.3f} | {label} ({share:.0%}) | {report['entropy_bits']:.2f} "
+            f"| {report['seconds_per_document']:.2f} |"
+        )
+    return "\n".join(lines)
+
+
+def detail_lines(report: dict[str, Any]) -> list[str]:
+    """Per-configuration detail: the per-typology table, the confusion matrix and the misses."""
+    rows = report["rows"]
+    lines = [
+        f"### `{report['config']}`",
+        "",
+        f"- predições: **{report['predictions']}** · limiar: {report['threshold']:.2f} · colunas: {', '.join(report['columns'])}",
+        f"- linhas: {rows['labelled']} no conjunto, {rows['scored']} pontuadas, "
+        f"{rows['needs_decision']} com `needs_decision` (fora do placar), {rows['missing_from_collection']} ausentes do banco",
+        f"- concordância: **{report['agreement']:.3f}** · macro-F1 (classes medidas): {_f1(report)}",
+        f"- abstenção: {report['abstention_rate']:.3f} · maior gaveta: {report['largest_share'][0]} "
+        f"({report['largest_share'][1]:.0%}) · entropia: {report['entropy_bits']:.2f} bits",
+        f"- segundos por documento: {report['seconds_per_document']:.2f}",
+        "",
+    ]
+    lines += [f"> {note}" for note in report.get("notes", [])]
+    if report.get("notes"):
+        lines.append("")
+    lines += [
+        "| Tipologia | suporte | precisão | recall | F1 |",
+        "| --- | ---: | ---: | ---: | ---: |",
+    ]
+    for entry in report["classes"]:
+        if entry["measured"]:
+            lines.append(
+                f"| {entry['label']} | {entry['support']} | {entry['precision']:.3f} "
+                f"| {entry['recall']:.3f} | {entry['f1']:.3f} |"
+            )
+        else:
+            lines.append(f"| {entry['label']} | {entry['support']} | — | — | — *(não medida)* |")
+    if report["unmeasured"]:
+        lines += [
+            "",
+            f"**Não medidas** (menos de {MIN_POSITIVES} exemplos rotulados): {', '.join(report['unmeasured'])}. "
+            "Estas formas não existem nesta coleção em quantidade suficiente e o relatório se recusa a "
+            "imprimir um F1 de dois exemplos.",
+        ]
+
+    lines += ["", "| gabarito \\ predito |", "| --- |"] if report["confusion"] else []
+    for cell, count in report["confusion"].items():
+        lines.append(f"| {cell} | {count} |")
+
+    if report["misses"]:
+        lines += ["", f"**{len(report['misses'])} discordância(s)**, as primeiras 20:", ""]
+        lines += [
+            f"- `{miss['description_id']}`: gabarito **{miss['expected']}**, resposta **{miss['predicted']}**"
+            + (f" (confiança {miss['score']:.3f})" if miss["score"] is not None else "")
+            for miss in report["misses"][:20]
+        ]
+    lines.append("")
+    return lines
+
+
+def print_report(reports: Sequence[dict[str, Any]], collection: Counter[str] | None) -> None:
+    """Prints the comparison first and the detail after, so the table is the answer and not a preface."""
+    print()
+    print(summary_table(reports))
+    print()
+    if collection:
+        label, share = largest_share(collection)
+        print(
+            f"Coleção inteira, o que a última execução gravou: {sum(collection.values())} itens · "
+            f"maior gaveta {label} ({share:.0%}) · entropia {entropy_bits(collection):.2f} bits"
+        )
+        for bucket, count in collection.most_common():
+            print(f"   {bucket:<28} {count:>5}  {count / max(1, sum(collection.values())):>5.1%}")
+        print()
+    for report in reports:
+        print("\n".join(detail_lines(report)))
+
+
+# =============================================================================
+# CLI
+# =============================================================================
+
+
+def _today() -> str:
+    return date.today().isoformat()
+
+
+def run_pick(out: Path, sheet_out: Path, seed: str, per_form: int, none_rows: int, force: bool) -> int:
+    """Reads the collection, proposes the sample and writes the skeleton and its sheet."""
+    with get_db() as db:
+        rows = read_collection(db)
+        catalogue = list(TypologyRepository(db).get_active_typologies())
+        db.rollback()
+
+    known = {stratum.key for stratum in STRATA if stratum.key != NONE_CLASS}
+    unknown = sorted(known - set(catalogue))
+    if unknown:
+        raise SystemExit(
+            f"The strata name {unknown}, which the active typology catalogue does not have "
+            f"({catalogue}). The picker proposes by the catalogue's own names on purpose: rename a "
+            "typology and this is the sentence that tells you, instead of a sample of rows that "
+            "quietly mean nothing."
+        )
+
+    picked = pick(rows, seed, per_form, none_rows)
+    payload = build_payload(picked, catalogue, seed, per_form, none_rows)
+    payload["collection"] = (
+        f"{settings.DB_NAME} — {len(rows)} itens de archive_documents (nós de hierarquia excluídos), "
+        f"catálogo ativo com {len(catalogue)} tipologias; medido em {_today()}."
+    )
+    payload["catalogue_at_labelling"] = catalogue
+    write_skeleton(out, payload, force)
+
+    for stratum in STRATA:
+        count = len(picked[stratum.key])
+        candidates = sum(1 for row in rows if row.stratum == stratum.key)
+        flag = "⚠️ SEM CANDIDATO" if candidates == 0 else ""
+        logger.info(f"   {stratum.key:<26} {count:>3} propostos de {candidates:>5} candidatos {flag}")
+
+    print_sheet(payload, sheet_out)
+    return 0
+
+
+def run_sheet(pairs: Path, sheet_out: Path) -> int:
+    """Regenerates the sheet from the labelled set already on disk."""
+    print_sheet(load_payload(pairs), sheet_out)
+    return 0
+
+
+def worker_default_config() -> str:
+    """
+    The configuration the worker runs with when nobody says otherwise, read from its own signature.
+
+    Retyping ``"deberta_typology:cpu_local"`` here would be a second definition of the worker's
+    default, and the day it changes the bench would keep scoring the old one while calling it "the
+    current configuration".
+    """
+    parameters = inspect.signature(execute).parameters
+    return f"{parameters['engine_name'].default}:{parameters['preset'].default}"
+
+
+def run_score(args: argparse.Namespace) -> int:
+    """Scores every requested configuration against the labelled set and prints the comparison."""
+    default_columns, default_threshold = resolved_parameters(None, None, None)
+    configs = [parse_config(text, tuple(default_columns), default_threshold) for text in args.config]
+
+    with get_db() as db:
+        catalogue = list(TypologyRepository(db).get_active_typologies())
+        rows, payload = load_labelled(args.pairs, catalogue, args.allow_draft)
+        missing = unknown_truth_labels(rows, catalogue)
+        if missing:
+            logger.warning(
+                f"⚠️ o gabarito nomeia {missing}, que o catálogo ativo não tem: estas linhas são erro "
+                "garantido do modelo. Decida se a tipologia foi aposentada ou se o nome saiu errado."
+            )
+        if args.status:
+            logger.info(f"📄 {args.pairs} · {payload.get('status', '')}")
+
+        scored_rows = [row for row in rows if not row.needs_decision]
+        needs_decision = len(rows) - len(scored_rows)
+        present = {
+            description_id
+            for (description_id,) in db.execute(
+                select(ArchiveDocument.description_id).where(
+                    ArchiveDocument.description_id.in_([row.description_id for row in scored_rows])
+                )
+            ).all()
+        }
+        absent = [row for row in scored_rows if row.description_id not in present]
+        if absent:
+            logger.warning(f"⚠️ {len(absent)} linha(s) do gabarito não existem mais na coleção e saem do placar.")
+        scored_rows = [row for row in scored_rows if row.description_id in present]
+
+        reports: list[dict[str, Any]] = []
+        for config in configs:
+            if args.predictions == "stored":
+                scored = score_stored(db, scored_rows)
+                seconds = 0.0
+            else:
+                to_score = min(len(scored_rows), args.limit) if args.limit else len(scored_rows)
+                logger.info(f"🧠 {config.label}: carregando o motor e classificando {to_score} linha(s)...")
+                scored, seconds = score_live(db, config, scored_rows, limit=args.limit)
+            reports.append(
+                report_for(
+                    config,
+                    scored,
+                    catalogue,
+                    labelled=len(rows),
+                    needs_decision=needs_decision,
+                    missing=len(absent),
+                    seconds_per_document=seconds,
+                    min_positives=args.min_positives,
+                    predictions=args.predictions,
+                )
+            )
+        collection = stored_collection_distribution(db) if args.predictions == "stored" else None
+        if collection is not None:
+            for report in reports:
+                report["notes"].append(stored_mode_note(collection))
+        db.rollback()
+
+    print_report(reports, collection)
+
+    if args.json:
+        args.json.parent.mkdir(parents=True, exist_ok=True)
+        args.json.write_text(
+            json.dumps({"reports": reports, "collection": dict(collection or {})}, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        logger.success(f"💾 relatório escrito em {args.json}")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="The typology bench: pick the labelled set, then score it.")
+    parser.add_argument("--pick", action="store_true", help="Propose the sample and write the skeleton.")
+    parser.add_argument("--sheet", action="store_true", help="Regenerate the human sheet from the labelled set.")
+    parser.add_argument("--out", type=Path, default=DATA_DIR / PAIRS_FILENAME, help="Where the labelled set lives.")
+    parser.add_argument("--sheet-out", type=Path, default=DATA_DIR / SHEET_FILENAME, help="Where the sheet goes.")
+    parser.add_argument("--seed", default=DEFAULT_SEED, help="Ordering seed of the sample; recorded in the file.")
+    parser.add_argument("--per-form", type=int, default=DEFAULT_PER_FORM, help="Rows per stratum.")
+    parser.add_argument("--none-rows", type=int, default=DEFAULT_NONE_ROWS, help=f"Rows for the {NONE_CLASS} bucket.")
+    parser.add_argument("--force", action="store_true", help="Overwrite an existing labelled set (discards labels).")
+    parser.add_argument("--pairs", type=Path, default=None, help="The labelled set to score (default: --out).")
+    parser.add_argument(
+        "--config",
+        action="append",
+        default=[],
+        metavar="ENGINE[:PRESET[:COLUMNS[:THRESHOLD]]]",
+        help="A configuration to score; repeat it to compare. Default: the worker's own.",
+    )
+    parser.add_argument(
+        "--predictions",
+        choices=("live", "stored"),
+        default="live",
+        help="live runs the engine; stored scores the typology the last run already wrote (free, whole collection).",
+    )
+    parser.add_argument("--limit", type=int, default=None, help="Cap the rows the live model sees, for a trial.")
+    parser.add_argument("--min-positives", type=int, default=MIN_POSITIVES, help="Below this, a class is 'não medida'.")
+    parser.add_argument("--allow-draft", action="store_true", help="Score a set whose 'status' is still draft.")
+    parser.add_argument("--status", action="store_true", help="Print the set's status line before scoring.")
+    parser.add_argument("--json", type=Path, default=None, help="Also write the raw report here.")
+    args = parser.parse_args(argv)
+
+    if args.pairs is None:
+        args.pairs = args.out
+    if args.pick:
+        return run_pick(args.out, args.sheet_out, args.seed, args.per_form, args.none_rows, args.force)
+    if args.sheet:
+        return run_sheet(args.out, args.sheet_out)
+    if not args.config:
+        args.config = [worker_default_config()]
+    return run_score(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
