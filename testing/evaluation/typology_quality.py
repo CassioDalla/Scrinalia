@@ -379,7 +379,7 @@ def build_payload(
             "'expected' aceita o nome de uma tipologia, uma LISTA de nomes aceitáveis (quando o " +
             "documento é duas coisas ao mesmo tempo) ou null quando nenhuma tipologia se aplica.",
             "'confidence' é a SUA certeza: alta, media ou baixa.",
-            "Marque 'needs_decision': true quando a ambiguidade for do catálogo e não sua — um "
+            "Marque 'needs_decision': true quando a ambiguidade for do catálogo e não sua — um " +
             "'Projeto de Croqui de Terreno' é Planta ou Mapa? O relatório exclui essas linhas do "
             "placar e as conta em separado, para não punir o modelo por uma pergunta mal feita.",
             "Escreva o motivo em 'note': é a parte que um leitor posterior precisa.",
