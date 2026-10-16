@@ -374,7 +374,7 @@ def build_payload(
         "sampling": sampling,
         "catalogue_at_labelling": catalogue,
         "instructions_for_the_curator": [
-            "Cada linha vem com o estrato que a propôs em 'candidate'. Se ele estiver certo, não "
+            "Cada linha vem com o estrato que a propôs em 'candidate'. Se ele estiver certo, não " +
             "mexa em 'expected'; se estiver errado, corrija.",
             "'expected' aceita o nome de uma tipologia, uma LISTA de nomes aceitáveis (quando o "
             "documento é duas coisas ao mesmo tempo) ou null quando nenhuma tipologia se aplica.",
