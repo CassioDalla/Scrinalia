@@ -222,7 +222,7 @@ def write_pairs(tmp_path: Path, payload: dict) -> Path:
     return path
 
 
-def payload_with(expected, status="aprovado por Cássio em 2026-10-15") -> dict:
+def payload_with(expected, status="aprovado pelo curador em 2026-10-15") -> dict:
     return {
         "pairs": [{"description_id": "doc-1", "expected": expected}],
         "status": status,
