@@ -22,9 +22,11 @@ commits — the history is the detail.
   the scored text to the text the worker hands the model, with an approved excerpt in the middle so
   the pin bites.
 
-  **Measured on 2026-10-14 against `memoriacuritibana` (4.813 descriptions), on 111 labelled rows,
-  with the gabarito pre-labelled by an agent and not yet reviewed by a curator.** The bench refuses to
-  score such a set without `--allow-draft`, and these numbers carry that caveat:
+  **Measured on 2026-10-14 against `memoriacuritibana` (4.813 descriptions), on 111 labelled rows.**
+  The gabarito was pre-labelled by an agent and then **reviewed row by row by the curator on
+  2026-10-16, who confirmed all 112 rows unchanged**: the review moved the signature, not the
+  numbers — the only field touched after the measurement was `confidence`, which no metric reads, and
+  re-running the stored mode reproduces the recorded report exactly.
 
   | configuration | agreement | macro-F1 | abstention | s/doc |
   | --- | ---: | ---: | ---: | ---: |
