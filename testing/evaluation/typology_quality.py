@@ -376,7 +376,7 @@ def build_payload(
         "instructions_for_the_curator": [
             "Cada linha vem com o estrato que a propôs em 'candidate'. Se ele estiver certo, não " +
             "mexa em 'expected'; se estiver errado, corrija.",
-            "'expected' aceita o nome de uma tipologia, uma LISTA de nomes aceitáveis (quando o "
+            "'expected' aceita o nome de uma tipologia, uma LISTA de nomes aceitáveis (quando o " +
             "documento é duas coisas ao mesmo tempo) ou null quando nenhuma tipologia se aplica.",
             "'confidence' é a SUA certeza: alta, media ou baixa.",
             "Marque 'needs_decision': true quando a ambiguidade for do catálogo e não sua — um "
