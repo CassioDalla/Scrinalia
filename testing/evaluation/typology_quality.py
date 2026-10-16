@@ -61,11 +61,7 @@ from scrinalia.core.config import settings
 from scrinalia.core.database import get_db
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.domain.text_quality import AI_TEXT_COLUMNS
-from scrinalia.domains.archive.engines.classification.registry import (
-    EngineName,
-    PresetName,
-    get_engine,
-)
+from scrinalia.domains.archive.engines.classification.registry import get_engine
 from scrinalia.domains.archive.models import ArchiveDocument, ArchiveTypology
 from scrinalia.domains.archive.repository import TypologyRepository
 from scrinalia.domains.archive.repository.text_quality_repo import (
