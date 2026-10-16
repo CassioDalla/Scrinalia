@@ -61,7 +61,11 @@ from scrinalia.core.config import settings
 from scrinalia.core.database import get_db
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.domain.text_quality import AI_TEXT_COLUMNS
-from scrinalia.domains.archive.engines.classification.registry import get_engine
+from scrinalia.domains.archive.engines.classification.registry import (
+    EngineName,
+    PresetName,
+    get_engine,
+)
 from scrinalia.domains.archive.models import ArchiveDocument, ArchiveTypology
 from scrinalia.domains.archive.repository import TypologyRepository
 from scrinalia.domains.archive.repository.text_quality_repo import (
@@ -374,19 +378,19 @@ def build_payload(
         "sampling": sampling,
         "catalogue_at_labelling": catalogue,
         "instructions_for_the_curator": [
-            "Cada linha vem com o estrato que a propôs em 'candidate'. Se ele estiver certo, não " +
-            "mexa em 'expected'; se estiver errado, corrija.",
-            "'expected' aceita o nome de uma tipologia, uma LISTA de nomes aceitáveis (quando o " +
-            "documento é duas coisas ao mesmo tempo) ou null quando nenhuma tipologia se aplica.",
+            "Cada linha vem com o estrato que a propôs em 'candidate'. Se ele estiver certo, não "
+            + "mexa em 'expected'; se estiver errado, corrija.",
+            "'expected' aceita o nome de uma tipologia, uma LISTA de nomes aceitáveis (quando o "
+            + "documento é duas coisas ao mesmo tempo) ou null quando nenhuma tipologia se aplica.",
             "'confidence' é a SUA certeza: alta, media ou baixa.",
-            "Marque 'needs_decision': true quando a ambiguidade for do catálogo e não sua — um " +
-            "'Projeto de Croqui de Terreno' é Planta ou Mapa? O relatório exclui essas linhas do "
+            "Marque 'needs_decision': true quando a ambiguidade for do catálogo e não sua — um "
+            + "'Projeto de Croqui de Terreno' é Planta ou Mapa? O relatório exclui essas linhas do "
             "placar e as conta em separado, para não punir o modelo por uma pergunta mal feita.",
             "Escreva o motivo em 'note': é a parte que um leitor posterior precisa.",
-            "As linhas com 'candidate': 'NENHUMA' são o controle: confirme que nenhuma tipologia se " +
-            "aplica, ou dê a elas a tipologia que o catálogo não tem.",
-            "Quando terminar, troque 'status' por 'aprovado por <quem> em <data>' e registre em " +
-            "'approved_note' o que mudou. A bancada se recusa a pontuar um conjunto 'draft'.",
+            "As linhas com 'candidate': 'NENHUMA' são o controle: confirme que nenhuma tipologia se "
+            + "aplica, ou dê a elas a tipologia que o catálogo não tem.",
+            "Quando terminar, troque 'status' por 'aprovado por <quem> em <data>' e registre em "
+            + "'approved_note' o que mudou. A bancada se recusa a pontuar um conjunto 'draft'.",
         ],
         "pairs": pairs,
         "status": "draft — nenhum curador revisou este conjunto ainda",
