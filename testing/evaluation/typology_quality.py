@@ -385,7 +385,7 @@ def build_payload(
             "Escreva o motivo em 'note': é a parte que um leitor posterior precisa.",
             "As linhas com 'candidate': 'NENHUMA' são o controle: confirme que nenhuma tipologia se " +
             "aplica, ou dê a elas a tipologia que o catálogo não tem.",
-            "Quando terminar, troque 'status' por 'aprovado por <quem> em <data>' e registre em "
+            "Quando terminar, troque 'status' por 'aprovado por <quem> em <data>' e registre em " +
             "'approved_note' o que mudou. A bancada se recusa a pontuar um conjunto 'draft'.",
         ],
         "pairs": pairs,
