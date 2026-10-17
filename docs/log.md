@@ -1412,7 +1412,9 @@ with short or full shas, and part of a `## <date> — <title>` entry.
     zero-shot; it now says what a refusal leaves behind.
   - `guides/curate.md` — **no-change**: it moved only because `models/enums.py` is one of its declared
     sources, and no screen reads this row. The issue's Definition of Done deliberately left the
-    curator card out — the read side has to answer the count, and surfacing it is a separate decision.
+    curator card out — the read side has to answer the count, and surfacing it is a separate decision,
+    which is now **#129**: the descriptions the classifier refused need a screen, and that issue decides
+    first whether it belongs to `/arranjo/tipologias` or widens `/qualidade/anomalias`.
 - **What the round measured and verified.** The migration was applied against a scratch database and
   against the development one: `upgrade head` from `3f9c1a7be204` adds the value, the enum then lists
   all three, and `downgrade -1` runs. The development database's revision matched this migration's
