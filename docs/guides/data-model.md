@@ -362,7 +362,9 @@ single-shot and keeps the trail readable afterwards: the row is never deleted.
 `archive_ai_review_queue` is the companion of `archive_conflict_resolution_log`, not a ledger of
 writes: it keeps the *decision* (the judge's verdict or the human's), while the resolution log keeps
 the *write*. It also carries `AnomalyType.SUBJECT_LOW_CONFIDENCE` for tags the subject classifier
-could not place.
+could not place, and `AnomalyType.TYPOLOGY_LOW_CONFIDENCE` for descriptions it refused to classify —
+that row is where the **score the run saw** is kept, because `typology_id` stays NULL both when the
+classifier declined and when no run reached the description (issue #110).
 
 `archive_worker_settings_revisions` is a revision ledger in the same spirit: the decision and the
 write are different facts, and every configuration change leaves a `before`/`after` row.
