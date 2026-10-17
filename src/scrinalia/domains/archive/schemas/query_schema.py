@@ -5,6 +5,11 @@ from pydantic import BaseModel, Field
 
 from scrinalia.domains.archive.models import ArchiveReviewStatus
 
+#: How a free-text search is ranked. Declared once and read by the query object and by the two
+#: routes that expose it (the curator's and the public one), so a new mode is one edit and not
+#: three copies that can drift apart.
+SearchMode = Literal["lexical", "semantic", "hybrid"]
+
 
 class DocumentSearchQuery(BaseModel):
     """
@@ -16,9 +21,10 @@ class DocumentSearchQuery(BaseModel):
     """
 
     term: str | None = Field(default=None, description="Free-text search term.")
-    mode: Literal["lexical", "semantic"] = Field(
+    mode: SearchMode = Field(
         default="lexical",
-        description="lexical: full-text ranking. semantic: cosine similarity over the embeddings.",
+        description="lexical: full-text ranking. semantic: cosine similarity over the embeddings. "
+        "hybrid: the two fused by reciprocal rank fusion.",
     )
     typology_id: int | None = Field(default=None, description="Only documents classified with this typology.")
     macro_category_id: int | None = Field(
@@ -60,3 +66,17 @@ class DocumentSearchQuery(BaseModel):
     published_only: bool = Field(default=False, description="Only descriptions cleared for diffusion.")
     limit: int = Field(default=50, ge=1, le=200, description="Page size.")
     offset: int = Field(default=0, ge=0, description="Number of records to skip.")
+
+    @property
+    def term_to_embed(self) -> str | None:
+        """
+        The term a semantic or fused ranking has to embed; ``None`` when nothing is embedded.
+
+        One definition for the decision, because two consumers depend on it and they must not
+        disagree: the service embeds on it, the measurement bench reads it, and a lexical
+        request never pays for loading the model. A blank term embeds nothing, which is what
+        keeps ``mode=semantic`` over an empty term browsing the collection instead of failing.
+        """
+        if self.mode == "lexical" or not self.term or not self.term.strip():
+            return None
+        return self.term

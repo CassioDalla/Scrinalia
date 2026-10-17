@@ -1,5 +1,4 @@
 from datetime import date
-from typing import Literal
 
 from litestar import Controller, delete, get, patch, post
 from litestar.di import NamedDependency, Provide
@@ -26,7 +25,7 @@ from scrinalia.domains.archive.schemas.document_schema import (
     DocumentRevisionDTO,
     DocumentSummary,
 )
-from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery
+from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery, SearchMode
 from scrinalia.domains.archive.services.document_service import DocumentService
 
 
@@ -44,7 +43,7 @@ class DocumentController(Controller):
         self,
         document_service: NamedDependency[DocumentService],
         term: FromQuery[str | None] = None,
-        mode: FromQuery[Literal["lexical", "semantic"]] = "lexical",
+        mode: FromQuery[SearchMode] = "lexical",
         typology_id: FromQuery[int | None] = None,
         macro_category_id: FromQuery[int | None] = None,
         level_id: FromQuery[int | None] = None,
