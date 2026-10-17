@@ -20,6 +20,7 @@ from scrinalia.core.logger import logger
 from scrinalia.core.unit_of_work import UnitOfWork
 from scrinalia.domains.archive.engines.base import TitleQualityEngine
 from scrinalia.domains.archive.models import (
+    ANOMALY_REASON_SEPARATOR,
     AnomalyReason,
     ArchiveDocument,
     ArchiveDocumentEntity,
@@ -53,7 +54,8 @@ DEFAULT_LLM_CONFIDENCE = 0.6
 EMPTY_TITLE_VALUES = {"", "sem título", "sem titulo", "-"}
 
 
-def _compile_rules(rules: list[CleaningRuleDTO]) -> list[tuple[CleaningRuleDTO, re.Pattern]]:
+def compile_rules(rules: list[CleaningRuleDTO]) -> list[tuple[CleaningRuleDTO, re.Pattern]]:
+    """The catalogue rules with their regex compiled, skipping the ones whose pattern does not build."""
     compiled: list[tuple[CleaningRuleDTO, re.Pattern]] = []
     for rule in rules:
         try:
@@ -61,6 +63,49 @@ def _compile_rules(rules: list[CleaningRuleDTO]) -> list[tuple[CleaningRuleDTO, 
         except re.error as e:
             logger.error(f"❌ Rule {rule.rule_id} ('{rule.rule_name}') has invalid Regex syntax: {e}. Skipping.")
     return compiled
+
+
+def rule_flag_label(rule: CleaningRuleDTO) -> str:
+    """
+    The label a ``VALIDATE`` rule's flag carries in ``anomaly_reasons``.
+
+    The label the curator declared (``anomaly_reason``) when there is one, the rule's own name
+    otherwise. Named because three readers now group by it: the worker that writes the flag, the
+    facet that buckets it, and the bench that scores the rule against a human verdict.
+    """
+    return rule.anomaly_reason or rule.rule_name
+
+
+def matched_rule_labels(doc: ArchiveDocument, validate_rules: list[tuple[CleaningRuleDTO, re.Pattern]]) -> list[str]:
+    """
+    Labels of the ``VALIDATE`` rules this document matches, in catalogue order.
+
+    The one definition of "does this rule fire", shared by :func:`evaluate_document` and the bench:
+    a bench that re-implemented the match would score a rule the worker does not have, and the
+    difference would only show up as a precision the installation never had.
+    """
+    labels: list[str] = []
+    for rule, pattern in validate_rules:
+        value = getattr(doc, rule.target_column, None)
+        if value and pattern.search(str(value)):
+            labels.append(rule_flag_label(rule))
+    return labels
+
+
+def llm_check_reason(doc: ArchiveDocument, llm_engine: TitleQualityEngine | None, llm_confidence: float) -> str | None:
+    """
+    The reason the active ``LLM_CHECK`` rule adds for this document, or ``None``.
+
+    Apart from :func:`evaluate_document` so the bench asks the same question with the same floor,
+    instead of retyping ``is_suspect and confidence >= floor`` next to a model call.
+    """
+    raw_title = (doc.original_title or "").strip()
+    if llm_engine is None or not raw_title:
+        return None
+    decision = llm_engine.check_title(raw_title)
+    if decision.is_suspect and decision.confidence >= llm_confidence:
+        return f"{AnomalyReason.LLM_SUSPECT}{ANOMALY_REASON_SEPARATOR}{decision.reason}"
+    return None
 
 
 def load_repeated_titles(db: Session, threshold: int) -> set[str]:
@@ -123,16 +168,12 @@ def evaluate_document(
     if not has_entities:
         reasons.append(AnomalyReason.NO_ENTITIES)
 
-    for rule, pattern in validate_rules:
-        value = getattr(doc, rule.target_column, None)
-        if value and pattern.search(str(value)):
-            label = rule.anomaly_reason or rule.rule_name
-            reasons.append(f"{AnomalyReason.RULE_MATCH}:{label}")
+    for label in matched_rule_labels(doc, validate_rules):
+        reasons.append(f"{AnomalyReason.RULE_MATCH}{ANOMALY_REASON_SEPARATOR}{label}")
 
-    if llm_engine is not None and raw_title:
-        decision = llm_engine.check_title(raw_title)
-        if decision.is_suspect and decision.confidence >= llm_confidence:
-            reasons.append(f"{AnomalyReason.LLM_SUSPECT}:{decision.reason}")
+    llm_reason = llm_check_reason(doc, llm_engine, llm_confidence)
+    if llm_reason is not None:
+        reasons.append(llm_reason)
 
     return reasons
 
@@ -251,7 +292,7 @@ def execute(
     logger.info("🚀 Starting the Quality Validator Worker")
 
     repository = CleaningRepository(db)
-    validate_rules = _compile_rules([r for r in repository.get_active_rules() if r.rule_kind == "VALIDATE"])
+    validate_rules = compile_rules([r for r in repository.get_active_rules() if r.rule_kind == "VALIDATE"])
     llm_rules = repository.get_active_rules("LLM_CHECK")
 
     text_repository = TextQualityRepository(db)

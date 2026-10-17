@@ -137,6 +137,24 @@ class AnomalyReason(enum.StrEnum):
     LLM_SUSPECT = "LLM_SUSPECT"
 
 
+#: Separates an anomaly code from its payload inside ``ArchiveDocument.anomaly_reasons``:
+#: ``RULE_MATCH:<rule label>`` names the rule that matched, ``LLM_SUSPECT:<free text>`` carries the
+#: model's own words. Defined next to the codes because the column stores this format, and read by
+#: the worker that writes it, the facet that groups by it and the bench that scores it, so the three
+#: cannot disagree about where the code ends.
+ANOMALY_REASON_SEPARATOR = ":"
+
+
+def anomaly_reason_code(reason: str) -> str:
+    """The stable code of a stored reason, without its payload."""
+    return reason.partition(ANOMALY_REASON_SEPARATOR)[0]
+
+
+def anomaly_reason_payload(reason: str) -> str:
+    """What follows the code — the rule's label, or the model's free text. Empty when there is none."""
+    return reason.partition(ANOMALY_REASON_SEPARATOR)[2]
+
+
 class WorkerRunStatus(enum.StrEnum):
     """
     Lifecycle of one execution of an AI worker.
