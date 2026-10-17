@@ -1468,3 +1468,28 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   control now needs the curator to name what stays out of scope; 31 descriptions match no stratum and are
   photographs `PHOTO_STRATUM` misses; and the revised gabarito needs a human signature, which the bench's
   `status` gate exists to require and which is not mine to give.
+
+## 2026-10-17 — a bench for the NER extractor (#113)
+
+- **Range:** `5da851b..a76dc63`
+- **Pages:** none reported stale. The round touched `testing/evaluation/` and its tests; no guide declares
+  a bench as a source, and the set's shape is versioned in `testing/evaluation/README.md`, which is not a
+  page of the site.
+- **What the round built.** `testing/evaluation/ner_quality.py`, term-level P/R/F1 per type and overall
+  with exact match only, a relaxed recall printed beside it, and the misses partitioned into hits,
+  boundary, type confusion and missing plus spurious. Nothing is written: the session is opened, read and
+  rolled back. 48 unit tests and 16 integration tests, one of which pins the composed text against what
+  the worker hands the engine.
+- **Three places the Definition of Done could not be met as written**, all recorded in the issue:
+  **there are no spans anywhere** (`EntityExtractionEngine.extract` returns a DTO with `name` and
+  `entity_type`, and the link table has no offsets), so the boundary breakdown is a token-containment
+  measure that counts the defect without locating it; `input_text` is deliberately not in the file, since
+  the sheet reads the text through the worker's own composition; and a row is *read* when it carries a
+  `confidence` or a `note`, so an untouched proposal is counted apart rather than scored as "no entity".
+- **What it found in the collection, measured directly.** 1,650 documents carry `worker_ner_v2 = "DONE"`,
+  41 carry `worker_ner_v1 = "DONE"`, 3,142 carry no NER stamp at all, and **not one carries a producer
+  fingerprint**: the NER output is unattributable in full, which is the concrete case behind #135.
+- **Not verified, and said so.** No human-corrected set exists, so there is **no measurement of the
+  extractor yet** — only the plumbing proof (a set whose `expected` is the live extraction scores 1.000,
+  and a stored set with one truncated term shows the exact-versus-relaxed pair). The proposal waits for a
+  curator, and the first real number is the one measured against the signed set.
