@@ -1375,3 +1375,26 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   are re-read" is a projection from the predicate, not an observation, and the first run after
   deploying is where it becomes one. The clearing on refusal is pinned against a fixture engine in the
   test database, not against the real classifier: `gemma`/`mDeBERTa` weights are not exercised here.
+
+## 2026-10-17 — the typology bench compares label formats (#112)
+
+- **Range:** `22bfe62..a554cbe`
+- **Pages:** none. `docs/_hooks/freshness.py` reported every page fresh: the round touched
+  `testing/evaluation/typology_quality.py`, its tests and the evaluation README, and no guide declares
+  a bench as a source. The entry exists to record the verdict and to advance the floor, not because a
+  page was at risk.
+- **What the round measured.** The three formats on 111 of the 112 labelled rows, CPU, at the
+  shipping configuration `deberta_typology:cpu_local:original_title:0.40`: `bare` agrees **0.775**
+  with macro-F1 0.484 and 5.4% abstention; `trata_de` **0.784** with 0.478 and 7.2%; `sentence`
+  **0.604** with 0.414 and **29.7%**. The plans are where `sentence` breaks — recall 0.956 → 0.511,
+  with 20 of them abstaining — which is #30's lost entailment reappearing exactly where
+  `classifier_labels` warns it does.
+- **What the round decided.** "Ofício / Memorando" takes exactly **8** of the 11 descriptions no
+  typology covers **under all three formats**: the dustbin is not a wording problem, and no label shape
+  makes an uncovered form covered. `bare` wins, so the default is not changed, nothing moves in the
+  worker, and #30 keeps its decision with the measurement it never had. Adopting a proposition would
+  have cost a full re-queue under the identity #117 had just made meaningful, for no measurable gain.
+- **Not verified, and said so.** The second half of the issue's observation — that with the archival
+  history added the same drawer answers nothing because the model abstains on all 11 — was **not**
+  re-measured: the round was scoped to the shipping configuration, where the default stays. It is a
+  question about the columns that #109 already priced at 2.62× the cost, not about the label shape.
