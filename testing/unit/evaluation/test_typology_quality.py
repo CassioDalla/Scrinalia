@@ -9,6 +9,7 @@ tests build the rows by hand and pin the rules the report depends on.
 from __future__ import annotations
 
 import json
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -32,6 +33,7 @@ from testing.evaluation.typology_quality import (
     macro_f1,
     parse_config,
     per_class,
+    stored_mode_note,
     unknown_truth_labels,
 )
 
@@ -430,3 +432,27 @@ def test_the_sentence_format_does_not_carry_the_gender_of_the_typology() -> None
     labels = formatted_labels(["Fotografia", "Relatório Técnico", "Planta Arquitetônica"], "sentence")
 
     assert all(label.startswith("um documento do tipo ") for label in labels)
+
+
+def test_the_stored_note_splits_the_abstentions_the_queue_accounts_for() -> None:
+    """
+    Issue #110's DoD: the blanket caveat becomes a measured split.
+
+    The blanket sentence said the database cannot tell a refusal from a document no run reached. Now
+    the refusals the classifier looked at are recorded with the score, so the note reports how many
+    abstentions the queue accounts for and how many nobody reached — and the arithmetic has to be the
+    reader's, not a second measurement.
+    """
+    note = stored_mode_note(Counter({ABSTAINED: 20, "Fotografia": 5}), refused=7)
+
+    assert "7" in note
+    assert "13" in note
+    assert "não distingue" not in note
+
+
+def test_the_stored_note_never_reports_more_refusals_than_abstentions() -> None:
+    """A queue row for a description that later got a drawer leaves a count the column does not share."""
+    note = stored_mode_note(Counter({ABSTAINED: 2, "Fotografia": 40}), refused=9)
+
+    assert "0" in note
+    assert "2" in note

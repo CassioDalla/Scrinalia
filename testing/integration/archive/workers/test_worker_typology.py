@@ -1,8 +1,11 @@
 from unittest.mock import patch
 
+import pytest
+
 from scrinalia.core.runner_config import TypologyRunnerConfig
 from scrinalia.domains.archive.engines.classification import registry as typology_registry
 from scrinalia.domains.archive.models import ArchiveDocument, ArchiveReviewStatus
+from scrinalia.domains.archive.models.governance import AnomalyType
 from scrinalia.domains.archive.repository import TypologyRepository
 from scrinalia.domains.archive.worker_stamp import TYPOLOGY
 from scrinalia.domains.archive.workers.worker_typology import execute, producer_identity
@@ -550,3 +553,126 @@ def test_a_first_refusal_does_not_touch_a_column_that_was_already_empty(
     )
 
     assert db_session.get(ArchiveDocument, doc_id).typology_id is None
+
+
+# =============================================================================
+# The refusal is recorded, not inferred from the column (issue #110)
+# =============================================================================
+
+
+def _refusal_rows(db_session):
+    from sqlalchemy import select
+
+    from scrinalia.domains.archive.models.governance import ArchiveAIReviewQueue
+
+    return list(db_session.scalars(select(ArchiveAIReviewQueue)).all())
+
+
+def test_a_refusal_is_recorded_with_the_score_it_saw(
+    use_test_db, db_session, generate_typology, generate_archive_doc, mock_registry
+) -> None:
+    """
+    The column says nothing; the queue row says the score, which is what a floor decision needs.
+
+    ``typology_id`` is NULL both when the classifier declined and when the run never reached the
+    description, so without this row the refusal leaves no evidence beyond a stamp that a success
+    writes too.
+    """
+    from scrinalia.domains.archive.repository.typology_queue import count_refusals
+
+    typology = generate_typology(id=1, name="Dossiê")
+    name = typology.name  # the worker expunges the session per batch, so the instance is detached after
+    generate_archive_doc(original_title="Texto confuso sem contexto")
+
+    MockClass = mock_registry(typology_registry)
+    MockClass.return_value.classify.return_value = [{"labels": [name], "scores": [0.30]}]
+
+    execute(
+        db=db_session,
+        engine_name="motor_fake",  # type: ignore[arg-type]
+        preset="preset_teste",  # type: ignore[arg-type]
+    )
+
+    rows = _refusal_rows(db_session)
+    assert len(rows) == 1
+    assert rows[0].anomaly_type == AnomalyType.TYPOLOGY_LOW_CONFIDENCE
+    assert rows[0].status == ArchiveReviewStatus.NEEDS_REVIEW
+    assert rows[0].llm_decision == name
+    assert rows[0].llm_confidence == pytest.approx(0.30)
+    assert rows[0].context_payload["description_id"]
+    assert count_refusals(db_session) == 1
+
+
+def test_an_answer_writes_no_refusal_row(
+    use_test_db, db_session, generate_typology, generate_archive_doc, mock_registry
+) -> None:
+    """The other half of the pair: the evidence is about refusals and not about runs."""
+    typology = generate_typology(id=1, name="Dossiê")
+    generate_archive_doc(original_title="Documento normal")
+
+    MockClass = mock_registry(typology_registry)
+    MockClass.return_value.classify.return_value = [{"labels": [typology.name], "scores": [0.99]}]
+
+    execute(
+        db=db_session,
+        engine_name="motor_fake",  # type: ignore[arg-type]
+        preset="preset_teste",  # type: ignore[arg-type]
+    )
+
+    assert _refusal_rows(db_session) == []
+
+
+def test_count_refusals_collapses_a_documents_repeated_rows(
+    use_test_db, db_session, generate_archive_doc, generate_typology
+) -> None:
+    """A run repeated with ``force`` records a second refusal; the question is about documents."""
+    from scrinalia.domains.archive.models.governance import ArchiveAIReviewQueue
+    from scrinalia.domains.archive.repository.typology_queue import count_refusals
+
+    generate_typology(id=1, name="Dossiê")
+    doc = generate_archive_doc(original_title="Recusado duas vezes")
+    for score in (0.30, 0.35):
+        db_session.add(
+            ArchiveAIReviewQueue(
+                anomaly_type=AnomalyType.TYPOLOGY_LOW_CONFIDENCE,
+                status=ArchiveReviewStatus.NEEDS_REVIEW,
+                context_payload={"description_id": doc.description_id, "title": doc.original_title},
+                llm_decision="Dossiê",
+                llm_confidence=score,
+            )
+        )
+    db_session.flush()
+
+    assert count_refusals(db_session) == 1
+
+
+def test_a_description_that_gets_a_typology_leaves_the_refusal_read(
+    use_test_db, db_session, generate_archive_doc, generate_typology
+) -> None:
+    """
+    The row is the classifier's evidence, and nothing deletes it when a person decides.
+
+    Reading the queue alone would leave the count reporting a description that already has a drawer —
+    the evidence outliving the decision, which is the same rule ``subject_queue`` states.
+    """
+    from scrinalia.domains.archive.models.governance import ArchiveAIReviewQueue
+    from scrinalia.domains.archive.repository.typology_queue import count_refusals
+
+    typology = generate_typology(id=1, name="Dossiê")
+    doc = generate_archive_doc(original_title="Depois ganhou tipologia")
+    db_session.add(
+        ArchiveAIReviewQueue(
+            anomaly_type=AnomalyType.TYPOLOGY_LOW_CONFIDENCE,
+            status=ArchiveReviewStatus.NEEDS_REVIEW,
+            context_payload={"description_id": doc.description_id, "title": doc.original_title},
+            llm_decision="Dossiê",
+            llm_confidence=0.30,
+        )
+    )
+    db_session.flush()
+    assert count_refusals(db_session) == 1
+
+    doc.typology_id = typology.typology_id
+    db_session.flush()
+
+    assert count_refusals(db_session) == 0

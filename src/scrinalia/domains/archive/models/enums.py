@@ -34,6 +34,17 @@ class AnomalyType(enum.StrEnum):
     #: makes routing on it meaningful instead of cosmetic. An empty badge beats a wrong badge
     #: in a UI that is about to amplify both.
     SUBJECT_LOW_CONFIDENCE = "SUBJECT_LOW_CONFIDENCE"
+    #: The typology classifier looked at the description and refused to give it a drawer: the score
+    #: stayed under the floor. The document keeps ``typology_id`` NULL, so without this row the
+    #: refusal is indistinguishable from a description the run never reached — and the score that
+    #: justified it is lost, which is the one number a floor decision needs.
+    #:
+    #: It is a row in the queue and not a stamp value on purpose. ``identity_stamp_conditions``
+    #: computes pending as "the stamp is not this identity", so a distinct refusal value either puts
+    #: the document back in the queue forever or — added to ``FAILURE_STAMP_VALUES`` — stops a floor
+    #: change from reaching it at all. The stamp means "this producer read it"; the refusal is
+    #: evidence, and evidence lives in the queue (#110).
+    TYPOLOGY_LOW_CONFIDENCE = "TYPOLOGY_LOW_CONFIDENCE"
 
 
 class TagCatalogState(enum.StrEnum):
