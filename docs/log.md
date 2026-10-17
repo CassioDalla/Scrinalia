@@ -1493,3 +1493,57 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   extractor yet** — only the plumbing proof (a set whose `expected` is the live extraction scores 1.000,
   and a stored set with one truncated term shows the exact-versus-relaxed pair). The proposal waits for a
   curator, and the first real number is the one measured against the signed set.
+
+## 2026-10-18 — the hybrid ranking, and the numbers the issue was missing (#38)
+
+- **Range:** `a76dc63..8b92fef`
+- **Pages:** `guides/curate.md` — **updated**: the search section named two rankings and carried a
+  measurement that was not about them, and now names the three with the rule that decides between them
+  and the limit of the evidence. `guides/install.md` — **no-change**: `lib/screens.ts` moved, and what
+  moved is the one-line description of an existing screen; no installation fact, screen count or label
+  changed.
+- **The issue's premise was measurably wrong, and that was the first finding.** `#38` quoted
+  *"MRR fell 0.019 while Hit@10 rose to 0.625"* as evidence that the semantic ranking was weak against
+  the lexical one. Both numbers come from `9a075bc` (2026-10-04) and are the before/after of the
+  **excerpt catalogue on the semantic arm** (`MRR 0.358 → 0.339`, `Hit@10 0.562 → 0.625`), measured on
+  3,608 descriptions. No lexical-versus-semantic comparison existed anywhere in the repository, the
+  bench the issue named (`retrieval_quality.py`) has no lexical arm and never had one, and the page
+  that repeated the number — `guides/curate.md` — cited the *improved* figure as proof of weakness.
+- **What the round built.** `mode=hybrid`: the full-text and semantic rankings built independently and
+  fused by `reciprocal_rank_fusion` (`domains/archive/domain/search.py`, `RRF_K = 60`), over the
+  top `RRF_DEPTH = 100` of each arm. `total` is the union of the full-text matches with the semantic
+  **window** and not every embedded document; the page is the fused window first and the full-text
+  order after it; `rank` is the fusion's score inside the window and the relevance of the ordering
+  outside it. The facet rule survives the fusion: the window is rebuilt for each dimension that
+  excludes its own filter. One `SearchMode` alias replaces the `Literal` written three times, and the
+  full-text mode stays the default, so a lexical request still never loads the model.
+- **The measurement, per stratum, through the product path** (`retrieval_modes.py`, 16 labelled
+  queries, 4,831 descriptions): sentence — lexical `0.438 / 0.258`, semantic `0.562 / 0.293`, **hybrid
+  `0.625 / 0.296`** (Hit@10 / MRR); term — lexical `0.875 / 0.703`, semantic `0.562 / 0.338`, **hybrid
+  `0.938 / 0.679`**. The fusion wins on both strata and is therefore the mode that removes the choice;
+  it is not a free win, and the term stratum says so: one more query inside the top ten and still
+  0.024 below the full-text ranking on MRR, because agreement demotes a confident full-text hit the
+  semantic arm disagrees with.
+- **Two properties the arithmetic had to be corrected for, both measured.** RRF is **not** a dominance
+  order — a first place plus a third beats a second place twice by 8·10⁻⁶ (`1/61 + 1/63` against
+  `2/62`), because the reciprocal is convex — so neither the helper's docstring nor the tests claim
+  that a shared document always wins. And the window depth is a parameter that moves the result: the
+  pre-implementation simulation over the top 50 of each arm gave the term stratum `MRR 0.722`, the
+  shipped window of 100 gives `0.679`.
+- **Latency is the full-text one plus about 7%** (6.40 s against 5.46 s per query on the sentence
+  stratum, 13.69 s against 12.85 s on the term stratum, measured with the model loaded outside the
+  timed loop). The absolute numbers are high and are **pre-existing**: they are the cost of a broad
+  term in the full-text arm, which the fusion adds six semantic window queries to rather than creates.
+- **What the round looked at.** Two screens **were rendered**, not inferred: the headless shell over
+  CDP against the dev server and the scratch database (`scrinalia_render`, 4,842 descriptions), with a
+  session row inserted for the round and deleted after. `.render/hybrid.png` shows the hybrid mode
+  selected, the note on screen and the results of `matadouro` — 139 descriptions, the facets filled,
+  and a description **without the term in its title** ranked above the ones that carry it, which is the
+  fusion visible on the page; `.render/semantic.png` shows the semantic note and the same query
+  answering **4,842 descriptions**, the whole embedded collection, which is the count the fusion
+  exists to stop reporting.
+- **Not verified, and said so.** The public surface's `mode=hybrid` is covered by the contract and by
+  the repository tests, and was **not** rendered: no screen was opened against `/api/v1/public`. The
+  latency was measured against the live collection on this machine and not under load, and the bench's
+  labelled set remains sixteen queries whose gold is derived from the title — the report prints that
+  limit next to every number, and the numbers themselves are in the issue comment, not in a page.

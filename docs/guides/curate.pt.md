@@ -309,11 +309,23 @@ mostra "tela pendente" em vez de apontar para o vazio.
 
 ### Lista e busca — `/acervo/lista`
 
-A busca facetada do acervo: o termo (lexical ou semântica), tipologia, categoria de assunto, tipo de
+A busca facetada do acervo: o termo, uma de **três ordens**, tipologia, categoria de assunto, tipo de
 entidade, nível, um ramo do arranjo e um intervalo de datas. A URL é o estado, então uma lista
-filtrada é compartilhável e o botão voltar funciona. Nada é escrito. O modo semântico traz uma nota
-honesta: a qualidade medida dele é fraca (Hit@10 0,625), então prefira o lexical quando souber o
-termo.
+filtrada é compartilhável e o botão voltar funciona. Nada é escrito.
+
+As três ordens respondem a perguntas diferentes, e a tela diz qual é qual:
+
+| Modo | Pelo que ordena | Quando escolher |
+| --- | --- | --- |
+| Lexical (padrão) | `ts_rank` sobre o `search_vector` gerado, com reforço quando uma tag ou entidade casa | O arquivista sabe o termo que o título usa |
+| Semântica | Similaridade de cosseno entre o termo e o vetor da descrição | O arquivista sabe o assunto, mas não o vocabulário do fundo |
+| Híbrida | As duas fundidas por Reciprocal Rank Fusion (`RRF_K = 60`, janela `RRF_DEPTH = 100`) | O modo que não exige escolher, ao custo de carregar o modelo |
+
+Os números por trás dessas frases ficam em `docs/log.md`, ao lado da bancada que os produziu
+(`testing/evaluation/retrieval_modes.py`), e não nesta página: uma página que guarda um número que
+deve mudar mente na próxima execução. O que a tela diz é que a evidência é um conjunto rotulado
+pequeno e que serve de proxy, e que o modo lexical é preferível quando o termo é conhecido — o único
+caso em que os dois braços diferem por margem larga.
 
 ### Árvore — `/acervo/arvore`
 
