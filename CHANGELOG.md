@@ -218,6 +218,20 @@ commits — the history is the detail.
 
 ### Changed
 
+- **The typology picker's strata are the catalogue's mirror** (issue #111): `run_pick` refuses to
+  propose by a name the active catalogue does not carry, so the strata had to move with the catalogue —
+  the forms that retired left the list, the forms the collection gained entered it **before** the control
+  bucket (the bucket's pattern matched the very titles they now own), and the bucket keeps only what the
+  catalogue deliberately leaves out.
+
+  Two consequences the round measured, and both are reported rather than papered over. **The control
+  bucket has no material left in this collection**: with registers, petitions and printed publications
+  covered, `NENHUMA` proposes 1 of 1 candidate, so keeping a false-positive control needs the curator to
+  name what stays out of scope. And **31 descriptions match no stratum at all**, overwhelmingly
+  photographic records whose titles describe the subject and not the medium ("Concerto na Pedreira do
+  Pilarzinho", "Obras de construção do Palácio 29 de Março") — a gap in `PHOTO_STRATUM`'s pattern, 0.6%
+  of the collection, and not a form the catalogue lacks.
+
 - **The typology bench compares label formats, and no proposition beats the bare name** (issue #112):
   `--formats bare sentence trata_de`, all three in one invocation, applied to the same signed labelled
   set. The format is a **separate** dimension and not a fifth field of `--config`, because
