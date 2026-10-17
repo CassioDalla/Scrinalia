@@ -11,6 +11,28 @@ commits — the history is the detail.
 
 ### Added
 
+- **A bench for the NER extractor, at term level** (issue #113): `testing/evaluation/ner_quality.py`
+  scores an extraction against a labelled set at the unit that matters — a span is right or wrong by its
+  boundaries, so a document-level agreement would call an extraction perfect when one of five terms was
+  found. Term-level P/R/F1 per type and overall, exact match only, with a relaxed recall that counts a
+  boundary as found printed beside it and never replacing it; the misses are partitioned into four
+  buckets that sum to the support — **hits, boundary, type confusion, missing** — plus spurious.
+
+  **The gold is a correction of the stored run**, because there is no human NER gabarito in this
+  collection: `ner_pairs.json` does not exist, the exclusion catalogue has three rows and the merge log
+  none, while `archive_document_entities` holds 64,504 links over 4,811 documents written by the worker
+  itself. `--propose` transcribes that output and writes a sheet where a curator marks what is wrong or
+  missing, and the anchoring bias of pre-annotation is declared rather than hidden.
+
+  **Two facts about the extractor came out of building it.** The engine returns `ArchiveEntityDTO` with
+  only `name` and `entity_type` — **there are no offsets anywhere**, so the boundary breakdown is a
+  token-containment measure that counts the defect without saying where it happened, and the issue's
+  wording had to be corrected. And the collection's NER output is **unattributable in full**: 1,650
+  documents carry `worker_ner_v2 = "DONE"`, 41 carry `worker_ner_v1 = "DONE"`, 3,142 carry no NER stamp
+  at all, and not one carries a producer fingerprint — the legacy `"DONE"` is the stamp's default status
+  and not an identity, which is why the stored mode prints the producers it finds instead of claiming a
+  configuration.
+
 - **The typology bench simulates a catalogue edit before it is written** (issue #111): a catalogue
   change is the producer identity's business — the label set is part of it since #117 — so retiring or
   adding a form re-reads the whole collection, about 2.9 hours of CPU at the measured 2.2 seconds per
