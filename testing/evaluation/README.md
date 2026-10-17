@@ -7,6 +7,10 @@ The benches under this directory measure the AI against **labelled collection da
 | `retrieval_quality.py` | `retrieval_pairs.json` | does subtracting the curated excerpts improve the ranking? |
 | `macro_category_quality.py` | `macro_category_pairs.json` | which label format classifies the subjects without collapsing them? |
 | `typology_quality.py` | `typology_pairs.json` | does the typology classifier label the form correctly, or collapse onto one typology? |
+| `conflict_judge_quality.py` | `archive_conflict_resolution_log` | does the judge agree with the resolutions a human took? |
+
+The last one is the exception to everything below: the conflict judge reads no file at all, because
+its gabarito is already in the database. Its section is at the end.
 
 ## The data is not versioned, on purpose
 
@@ -220,3 +224,46 @@ the seconds per document. Comparing two engines in one run is allowed and loads 
 
 Keep a copy of all three wherever the collection is backed up. If one is lost, the bench cannot be
 re-run — it can only be rebuilt by reading the collection again.
+
+## The conflict judge's set is derived, not stored (issue #114)
+
+`conflict_judge_quality.py` scores the tag x entity judge against the resolutions a **human** took, and
+it needs no file of its own: `archive_conflict_resolution_log` already holds the verdict, the pair and
+who decided, and a human verdict is durable intent that no later suggestion run overwrites
+(principle VII). The set is derived at run time, which is why there is no shape to version here — the
+rules below are the method, and they are what a reader has to check instead.
+
+- **`source='HUMAN'` is the gabarito; `'JUDGE'` is not.** Every resolution records whether a curator
+  on the conflict screen decided it or the worker auto-resolved it. Scoring both together measures the
+  model against itself, so the judge's rows are read, counted and printed as *outside the score* —
+  never silently dropped, because a ledger that is 90% judge decisions is a fact the reader needs.
+- **`undone_at IS NOT NULL` is out.** A decision a human reversed is not truth any more, and leaving
+  it in would score the judge against an answer the institution withdrew.
+- **The pairs come from the ledger's own snapshots.** The resolution deletes the losing row, which is
+  why `context_payload` carries no foreign key on purpose. `tag_name`, `entity_name` and `entity_type`
+  are the pair at decision time; the bench never joins the live catalogues, because the row it would
+  join is the one the resolution removed.
+- **A failed call is not an opinion.** `EntityTagDecisionSchema` has no error state, so a transport
+  failure returns `winner="TAG"` with `confidence=0.0` and a reason carrying `FAILURE_REASON_PREFIX`.
+  Those rows are counted as *engine failures*, excluded from the score and printed.
+
+Two numbers are printed next to the agreement, and neither is decoration. The **constant baseline** is
+the verdict a judge answering only the most frequent one would get: on a ledger where a curator worked
+through a run of street names the gabarito skews, and against a 90%-ENTITY ledger a judge that always
+says ENTITY scores 0.900 having measured nothing — the table's `Δ` column is agreement minus that
+baseline, and it is the number that answers "is this better than a constant?". The **auto-resolve
+split** puts the worker's own `auto_resolve_threshold` (read from its signature) on the verdicts, and
+reports agreement separately for the pairs it would have settled without a person and for the ones it
+would have sent to review: the operationally interesting figure is right *and* sure enough to act
+alone.
+
+```sh
+uv run python -m testing.evaluation.conflict_judge_quality
+uv run python -m testing.evaluation.conflict_judge_quality --config ollama_judge:granite_local --limit 10
+```
+
+`--config` is `ENGINE[:PRESET]`, validated against `engines/LLMs/registry.py` — the same registry the
+worker reads — and the default is the worker's own configuration read from its signature. `--limit`
+draws a reproducible subset by `md5(seed:resolution_id)` rather than taking the first N, because the
+ledger is ordered by decision time and "the first ten" is one curator's afternoon. Nothing is written:
+no resolution, no ban, no ledger row.

@@ -3,6 +3,12 @@ import requests
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.schemas import EntityTagDecisionSchema
 
+#: The reason a failed call carries. The schema has no "I could not answer" state, so a transport
+#: failure comes back as a verdict with confidence ``0.0``; this prefix is the only thing that tells
+#: the two apart, and ``testing/evaluation/conflict_judge_quality.py`` reads it to refuse to score a
+#: failure as an opinion. It is defined here because this is where it is written.
+FAILURE_REASON_PREFIX = "Falha: "
+
 
 class OllamaJudgeEngine:
     """Engine specialized in using local LLMs (Ollama) to judge conflicts."""
@@ -50,4 +56,4 @@ REGRA DE PERFORMANCE: No campo 'reason', você é OBRIGADO a citar o número da 
         except Exception as e:
             logger.error(f"Failed to call Ollama for the term '{tag_name}': {e}")
 
-            return EntityTagDecisionSchema(winner="TAG", confidence=0.0, reason=f"Falha: {str(e)[:50]}")
+            return EntityTagDecisionSchema(winner="TAG", confidence=0.0, reason=f"{FAILURE_REASON_PREFIX}{str(e)[:50]}")
