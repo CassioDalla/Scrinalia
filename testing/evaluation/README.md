@@ -5,11 +5,18 @@ The benches under this directory measure the AI against **labelled collection da
 | Script | Reads | What it answers |
 | --- | --- | --- |
 | `retrieval_quality.py` | `retrieval_pairs.json` | does subtracting the curated excerpts improve the ranking? |
+| `retrieval_modes.py` | `retrieval_pairs.json` | which ranking — lexical, semantic or the fusion — answers the labelled queries better, per query stratum? |
 | `macro_category_quality.py` | `macro_category_pairs.json` | which label format classifies the subjects without collapsing them? |
 | `typology_quality.py` | `typology_pairs.json` | does the typology classifier label the form correctly, or collapse onto one typology? |
 | `quality_validator_quality.py` | `validator_pairs.json` | do the active `VALIDATE`/`LLM_CHECK` rules flag what a curator flags, rule by rule? |
 | `conflict_judge_quality.py` | `archive_conflict_resolution_log` | does the judge agree with the resolutions a human took? |
 | `ner_quality.py` | `ner_pairs.json` | does the extractor find names, places and institutions — and where does it get the boundary wrong? |
+
+Two benches read `retrieval_pairs.json` and they are not the same measurement: `retrieval_quality.py`
+embeds the text itself and compares the embedded text before and after the curated excerpts (there the
+text *is* the variable), while `retrieval_modes.py` runs the three rankings **through the product
+path** — `DocumentService` and the repository, the same objects the route uses — because a bench that
+ranked on its own would score a second definition of the search.
 
 The last one is the exception to everything below: the conflict judge reads no file at all, because
 its gabarito is already in the database. Its section is at the end.

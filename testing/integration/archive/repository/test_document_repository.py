@@ -636,6 +636,158 @@ def test_lexical_mode_ignores_the_query_embedding(use_test_db, db_session, gener
 
 
 # ==========================================
+# HYBRID SEARCH (RANK FUSION)
+# ==========================================
+
+
+def test_hybrid_search_fuses_the_two_rankings_and_the_consensus_wins(use_test_db, db_session, generate_archive_doc):
+    """
+    The pull that justifies the fusion: the document **both** rankings carry comes first even though
+    it is second in each of them — which neither ranking alone does.
+
+    ``lex`` and ``sem`` each lead one ranking and are absent from the other, so each of them scores a
+    single reciprocal. ``both`` scores two.
+    """
+    repo = DocumentRepository(db_session)
+    # Title weight A beats body weight B, so ``lex`` leads the full-text arm; it has no embedding, so
+    # the semantic arm cannot see it at all.
+    generate_archive_doc(description_id="lex", original_title="Matadouro Municipal")
+    # ``both`` is second in the full-text arm (the term is in the body) and second to the vector.
+    generate_archive_doc(
+        description_id="both", original_title="Relatório", scope_content="matadouro", embedding=_vector(0.9, 0.1)
+    )
+    # ``sem`` carries no searchable text and sits exactly on the query vector.
+    generate_archive_doc(description_id="sem", original_title="Parecer técnico", embedding=_vector(1.0))
+    db_session.flush()
+
+    docs, total, _ = repo.search(DocumentSearchQuery(term="matadouro", mode="hybrid"), query_embedding=_vector(1.0))
+
+    assert [doc.description_id for doc in docs] == ["both", "lex", "sem"]
+    assert total == 3
+    assert docs[0].rank is not None and docs[1].rank is not None
+    # The fusion's score, not a ``ts_rank`` and not a cosine: two reciprocal contributions.
+    assert docs[0].rank > docs[1].rank
+
+
+def test_hybrid_search_keeps_a_lexical_match_that_has_no_embedding(use_test_db, db_session, generate_archive_doc):
+    """
+    The full-text arm has no "has an embedding" guard and the fusion must not add one: a description
+    the worker never embedded is still a description whose title matches the term.
+    """
+    repo = DocumentRepository(db_session)
+    generate_archive_doc(description_id="lex_only", original_title="Matadouro Municipal")
+
+    docs, total, _ = repo.search(DocumentSearchQuery(term="matadouro", mode="hybrid"), query_embedding=_vector(1.0))
+
+    assert total == 1
+    assert [doc.description_id for doc in docs] == ["lex_only"]
+    assert docs[0].rank is not None and docs[0].rank > 0
+
+
+def test_hybrid_search_leaves_out_a_document_neither_ranking_reached(use_test_db, db_session, generate_archive_doc):
+    """The candidate set is the union of the two arms, never the collection."""
+    repo = DocumentRepository(db_session)
+    generate_archive_doc(description_id="hit", original_title="Matadouro Municipal", embedding=_vector(1.0))
+    generate_archive_doc(description_id="noise", original_title="Relatório anual")
+
+    docs, total, _ = repo.search(DocumentSearchQuery(term="matadouro", mode="hybrid"), query_embedding=_vector(1.0))
+
+    assert total == 1
+    assert [doc.description_id for doc in docs] == ["hit"]
+
+
+def test_hybrid_page_falls_back_to_the_lexical_order_past_the_fused_window(
+    use_test_db, db_session, generate_archive_doc, monkeypatch
+):
+    """
+    Past the window there is no position left to fuse, so the page continues in full-text order and
+    ``rank`` carries the relevance of the ordering that placed the document — the same number the
+    lexical mode exposes for it.
+    """
+    from scrinalia.domains.archive.repository import document_repo
+
+    monkeypatch.setattr(document_repo, "RRF_DEPTH", 1)
+
+    repo = DocumentRepository(db_session)
+    generate_archive_doc(description_id="lex_best", original_title="Matadouro Municipal", embedding=_vector(0.0, 1.0))
+    generate_archive_doc(description_id="sem_best", original_title="Parecer técnico", embedding=_vector(1.0))
+    generate_archive_doc(
+        description_id="lex_tail", original_title="Relatório anual", scope_content="Reforma do matadouro"
+    )
+    db_session.flush()
+
+    lexical, _, _ = repo.search(DocumentSearchQuery(term="matadouro"))
+    lexical_rank = next(doc.rank for doc in lexical if doc.description_id == "lex_tail")
+
+    docs, total, _ = repo.search(DocumentSearchQuery(term="matadouro", mode="hybrid"), query_embedding=_vector(1.0))
+
+    assert total == 3
+    assert [doc.description_id for doc in docs] == ["lex_best", "sem_best", "lex_tail"]
+    assert docs[0].rank == pytest.approx(1 / 61)
+    assert docs[1].rank == pytest.approx(1 / 61)
+    assert docs[2].rank == pytest.approx(lexical_rank)
+
+
+def test_hybrid_search_counts_its_facets_over_the_candidate_set_and_still_filters_the_page(
+    use_test_db, db_session, generate_archive_doc
+):
+    """
+    The page obeys the filter and the sidebar does not, which is the facet rule the fused clause has
+    to keep: the counts describe the search, not the slice of it the user selected.
+    """
+    repo = DocumentRepository(db_session)
+    dossier = ArchiveTypology(name="Dossiê")
+    photo = ArchiveTypology(name="Fotografia")
+    db_session.add_all([dossier, photo])
+    db_session.commit()
+
+    generate_archive_doc(
+        description_id="hy1",
+        original_title="Matadouro Municipal",
+        embedding=_vector(1.0),
+        typology_id=dossier.typology_id,
+    )
+    generate_archive_doc(
+        description_id="hy2", original_title="Matadouro Velho", embedding=_vector(1.0), typology_id=photo.typology_id
+    )
+    db_session.flush()
+
+    docs, total, facets = repo.search(
+        DocumentSearchQuery(term="matadouro", mode="hybrid", typology_id=photo.typology_id),
+        query_embedding=_vector(1.0),
+    )
+
+    assert (total, [doc.description_id for doc in docs]) == (1, ["hy2"])
+    assert {count.key: count.count for count in facets.typology} == {
+        str(dossier.typology_id): 1,
+        str(photo.typology_id): 1,
+    }
+
+
+def test_hybrid_mode_without_a_query_embedding_searches_lexically(use_test_db, db_session, generate_archive_doc):
+    """A caller that carries no vector gets the full-text ranking, not a crash and not a fusion."""
+    repo = DocumentRepository(db_session)
+    generate_archive_doc(description_id="hb1", original_title="Matadouro Municipal", embedding=_vector(1.0))
+
+    lexical, _, _ = repo.search(DocumentSearchQuery(term="matadouro"))
+    docs, total, _ = repo.search(DocumentSearchQuery(term="matadouro", mode="hybrid"))
+
+    assert total == 1
+    assert docs[0].rank == pytest.approx(lexical[0].rank)
+
+
+def test_hybrid_mode_without_a_term_or_a_vector_browses_the_collection(use_test_db, db_session, generate_archive_doc):
+    """No term and no vector is a browse, like the other modes: there is nothing to rank."""
+    repo = DocumentRepository(db_session)
+    generate_archive_doc(description_id="hbr", original_title="Qualquer", embedding=_vector(1.0))
+
+    docs, total, _ = repo.search(DocumentSearchQuery(mode="hybrid"))
+
+    assert total == 1
+    assert docs[0].rank is None
+
+
+# ==========================================
 # H7 — HIERARCHICAL FACETS
 # ==========================================
 def test_search_inside_a_branch_returns_the_whole_subtree(db_session, generate_archive_doc, generate_description_level):

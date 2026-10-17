@@ -9012,7 +9012,8 @@
               "default": "lexical",
               "enum": [
                 "lexical",
-                "semantic"
+                "semantic",
+                "hybrid"
               ],
               "type": "string"
             }
@@ -11608,7 +11609,8 @@
               "default": "lexical",
               "enum": [
                 "lexical",
-                "semantic"
+                "semantic",
+                "hybrid"
               ],
               "type": "string"
             }

@@ -81,7 +81,7 @@ export const SCREENS: Record<ScreenId, Screen> = {
     path: "/acervo/lista",
     label: "Lista e Busca",
     hint: "Facetas e Filtros",
-    description: "Busca lexical e semântica do acervo.",
+    description: "Busca lexical, semântica ou híbrida do acervo.",
   },
   tree: {
     path: "/acervo/arvore",

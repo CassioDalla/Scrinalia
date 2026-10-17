@@ -18,6 +18,19 @@ import { asBoolean, asEnum, asNumber, asString } from "@/lib/search";
 const PAGE_SIZE = 25;
 
 /**
+ * The rankings the API accepts, in the order the select shows them.
+ *
+ * One list, because three things read it: the URL validator, the select, and the note that
+ * explains the non-default ones. ``asEnum`` drops a value the list does not carry, so a
+ * ``?mode=`` this screen does not know is discarded instead of being sent to the route.
+ */
+const SEARCH_MODES: readonly { value: SearchMode; label: string }[] = [
+  { value: "lexical", label: "Lexical" },
+  { value: "semantic", label: "Semântica" },
+  { value: "hybrid", label: "Híbrida" },
+];
+
+/**
  * ``getRouteApi`` instead of importing the route object: the route is declared in ``router.tsx``
  * and the component lives here, and importing one from the other would be a cycle.
  */
@@ -52,7 +65,10 @@ const REVIEW_STATUSES = Object.keys(REVIEW_STATUS_LABEL) as ArchiveReviewStatus[
 export function validateCollectionSearch(search: Record<string, unknown>): CollectionSearch {
   return {
     term: asString(search.term),
-    mode: asEnum(search.mode, ["lexical", "semantic"]) ?? "lexical",
+    mode: asEnum(
+      search.mode,
+      SEARCH_MODES.map((mode) => mode.value),
+    ) ?? "lexical",
     typology_id: asNumber(search.typology_id),
     macro_category_id: asNumber(search.macro_category_id),
     entity_type: asString(search.entity_type),
@@ -324,19 +340,36 @@ export function CollectionRoute() {
               onChange={(event) => patch({ mode: event.target.value as SearchMode })}
               className="w-40"
             >
-              <option value="lexical">Lexical</option>
-              <option value="semantic">Semântica</option>
+              {SEARCH_MODES.map((mode) => (
+                <option key={mode.value} value={mode.value}>
+                  {mode.label}
+                </option>
+              ))}
             </Select>
             <Button onClick={() => patch({ term: undefined, status: undefined, is_anomaly: undefined })}>
               Limpar busca
             </Button>
           </div>
 
-          {/* The honest note the sitemap asks for: the semantic ranking is measured as weak. */}
+          {/*
+            What the two non-default rankings promise, and the limit of the evidence.
+
+            The numbers themselves live in `docs/log.md`, next to the bench that produced them:
+            a screen that stores a measurement lies on the next run, which is exactly the defect
+            this note used to carry — it cited a Hit@10 that belonged to another experiment on
+            another collection.
+          */}
           {search.mode === "semantic" ? (
-            <Notice tone="warn" className="mb-3">
-              A busca semântica tem qualidade medida fraca (Hit@10 0.625). Prefira o modo lexical quando
-              souber o termo.
+            <Notice tone="accent" className="mb-3">
+              A busca semântica ordena por significado: encontra o que o título não escreve e perde
+              para a lexical quando o termo é exato. Prefira o lexical quando souber o termo.
+            </Notice>
+          ) : null}
+          {search.mode === "hybrid" ? (
+            <Notice tone="accent" className="mb-3">
+              A busca híbrida funde a ordem lexical com a semântica (Reciprocal Rank Fusion) e foi a
+              melhor das três no conjunto rotulado, com o termo exato e com a frase inteira. É o modo
+              que não exige escolher — custa carregar o modelo.
             </Notice>
           ) : null}
 

@@ -4359,7 +4359,7 @@ export interface operations {
         parameters: {
             query?: {
                 term?: string | null;
-                mode?: "lexical" | "semantic";
+                mode?: "lexical" | "semantic" | "hybrid";
                 typology_id?: number | null;
                 macro_category_id?: number | null;
                 level_id?: number | null;
@@ -5486,7 +5486,7 @@ export interface operations {
         parameters: {
             query?: {
                 term?: string | null;
-                mode?: "lexical" | "semantic";
+                mode?: "lexical" | "semantic" | "hybrid";
                 typology_id?: number | null;
                 macro_category_id?: number | null;
                 level_id?: number | null;

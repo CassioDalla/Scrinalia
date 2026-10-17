@@ -11,6 +11,56 @@ commits — the history is the detail.
 
 ### Added
 
+- **A third ranking mode: the lexical and the semantic orders fused by Reciprocal Rank Fusion**
+  (issue #38): `mode=hybrid` on `GET /api/v1/documents` and on the public surface. The two rankings
+  are built independently — `ts_rank` over the generated `search_vector` with the taxonomy boost, and
+  the cosine similarity to the embedded term — and meet in `reciprocal_rank_fusion`
+  (`domains/archive/domain/search.py`, `RRF_K = 60`), so nothing normalises a `ts_rank` against a
+  cosine. The fusion reads the **window** of each arm (`RRF_DEPTH = 100`); `total` is the count of the
+  union of the full-text matches with the semantic window, and not every document that has an
+  embedding, which would be the whole collection. The page is the fused window first and the rest of
+  the matches after it in full-text order, and `rank` follows the same split: the fusion's score
+  inside the window, the relevance of the ordering that placed the document outside it. The full-text
+  mode stays the default on both surfaces, so a lexical request still never loads the model.
+
+  **Measured on the labelled set, per query stratum, through the product path** (16 queries whose gold
+  is derived from the title term, on the 4,831-description collection):
+
+  | stratum | mode | Hit@10 | Recall@10 | MRR | found in top-50 |
+  | --- | --- | ---: | ---: | ---: | ---: |
+  | the sentence a person types | lexical | 0.438 | 0.212 | 0.258 | 0.500 |
+  | | semantic | 0.562 | 0.221 | 0.293 | 0.750 |
+  | | hybrid | **0.625** | **0.358** | **0.296** | **0.812** |
+  | the title term alone | lexical | 0.875 | **0.650** | **0.703** | 0.938 |
+  | | semantic | 0.562 | 0.225 | 0.338 | 0.688 |
+  | | hybrid | **0.938** | 0.608 | 0.679 | 0.938 |
+
+  The fusion wins on the sentence and on the term; it is the mode that removes the choice. It is **not**
+  a free win: on the term stratum it puts one more query inside the top ten and still ends 0.024 below
+  the full-text ranking on MRR, because agreement demotes a confidently-ranked full-text hit when the
+  semantic arm disagrees — the set is small (one query is worth 0.0625 of Hit@10) and its gold is a
+  proxy, so the report prints that limit next to every number. The fusion is also not a dominance order:
+  a first place plus a third beats a second place twice by 8·10⁻⁶. Latency is the full-text one plus
+  about 7% (6.4 s against 5.5 s per query on the slowest stratum, which is dominated by the pre-existing
+  cost of a broad term, not by the fusion).
+
+- **A bench for the retrieval modes** (issue #38): `testing/evaluation/retrieval_modes.py` scores the
+  three rankings **through the product path** — `DocumentService` and the repository, the same objects
+  the route uses — where `retrieval_quality.py` embeds and ranks on its own because there the embedded
+  text is the variable. It reports Hit@k, recall@k, MRR and coverage per mode and per stratum, with the
+  position of the first expected description for each query, and the shared ranking arithmetic is
+  defined once in `testing/evaluation/ranking_metrics.py`.
+
+### Changed
+
+- **The semantic mode's note no longer cites a Hit@10 that belonged to another experiment.** The
+  screen and the curation guide used to say the semantic ranking was measured as weak and quote
+  `Hit@10 0.625` — a number produced by the excerpt experiment on the embedded text, on a
+  3,608-description collection, and never a comparison with the full-text ranking. The three modes are
+  now named where the archivist reads them, with the rule that decides between them and the limit of
+  the evidence, and the numbers themselves live in `docs/log.md` and in the bench that produced them:
+  a page that stores a number which is expected to move lies on the next run.
+
 - **A bench for the NER extractor, at term level** (issue #113): `testing/evaluation/ner_quality.py`
   scores an extraction against a labelled set at the unit that matters — a span is right or wrong by its
   boundaries, so a document-level agreement would call an extraction perfect when one of five terms was

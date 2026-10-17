@@ -45,6 +45,7 @@ from scrinalia.domains.archive.repository.text_quality_repo import (
     embedding_text_sql,
 )
 from testing.evaluation.dataset import load_dataset
+from testing.evaluation.ranking_metrics import query_metrics
 
 EMBED_BATCH_SIZE = 128
 
@@ -60,19 +61,15 @@ class RankingMetrics:
     term_precisions: list[float] = field(default_factory=list)
 
     def add(self, expected: set[str], ranking: list[str], k: int, term_matches: dict[str, bool]) -> None:
+        measured = query_metrics(expected, ranking, k)
         top = ranking[:k]
-        self.hits += 1 if expected.intersection(top) else 0
-        self.recalls.append(len(expected.intersection(top)) / len(expected))
+        self.hits += int(measured.hit)
+        self.recalls.append(measured.recall)
         # Precision by title term is label-free: it does not depend on how many matching
         # documents the labelled set happened to keep, so it cannot punish a ranking for
         # surfacing an equally relevant document that the cut-off left out.
         self.term_precisions.append(sum(term_matches.get(description_id, False) for description_id in top) / max(1, k))
-        for position, description_id in enumerate(ranking, start=1):
-            if description_id in expected:
-                self.reciprocal_ranks.append(1.0 / position)
-                break
-        else:
-            self.reciprocal_ranks.append(0.0)
+        self.reciprocal_ranks.append(measured.reciprocal_rank)
 
     def summary(self) -> dict[str, float]:
         total = max(1, len(self.recalls))

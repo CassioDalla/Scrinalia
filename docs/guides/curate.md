@@ -331,10 +331,23 @@ linking.
 
 ### Lista e busca — `/acervo/lista`
 
-The faceted search over the collection: the term (lexical or semantic), typology, subject category,
-entity type, level, a branch of the arrangement and a date range. The URL is the state, so a filtered
-list is shareable and the back button works. Nothing is written. The semantic mode carries an honest
-note: its measured quality is weak (Hit@10 0.625), so prefer lexical when the term is known.
+The faceted search over the collection: the term, one of **three rankings**, typology, subject
+category, entity type, level, a branch of the arrangement and a date range. The URL is the state, so a
+filtered list is shareable and the back button works. Nothing is written.
+
+The three rankings answer different questions, and the screen says which is which:
+
+| Mode | What it orders by | When to choose it |
+| --- | --- | --- |
+| Lexical (default) | `ts_rank` over the generated `search_vector`, boosted by a tag or entity that matches | The archivist knows the term the title uses |
+| Semantic | Cosine similarity between the term and the description's embedding | The archivist knows the subject but not the vocabulary of the fonds |
+| Hybrid | The two fused by Reciprocal Rank Fusion (`RRF_K = 60`, window `RRF_DEPTH = 100`) | The mode that does not require the choice, at the cost of loading the model |
+
+The numbers behind those sentences live in `docs/log.md`, next to the bench that produced them
+(`testing/evaluation/retrieval_modes.py`), and not on this page: a page that stores a number which is
+expected to move lies on the next run. What the screen does state is that the evidence is a small
+labelled proxy set, and that the lexical mode is preferred when the term is known — the one place
+where the two arms differ by a wide margin.
 
 ### Árvore — `/acervo/arvore`
 
