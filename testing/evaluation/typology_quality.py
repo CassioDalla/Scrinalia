@@ -23,7 +23,7 @@ a curator confirms or corrects every ``expected``. The rows are collection data 
 not versioned (``testing/evaluation/README.md`` documents the shape); the scoring is what is
 versioned.
 
-Two modes, and the split is deliberate (principle VI — the decision, the write and the read are
+Three modes, and the split is deliberate (principle VI — the decision, the write and the read are
 separate):
 
 ``--pick``
@@ -33,10 +33,19 @@ separate):
     Regenerates the human sheet from the labelled set, reading the text from the database, so the
     sheet can never disagree with what the scorer will read.
 
+``--collection``
+    Samples the **pending queue** and measures what a configuration costs there and what it does to
+    the label distribution. No gabarito and no score: the labelled set answers "is it right", and
+    this answers "what does it cost on this collection's own mix", which is the half a sample that
+    is balanced by construction cannot answer. Nothing reaches the database.
+
 Run it from the repository root, against the real database::
 
     uv run python -m testing.evaluation.typology_quality --pick
     uv run python -m testing.evaluation.typology_quality --sheet
+    uv run python -m testing.evaluation.typology_quality --collection --sample 100 \\
+        --config deberta_typology:cpu_local:original_title:0.40 \\
+        --config deberta_typology:cpu_local:original_title,admin_bio_history:0.40
 """
 
 from __future__ import annotations
@@ -72,7 +81,13 @@ from scrinalia.domains.archive.repository.text_quality_repo import (
     TextQualityRepository,
     composed_text_sql,
 )
-from scrinalia.domains.archive.workers.worker_typology import execute, resolved_parameters
+from scrinalia.domains.archive.workers.worker_typology import (
+    count_pending,
+    execute,
+    pending_conditions,
+    producer_identity,
+    resolved_parameters,
+)
 from testing.evaluation.dataset import DATA_DIR, load_dataset
 
 PAIRS_FILENAME = "typology_pairs.json"
@@ -91,6 +106,16 @@ NONE_CLASS = "NENHUMA"
 #: How many rows one stratum contributes by default, and how many the NENHUMA bucket contributes.
 DEFAULT_PER_FORM = 40
 DEFAULT_NONE_ROWS = 25
+
+#: How many documents ``--collection`` samples from the pending queue. Measured on 2026-10-14, one
+#: document costs ~2 s on the title alone and ~6 s with the archival history, so 100 documents is
+#: 3 to 11 minutes per configuration on CPU — enough to price a policy, short enough to re-run.
+DEFAULT_SAMPLE = 100
+
+#: The bucket of a sampled document no stratum pattern matches. Named instead of dropped: these
+#: items are in the queue and the worker pays for them, and the picker's habit of discarding them
+#: belongs to a gabarito that has to be decidable, not to a cost sample that has to be complete.
+NO_STRATUM = "(sem estrato)"
 
 #: ``confidence`` is the curator's own certainty, the same vocabulary the subject set uses.
 CONFIDENCE_VALUES = ("alta", "media", "baixa")
@@ -225,6 +250,20 @@ def _evidence(scope: str | None, bio: str | None, title: str) -> str:
     return title
 
 
+def _stratum_expression() -> Any:
+    """
+    The stratum of a title, as SQL: the first pattern that matches owns the row.
+
+    One CASE, stated once, because the priority between the strata is what keeps "Fotografia" from
+    losing a photograph of a meeting to "Ata de Reunião" — and both the picker and the collection
+    sample read it.
+    """
+    return case(
+        *[(ArchiveDocument.original_title.op("~*")(s.pattern), literal(s.key)) for s in STRATA],
+        else_=literal(None),
+    ).label("stratum")
+
+
 def read_collection(db: Session) -> list[Row]:
     """
     Every item of the collection, the text the worker reads, and the stratum its title proposes.
@@ -239,13 +278,6 @@ def read_collection(db: Session) -> list[Row]:
     rules = TextQualityRepository(db).get_active_rules("NER")
     text_expression = composed_text_sql(columns, rules, separator=". ")
 
-    # One CASE, so the priority between the strata is stated once and in one place: the first
-    # pattern that matches owns the row.
-    stratum_expression = case(
-        *[(ArchiveDocument.original_title.op("~*")(s.pattern), literal(s.key)) for s in STRATA],
-        else_=literal(None),
-    ).label("stratum")
-
     stmt = (
         select(
             ArchiveDocument.description_id,
@@ -254,7 +286,7 @@ def read_collection(db: Session) -> list[Row]:
             ArchiveDocument.admin_bio_history,
             ArchiveDocument.provenance,
             text_expression.label("input_text"),
-            stratum_expression,
+            _stratum_expression(),
         )
         .where(ArchiveDocument.description_id.op("!~")("^node_"))
         .order_by(ArchiveDocument.description_id)
@@ -859,6 +891,20 @@ def score_stored(db: Session, rows: Sequence[LabelledRow]) -> list[Scored]:
     ]
 
 
+def link_decision(result: dict, threshold: float) -> Prediction:
+    """
+    The worker's decision about one answer, in one place.
+
+    ``worker_typology.execute`` links a typology only when ``score > confidence_threshold`` —
+    strictly — and leaves ``typology_id`` NULL otherwise. Both the scorer and the collection sample
+    read the rule from here, because a second copy of the comparison is a second abstention rate, and
+    the one the report prints would stop being the one the worker produces (principle IV).
+    """
+    label = result["labels"][0]
+    score = float(result["scores"][0])
+    return Prediction(label=label if score > threshold else None, score=score)
+
+
 def score_live(
     db: Session, config: BenchConfig, rows: Sequence[LabelledRow], limit: int | None = None
 ) -> tuple[list[Scored], float]:
@@ -904,14 +950,11 @@ def score_live(
                     Scored(description_id=row.description_id, truth=row.truth, prediction=Prediction(label=None))
                 )
                 continue
-            label = result["labels"][0]
-            score = float(result["scores"][0])
-            linked = label if score > config.threshold else None
             scored.append(
                 Scored(
                     description_id=row.description_id,
                     truth=row.truth,
-                    prediction=Prediction(label=linked, score=score),
+                    prediction=link_decision(result, config.threshold),
                 )
             )
     return scored, (seconds / classified if classified else 0.0)
@@ -955,6 +998,278 @@ def stored_mode_note(collection: Counter[str]) -> str:
         "parte das linhas conta como abstenção e derruba toda métrica. Este modo serve para o colapso "
         "— a distribuição da coleção inteira, impressa acima — e o modo `live` é o que mede o modelo."
     )
+
+
+# =============================================================================
+# The collection sample: cost and shape, never accuracy
+# =============================================================================
+#
+# The modes above answer "is it right" on rows a human labelled. Neither answers the other half of
+# the decision #109 takes: **what does a configuration cost on this collection, and what does it do
+# to the label distribution** — measured on the collection's own mix, not on a sample that is
+# balanced by construction. This is that measurement, and it is deliberately blind to the gabarito:
+# it scores nothing, because these rows have no truth.
+#
+# Three traps it exists to avoid:
+#
+# * It does **not** deduplicate by text (``_one_per_input``), unlike the picker. The photographic
+#   fonds repeats 3.164 items over 1.240 distinct titles and the worker pays for every item, so a
+#   sample of distinct texts would price the collection as if the repeats were free.
+# * It samples through the worker's **own** pending predicate (``pending_conditions``) and not
+#   through a filter retyped here, and the caller compares the result with ``count_pending`` — the
+#   number the panel shows. A sample drawn from a queue the worker does not have measures a run that
+#   will not happen.
+# * It allocates **proportionally** across the picker's strata, with no floor. A floor of one row per
+#   stratum would give 6 rows of a 100-row sample (6%) to the forms that are 41 of the 4.813 items
+#   (0.85%), and those are the forms with the longest texts (measured on 2026-10-14: mean 917
+#   characters against 472 overall), so a floor would inflate the projected hours.
+
+#: What this mode does not do, said where the numbers are printed and not only in the docstring.
+COLLECTION_CAVEAT = (
+    "Este modo **não mede acurácia**: as linhas da fila não têm gabarito, e um rótulo errado aqui não "
+    "aparece. Ele mede custo e forma — quanto tempo a configuração leva nesta coleção e para onde ela "
+    'empurra os rótulos. Quem responde "está certo" é o modo `live`, sobre o conjunto rotulado.'
+)
+
+
+@dataclass(frozen=True)
+class SampledRow:
+    """One item of the pending queue: the id the text is read for, and the stratum of its title."""
+
+    description_id: str
+    stratum: str | None
+
+
+def collection_identity(config: BenchConfig) -> str:
+    """The producer identity of one configuration, through the worker's own function."""
+    return producer_identity(
+        engine_name=cast("EngineName", config.engine),
+        preset=cast("PresetName", config.preset),
+        columns_to_classify=list(config.columns),
+        confidence_threshold=config.threshold,
+        engine_kwargs={},
+    )
+
+
+def pending_ids(db: Session, config: BenchConfig) -> set[str]:
+    """
+    The documents this configuration would read, through the worker's own predicate.
+
+    ``pending_conditions`` **is** the queue: it carries ``typology_id IS NULL``, the governance guard,
+    the "at least one column is not null" clause and the identity stamp. Re-deriving any of them here
+    is how a bench starts measuring a queue the panel does not show.
+    """
+    stmt = select(ArchiveDocument.description_id).where(
+        *pending_conditions(list(config.columns), collection_identity(config))
+    )
+    return {row[0] for row in db.execute(stmt).all()}
+
+
+def allocate(counts: dict[str, int], total: int) -> dict[str, int]:
+    """
+    Largest-remainder allocation of ``total`` samples across the strata, without a floor.
+
+    Pinned by a unit test: an allocation that did not add up to ``total``, or that gave a stratum
+    more weight than the collection gives it, would make the projected hours a number about the
+    sample instead of about the collection.
+    """
+    size = sum(counts.values())
+    if size == 0 or total <= 0:
+        return {}
+    exact = {key: total * count / size for key, count in counts.items()}
+    allocated = {key: int(value) for key, value in exact.items()}
+    remaining = total - sum(allocated.values())
+    # The fractional part decides, and the stratum key breaks the tie: the sample stays deterministic
+    # under the seed alone, with no dependence on the order the database returned the rows in.
+    ranked = sorted(exact, key=lambda key: (-(exact[key] - allocated[key]), key))
+    for key in ranked[:remaining]:
+        allocated[key] += 1
+    return {key: quota for key, quota in allocated.items() if quota > 0}
+
+
+def sample_queue(
+    db: Session, configs: Sequence[BenchConfig], sample: int, seed: str
+) -> tuple[list[SampledRow], dict[str, int]]:
+    """
+    The sampled units, and the size of each configuration's queue.
+
+    The sample is read from the documents pending under **every** requested configuration, so the
+    before/after reads the same rows: comparing two configurations on two different sets of documents
+    would confound the configuration with the collection. An empty list means the intersection is
+    empty, and the queue of each configuration is returned either way so the caller can say which one
+    has documents.
+    """
+    queues = {config.label: pending_ids(db, config) for config in configs}
+    common = set.intersection(*queues.values()) if queues else set()
+    if not common:
+        return [], {label: len(ids) for label, ids in queues.items()}
+
+    stmt = select(ArchiveDocument.description_id, _stratum_expression()).where(
+        ArchiveDocument.description_id.in_(list(common))
+    )
+    by_stratum: dict[str, list[SampledRow]] = {}
+    for description_id, stratum in db.execute(stmt).all():
+        by_stratum.setdefault(stratum or NO_STRATUM, []).append(
+            SampledRow(description_id=description_id, stratum=stratum)
+        )
+
+    allocation = allocate({key: len(rows) for key, rows in by_stratum.items()}, sample)
+    picked: list[SampledRow] = []
+    for key, quota in allocation.items():
+        ordered = sorted(by_stratum[key], key=lambda row: _order_key(seed, row.description_id))
+        picked.extend(ordered[:quota])
+    picked.sort(key=lambda row: row.description_id)
+    return picked, {label: len(ids) for label, ids in queues.items()}
+
+
+def measure_collection(db: Session, configs: Sequence[BenchConfig], rows: Sequence[SampledRow]) -> list[dict[str, Any]]:
+    """
+    Runs the engine over the sampled rows under every configuration and returns the numbers.
+
+    The engine is built **once per (engine, preset)**: two configurations that differ only in the
+    columns or the floor share one model, and loading mDeBERTa again would charge the model load to
+    the seconds per document. The rows are processed **grouped by stratum**, which is what makes the
+    per-stratum seconds exact: the worker calls the engine with ``batch_size=1``, so no text is
+    padded against another and a document's neighbours cannot change its cost.
+    """
+    catalogue = list(TypologyRepository(db).get_active_typologies())
+    if not catalogue:
+        raise SystemExit("The active typology catalogue is empty; there is nothing to classify against.")
+    engines: dict[tuple[str, str | None], Any] = {}
+
+    def engine_for(config: BenchConfig) -> Any:
+        """One engine per (engine, preset): a second configuration of the same model reuses it."""
+        key = (config.engine, config.preset)
+        if key not in engines:
+            engines[key] = get_engine(cast("EngineName", config.engine), cast("PresetName", config.preset))
+        return engines[key]
+
+    grouped: dict[str, list[SampledRow]] = {}
+    for row in rows:
+        grouped.setdefault(row.stratum or NO_STRATUM, []).append(row)
+
+    reports: list[dict[str, Any]] = []
+    for config in configs:
+        engine = engine_for(config)
+        texts = read_input_text(db, [row.description_id for row in rows], config.columns)
+        counts: Counter[str] = Counter()
+        strata: dict[str, dict[str, Any]] = {}
+        seconds = 0.0
+        classified = 0
+        characters = 0
+        batch_size = 8
+        for stratum, group in grouped.items():
+            entry: dict[str, Any] = {"n": len(group), "classified": 0, "seconds": 0.0, "abstained": 0, "characters": 0}
+            for start in range(0, len(group), batch_size):
+                chunk = group[start : start + batch_size]
+                asked = [row for row in chunk if texts.get(row.description_id, "")]
+                if asked:
+                    started = time.perf_counter()
+                    results = engine.classify([texts[row.description_id] for row in asked], catalogue, batch_size=1)
+                    elapsed = time.perf_counter() - started
+                    chunk_characters = sum(len(texts[row.description_id]) for row in asked)
+                    seconds += elapsed
+                    characters += chunk_characters
+                    classified += len(asked)
+                    entry["seconds"] += elapsed
+                    entry["characters"] += chunk_characters
+                    entry["classified"] += len(asked)
+                    for result in results:
+                        counts[link_decision(result, config.threshold).label or ABSTAINED] += 1
+                for row in chunk:
+                    if not texts.get(row.description_id, ""):
+                        # The worker never asks the model about an empty text; it stamps the
+                        # document and moves on. Abstaining is the same outcome for the measurement.
+                        counts[ABSTAINED] += 1
+                        entry["abstained"] += 1
+            entry["seconds_per_document"] = entry["seconds"] / entry["classified"] if entry["classified"] else 0.0
+            entry["mean_characters"] = entry["characters"] / entry["classified"] if entry["classified"] else 0.0
+            strata[stratum] = entry
+        reports.append(
+            {
+                "config": config.label,
+                "engine": config.engine,
+                "preset": config.preset,
+                "columns": list(config.columns),
+                "threshold": config.threshold,
+                "sampled": len(rows),
+                "classified": classified,
+                "seconds_per_document": seconds / classified if classified else 0.0,
+                "mean_characters": characters / classified if classified else 0.0,
+                "abstention_rate": counts[ABSTAINED] / len(rows) if rows else 0.0,
+                "distribution": dict(counts),
+                "largest_share": list(largest_share(counts)),
+                "entropy_bits": entropy_bits(counts),
+                "by_stratum": dict(sorted(strata.items())),
+            }
+        )
+    return reports
+
+
+def collection_summary_table(reports: Sequence[dict[str, Any]], queues: dict[str, int]) -> str:
+    """The comparison: one line per configuration, with the queue projected from the sample."""
+    lines = [
+        "| Configuração | fila | amostra | s/doc | projeção (1 worker) | abstenção | maior gaveta |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | --- |",
+    ]
+    for report in reports:
+        label, share = report["largest_share"]
+        queue = queues.get(report["config"], 0)
+        hours = queue * report["seconds_per_document"] / 3600
+        lines.append(
+            f"| `{report['config']}` | {queue} | {report['sampled']} | {report['seconds_per_document']:.2f} "
+            f"| {hours:.1f} h | {report['abstention_rate']:.1%} | {label} ({share:.0%}) |"
+        )
+    return "\n".join(lines)
+
+
+def collection_detail_lines(report: dict[str, Any], queue: int) -> list[str]:
+    """Per-configuration detail: the strata it pays for and where the labels land."""
+    projected = queue * report["seconds_per_document"] / 3600
+    empty = report["sampled"] - report["classified"]
+    lines = [
+        f"### `{report['config']}`",
+        "",
+        f"- colunas: {', '.join(report['columns'])} · limiar: {report['threshold']:.2f} · fila: {queue}",
+        f"- amostra: {report['sampled']} documento(s), {report['classified']} classificado(s) "
+        f"({empty} sem texto) · texto lido: {report['mean_characters']:.0f} caracteres em média",
+        f"- segundos por documento: **{report['seconds_per_document']:.2f}** · projeção para a fila: "
+        f"**{projected:.1f} h**",
+        f"- abstenção: {report['abstention_rate']:.1%} · entropia: {report['entropy_bits']:.2f} bits",
+        "",
+        "| estrato | n | s/doc | caracteres | abstenção |",
+        "| --- | ---: | ---: | ---: | ---: |",
+    ]
+    for key, entry in report["by_stratum"].items():
+        lines.append(
+            f"| {key} | {entry['n']} | {entry['seconds_per_document']:.2f} | {entry['mean_characters']:.0f} "
+            f"| {entry['abstained'] / max(1, entry['n']):.0%} |"
+        )
+    lines += ["", "| rótulo | n | % da amostra | projeção na fila |", "| --- | ---: | ---: | ---: |"]
+    for bucket, count in sorted(report["distribution"].items(), key=lambda item: (-item[1], item[0])):
+        share = count / max(1, report["sampled"])
+        lines.append(f"| {bucket} | {count} | {share:.1%} | {round(queue * share)} |")
+    lines.append("")
+    return lines
+
+
+def print_collection_report(reports: Sequence[dict[str, Any]], queues: dict[str, int], sample: int, seed: str) -> None:
+    """Prints the comparison first, then the strata and the labels, then what was not measured."""
+    print()
+    print(
+        f"Fila pendente medida em {date.today().isoformat()} · amostra de {sample} documento(s) por "
+        f"estrato proporcional · semente `{seed}`"
+    )
+    print()
+    print(collection_summary_table(reports, queues))
+    print()
+    for label, size in queues.items():
+        print(f"   fila de `{label}`: {size} pendente(s)")
+    print()
+    for report in reports:
+        print("\n".join(collection_detail_lines(report, queues.get(report["config"], 0))))
+    print(f"> {COLLECTION_CAVEAT}")
+    print()
 
 
 # =============================================================================
@@ -1259,16 +1574,88 @@ def run_score(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_collection(args: argparse.Namespace) -> int:
+    """
+    Measures cost and shape of every requested configuration on the pending queue.
+
+    Nothing is written and nothing is scored. The two things it checks while it measures are worth
+    printing: the size of each configuration's queue against ``count_pending`` (the worker's own
+    counter, and the number the panel shows), and how many documents the two configurations share —
+    a before/after that reads the same rows is the only one that isolates the columns.
+    """
+    default_columns, default_threshold = resolved_parameters(None, None, None)
+    configs = [parse_config(text, tuple(default_columns), default_threshold) for text in args.config]
+
+    with get_db() as db:
+        rows, queues = sample_queue(db, configs, args.sample, args.seed)
+        if not rows:
+            raise SystemExit(
+                "Nada pendente sob **todas** as configurações pedidas: não há acervo para medir. "
+                f"Filas: {queues}. O modo `stored` mede o que já foi gravado, sem modelo."
+            )
+        counters = {
+            config.label: count_pending(
+                db,
+                columns_to_classify=list(config.columns),
+                confidence_threshold=config.threshold,
+                engine_name=cast("EngineName", config.engine),
+                preset=cast("PresetName", config.preset),
+            )
+            for config in configs
+        }
+        db.rollback()
+        for label, size in counters.items():
+            if size != queues[label]:
+                logger.warning(
+                    f"⚠️ `{label}`: a interseção amostrável tem {queues[label]} documento(s) e "
+                    f"`count_pending` responde {size}. A projeção usa {size}; a amostra é a interseção."
+                )
+        logger.info(f"🧠 classificando {len(rows)} documento(s) sob {len(configs)} configuração(ões)...")
+        reports = measure_collection(db, configs, rows)
+        db.rollback()
+
+    print_collection_report(reports, counters, args.sample, args.seed)
+
+    if args.json:
+        args.json.parent.mkdir(parents=True, exist_ok=True)
+        args.json.write_text(
+            json.dumps(
+                {
+                    "mode": "collection",
+                    "measured_at": _today(),
+                    "seed": args.seed,
+                    "sample": args.sample,
+                    "queues": counters,
+                    "reports": reports,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        logger.success(f"💾 relatório escrito em {args.json}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="The typology bench: pick the labelled set, then score it.")
     parser.add_argument("--pick", action="store_true", help="Propose the sample and write the skeleton.")
     parser.add_argument("--sheet", action="store_true", help="Regenerate the human sheet from the labelled set.")
+    parser.add_argument(
+        "--collection",
+        action="store_true",
+        help="Sample the pending queue, measure cost and label shape; no gabarito, nothing written.",
+    )
     parser.add_argument("--out", type=Path, default=DATA_DIR / PAIRS_FILENAME, help="Where the labelled set lives.")
     parser.add_argument("--sheet-out", type=Path, default=DATA_DIR / SHEET_FILENAME, help="Where the sheet goes.")
     parser.add_argument("--seed", default=DEFAULT_SEED, help="Ordering seed of the sample; recorded in the file.")
     parser.add_argument("--per-form", type=int, default=DEFAULT_PER_FORM, help="Rows per stratum.")
     parser.add_argument("--none-rows", type=int, default=DEFAULT_NONE_ROWS, help=f"Rows for the {NONE_CLASS} bucket.")
     parser.add_argument("--force", action="store_true", help="Overwrite an existing labelled set (discards labels).")
+    parser.add_argument(
+        "--sample", type=int, default=DEFAULT_SAMPLE, help="Documents --collection samples from the pending queue."
+    )
     parser.add_argument("--pairs", type=Path, default=None, help="The labelled set to score (default: --out).")
     parser.add_argument(
         "--config",
@@ -1298,6 +1685,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_sheet(args.out, args.sheet_out)
     if not args.config:
         args.config = [worker_default_config()]
+    if args.collection:
+        return run_collection(args)
     return run_score(args)
 
 

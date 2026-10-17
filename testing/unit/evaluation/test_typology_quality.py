@@ -21,9 +21,11 @@ from testing.evaluation.typology_quality import (
     Truth,
     abstention_rate,
     agreement,
+    allocate,
     confusion,
     entropy_bits,
     largest_share,
+    link_decision,
     load_labelled,
     macro_f1,
     parse_config,
@@ -209,6 +211,55 @@ def test_parse_config_refuses_more_fields_than_it_has() -> None:
 def test_parse_config_refuses_a_threshold_that_is_not_a_number() -> None:
     with pytest.raises(SystemExit):
         parse_config("deberta_typology:cpu_local:original_title:alto", DEFAULT_COLUMNS, DEFAULT_THRESHOLD)
+
+
+# =============================================================================
+# The collection sample (issue #109)
+# =============================================================================
+
+
+def test_link_decision_links_strictly_above_the_floor() -> None:
+    """
+    The worker's comparison is ``>``, and the bench abstaining on an equal score is the difference
+    between the abstention rate it prints and the one the run produces.
+    """
+    answer = {"labels": ["Fotografia"], "scores": [0.40]}
+
+    assert link_decision(answer, 0.40).label is None
+    assert link_decision(answer, 0.39).label == "Fotografia"
+    assert link_decision(answer, 0.40).score == pytest.approx(0.40)
+
+
+def test_allocate_is_proportional_and_adds_up() -> None:
+    """The sample has to weigh the strata the way the collection does, and land on ``total``."""
+    counts = {"Fotografia": 3164, "Planta Arquitetônica": 1589, "NENHUMA": 22, "Audiovisual": 1}
+
+    allocation = allocate(counts, 100)
+
+    assert sum(allocation.values()) == 100
+    # 98,3% of the collection is the two dominant strata, and the sample says the same.
+    assert allocation["Fotografia"] + allocation["Planta Arquitetônica"] >= 97
+    # The leftover seat follows the largest fractional part — NENHUMA (0,46) and not the smallest
+    # stratum — so the rule is a remainder and not a floor. Pinned because a "fix" that made it a
+    # floor would inflate the projected hours without changing anything the sample prints.
+    assert allocation["NENHUMA"] == 1
+    assert "Audiovisual" not in allocation
+
+
+def test_allocate_gives_the_rare_forms_no_floor() -> None:
+    """
+    A floor of one row per stratum would hand 6% of a 100-row sample to forms that are 0,85% of the
+    collection — and those are the forms with the longest texts, so the projected hours would grow
+    with a distortion and not with the collection.
+    """
+    allocation = allocate({"Fotografia": 4000, "Processo Administrativo": 6}, 100)
+
+    assert allocation == {"Fotografia": 100}
+
+
+def test_allocate_of_an_empty_or_zero_sample_is_empty() -> None:
+    assert allocate({}, 100) == {}
+    assert allocate({"Fotografia": 10}, 0) == {}
 
 
 # =============================================================================
