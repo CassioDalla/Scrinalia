@@ -10,10 +10,17 @@ AVAILABLE_ENGINES: dict[EngineName, type[TypologyEngine]] = {
     "ollama_typology": OllamaTypologyEngine,  # type: ignore
 }
 
-PresetName = Literal["cpu_local", "gpu_cloud"]
+PresetName = Literal["cpu_local", "gpu_cloud", "xlm_roberta_local"]
 PRESETS: dict[PresetName, dict[str, Any]] = {
     "cpu_local": {"model": "MoritzLaurer/mDeBERTa-v3-base-mnli-xnli", "device": "cpu"},
     "gpu_cloud": {"model": "MoritzLaurer/mDeBERTa-v3-base-mnli-xnli", "device": "cuda"},
+    # The second model the axis can run. It exists because the subject bench (`macro_category_quality`)
+    # compares two models on the same golden set, and the bench names no model: it asks the registry
+    # for a configuration, exactly as both workers of this axis do. ``DebertaEngine`` is a
+    # ``zero-shot-classification`` pipeline whose model is a parameter, so a model is a preset here
+    # and not an engine — and the consequence is deliberate: the option reaches the typology worker's
+    # panel too, because this registry is the axis's single definition of what can be run.
+    "xlm_roberta_local": {"model": "joeddav/xlm-roberta-large-xnli", "device": "cpu"},
 }
 
 

@@ -176,6 +176,24 @@ distribution (largest share, entropy, abstentions) and seconds per document. A t
 than `--min-positives` labelled examples (5 by default) is printed as **não medida** instead of
 scored: an F1 built on two rows reads like a measurement and is not one.
 
+## Running the macro-category bench
+
+The subject bench compares label formats and arrangements on the macro-category set. Its models come
+from the engine registry — the same registry both workers of the axis read — so the bench names no
+model:
+
+```sh
+uv run python -m testing.evaluation.macro_category_quality \
+    --config deberta_typology:cpu_local \
+    --config deberta_typology:xlm_roberta_local
+```
+
+With no `--config` it runs the configuration the macro-category worker declares in its own signature,
+so "the current configuration" cannot drift from the code. `--device` overrides the preset's device
+for every configuration. A model that is not a registry preset is not reachable from here: adding one
+is a registry entry, which is what makes a configuration the bench measures one the worker can also
+be told to run.
+
 ## Measuring the collection, not the sample (issue #109)
 
 The labelled set is balanced by construction — 40 rows per form by default — and a decision about

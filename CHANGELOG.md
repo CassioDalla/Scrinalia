@@ -47,6 +47,14 @@ commits — the history is the detail.
   the other kind of finding: **`granite4.1:3b` fails every single call** (`500 Server Error`, the
   llama runner crashing on this Ollama build), so the preset the registry declares cannot judge
   anything — separated from a verdict by the failure rule above rather than scored as 49 `TAG`s.
+- **The classification axis can run a second model, and the registry is where it is declared**
+  (issue #116): `xlm_roberta_local` (`joeddav/xlm-roberta-large-xnli`) joins `cpu_local` and
+  `gpu_cloud` in `engines/classification/registry.py`. The engine of that axis is a
+  `zero-shot-classification` pipeline whose model is a parameter, so a second model is a **preset**
+  and not an engine — and because the registry is the axis's single definition of what can be run,
+  the option reaches both of its workers, the typology classifier and the subject categoriser, not
+  only the bench that needed it. It exists because the subject bench compares two models and, since
+  this change, the bench names no model of its own.
 
 - **The typology bench prices a configuration on the collection's own mix, and the price says no**
   (issue #109): `--collection` samples the **pending queue** — through the worker's own
@@ -120,6 +128,25 @@ commits — the history is the detail.
   cannot refute the collapse the issue measured on the unbalanced reference collection — the whole
   collection is what a collapse measurement needs, and the stored mode prints that distribution in
   one query (4.205 of 4.813 descriptions carry no typology at all).
+
+### Changed
+
+- **The subject bench takes its models from the engine registry** (issue #116): the two hardcoded
+  adapters and the `MODELS` dictionary inside `testing/evaluation/macro_category_quality.py` are gone.
+  `--config ENGINE[:PRESET]` resolves through `engines.classification.registry` — the same registry
+  both workers of the axis read — the default is the configuration the macro-category worker declares
+  in its own signature, and `--device` is the only engine parameter the bench overrides. A model the
+  registry does not declare is not reachable from here: adding one is a registry entry, which is what
+  makes a configuration the bench measures one the worker can also be told to run.
+
+  The change is a refactor and not a new measurement, and it is measured as one: on the first 8
+  labelled tags, mDeBERTa's 9 (label format, arrangement) combinations reproduce the pre-refactor
+  report field by field — accuracy, distribution, largest share, both mean confidences and the full
+  per-tag miss list — with **zero differences**. The second model, `xlm-roberta-large-xnli`, is
+  verified at the code level only (the registry resolves to the same model string and device the
+  deleted adapter hardcoded, and `DebertaEngine`'s pipeline defaults are the ones it passed): the
+  model is not in this machine's Hugging Face cache and the cache is read-only, so it was not
+  executed here.
 
 ## [1.2.0] - 2026-10-13
 

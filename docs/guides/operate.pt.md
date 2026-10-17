@@ -151,7 +151,7 @@ uv run python -m scrinalia.domains.archive.workers.runner ner \
 | --- | --- |
 | `<name>` | um dos nove nomes acima; qualquer outro valor é recusado com a lista de opções |
 | `--engine X` | uma engine registrada do eixo do worker, por exemplo `spacy_ner`, `deberta_typology`, `ollama_judge` |
-| `--preset Y` | um preset desse eixo, por exemplo `gpu`, `lemmatizer`, `cpu_local`, `gpu_cloud`, `granite_local`, `multilingual_minilm` |
+| `--preset Y` | um preset desse eixo, por exemplo `gpu`, `lemmatizer`, `cpu_local`, `gpu_cloud`, `xlm_roberta_local`, `granite_local`, `multilingual_minilm` |
 | `--batch N` | tamanho do lote por transação, repassado aos workers que declaram `db_batch_size`; um worker sem isso registra no log que o valor foi ignorado |
 | `--limit N` | teto de unidades desta execução, para os workers que declaram `limit` (`embedding`, `macro-category`, `ner`, `quality-validator`, `thumbnail`, `typology`); recusado nos demais, porque um teto que não faz nada em silêncio é pior do que nenhum teto. Ele conta tentativas, então uma fila de falhas ainda termina, e nunca é persistido |
 | `--option key=value` | parâmetro extra, repetível; `key` sem `=` é recusado |

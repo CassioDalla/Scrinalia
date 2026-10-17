@@ -16,12 +16,15 @@ from scrinalia.domains.archive.engines.LLMs.ollama_tag_entity_conflict import Ol
 from scrinalia.domains.archive.engines.NER import registry as ner_registry
 from scrinalia.domains.archive.engines.title_quality import registry as title_registry
 
-#: ``(registry, engine, preset)`` for every axis a worker actually runs on. Clustering is absent on
-#: purpose: no worker in the runner uses it, and its factory injects a callable analyzer that has no
-#: honest representation in a serialisable config.
+#: ``(registry, engine, preset)`` for every axis a worker actually runs on, plus the second model of
+#: the classification axis — the one the subject bench compares against, and the reason a preset and
+#: not only a worker default is pinned here. Clustering is absent on purpose: no worker in the runner
+#: uses it, and its factory injects a callable analyzer that has no honest representation in a
+#: serialisable config.
 AXES = [
     (ner_registry, "spacy_ner", "gpu"),
     (classification_registry, "deberta_typology", "cpu_local"),
+    (classification_registry, "deberta_typology", "xlm_roberta_local"),
     (embeddings_registry, "sentence_transformer", "multilingual_minilm"),
     (llm_registry, "ollama_judge", "granite_local"),
     (title_registry, "ollama_title_check", "granite_local"),
