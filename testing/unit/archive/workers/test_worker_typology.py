@@ -124,3 +124,55 @@ def test_worker_typology_ai_failure_rolls_back(mocker: MockerFixture) -> None:
 
     # The stamp must not have been applied, allowing a future retry
     assert test_doc.execution_log is None
+
+
+# ==========================================
+# THE PRODUCER IDENTITY SIGNS THE CATALOGUE (issue #117)
+# ==========================================
+
+
+def _identity(typologies: dict[str, int], threshold: float = 0.40, columns: tuple[str, ...] = ("original_title",)):
+    return worker_typology.producer_identity(
+        engine_name="deberta_typology",
+        preset="cpu_local",
+        columns_to_classify=list(columns),
+        confidence_threshold=threshold,
+        typologies=typologies,
+        engine_kwargs={},
+    )
+
+
+def test_the_identity_is_the_same_for_the_same_catalogue_in_any_order() -> None:
+    """
+    The hash is over a sorted payload, so the order the rows came back in cannot re-queue forever.
+
+    A label set that hashed by insertion order would make every run a new producer and the queue
+    would never empty.
+    """
+    assert _identity({"Fotografia": 1, "Planta": 2}) == _identity({"Planta": 2, "Fotografia": 1})
+
+
+def test_adding_renaming_or_retiring_a_typology_changes_the_identity() -> None:
+    """Three catalogue edits, three producers: the worker has to be able to tell them apart."""
+    baseline = _identity({"Fotografia": 1})
+    added = _identity({"Fotografia": 1, "Planta": 2})
+    renamed = _identity({"Fotografia Digital": 1})
+    retired = _identity({})
+
+    assert len({baseline, added, renamed, retired}) == 4
+
+
+def test_a_drawer_replaced_under_the_same_label_changes_the_identity() -> None:
+    """
+    The id is part of the payload on purpose: a drawer that is replaced keeps the name and changes
+    what the classifier was asked, so a hash of the names alone would leave the old answer standing.
+    """
+    assert _identity({"Fotografia": 1}) != _identity({"Fotografia": 2})
+
+
+def test_the_identity_still_separates_the_floor_and_the_columns() -> None:
+    """The catalogue joins the identity; it does not replace what was already signed."""
+    baseline = _identity({"Fotografia": 1})
+
+    assert _identity({"Fotografia": 1}, threshold=0.55) != baseline
+    assert _identity({"Fotografia": 1}, columns=("original_title", "scope_content")) != baseline

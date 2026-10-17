@@ -160,6 +160,29 @@ commits — the history is the detail.
 
 ### Changed
 
+- **The typology queue is gated on the stamp, and the stamp signs the catalogue** (issue #117): the
+  predicate of `worker_typology` no longer reads `typology_id IS NULL`. That clause was ANDed into the
+  queue and made the producer identity inert: a description that already carried a typology never went
+  back to the classifier, so **nothing** the identity signs — the floor, the model, the columns or the
+  label set — reached the documents the last run had classified. Measured on 2026-10-17 against
+  `memoriacuritibana`, `count_pending` answered **4,205** under floor 0.40, floor 0.90, two column sets
+  and two presets: 4,813 ai-writable descriptions minus the 608 that carried a typology, exactly. The
+  clause also duplicated the two gates that remain — a human verdict is `ai_writable_documents()`
+  (principle VII) and "do not redo the work" is the stamp.
+
+  `producer_identity` now composes the active label set through `label_set_fingerprint`, the same hash
+  the subject axis signs; without it, adding, renaming or retiring a typology changed no stamp at all.
+  And a run that **declines** a description clears the answer it found: with the stamp as the only
+  gate, a refusal that left the old label standing would make raising the floor re-run the collection
+  and change no label — a no-op on exactly the documents the change exists to reach. The score it saw
+  is still not recorded; that is #110.
+
+  **What it costs, declared:** the same four configurations answer **4,813** after the change — the
+  whole ai-writable collection, once. From the first run onward the identity separates them, and only
+  a catalogue, model, column or floor change moves the number again. Of the 608 re-read, **473 carry a
+  typology with no stamp at all**: none is `HUMAN_APPROVED`, so the governance gate does not cover
+  them, but they may be a curator's work from before that status existed.
+
 - **The subject bench takes its models from the engine registry** (issue #116): the two hardcoded
   adapters and the `MODELS` dictionary inside `testing/evaluation/macro_category_quality.py` are gone.
   `--config ENGINE[:PRESET]` resolves through `engines.classification.registry` — the same registry

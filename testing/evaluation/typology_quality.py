@@ -1036,13 +1036,19 @@ class SampledRow:
     stratum: str | None
 
 
-def collection_identity(config: BenchConfig) -> str:
-    """The producer identity of one configuration, through the worker's own function."""
+def collection_identity(config: BenchConfig, typologies: dict[str, int]) -> str:
+    """
+    The producer identity of one configuration, through the worker's own function.
+
+    The label set comes in because the identity signs it: a bench that composed an identity without
+    the catalogue would price a queue the worker does not have (issue #117).
+    """
     return producer_identity(
         engine_name=cast("EngineName", config.engine),
         preset=cast("PresetName", config.preset),
         columns_to_classify=list(config.columns),
         confidence_threshold=config.threshold,
+        typologies=typologies,
         engine_kwargs={},
     )
 
@@ -1051,12 +1057,15 @@ def pending_ids(db: Session, config: BenchConfig) -> set[str]:
     """
     The documents this configuration would read, through the worker's own predicate.
 
-    ``pending_conditions`` **is** the queue: it carries ``typology_id IS NULL``, the governance guard,
-    the "at least one column is not null" clause and the identity stamp. Re-deriving any of them here
-    is how a bench starts measuring a queue the panel does not show.
+    ``pending_conditions`` **is** the queue: it carries the governance guard, the "at least one column
+    is not null" clause and the identity stamp — and since #117 the stamp is the only gate on the
+    answer side, so a document already classified is pending again under another identity.
+    Re-deriving any of those clauses here is how a bench starts measuring a queue the panel does not
+    show.
     """
+    typologies = TypologyRepository(db).get_active_typologies()
     stmt = select(ArchiveDocument.description_id).where(
-        *pending_conditions(list(config.columns), collection_identity(config))
+        *pending_conditions(list(config.columns), collection_identity(config, typologies))
     )
     return {row[0] for row in db.execute(stmt).all()}
 

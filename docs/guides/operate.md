@@ -141,7 +141,7 @@ with `force`.
 | `transfer` | staging records with no archive row, or whose parsed-content hash differs from the archived one — except documents a human approved or rejected | none; a staging-record hash, plus `hierarchy_parent_v1` for a declared parent |
 | `cleaning` | documents the active `REWRITE` rules have not stamped yet; a document pending for two rules counts twice | `cleaning_rule_{rule_id}` |
 | `ner` | documents that have text in at least one extracted column and no stamp of the current producer | `worker_ner_v2` (value is the producer identity) |
-| `typology` | documents with no typology, text, and no stamp of the current producer | `worker_typology_classifier_v2` (value is the producer identity) |
+| `typology` | documents with text and no stamp of the current producer — the stamp signs the active label set, so adding, renaming or retiring a typology reaches the documents already classified | `worker_typology_classifier_v2` (value is the producer identity) |
 | `thumbnail` | documents with a source image, no storage URI and no failure mark — every marked one, with `force` | none; the `storage_thumbnail_uri` column, plus the `thumbnail_failed` mark |
 | `conflict-judge` | **not measurable cheaply**: the queue is the trigram product of tags × entities, measured at 53 s on the real collection. The panel shows what was already judged | none; the `archive_ai_review_queue` row |
 | `macro-category` | tags with no subject category whose stamp is not the current producer (the label set and the model are both in it) | `worker_macro_category_v1` (on the tag; value is the label set composed with the producer identity) |
@@ -151,7 +151,10 @@ with `force`.
 A document the worker marked `ERROR` stays out of the plain queue: `force` is the way back, and it
 clears the mark on the units it processes. A unit stamped by a producer that is no longer configured
 is pending again — including every `DONE` written before this change, which is why the first run
-after upgrading re-reads the collection once. The preview below is how to size that before paying it.
+after upgrading re-reads the collection once. The typology identity signs the active label set as
+well, so after this upgrade **every** stamped description is pending once, typology or not: the whole
+ai-writable collection on the first run, and from then on only what a catalogue, model, column or
+floor change actually moved. The preview below is how to size that before paying it.
 
 The `transfer` counter is the heaviest one: it validates the whole staging table through the same
 port the transfer uses. It is read once per panel load and is not polled in a loop.
@@ -421,11 +424,17 @@ producer, so a second run touches only what is still pending. What puts a unit b
 - **the source changed** — `transfer` rewrites the description when the parsed-content hash moves,
   and the write resets the AI stamps, so the enrichments have to run again.
 - **the catalogue changed** — a curator rewriting a subject label changes the label-set hash, so the
-  affected tags return to the `macro-category` queue. The quality validator's reasons depend on the
-  catalog too, which is the case `force` exists for.
+  affected tags return to the `macro-category` queue, and adding, renaming or retiring a typology does
+  the same for the descriptions: the typology identity signs the active label set, and the stamp is
+  the only gate on the answer side, so a description that already carries a typology comes back when
+  the catalogue moves. A run that then declines **clears** the answer it found — an answer another
+  producer wrote does not survive a refusal from this one, or raising the floor would re-run the
+  collection and change no label. The quality validator's reasons depend on the catalog too, which is
+  the case `force` exists for.
 - **`force=true`** — `embedding`, `macro-category`, `ner`, `quality-validator`, `thumbnail` and
   `typology` accept it and ignore their own stamp; `macro-category` still never touches a tag that
-  already has a category, and `typology` never reclassifies a document that already has a typology.
+  already has a category, while `typology` re-reads a description that already carries one, because
+  the stamp is what decides and not the answer.
   It is the way back from a reason a hash cannot see — an edited synonym rule, a curated exclusion,
   a prompt — and from a failure mark: the units it processes are stamped with the current producer,
   which clears the `ERROR`. For `thumbnail` it also means the documents marked `thumbnail_failed`

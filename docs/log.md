@@ -1344,3 +1344,34 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   crashes on this Ollama build) and the bench counted 49 engine failures rather than scoring them; the
   engine defect that makes that possible is #122. No screen was rendered in this round: the work is a
   bench, two refactors and a ledger.
+
+## 2026-10-17 — the typology queue is gated on the stamp (#117)
+
+- **Range:** `4436154..22bfe62`
+- **Pages:** one was reported stale by `docs/_hooks/freshness.py` and it **changed**.
+  - `guides/operate.md` — **updated**: the queue table's `typology` row no longer says "documents with
+    no typology" (the clause is gone) and now names the label set as part of the stamp; the "catalogue
+    changed" bullet gained the typology catalogue and the refusal that clears an answer; the `force`
+    bullet no longer claims `typology` never reclassifies a document that already has one, which was
+    the sentence the change falsified; and the paragraph that sizes a re-queue now says that **every**
+    stamped description is pending once after this upgrade, not only the ones stamped by an older
+    producer. The Portuguese page carries the same four edits.
+- **What the round measured.** Against `memoriacuritibana` on 2026-10-17, and the numbers are the
+  argument: `count_pending` answered **4,205** under floor 0.40, floor 0.90, two column sets and two
+  presets — 4,813 ai-writable documents minus the 608 carrying a typology, exactly — so no change the
+  identity signs could reach a single classified document. After the change the same four
+  configurations answer **4,813**. The 608 split into 135 with a typology stamp and **473 with none**;
+  the 4,223 without a typology split into 4,188 never seen and 35 seen and refused.
+- **What the round checked.** The pair is pinned by integration tests that read the real queue through
+  the worker's own `pending_conditions`: adding, renaming and retiring a typology each re-queue the
+  affected documents, an unchanged catalogue re-queues nothing, a description the current producer
+  settled stays out while the 0.55 floor reaches the one the 0.40 floor settled, and a refusal clears
+  the answer another producer wrote. Four unit tests pin the identity itself: order-independent,
+  different for an added, renamed, retired or replaced drawer, and still separating the floor and the
+  columns.
+- **Not verified, and said so.** The re-classification of the 4,813 was **not executed** — the queue
+  was counted, not paid: at the measured ~2 s per document on the title alone that is about 2.7 hours
+  of CPU, and no model was run against the real collection in this round. So "the 473 legacy answers
+  are re-read" is a projection from the predicate, not an observation, and the first run after
+  deploying is where it becomes one. The clearing on refusal is pinned against a fixture engine in the
+  test database, not against the real classifier: `gemma`/`mDeBERTa` weights are not exercised here.

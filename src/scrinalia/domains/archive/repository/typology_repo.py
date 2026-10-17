@@ -80,7 +80,9 @@ class TypologyRepository:
         projection, so the column never even reaches the worker's payload.
 
         A retired typology leaves this dictionary — that is what ``is_active`` is for — while the
-        descriptions already classified with it keep it.
+        descriptions already carrying it keep the link until the classifier reads them again. Since
+        the label set is part of ``worker_typology.producer_identity``, retiring one puts those
+        descriptions back in the queue, and a run that declines clears the link (issue #117).
 
         Returns:
             dict[str, int]: Dictionary containing name and id e.g. {"Fotografia": 1}.

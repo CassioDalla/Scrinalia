@@ -100,7 +100,7 @@ servidor Ollama serve. Rode esses dois casos com `force`.
 | `transfer` | registros de staging sem linha no Acervo, ou cujo hash do conteúdo interpretado difere do gravado — exceto descrições que uma pessoa aprovou ou rejeitou | nenhum; um hash do registro de staging, mais `hierarchy_parent_v1` para um pai declarado |
 | `cleaning` | documentos que as regras `REWRITE` ativas ainda não carimbaram; um documento pendente para duas regras conta duas vezes | `cleaning_rule_{rule_id}` |
 | `ner` | documentos com texto em ao menos uma coluna extraída e sem o carimbo do produtor atual | `worker_ner_v2` (o valor é a identidade do produtor) |
-| `typology` | documentos sem tipologia, com texto e sem o carimbo do produtor atual | `worker_typology_classifier_v2` (o valor é a identidade do produtor) |
+| `typology` | documentos com texto e sem o carimbo do produtor atual — o carimbo assina o conjunto de tipologias ativas, então acrescentar, renomear ou aposentar uma tipologia alcança os documentos já classificados | `worker_typology_classifier_v2` (o valor é a identidade do produtor) |
 | `thumbnail` | documentos com imagem de origem, sem URI no storage e sem marca de falha — todos os marcados, com `force` | nenhum; a coluna `storage_thumbnail_uri`, mais a marca `thumbnail_failed` |
 | `conflict-judge` | **não é mensurável barato**: a fila é o produto trigram de tags × entidades, medido em 53 s no acervo real. O painel mostra o que já foi julgado | nenhum; a linha em `archive_ai_review_queue` |
 | `macro-category` | tags sem categoria de assunto cujo carimbo não é o produtor atual (o conjunto de rótulos e o modelo estão nos dois) | `worker_macro_category_v1` (na tag; o valor é o conjunto de rótulos composto com a identidade do produtor) |
@@ -110,8 +110,11 @@ servidor Ollama serve. Rode esses dois casos com `force`.
 Um documento que o worker marcou como `ERROR` fica fora da fila comum: `force` é o caminho de volta,
 e ele limpa a marca nas unidades que processa. Uma unidade carimbada por um produtor que não está
 mais configurado volta a estar pendente — incluindo todo `DONE` gravado antes desta mudança, e é por
-isso que a primeira execução depois da atualização relê o acervo uma vez. A pré-visualização abaixo é
-como medir isso antes de pagar.
+isso que a primeira execução depois da atualização relê o acervo uma vez. A identidade da tipologia
+também assina o conjunto de tipologias ativas, então depois desta atualização **toda** descrição
+carimbada fica pendente uma vez, com ou sem tipologia: o acervo inteiro editável pela IA na primeira
+execução e, daí em diante, só o que uma mudança de catálogo, modelo, coluna ou piso realmente moveu. A
+pré-visualização abaixo é como medir isso antes de pagar.
 
 O contador do `transfer` é o mais pesado: valida a tabela de staging inteira pelo mesmo port que o
 transfer usa. É lido uma vez por carga do painel e não é consultado em laço.
@@ -380,12 +383,18 @@ atual, então uma segunda execução toca só o que ainda está pendente. O que 
   ser salva.
 - **a origem mudou** — o `transfer` reescreve a descrição quando o hash do conteúdo interpretado
   muda, e a escrita zera os carimbos de IA, então os enriquecimentos precisam rodar de novo.
-- **o catálogo mudou** — reescrever um rótulo de assunto muda o hash do conjunto de rótulos, então
-  as tags afetadas voltam à fila do `macro-category`. Os motivos do validador de qualidade também
-  dependem do catálogo, e é para esse caso que o `force` existe.
+- **o catálogo mudou** — reescrever um rótulo de assunto muda o hash do conjunto de rótulos, então as
+  tags afetadas voltam à fila do `macro-category`, e acrescentar, renomear ou aposentar uma tipologia
+  faz o mesmo com as descrições: a identidade da tipologia assina o conjunto de rótulos ativas e o
+  carimbo é o único portão do lado da resposta, então uma descrição que já carrega tipologia volta
+  quando o catálogo se move. Uma execução que então recusa **limpa** a resposta que encontrou — uma
+  resposta escrita por outro produtor não sobrevive a uma recusa deste, ou subir o piso releria o
+  acervo sem mudar rótulo nenhum. Os motivos do validador de qualidade também dependem do catálogo, e
+  é para esse caso que o `force` existe.
 - **`force=true`** — `embedding`, `macro-category`, `ner`, `quality-validator`, `thumbnail` e
   `typology` aceitam e ignoram o próprio carimbo; o `macro-category` continua sem tocar numa tag que
-  já tem categoria, e o `typology` nunca reclassifica um documento que já tem tipologia. É o caminho
+  já tem categoria, enquanto o `typology` relê uma descrição que já carrega tipologia, porque quem
+  decide é o carimbo e não a resposta. É o caminho
   de volta de um motivo que um hash não vê — uma regra de sinônimos editada, uma exclusão curada, um
   prompt — e de uma marca de falha: as unidades que ele processa são carimbadas com o produtor atual,
   o que limpa o `ERROR`. No `thumbnail` ele também traz de volta os documentos marcados como
