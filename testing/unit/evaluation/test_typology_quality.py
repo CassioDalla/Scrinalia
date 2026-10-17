@@ -15,6 +15,7 @@ import pytest
 
 from testing.evaluation.typology_quality import (
     ABSTAINED,
+    LABEL_FORMATS,
     LabelledRow,
     Prediction,
     Scored,
@@ -24,6 +25,7 @@ from testing.evaluation.typology_quality import (
     allocate,
     confusion,
     entropy_bits,
+    formatted_labels,
     largest_share,
     link_decision,
     load_labelled,
@@ -339,3 +341,92 @@ def test_unknown_truth_labels_names_the_retired_typology() -> None:
     ]
 
     assert unknown_truth_labels(rows, ["Fotografia"]) == ["Dossiê Funcional"]
+
+
+# =============================================================================
+# Label formats (issue #112)
+# =============================================================================
+
+
+def test_every_format_maps_the_catalogue_name_to_a_label_and_back() -> None:
+    """
+    One dictionary for both directions, and it has to be a bijection to be usable.
+
+    ``formatted_labels`` returns ``{label: name}``: the keys are what goes to the model and the
+    values are how the answer comes back. A format that collapsed two names into one label would
+    make the two indistinguishable to the classifier, which is the same rule
+    ``domain.vocabulary.classifier_labels`` documents.
+    """
+    names = ["Fotografia", "Planta Arquitetônica", "Ofício / Memorando"]
+
+    for label_format in LABEL_FORMATS:
+        mapping = formatted_labels(names, label_format)
+
+        assert len(mapping) == len(names)
+        assert sorted(mapping.values()) == sorted(names)
+        assert all(isinstance(label, str) and label for label in mapping)
+
+
+def test_bare_is_the_identity_and_the_others_are_propositions() -> None:
+    """The baseline has to be today's behaviour, or the comparison has no reference point."""
+    assert formatted_labels(["Fotografia"], "bare") == {"Fotografia": "Fotografia"}
+    assert formatted_labels(["Fotografia"], "sentence") == {"um documento do tipo Fotografia": "Fotografia"}
+    assert formatted_labels(["Fotografia"], "trata_de") == {"trata de fotografia": "Fotografia"}
+
+
+def test_a_formatted_label_comes_back_as_a_catalogue_name() -> None:
+    """
+    The trap this exists to close: the engine echoes the label it was given.
+
+    Scored without the translation, every row of every formatted run would be a miss, and the report
+    would print ``0.000`` — a number that reads like a finding about the model and is a defect in the
+    harness.
+    """
+    mapping = formatted_labels(["Fotografia", "Mapa / Croqui Urbanístico"], "sentence")
+    echoed = next(iter(mapping))
+
+    prediction = link_decision({"labels": [echoed], "scores": [0.99]}, 0.40, mapping)
+
+    assert prediction.label == "Fotografia"
+    assert prediction.label in mapping.values()
+
+
+def test_the_translation_is_what_makes_the_comparison_possible() -> None:
+    """The same answer, with and without the lookup: the difference is a miss against a hit."""
+    mapping = formatted_labels(["Fotografia"], "trata_de")
+    echoed = next(iter(mapping))
+
+    assert link_decision({"labels": [echoed], "scores": [0.99]}, 0.40).label == echoed
+    assert link_decision({"labels": [echoed], "scores": [0.99]}, 0.40, mapping).label == "Fotografia"
+
+
+def test_the_lookup_does_not_resurrect_an_abstention() -> None:
+    """The floor still decides first: a translated label under the floor is still no answer."""
+    mapping = formatted_labels(["Fotografia"], "sentence")
+    echoed = next(iter(mapping))
+
+    assert link_decision({"labels": [echoed], "scores": [0.40]}, 0.40, mapping).label is None
+
+
+def test_an_unknown_label_passes_through_the_lookup_untouched() -> None:
+    """A label the catalogue never produced is a defect to see, not one to hide behind a name."""
+    assert link_decision({"labels": ["inventada"], "scores": [0.99]}, 0.40, {}).label == "inventada"
+
+
+def test_an_unknown_format_is_refused_with_the_options() -> None:
+    with pytest.raises(SystemExit, match="não é um formato de rótulo"):
+        formatted_labels(["Fotografia"], "poema")
+
+
+def test_the_sentence_format_does_not_carry_the_gender_of_the_typology() -> None:
+    """
+    Why the generic noun and not ``uma {name}``.
+
+    Portuguese forces the article to agree with the typology, the catalogue stores no gender, and no
+    code template can be right for a mixed catalogue: ``uma fotografia`` against ``um relatório
+    técnico``. The wording with the right article is the curator's, in the field per catalogue row
+    the subject axis already has.
+    """
+    labels = formatted_labels(["Fotografia", "Relatório Técnico", "Planta Arquitetônica"], "sentence")
+
+    assert all(label.startswith("um documento do tipo ") for label in labels)

@@ -57,7 +57,7 @@ import json
 import math
 import time
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -120,6 +120,70 @@ NO_STRATUM = "(sem estrato)"
 
 #: ``confidence`` is the curator's own certainty, the same vocabulary the subject set uses.
 CONFIDENCE_VALUES = ("alta", "media", "baixa")
+
+
+# =============================================================================
+# Label formats: the shape of the hypothesis, which is the bench's instrument
+# =============================================================================
+
+
+def label_bare(name: str) -> str:
+    """The catalogue name, which is what the worker sends today and what #30 decided to keep."""
+    return name
+
+
+def label_sentence(name: str) -> str:
+    """
+    A short proposition around the name, with an article that agrees with ``documento``.
+
+    Gender-invariant **by construction**, and that is not a stylistic choice: Portuguese forces the
+    article to agree with the typology ("uma fotografia", "um relatório técnico", "uma planta
+    arquitetônica"), the catalogue stores no gender, and no code template can be right for a mixed
+    catalogue in any language that has one. The generic noun moves the agreement off the variable.
+    """
+    return f"um documento do tipo {name}"
+
+
+def label_trata_de(name: str) -> str:
+    """A second proposition phrasing, so a gain cannot be attributed to one wording (#112)."""
+    return f"trata de {name.lower()}"
+
+
+#: The shapes of the candidate label, one entry per format ``--formats`` accepts.
+#:
+#: **These are the bench's instrument and not a product string.** The product's home for "what
+#: proposition does the model read?" is a field **per catalogue row** —
+#: ``ArchiveMacroCategory.classifier_label``, composed by ``domain.vocabulary.classifier_labels``,
+#: which falls back to the bare name — so the wording belongs to the institution and its language.
+#: A proposition hand-written for this catalogue's ten typologies would be collection data inside
+#: versioned code, which is why what is measured here is the *shape* and never the wording.
+LABEL_FORMATS: dict[str, Callable[[str], str]] = {
+    "bare": label_bare,
+    "sentence": label_sentence,
+    "trata_de": label_trata_de,
+}
+
+
+def formatted_labels(names: Sequence[str], label_format: str) -> dict[str, str]:
+    """
+    ``{label the model reads: catalogue name}`` for one format — the candidates and the way back.
+
+    One dictionary for both directions, exactly like ``domain.vocabulary.classifier_labels`` returns
+    ``{label: category_id}``, and for the same reason: a second structure is a second place where the
+    two halves can disagree, and the failure is silent. ``DebertaEngine.classify`` echoes the label it
+    was given, so a bench that read the answer without translating it back would compare
+    "um documento do tipo Fotografia" against a gabarito written in catalogue names and score every
+    row of every formatted run as a miss — a ``0.000`` that reads like a finding about the model and
+    is a defect in the harness.
+
+    Two names that format into the same label collapse into one entry, last one wins, which is the
+    same rule ``classifier_labels`` documents: the label is what the model sees, so two identical
+    labels are indistinguishable to it.
+    """
+    if label_format not in LABEL_FORMATS:
+        raise SystemExit(f"'{label_format}' não é um formato de rótulo. Opções: {sorted(LABEL_FORMATS)}.")
+    format_label = LABEL_FORMATS[label_format]
+    return {format_label(name): name for name in names}
 
 
 # =============================================================================
@@ -887,7 +951,7 @@ def score_stored(db: Session, rows: Sequence[LabelledRow]) -> list[Scored]:
     ]
 
 
-def link_decision(result: dict, threshold: float) -> Prediction:
+def link_decision(result: dict, threshold: float, lookup: Mapping[str, str] | None = None) -> Prediction:
     """
     The worker's decision about one answer, in one place.
 
@@ -895,14 +959,25 @@ def link_decision(result: dict, threshold: float) -> Prediction:
     strictly — and leaves ``typology_id`` NULL otherwise. Both the scorer and the collection sample
     read the rule from here, because a second copy of the comparison is a second abstention rate, and
     the one the report prints would stop being the one the worker produces (principle IV).
+
+    ``lookup`` translates the label the model echoed back into the catalogue name, which is what a
+    label format requires: the engine answers with the label it was handed, and the gabarito is
+    written in catalogue names. Without it every row of a formatted run scores as a miss. The worker
+    makes the same translation with the same shape of dictionary (``{label: id}``).
     """
-    label = result["labels"][0]
+    echoed = result["labels"][0]
+    label = lookup.get(echoed, echoed) if lookup is not None else echoed
     score = float(result["scores"][0])
     return Prediction(label=label if score > threshold else None, score=score)
 
 
 def score_live(
-    db: Session, config: BenchConfig, rows: Sequence[LabelledRow], limit: int | None = None
+    db: Session,
+    config: BenchConfig,
+    rows: Sequence[LabelledRow],
+    limit: int | None = None,
+    label_format: str = "bare",
+    engine: Any | None = None,
 ) -> tuple[list[Scored], float]:
     """
     Runs the engine over the labelled rows and mirrors the worker's decision exactly.
@@ -911,13 +986,19 @@ def score_live(
     (strictly), and skips a document whose composed text is empty, stamping it without asking the
     model. A bench that used ``>=`` would report an abstention rate the worker never produces.
 
+    ``label_format`` changes only the candidate labels. ``engine`` lets a caller sweeping several
+    formats over one configuration build the model once: the load is a cost of the run, not of an
+    answer, and charging it three times would distort the seconds per document the report prints.
+
     Returns the scored rows and the seconds spent inside the model, so the report can print seconds
     per document instead of an estimate.
     """
-    engine = get_engine(cast("EngineName", config.engine), cast("PresetName", config.preset))
+    if engine is None:
+        engine = get_engine(cast("EngineName", config.engine), cast("PresetName", config.preset))
     catalogue = list(TypologyRepository(db).get_active_typologies())
     if not catalogue:
         raise SystemExit("The active typology catalogue is empty; there is nothing to classify against.")
+    labels = formatted_labels(catalogue, label_format)
 
     selected = list(rows[:limit] if limit else rows)
     texts = read_input_text(db, [row.description_id for row in selected], config.columns)
@@ -931,7 +1012,7 @@ def score_live(
         pending = [row for row in chunk if texts.get(row.description_id, "")]
         if pending:
             started = time.perf_counter()
-            results = engine.classify([texts[row.description_id] for row in pending], catalogue, batch_size=1)
+            results = engine.classify([texts[row.description_id] for row in pending], list(labels), batch_size=1)
             seconds += time.perf_counter() - started
             classified += len(pending)
             by_id = {row.description_id: result for row, result in zip(pending, results, strict=True)}
@@ -950,7 +1031,7 @@ def score_live(
                 Scored(
                     description_id=row.description_id,
                     truth=row.truth,
-                    prediction=link_decision(result, config.threshold),
+                    prediction=link_decision(result, config.threshold, labels),
                 )
             )
     return scored, (seconds / classified if classified else 0.0)
@@ -1292,6 +1373,7 @@ def report_for(
     seconds_per_document: float,
     min_positives: int,
     predictions: str,
+    label_format: str = "bare",
 ) -> dict[str, Any]:
     """Everything the decision needs about one configuration, as data the JSON can carry."""
     metrics = per_class(scored, catalogue, min_positives)
@@ -1299,6 +1381,7 @@ def report_for(
     label, share = largest_share(counts)
     return {
         "config": config.label,
+        "label_format": label_format,
         "engine": config.engine,
         "preset": config.preset,
         "columns": list(config.columns),
@@ -1360,13 +1443,13 @@ def _f1(report: dict[str, Any]) -> str:
 def summary_table(reports: Sequence[dict[str, Any]]) -> str:
     """The comparison: one line per configuration, ordered by agreement."""
     lines = [
-        "| Configuração | Concordância | Macro-F1 | Abstenção | Maior gaveta | Entropia (bits) | s/doc |",
-        "| --- | ---: | ---: | ---: | --- | ---: | ---: |",
+        "| Configuração | Formato | Concordância | Macro-F1 | Abstenção | Maior gaveta | Entropia (bits) | s/doc |",
+        "| --- | --- | ---: | ---: | ---: | --- | ---: | ---: |",
     ]
     for report in sorted(reports, key=lambda r: -r["agreement"]):
         label, share = report["largest_share"]
         lines.append(
-            f"| `{report['config']}` | {report['agreement']:.3f} | {_f1(report)} "
+            f"| `{report['config']}` | `{report['label_format']}` | {report['agreement']:.3f} | {_f1(report)} "
             f"| {report['abstention_rate']:.3f} | {label} ({share:.0%}) | {report['entropy_bits']:.2f} "
             f"| {report['seconds_per_document']:.2f} |"
         )
@@ -1377,7 +1460,7 @@ def detail_lines(report: dict[str, Any]) -> list[str]:
     """Per-configuration detail: the per-typology table, the confusion matrix and the misses."""
     rows = report["rows"]
     lines = [
-        f"### `{report['config']}`",
+        f"### `{report['config']}` · `{report['label_format']}`",
         "",
         f"- predições: **{report['predictions']}** · limiar: {report['threshold']:.2f} · colunas: {', '.join(report['columns'])}",
         f"- linhas: {rows['labelled']} no conjunto, {rows['scored']} pontuadas, "
@@ -1540,27 +1623,41 @@ def run_score(args: argparse.Namespace) -> int:
         scored_rows = [row for row in scored_rows if row.description_id in present]
 
         reports: list[dict[str, Any]] = []
+        engines: dict[tuple[str, str | None], Any] = {}
         for config in configs:
-            if args.predictions == "stored":
-                scored = score_stored(db, scored_rows)
-                seconds = 0.0
-            else:
-                to_score = min(len(scored_rows), args.limit) if args.limit else len(scored_rows)
-                logger.info(f"🧠 {config.label}: carregando o motor e classificando {to_score} linha(s)...")
-                scored, seconds = score_live(db, config, scored_rows, limit=args.limit)
-            reports.append(
-                report_for(
-                    config,
-                    scored,
-                    catalogue,
-                    labelled=len(rows),
-                    needs_decision=needs_decision,
-                    missing=len(absent),
-                    seconds_per_document=seconds,
-                    min_positives=args.min_positives,
-                    predictions=args.predictions,
+            for label_format in args.formats:
+                if args.predictions == "stored":
+                    scored = score_stored(db, scored_rows)
+                    seconds = 0.0
+                else:
+                    to_score = min(len(scored_rows), args.limit) if args.limit else len(scored_rows)
+                    logger.info(
+                        f"🧠 {config.label} · formato `{label_format}`: carregando o motor e classificando "
+                        f"{to_score} linha(s)..."
+                    )
+                    # One model per configuration, not per format: the load is the run's cost and
+                    # charging it to every format would inflate the seconds per document the report
+                    # prints, which is the number the decision about cost rests on.
+                    key = (config.engine, config.preset)
+                    if key not in engines:
+                        engines[key] = get_engine(cast("EngineName", config.engine), cast("PresetName", config.preset))
+                    scored, seconds = score_live(
+                        db, config, scored_rows, limit=args.limit, label_format=label_format, engine=engines[key]
+                    )
+                reports.append(
+                    report_for(
+                        config,
+                        scored,
+                        catalogue,
+                        labelled=len(rows),
+                        needs_decision=needs_decision,
+                        missing=len(absent),
+                        seconds_per_document=seconds,
+                        min_positives=args.min_positives,
+                        predictions=args.predictions,
+                        label_format=label_format,
+                    )
                 )
-            )
         collection = stored_collection_distribution(db) if args.predictions == "stored" else None
         if collection is not None:
             for report in reports:
@@ -1674,6 +1771,18 @@ def main(argv: list[str] | None = None) -> int:
         choices=("live", "stored"),
         default="live",
         help="live runs the engine; stored scores the typology the last run already wrote (free, whole collection).",
+    )
+    parser.add_argument(
+        "--formats",
+        nargs="+",
+        default=list(LABEL_FORMATS),
+        choices=list(LABEL_FORMATS),
+        help=(
+            "Label shapes to compare, all in one invocation; the default is every one of them. "
+            "The format is a dimension of the experiment and NOT a field of --config, because "
+            "producer_identity does not sign it today: a format the bench could not hand the worker "
+            "would be a number about a configuration that does not exist."
+        ),
     )
     parser.add_argument("--limit", type=int, default=None, help="Cap the rows the live model sees, for a trial.")
     parser.add_argument("--min-positives", type=int, default=MIN_POSITIVES, help="Below this, a class is 'não medida'.")
