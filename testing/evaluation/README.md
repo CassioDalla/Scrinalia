@@ -9,6 +9,7 @@ The benches under this directory measure the AI against **labelled collection da
 | `typology_quality.py` | `typology_pairs.json` | does the typology classifier label the form correctly, or collapse onto one typology? |
 | `quality_validator_quality.py` | `validator_pairs.json` | do the active `VALIDATE`/`LLM_CHECK` rules flag what a curator flags, rule by rule? |
 | `conflict_judge_quality.py` | `archive_conflict_resolution_log` | does the judge agree with the resolutions a human took? |
+| `ner_quality.py` | `ner_pairs.json` | does the extractor find names, places and institutions — and where does it get the boundary wrong? |
 
 The last one is the exception to everything below: the conflict judge reads no file at all, because
 its gabarito is already in the database. Its section is at the end.
@@ -392,3 +393,119 @@ worker reads — and the default is the worker's own configuration read from its
 draws a reproducible subset by `md5(seed:resolution_id)` rather than taking the first N, because the
 ledger is ordered by decision time and "the first ten" is one curator's afternoon. Nothing is written:
 no resolution, no ban, no ledger row.
+## `ner_pairs.json` — the gold is a correction of the stored run (issue #113)
+
+There is no human NER gabarito for this collection, and there is no second source to build one from:
+`archive_document_entities` holds 64.504 links over 4.811 documents, and every one of them was written
+by the worker itself (`bulk_link_entities`), while `domain_ner_exclusions` has three rows and
+`archive_entity_merge_log` has none.
+
+So the set is built the other way round, and the way round is the design: **the gold comes from
+correcting the stored output.** `--propose` reads the links the last run wrote and writes a skeleton
+where the model's own extraction is `proposed` and `expected` is empty, plus a sheet where a curator
+marks what is wrong and what is missing.
+
+```json
+{
+  "description": "why this set exists and what its labels mean",
+  "collection": "which database produced it, how many documents, and the date — measured",
+  "sampling": "the seed, how many rows per entity type, and how the empty documents entered",
+  "instructions_for_the_curator": ["how the labels were to be written"],
+  "pairs": [
+    {
+      "description_id": "33850",
+      "proposed_by": "the entity type that put this row in the sample, or '(sem tipo)' for a document with no stored entity",
+      "title": "the title, as an aid for the person labelling",
+      "proposed": [{"term": "Curitiba", "type": "LOC"}],
+      "expected": [{"term": "Curitiba - Paraná", "type": "LOC"}],
+      "confidence": "alta | media | baixa — the curator's own certainty",
+      "needs_decision": false,
+      "note": "the reasoning, which is the part a later reader needs"
+    }
+  ],
+  "status": "who approved the set and when",
+  "approved_note": "what changed when the corrections became a gabarito"
+}
+```
+
+**The anchoring bias is declared here, in the file's own `instructions_for_the_curator`, and at the
+top of every sheet.** A pre-annotated gold drags the annotator toward the model's answer: deleting
+what is wrong is easy, noticing what is *absent* is not, and the absence is the half of the measure
+that has no other source. This is the reason the field is called `proposed` and never `expected`, and
+the reason the loader **refuses a row that still has no `expected` key** — a set left as the proposal
+was written would score the model against itself and print a perfect number.
+
+- `input_text` is deliberately **not** in the file. The sheet carries the text and reads it from the
+  **database** through the worker's own composition, so it cannot disagree with what the scorer will
+  read. Storing it would be a second copy of the collection.
+- `expected` is a list of `{term, type}` rather than a list of strings, because a term of the wrong
+  type is a different defect from a term that was not found, and the two must be countable apart. A
+  term whose type the curator cannot settle is written `"(sem tipo)"` and is reported separately.
+- `expected: null` (or `[]`) means **no entity should have been found**, which is an answer and not a
+  gap: it is the only thing that turns an invented entity into a measured false positive. A document
+  with one is proposed on purpose (`--empty-rows`), because a sample drawn only from the model's own
+  output can never see what the model missed.
+- `needs_decision: true` marks a row where the question belongs to **policy** and not to the curator
+  (is this term an entity or a subject?). Those rows leave the score and are counted apart.
+- **A row is "read" when it carries `confidence` or `note`, and a row that carries neither leaves the
+  score.** `expected: null` means both "no entity should have been found" and, on an untouched row, the
+  proposal's own placeholder — the two are indistinguishable in that field, so the curator's certainty
+  (or the reason they cleared everything) is what separates a correction from a line nobody opened.
+  Without the rule a forgotten row would silently score the model against the answer the model itself
+  wrote, which is the whole failure the pre-annotation risks. It is **counted and printed**, never
+  dropped in silence: a report that quietly shrank its own denominator would hide how much of the set
+  a curator worked through.
+
+**The boundary breakdown is a token measure, not a character one.** `ArchiveEntityDTO` carries `name`
+and `entity_type` and no offsets, and `archive_document_entities` is `(description_id, entity_id)` and
+no offsets either. What the bench measures is whether one token sequence contains the other
+("Curitiba" against "Curitiba - Paraná"), which is what the token-boundary blocking of #69 produces. It
+is a count of the defect and not of where it happened, and the report says so.
+
+## Running the NER bench
+
+```sh
+# Propose the set from the run that shipped, and its correction sheet. Nothing reaches the database.
+uv run python -m testing.evaluation.ner_quality --propose
+uv run python -m testing.evaluation.ner_quality --sheet
+
+# What the last run already wrote. Free, whole collection, no model.
+uv run python -m testing.evaluation.ner_quality --predictions stored
+
+# The extractor the worker would run now. One line per configuration; repeat --config to compare.
+uv run python -m testing.evaluation.ner_quality --config spacy_ner:gpu \
+    --config spacy_ner:gpu:original_title,scope_content
+
+# A trial before the full run: the cap only limits how many documents the model sees.
+uv run python -m testing.evaluation.ner_quality --limit 10 --json .analysis/ner_bench.json
+```
+
+Correct `expected` on every row, set `confidence`, mark `needs_decision` where the question belongs to
+policy, write the reason in `note`, and replace `status` with who approved the set and when. While
+`status` still starts with `draft` the scorer refuses to produce a number; `--allow-draft` exists to
+explore a set nobody has signed yet, and a figure produced that way is not a measurement of the model.
+
+`--config` is `ENGINE[:PRESET[:COLUMNS]]`, validated against `engines/NER/registry.py` — the same
+registry the worker reads — and the default is the worker's own configuration read from its signature.
+The text is composed by the worker's own expression (same columns, same `NER` rules, same `". "`
+separator, same URL stripping), and an integration test pins the pair by running the real worker with a
+fake engine and comparing the two strings. Nothing is written: the session is opened, read and rolled
+back, and a test asserts the collection is untouched.
+
+**The two modes do not answer the same question, and `stored` must not look like it measured this
+configuration's boundary.** Both compare the term string, because neither the link nor
+`ArchiveEntityDTO` carries an offset — but `stored` reads what an **earlier** run wrote, so its
+boundary counts describe the recorded output and belong to whatever producer stamped those documents.
+The report therefore prints the **producer identities the documents carry** next to the breakdown, and
+a `stored` figure must never be quoted as the boundary error of the configuration under test. `live`
+runs the engine over the composed text and is the only mode whose boundary counts belong to the
+configuration being measured. (Measured on this collection: of 122 sampled documents, 75 carry no NER
+stamp at all and 47 carry the legacy `"DONE"` — the recorded output is not attributable to a single
+producer, which is precisely why the report names it instead of assuming it.)
+
+The report prints the configuration, the mode, the producer identity, the per-type table with the
+support floor (a type below five labelled mentions is **não medida**), the type distribution next to
+the score — so a collapse onto one type is visible and not only its total — the boundary breakdown as
+counts, and the disagreeing documents listed by what happened. **A confidence is not printed, because
+there is none to print**: `ArchiveEntityDTO` has no score, so a disagreement is listed by its terms and
+not by a number the engine never returns.
