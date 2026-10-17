@@ -1306,3 +1306,41 @@ with short or full shas, and part of a `## <date> — <title>` entry.
 - **Consequence to expect.** Every unit stamped before this change — including a `DONE` — is pending
   again under the producer now configured, so the first run after upgrading re-reads the collection
   once. That is the fix working, and the preview is how to size it before paying it.
+
+## 2026-10-17 — the bench family, and the rule axis with no rule to score (#114, #115, #116)
+
+- **Range:** `52ed890..4436154`
+- **Pages:** three were reported stale by `docs/_hooks/freshness.py`. All three are **no-change**, and
+  the single commit that moved a declared source is `ef11773` — the refactor the validator bench
+  needed, which named three functions and a separator instead of changing behaviour.
+  - `guides/curate.md` — **no-change**: nothing on a screen or a route moved. The rules screen still
+    offers the same three `rule_kind`s with the same three writes, and the paragraph that says a
+    `VALIDATE`/`LLM_CHECK` rule only flags and never rewrites still holds. The change to
+    `models/enums.py` is a named constant plus two accessors for a format that already existed.
+  - `guides/data-model.md` — **no-change**: no table, no column and no constraint changed.
+    `anomaly_reasons` keeps its type and its `CODE:payload` content — the separator became
+    `ANOMALY_REASON_SEPARATOR` in `models/enums.py` and the facet's SQL reads it instead of a literal
+    `":"`, which is one definition where there were two. The `archive_cleaning_rules` row and the
+    `rule_kind` paragraph are untouched.
+  - `guides/operate.md` — **no-change**: the worker table, the queue predicates and the identity
+    paragraph describe behaviour that did not move. `worker_quality_validator.py` gained
+    `matched_rule_labels`, `llm_check_reason` and `rule_flag_label`, and `_compile_rules` became
+    `compile_rules`; the worker marks the same documents with the same reasons and stamps the same
+    producer.
+- **What the round found.** The validator bench needed "did this rule fire", which existed only inside
+  `evaluate_document`, so the answer became a function the worker and the bench share — and the pin
+  between them is an integration test that runs the real worker and asks the bench what fired, with a
+  rule carrying an `anomaly_reason` rather than its name.
+- **What the round measured.** Against `memoriacuritibana` on 2026-10-16: the conflict judge agrees
+  with the 49 human resolutions at **0.918** while a constant ENTITY answer scores 1.000 (Δ −0.082),
+  and all four misses are the same direction at confidence 0.900 — high enough that the worker would
+  have auto-resolved every one of them. The validator flags **4,583 of 4,831 documents (94.9%)**, of
+  which `RULE_MATCH`/`LLM_SUSPECT` are **zero**: the catalogue holds one rule, inactive and `REWRITE`,
+  so the per-rule axis has nothing to score and both benches refuse with that sentence instead of an
+  empty table.
+- **Not verified, and said so.** `xlm_roberta_local` was never executed — the weights are not in this
+  machine's read-only Hugging Face cache — so its preset is wired at the code level only. The
+  `granite_local` conflict judge answered 500 to every prompt (`granite4.1:3b`, whose llama runner
+  crashes on this Ollama build) and the bench counted 49 engine failures rather than scoring them; the
+  engine defect that makes that possible is #122. No screen was rendered in this round: the work is a
+  bench, two refactors and a ledger.
