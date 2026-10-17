@@ -238,24 +238,32 @@ FORM_STRATA: tuple[Stratum, ...] = (
         why="Studies, inspections and technical opinions.",
     ),
     Stratum(
-        key="Ofício / Memorando",
-        pattern=r"of[íi]cio|memorando|correspond",
-        why="Official correspondence.",
-    ),
-    Stratum(
-        key="Ata de Reunião",
-        pattern=r"\mata\M|reuni[ãa]o|delibera",
-        why="Records of a meeting; a photograph *of* a meeting is a Fotografia, which is why the photo stratum runs first.",
-    ),
-    Stratum(
-        key="Dossiê Funcional",
-        pattern=r"dossi[êe]|funcion[áa]rio|servidor|prontu[áa]rio",
-        why="Personnel files.",
-    ),
-    Stratum(
         key="Audiovisual",
         pattern=r"v[íi]deo|\mfita\M|filme|audiovisual|grava[çc]|microfilme",
         why="Moving image and sound recordings.",
+    ),
+    Stratum(
+        key="Livro de Sepultamento",
+        pattern=r"sepultamento|registro de sepultura",
+        why=(
+            "The burial registers of the Cemitério Municipal São Francisco. The name avoids the bare "
+            "'registro' the photographic fonds' own titles and the Fotografia definition both use: a "
+            "label containing it took 48 answers and 40 of them were photographs (measured, #111)."
+        ),
+    ),
+    Stratum(
+        key="Requerimento à Câmara Municipal",
+        pattern=r"requerimento.{0,30}c[âa]mara|c[âa]mara municipal",
+        why=(
+            "Third-party petitions addressed to the Câmara. The qualified name is what keeps it apart "
+            "from the prorrogação inside a building process, which the curator files as Processo "
+            "Administrativo: the unqualified 'Petição / Requerimento' took those documents instead."
+        ),
+    ),
+    Stratum(
+        key="Publicação Impressa",
+        pattern=r"livro\b|boletim|comemorativ|impress",
+        why="Printed publications: the commemorative book and the municipal bulletin.",
     ),
     Stratum(
         key="Planta Arquitetônica",
@@ -264,12 +272,17 @@ FORM_STRATA: tuple[Stratum, ...] = (
     ),
 )
 
-#: The control bucket: descriptions the ten typologies do not cover. Without these rows the bench
-#: cannot measure a false positive — a model that labels everything would look perfect.
+#: The control bucket: descriptions the catalogue deliberately does not cover. Without these rows the
+#: bench cannot measure a false positive — a model that labels everything would look perfect.
+#:
+#: It is now an **explicit decision of the curator** rather than a leftover (#111): the forms the
+#: catalogue gained — registers, petitions to the Câmara, printed publications — used to be proposed
+#: here and no longer are, because they have a drawer. What stays is what the catalogue still does not
+#: name, and the bucket is only as good as the rows a person puts in it.
 NONE_STRATUM = Stratum(
     key=NONE_CLASS,
-    pattern=r"requerimento|alvar[áa]|certid[ãa]o|escritura|invent[áa]rio|livro|boletim|registro de",
-    why="Forms the catalogue has no entry for; the curator confirms that no typology applies.",
+    pattern=r"alvar[áa]|certid[ãa]o|escritura|invent[áa]rio|atestado|batist[ée]rio|casament",
+    why="Forms the catalogue deliberately leaves out; the curator confirms that no typology applies.",
 )
 
 #: Every stratum in decision order. The first one whose pattern matches owns the row.

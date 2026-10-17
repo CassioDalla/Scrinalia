@@ -1445,3 +1445,26 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   simulations, and the real re-queue cost is the projection from the 2.2 s per document #109 measured.
   The 11 control rows read as misses in the extended catalogues because the gabarito says `null` for
   them — correct for the product, wrong for the placar, which is the re-labelling issue #111 names.
+
+## 2026-10-17 — the typology catalogue decided, and the strata follow it (#111)
+
+- **Range:** `5da851b..HEAD`
+- **Pages:** none reported stale. The round touched `testing/evaluation/typology_quality.py` and its
+  tests; no guide declares a bench as a source, and the catalogue itself is data of the installation
+  and does not ship, so nothing a page documents moved.
+- **The decision, taken and applied.** Three forms with zero instances retired (`Ofício / Memorando`,
+  `Ata de Reunião`, `Dossiê Funcional`), three forms the collection has added with names chosen for their
+  discriminative power (`Livro de Sepultamento`, `Requerimento à Câmara Municipal`, `Publicação
+  Impressa`), and three definitions corrected to say what the curator's own labels say the drawers hold.
+  Measured: agreement 0.775 → **0.865** without the dead forms, and the three added forms take exactly
+  their documents (8 burial registers at 0.968–0.982, 2 Câmara petitions at 0.926–0.939).
+- **Reversibility.** The typology catalogue has no revision ledger, so the before-state of all six
+  touched rows — names, ids and the full previous `context_description` — is recorded in the issue
+  comment that states the decision. That is what makes the change undoable.
+- **Verified.** `--pick` runs against the new catalogue and proposes 8/8, 3/3 and 1/1 for the three new
+  strata; `count_pending` is 4,813 before and after, because the re-queue #117 declared was already owed
+  and this edit changes what that run produces, not whether one is owed.
+- **Declared, not closed.** The control bucket proposes 1 of 1 candidate, so keeping a false-positive
+  control now needs the curator to name what stays out of scope; 31 descriptions match no stratum and are
+  photographs `PHOTO_STRATUM` misses; and the revised gabarito needs a human signature, which the bench's
+  `status` gate exists to require and which is not mine to give.
