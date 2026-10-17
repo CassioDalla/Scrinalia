@@ -5,6 +5,7 @@ import pytest
 from scrinalia.core.author import Author
 from scrinalia.core.runner_config import TypologyRunnerConfig
 from scrinalia.domains.archive.exceptions import InvalidWorkerSettingsError, WorkerNotFoundError
+from scrinalia.domains.archive.repository import TypologyRepository
 from scrinalia.domains.archive.repository.cleaning_repo import CleaningRepository
 from scrinalia.domains.archive.schemas.cleaning_schema import CleaningRuleCreateDTO
 from scrinalia.domains.archive.schemas.system_schema import WorkerSettingsRequest
@@ -135,7 +136,7 @@ def test_an_unknown_worker_is_a_named_error(service) -> None:
 
 
 def test_the_queue_preview_counts_a_proposed_configuration_without_writing(
-    service, generate_archive_doc, generate_typology
+    service, db_session, generate_archive_doc, generate_typology
 ) -> None:
     """
     The cost of a change is readable before it is saved, and reading it saves nothing.
@@ -151,6 +152,7 @@ def test_the_queue_preview_counts_a_proposed_configuration_without_writing(
         preset="cpu_local",
         columns_to_classify=list(config.columns_to_classify),
         confidence_threshold=config.confidence_threshold,
+        typologies=TypologyRepository(db_session).get_active_typologies(),
         engine_kwargs={},
     )
     generate_archive_doc(original_title="Do produtor atual", execution_log={TYPOLOGY.key: identity})

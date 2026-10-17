@@ -7,6 +7,7 @@ from scrinalia.core.database import get_db
 from scrinalia.core.logger import logger
 from scrinalia.core.runner_config import TypologyRunnerConfig
 from scrinalia.core.unit_of_work import UnitOfWork
+from scrinalia.domains.archive.domain.vocabulary import label_set_fingerprint
 from scrinalia.domains.archive.engines.base import TypologyEngine
 from scrinalia.domains.archive.engines.classification.registry import (
     EngineName,
@@ -50,15 +51,22 @@ def producer_identity(
     preset: PresetName | None,
     columns_to_classify: list[str],
     confidence_threshold: float,
+    typologies: dict[str, int],
     engine_kwargs: dict,
 ) -> str:
     """
     Identity of the classifier that produced the typology of a document.
 
-    The engine configuration comes from ``describe_config``, the read-only twin of ``get_engine``.
-    The columns and the threshold are part of it because they change the answer: raising the
-    threshold from the panel has to re-queue the documents the old one classified, or the value the
-    bench measured would never reach the collection.
+    Three changes re-queue a classified document by themselves, and they are different facts: the
+    **label set** it was read against (a typology added, renamed or retired), the model that read it,
+    and the parameters that decide the answer (the columns and the confidence floor). All of them
+    compose this one value.
+
+    The label set comes from ``get_active_typologies()``, whose ``{name: id}`` shape is exactly what
+    ``label_set_fingerprint`` takes — the same hash the subject axis signs. Without it the promise
+    above was false in both directions: the catalogue was not signed *and* the queue ignored the
+    signature, so a catalogue edit reached no document that already carried a typology (measured on
+    2026-10-17; the numbers are in #117).
     """
     config = describe_config(engine_name, preset, **engine_kwargs)
     return producer_fingerprint(
@@ -69,6 +77,7 @@ def producer_identity(
         worker_options={
             "columns_to_classify": columns_to_classify,
             "confidence_threshold": confidence_threshold,
+            "labels": label_set_fingerprint(typologies),
         },
     )
 
@@ -81,15 +90,21 @@ def pending_conditions(
     """
     Predicate of the typology queue, shared by ``execute`` and the operations panel.
 
-    A document that already carries a typology is out, and so is one a human approved: the AI must
-    not reclassify a decision someone made. A document stamped by **another producer** — engine,
-    preset, threshold or columns — is pending again, which is what makes the classifier
-    re-runnable; ``force`` widens it to everything ai-writable, and the worker advances by cursor
-    so a forced run still ends.
+    The gate is the **stamp**, not the answer. This used to AND a third clause,
+    ``typology_id IS NULL``, and it made the producer identity inert: a document that already carried
+    a typology never went back to the classifier, so changing the floor, the model, the columns or
+    the label set reached none of the documents the last run had classified. Measured on
+    ``memoriacuritibana`` on 2026-10-17, ``count_pending`` answered 4,205 under two floors, two column
+    sets and two presets — 4,813 ai-writable documents minus the 608 that already carried a typology,
+    exactly.
+
+    The clause also duplicated the two gates that remain: a human verdict is ``ai_writable_documents``
+    (principle VII), and "do not redo the work" is the stamp. A document a human approved is still
+    out of reach here. ``force`` widens the queue to everything ai-writable, and the worker advances
+    by cursor so a forced run still ends.
     """
     filters_columns = [getattr(ArchiveDocument, col).is_not(None) for col in columns_to_classify]
     conditions: list[ColumnElement[bool]] = [
-        ArchiveDocument.typology_id.is_(None),
         ai_writable_documents(),
         or_(*filters_columns),
     ]
@@ -114,6 +129,7 @@ def count_pending(
         preset=preset,
         columns_to_classify=columns,
         confidence_threshold=threshold,
+        typologies=TypologyRepository(db).get_active_typologies(),
         engine_kwargs=engine_kwargs,
     )
     stmt = select(func.count()).select_from(ArchiveDocument).where(*pending_conditions(columns, identity, force=force))
@@ -203,19 +219,20 @@ def execute(
         logger.error(f"❌ Error loading the model: {e}")
         raise
 
+    typologies_map = repository.get_active_typologies()
+    if not typologies_map:
+        logger.warning("⚠️ No typology registered in the database. Aborting Classification.")
+        return
+
     identity = producer_identity(
         engine_name=engine_name,
         preset=preset,
         columns_to_classify=columns_to_classify,
         confidence_threshold=confidence_threshold,
+        typologies=typologies_map,
         engine_kwargs=engine_kwargs,
     )
     logger.info(f"🔖 Producer identity: {identity[:12]} (threshold {confidence_threshold:.2f})")
-
-    typologies_map = repository.get_active_typologies()
-    if not typologies_map:
-        logger.warning("⚠️ No typology registered in the database. Aborting Classification.")
-        return
 
     candidate_labels = list(typologies_map.keys())
     logger.info(f"📂 {len(candidate_labels)} typologies loaded.")
@@ -305,6 +322,14 @@ def execute(
                                     f"Doc {doc.description_id}: Typology '{best_label}' not found in the database map."
                                 )
                         else:
+                            # An answer another producer wrote does not survive a refusal from this
+                            # one. The stamp is the only gate now, so a document that came back to
+                            # the classifier and was declined must not leave carrying a label the
+                            # current producer does not sign — otherwise raising the floor would
+                            # re-run the collection and change no label, which is the whole point of
+                            # the identity. What the run saw is not recorded here: issue #110.
+                            if doc.typology_id is not None:
+                                doc.typology_id = None
                             logger.debug(f"Doc {doc.description_id} ignored (Low confidence)")
 
                         total_processed += 1

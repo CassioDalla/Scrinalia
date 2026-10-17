@@ -13,6 +13,7 @@ from scrinalia.domains.archive.models import (
 )
 from scrinalia.domains.archive.models.governance import AnomalyType, ArchiveAIReviewQueue
 from scrinalia.domains.archive.ports.staging_source import StagingRecord
+from scrinalia.domains.archive.repository import TypologyRepository
 from scrinalia.domains.archive.repository.cleaning_repo import CleaningRepository
 from scrinalia.domains.archive.repository.tag_repo import TagRepository
 from scrinalia.domains.archive.schemas.cleaning_schema import CleaningRuleCreateDTO
@@ -59,7 +60,16 @@ def test_ner_counts_unstamped_writable_documents(db_session, generate_archive_do
     assert worker_ner.count_pending(db_session) == 2
 
 
-def test_typology_counts_orphans_and_respects_the_stamp(db_session, generate_archive_doc, generate_typology) -> None:
+def test_typology_counts_by_the_stamp_and_not_by_the_answer(
+    db_session, generate_archive_doc, generate_typology
+) -> None:
+    """
+    The stamp is the only gate on the answer side (issue #117).
+
+    ``typology_id IS NULL`` used to be ANDed into the predicate, and it made the identity inert: a
+    document that already carried a typology never came back, so nothing the identity signs — floor,
+    model, columns or label set — reached the documents the last run had classified.
+    """
     typology = generate_typology()
     config = TypologyRunnerConfig()
 
@@ -69,6 +79,7 @@ def test_typology_counts_orphans_and_respects_the_stamp(db_session, generate_arc
             preset="cpu_local",
             columns_to_classify=list(config.columns_to_classify),
             confidence_threshold=threshold,
+            typologies=TypologyRepository(db_session).get_active_typologies(),
             engine_kwargs={},
         )
 
@@ -78,13 +89,16 @@ def test_typology_counts_orphans_and_respects_the_stamp(db_session, generate_arc
     generate_archive_doc(original_title="Carimbo antigo", execution_log={TYPOLOGY.key: "DONE"})
     generate_archive_doc(original_title="Aprovado", review_status=ArchiveReviewStatus.HUMAN_APPROVED)
 
-    # The orphan and the legacy stamp: a document stamped before the producer was recorded is
-    # pending again, which is the one-time re-queue the fix is.
-    assert worker_typology.count_pending(db_session) == 2
+    # Everything ai-writable except the document the current producer settled: the one carrying a
+    # typology is pending again because nothing stamped it, which is the whole point of the change.
+    assert worker_typology.count_pending(db_session) == 3
 
     # A simulated change of floor moves the number without writing anything: the document the
     # 0.40 producer settled is pending under the 0.55 one. This is what the panel must show.
-    assert worker_typology.count_pending(db_session, confidence_threshold=0.55) == 3
+    assert worker_typology.count_pending(db_session, confidence_threshold=0.55) == 4
+
+    # Governance is untouched: a human approval still keeps the document out of every queue.
+    assert worker_typology.count_pending(db_session, force=True) == 4
 
 
 def test_quality_validator_counts_and_force_widens_it(db_session, generate_archive_doc) -> None:
