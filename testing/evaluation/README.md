@@ -172,5 +172,33 @@ distribution (largest share, entropy, abstentions) and seconds per document. A t
 than `--min-positives` labelled examples (5 by default) is printed as **não medida** instead of
 scored: an F1 built on two rows reads like a measurement and is not one.
 
+## Measuring the collection, not the sample (issue #109)
+
+The labelled set is balanced by construction — 40 rows per form by default — and a decision about
+cost is not: what a whole collection pays depends on its own mix. `--collection` samples the
+**pending queue** and prints seconds per document, the projection for that queue, the abstention rate
+and the label distribution, per configuration and per stratum:
+
+```sh
+uv run python -m testing.evaluation.typology_quality --collection --sample 100 \
+    --config deberta_typology:cpu_local:original_title:0.40 \
+    --config deberta_typology:cpu_local:original_title,admin_bio_history:0.40
+```
+
+It writes nothing (no typology, no stamp) and scores nothing: these rows have no gabarito, and a
+wrong label here is invisible. Three rules make its number mean the collection:
+
+- The sample comes from the worker's **own** pending predicate (`pending_conditions`), and the mode
+  prints `count_pending` beside it — the number the panel shows. A sample drawn from a queue the
+  worker does not have prices a run that will not happen.
+- The rows are allocated **proportionally** across the picker's strata, with no floor, and are *not*
+  deduplicated by text: the worker pays for a repeated title every time it appears.
+- Two configurations are measured on the rows pending under **both**, so the comparison isolates the
+  columns instead of the collection.
+
+The model is loaded **once per engine and preset**: configurations that differ only in the columns or
+the floor share one model in memory, because building mDeBERTa again would charge the model load to
+the seconds per document. Comparing two engines in one run is allowed and loads both.
+
 Keep a copy of all three wherever the collection is backed up. If one is lost, the bench cannot be
 re-run — it can only be rebuilt by reading the collection again.
