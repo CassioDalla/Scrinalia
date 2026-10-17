@@ -11,6 +11,36 @@ commits — the history is the detail.
 
 ### Added
 
+- **The typology records the refusal it saw, instead of leaving it to be inferred** (issue #110):
+  `archive_documents.typology_id` is NULL both when the classifier looked at a description and
+  declined to place it and when the run never reached it, and the column cannot say which — so the
+  score that justified the refusal was lost with it, which is the one number a floor decision needs.
+  There is now `AnomalyType.TYPOLOGY_LOW_CONFIDENCE`, and the worker writes a row in
+  `archive_ai_review_queue` per refusal carrying **the score it saw**, the label it guessed and the
+  description's context.
+
+  The issue's own Definition of Done proposed a distinct **stamp value** for the refusal. #117 broke
+  that in both directions: `identity_stamp_conditions` computes pending as "the stamp is not this
+  identity", so a `REFUSED:<identity>` value puts the description back in the queue on the next run
+  and it is refused again forever — while adding the value to `FAILURE_STAMP_VALUES` excludes it
+  permanently and a floor change would never reach it. The stamp means *this producer read it*; the
+  refusal is evidence, and evidence lives in the queue, which is the shape the subject axis already
+  had. It is a vocabulary addition and an additive migration (`ALTER TYPE ... ADD VALUE`, the
+  `SUBJECT_LOW_CONFIDENCE` pattern, with a downgrade that keeps the value).
+
+  `repository/typology_queue.py` owns the read the way `subject_queue.py` owns it for the tags: the
+  predicate asks for the row **and** the absence of a drawer, because nothing deletes the classifier's
+  evidence when a curator files the description — reading the row alone would count a description that
+  already has an answer — and the count collapses a description's rows so a run repeated with `force`
+  cannot inflate it. That is what lets the typology bench's `stored` mode drop its blanket caveat for a
+  measured **split**: `bare`'s 5.4% abstention on the labelled set is now reportable as "how many the
+  queue accounts for" against "how many no run has reached".
+
+  **Scale, measured:** the #109 run on the real pending queue gave **0.000** abstention on the title at
+  0.40 and **0.020** with the archival history, so the rows this writes are tens and not thousands. The
+  real number for the 608 descriptions the old queue never sampled is what the first run after #117
+  measures.
+
 - **The quality validator has a bench, and the installation it would measure has no rule to score**
   (issue #115): `testing/evaluation/quality_validator_quality.py` grades the cleaning rules one by one
   instead of grading documents, because the validator's output is a **set of flags per document** and a

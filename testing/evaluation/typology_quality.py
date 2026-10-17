@@ -81,6 +81,7 @@ from scrinalia.domains.archive.repository.text_quality_repo import (
     TextQualityRepository,
     composed_text_sql,
 )
+from scrinalia.domains.archive.repository.typology_queue import count_refusals
 from scrinalia.domains.archive.workers.worker_typology import (
     count_pending,
     execute,
@@ -1057,23 +1058,30 @@ def stored_collection_distribution(db: Session) -> Counter[str]:
     return counts
 
 
-def stored_mode_note(collection: Counter[str]) -> str:
+def stored_mode_note(collection: Counter[str], refused: int) -> str:
     """
-    The limitation of the stored mode, with the number that makes it concrete.
+    What the stored mode can and cannot say, with the numbers that make it concrete.
 
     ``typology_id`` is NULL both when the run abstained and when it never reached the document, and
-    the column does not say which. Without this sentence, "agreement 0.259" reads as the model's
-    quality when most of it is the run's coverage — the exact kind of confidently wrong statement
-    this repository treats as more expensive than a declared gap.
+    the column does not say which — so "agreement 0.259" reads as the model's quality when most of it
+    is the run's coverage. Since #110 the abstentions the classifier actually looked at are recorded
+    in the review queue with the score, so the blanket caveat becomes a measured **split**: the
+    abstentions the queue accounts for, against the descriptions no run has reached. The rest of the
+    limitation stands and is not dressed up: this mode still serves the collapse, and the ``live``
+    mode is what measures the model.
     """
     total = sum(collection.values())
-    answered = total - collection.get(ABSTAINED, 0)
+    abstained = collection.get(ABSTAINED, 0)
+    answered = total - abstained
+    seen = min(refused, abstained)
     return (
         "O modo `stored` lê a coluna `typology_id`, e ela é NULL tanto quando a execução absteve "
-        f"quanto quando ela nunca chegou ao documento: o banco não distingue as duas. Medido agora, "
-        f"{answered} de {total} itens carregam tipologia ({answered / max(1, total):.1%}), então a maior "
-        "parte das linhas conta como abstenção e derruba toda métrica. Este modo serve para o colapso "
-        "— a distribuição da coleção inteira, impressa acima — e o modo `live` é o que mede o modelo."
+        f"quanto quando ela nunca chegou ao documento. Medido agora, {answered} de {total} itens "
+        f"carregam tipologia ({answered / max(1, total):.1%}) e, das {abstained} abstenções, {seen} "
+        "estão registradas na fila de revisão — o classificador olhou e recusou, com o score que viu "
+        "— contra "
+        f"{max(0, abstained - seen)} que nenhuma execução alcançou. Este modo serve para o colapso — a "
+        "distribuição da coleção inteira, impressa acima — e o modo `live` é o que mede o modelo."
     )
 
 
@@ -1661,7 +1669,7 @@ def run_score(args: argparse.Namespace) -> int:
         collection = stored_collection_distribution(db) if args.predictions == "stored" else None
         if collection is not None:
             for report in reports:
-                report["notes"].append(stored_mode_note(collection))
+                report["notes"].append(stored_mode_note(collection, count_refusals(db)))
         db.rollback()
 
     print_report(reports, collection)

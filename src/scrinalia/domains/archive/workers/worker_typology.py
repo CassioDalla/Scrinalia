@@ -15,7 +15,8 @@ from scrinalia.domains.archive.engines.classification.registry import (
     describe_config,
     get_engine,
 )
-from scrinalia.domains.archive.models import ArchiveDocument
+from scrinalia.domains.archive.models import ArchiveDocument, ArchiveReviewStatus
+from scrinalia.domains.archive.models.governance import AnomalyType, ArchiveAIReviewQueue
 from scrinalia.domains.archive.repository import TypologyRepository
 from scrinalia.domains.archive.repository.governance import ai_writable_documents
 from scrinalia.domains.archive.repository.text_quality_repo import (
@@ -327,9 +328,30 @@ def execute(
                             # the classifier and was declined must not leave carrying a label the
                             # current producer does not sign — otherwise raising the floor would
                             # re-run the collection and change no label, which is the whole point of
-                            # the identity. What the run saw is not recorded here: issue #110.
+                            # the identity.
                             if doc.typology_id is not None:
                                 doc.typology_id = None
+                            # And the refusal is recorded rather than inferred: the column is NULL
+                            # both when the run declined and when it never reached the document, so
+                            # the score it saw is the only thing that tells the two apart — and the
+                            # one number a floor decision needs. The stamp cannot carry it (see
+                            # ``AnomalyType.TYPOLOGY_LOW_CONFIDENCE``).
+                            db.add(
+                                ArchiveAIReviewQueue(
+                                    anomaly_type=AnomalyType.TYPOLOGY_LOW_CONFIDENCE,
+                                    status=ArchiveReviewStatus.NEEDS_REVIEW,
+                                    context_payload={
+                                        "description_id": doc.description_id,
+                                        "title": doc.original_title,
+                                    },
+                                    llm_decision=best_label,
+                                    llm_confidence=confidence_score,
+                                    llm_reason=(
+                                        f"A classificação de tipologia não atingiu o limiar "
+                                        f"({confidence_threshold:.2f}); a descrição ficou sem tipologia."
+                                    ),
+                                )
+                            )
                             logger.debug(f"Doc {doc.description_id} ignored (Low confidence)")
 
                         total_processed += 1

@@ -53,6 +53,10 @@ de IA. São comandos de linha de comando próprios, descritos em
   qualidade.
 - **`ner`** extrai nomes próprios, lugares e instituições do texto composto da descrição.
 - **`typology`** classifica cada descrição contra o catálogo de tipologias ativas por zero-shot.
+  Uma descrição cujo melhor score fica abaixo do piso mantém `typology_id` NULL — a coluna diz
+  isso tanto quando o classificador recusou quanto quando nenhuma execução chegou à descrição —
+  então a recusa é gravada: uma linha em `archive_ai_review_queue` com o **score que a execução
+  viu**.
 - **`thumbnail`** baixa a imagem original e guarda uma miniatura no storage de objetos. Ele confirma
   que o bucket existe antes do primeiro documento — criando-o só quando
   `S3_AUTO_CREATE_BUCKET=true` — então um bucket ausente derruba a execução uma vez, com uma frase,

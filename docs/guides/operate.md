@@ -95,6 +95,9 @@ stamp. They are host commands of their own, described in
   kind `VALIDATE` or `LLM_CHECK` never rewrites anything — flagging is the quality validator's job.
 - **`ner`** extracts proper names, places and institutions from the composed document text.
 - **`typology`** classifies each description against the active typology catalogue by zero-shot.
+  A description whose best score stays under the floor keeps `typology_id` NULL — the column says
+  that both when the classifier declined and when no run reached the description — so the refusal
+  is recorded instead: a row in `archive_ai_review_queue` with the **score the run saw**.
 - **`thumbnail`** downloads the original image and stores a miniature in the object storage. It
   confirms the bucket exists before the first document — creating it only when
   `S3_AUTO_CREATE_BUCKET=true` — so a bucket that is missing fails the run once, with a sentence,

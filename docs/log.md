@@ -1398,3 +1398,27 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   history added the same drawer answers nothing because the model abstains on all 11 — was **not**
   re-measured: the round was scoped to the shipping configuration, where the default stays. It is a
   question about the columns that #109 already priced at 2.62× the cost, not about the label shape.
+
+## 2026-10-17 — the typology records the refusal it saw (#110)
+
+- **Range:** `a554cbe..7a40f14`
+- **Pages:** three were reported stale by `docs/_hooks/freshness.py`; two changed and one is
+  no-change, and the reason it is no-change is the honest part.
+  - `guides/data-model.md` — **updated**: the `archive_ai_review_queue` paragraph said the queue
+    carries `SUBJECT_LOW_CONFIDENCE` "for tags the subject classifier could not place"; it now also
+    names `TYPOLOGY_LOW_CONFIDENCE` and says that row is where the score the run saw is kept, because
+    `typology_id` stays NULL for a refusal and for a description no run reached.
+  - `guides/operate.md` — **updated**: the `typology` worker's bullet said only that it classifies by
+    zero-shot; it now says what a refusal leaves behind.
+  - `guides/curate.md` — **no-change**: it moved only because `models/enums.py` is one of its declared
+    sources, and no screen reads this row. The issue's Definition of Done deliberately left the
+    curator card out — the read side has to answer the count, and surfacing it is a separate decision.
+- **What the round measured and verified.** The migration was applied against a scratch database and
+  against the development one: `upgrade head` from `3f9c1a7be204` adds the value, the enum then lists
+  all three, and `downgrade -1` runs. The development database's revision matched this migration's
+  `down_revision` exactly, so nothing else moved with it. `alembic check` reports no new upgrade
+  operations.
+- **Not verified, and said so.** No worker was run against the real collection, so the number of rows
+  this writes there is a projection from the #109 abstention rate (0.000 on the title at 0.40, 0.020
+  with the archival history) and not an observation. The curator screen that would make these rows
+  actionable does not exist and is not in this DoD.

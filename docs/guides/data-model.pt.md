@@ -356,7 +356,10 @@ apontavam para a linha absorvida e foram movidas para a canônica. `undone_at` m
 `archive_ai_review_queue` é a companheira de `archive_conflict_resolution_log`, não um ledger de
 escritas: ela guarda a *decisão* (o veredicto do juiz ou o do humano), enquanto o log de resolução
 guarda a *escrita*. Ela também carrega `AnomalyType.SUBJECT_LOW_CONFIDENCE` para tags que o
-classificador de assunto não conseguiu posicionar.
+classificador de assunto não conseguiu posicionar, e `AnomalyType.TYPOLOGY_LOW_CONFIDENCE` para
+descrições que ele recusou classificar — é nessa linha que fica o **score que a execução viu**, porque
+`typology_id` continua NULL tanto quando o classificador recusou quanto quando nenhuma execução chegou
+à descrição (issue #110).
 
 `archive_worker_settings_revisions` é um ledger de revisão no mesmo espírito: a decisão e a escrita
 são fatos diferentes, e toda mudança de configuração deixa uma linha `before`/`after`.
