@@ -1424,3 +1424,24 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   this writes there is a projection from the #109 abstention rate (0.000 on the title at 0.40, 0.020
   with the archival history) and not an observation. The curator screen that would make these rows
   actionable does not exist and is not in this DoD.
+
+## 2026-10-17 — the typology bench simulates a catalogue edit (#111)
+
+- **Range:** `7a40f14..5da851b`
+- **Pages:** none. `docs/_hooks/freshness.py` reported every page fresh: the round touched
+  `testing/evaluation/typology_quality.py` and its unit tests, and no guide declares a bench as a
+  source. The ledger entry exists to record the verdict and advance the floor.
+- **What the round measured.** Four catalogues over the same 111 signed rows at the shipping
+  configuration: as it is (agreement 0.775, macro-F1 0.484, 25 misses), without "Ofício / Memorando"
+  (**0.856**, 0.558, 16), with the three missing forms named "Livro de Registro" (0.378, 0.272, 69) and
+  with them named "Livro de Sepultamento" (0.703, 0.476, 33 — against a predicted 33).
+- **What the round concluded.** On this axis the **name is the taxonomy**: "Ofício / Memorando" is a
+  form the collection has zero of and the model's third favourite answer; "Livro de Registro" collides
+  lexically with the fonds' own titles ("Registros Fotográficos") and collapses the axis; a
+  discriminative name takes exactly its documents. A definition documents and cannot decide, because
+  #30 keeps it out of the prompt — so the catalogue edit is a naming decision, and the bench prices one
+  in about four minutes against a 2.9-hour re-queue.
+- **Not verified, and said so.** No catalogue change was written to the database: the round measured
+  simulations, and the real re-queue cost is the projection from the 2.2 s per document #109 measured.
+  The 11 control rows read as misses in the extended catalogues because the gabarito says `null` for
+  them — correct for the product, wrong for the placar, which is the re-labelling issue #111 names.

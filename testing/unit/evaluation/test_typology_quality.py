@@ -33,6 +33,7 @@ from testing.evaluation.typology_quality import (
     macro_f1,
     parse_config,
     per_class,
+    simulated_catalogue,
     stored_mode_note,
     unknown_truth_labels,
 )
@@ -456,3 +457,48 @@ def test_the_stored_note_never_reports_more_refusals_than_abstentions() -> None:
 
     assert "0" in note
     assert "2" in note
+
+
+# =============================================================================
+# Simulating a catalogue edit (issue #111)
+# =============================================================================
+
+
+CATALOGUE = ["Fotografia", "Planta Arquitetônica", "Ofício / Memorando"]
+
+
+def test_dropping_a_form_leaves_the_order_and_the_rest_alone() -> None:
+    assert simulated_catalogue(CATALOGUE, drop=["Ofício / Memorando"]) == ["Fotografia", "Planta Arquitetônica"]
+
+
+def test_adding_a_form_appends_it_without_touching_the_active_ones() -> None:
+    """A form that does not exist yet has no id, and the bench does not need one: it scores by name."""
+    assert simulated_catalogue(CATALOGUE, add=["Livro de Registro"])[-1] == "Livro de Registro"
+
+
+def test_dropping_and_adding_in_one_call_is_one_simulated_catalogue() -> None:
+    """The two halves of the same catalogue act, and the identity will sign them as one edit."""
+    assert simulated_catalogue(CATALOGUE, drop=["Ofício / Memorando"], add=["Petição / Requerimento"]) == [
+        "Fotografia",
+        "Planta Arquitetônica",
+        "Petição / Requerimento",
+    ]
+
+
+def test_dropping_a_form_the_catalogue_does_not_have_is_refused() -> None:
+    """A typo would silently measure a catalogue nobody proposed, which is worse than a failure."""
+    with pytest.raises(SystemExit, match="não tem"):
+        simulated_catalogue(CATALOGUE, drop=["Oficio / Memorando"])
+
+
+def test_adding_a_form_that_is_already_active_is_refused() -> None:
+    with pytest.raises(SystemExit, match="já está no catálogo"):
+        simulated_catalogue(CATALOGUE, add=["Fotografia"])
+
+
+def test_adding_the_same_form_twice_does_not_duplicate_it() -> None:
+    assert simulated_catalogue(CATALOGUE, add=["Livro", "Livro"]).count("Livro") == 1
+
+
+def test_no_override_is_the_active_catalogue_untouched() -> None:
+    assert simulated_catalogue(CATALOGUE) == CATALOGUE

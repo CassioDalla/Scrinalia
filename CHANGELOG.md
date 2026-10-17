@@ -11,6 +11,34 @@ commits — the history is the detail.
 
 ### Added
 
+- **The typology bench simulates a catalogue edit before it is written** (issue #111): a catalogue
+  change is the producer identity's business — the label set is part of it since #117 — so retiring or
+  adding a form re-reads the whole collection, about 2.9 hours of CPU at the measured 2.2 seconds per
+  document. `--drop-typology NOME` and `--add-typology NOME` measure the edit **by name** first, and
+  nothing reaches the database: the decision, the write and the read stay separate (principle VI). Names
+  are all it needs, because the worker maps an answer back to an id to write it while the bench compares
+  against a gabarito written in names, and the engine only echoes the label it was handed. A name the
+  active catalogue does not have is refused rather than added, and the report names the candidate set it
+  ran against so two runs with different catalogues cannot look identical.
+
+  What it measured on the 111 labelled rows, at the shipping configuration:
+
+  | catalogue | agreement | macro-F1 | misses | Fotografia F1 | Processo Administrativo F1 |
+  | --- | ---: | ---: | ---: | ---: | ---: |
+  | as it is | 0.775 | 0.484 | 25 | 1.00 | 0.00 |
+  | without "Ofício / Memorando" | **0.856** | **0.558** | **16** | 1.00 | **0.33** |
+  | + 3 forms, "Livro de Registro" | 0.378 | 0.272 | 69 | **0.18** | — |
+  | + 3 forms, "Livro de Sepultamento" | 0.703 | 0.476 | 33 | 1.00 | 0.00 |
+
+  Retiring one form the collection has **zero** of is the largest gain measured on this axis — +8.1
+  points of agreement, better than any of the three label formats #112 compared — and it unbreaks a real
+  form: "Processo Administrativo" goes from F1 0.000 to 0.333 because the phantom was eating all four of
+  its answers. Adding the three forms the collection does have works **if the names are discriminative**:
+  "Livro de Registro" collapses the axis because the photographic fonds is called "Registros
+  Fotográficos" (48 answers, 40 stolen from Fotografia), while "Livro de Sepultamento" takes exactly the
+  8 burial registers and leaves the covered rows alone. On this axis **the name is the taxonomy** — a
+  definition documents, the name decides, because #30 keeps the definition out of the prompt.
+
 - **The typology records the refusal it saw, instead of leaving it to be inferred** (issue #110):
   `archive_documents.typology_id` is NULL both when the classifier looked at a description and
   declined to place it and when the run never reached it, and the column cannot say which — so the
