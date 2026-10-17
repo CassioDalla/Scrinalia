@@ -384,9 +384,35 @@ commits — the history is the detail.
   model is not in this machine's Hugging Face cache and the cache is read-only, so it was not
   executed here.
 
-## [1.2.0] - 2026-10-13
+### Fixed
 
-### Added
+- **A search filtered the term after joining the link tables, so a selective term took 18 seconds**
+  (issue #140). The full-text arm reached the page, the count and every facet as an `OR` of correlated
+  `EXISTS`, which the planner cannot answer with an index: the predicate was re-evaluated once per row
+  of whatever it was joined to — 64,504 entity links to find 12 descriptions — and the `OR` alone kept
+  it away from the generated `search_vector` GIN index. The arm is now a **set of description ids**
+  (the union of the text match, the tag match and the entity match) that the page, the count and every
+  facet filter on, and the taxonomy boost is membership in that set instead of a correlated `EXISTS` per
+  candidate row. The fused mode's candidate clause is one union of two id sets rather than an `OR` of
+  the two, which the planner *also* could not turn into a semi-join. The count no longer computes the
+  rank expression it does not read.
+
+  Measured on the live collection, 18 query/mode/filter cases, **results identical** — same ids, same
+  order, same ranks to ten decimals, same `total`, same five facet counts: a selective term went from
+  **17.5 s to 0.21 s** (83×), a broad one from 6.4 s to 0.41 s, and the hybrid mode from 18.0 s to
+  0.31 s (58×). The semantic mode is unchanged at 0.15 s. One case got slower: a term combined with a
+  highly selective facet filter, 0.19 s → 0.29 s, because the term set is now built before the filter
+  is applied — the cost of the term is the floor for any query that has one. A structural test
+  (`testing/integration/archive/repository/test_search_predicate_shape.py`) fails if a facet is built
+  over a link join without the document predicate first; it was verified to fail against the code
+  before the fix.
+
+### Changed
+
+- **A search filters the documents before it joins the link tables** (issue #140): the term is one set
+  of `description_id`s, computed once per query, and the page, the count and the facets all read it.
+  Nothing a caller sends or receives changes.
+
 
 - **A whole category of tag × entity collisions decided in one call** (issue #35):
   `POST /api/v1/taxonomy/conflicts/resolve/batch` applies one verdict to the selection the
