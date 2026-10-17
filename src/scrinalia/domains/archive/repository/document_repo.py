@@ -23,6 +23,7 @@ from scrinalia.domains.archive.exceptions import (
     TagNotFoundError,
 )
 from scrinalia.domains.archive.models import (
+    ANOMALY_REASON_SEPARATOR,
     AnomalyReason,
     ArchiveDescriptionLevel,
     ArchiveDocument,
@@ -111,7 +112,7 @@ def _anomaly_reason_key(reason: Any) -> Any:
     the one definition of the key, used by the facet that groups and by the filter that selects, so
     the sidebar cannot offer a bucket the route refuses to filter.
     """
-    code = func.split_part(reason, ":", 1)
+    code = func.split_part(reason, ANOMALY_REASON_SEPARATOR, 1)
     return case((code == AnomalyReason.RULE_MATCH.value, reason), else_=code)
 
 

@@ -7,6 +7,7 @@ The benches under this directory measure the AI against **labelled collection da
 | `retrieval_quality.py` | `retrieval_pairs.json` | does subtracting the curated excerpts improve the ranking? |
 | `macro_category_quality.py` | `macro_category_pairs.json` | which label format classifies the subjects without collapsing them? |
 | `typology_quality.py` | `typology_pairs.json` | does the typology classifier label the form correctly, or collapse onto one typology? |
+| `quality_validator_quality.py` | `validator_pairs.json` | do the active `VALIDATE`/`LLM_CHECK` rules flag what a curator flags, rule by rule? |
 | `conflict_judge_quality.py` | `archive_conflict_resolution_log` | does the judge agree with the resolutions a human took? |
 
 The last one is the exception to everything below: the conflict judge reads no file at all, because
@@ -224,6 +225,98 @@ the seconds per document. Comparing two engines in one run is allowed and loads 
 
 Keep a copy of all three wherever the collection is backed up. If one is lost, the bench cannot be
 re-run — it can only be rebuilt by reading the collection again.
+
+## `validator_pairs.json`
+
+The quality validator's output is not one label but a **set of flags per document**, so this set
+grades *rules* and not documents: each entry names the rules that should have flagged the row.
+
+```json
+{
+  "description": "why this set exists",
+  "collection": "which database produced it, how many items, and the date — measured",
+  "sampling": "the strata rule, the seed and the candidate counts; the selection rule is part of the method",
+  "active_rules": ["the rule_name of every scorable rule at the day of the pick"],
+  "rules_at_labelling": [
+    {"rule_name": "rua abreviada", "rule_kind": "VALIDATE", "target_column": "original_title"}
+  ],
+  "pairs": [
+    {
+      "description_id": "33850",
+      "candidate": "the stratum that proposed this row",
+      "title": "the title, as an aid for the person labelling",
+      "stored_reasons": ["RULE_MATCH:grafia viária abreviada", "NO_TAGS"],
+      "expected": ["rua abreviada"],
+      "confidence": "alta | media | baixa — the curator's own certainty",
+      "needs_decision": false,
+      "note": "the reasoning, which is the part a later reader needs"
+    }
+  ],
+  "status": "who approved the set and when"
+}
+```
+
+- `expected` is a **list of `rule_name`s**, and an **empty list is a verdict**: "no rule should have
+  flagged this document". It is the verdict that measures precision, so leaving it blank is not the
+  same answer and the loader distinguishes them (`null` and `[]` both mean none, a missing key means
+  the curator has not answered).
+- A name the active catalogue does not have is **refused** rather than warned about. Here it is a typo
+  in the gabarito far more often than a retired rule, and it would be a guaranteed miss the rule
+  cannot avoid.
+- `stored_reasons` is a labelling aid, not what the bench scores. The scorer recomputes the flags
+  through the worker's own functions — `matched_rule_labels` for `VALIDATE` and `llm_check_reason` for
+  `LLM_CHECK` — so the graded flags cannot drift from the ones the worker writes.
+- `needs_decision: true` marks a row where the ambiguity belongs to the **catalogue** and not to the
+  curator (two rules that overlap by construction). Those rows leave the score instead of becoming a
+  false negative for a rule that was never allowed to satisfy them.
+
+## The quality validator's set is proposed, not hand-picked
+
+`--pick` reads the catalogue and the flags the **last run** stored, and proposes rows by stratum:
+
+```sh
+uv run python -m testing.evaluation.quality_validator_quality --pick
+uv run python -m testing.evaluation.quality_validator_quality --sheet
+```
+
+One stratum per active scorable rule, capped at `--per-rule` (40), plus two buckets that are not
+padding: the documents some *unscorable* rule touched — where a rule that should have fired is looked
+for — and the documents with no anomaly at all, at `--clean-rows` (25). Without those two, recall has
+no denominator: **a review queue can only ever measure precision**, because the documents nobody
+flagged are exactly the ones absent from it.
+
+Stratifying on the stored flags is what keeps the pick free. The alternative — running the active
+rules over the whole collection to build the strata — re-reads every description and, with an
+`LLM_CHECK` rule active, makes a model call for each, to order a sample of a hundred.
+
+## Running the validator bench
+
+```sh
+# The rules the worker would run now: the regex is live, the model is asked again.
+uv run python -m testing.evaluation.quality_validator_quality
+
+# The flags the last run already wrote. Free, whole collection, no model.
+uv run python -m testing.evaluation.quality_validator_quality --predictions stored
+
+# The same numbers as JSON, for the changelog.
+uv run python -m testing.evaluation.quality_validator_quality --json .analysis/validator_bench.json
+```
+
+The rules are read from the catalogue through the same repository the worker uses, so the bench
+follows the installation's own rules instead of a list kept in the code — including the case where
+there are none, which is the state of this installation today: `--pick` and the scorer both refuse
+with that sentence rather than printing an empty table.
+
+The report is one line per rule with its **support** (how many documents the gabarito says it should
+have flagged), how many it **fired** on, precision, recall and F1. A rule below five labelled
+positives — the same floor the typology bench uses — is printed as **não medida**: a rule with two
+examples behind it produces an F1 that reads like a measurement and is not one. The two disagreement
+kinds are listed separately and by document, because they are not the same defect: **perdeu** is an
+anomaly nobody will look at, **marcou a mais** is a person's time spent on nothing.
+
+A rule whose `rule_name`, or whose `VALIDATE` flag label (`anomaly_reason or rule_name`), collides with
+another active rule is **refused** at `--pick` time: the gabarito names rules, so an ambiguous
+catalogue cannot produce one.
 
 ## The conflict judge's set is derived, not stored (issue #114)
 

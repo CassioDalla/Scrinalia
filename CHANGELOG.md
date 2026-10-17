@@ -11,6 +11,35 @@ commits — the history is the detail.
 
 ### Added
 
+- **The quality validator has a bench, and the installation it would measure has no rule to score**
+  (issue #115): `testing/evaluation/quality_validator_quality.py` grades the cleaning rules one by one
+  instead of grading documents, because the validator's output is a **set of flags per document** and a
+  validator that flags the right document for the wrong reason is not doing the job. For each active
+  `VALIDATE`/`LLM_CHECK` rule it prints support, firings, precision, recall and F1 — the two halves are
+  not derivable from one another, and **recall is why the set is human**: a review queue can only ever
+  measure precision, since the documents nobody flagged are exactly the ones absent from it.
+
+  `--pick` proposes rows by the flags the last run stored — one stratum per rule, plus the documents no
+  scorable rule touched (where a miss lives) and the ones with no anomaly at all (where a false positive
+  would be) — and a curator writes which rules should have fired. The rules come from the catalogue, and
+  whether one fires is decided by the worker's own functions: `matched_rule_labels` and
+  `llm_check_reason`, so the graded flag and the written flag are one definition, pinned by an
+  integration test that runs the real worker and asks the bench what fired. A rule below five labelled
+  positives is printed **não medida**, the same floor the typology bench uses.
+
+  **Measured on 2026-10-16 against `memoriacuritibana`:** the catalogue holds **one** rule — inactive,
+  `REWRITE`, named `aaaaa` — so there are **zero active `VALIDATE`/`LLM_CHECK` rules** and no flag to
+  score; `--pick` and the scorer both refuse with that sentence instead of printing an empty table. What
+  the validator does flag is almost entirely structural and almost entirely everything: **4,583 of 4,831
+  documents (94.9%)**, of which NO_TYPOLOGY 4,455, SCOPE_ONLY_BOILERPLATE 3,163, MISSING_DATE 2,160,
+  REPEATED_TITLE 2,079, NO_ENTITIES 2, ALL_CAPS_TITLE 1 — and `RULE_MATCH`/`LLM_SUSPECT`: **zero**. The
+  bench therefore lands measure-*able*, with its own evidence coming from an integration test against a
+  fixture rule, and the axis stays unmeasured until the installation writes one.
+
+  The load-bearing definitions moved into one place on the way: `matched_rule_labels`,
+  `llm_check_reason` and `rule_flag_label` are now the worker's, read by the bench, and the
+  `CODE:payload` format of `anomaly_reasons` is a named constant in `models/enums.py` instead of a
+  literal in the writer, the facet and now the scorer.
 - **The conflict judge has a bench, and on the ledger that exists it does not beat a constant**
   (issue #114): `testing/evaluation/conflict_judge_quality.py` scores the tag x entity judge against
   the resolutions a **human** took, read from `archive_conflict_resolution_log` at run time — so it

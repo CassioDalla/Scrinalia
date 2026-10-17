@@ -88,6 +88,7 @@ from scrinalia.domains.archive.workers.worker_typology import (
     producer_identity,
     resolved_parameters,
 )
+from testing.evaluation import MIN_POSITIVES
 from testing.evaluation.dataset import DATA_DIR, load_dataset
 
 PAIRS_FILENAME = "typology_pairs.json"
@@ -537,11 +538,6 @@ def print_sheet(payload: dict[str, Any], out: Path) -> None:
 #: it is the outcome the confidence floor produces, and it belongs in the distribution because a
 #: model that abstains on everything must not look like a model with a clean spread.
 ABSTAINED = "(abstained)"
-
-#: Below this many labelled positives a typology's F1 is noise wearing a number's clothes, and the
-#: report says "não medida" instead. Measured on this collection: five forms have two examples or
-#: none at all, and a "F1 = 1.000" built on two rows would be quoted as if it meant something.
-MIN_POSITIVES = 5
 
 
 @dataclass(frozen=True)

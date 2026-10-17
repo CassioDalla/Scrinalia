@@ -4,6 +4,7 @@ from .document import ArchiveDocument, ArchiveDocumentDeletion, ArchiveDocumentR
 from .entity import ArchiveEntity, ArchiveEntityMergeLog
 from .enums import (
     ACTIVE_WORKER_RUN_STATUSES,
+    ANOMALY_REASON_SEPARATOR,
     PLACE_TERM_KINDS,
     AnomalyReason,
     AnomalyType,
@@ -39,6 +40,7 @@ from .taxonomy import (
 
 __all__ = [
     "ACTIVE_WORKER_RUN_STATUSES",
+    "ANOMALY_REASON_SEPARATOR",
     "PLACE_TERM_KINDS",
     "AnomalyReason",
     "AnomalyType",
