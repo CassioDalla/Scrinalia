@@ -949,22 +949,22 @@ def build_engine(db: Session, config: BenchConfig) -> Any:
     """
     rules = EntityRepository(db).get_ner_synonyms_rules()
     return get_engine(
-        engine_name=cast("EngineName", config.engine),
-        preset=cast("PresetName", config.preset),
+        engine_name=cast(EngineName, config.engine),
+        preset=cast(PresetName, config.preset),
         custom_rules=rules,
     )
 
 
 def describe(config: BenchConfig) -> dict[str, Any]:
     """The effective engine configuration, without loading the pipeline (``describe_config``)."""
-    return describe_config(cast("EngineName", config.engine), cast("PresetName", config.preset))
+    return describe_config(cast(EngineName, config.engine), cast(PresetName, config.preset))
 
 
 def identity_for(config: BenchConfig) -> str:
     """The stamp a run of this configuration writes, so the report names the producer it measures."""
     return producer_identity(
-        engine_name=cast("EngineName", config.engine),
-        preset=cast("PresetName", config.preset),
+        engine_name=cast(EngineName, config.engine),
+        preset=cast(PresetName, config.preset),
         columns_to_extract=list(config.columns),
         engine_kwargs={},
     )
@@ -1250,12 +1250,12 @@ def detail_lines(report: dict[str, Any]) -> list[str]:
         f"- motor: `{report['engine_config']}` · colunas: {', '.join(report['columns'])}",
         f"- produtor desta configuração: `{report['producer_identity'][:12]}`",
         f"- linhas: {rows['labelled']} no conjunto, {rows['scored']} pontuadas, "
-        f"{rows['needs_decision']} com `needs_decision` (fora do placar), {rows['missing_from_collection']} ausentes do banco, "
-        f"{rows['out_of_scope']} fora do escopo do worker, {rows['unread']} sem sinal de revisão",
+        + f"{rows['needs_decision']} com `needs_decision` (fora do placar), {rows['missing_from_collection']} ausentes do banco, "
+        + f"{rows['out_of_scope']} fora do escopo do worker, {rows['unread']} sem sinal de revisão",
         f"- menções: {mentions['gold']} no gabarito, {mentions['predicted']} preditas · "
-        f"concordância por documento: **{report['agreement']:.3f}** · macro-F1 (tipos medidos): {_f1(report)}",
+        + f"concordância por documento: **{report['agreement']:.3f}** · macro-F1 (tipos medidos): {_f1(report)}",
         f"- documentos sem nenhuma entidade: {report['empty_rate']:.3f} · maior tipo: {report['largest_type'][0]} "
-        f"({report['largest_type'][1]:.0%}) · entropia: {report['entropy_bits']:.2f} bits",
+        + f"({report['largest_type'][1]:.0%}) · entropia: {report['entropy_bits']:.2f} bits",
         f"- segundos por documento: {mentions['seconds_per_document']:.2f}",
         "",
     ]
@@ -1263,17 +1263,17 @@ def detail_lines(report: dict[str, Any]) -> list[str]:
     if report["predictions"] == "stored":
         lines += [
             "> **Modo `stored`:** compara só a **string do termo**, porque `archive_document_entities` é "
-            "`(description_id, entity_id)` e não guarda deslocamento nenhum.",
+            + "`(description_id, entity_id)` e não guarda deslocamento nenhum.",
             "> **A quebra de fronteira abaixo descreve o que está GRAVADO, não esta configuração.** Ela "
-            "vem dos vínculos que uma execução anterior escreveu — as identidades estão logo abaixo, e "
-            "nenhuma delas é necessariamente a pedida. Uma pontuação `stored` não mediu a fronteira "
-            "desta configuração; o modo `live` é o único que mede.",
+            + "vem dos vínculos que uma execução anterior escreveu — as identidades estão logo abaixo, e "
+            + "nenhuma delas é necessariamente a pedida. Uma pontuação `stored` não mediu a fronteira "
+            + "desta configuração; o modo `live` é o único que mede.",
         ]
     else:
         lines += [
             "> **Modo `live`:** o motor roda sobre o texto composto pelo worker. A quebra de fronteira "
-            "abaixo é medida por **tokens** (um termo contido no outro), não por deslocamento de "
-            "caractere: `ArchiveEntityDTO` carrega `name` e `entity_type`, e nenhum offset.",
+            + "abaixo é medida por **tokens** (um termo contido no outro), não por deslocamento de "
+            + "caractere: `ArchiveEntityDTO` carrega `name` e `entity_type`, e nenhum offset.",
         ]
     lines.append("")
 
@@ -1300,14 +1300,14 @@ def detail_lines(report: dict[str, Any]) -> list[str]:
     lines += [
         "",
         "O **recall frouxo** conta a quebra de fronteira como acerto e é impresso ao lado do exato, "
-        "nunca no lugar dele: no dia em que a fronteira for corrigida esse é o número que o modelo já "
-        "ganha, e em qualquer outro dia citá-lo sozinho esconderia o defeito.",
+        + "nunca no lugar dele: no dia em que a fronteira for corrigida esse é o número que o modelo já "
+        + "ganha, e em qualquer outro dia citá-lo sozinho esconderia o defeito.",
     ]
     if report["unmeasured"]:
         lines += [
             f"**Não medidas** (menos de {MIN_POSITIVES} exemplos rotulados): {', '.join(report['unmeasured'])}. "
-            "Estes tipos não existem nesta coleção em quantidade suficiente e o relatório se recusa a "
-            "imprimir um F1 de dois exemplos.",
+            + "Estes tipos não existem nesta coleção em quantidade suficiente e o relatório se recusa a "
+            + "imprimir um F1 de dois exemplos.",
         ]
 
     lines += [
@@ -1324,14 +1324,14 @@ def detail_lines(report: dict[str, Any]) -> list[str]:
     if report["predictions"] == "stored" and breakdown.get("boundary"):
         lines += [
             "> As fronteiras acima vêm de uma execução que **não** é a configuração pedida: leia-as como "
-            "a forma do que está gravado, não como medida desta configuração.",
+            + "a forma do que está gravado, não como medida desta configuração.",
             "",
         ]
     if report["blocked_gold_terms"]:
         lines += [
             f"**{len(report['blocked_gold_terms'])} termo(s) do gabarito estão bloqueados** pela lista de "
-            f"stopwords/exclusões do worker e são erro garantido, por decisão da instituição: "
-            f"{', '.join(report['blocked_gold_terms'][:10])}.",
+            + "stopwords/exclusões do worker e são erro garantido, por decisão da instituição: "
+            + f"{', '.join(report['blocked_gold_terms'][:10])}.",
             "",
         ]
 
@@ -1351,7 +1351,7 @@ def detail_lines(report: dict[str, Any]) -> list[str]:
         lines += [
             "",
             "_O motor de NER não devolve confiança — `ArchiveEntityDTO` carrega `name` e "
-            "`entity_type` —, então a discordância é listada pelo que aconteceu e não por um score._",
+            + "`entity_type` —, então a discordância é listada pelo que aconteceu e não por um score._",
         ]
     lines.append("")
     return lines
