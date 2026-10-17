@@ -15,8 +15,11 @@ human-labelled set rather than on intuition:
 * **Three arrangements per format.** ``sentence vs sentence``, ``sentence vs bare`` and
   ``bare vs bare``. If a format only wins in the mixed arrangement, the gain is an artefact
   and the table says so.
-* **Two models.** ``mDeBERTa`` and ``xlm-roberta-large-xnli`` on the same golden set, so a
-  difference can be attributed to the label or to the model instead of being conflated.
+* **Two models, named by the registry.** ``mDeBERTa`` and ``xlm-roberta-large-xnli`` come from
+  ``--config ENGINE[:PRESET]`` and are resolved through ``engines.classification.registry``. The
+  bench names no model: a new model is a preset there, and the same registry is what both workers
+  of the axis read, so every configuration compared here is one the worker can be told to run
+  (issue #116).
 * **Distribution next to accuracy.** The defect that started this was not low accuracy: it
   was 687 of 980 tags collapsing into one drawer. A model that scores 80% while stuffing
   60% of the tags into a single category is worse for the UI than one that scores 70% with
@@ -28,6 +31,13 @@ and prints a table.
 Run it from the repository root, against the real database and the real models::
 
     uv run python -m testing.evaluation.macro_category_quality
+    uv run python -m testing.evaluation.macro_category_quality \\
+        --config deberta_typology:cpu_local \\
+        --config deberta_typology:xlm_roberta_local
+
+The default is the configuration the macro-category worker itself declares, read from its
+signature, so "the current configuration" cannot drift from the code. ``--device`` overrides the
+preset's device for every configuration, which is the one engine parameter this bench needs to vary.
 
 CPU is the default because that is what the worker runs on in production; a full run over
 44 tags x 3 arrangements x 2 models is a few minutes, not a few hours.
@@ -36,16 +46,21 @@ CPU is the default because that is what the worker runs on in production; a full
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.domain.vocabulary import SUBJECT_CATEGORIES
+from scrinalia.domains.archive.engines.classification import registry as classification_registry
+from scrinalia.domains.archive.engines.classification.registry import EngineName, PresetName
+from scrinalia.domains.archive.workers.worker_macro_category import execute
 from testing.evaluation.dataset import load_dataset
 
 PAIRS_FILENAME = "macro_category_pairs.json"
@@ -116,9 +131,9 @@ class GoldenPair:
 
 @dataclass
 class BenchResult:
-    """What one (model, format, arrangement) configuration scored on the golden set."""
+    """What one (configuration, format, arrangement) combination scored on the golden set."""
 
-    model: str
+    config: str
     label_format: str
     arrangement: str
 
@@ -163,10 +178,10 @@ def evaluate(
     categories: list[str],
     label_format: str,
     arrangement: str,
-    model_name: str,
+    config_label: str,
 ) -> BenchResult:
     """Runs one configuration over the golden set and keeps everything the decision needs."""
-    result = BenchResult(model=model_name, label_format=label_format, arrangement=arrangement)
+    result = BenchResult(config=config_label, label_format=label_format, arrangement=arrangement)
 
     subjects = [pair for pair in pairs if pair.is_subject]
     labels = ARRANGEMENTS[arrangement](LABEL_FORMATS[label_format], categories)
@@ -210,54 +225,96 @@ def none_class_scores(pairs: list[GoldenPair], guard) -> tuple[int, int]:
 
 
 # =============================================================================
-# Model adapters
+# The model, from the registry
 # =============================================================================
 
 
-def build_mdeberta(device: str):
-    from transformers import pipeline
+@dataclass(frozen=True)
+class BenchConfig:
+    """One configuration to measure: the ``(engine, preset)`` pair the worker's identity is signed with."""
 
-    classifier = pipeline(
-        "zero-shot-classification",
-        model="MoritzLaurer/mDeBERTa-v3-base-mnli-xnli",
-        device=device,
-        truncation=True,
-        max_length=512,
+    engine: str
+    preset: str | None
+    device: str | None = None
+
+    @property
+    def label(self) -> str:
+        return f"{self.engine}:{self.preset or '-'}"
+
+    @property
+    def engine_kwargs(self) -> dict[str, Any]:
+        """Only what this bench varies. The model always comes from the preset, never from here."""
+        return {"device": self.device} if self.device else {}
+
+    @property
+    def model(self) -> str | None:
+        """The model this configuration resolves to, so the report can name what really ran."""
+        described = classification_registry.describe_config(
+            cast("EngineName", self.engine), cast("PresetName", self.preset), **self.engine_kwargs
+        )
+        model = described.get("model")
+        return model if isinstance(model, str) else None
+
+
+def worker_default_config() -> str:
+    """
+    The configuration the macro-category worker runs with when nobody says otherwise.
+
+    Retyping ``"deberta_typology:cpu_local"`` here would be a second definition of the worker's
+    default, and the day it changes the bench would keep scoring the old one while calling it "the
+    current configuration".
+    """
+    parameters = inspect.signature(execute).parameters
+    preset = parameters["preset"].default
+    engine = parameters["engine_name"].default
+    return f"{engine}:{preset}" if preset else str(engine)
+
+
+def parse_config(text: str, device: str | None = None) -> BenchConfig:
+    """
+    Reads ``engine[:preset]`` and refuses a name the registry does not have.
+
+    The registry is the only source of models here, which is why an unknown name is a sentence before
+    anything is loaded, and why a model that exists only in the registry becomes runnable without
+    editing this script — the property the unit test pins.
+    """
+    parts = text.split(":")
+    if len(parts) > 2:
+        raise SystemExit(f"--config {text!r} has {len(parts)} fields; expected engine[:preset].")
+    engine = parts[0].strip()
+    if not engine:
+        raise SystemExit(f"--config {text!r} names no engine.")
+    preset = parts[1].strip() if len(parts) > 1 and parts[1].strip() else None
+
+    if engine not in classification_registry.AVAILABLE_ENGINES:
+        raise SystemExit(
+            f"--config {text!r} names an engine the axis does not have. "
+            f"Known: {sorted(classification_registry.AVAILABLE_ENGINES)}"
+        )
+    if preset is not None and preset not in classification_registry.PRESETS:
+        raise SystemExit(
+            f"--config {text!r} names a preset the axis does not have. Known: {sorted(classification_registry.PRESETS)}"
+        )
+    return BenchConfig(engine=engine, preset=preset, device=device)
+
+
+def engine_classifier(config: BenchConfig) -> Callable[[str, list[str]], dict]:
+    """
+    The engine of one configuration, adapted to the one text / one label set call this bench makes.
+
+    The engine is the axis's own object: the bench builds no pipeline, so the model, its truncation
+    and its device are exactly what the worker gets from the same ``(engine, preset)`` pair.
+    """
+    engine = classification_registry.get_engine(
+        cast("EngineName", config.engine), cast("PresetName", config.preset), **config.engine_kwargs
     )
 
     def classify(text: str, labels: list[str]) -> dict:
-        # The pipeline's ``__call__`` is unannotated, so transformers infers a union that includes
-        # the streaming iterator; this call never streams and answers one dict.
-        out = cast("dict", classifier(text, labels, batch_size=1))
-        return {"label": out["labels"][0], "score": out["scores"][0]}
+        # One text per call so the confidence always belongs to that tag; the engine answers a list.
+        result = engine.classify([text], labels, batch_size=1)[0]
+        return {"label": result["labels"][0], "score": float(result["scores"][0])}
 
     return classify
-
-
-def build_xlm_roberta(device: str):
-    from transformers import pipeline
-
-    classifier = pipeline(
-        "zero-shot-classification",
-        model="joeddav/xlm-roberta-large-xnli",
-        device=device,
-        truncation=True,
-        max_length=512,
-    )
-
-    def classify(text: str, labels: list[str]) -> dict:
-        # The pipeline's ``__call__`` is unannotated, so transformers infers a union that includes
-        # the streaming iterator; this call never streams and answers one dict.
-        out = cast("dict", classifier(text, labels, batch_size=1))
-        return {"label": out["labels"][0], "score": out["scores"][0]}
-
-    return classify
-
-
-MODELS = {
-    "mdeberta": build_mdeberta,
-    "xlm_roberta": build_xlm_roberta,
-}
 
 
 # =============================================================================
@@ -282,7 +339,7 @@ def load_pairs(payload: dict) -> tuple[list[GoldenPair], list[str]]:
 def to_markdown(results: list[BenchResult]) -> str:
     """The table the curator reads: accuracy next to the collapse symptom."""
     lines = [
-        "| Modelo | Rótulo | Arranjo | Acurácia | Maior gaveta | Conf. certa | Conf. errada | Controle+ |",
+        "| Configuração | Rótulo | Arranjo | Acurácia | Maior gaveta | Conf. certa | Conf. errada | Controle+ |",
         "| --- | --- | --- | ---: | --- | ---: | ---: | ---: |",
     ]
     for r in sorted(results, key=lambda r: (-r.accuracy, r.largest_share[1])):
@@ -290,14 +347,14 @@ def to_markdown(results: list[BenchResult]) -> str:
         right, wrong = r.mean_confidence
         control = f"{r.positive_control_hits}/{r.positive_control_total}" if r.positive_control_total else "—"
         lines.append(
-            f"| {r.model} | {r.label_format} | {r.arrangement} | {r.accuracy:.3f} "
+            f"| `{r.config}` | {r.label_format} | {r.arrangement} | {r.accuracy:.3f} "
             f"| {label} ({share:.0%}) | {right:.3f} | {wrong:.3f} | {control} |"
         )
     return "\n".join(lines)
 
 
 def run(
-    models: list[str], formats: list[str], arrangements: list[str], device: str, limit: int | None
+    configs: list[BenchConfig], formats: list[str], arrangements: list[str], limit: int | None
 ) -> tuple[dict, list[BenchResult]]:
     from scrinalia.domains.archive.domain.vocabulary import is_subject_candidate
 
@@ -308,28 +365,35 @@ def run(
 
     categories = list(SUBJECT_CATEGORIES)
     logger.info(f"📋 {len(pairs)} labelled tags · {len(categories)} subject drawers")
-    logger.info(f"🧪 {len(models)} model(s) x {len(formats)} label format(s) x {len(arrangements)} arrangement(s)")
+    logger.info(
+        f"🧪 {len(configs)} configuration(s) x {len(formats)} label format(s) x {len(arrangements)} arrangement(s)"
+    )
+    for config in configs:
+        logger.info(f"   `{config.label}` resolves to {config.model}")
 
     caught, expected_none = none_class_scores(pairs, is_subject_candidate)
     logger.info(f"🛡️ deterministic guard on the NENHUMA pairs: {caught}/{expected_none}")
 
     results: list[BenchResult] = []
-    for model_name in models:
-        logger.info(f"--- loading {model_name} ---")
-        classify = MODELS[model_name](device)
+    for config in configs:
+        logger.info(f"--- loading {config.label} ---")
+        classify = engine_classifier(config)
         for label_format in formats:
             for arrangement in arrangements:
-                logger.info(f"   running {model_name} / {label_format} / {arrangement}")
-                results.append(evaluate(classify, pairs, categories, label_format, arrangement, model_name))
+                logger.info(f"   running {config.label} / {label_format} / {arrangement}")
+                results.append(evaluate(classify, pairs, categories, label_format, arrangement, config.label))
 
     report = {
         "tags_labelled": len(pairs),
         "tags_as_subject": sum(1 for pair in pairs if pair.is_subject),
         "guard": {"caught": caught, "expected_none": expected_none},
         "vocabulary": categories,
+        "configurations": [
+            {"config": c.label, "engine": c.engine, "preset": c.preset, "model": c.model} for c in configs
+        ],
         "results": [
             {
-                "model": r.model,
+                "config": r.config,
                 "label_format": r.label_format,
                 "arrangement": r.arrangement,
                 "accuracy": r.accuracy,
@@ -351,15 +415,22 @@ def run(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Honest bench for the subject classifier.")
-    parser.add_argument("--models", nargs="+", default=list(MODELS), choices=list(MODELS))
+    parser.add_argument(
+        "--config",
+        action="append",
+        default=[],
+        metavar="ENGINE[:PRESET]",
+        help="A configuration to measure, resolved through the classification registry; repeat to compare.",
+    )
     parser.add_argument("--formats", nargs="+", default=list(LABEL_FORMATS), choices=list(LABEL_FORMATS))
     parser.add_argument("--arrangements", nargs="+", default=list(ARRANGEMENTS), choices=list(ARRANGEMENTS))
-    parser.add_argument("--device", default="cpu", help="cpu or cuda:N.")
+    parser.add_argument("--device", default=None, help="Override the preset's device: cpu or cuda:N.")
     parser.add_argument("--limit", type=int, default=None, help="Use only the first N labelled tags.")
     parser.add_argument("--json", type=Path, default=None, help="Also write the raw report here.")
     args = parser.parse_args(argv)
 
-    report, results = run(args.models, args.formats, args.arrangements, args.device, args.limit)
+    configs = [parse_config(text, args.device) for text in (args.config or [worker_default_config()])]
+    report, results = run(configs, args.formats, args.arrangements, args.limit)
 
     print()
     print(to_markdown(results))
