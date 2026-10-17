@@ -18,7 +18,9 @@ from testing.evaluation.typology_quality import (
     ABSTAINED,
     LabelledRow,
     Truth,
+    parse_config,
     read_input_text,
+    score_live,
     score_stored,
     stored_collection_distribution,
 )
@@ -145,3 +147,35 @@ def test_stored_collection_distribution_leaves_the_hierarchy_nodes_out(
 
     assert sum(counts.values()) == 1
     assert db_session.get(ArchiveDocument, "node_abc123") is not None
+
+
+def test_a_formatted_run_hands_the_model_the_labels_and_still_scores_catalogue_names(
+    use_test_db,
+    db_session,
+    generate_archive_doc,
+    generate_typology,
+    mock_registry,
+):
+    """
+    The end of the format path, pinned where it can actually go wrong.
+
+    The fake engine echoes the candidate label it was handed, which is what ``DebertaEngine`` does.
+    So this pins both halves at once: the model really reads the formatted proposition, and what
+    reaches the placar is the catalogue name and not the proposition — a bench that skipped the
+    translation would score every row of this run as a miss.
+    """
+    generate_typology(id=99, name="Fotografia")
+    generate_archive_doc(description_id="fmt1", original_title="Registros Fotográficos - Rua Izaac")
+
+    MockClass = mock_registry(typology_registry)
+    engine = MockClass.return_value
+    engine.classify.side_effect = lambda texts, labels, **kwargs: [
+        {"labels": [labels[0]], "scores": [0.99]} for _ in texts
+    ]
+
+    config = parse_config("motor_fake:preset_teste:original_title:0.40", ("original_title",), 0.40)
+    scored, _seconds = score_live(db_session, config, [labelled("fmt1", "Fotografia")], label_format="sentence")
+
+    assert engine.classify.call_args.args[1] == ["um documento do tipo Fotografia"]
+    assert scored[0].prediction.label == "Fotografia"
+    assert scored[0].correct

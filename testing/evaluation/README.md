@@ -172,6 +172,38 @@ uv run python -m testing.evaluation.typology_quality --json .analysis/typology_b
 told to run. The default is the worker's own, read from its signature. The model is never named in
 the script: a new model is a preset in the engine registry.
 
+`--formats` is a **separate** dimension, and deliberately not a fifth field of `--config`: the label
+shape is not part of the producer identity today, so folding it into the configuration string would
+make the bench name a producer the worker cannot be told to run. The default is all three:
+
+```sh
+uv run python -m testing.evaluation.typology_quality \
+    --config deberta_typology:cpu_local:original_title:0.40 \
+    --formats bare sentence trata_de
+```
+
+| format | the label the model reads |
+| --- | --- |
+| `bare` | `Fotografia` — what the worker sends today, and the baseline |
+| `sentence` | `um documento do tipo Fotografia` |
+| `trata_de` | `trata de fotografia` |
+
+The templates are the bench's **instrument**, not a product string: a wording hand-written for one
+catalogue's typologies would be collection data inside versioned code, and the shape is what this
+measures. The `sentence` format is gender-invariant by construction (`um documento do tipo …`) because
+Portuguese forces the article to agree with the typology — "uma fotografia" against "um relatório
+técnico" — the catalogue stores no gender, and no code template can be right for a mixed catalogue.
+The product's home for a proposition with the right article is a field **per catalogue row**, the way
+`archive_macro_categories.classifier_label` already works for the subject axis; the typology catalogue
+has no such column today.
+
+Two rules keep a formatted run honest, and both exist because the engine **echoes the label it was
+given**: the candidate list and the way back are one dictionary (`{label: catalogue name}`), and the
+placar is written in catalogue names. Without the translation every row of every formatted run scores
+as a miss, and the report prints `0.000` — a number that reads like a finding about the model and is a
+defect in the harness. `formatted_labels` and `link_decision` are pinned by unit tests on each side of
+that pair.
+
 The report prints agreement, per-typology precision/recall/F1, the confusion matrix, the label
 distribution (largest share, entropy, abstentions) and seconds per document. A typology with fewer
 than `--min-positives` labelled examples (5 by default) is printed as **não medida** instead of

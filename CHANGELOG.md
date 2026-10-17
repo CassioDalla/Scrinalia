@@ -160,6 +160,46 @@ commits — the history is the detail.
 
 ### Changed
 
+- **The typology bench compares label formats, and no proposition beats the bare name** (issue #112):
+  `--formats bare sentence trata_de`, all three in one invocation, applied to the same signed labelled
+  set. The format is a **separate** dimension and not a fifth field of `--config`, because
+  `producer_identity` does not sign it today — folding it into the configuration string would make the
+  bench name a producer the worker cannot be told to run. The templates are the bench's instrument and
+  not a product string: the product's home for a proposition is a field per catalogue row
+  (`archive_macro_categories.classifier_label`, composed by `domain.vocabulary.classifier_labels`),
+  and a wording hand-written for one catalogue's typologies would be collection data inside versioned
+  code. `sentence` is gender-invariant by construction (`um documento do tipo …`) because Portuguese
+  forces the article to agree with the typology — "uma fotografia" against "um relatório técnico" — the
+  catalogue stores no gender, and no code template can be right for a mixed catalogue.
+
+  The candidate list and the way back are **one** dictionary, `{label: catalogue name}`, which is what
+  the engine's echo requires: it answers with the label it was handed, so a bench that skipped the
+  translation would compare a proposition against a gabarito written in catalogue names and score every
+  row of every formatted run as a miss — a `0.000` that reads like a finding. Two unit tests and an
+  integration test pin each side of that pair.
+
+  **Measured on 2026-10-17 against `memoriacuritibana`, 111 of the 112 labelled rows, CPU,
+  `deberta_typology:cpu_local:original_title:0.40`:**
+
+  | format | agreement | macro-F1 | abstention | Planta Arquitetônica recall | answers "Ofício / Memorando" | `NENHUMA` → "Ofício / Memorando" |
+  | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+  | `bare` (the shipping one) | **0.775** | **0.484** | **0.054** | **0.956** | 18 | 8 |
+  | `trata_de` | 0.784 | 0.478 | 0.072 | 0.978 | 12 | 8 |
+  | `sentence` | 0.604 | 0.414 | 0.297 | **0.511** | 12 | 8 |
+
+  **The dustbin is not a wording problem.** "Ofício / Memorando" swallows exactly 8 of the 11
+  descriptions no typology covers, under all three formats — the count does not move. A label shape
+  cannot make an uncovered form covered, and #112's hypothesis ("either a sentence fixes the dustbin,
+  or it reproduces the collapse #30 measured") is answered by neither branch: the format changes how
+  many *other* rows the drawer also takes. `sentence` is decisively worse — agreement down 0.171,
+  abstention up 5.5×, and the plans collapse (recall 0.956 → 0.511, 20 of them abstaining), which is
+  #30's lost entailment reappearing exactly where `classifier_labels` warns it does. `trata_de` ties
+  `bare` within one row of 111 and is not a reason to change a documented decision.
+
+  **`bare` wins, so the default is not changed and nothing moves in the worker.** #30's decision gets
+  the measurement it never had. Adopting a proposition would have cost a full re-queue under the
+  identity #117 just made meaningful, for no measurable gain.
+
 - **The typology queue is gated on the stamp, and the stamp signs the catalogue** (issue #117): the
   predicate of `worker_typology` no longer reads `typology_id IS NULL`. That clause was ANDed into the
   queue and made the producer identity inert: a description that already carried a typology never went
