@@ -11,6 +11,43 @@ commits — the history is the detail.
 
 ### Added
 
+- **The conflict judge has a bench, and on the ledger that exists it does not beat a constant**
+  (issue #114): `testing/evaluation/conflict_judge_quality.py` scores the tag x entity judge against
+  the resolutions a **human** took, read from `archive_conflict_resolution_log` at run time — so it
+  needs no labelled file, because the gabarito is already in the database and a human verdict is
+  durable intent no later suggestion run overwrites. Four rules make the read a measurement rather
+  than the model scoring itself: `source='JUDGE'` rows are counted and kept **out** of the score
+  (scoring the judge against its own auto-resolutions measures nothing), an `undone_at` decision is
+  out (the institution already withdrew the answer), the pairs come from the ledger's **own
+  snapshots** and never from the live catalogues the resolution deleted, and a failed call is **not a
+  verdict** — the decision schema has no error state, so a transport failure returns `winner="TAG"`
+  with `confidence=0.0`, and those rows are counted as engine failures and printed instead of being
+  read as a judge that answers `TAG` to everything. `FAILURE_REASON_PREFIX` is now defined once, in
+  the engine that writes it, with a test on each side pinning the pair.
+
+  Two columns sit next to the agreement. The **constant baseline** is what a judge answering only the
+  most frequent verdict would score, and `Δ` is agreement minus it: on a ledger skewed by a curator
+  working through a backlog, agreement alone flatters. The **auto-resolve split** applies the worker's
+  own `auto_resolve_threshold` (read from its signature) to the verdicts.
+
+  **Measured on 2026-10-16 against `memoriacuritibana`, on the ledger's 49 human resolutions, CPU:**
+
+  | configuration | scored | agreement | constant | Δ | auto-resolved | engine failures | s/pair |
+  | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+  | `ollama_judge:gemma_4b_local` (the default) | 49 | 0.918 | ENTITY 1.000 | **−0.082** | 49 | 0 | 5.13 |
+  | `ollama_judge:granite_local` | 0 | — | — | — | 0 | **49** | 1.26 |
+
+  The four misses are all the same mistake in the same direction — `ENTITY→TAG`, each at confidence
+  0.900 — and the agreement by entity type is LOC 0.976 (42), PER 0.800 (5), ORG **0.000** (2). Every
+  one of the 49 was confident enough to be auto-resolved, so on this ledger the judge's errors reach
+  the archive without a person seeing them. The gabarito is **single-class** (ENTITY 49/49), which is
+  a property of the ledger and not of the judge: a curator resolving a run of abbreviated street
+  spellings against their canonical entities only ever decides ENTITY, so this set cannot measure the
+  TAG direction at all, and the bench prints that instead of a flattering number. The second line is
+  the other kind of finding: **`granite4.1:3b` fails every single call** (`500 Server Error`, the
+  llama runner crashing on this Ollama build), so the preset the registry declares cannot judge
+  anything — separated from a verdict by the failure rule above rather than scored as 49 `TAG`s.
+
 - **The typology bench prices a configuration on the collection's own mix, and the price says no**
   (issue #109): `--collection` samples the **pending queue** — through the worker's own
   `pending_conditions`, with its size compared against `count_pending`, the number the panel shows —
