@@ -11,6 +11,39 @@ commits — the history is the detail.
 
 ### Added
 
+- **The typology bench prices a configuration on the collection's own mix, and the price says no**
+  (issue #109): `--collection` samples the **pending queue** — through the worker's own
+  `pending_conditions`, with its size compared against `count_pending`, the number the panel shows —
+  and prints seconds per document, the projection for that queue, the abstention rate and the label
+  distribution, per configuration and per stratum. It writes nothing and scores nothing: these rows
+  have no gabarito, and a wrong label there is invisible. Three rules make its number a number about
+  the collection: it does **not** deduplicate by text (the picker does, and the worker pays for a
+  repeated title every time it appears), it allocates the sample proportionally across the picker's
+  strata **with no floor** (a floor of one row per stratum would give 6% of a 100-row sample to the
+  forms that are 0.85% of the collection — the ones with the longest texts), and it measures every
+  configuration on the documents pending under **all** of them, so the comparison isolates the
+  columns from the collection.
+
+  **Measured on 2026-10-16 against `memoriacuritibana`, 100 documents of the 4.205 pending, CPU,
+  10 active typologies:**
+
+  | configuration | queue | s/doc | projection (1 worker) | abstention | largest drawer |
+  | --- | ---: | ---: | ---: | ---: | --- |
+  | `original_title` @ 0.40 (the shipping one) | 4,205 | 2.20 | 2.6 h | 0.0% | Fotografia 69% |
+  | `original_title,admin_bio_history` @ 0.40 | 4,205 | 5.76 | 6.7 h | 2.0% | Fotografia 66% |
+
+  The ratio is 2.62x and not the 3.1x of the balanced sample, and the cost sits in the photographic
+  fonds (6.33 s/doc at 416 characters against 4.57 s/doc at 332 for the plans), which is 69.2% of the
+  queue; the queue is 69.2% Fotografia, 29.5% Planta and **0.4% descriptions no typology covers**,
+  the control bucket the gabarito weighs at 9.8%. Decomposing the numbers #69 published (±1 row from
+  rounding): on the 111 scored rows, the shipping configuration gets 83 of the 100 rows the
+  catalogue covers right, and so does the archival-history one, which also abstains on 9 more of
+  them — the whole 7-point gain is the control rows it stops mislabelling. **The default is not
+  changed.** The price would be paid on 100% of the queue to fix the 0.4% the catalogue does not
+  cover, and what that 0.4% needs is a recorded abstention (issue #110) and a catalogue decision
+  (issue #111), not a longer input. The configuration stays reachable through the panel's options
+  box, and a re-measurement is one command.
+
 - **The typology classifier has a bench, and the first measurement puts the failure somewhere other
   than where the issue expected it** (issue #69): `testing/evaluation/typology_quality.py` scores the
   classifier against a labelled set and prints agreement, per-typology precision/recall/F1, the
