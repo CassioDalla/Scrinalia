@@ -1547,3 +1547,40 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   latency was measured against the live collection on this machine and not under load, and the bench's
   labelled set remains sixteen queries whose gold is derived from the title — the report prints that
   limit next to every number, and the numbers themselves are in the issue comment, not in a page.
+
+## 2026-10-18 — the search that filtered after joining, and the page that under-declared its sources (#140)
+
+- **Range:** `8b92fef..c884152`
+- **Pages:** `guides/operate.md` — **updated**: its last known-limit bullet said that ranking by
+  semantics alone was weaker than the lexical one and that *combining the two rankings is open work*.
+  Both halves had stopped being true in #139, which shipped the fused mode, and the page had never
+  declared the search code among its `sources:`, so no freshness report could see it. The bullet now
+  says what decides between the three modes, points at the curation guide that owns the table and at
+  the bench that measures them, and the four files it depends on (`domain/search.py`,
+  `repository/document_repo.py`, `services/document_service.py`, and the two retrieval benches) are
+  declared — which is why this round was reported at all.
+- **The defect the round fixed, measured before it was touched.** A selective term (`enchente`, 12
+  matches) took **18.0 s** and a broad one (`curitiba`, 3,286) **6.6 s**; two facet queries were 98% of
+  that. The term reached the facets as an `OR` of correlated `EXISTS`, so it was evaluated once per
+  link row — 64,504 entity links to find 12 descriptions — and the `OR` kept the planner away from the
+  `search_vector` GIN index. The hardware was ruled out by measurement: 78 MB table, 128 MB
+  `shared_buffers`, 99.98% cache hit ratio, `shared hit=598,994` and zero reads in the plan, no
+  container limits, `VACUUM (ANALYZE)` worth 72 ms of 9,020. The commit before the fusion took
+  **17,974 ms**, so nothing here was the fusion's doing.
+- **What the fix changed.** The full-text arm is a set of description ids (text ∪ tag ∪ entity),
+  computed once per query and handed to the page, the count and every facet; the taxonomy boost reads
+  the same two sets instead of a correlated `EXISTS` per candidate row; the count stopped computing a
+  rank expression it does not read; and the fused mode's candidate clause became one union of two id
+  sets instead of an `OR` of them (2.1 s → 0.31 s on its own).
+- **The measurement, and the one regression.** Eighteen query/mode/filter cases on the live collection,
+  results **identical** — same ids, order, ranks to ten decimals, `total` and all five facet counts:
+  lexical 17.5 s → 0.21 s and 6.4 s → 0.41 s, hybrid 18.0 s → 0.31 s, semantic unchanged at 0.15 s. One
+  case got slower, a term combined with a highly selective facet filter (0.19 s → 0.29 s), because the
+  term set is resolved before the filter now — the term is the floor for any query that has one.
+- **What was looked at, and what was not.** The screens were **not** rendered and did not need to be:
+  no SPA file changed, and the 18-case digest is the evidence that the answer is byte-for-byte the one
+  the routes already served. The public surface was not exercised separately.
+- **A guard, and proof that it bites.** `testing/integration/archive/repository/test_search_predicate_shape.py`
+  pins the shape of the emitted SQL, because the defect is invisible to a behavioural test: reverting
+  the clause returns exactly the same page. Both guards were run against the code before the fix and
+  fail there, and pass after it.

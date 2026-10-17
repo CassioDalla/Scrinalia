@@ -33,6 +33,11 @@ sources:
   - src/scrinalia/domains/ingestion/sources.py
   - src/scrinalia/domains/staging/worker.py
   - src/scrinalia/domains/staging/repository.py
+  - src/scrinalia/domains/archive/domain/search.py
+  - src/scrinalia/domains/archive/repository/document_repo.py
+  - src/scrinalia/domains/archive/services/document_service.py
+  - testing/evaluation/retrieval_modes.py
+  - testing/evaluation/retrieval_quality.py
   - src/scrinalia/core/cli.py
   - src/scrinalia/api/controllers/users_controller.py
   - docs/adr/0009-authentication-and-authorization.md
@@ -713,6 +718,9 @@ behaviour to expect, and so that a limit already paid for is not read as a defec
   scheme for it, because a global requirement would also mark the diffusion routes and the health
   probes as protected (ADR 0009). A generated client cannot discover the requirement; it answers 401
   like any other anonymous request.
-- **Ranking by semantics alone is weaker than the lexical one.** The vectors work and the order does
-  not: the bench that measures it is `testing/evaluation/retrieval_quality.py`, and combining the two
-  rankings is open work. A semantic search that **finds more** is not a search that **orders better**.
+- **The ranking depends on the mode, and that is a decision the archivist makes.** A semantic search
+  that **finds more** is not a search that **orders better**: the full-text ranking wins when the term
+  is exact, the semantic one when the subject is known but the vocabulary of the fonds is not, and the
+  hybrid mode fuses the two so the choice is not required. The three modes and when to prefer each one
+  are in the curation guide, and `testing/evaluation/retrieval_modes.py` measures them per query
+  stratum.

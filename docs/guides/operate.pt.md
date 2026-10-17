@@ -671,6 +671,8 @@ comportamento esperar, e para um limite já pago não ser lido como defeito.
   `security` para ele, porque uma exigência global também marcaria as rotas de difusão e as sondas de
   saúde como protegidas (ADR 0009). Um cliente gerado não consegue descobrir a exigência; ele recebe
   401 como qualquer requisição anônima.
-- **Ordenar só pela semântica é pior que pelo lexical.** Os vetores funcionam e a ordem não: a
-  bancada que mede isso é `testing/evaluation/retrieval_quality.py`, e combinar os dois rankings é
-  trabalho aberto. Uma busca semântica que **encontra mais** não é uma busca que **ordena melhor**.
+- **A ordenação depende do modo, e essa é uma decisão do arquivista.** Uma busca semântica que
+  **encontra mais** não é uma busca que **ordena melhor**: a ordem lexical ganha quando o termo é
+  exato, a semântica quando o assunto é conhecido mas o vocabulário do fundo não, e o modo híbrido
+  funde as duas para que a escolha não seja necessária. Os três modos e quando preferir cada um estão
+  no guia de curadoria, e `testing/evaluation/retrieval_modes.py` mede os três por estrato de consulta.
