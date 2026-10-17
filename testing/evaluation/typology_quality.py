@@ -822,6 +822,41 @@ def parse_config(text: str, default_columns: tuple[str, ...], default_threshold:
 
 
 # =============================================================================
+# Simulating a catalogue edit, before it is written
+# =============================================================================
+
+
+def simulated_catalogue(catalogue: Sequence[str], drop: Sequence[str] = (), add: Sequence[str] = ()) -> list[str]:
+    """
+    The candidate set an experiment reads against, with forms retired or added **by name**.
+
+    A catalogue edit is the identity's business: the label set is part of
+    ``worker_typology.producer_identity``, so retiring or adding a form re-reads the whole collection
+    (~2.9 h of CPU at the measured 2.2 s per document). That is a lot to pay for a guess, and until
+    now the bench could only measure the catalogue that was already live — the decision, the write
+    and the read in one act, which principle VI exists to prevent.
+
+    Names are all this needs. The worker maps an answer back to a ``typology_id`` to write it, but the
+    bench compares against the gabarito, which is written in names, and the engine only ever echoes
+    the label it was handed. So the simulation can be honest without inventing ids for rows the
+    database does not have yet — and a name the *active* catalogue does not have is refused rather
+    than added, because a typo there would silently measure a catalogue nobody proposed.
+    """
+    unknown = [name for name in drop if name not in catalogue]
+    if unknown:
+        raise SystemExit(
+            f"--drop-typology nomeia {unknown}, que o catálogo ativo não tem. Ativas: {sorted(catalogue)}."
+        )
+    kept = [name for name in catalogue if name not in set(drop)]
+    for name in add:
+        if name in catalogue:
+            raise SystemExit(f"--add-typology '{name}' já está no catálogo ativo.")
+        if name not in kept:
+            kept.append(name)
+    return kept
+
+
+# =============================================================================
 # Reading the labelled set
 # =============================================================================
 
@@ -979,6 +1014,7 @@ def score_live(
     limit: int | None = None,
     label_format: str = "bare",
     engine: Any | None = None,
+    catalogue: Sequence[str] | None = None,
 ) -> tuple[list[Scored], float]:
     """
     Runs the engine over the labelled rows and mirrors the worker's decision exactly.
@@ -990,16 +1026,18 @@ def score_live(
     ``label_format`` changes only the candidate labels. ``engine`` lets a caller sweeping several
     formats over one configuration build the model once: the load is a cost of the run, not of an
     answer, and charging it three times would distort the seconds per document the report prints.
+    ``catalogue`` is the candidate set to read against; it defaults to the active one, and a caller
+    that simulates a catalogue edit passes the simulated set (see :func:`simulated_catalogue`).
 
     Returns the scored rows and the seconds spent inside the model, so the report can print seconds
     per document instead of an estimate.
     """
     if engine is None:
         engine = get_engine(cast("EngineName", config.engine), cast("PresetName", config.preset))
-    catalogue = list(TypologyRepository(db).get_active_typologies())
-    if not catalogue:
-        raise SystemExit("The active typology catalogue is empty; there is nothing to classify against.")
-    labels = formatted_labels(catalogue, label_format)
+    candidates = list(catalogue) if catalogue is not None else list(TypologyRepository(db).get_active_typologies())
+    if not candidates:
+        raise SystemExit("The candidate typology catalogue is empty; there is nothing to classify against.")
+    labels = formatted_labels(candidates, label_format)
 
     selected = list(rows[:limit] if limit else rows)
     texts = read_input_text(db, [row.description_id for row in selected], config.columns)
@@ -1390,6 +1428,7 @@ def report_for(
     return {
         "config": config.label,
         "label_format": label_format,
+        "catalogue": sorted(catalogue),
         "engine": config.engine,
         "preset": config.preset,
         "columns": list(config.columns),
@@ -1471,6 +1510,7 @@ def detail_lines(report: dict[str, Any]) -> list[str]:
         f"### `{report['config']}` · `{report['label_format']}`",
         "",
         f"- predições: **{report['predictions']}** · limiar: {report['threshold']:.2f} · colunas: {', '.join(report['columns'])}",
+        f"- candidatos ({len(report['catalogue'])}): {', '.join(report['catalogue'])}",
         f"- linhas: {rows['labelled']} no conjunto, {rows['scored']} pontuadas, "
         f"{rows['needs_decision']} com `needs_decision` (fora do placar), {rows['missing_from_collection']} ausentes do banco",
         f"- concordância: **{report['agreement']:.3f}** · macro-F1 (classes medidas): {_f1(report)}",
@@ -1607,6 +1647,14 @@ def run_score(args: argparse.Namespace) -> int:
         catalogue = list(TypologyRepository(db).get_active_typologies())
         rows, payload = load_labelled(args.pairs, catalogue, args.allow_draft)
         missing = unknown_truth_labels(rows, catalogue)
+        # The gabarito is written against the catalogue that exists, so it is validated against that
+        # one; the scoring runs against the simulated set, which is the point of the experiment.
+        candidates = simulated_catalogue(catalogue, args.drop_typology, args.add_typology)
+        if candidates != catalogue:
+            logger.warning(
+                f"⚠️ catálogo SIMULADO: -{args.drop_typology or '[]'} +{args.add_typology or '[]'} → "
+                f"{len(candidates)} forma(s). Nada foi escrito no banco."
+            )
         if missing:
             logger.warning(
                 f"⚠️ o gabarito nomeia {missing}, que o catálogo ativo não tem: estas linhas são erro "
@@ -1650,13 +1698,19 @@ def run_score(args: argparse.Namespace) -> int:
                     if key not in engines:
                         engines[key] = get_engine(cast("EngineName", config.engine), cast("PresetName", config.preset))
                     scored, seconds = score_live(
-                        db, config, scored_rows, limit=args.limit, label_format=label_format, engine=engines[key]
+                        db,
+                        config,
+                        scored_rows,
+                        limit=args.limit,
+                        label_format=label_format,
+                        engine=engines[key],
+                        catalogue=candidates,
                     )
                 reports.append(
                     report_for(
                         config,
                         scored,
-                        catalogue,
+                        candidates,
                         labelled=len(rows),
                         needs_decision=needs_decision,
                         missing=len(absent),
@@ -1779,6 +1833,24 @@ def main(argv: list[str] | None = None) -> int:
         choices=("live", "stored"),
         default="live",
         help="live runs the engine; stored scores the typology the last run already wrote (free, whole collection).",
+    )
+    parser.add_argument(
+        "--drop-typology",
+        nargs="+",
+        default=[],
+        metavar="NOME",
+        help=(
+            "Simulate retiring a form: it leaves the candidate set and nothing is written to the "
+            "database. A catalogue edit is part of the producer identity, so the real one re-reads the "
+            "whole collection; this measures the effect first."
+        ),
+    )
+    parser.add_argument(
+        "--add-typology",
+        nargs="+",
+        default=[],
+        metavar="NOME",
+        help="Simulate registering a form, by name, so a proposed drawer can be measured before it exists.",
     )
     parser.add_argument(
         "--formats",
