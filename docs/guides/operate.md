@@ -191,7 +191,7 @@ uv run python -m scrinalia.domains.archive.workers.runner ner \
 | --- | --- |
 | `<name>` | one of the nine names above; any other value is refused with the list of options |
 | `--engine X` | a registered engine of the worker's axis, e.g. `spacy_ner`, `deberta_typology`, `ollama_judge` |
-| `--preset Y` | a preset of that axis, e.g. `gpu`, `lemmatizer`, `cpu_local`, `gpu_cloud`, `granite_local`, `multilingual_minilm` |
+| `--preset Y` | a preset of that axis, e.g. `gpu`, `lemmatizer`, `cpu_local`, `gpu_cloud`, `xlm_roberta_local`, `granite_local`, `multilingual_minilm` |
 | `--batch N` | batch size per transaction, forwarded to the workers that declare `db_batch_size`; a worker without it logs that the value was ignored |
 | `--limit N` | cap on the units this run touches, for the workers that declare `limit` (`embedding`, `macro-category`, `ner`, `quality-validator`, `thumbnail`, `typology`); refused for the others, because a cap that silently does nothing is worse than no cap. It counts attempts, so a queue of failures still ends, and it is never persisted |
 | `--option key=value` | an extra parameter, repeatable; `key` without `=` is refused |
