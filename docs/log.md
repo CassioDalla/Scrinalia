@@ -1584,3 +1584,44 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   pins the shape of the emitted SQL, because the defect is invisible to a behavioural test: reverting
   the clause returns exactly the same page. Both guards were run against the code before the fix and
   fail there, and pass after it.
+
+## 2026-10-18 — the judge that wrote a failure as a verdict, and the preset that could not run (#122)
+
+- **Range:** `c884152..5bfb1f8`
+- **Pages:**
+  - `guides/install.md` — **updated**: the resource table said the presets name `granite4.1:3b` and
+    `gemma4:e4b`, and the first was retired in this change, so the table names one model now. The
+    "Ollama is down" section gained what the retirement means for an operator: the name is not
+    offered, the health probe no longer requires the model, writing it is refused, and a row written
+    before the retirement resolves with the reason on the screen.
+  - `guides/install.pt.md` — **updated**: the same two places, same structure.
+  - `guides/operate.md` — **updated**: the `conflict-judge` bullet now says a call the engine could
+    not make raises instead of becoming a verdict, so the pair leaves no row and is asked again on
+    the next run; the `--preset` example no longer lists the retired name.
+  - `guides/operate.pt.md` — **updated**: the same two places.
+- **The measurement the retirement rests on, taken in this round.** Ollama 0.24.0 on this machine:
+  `granite4.1:3b` answers `{"error":"llama runner process has terminated: signal arrived during cgo
+  execution"}` to a one-word prompt, while `gemma4:e4b` and `gemma3:4b` answer `ok` on the same
+  server. The model **is installed**, so the health probe's missing-model list could never have
+  caught it — which is why the retirement is a code decision and not an installation note.
+- **What the fix changed, and the gate that proves it.** The engine raises `EngineExecutionError`
+  instead of returning `winner="TAG"` with confidence `0.0`; the worker leaves no `llm_decision` and
+  the pair stays pending; the bench's `FAILURE_REASON_PREFIX` matching is deleted. The pair of tests
+  is `testing/unit/archive/engines/test_ollama_tag_entity_conflict.py` — a transport error, a 500 and
+  a 200 whose body is not the schema all raise, and a valid body still returns a verdict — and the
+  worker integration test: no queue row, `count_judged == 0`, and the pair is asked again on the next
+  run.
+- **What was rendered.** The panel's worker screen, with a session row inserted for the round and
+  deleted after it: `.render/workers-122.png` shows row 5 (`conflict-judge`) resolving to
+  `ollama_judge · gemma_4b_local — gemma4:e4b`, and `.render/workers-122-stale-open.png` shows the
+  same row after a `granite_local` row was written directly into `archive_worker_settings` (deleted
+  after the shot): the row reads `padrão alterado`, resolves to `gemma_4b_local`, and the note at the
+  bottom carries the reason. The retired name appears in no preset select.
+- **Not verified, and said so.** The bench was **not** run against the real model in this round: the
+  measurement above is a direct call to Ollama, so the report's own columns (agreement, constant
+  baseline, Δ) are unchanged from #114 and were not re-measured. The refusal of the retired name is
+  covered by tests on `get_engine`, `describe_config` and the API's write path; it was not exercised
+  through the SPA's save button. The title-quality axis's failure path was left as it was:
+  `check_title` still swallows a transport error into `is_suspect=False` with confidence `0.0`, the
+  same defect class in another worker, and it is outside this issue's definition of done — no test
+  covers it either way, which is a gap this round did not close.

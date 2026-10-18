@@ -74,7 +74,7 @@ The Python environment and the model caches are the large items. Measured in a w
 | Python environment (`.venv`), including torch, transformers, spaCy and the 602 MB `pt_core_news_lg` model | 6.6 GB | `du -sh .venv` |
 | Hugging Face model cache after the first classification and NER run | 4.6 GB | `du -sh .cache-hf` |
 | Front-end dependencies | 268 MB | `du -sh node_modules` |
-| Ollama models (the presets name `granite4.1:3b` and `gemma4:e4b`) | not measured | fetched by Ollama, not by this repository |
+| Ollama models (the presets name `gemma4:e4b`) | not measured | fetched by Ollama, not by this repository |
 | PostgreSQL data | depends on the collection | grows with the descriptions, not with the software |
 
 Plan for roughly 12 GB free for the Python stack, the model cache and the front-end dependencies,
@@ -522,6 +522,13 @@ embedding — runs without Ollama.
 
 Start the host and pull the tags the panel lists as missing; `OLLAMA_HOST_URL` is what reaches the
 engines, and an explicit `--option host=...` still overrides it for a single run.
+
+One preset was retired instead of fixed: `granite_local` named `granite4.1:3b`, which on Ollama
+0.24.0 terminates the llama runner with `signal arrived during cgo execution` and answers `500` to
+every prompt, while `gemma4:e4b` answers normally on the same server (measured 2026-10-18). The name
+is no longer offered and the health probe no longer requires the model. A settings row or an
+`LLM_CHECK` rule that still names it is refused when written, and one written before the retirement
+resolves to `gemma_4b_local` with the reason on the screen instead of taking the panel down.
 
 ### The bucket does not answer
 

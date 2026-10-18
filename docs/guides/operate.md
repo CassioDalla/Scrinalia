@@ -110,7 +110,9 @@ stamp. They are host commands of their own, described in
   caps the documents of one run, which is what makes a local test cheap.
 - **`conflict-judge`** compares the tag vocabulary with the entity vocabulary and asks the local
   LLM whether an ambiguous term is a subject or a proper name. Every verdict, auto-resolved or sent
-  to a human, leaves a row in `archive_ai_review_queue`.
+  to a human, leaves a row in `archive_ai_review_queue`. A call the engine could not make raises
+  instead of becoming a verdict, so the pair leaves **no** row and is asked again on the next run:
+  it is still pending, and the panel's "already judged" number does not count it.
 - **`macro-category`** files each tag into a subject category. Its unit is the **tag**, not the
   document, so its stamp lives in the tag's own `execution_log`; a tag a curator filed by hand is
   out of its reach.
@@ -202,7 +204,7 @@ uv run python -m scrinalia.domains.archive.workers.runner ner \
 | --- | --- |
 | `<name>` | one of the nine names above; any other value is refused with the list of options |
 | `--engine X` | a registered engine of the worker's axis, e.g. `spacy_ner`, `deberta_typology`, `ollama_judge` |
-| `--preset Y` | a preset of that axis, e.g. `gpu`, `lemmatizer`, `cpu_local`, `gpu_cloud`, `xlm_roberta_local`, `granite_local`, `multilingual_minilm` |
+| `--preset Y` | a preset of that axis, e.g. `gpu`, `lemmatizer`, `cpu_local`, `gpu_cloud`, `xlm_roberta_local`, `gemma_4b_local`, `multilingual_minilm` |
 | `--batch N` | batch size per transaction, forwarded to the workers that declare `db_batch_size`; a worker without it logs that the value was ignored |
 | `--limit N` | cap on the units this run touches, for the workers that declare `limit` (`embedding`, `macro-category`, `ner`, `quality-validator`, `thumbnail`, `typology`); refused for the others, because a cap that silently does nothing is worse than no cap. It counts attempts, so a queue of failures still ends, and it is never persisted |
 | `--option key=value` | an extra parameter, repeatable; `key` without `=` is refused |
