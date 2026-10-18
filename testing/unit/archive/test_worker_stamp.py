@@ -1,27 +1,45 @@
-from scrinalia.domains.archive.worker_stamp import NER, WorkerStamp, cleaning_rule_stamp
+"""The stamp as a ledger slot: presence, a status or a short value, and the erase.
+
+The identity-keyed half of the vocabulary — what a slot that names its producer accepts, and what it
+refuses — lives in ``test_worker_stamp_identity.py``, next to the producer fingerprint itself.
+"""
+
+from scrinalia.domains.archive.worker_stamp import (
+    THUMBNAIL_FAILED,
+    WorkerStamp,
+    cleaning_rule_stamp,
+)
 
 
 def test_stamp_applies_to_only_when_key_is_absent() -> None:
-    assert NER.applies_to(None) is True
-    assert NER.applies_to({}) is True
-    assert NER.applies_to({"other": "DONE"}) is True
-    assert NER.applies_to({NER.key: "DONE"}) is False
+    assert THUMBNAIL_FAILED.applies_to(None) is True
+    assert THUMBNAIL_FAILED.applies_to({}) is True
+    assert THUMBNAIL_FAILED.applies_to({"other": "DONE"}) is True
+    assert THUMBNAIL_FAILED.applies_to({THUMBNAIL_FAILED.key: "True"}) is False
 
 
 def test_mark_returns_new_dict_without_mutating_input() -> None:
     original = {"existing": "DONE"}
-    marked = NER.mark(original)
+    marked = THUMBNAIL_FAILED.mark(original)
 
-    assert marked == {"existing": "DONE", NER.key: "DONE"}
+    assert marked == {"existing": "DONE", THUMBNAIL_FAILED.key: "True"}
     assert original == {"existing": "DONE"}  # original untouched
 
 
 def test_mark_can_override_status() -> None:
-    assert NER.mark(None, status="ERROR")[NER.key] == "ERROR"
+    assert THUMBNAIL_FAILED.mark(None, status="ERROR")[THUMBNAIL_FAILED.key] == "ERROR"
 
 
 def test_mark_handles_none_log() -> None:
-    assert NER.mark(None) == {NER.key: "DONE"}
+    assert THUMBNAIL_FAILED.mark(None) == {THUMBNAIL_FAILED.key: "True"}
+
+
+def test_a_status_stamp_can_write_free_text_and_erase_it() -> None:
+    """``mark_value`` stays on the status stamp for the ledgers that hold a short free text."""
+    marked = THUMBNAIL_FAILED.mark_value(None, "quem-quando")
+
+    assert marked == {THUMBNAIL_FAILED.key: "quem-quando"}
+    assert THUMBNAIL_FAILED.clear(marked) == {}
 
 
 def test_cleaning_rule_stamp_is_per_rule() -> None:

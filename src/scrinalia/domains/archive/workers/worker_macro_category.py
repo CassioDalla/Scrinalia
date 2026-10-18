@@ -289,7 +289,7 @@ def execute(
                 total_processed += 1
 
             for tag, result in zip(classifiable, results, strict=True):
-                stamp_value = identity
+                failed = False
                 try:
                     best_label = result["labels"][0]
                     confidence_score = float(result["scores"][0])
@@ -331,10 +331,14 @@ def execute(
                     logger.error(f"❌ Error updating tag {tag.tag_id}: {e}")
                     # An error must NOT be recorded as the current label set, otherwise the
                     # failure would look processed and the tag would never be retried.
-                    stamp_value = "ERROR"
+                    failed = True
 
                 try:
-                    tag.execution_log = MACRO_CATEGORY.mark_value(tag.execution_log, stamp_value)
+                    tag.execution_log = (
+                        MACRO_CATEGORY.mark_failed(tag.execution_log)
+                        if failed
+                        else MACRO_CATEGORY.mark_value(tag.execution_log, identity)
+                    )
                     flag_modified(tag, "execution_log")
                 except Exception as e:
                     logger.critical(f"Critical failure trying to stamp the error on tag {tag.tag_id}: {e}")

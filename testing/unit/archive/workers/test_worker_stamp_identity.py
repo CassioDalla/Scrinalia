@@ -4,6 +4,10 @@ Issues #41 and #70 are the same defect — a stamp that records "ran" while the 
 the threshold or a dependency changed underneath it. Every test here is about one of those moving
 parts moving the identity, or about a queue control deliberately *not* moving it: a forced run must
 write the identity of the model, or the next plain run would re-queue the collection again.
+
+Issue #137 is the other half of the same slot: the identity-keyed write path refuses a status. The
+tests below pin that a ``"DONE"`` — the value 1,691 NER rows really carry — is a ``ValueError`` now,
+and that the name for "a run happened and the producer is unknown" is not a fingerprint.
 """
 
 from importlib.metadata import PackageNotFoundError
@@ -15,9 +19,16 @@ from scrinalia.domains.archive import worker_stamp
 from scrinalia.domains.archive.models import ArchiveDocument
 from scrinalia.domains.archive.worker_stamp import (
     AXIS_RUNTIME_DISTRIBUTIONS,
+    EMBEDDING,
     FAILURE_STAMP_VALUES,
+    MACRO_CATEGORY,
     NER,
+    PRODUCER_UNKNOWN,
+    QUALITY_VALIDATOR,
     STAMP_NEUTRAL_OPTIONS,
+    STAMP_STATUS_VALUES,
+    TYPOLOGY,
+    IdentityStamp,
     identity_stamp_conditions,
     producer_fingerprint,
     runtime_versions,
@@ -128,3 +139,55 @@ def test_the_predicate_asks_for_the_identity_or_a_failure_mark() -> None:
 def test_force_drops_the_stamp_clause() -> None:
     """``force`` widens the queue; the worker's cursor is what keeps that run finite."""
     assert identity_stamp_conditions(ArchiveDocument.execution_log, NER, "identidade", force=True) == []
+
+
+# --- the vocabulary (#137) -------------------------------------------------------------------
+
+
+def test_an_identity_stamp_refuses_a_status_where_a_fingerprint_is_expected() -> None:
+    """
+    The defect #137 removes: ``"DONE"`` was a legal ``StampStatus``, so it was a legal write into a
+    slot that promises a producer — and a reader could not tell it from an attributed unit.
+    """
+    for status in sorted(STAMP_STATUS_VALUES):
+        with pytest.raises(ValueError, match="producer fingerprint"):
+            NER.mark_value({}, status)
+
+    with pytest.raises(ValueError, match="producer fingerprint"):
+        NER.mark_value({}, PRODUCER_UNKNOWN)
+
+
+def test_an_identity_stamp_writes_a_fingerprint_and_a_failure() -> None:
+    """The two things a slot may hold: the identity of a producer, or the plain failure mark."""
+    fingerprint = _fingerprint()
+    marked = NER.mark_value({"existing": "x"}, fingerprint)
+
+    assert marked == {"existing": "x", NER.key: fingerprint}
+    assert NER.mark_failed(marked) == {"existing": "x", NER.key: "ERROR"}
+
+
+def test_the_legacy_name_is_not_a_fingerprint() -> None:
+    """``PRODUCER_UNKNOWN`` has to read as "unknown" to the pattern too, or the report would lie."""
+    for stamp in (NER, TYPOLOGY, MACRO_CATEGORY, QUALITY_VALIDATOR, EMBEDDING):
+        assert not stamp.fingerprint_pattern.match(PRODUCER_UNKNOWN)
+
+
+def test_the_embedding_rejects_the_bare_text_hash() -> None:
+    """
+    The embedding composes the MD5 of the text with the identity. The 4,831 stored rows carry the
+    bare MD5 — a text hash that names no producer — so the slot's own pattern is what tells the panel
+    they are *not* attributed; a test on ``mark_value`` pins the same expression the panel reads.
+    """
+    composed = f"{'a' * 32}:{_fingerprint()}"
+    assert EMBEDDING.mark_value(None, composed) == {EMBEDDING.key: composed}
+
+    with pytest.raises(ValueError, match="producer fingerprint"):
+        EMBEDDING.mark_value(None, "a" * 32)
+
+
+def test_every_stamped_worker_of_the_catalogue_is_identity_keyed() -> None:
+    """A new stamped worker cannot declare a status slot and call it attribution."""
+    stamps = [spec.stamp for spec in catalogue.WORKER_CATALOGUE.values() if spec.stamp is not None]
+
+    assert stamps, "the catalogue must stamp at least one worker, or this gate asserts nothing"
+    assert all(isinstance(stamp, IdentityStamp) for stamp in stamps)

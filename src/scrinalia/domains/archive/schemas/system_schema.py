@@ -147,6 +147,25 @@ class WorkerSettingsItemDTO(BaseModel):
     settings: WorkerSettingsDTO
 
 
+class WorkerStampBreakdownDTO(BaseModel):
+    """
+    What the units of one worker's ledger carry, told apart by what the stamp actually says.
+
+    One number ("processed") used to stand for all of it, and for NER that number hid the thing the
+    operator needs to know: 1,650 documents carried ``"DONE"`` — a record that something ran, naming
+    no producer at all. ``legacy`` is that value, plus every ``PRODUCER_UNKNOWN`` a migration left;
+    ``fingerprinted`` is a value the worker's own identity pattern accepts, which really attributes
+    the answer to a model. ``unrecorded`` is the key absent: nothing recorded a run.
+    """
+
+    fingerprinted: int = Field(ge=0, description="Unidades cujo carimbo nomeia o produtor.")
+    legacy: int = Field(
+        ge=0, description="Unidades com um carimbo que não nomeia produtor (DONE antigo ou desconhecido)."
+    )
+    failed: int = Field(ge=0, description="Unidades cujo carimbo registra falha.")
+    unrecorded: int = Field(ge=0, description="Unidades sem carimbo algum: nada registrou uma execução.")
+
+
 class WorkerStatusDTO(BaseModel):
     """One row of the panel: identity, effective configuration and the queue it addresses."""
 
@@ -164,6 +183,10 @@ class WorkerStatusDTO(BaseModel):
     pending_reason: str | None = Field(default=None, description="Por que o pendente não é contado.")
     processed: int | None = Field(default=None, description="Unidades que o worker já carimbou.")
     failed: int | None = Field(default=None, description="Unidades cujo carimbo registra falha.")
+    stamp_breakdown: WorkerStampBreakdownDTO | None = Field(
+        default=None,
+        description="O carimbo aberto em impressão digital, valor legado, falha e ausência. Nulo quando o ledger do worker não é um carimbo.",
+    )
     last_run: WorkerRunDTO | None = None
     active_run: WorkerRunDTO | None = None
 

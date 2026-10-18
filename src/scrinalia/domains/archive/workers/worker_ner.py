@@ -344,7 +344,7 @@ def execute(
 
                 # 4. Application of the Results and Persistence in the Database
                 for doc, dtos_entities in zip(valid_docs, ner_results, strict=True):
-                    stamp_value = identity
+                    failed = False
                     doc = cast(ArchiveDocument, doc)
                     try:
                         # If the AI found entities, we process the links
@@ -368,7 +368,7 @@ def execute(
                                         )
                                 except Exception as e_nested:
                                     logger.error(f"❌ Transactional error in doc {doc.description_id}: {e_nested}")
-                                    stamp_value = "ERROR"
+                                    failed = True
                             else:
                                 logger.debug(f"Doc {doc.description_id} ➡️ All entities blocked by the Blacklist.")
                         else:
@@ -378,11 +378,16 @@ def execute(
 
                     except Exception as e:
                         logger.error(f"❌ Structural error saving entities for doc {doc.description_id}: {e}")
-                        stamp_value = "ERROR"
+                        failed = True
 
-                    # 5. The Universal Protection Stamp
+                    # 5. The Universal Protection Stamp. A failure is written as a failure and never
+                    # as the identity, or the document would look processed by this producer.
                     try:
-                        doc.execution_log = NER.mark_value(doc.execution_log, stamp_value)
+                        doc.execution_log = (
+                            NER.mark_failed(doc.execution_log)
+                            if failed
+                            else NER.mark_value(doc.execution_log, identity)
+                        )
                         flag_modified(doc, "execution_log")
                     except Exception as e:
                         logger.critical(f"Critical failure stamping the error on doc {doc.description_id}: {e}")

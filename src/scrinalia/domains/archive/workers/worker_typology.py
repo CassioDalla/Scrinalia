@@ -305,7 +305,7 @@ def execute(
 
                 # Application of the results
                 for doc, result in zip(valid_docs, results, strict=True):
-                    stamp_value = identity
+                    failed = False
                     try:
                         best_label = result["labels"][0]
                         confidence_score = result["scores"][0]
@@ -360,9 +360,13 @@ def execute(
                         logger.error(f"❌ Error updating document {doc.description_id}: {e}")
                         # A failure must not be recorded as the current identity, or the document
                         # would look processed by this producer and never be retried.
-                        stamp_value = "ERROR"
+                        failed = True
                     try:
-                        doc.execution_log = TYPOLOGY.mark_value(doc.execution_log, stamp_value)
+                        doc.execution_log = (
+                            TYPOLOGY.mark_failed(doc.execution_log)
+                            if failed
+                            else TYPOLOGY.mark_value(doc.execution_log, identity)
+                        )
                         flag_modified(doc, "execution_log")
                     except Exception as e:
                         logger.critical(f"Critical failure trying to stamp the error on doc {doc.description_id}: {e}")

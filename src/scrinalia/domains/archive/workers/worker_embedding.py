@@ -220,7 +220,7 @@ def execute(
                         total_processed += 1
                     except Exception as e:
                         logger.error(f"❌ Error updating document {doc.description_id}: {e}")
-                        doc.execution_log = EMBEDDING.mark(doc.execution_log, status="ERROR")
+                        doc.execution_log = EMBEDDING.mark_failed(doc.execution_log)
 
                     flag_modified(doc, "execution_log")
 

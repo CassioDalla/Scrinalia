@@ -11,7 +11,7 @@ from scrinalia.domains.archive.repository.cleaning_repo import CleaningRepositor
 from scrinalia.domains.archive.schemas.cleaning_schema import CleaningRuleCreateDTO
 from scrinalia.domains.archive.schemas.system_schema import WorkerSettingsRequest
 from scrinalia.domains.archive.services.worker_operations_service import WorkerOperationsService
-from scrinalia.domains.archive.worker_stamp import TYPOLOGY
+from scrinalia.domains.archive.worker_stamp import NER, TYPOLOGY
 from scrinalia.domains.archive.workers import runner, worker_typology
 
 
@@ -239,3 +239,33 @@ def test_the_preview_of_an_unmeasurable_queue_says_why(service) -> None:
 
     assert preview.pending is None
     assert preview.pending_reason
+
+
+def test_the_panel_opens_the_stamp_into_a_breakdown(service, generate_archive_doc) -> None:
+    """
+    Issue #137: one "processed" number hid the legacy value, and for NER that was all of it.
+
+    The row now says how many units a producer is actually named for, how many carry a value that
+    names none, and how many have no record at all — the three the operator needs apart.
+    """
+    generate_archive_doc(original_title="Com produtor", execution_log={NER.key: "ab" * 32})
+    generate_archive_doc(original_title="Legado", execution_log={NER.key: "DONE"})
+    generate_archive_doc(original_title="Sem registro")
+
+    ner = next(worker for worker in service.list_workers().workers if worker.name == "ner")
+
+    assert ner.stamp_breakdown is not None
+    assert ner.stamp_breakdown.fingerprinted == 1
+    assert ner.stamp_breakdown.legacy == 1
+    assert ner.stamp_breakdown.unrecorded == 1
+    # ``processed`` is still there, now derived from the same aggregate instead of a second query.
+    assert ner.processed == 2
+    assert ner.failed == 0
+
+
+def test_a_worker_whose_ledger_is_not_a_stamp_has_no_breakdown(service) -> None:
+    """``thumbnail`` records its work in the storage URI, and a zero would read as "nothing done"."""
+    thumbnail = next(worker for worker in service.list_workers().workers if worker.name == "thumbnail")
+
+    assert thumbnail.stamp_breakdown is None
+    assert thumbnail.processed == 0

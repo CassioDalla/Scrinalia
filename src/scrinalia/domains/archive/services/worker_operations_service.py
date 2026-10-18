@@ -22,6 +22,7 @@ from scrinalia.domains.archive.models.operations import WorkerSetting
 from scrinalia.domains.archive.repository.tag_repo import TagRepository
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
 from scrinalia.domains.archive.repository.worker_settings_repo import WorkerSettingsRepository
+from scrinalia.domains.archive.repository.worker_stamp_repo import StampBreakdown, WorkerStampRepository
 from scrinalia.domains.archive.schemas.system_schema import (
     SystemWorkerSettingsResponse,
     SystemWorkersResponse,
@@ -32,6 +33,7 @@ from scrinalia.domains.archive.schemas.system_schema import (
     WorkerSettingsRequest,
     WorkerSettingsRevisionDTO,
     WorkerSettingsRevisionListResponse,
+    WorkerStampBreakdownDTO,
     WorkerStatusDTO,
 )
 from scrinalia.domains.archive.workers.catalogue import (
@@ -70,6 +72,9 @@ class WorkerOperationsService:
             # Counted once: the transfer's counter validates the whole staging table, so asking it
             # twice (once for the number and once for the reason) would double the panel's cost.
             pending, pending_reason = self._pending(spec, resolved)
+            # And once for the whole ledger: the four numbers of a stamp come from one aggregate, and
+            # ``processed``/``failed`` are read out of it instead of from two further queries.
+            breakdown = self._stamp_breakdown(spec)
             workers.append(
                 WorkerStatusDTO(
                     name=spec.name,
@@ -81,8 +86,9 @@ class WorkerOperationsService:
                     settings=self._settings_dto(spec, setting, resolved),
                     pending=pending,
                     pending_reason=pending_reason,
-                    processed=self._processed(spec, resolved),
-                    failed=self._failed(spec, resolved),
+                    processed=self._processed(spec, resolved, breakdown),
+                    failed=self._failed(spec, resolved, breakdown),
+                    stamp_breakdown=self._breakdown_dto(breakdown),
                     last_run=last_runs.get(spec.name),
                     active_run=active_runs.get(spec.name),
                 )
@@ -267,8 +273,38 @@ class WorkerOperationsService:
             logger.error(f"⚠️ Não foi possível contar a fila de '{spec.name}': {exc}")
             return None, "A contagem falhou; veja o log do servidor."
 
-    def _processed(self, spec: WorkerSpec, resolved: ResolvedWorkerConfig) -> int | None:
-        if spec.stamp is None and spec.processed_counter is None:
+    def _stamp_breakdown(self, spec: WorkerSpec) -> StampBreakdown | None:
+        """
+        The four numbers of a stamped ledger, or ``None`` when the worker's ledger is not a stamp.
+
+        One read for the whole row: ``processed``, ``failed`` and the breakdown the screen shows all
+        come from this object, so a stamped worker costs one aggregate instead of the two a
+        "has the key" plus a "is it a failure" query used to cost.
+        """
+        if spec.stamp is None:
+            return None
+        try:
+            return WorkerStampRepository(self.db).count_stamp_breakdown(spec)
+        except Exception as exc:
+            logger.error(f"⚠️ Não foi possível ler o carimbo de '{spec.name}': {exc}")
+            return None
+
+    def _breakdown_dto(self, breakdown: StampBreakdown | None) -> WorkerStampBreakdownDTO | None:
+        if breakdown is None:
+            return None
+        return WorkerStampBreakdownDTO(
+            fingerprinted=breakdown.fingerprinted,
+            legacy=breakdown.legacy,
+            failed=breakdown.failed,
+            unrecorded=breakdown.unrecorded,
+        )
+
+    def _processed(
+        self, spec: WorkerSpec, resolved: ResolvedWorkerConfig, breakdown: StampBreakdown | None
+    ) -> int | None:
+        if breakdown is not None:
+            return breakdown.processed
+        if spec.processed_counter is None:
             return None
         try:
             return count_processed(spec, self.db, **self._counter_options(spec, resolved))
@@ -276,8 +312,10 @@ class WorkerOperationsService:
             logger.error(f"⚠️ Não foi possível contar o processado de '{spec.name}': {exc}")
             return None
 
-    def _failed(self, spec: WorkerSpec, resolved: ResolvedWorkerConfig) -> int | None:
-        if spec.stamp is None and spec.failed_counter is None:
+    def _failed(self, spec: WorkerSpec, resolved: ResolvedWorkerConfig, breakdown: StampBreakdown | None) -> int | None:
+        if breakdown is not None:
+            return breakdown.failed
+        if spec.failed_counter is None:
             return None
         try:
             return count_failed(spec, self.db, **self._counter_options(spec, resolved))
