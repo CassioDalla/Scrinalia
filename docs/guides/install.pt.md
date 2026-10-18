@@ -47,7 +47,7 @@ O ambiente Python e os caches de modelo são os itens grandes. Medido em um chec
 | Ambiente Python (`.venv`), incluindo torch, transformers, spaCy e o modelo `pt_core_news_lg` de 602 MB | 6,6 GB | `du -sh .venv` |
 | Cache de modelos do Hugging Face depois da primeira execução de classificação e NER | 4,6 GB | `du -sh .cache-hf` |
 | Dependências do front | 268 MB | `du -sh node_modules` |
-| Modelos do Ollama (os presets citam `granite4.1:3b` e `gemma4:e4b`) | não medido | baixados pelo Ollama, não por este repositório |
+| Modelos do Ollama (os presets citam `gemma4:e4b`) | não medido | baixados pelo Ollama, não por este repositório |
 | Dados do PostgreSQL | depende do acervo | cresce com as descrições, não com o software |
 
 Reserve cerca de 12 GB livres para a pilha Python, o cache de modelos e as dependências do front,
@@ -495,6 +495,13 @@ pipeline — transfer, cleaning, NER, tipologia no motor padrão, thumbnail, mac
 — roda sem Ollama. Suba o host e baixe as tags que o painel lista como faltantes; o
 `OLLAMA_HOST_URL` é o que chega aos motores, e um `--option host=...` explícito ainda o sobrepõe em
 uma execução isolada.
+
+Um preset foi aposentado em vez de consertado: `granite_local` nomeava `granite4.1:3b`, que no
+Ollama 0.24.0 derruba o llama runner com `signal arrived during cgo execution` e responde `500` a
+todo prompt, enquanto `gemma4:e4b` responde normalmente no mesmo servidor (medido em 2026-10-18). O
+nome não é mais oferecido e a sonda de saúde não exige mais o modelo. Uma linha de configuração ou
+uma regra `LLM_CHECK` que ainda o nomeie é recusada ao ser gravada, e uma gravada antes da
+aposentadoria resolve para `gemma_4b_local` com o motivo na tela, em vez de derrubar o painel.
 
 ### O bucket não responde
 

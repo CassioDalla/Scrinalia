@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import pytest
 
+from scrinalia.domains.archive.exceptions import EngineExecutionError
 from testing.evaluation.conflict_judge_quality import (
+    Failed,
     Judged,
     Resolution,
     Verdict,
@@ -103,36 +105,25 @@ def test_the_threshold_is_read_from_the_worker() -> None:
 
 def test_a_transport_failure_is_not_a_verdict() -> None:
     """
-    The schema has no error state, so a failed call comes back as ``winner="TAG"``. Scored as a
-    verdict, an Ollama outage would look like a judge that answers ``TAG`` to everything.
+    The schema has no error state, so a failed call used to come back as ``winner="TAG"`` with
+    confidence ``0.0`` — a verdict the model never took. The bench models it as a ``Failed``, which
+    is not a ``Judged`` at all: an Ollama outage cannot look like a judge that answers ``TAG`` to
+    everything, because it has no verdict to score (#122).
     """
-    failed = judged(resolution(1, expected="ENTITY"), predicted="TAG", confidence=0.0, reason="Falha: 500")
+    failed = Failed(resolution(1, expected="ENTITY"), reason="O juiz de conflito não respondeu")
     opinion = judged(resolution(2, expected="ENTITY"), predicted="TAG", confidence=0.4, reason="Regra 3: ambíguo")
 
-    assert not failed.measured
-    assert opinion.measured
-
-
-def test_the_bench_reads_the_engines_own_failure_prefix() -> None:
-    """
-    The other half of the pair, pinned from the bench's side.
-
-    ``FAILURE_REASON_PREFIX`` is written by the engine and read here; a literal retyped in this file
-    would drift from it and an outage would start scoring as a verdict.
-    """
-    from scrinalia.domains.archive.engines.LLMs.ollama_tag_entity_conflict import FAILURE_REASON_PREFIX
-
-    assert Verdict(winner="TAG", confidence=0.0, reason=f"{FAILURE_REASON_PREFIX}500").failed
+    assert isinstance(failed, Failed)
+    assert not isinstance(opinion, Failed)
+    assert opinion.correct is False
 
 
 def test_a_failed_pair_leaves_the_score_and_is_reported() -> None:
     """Excluded from the agreement, listed in ``failures``: silent exclusion would hide an outage."""
-    rows = [
-        judged(resolution(1, expected="TAG"), predicted="TAG", confidence=1.0),
-        judged(resolution(2, expected="ENTITY"), predicted="TAG", confidence=0.0, reason="Falha: connection refused"),
-    ]
+    rows = [judged(resolution(1, expected="TAG"), predicted="TAG", confidence=1.0)]
+    failures = [Failed(resolution(2, expected="ENTITY"), reason="O juiz de conflito não respondeu")]
 
-    report = report_for(parse_config("ollama_judge:gemma_4b_local"), rows, CENSUS, 0.85, 1.0)
+    report = report_for(parse_config("ollama_judge:gemma_4b_local"), rows, failures, CENSUS, 0.85, 1.0)
 
     assert report["scored"] == 1
     assert report["failed"] == 1
@@ -143,22 +134,23 @@ def test_a_failed_pair_leaves_the_score_and_is_reported() -> None:
 
 
 def test_an_engine_that_raises_is_counted_as_a_failure_and_not_as_a_verdict(monkeypatch) -> None:
-    """A future engine may not absorb its own transport error; the bench has to survive it either way."""
+    """The engine raises by contract (#122); the bench counts the exception instead of scoring it."""
 
     class Exploding:
         def decide_conflict(self, **_kwargs):
-            raise RuntimeError("connection refused")
+            raise EngineExecutionError("O juiz de conflito não respondeu")
 
     monkeypatch.setattr(
         "testing.evaluation.conflict_judge_quality.get_engine",
         lambda **_kwargs: Exploding(),
     )
 
-    rows, _seconds = score_live(parse_config("ollama_judge:gemma_4b_local"), [resolution(1)])
+    rows, failures, _seconds = score_live(parse_config("ollama_judge:gemma_4b_local"), [resolution(1)])
 
-    assert len(rows) == 1
-    assert not rows[0].measured
-    assert rows[0].verdict.reason.startswith("Falha: ")
+    assert rows == []
+    assert len(failures) == 1
+    assert failures[0].resolution.resolution_id == 1
+    assert "não respondeu" in failures[0].reason
 
 
 # =============================================================================
@@ -180,7 +172,7 @@ def test_a_judge_that_only_says_entity_scores_zero_above_the_constant() -> None:
     """
     rows = [judged(resolution(i, expected="ENTITY"), predicted="ENTITY") for i in range(49)]
 
-    report = report_for(parse_config("ollama_judge:gemma_4b_local"), rows, CENSUS, 0.85, 1.0)
+    report = report_for(parse_config("ollama_judge:gemma_4b_local"), rows, [], CENSUS, 0.85, 1.0)
 
     assert report["agreement"] == pytest.approx(1.0)
     assert report["constant"] == {"label": "ENTITY", "agreement": pytest.approx(1.0), "delta": pytest.approx(0.0)}
@@ -190,7 +182,7 @@ def test_a_judge_that_only_says_entity_scores_zero_above_the_constant() -> None:
 def test_a_two_class_gabarito_does_not_carry_the_single_class_note() -> None:
     rows = [judged(resolution(1, expected="TAG")), judged(resolution(2, expected="ENTITY"))]
 
-    report = report_for(parse_config("ollama_judge"), rows, CENSUS, 0.85, 1.0)
+    report = report_for(parse_config("ollama_judge"), rows, [], CENSUS, 0.85, 1.0)
 
     assert not any("classe única" in note for note in report["notes"])
 
@@ -220,7 +212,7 @@ def test_the_auto_resolve_split_uses_the_workers_own_threshold() -> None:
         judged(resolution(3, expected="ENTITY"), predicted="TAG", confidence=0.10),
     ]
 
-    report = report_for(parse_config("ollama_judge"), rows, CENSUS, 0.85, 1.0)
+    report = report_for(parse_config("ollama_judge"), rows, [], CENSUS, 0.85, 1.0)
 
     assert report["auto_resolve"] == {
         "resolved": 2,
@@ -237,7 +229,7 @@ def test_agreement_by_entity_type_groups_on_the_ledgers_own_column() -> None:
         judged(resolution(3, expected="ENTITY", entity_type="PER"), predicted="ENTITY"),
     ]
 
-    report = report_for(parse_config("ollama_judge"), rows, CENSUS, 0.85, 1.0)
+    report = report_for(parse_config("ollama_judge"), rows, [], CENSUS, 0.85, 1.0)
 
     assert report["entity_types"] == [
         {"entity_type": "LOC", "rows": 2, "agreement": pytest.approx(0.5)},
@@ -247,7 +239,7 @@ def test_agreement_by_entity_type_groups_on_the_ledgers_own_column() -> None:
 
 def test_an_empty_score_is_reported_as_empty_and_not_as_zero() -> None:
     """A run where the engine answered nothing is not a judge that got everything wrong."""
-    report = report_for(parse_config("ollama_judge"), [], CENSUS, 0.85, 0.0)
+    report = report_for(parse_config("ollama_judge"), [], [], CENSUS, 0.85, 0.0)
 
     assert report["scored"] == 0
     assert any("Nada foi pontuado" in note for note in report["notes"])

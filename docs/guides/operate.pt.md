@@ -64,7 +64,9 @@ de IA. São comandos de linha de comando próprios, descritos em
   os documentos de uma execução, que é o que torna barato um teste local.
 - **`conflict-judge`** compara o vocabulário de tags com o de entidades e consulta o LLM local para
   decidir se o termo ambíguo é assunto ou nome próprio. Todo veredicto, automático ou enviado a uma
-  pessoa, deixa uma linha em `archive_ai_review_queue`.
+  pessoa, deixa uma linha em `archive_ai_review_queue`. Uma chamada que o motor não conseguiu fazer
+  levanta em vez de virar veredicto, então o par **não** deixa linha e é perguntado de novo na
+  execução seguinte: ele continua pendente, e o número de "já julgados" do painel não o conta.
 - **`macro-category`** arquiva cada tag numa categoria de assunto. A unidade dele é a **tag**, não a
   descrição, então o carimbo vive no `execution_log` da própria tag; uma tag que o curador arquivou
   à mão está fora do alcance dele.
@@ -158,7 +160,7 @@ uv run python -m scrinalia.domains.archive.workers.runner ner \
 | --- | --- |
 | `<name>` | um dos nove nomes acima; qualquer outro valor é recusado com a lista de opções |
 | `--engine X` | uma engine registrada do eixo do worker, por exemplo `spacy_ner`, `deberta_typology`, `ollama_judge` |
-| `--preset Y` | um preset desse eixo, por exemplo `gpu`, `lemmatizer`, `cpu_local`, `gpu_cloud`, `xlm_roberta_local`, `granite_local`, `multilingual_minilm` |
+| `--preset Y` | um preset desse eixo, por exemplo `gpu`, `lemmatizer`, `cpu_local`, `gpu_cloud`, `xlm_roberta_local`, `gemma_4b_local`, `multilingual_minilm` |
 | `--batch N` | tamanho do lote por transação, repassado aos workers que declaram `db_batch_size`; um worker sem isso registra no log que o valor foi ignorado |
 | `--limit N` | teto de unidades desta execução, para os workers que declaram `limit` (`embedding`, `macro-category`, `ner`, `quality-validator`, `thumbnail`, `typology`); recusado nos demais, porque um teto que não faz nada em silêncio é pior do que nenhum teto. Ele conta tentativas, então uma fila de falhas ainda termina, e nunca é persistido |
 | `--option key=value` | parâmetro extra, repetível; `key` sem `=` é recusado |

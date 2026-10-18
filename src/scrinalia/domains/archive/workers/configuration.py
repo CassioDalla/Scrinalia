@@ -62,6 +62,19 @@ def _accepts_extra_kwargs(spec: WorkerSpec) -> bool:
     return any(parameter.kind is Parameter.VAR_KEYWORD for parameter in worker_signature(spec).parameters.values())
 
 
+def _default_preset(declared: dict[str, Parameter], registry: Any) -> str | None:
+    """
+    The preset a stale configuration falls back to when its own retired (#122).
+
+    The worker's signature default when it declares one (``conflict-judge``), and otherwise the
+    axis's first declared preset — which is the only one there is for the axes that can retire a
+    preset, because a retirement is about an Ollama model and those axes name exactly one model.
+    """
+    if "preset" in declared:
+        return str(declared["preset"].default)
+    return next(iter(registry.PRESETS), None)
+
+
 def validate_options(spec: WorkerSpec, options: dict[str, Any]) -> None:
     """
     Rejects an option the worker would not accept.
@@ -103,6 +116,12 @@ def validate_engine_choice(spec: WorkerSpec, engine_name: str | None, preset: st
         raise InvalidWorkerSettingsError(
             f"Engine '{engine_name}' não existe para o eixo {spec.axis}. Opções: {sorted(registry.AVAILABLE_ENGINES)}."
         )
+    # A retired preset is not merely unknown: it was declared and cannot run, and the reason is what
+    # turns "did you mistype?" into "use this instead" (#122). The axis is read through ``getattr``
+    # because only the axes that name an Ollama model have presets to retire.
+    retired_presets: dict[str, str] = getattr(registry, "RETIRED_PRESETS", {})
+    if preset is not None and preset in retired_presets:
+        raise InvalidWorkerSettingsError(f"Preset '{preset}' foi aposentado: {retired_presets[preset]}")
     if preset is not None and preset not in registry.PRESETS:
         raise InvalidWorkerSettingsError(
             f"Preset '{preset}' não existe para o eixo {spec.axis}. Opções: {sorted(registry.PRESETS)}."
@@ -173,6 +192,19 @@ def resolve_configuration(
     config: dict[str, Any] = {}
     if spec.axis and resolved_engine:
         registry = axis_registry(spec.axis)
+        # A *persisted* row or an active ``LLM_CHECK`` rule can still name a preset that retired
+        # (#122). The write path refuses the name, so this is a stale row, not a new mistake — and a
+        # stale row must not take the operations panel down: the read falls back to the worker's own
+        # default and says why. The explicit ``--preset``/request of this call never reaches here
+        # retired, because ``validate_engine_choice`` above already refused it.
+        retired_presets: dict[str, str] = getattr(registry, "RETIRED_PRESETS", {})
+        if resolved_preset in retired_presets:
+            fallback = _default_preset(declared, registry)
+            note = (
+                f"O preset '{resolved_preset}' foi aposentado e esta configuração usa '{fallback}': "
+                f"{retired_presets[resolved_preset]}"
+            )
+            resolved_preset = fallback
         config = registry.describe_config(resolved_engine, resolved_preset, **engine_kwargs)
 
     return ResolvedWorkerConfig(

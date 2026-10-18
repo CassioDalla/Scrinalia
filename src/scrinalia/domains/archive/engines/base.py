@@ -45,6 +45,21 @@ def describe_engine_config(
     return final_kwargs
 
 
+def refuse_retired_preset(preset: str | None, retired_presets: Mapping[str, str]) -> None:
+    """
+    Refuses a preset this project used to declare and no longer can, naming the reason.
+
+    A preset leaves ``PRESETS`` when the model it named cannot run on the Ollama the installation
+    guide documents, and it leaves a row here so the record that it ever existed is not erased
+    (principle VI, the same reason a catalogue row retires instead of being deleted). Without this,
+    an operator who still has the name in a settings row would read "preset não encontrado", which
+    says *typo*; the reason says *deliberate*, and what to use instead. The reason is a sentence an
+    operator reads, so it is Portuguese like the refusals beside it.
+    """
+    if preset and preset in retired_presets:
+        raise ValueError(f"Preset '{preset}' foi aposentado: {retired_presets[preset]}")
+
+
 class TypologyEngine(Protocol):
     """
     Contract that every archive classification engine must follow.
@@ -101,6 +116,16 @@ class ResolveTagEntityConflictEngine(Protocol):
     """
 
     def decide_conflict(self, tag_name: str, entity_name: str, entity_type: str) -> EntityTagDecisionSchema:
+        """
+        The verdict, or ``EngineExecutionError`` when the call could not be made.
+
+        The return type is total on purpose. ``EntityTagDecisionSchema`` has no "I could not answer"
+        state, so a failure dressed as a verdict (``winner="TAG"`` with confidence ``0.0``) is
+        indistinguishable from an opinion at the call site — and the worker writes whatever comes
+        back into the review queue, where the curation inbox shows it as a decision the model took
+        (#122). Raising is what makes the two distinguishable **by type**, for any engine: a pair the
+        engine could not be asked about stays pending.
+        """
         raise NotImplementedError
 
 

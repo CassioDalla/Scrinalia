@@ -376,9 +376,9 @@ rules below are the method, and they are what a reader has to check instead.
   why `context_payload` carries no foreign key on purpose. `tag_name`, `entity_name` and `entity_type`
   are the pair at decision time; the bench never joins the live catalogues, because the row it would
   join is the one the resolution removed.
-- **A failed call is not an opinion.** `EntityTagDecisionSchema` has no error state, so a transport
-  failure returns `winner="TAG"` with `confidence=0.0` and a reason carrying `FAILURE_REASON_PREFIX`.
-  Those rows are counted as *engine failures*, excluded from the score and printed.
+- **A failed call is not an opinion.** `EntityTagDecisionSchema` has no error state, so the engine
+  raises `EngineExecutionError` when the call cannot be made (#122). A pair it could not answer is a
+  `Failed`, not a `Judged`: counted as an *engine failure*, excluded from the score and printed.
 
 Two numbers are printed next to the agreement, and neither is decoration. The **constant baseline** is
 the verdict a judge answering only the most frequent one would get: on a ledger where a curator worked
@@ -392,7 +392,7 @@ alone.
 
 ```sh
 uv run python -m testing.evaluation.conflict_judge_quality
-uv run python -m testing.evaluation.conflict_judge_quality --config ollama_judge:granite_local --limit 10
+uv run python -m testing.evaluation.conflict_judge_quality --config ollama_judge:gemma_4b_local --limit 10
 ```
 
 `--config` is `ENGINE[:PRESET]`, validated against `engines/LLMs/registry.py` — the same registry the

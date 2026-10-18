@@ -175,7 +175,7 @@ def test_worker_uses_the_llm_when_a_rule_is_active(db_session, generate_archive_
             replacement_string="",
             rule_kind="LLM_CHECK",
             engine_name="ollama_title_check",
-            preset="granite_local",
+            preset="gemma_4b_local",
         )
     )
     db_session.flush()
@@ -278,7 +278,7 @@ def test_activating_an_llm_rule_requeues_the_validated_documents(db_session, gen
             replacement_string="",
             rule_kind="LLM_CHECK",
             engine_name="ollama_title_check",
-            preset="granite_local",
+            preset="gemma_4b_local",
         )
     )
     db_session.flush()

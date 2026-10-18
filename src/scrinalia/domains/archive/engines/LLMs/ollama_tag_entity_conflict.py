@@ -1,19 +1,22 @@
 import requests
 
 from scrinalia.core.logger import logger
+from scrinalia.domains.archive.exceptions import EngineExecutionError
 from scrinalia.domains.archive.schemas import EntityTagDecisionSchema
-
-#: The reason a failed call carries. The schema has no "I could not answer" state, so a transport
-#: failure comes back as a verdict with confidence ``0.0``; this prefix is the only thing that tells
-#: the two apart, and ``testing/evaluation/conflict_judge_quality.py`` reads it to refuse to score a
-#: failure as an opinion. It is defined here because this is where it is written.
-FAILURE_REASON_PREFIX = "Falha: "
 
 
 class OllamaJudgeEngine:
-    """Engine specialized in using local LLMs (Ollama) to judge conflicts."""
+    """
+    Engine specialized in using local LLMs (Ollama) to judge conflicts.
 
-    def __init__(self, model: str = "granite4.1:3b", host: str = "http://localhost:11434", **kwargs):
+    A call that fails **raises** ``EngineExecutionError``. ``EntityTagDecisionSchema`` has no "I could
+    not answer" state, so returning one anyway — ``winner="TAG"`` with confidence ``0.0`` — is a
+    verdict the model never took: the worker writes whatever comes back into
+    ``archive_ai_review_queue``, and the curation inbox would show the failure as a decision. The
+    exception is the type that tells the caller the pair is still pending (#122).
+    """
+
+    def __init__(self, model: str = "gemma4:e4b", host: str = "http://localhost:11434", **kwargs):
         self.model = model
         self.host = f"{host}/api/generate"
         self.kwargs = kwargs
@@ -56,4 +59,6 @@ REGRA DE PERFORMANCE: No campo 'reason', você é OBRIGADO a citar o número da 
         except Exception as e:
             logger.error(f"Failed to call Ollama for the term '{tag_name}': {e}")
 
-            return EntityTagDecisionSchema(winner="TAG", confidence=0.0, reason=f"{FAILURE_REASON_PREFIX}{str(e)[:50]}")
+            raise EngineExecutionError(
+                f"O juiz de conflito não respondeu para '{tag_name}' (modelo '{self.model}'): {str(e)[:120]}"
+            ) from e

@@ -25,7 +25,7 @@ Devolva APENAS o JSON válido, com a justificativa em no máximo 12 palavras.
 class OllamaTitleCheckEngine:
     """Local-LLM title reviewer used by the opt-in ``LLM_CHECK`` anomaly rule."""
 
-    def __init__(self, model: str = "granite4.1:3b", host: str = "http://localhost:11434", **kwargs):
+    def __init__(self, model: str = "gemma4:e4b", host: str = "http://localhost:11434", **kwargs):
         self.model = model
         self.host = f"{host}/api/generate"
         self.kwargs = kwargs

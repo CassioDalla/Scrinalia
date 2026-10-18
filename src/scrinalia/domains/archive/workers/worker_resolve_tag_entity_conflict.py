@@ -7,6 +7,7 @@ from scrinalia.core.database import get_db
 from scrinalia.core.logger import logger
 from scrinalia.core.unit_of_work import UnitOfWork
 from scrinalia.domains.archive.engines.LLMs.registry import EngineName, PresetName, get_engine
+from scrinalia.domains.archive.exceptions import EngineExecutionError
 from scrinalia.domains.archive.models import ArchiveReviewStatus
 from scrinalia.domains.archive.models.governance import AnomalyType, ArchiveAIReviewQueue
 from scrinalia.domains.archive.repository import EntityRepository
@@ -19,7 +20,8 @@ def count_judged(db: Session, **options: Any) -> int:
     This is not the *pending* queue, and it is deliberately not the live trigram scan: that scan
     compares every tag with every entity and measured 53 s on the real collection. Every decision —
     auto-resolved or sent to a human — leaves a row in ``archive_ai_review_queue``, so the count is
-    an indexed read of what has been judged.
+    an indexed read of what has been judged. A pair the engine could not be asked about leaves **no**
+    row and is therefore not counted here: it is still pending, and the next run asks again (#122).
     """
     stmt = (
         select(func.count())
@@ -86,12 +88,20 @@ def execute(
             f"🧠 Consulting the AI for the ambiguity: '{row.tag_name}' (Tag) vs '{row.entity_name}' ({row.entity_type})..."
         )
 
+        # 4. Triggers the AI (Guarantees a structured return via Pydantic/JSON). A call that fails
+        #    raises instead of returning a fabricated verdict, so nothing is written and the pair
+        #    stays pending for the next run (#122).
         try:
-            # 4. Triggers the AI (Guarantees a structured return via Pydantic/JSON)
             decision = llm_engine.decide_conflict(
                 tag_name=row.tag_name, entity_name=row.entity_name, entity_type=row.entity_type
             )
+        except EngineExecutionError as engine_error:
+            failures += 1
+            logger.error(f"❌ O juiz não respondeu sobre '{row.tag_name}' vs '{row.entity_name}': {engine_error}")
+            logger.warning("⏳ O par continua pendente: nenhuma decisão foi escrita na fila.")
+            continue
 
+        try:
             final_status = ArchiveReviewStatus.NEEDS_REVIEW
 
             # 5. Direct Action (High Confidence): The Repository resolves the collision atomically

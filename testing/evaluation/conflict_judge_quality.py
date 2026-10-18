@@ -20,11 +20,10 @@ are the pair *as it was at decision time*. The resolution deletes the losing row
 ``context_payload`` carries no foreign key on purpose; joining the live catalogues would score the
 judge against a pair that no longer exists, or against a spelling a later resolution changed.
 
-**A failed call is not an opinion.** The decision schema has no "I could not answer" state, so a
-transport failure comes back as ``winner="TAG"`` with ``confidence=0.0``
-(``FAILURE_REASON_PREFIX``). Read as a verdict, an Ollama outage would look like a judge that answers
-``TAG`` to everything. Those rows are counted as *motor failures*, excluded from the score, and
-printed loudly.
+**A failed call is not an opinion.** The engine raises ``EngineExecutionError`` when the call cannot
+be made, because the decision schema has no "I could not answer" state (#122). A pair the judge could
+not be asked about is counted as an *engine failure*, excluded from the score, and printed loudly:
+read as a verdict, an Ollama outage would look like a judge that answers ``TAG`` to everything.
 
 And one thing it prints because a single number would flatter the judge: the **constant baseline**.
 The columns below answer "does the judge beat always answering the most frequent verdict?", which is
@@ -36,9 +35,7 @@ Nothing is written to the database: no resolution, no ban, no ledger row.
 Run it from the repository root, against the real database and the real model::
 
     uv run python -m testing.evaluation.conflict_judge_quality
-    uv run python -m testing.evaluation.conflict_judge_quality \\
-        --config ollama_judge:gemma_4b_local \\
-        --config ollama_judge:granite_local
+    uv run python -m testing.evaluation.conflict_judge_quality --limit 10
 
 The default is the configuration the worker itself declares, read from its signature, so "the current
 configuration" cannot drift from the code. A model is never named here: a new one is a preset in the
@@ -65,7 +62,6 @@ from sqlalchemy.orm import Session
 from scrinalia.core.config import settings
 from scrinalia.core.database import get_db
 from scrinalia.core.logger import logger
-from scrinalia.domains.archive.engines.LLMs.ollama_tag_entity_conflict import FAILURE_REASON_PREFIX
 from scrinalia.domains.archive.engines.LLMs.registry import (
     AVAILABLE_ENGINES,
     PRESETS,
@@ -252,17 +248,6 @@ class Verdict:
     confidence: float
     reason: str = ""
 
-    @property
-    def failed(self) -> bool:
-        """
-        Whether this is a transport failure rather than an opinion.
-
-        The engine answers ``winner="TAG"`` with a reason carrying ``FAILURE_REASON_PREFIX`` when the
-        call fails. Scoring that as a verdict would turn an Ollama outage into a judge that answers
-        ``TAG`` to everything, which is the most flattering possible reading of a broken run.
-        """
-        return self.reason.startswith(FAILURE_REASON_PREFIX)
-
 
 @dataclass(frozen=True)
 class Judged:
@@ -272,16 +257,27 @@ class Judged:
     verdict: Verdict
 
     @property
-    def measured(self) -> bool:
-        return not self.verdict.failed
-
-    @property
     def correct(self) -> bool:
         return self.verdict.winner == self.resolution.winner
 
     def would_resolve(self, threshold: float) -> bool:
         """Whether the worker, on this confidence, would have settled it without a human."""
         return self.verdict.confidence >= threshold
+
+
+@dataclass(frozen=True)
+class Failed:
+    """
+    One human resolution the judge could not answer.
+
+    Not a ``Judged``: a pair the engine could not be asked about is not a row with a wrong verdict,
+    it is a row with no verdict at all, and the pair is still pending in the worker's queue (#122).
+    Keeping it a separate type is what makes "a failed call is not an opinion" a rule of the types
+    rather than a string comparison.
+    """
+
+    resolution: Resolution
+    reason: str
 
 
 def agreement(rows: Sequence[Judged]) -> float:
@@ -333,10 +329,18 @@ def by_entity_type(rows: Sequence[Judged]) -> list[tuple[str, int, float]]:
 def score_live(
     config: BenchConfig,
     rows: Sequence[Resolution],
-) -> tuple[list[Judged], float]:
-    """Asks the engine about every row, in order, and returns the verdicts and the seconds per pair."""
+) -> tuple[list[Judged], list[Failed], float]:
+    """
+    Asks the engine about every row, in order.
+
+    Returns the verdicts, the pairs the engine could not answer and the seconds per pair. The failure
+    is caught here rather than left to the caller because a bench run is long and an outage in the
+    middle has to be *counted*, not raised: the whole point is that the reader sees "0 scored, 49
+    failed" instead of a traceback or a flattering score.
+    """
     engine = get_engine(engine_name=config.typed_engine, preset=config.typed_preset)
     judged: list[Judged] = []
+    failed: list[Failed] = []
     started = time.perf_counter()
     for index, resolution in enumerate(rows, start=1):
         if index == 1 or index % 10 == 0 or index == len(rows):
@@ -347,15 +351,9 @@ def score_live(
                 entity_name=resolution.entity_name,
                 entity_type=resolution.entity_type,
             )
-        except Exception as error:  # the engine is supposed to absorb this; a new engine may not
+        except Exception as error:  # the engine raises by contract; any other failure counts the same
             logger.error(f"❌ o motor levantou em '{resolution.tag_name}': {error}")
-            failure = str(error)[:50]
-            judged.append(
-                Judged(
-                    resolution,
-                    Verdict(winner="TAG", confidence=0.0, reason=f"{FAILURE_REASON_PREFIX}{failure}"),
-                )
-            )
+            failed.append(Failed(resolution, reason=str(error)[:50]))
             continue
         judged.append(
             Judged(
@@ -364,7 +362,7 @@ def score_live(
             )
         )
     seconds = (time.perf_counter() - started) / len(rows) if rows else 0.0
-    return judged, seconds
+    return judged, failed, seconds
 
 
 # =============================================================================
@@ -375,13 +373,13 @@ def score_live(
 def report_for(
     config: BenchConfig,
     judged: Sequence[Judged],
+    failures: Sequence[Failed],
     census: dict[str, int],
     threshold: float,
     seconds_per_pair: float,
 ) -> dict[str, Any]:
     """Everything one configuration measured, as plain data, so ``--json`` and the print agree."""
-    measured = [row for row in judged if row.measured]
-    failed = [row for row in judged if not row.measured]
+    measured = list(judged)
     baseline_label, baseline = constant_baseline(measured)
     resolved = [row for row in measured if row.would_resolve(threshold)]
     deferred = [row for row in measured if not row.would_resolve(threshold)]
@@ -400,11 +398,11 @@ def report_for(
             "Nada foi pontuado: o motor não respondeu a nenhum par. O número da concordância abaixo é "
             "vazio, não zero — uma execução sem respostas não é uma medição."
         )
-    if failed:
+    if failures:
         notes.append(
-            f"**{len(failed)} par(es) fora do placar por falha do motor** (prefixo `{FAILURE_REASON_PREFIX}`): "
-            "o schema de decisão não tem estado de erro, então o motor devolve `TAG` com confiança 0.0 "
-            "quando a chamada falha. Contado como falha, não como opinião."
+            f"**{len(failures)} par(es) fora do placar por falha do motor**: a chamada levantou "
+            "`EngineExecutionError` e o par continua pendente, sem veredito escrito. Contado como "
+            "falha, não como opinião."
         )
     if census.get("judge", 0) and not census.get("human", 0):
         notes.append(
@@ -420,7 +418,7 @@ def report_for(
         "threshold": threshold,
         "ledger": census,
         "scored": len(measured),
-        "failed": len(failed),
+        "failed": len(failures),
         "agreement": agreement(measured),
         "constant": {"label": baseline_label, "agreement": baseline, "delta": agreement(measured) - baseline},
         "confusion": {f"{truth} → {predicted}": count for (truth, predicted), count in confusion(measured).items()},
@@ -452,9 +450,9 @@ def report_for(
             {
                 "resolution_id": row.resolution.resolution_id,
                 "tag_name": row.resolution.tag_name,
-                "reason": row.verdict.reason,
+                "reason": row.reason,
             }
-            for row in failed
+            for row in failures
         ],
         "notes": notes,
     }
@@ -588,8 +586,8 @@ def run_score(args: argparse.Namespace) -> int:
     reports: list[dict[str, Any]] = []
     for config in configs:
         logger.info(f"🧠 {config.label}: consultando o juiz sobre {len(chosen)} par(es)...")
-        judged, seconds = score_live(config, chosen)
-        reports.append(report_for(config, judged, census, threshold, seconds))
+        judged, failures, seconds = score_live(config, chosen)
+        reports.append(report_for(config, judged, failures, census, threshold, seconds))
 
     print_report(reports)
 
