@@ -5,6 +5,7 @@ import pytest
 from scrinalia.core.author import Author
 from scrinalia.core.runner_config import TypologyRunnerConfig
 from scrinalia.domains.archive.exceptions import InvalidWorkerSettingsError, WorkerNotFoundError
+from scrinalia.domains.archive.models.operations import WorkerSetting
 from scrinalia.domains.archive.repository import TypologyRepository
 from scrinalia.domains.archive.repository.cleaning_repo import CleaningRepository
 from scrinalia.domains.archive.schemas.cleaning_schema import CleaningRuleCreateDTO
@@ -58,15 +59,15 @@ def test_the_quality_validator_takes_its_engine_from_the_active_rule(db_session,
             replacement_string="",
             rule_kind="LLM_CHECK",
             engine_name="ollama_title_check",
-            preset="granite_local",
+            preset="gemma_4b_local",
         )
     )
     db_session.flush()
 
     with_rule = next(worker for worker in service.list_workers().workers if worker.name == "quality-validator")
     assert with_rule.settings.engine_name == "ollama_title_check"
-    assert with_rule.settings.preset == "granite_local"
-    assert with_rule.settings.config["model"] == "granite4.1:3b"
+    assert with_rule.settings.preset == "gemma_4b_local"
+    assert with_rule.settings.config["model"] == "gemma4:e4b"
 
 
 def test_a_setting_round_trips_and_leaves_a_revision(db_session, service) -> None:
@@ -113,6 +114,72 @@ def test_an_unknown_engine_or_option_is_rejected(service) -> None:
 
     with pytest.raises(InvalidWorkerSettingsError, match="objeto do runner"):
         service.update_settings("ner", WorkerSettingsRequest(options={"config": {"x": 1}}))
+
+
+def test_a_retired_preset_is_refused_with_its_reason(service) -> None:
+    """
+    #122: ``granite_local`` was declared and cannot run on the documented Ollama.
+
+    It is refused as retired, not as unknown: "não existe" reads as a typo, and the operator who
+    still has the name in a settings row needs the reason and the name to use instead.
+    """
+    with pytest.raises(InvalidWorkerSettingsError, match="aposentado"):
+        service.update_settings(
+            "conflict-judge", WorkerSettingsRequest(engine_name="ollama_judge", preset="granite_local")
+        )
+
+
+def test_a_stale_row_with_a_retired_preset_falls_back_and_says_why(db_session, service) -> None:
+    """
+    The read path must survive what the write path refuses.
+
+    A row written before the retirement is not a new mistake, and ``list_workers`` resolving it
+    through ``describe_config`` would take the whole panel down with it. It resolves to the worker's
+    own default instead, and the note carries the reason to the screen. The row is written directly
+    because the write path is exactly what refuses it now.
+    """
+    db_session.add(
+        WorkerSetting(
+            worker_name="conflict-judge",
+            engine_name="ollama_judge",
+            preset="granite_local",
+            db_batch_size=None,
+            options={},
+            updated_by="curador",
+        )
+    )
+    db_session.flush()
+
+    judge = next(worker for worker in service.list_workers().workers if worker.name == "conflict-judge")
+
+    assert judge.settings.preset == "gemma_4b_local"
+    assert judge.settings.config["model"] == "gemma4:e4b"
+    assert judge.settings.note is not None
+    assert "aposentado" in judge.settings.note
+    assert "granite4.1:3b" in judge.settings.note
+
+
+def test_an_active_rule_with_a_retired_preset_falls_back_too(db_session, service) -> None:
+    """The other stale source is the active ``LLM_CHECK`` rule, and it must not 500 the panel either."""
+    CleaningRepository(db_session).create_rule(
+        CleaningRuleCreateDTO(
+            rule_name="Revisão de título antiga",
+            target_column="original_title",
+            regex_pattern=".",
+            replacement_string="",
+            rule_kind="LLM_CHECK",
+            engine_name="ollama_title_check",
+            preset="granite_local",
+        )
+    )
+    db_session.flush()
+
+    validator = next(worker for worker in service.list_workers().workers if worker.name == "quality-validator")
+
+    assert validator.settings.preset == "gemma_4b_local"
+    assert validator.settings.config["model"] == "gemma4:e4b"
+    assert validator.settings.note is not None
+    assert "aposentado" in validator.settings.note
 
 
 def test_the_thumbnail_worker_accepts_force(service) -> None:

@@ -26,8 +26,8 @@ AXES = [
     (classification_registry, "deberta_typology", "cpu_local"),
     (classification_registry, "deberta_typology", "xlm_roberta_local"),
     (embeddings_registry, "sentence_transformer", "multilingual_minilm"),
-    (llm_registry, "ollama_judge", "granite_local"),
-    (title_registry, "ollama_title_check", "granite_local"),
+    (llm_registry, "ollama_judge", "gemma_4b_local"),
+    (title_registry, "ollama_title_check", "gemma_4b_local"),
 ]
 
 
@@ -101,11 +101,11 @@ def test_llm_host_comes_from_the_environment(monkeypatch) -> None:
         (title_registry, "ollama_title_check"),
     ):
         assert (
-            registry_module.describe_config(engine_name, preset="granite_local")["host"]
+            registry_module.describe_config(engine_name, preset="gemma_4b_local")["host"]
             == "http://ollama.interno:11434"
         )
 
-    engine = llm_registry.get_engine("ollama_judge", preset="granite_local")
+    engine = llm_registry.get_engine("ollama_judge", preset="gemma_4b_local")
     # ``host`` belongs to the Ollama engine, not to ``ResolveTagEntityConflictEngine`` — that Protocol
     # is about deciding a conflict, and a future engine backed by something else would have no host to
     # declare. Narrowing here is what keeps the assertion about the engine it is actually about.
@@ -119,7 +119,7 @@ def test_an_explicit_host_still_beats_the_environment(monkeypatch) -> None:
 
     assert core_config.resolve_ollama_host("http://outro:11434") == "http://outro:11434"
     assert (
-        llm_registry.describe_config("ollama_judge", preset="granite_local", host="http://outro:11434")["host"]
+        llm_registry.describe_config("ollama_judge", preset="gemma_4b_local", host="http://outro:11434")["host"]
         == "http://outro:11434"
     )
 
@@ -131,3 +131,36 @@ def test_the_default_host_is_used_when_nothing_is_configured(monkeypatch) -> Non
     assert (
         llm_registry.describe_config("ollama_judge", preset="gemma_4b_local")["host"] == core_config.DEFAULT_OLLAMA_HOST
     )
+
+
+@pytest.mark.parametrize(
+    ("registry_module", "engine_name"),
+    [(llm_registry, "ollama_judge"), (title_registry, "ollama_title_check")],
+)
+def test_a_retired_preset_is_refused_with_its_reason(registry_module, engine_name) -> None:
+    """
+    #122: ``granite4.1:3b`` terminates the llama runner on the Ollama the install guide documents, so
+    the preset that named it is no longer selectable — in **both** axes that named it, because it is
+    the same model that does not run. The record stays (principle VI) and the refusal carries the
+    reason, so an operator reads "use this instead" and not "did you mistype?".
+    """
+    assert "granite_local" not in registry_module.PRESETS
+    assert "granite_local" in registry_module.RETIRED_PRESETS
+    assert "gemma_4b_local" in registry_module.RETIRED_PRESETS["granite_local"]
+
+    with pytest.raises(ValueError, match="aposentado"):
+        registry_module.describe_config(engine_name, preset="granite_local")
+
+    with pytest.raises(ValueError, match="aposentado"):
+        registry_module.get_engine(engine_name, preset="granite_local")
+
+
+def test_the_two_ollama_axes_carry_the_same_retirement() -> None:
+    """
+    One model, two axes, one reason.
+
+    The preset catalogues are declared per axis (each registry owns its names and its engine type),
+    so the retirement is declared twice; this pins the pair that cannot be merged, because the day
+    one reason is edited and the other is not, the same model reads as two different problems.
+    """
+    assert llm_registry.RETIRED_PRESETS == title_registry.RETIRED_PRESETS

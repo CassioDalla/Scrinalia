@@ -16,7 +16,7 @@ class OllamaJudgeEngine:
     exception is the type that tells the caller the pair is still pending (#122).
     """
 
-    def __init__(self, model: str = "granite4.1:3b", host: str = "http://localhost:11434", **kwargs):
+    def __init__(self, model: str = "gemma4:e4b", host: str = "http://localhost:11434", **kwargs):
         self.model = model
         self.host = f"{host}/api/generate"
         self.kwargs = kwargs

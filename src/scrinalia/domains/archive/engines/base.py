@@ -45,6 +45,21 @@ def describe_engine_config(
     return final_kwargs
 
 
+def refuse_retired_preset(preset: str | None, retired_presets: Mapping[str, str]) -> None:
+    """
+    Refuses a preset this project used to declare and no longer can, naming the reason.
+
+    A preset leaves ``PRESETS`` when the model it named cannot run on the Ollama the installation
+    guide documents, and it leaves a row here so the record that it ever existed is not erased
+    (principle VI, the same reason a catalogue row retires instead of being deleted). Without this,
+    an operator who still has the name in a settings row would read "preset não encontrado", which
+    says *typo*; the reason says *deliberate*, and what to use instead. The reason is a sentence an
+    operator reads, so it is Portuguese like the refusals beside it.
+    """
+    if preset and preset in retired_presets:
+        raise ValueError(f"Preset '{preset}' foi aposentado: {retired_presets[preset]}")
+
+
 class TypologyEngine(Protocol):
     """
     Contract that every archive classification engine must follow.
