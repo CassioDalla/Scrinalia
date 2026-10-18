@@ -51,7 +51,34 @@ commits — the history is the detail.
   position of the first expected description for each query, and the shared ranking arithmetic is
   defined once in `testing/evaluation/ranking_metrics.py`.
 
+- **The operations panel opens a worker's stamp into what it actually names** (issue #137):
+  `GET /api/v1/system/workers` now carries `stamp_breakdown` per worker — units the stamp attributes to
+  a producer, units it leaves without a known one, units recorded as failed and units with no record at
+  all — and `/sistema/workers` shows those counts on the card. It exists because one "processed" number
+  used to stand for all of them, and for NER that number was 1,650 legacy values reading as success. The
+  four numbers come from one aggregate, and `processed`/`failed` are derived from it, so the panel pays
+  one scan where it used to pay two.
+
 ### Changed
+
+- **An identity-keyed stamp accepts a producer fingerprint and nothing else** (issue #137). The
+  vocabulary had one type carrying both `mark` (a status) and `mark_value` (an identity), so `"DONE"` —
+  a legal `StampStatus` — was a legal write into a slot that promises a producer, which is how 1,691 NER
+  rows came to name no extractor while reading as a success. `IdentityStamp` has no `mark`: `mark_value`
+  raises `ValueError` for any value the slot's own `fingerprint_pattern` does not accept, `mark_failed`
+  is the only failure writer, and "a run happened and its producer is unknown" has the name
+  `PRODUCER_UNKNOWN` instead of borrowing a status. `WorkerStamp` stays for the ledgers that really do
+  hold a status or a free text: the thumbnail's failure mark, the declared parent, a curator's own
+  decision.
+
+  **A migration makes the existing rows honest without inventing a producer**
+  (`a7c1e5b9d3f2_make_the_legacy_identity_stamps_read_as_unknown.py`): every `"DONE"` in an identity
+  slot — the current key or a retired one — becomes `PRODUCER_UNKNOWN`, the 3,100-odd documents with no
+  NER slot keep having none, and the embedding's bare text hashes are left alone, because that hash is
+  a fact. Those rows were pending before the rename and are pending after it — the queue is unchanged,
+  and the next run heals them by writing a real fingerprint — so the fix is attribution and reporting,
+  and `testing/unit/quality/test_identity_stamp_writes.py` fails a worker that writes a status into an
+  identity slot at all.
 
 - **The semantic mode's note no longer cites a Hit@10 that belonged to another experiment.** The
   screen and the curation guide used to say the semantic ranking was measured as weak and quote
