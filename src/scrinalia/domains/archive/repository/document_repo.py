@@ -19,6 +19,7 @@ from sqlalchemy import (
     or_,
     select,
     true,
+    union,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, insert
 from sqlalchemy.orm import Session, selectinload
@@ -162,13 +163,22 @@ def _carries_entity(*conditions: Any) -> Any:
 @dataclass(frozen=True)
 class _LexicalMatch:
     """
-    The full-text arm: the predicate that decides what matches and the relevance that orders it.
+    The full-text arm: the descriptions it matches and the relevance that orders them.
+
+    ``matched`` is a statement of ``description_id`` and ``clause`` is the predicate built from it.
+    The arm is a **set of documents**, and not an ``OR`` of correlated ``EXISTS``, because that OR is
+    re-evaluated once per row of whatever it is joined to: inside the entity facet it ran over
+    64,504 entity links to find 12 descriptions, and the two link-table facets took 17 of the 18
+    seconds a selective search used to spend. Filtering the documents first is the same answer for a
+    fraction of the work, and it is what lets the generated ``search_vector`` GIN index be used at
+    all — the ``OR`` was enough to keep the planner away from it.
 
     Built once and carried around, because two searches read it — the lexical one and the fused
     one — and a second spelling of ``ts_rank`` plus the taxonomy boost would be a second
     definition of what "the full-text ranking" means.
     """
 
+    matched: Any
     clause: Any
     rank: Any
 
@@ -627,7 +637,7 @@ class DocumentRepository:
         ]
 
     @staticmethod
-    def _taxonomy_match(
+    def _taxonomy_match_ids(
         link_model: Any,
         name_model: Any,
         join_on: Any,
@@ -636,25 +646,21 @@ class DocumentRepository:
         canonical_synonym: Any | None = None,
     ) -> Any:
         """
-        ``EXISTS`` on a link table whose related name contains every search token.
+        The descriptions carrying a tag/entity whose name contains every search token.
 
-        ``EXISTS`` instead of a join keeps a document with several matching tags from
-        being duplicated in the page or double-counted in ``total``. The ``ILIKE`` on
-        the names is what the existing ``gin_trgm_ops`` indexes accelerate.
+        A statement of ``description_id``, and not a correlated ``EXISTS`` as this used to be: the
+        arm travels as a *set of documents* that the page, the count and every facet filter on, so
+        the link table is read once instead of once per row of whatever the term was joined to.
 
-        ``canonical_synonym`` adds the direct path from an absorbed spelling to the
-        canonical it was merged into (see ``_merged_spelling_match``), as an *alternative*
-        to the token condition — the token semantics (all tokens required) stay untouched.
+        The ``ILIKE`` on the names is what the existing ``gin_trgm_ops`` indexes accelerate.
+        ``canonical_synonym`` adds the direct path from an absorbed spelling to the canonical it was
+        merged into (see ``_merged_spelling_match``), as an *alternative* to the token condition —
+        the token semantics (all tokens required) stay untouched.
         """
         token_condition = and_(*(name_column.ilike(f"%{token}%") for token in tokens))
         condition = token_condition if canonical_synonym is None else or_(token_condition, canonical_synonym)
 
-        return exists(
-            select(1)
-            .select_from(link_model)
-            .join(name_model, join_on)
-            .where(link_model.description_id == ArchiveDocument.description_id, condition)
-        )
+        return select(link_model.description_id).select_from(link_model).join(name_model, join_on).where(condition)
 
     @staticmethod
     def _merged_spelling_match(id_column: Any, canonical_column: Any, categories: list[str], term: str) -> Any:
@@ -706,7 +712,12 @@ class DocumentRepository:
 
     def _lexical_match(self, tokens: list[str]) -> _LexicalMatch | None:
         """
-        Builds the full-text arm: the predicate that decides what matches and the rank that orders it.
+        Builds the full-text arm: the documents it matches and the rank that orders them.
+
+        The three ways a term reaches a description — the generated vector, a tag and an entity -
+        meet in **one set of ids**, and the relevance is the ``ts_rank`` plus a boost for each of the
+        two taxonomy arms the description belongs to. The membership tests read the same statements
+        the set is built from, so the arm a document is boosted for is the arm that found it.
 
         One definition for the two searches that read it — the lexical one and the fused one —
         because a second spelling of the taxonomy boost would be a second definition of what the
@@ -718,7 +729,7 @@ class DocumentRepository:
 
         ts_query = func.to_tsquery(get_language().fts_dictionary, func.immutable_unaccent(tsquery))
         merged_term = " ".join(tokens)
-        tag_match = self._taxonomy_match(
+        tag_ids = self._taxonomy_match_ids(
             ArchiveDocumentTag,
             ArchiveTag,
             ArchiveDocumentTag.tag_id == ArchiveTag.tag_id,
@@ -728,7 +739,7 @@ class DocumentRepository:
                 ArchiveTag.tag_id, DomainSynonyms.canonical_tag_id, ["TAG"], merged_term
             ),
         )
-        entity_match = self._taxonomy_match(
+        entity_ids = self._taxonomy_match_ids(
             ArchiveDocumentEntity,
             ArchiveEntity,
             ArchiveDocumentEntity.entity_id == ArchiveEntity.entity_id,
@@ -741,13 +752,19 @@ class DocumentRepository:
                 merged_term,
             ),
         )
+        matched = (
+            select(ArchiveDocument.description_id)
+            .where(ArchiveDocument.search_vector.op("@@")(ts_query))
+            .union(tag_ids, entity_ids)
+        )
         rank = (
             func.ts_rank(ArchiveDocument.search_vector, ts_query)
-            + case((tag_match, TAXONOMY_MATCH_BOOST), else_=0.0)
-            + case((entity_match, TAXONOMY_MATCH_BOOST), else_=0.0)
+            + case((ArchiveDocument.description_id.in_(tag_ids), TAXONOMY_MATCH_BOOST), else_=0.0)
+            + case((ArchiveDocument.description_id.in_(entity_ids), TAXONOMY_MATCH_BOOST), else_=0.0)
         ).label("rank")
         return _LexicalMatch(
-            clause=or_(ArchiveDocument.search_vector.op("@@")(ts_query), tag_match, entity_match),
+            matched=matched,
+            clause=ArchiveDocument.description_id.in_(matched),
             rank=rank,
         )
 
@@ -804,16 +821,23 @@ class DocumentRepository:
         """
         What the fusion could rank: the full-text matches plus the semantic window.
 
-        The union is bounded by the window on the semantic side on purpose, and the full-text
-        side is not: a term matches a set that can be enumerated, while the semantic arm matches
-        every document that has an embedding.
+        One ``IN`` over the union of the two, and not an ``OR`` of two ``IN``s: the ``OR`` is not
+        something the planner can answer with a hash semi-join, so it evaluates the predicate once per
+        document — 4,831 index probes with a 100-element array comparison each, which turned a 20 ms
+        count into 230 ms. Both arms are sets of description ids, and their union is the set.
+
+        The union is bounded by the window on the semantic side on purpose, and the full-text side is
+        not: a term matches a set that can be enumerated, while the semantic arm matches every
+        document that has an embedding.
         """
-        clauses = [lexical.clause] if lexical is not None else []
+        candidates: list[Any] = []
+        if lexical is not None:
+            candidates.append(lexical.matched)
         if semantic_ids:
-            clauses.append(ArchiveDocument.description_id.in_(semantic_ids))
-        if not clauses:
+            candidates.append(select(func.unnest(bindparam("semantic_window", value=semantic_ids, type_=ARRAY(Text)))))
+        if not candidates:
             return None
-        return or_(*clauses)
+        return ArchiveDocument.description_id.in_(union(*candidates))
 
     def _semantic_search(
         self,
@@ -968,13 +992,17 @@ class DocumentRepository:
                 self._facets(query, ancestor_path),
             )
 
-        # The relevance has to be selected, not only ordered by, so the read view
-        # can expose it and the caller can explain the ordering.
-        ranked_stmt = base_stmt.where(lexical.clause).add_columns(lexical.rank)
-        total = self._count(ranked_stmt)
+        # The count and the page share one predicate: the *documents* the term matches, filtered.
+        # The rank expression is added to the page alone, because counting rows does not need it and
+        # computing it for every match was pure work — 88 ms of the 6.6 s a broad term used to cost.
+        matched_stmt = base_stmt.where(lexical.clause)
+        total = self._count(matched_stmt)
         if total:
+            # The relevance has to be selected, not only ordered by, so the read view
+            # can expose it and the caller can explain the ordering.
             page_stmt = (
-                ranked_stmt.options(*self._eager_options())
+                matched_stmt.add_columns(lexical.rank)
+                .options(*self._eager_options())
                 .order_by(lexical.rank.desc(), ArchiveDocument.updated_at.desc(), ArchiveDocument.description_id)
                 .limit(query.limit)
                 .offset(query.offset)
