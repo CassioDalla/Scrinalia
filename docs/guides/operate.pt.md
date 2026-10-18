@@ -110,7 +110,7 @@ servidor Ollama serve. Rode esses dois casos com `force`.
 | `thumbnail` | documentos com imagem de origem, sem URI no storage e sem marca de falha — todos os marcados, com `force` | nenhum; a coluna `storage_thumbnail_uri`, mais a marca `thumbnail_failed` |
 | `conflict-judge` | **não é mensurável barato**: a fila é o produto trigram de tags × entidades, medido em 53 s no acervo real. O painel mostra o que já foi julgado | nenhum; a linha em `archive_ai_review_queue` |
 | `macro-category` | tags sem categoria de assunto cujo carimbo não é o produtor atual (o conjunto de rótulos e o modelo estão nos dois) | `worker_macro_category_v1` (na tag; o valor é o conjunto de rótulos composto com a identidade do produtor) |
-| `quality-validator` | documentos sem o carimbo do produtor atual, a menos que `force` esteja ligado | `worker_quality_validator_v1` (o valor é a identidade da regra `LLM_CHECK` ativa, ou de "sem modelo") |
+| `quality-validator` | documentos sem o carimbo do produtor atual, a menos que `force` esteja ligado | `worker_quality_validator_v1` (o valor é a identidade da regra `LLM_CHECK` ativa, ou de "sem modelo" — inclusive quando a engine da regra não pode ser construída, que é a execução que o validador de fato faz) |
 | `embedding` | documentos cujo carimbo difere do MD5 do texto efetivo **mais** a identidade do produtor — a primeira execução, toda mudança de texto posterior e todo bump de modelo ou dependência | `worker_embedding_v1` (o valor é o MD5 seguido de `:` e da identidade) |
 
 Um documento que o worker marcou como `ERROR` fica fora da fila comum: `force` é o caminho de volta,

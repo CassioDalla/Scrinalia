@@ -148,6 +148,20 @@ class EngineExecutionError(DomainException):
     pass
 
 
+class InvalidLLMCheckEngineError(DomainException):
+    """
+    An ``LLM_CHECK`` rule names an engine or a preset the title-quality registry does not have.
+
+    Refused at the door, where the rule is written, and not at the first run: the registry's
+    ``ValueError`` used to escape ``worker_quality_validator.execute``, so the run was recorded
+    ``FAILED`` and the validator never validated anything while the rule stayed active. The write
+    path is the only place the refusal can reach a person (#124).
+    """
+
+    # Ideal translation in Litestar: HTTP 422 (Unprocessable Entity)
+    pass
+
+
 class DescriptionLevelNotFoundError(DomainException):
     """Raised when a level of the description catalogue does not exist."""
 
