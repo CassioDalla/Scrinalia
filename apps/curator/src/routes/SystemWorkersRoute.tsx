@@ -133,10 +133,19 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
                 {formatCount(worker.pending)}
               </span>
             )}
-            <p className="mt-1 text-xs text-(--color-muted)">
-              {formatCount(worker.processed ?? 0)} já processados
-              {worker.failed ? ` · ${formatCount(worker.failed)} com falha` : ""}
-            </p>
+            {worker.stamp_breakdown ? (
+              <p className="mt-1 text-xs text-(--color-muted)">
+                {formatCount(worker.stamp_breakdown.fingerprinted)} com produtor
+                {` · ${formatCount(worker.stamp_breakdown.legacy)} sem produtor conhecido`}
+                {` · ${formatCount(worker.stamp_breakdown.unrecorded)} sem registro`}
+                {worker.stamp_breakdown.failed ? ` · ${formatCount(worker.stamp_breakdown.failed)} com falha` : ""}
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-(--color-muted)">
+                {formatCount(worker.processed ?? 0)} já processados
+                {worker.failed ? ` · ${formatCount(worker.failed)} com falha` : ""}
+              </p>
+            )}
           </Fact>
 
           <Fact label="Última execução">
