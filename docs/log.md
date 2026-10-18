@@ -1625,3 +1625,39 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   `check_title` still swallows a transport error into `is_suspect=False` with confidence `0.0`, the
   same defect class in another worker, and it is outside this issue's definition of done — no test
   covers it either way, which is a gap this round did not close.
+
+## 2026-10-18 — the engine of an LLM_CHECK rule stops being free text (#124)
+
+- **Range:** `5bfb1f8..d18c3f0`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the *Regras* section gained what the `LLM_CHECK` rule's two new
+    selects are fed by (`GET /api/v1/quality/cleaning-rules/engines`, the title-quality axis's
+    catalogue), that the pair is checked when the rule is written and refused as a `422`, that an
+    empty engine still means the default, and what a rule written before that door does now.
+  - `guides/curate.pt.md` — **updated**: the same paragraph, same structure.
+  - `guides/operate.md` — **updated**: the `quality-validator` row of the queue table now says its
+    producer identity is the "no model" one **also** when the rule's engine cannot be built, because
+    that is the run the validator actually makes.
+  - `guides/operate.pt.md` — **updated**: the same row.
+- **The defect, measured before it was touched.** The screen's only hint was the placeholder
+  `ex.: ollama`, and `ollama` is not a registered engine — the axis holds `ollama_title_check` alone.
+  Nothing validated the pair on the way in (`CleaningService.create_cleaning_rule` checked the regex
+  and nothing else), and the registry's `ValueError` escaped `worker_quality_validator.execute`, so
+  the run was recorded `FAILED` and the validator validated nothing while the rule stayed active.
+- **What the change is, in three pieces.** The catalogue is one definition
+  (`describe_axis_engines`, shared with the operations panel) behind a new read route; the write
+  validates the pair through the registry's own `describe_config` and raises
+  `InvalidLLMCheckEngineError` (`422`) whatever the rule kind is; and the two readers of a rule saved
+  before that door — `execute` and `producer_identity` — ask one question
+  (`unbuildable_rule_reason`) and degrade to the deterministic stage and the "no model" identity.
+- **What was rendered.** `.render/cleaning-rules-124.png`: the *Nova regra* form with `Tipo` =
+  *consulta o modelo*, `Engine` = *padrão (ollama_title_check)* and `Preset` = *sem preset (o padrão do
+  motor)*; the preset list read out of the DOM was
+  `gemma_4b_local — gemma4:e4b`, and the placeholder that named a non-existent engine is gone. The
+  catalogue the screen reads was checked against the live route before the shot:
+  `[{"name":"ollama_title_check","presets":[{"name":"gemma_4b_local","config":{"model":"gemma4:e4b",...}}]}]`.
+- **Not verified, and said so.** The refusal was exercised through the real route and the real
+  service by the integration test (a `POST` naming `ollama` answers `422` with
+  `InvalidLLMCheckEngineError`), but **not** by clicking *Salvar e ativar* in the browser. The legacy
+  degradation is covered against the test database; no live run against Ollama was made, so the
+  sentence the log carries in that path was read in the captured log, not on a screen.

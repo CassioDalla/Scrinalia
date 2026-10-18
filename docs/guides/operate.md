@@ -155,7 +155,7 @@ with `force`.
 | `thumbnail` | documents with a source image, no storage URI and no failure mark — every marked one, with `force` | none; the `storage_thumbnail_uri` column, plus the `thumbnail_failed` mark |
 | `conflict-judge` | **not measurable cheaply**: the queue is the trigram product of tags × entities, measured at 53 s on the real collection. The panel shows what was already judged | none; the `archive_ai_review_queue` row |
 | `macro-category` | tags with no subject category whose stamp is not the current producer (the label set and the model are both in it) | `worker_macro_category_v1` (on the tag; value is the label set composed with the producer identity) |
-| `quality-validator` | documents without the stamp of the current producer, unless `force` is on | `worker_quality_validator_v1` (value is the identity of the active `LLM_CHECK` rule, or of "no model") |
+| `quality-validator` | documents without the stamp of the current producer, unless `force` is on | `worker_quality_validator_v1` (value is the identity of the active `LLM_CHECK` rule, or of "no model" — including a rule whose engine cannot be built, which is the run the validator actually makes) |
 | `embedding` | documents whose stamp differs from the MD5 of the effective text **plus** the producer identity — the first run, every later text change and every model or dependency bump | `worker_embedding_v1` (value is the MD5 followed by `:` and the identity) |
 
 A document the worker marked `ERROR` stays out of the plain queue: `force` is the way back, and it

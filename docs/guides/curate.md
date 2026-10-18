@@ -936,6 +936,16 @@ a rule is wrong, so the way out of it has to exist.
 An active `REWRITE` rule is the loudest thing on the screen, and the preview is what makes it
 visible: a test rule once sat active and stamped the whole collection without matching anything.
 
+An `LLM_CHECK` rule also names an **engine** and a **preset**, and both are chosen from the registry
+rather than typed from memory: the two selects are fed by
+`GET /api/v1/quality/cleaning-rules/engines`, which is the title-quality axis's own catalogue — the
+same names `get_engine` validates against, so a model that retires stops being offered here in the
+same change that retires it. The pair is checked when the rule is written, so a rule that cannot run
+cannot be saved (the refusal is a `422` naming the options), and an empty engine stays legal: it
+means the axis's default. A rule written before that check existed degrades instead of killing the
+run — the validator logs the reason, validates deterministically, and its producer identity is the
+"no model" one, so the queue and the panel's counter describe the run that actually happened.
+
 ### Anomalias — `/qualidade/anomalias`
 
 What the quality validator marked, read-only (`GET /api/v1/documents` filtered to `NEEDS_REVIEW`,

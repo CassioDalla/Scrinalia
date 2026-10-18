@@ -913,6 +913,17 @@ dela precisa existir.
 Uma regra `REWRITE` ativa é a coisa mais barulhenta da tela, e a prévia é o que a torna visível: uma
 regra de teste já ficou ativa e carimbou o acervo inteiro sem casar com nada.
 
+Uma regra `LLM_CHECK` também nomeia uma **engine** e um **preset**, e os dois são escolhidos do
+registro em vez de digitados de memória: os dois selects são alimentados por
+`GET /api/v1/quality/cleaning-rules/engines`, que é o catálogo do próprio eixo de qualidade de título
+— os mesmos nomes contra os quais `get_engine` valida, então um modelo que se aposenta deixa de ser
+oferecido aqui na mesma mudança que o aposenta. O par é conferido quando a regra é gravada, então uma
+regra que não pode rodar não pode ser salva (a recusa é um `422` nomeando as opções), e engine vazia
+continua legal: significa o padrão do eixo. Uma regra gravada antes dessa conferência existir degrada
+em vez de derrubar a execução — o validador registra o motivo, valida de forma determinística, e a
+identidade de produtor dele é a de "sem modelo", então a fila e o contador do painel descrevem a
+execução que de fato aconteceu.
+
 ### Anomalias — `/qualidade/anomalias`
 
 O que o validador de qualidade marcou, em leitura (`GET /api/v1/documents` filtrado por
