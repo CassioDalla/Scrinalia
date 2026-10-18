@@ -5,10 +5,15 @@ from litestar.status_codes import (
     HTTP_201_CREATED,
     HTTP_400_BAD_REQUEST,
     HTTP_404_NOT_FOUND,
+    HTTP_422_UNPROCESSABLE_ENTITY,
 )
 from litestar.testing import TestClient
 
-from scrinalia.domains.archive.exceptions import CleaningRuleNotFoundError, InvalidParam
+from scrinalia.domains.archive.exceptions import (
+    CleaningRuleNotFoundError,
+    InvalidLLMCheckEngineError,
+    InvalidParam,
+)
 from scrinalia.domains.archive.schemas.cleaning_schema import (
     CleaningRuleDTO,
     DryRunMatchDTO,
@@ -60,6 +65,23 @@ def test_list_rules_can_include_the_retired_ones(client: TestClient, mocker):
     assert response.status_code == HTTP_200_OK
     assert response.json()[0]["is_active"] is False
     mock_list.assert_called_once_with(include_inactive=True)
+
+
+def test_the_engine_catalogue_is_the_registry(client: TestClient):
+    """
+    The screen's options are the registry's names, not a list written in the screen (#124).
+
+    This reads the real route and the real registry: the engine the rules use is there, the preset
+    carries the model ``describe_config`` resolves, and the retired one is not offered.
+    """
+    response = client.get("/api/v1/quality/cleaning-rules/engines")
+
+    assert response.status_code == HTTP_200_OK
+    engines = response.json()
+    assert [engine["name"] for engine in engines] == ["ollama_title_check"]
+    presets = engines[0]["presets"]
+    assert [preset["name"] for preset in presets] == ["gemma_4b_local"]
+    assert presets[0]["config"]["model"] == "gemma4:e4b"
 
 
 # ==========================================
@@ -127,6 +149,70 @@ def test_create_rule_surfaces_an_invalid_regex_as_400(client: TestClient, mocker
 
     assert response.status_code == HTTP_400_BAD_REQUEST
     assert response.json()["error_code"] == "InvalidParam"
+
+
+def test_create_rule_refuses_an_engine_the_registry_does_not_have(client: TestClient):
+    """
+    The door, end to end: the real service, the real registry, no mock in between (#124).
+
+    The placeholder used to suggest ``ollama``, which is not a registered engine, and nothing
+    validated it — a rule saved that way was written active and the next run died with the registry's
+    ``ValueError``. Now the write refuses it with a business status and a sentence naming the options.
+    """
+    response = client.post(
+        "/api/v1/quality/cleaning-rules/",
+        json={
+            "rule_name": "Revisão de título",
+            "target_column": "original_title",
+            "regex_pattern": ".",
+            "replacement_string": "",
+            "rule_kind": "LLM_CHECK",
+            "engine_name": "ollama",
+            "preset": None,
+        },
+    )
+
+    assert response.status_code == HTTP_422_UNPROCESSABLE_ENTITY
+    body = response.json()
+    assert body["error_code"] == "InvalidLLMCheckEngineError"
+    assert "ollama_title_check" in body["message"]
+
+
+def test_create_rule_refuses_a_retired_preset_with_the_reason(client: TestClient):
+    """The same door closes on a preset that retired, and the sentence carries why (#122, #124)."""
+    response = client.post(
+        "/api/v1/quality/cleaning-rules/",
+        json={
+            "rule_name": "Revisão de título",
+            "target_column": "original_title",
+            "regex_pattern": ".",
+            "replacement_string": "",
+            "rule_kind": "LLM_CHECK",
+            "engine_name": "ollama_title_check",
+            "preset": "granite_local",
+        },
+    )
+
+    assert response.status_code == HTTP_422_UNPROCESSABLE_ENTITY
+    assert response.json()["error_code"] == "InvalidLLMCheckEngineError"
+    assert "aposentado" in response.json()["message"]
+
+
+def test_create_rule_surfaces_the_engine_refusal_as_422(client: TestClient, mocker):
+    """The mapping itself, pinned without depending on which names the registry happens to hold."""
+    mocker.patch.object(
+        CleaningService,
+        "create_cleaning_rule",
+        side_effect=InvalidLLMCheckEngineError("Motor 'x' não suportado."),
+    )
+
+    response = client.post(
+        "/api/v1/quality/cleaning-rules/",
+        json={"rule_name": "r", "target_column": "original_title", "regex_pattern": ".", "replacement_string": ""},
+    )
+
+    assert response.status_code == HTTP_422_UNPROCESSABLE_ENTITY
+    assert response.json()["error_code"] == "InvalidLLMCheckEngineError"
 
 
 # ==========================================

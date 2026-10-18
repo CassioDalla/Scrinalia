@@ -26,7 +26,6 @@ from scrinalia.domains.archive.schemas.system_schema import (
     SystemWorkerSettingsResponse,
     SystemWorkersResponse,
     WorkerEngineDTO,
-    WorkerPresetDTO,
     WorkerQueuePreviewDTO,
     WorkerSettingsDTO,
     WorkerSettingsItemDTO,
@@ -38,10 +37,10 @@ from scrinalia.domains.archive.schemas.system_schema import (
 from scrinalia.domains.archive.workers.catalogue import (
     WORKER_CATALOGUE,
     WorkerSpec,
-    axis_registry,
     count_failed,
     count_pending,
     count_processed,
+    describe_axis_engines,
     worker_module,
 )
 from scrinalia.domains.archive.workers.configuration import (
@@ -222,19 +221,7 @@ class WorkerOperationsService:
         )
 
     def _available_engines(self, spec: WorkerSpec) -> list[WorkerEngineDTO]:
-        if spec.axis is None:
-            return []
-        registry = axis_registry(spec.axis)
-        return [
-            WorkerEngineDTO(
-                name=engine_name,
-                presets=[
-                    WorkerPresetDTO(name=preset_name, config=registry.describe_config(engine_name, preset_name))
-                    for preset_name in registry.PRESETS
-                ],
-            )
-            for engine_name in registry.AVAILABLE_ENGINES
-        ]
+        return describe_axis_engines(spec.axis) if spec.axis is not None else []
 
     def _note(self, spec: WorkerSpec, resolved: ResolvedWorkerConfig) -> str | None:
         """Dynamic notes the catalogue cannot carry, because they depend on the collection."""

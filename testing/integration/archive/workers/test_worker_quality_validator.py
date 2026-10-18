@@ -191,6 +191,60 @@ def test_worker_uses_the_llm_when_a_rule_is_active(db_session, generate_archive_
     assert f"{AnomalyReason.LLM_SUSPECT}:título truncado" in stored.anomaly_reasons
 
 
+def _stale_llm_rule(db_session) -> None:
+    """A rule saved before the door validated the pair (#124): the engine does not exist."""
+    from scrinalia.domains.archive.repository.cleaning_repo import CleaningRepository
+
+    CleaningRepository(db_session).create_rule(
+        CleaningRuleCreateDTO(
+            rule_name="Revisão de título por LLM (antiga)",
+            target_column="original_title",
+            regex_pattern=".",
+            replacement_string="",
+            rule_kind="LLM_CHECK",
+            engine_name="ollama",
+            preset=None,
+        )
+    )
+    db_session.flush()
+
+
+def test_a_rule_whose_engine_does_not_exist_does_not_kill_the_run(db_session, generate_archive_doc, mocker) -> None:
+    """
+    #124: the registry's ``ValueError`` used to escape ``execute``, so the run was recorded ``FAILED``
+    and the validator validated nothing while the rule stayed active. The deterministic stage still
+    validates the collection, and the model is simply not built.
+    """
+    mocked_get_engine = mocker.patch(LLM_REGISTRY)
+    _stale_llm_rule(db_session)
+    description_id = generate_archive_doc(description_id="stale-1", original_title="Rua Izaac Ferreir").description_id
+
+    execute(db=db_session)
+
+    mocked_get_engine.assert_not_called()
+    db_session.expire_all()
+    stored = db_session.get(ArchiveDocument, description_id)
+    # The deterministic gaps were still marked, which is the half that must not be lost.
+    assert stored.anomaly_reasons
+
+
+def test_a_rule_whose_engine_does_not_exist_degrades_the_producer_identity(db_session) -> None:
+    """
+    The other reader of the same pair. The identity is the one of "no model", because that is what
+    the run does — so the panel's counter and the queue describe the run that actually happened.
+    """
+    _stale_llm_rule(db_session)
+
+    with_rule = producer_identity(
+        db_session,
+        repeat_threshold=DEFAULT_REPEAT_THRESHOLD,
+        llm_confidence=DEFAULT_LLM_CONFIDENCE,
+        engine_kwargs={},
+    )
+
+    assert with_rule == _identity(db_session)
+
+
 def test_the_cleaning_worker_ignores_validation_rules(db_session, generate_archive_doc) -> None:
     """Safety: a VALIDATE rule must never substitute text the way a REWRITE rule does."""
     from scrinalia.domains.archive.repository.cleaning_repo import CleaningRepository

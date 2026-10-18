@@ -603,6 +603,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/quality/cleaning-rules/engines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListEngines */
+        get: operations["ApiV1QualityCleaningRulesEnginesListEngines"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/quality/cleaning-rules/preview": {
         parameters: {
             query?: never;
@@ -5638,6 +5655,26 @@ export interface operations {
                         } | unknown[];
                         status_code: number;
                     };
+                };
+            };
+        };
+    };
+    ApiV1QualityCleaningRulesEnginesListEngines: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerEngineDTO"][];
                 };
             };
         };

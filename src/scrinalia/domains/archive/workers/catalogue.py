@@ -21,7 +21,12 @@ from typing import Any, Literal
 
 from sqlalchemy.orm import Session
 
-from scrinalia.domains.archive.schemas.system_schema import EngineSource, WorkerUnit
+from scrinalia.domains.archive.schemas.system_schema import (
+    EngineSource,
+    WorkerEngineDTO,
+    WorkerPresetDTO,
+    WorkerUnit,
+)
 from scrinalia.domains.archive.worker_stamp import (
     EMBEDDING,
     MACRO_CATEGORY,
@@ -222,6 +227,47 @@ def worker_signature(spec: WorkerSpec) -> Signature:
 def axis_registry(axis: str) -> Any:
     """Registry module of an engine axis; this is the import that pulls spaCy/transformers."""
     return import_module(ENGINE_AXES[axis])
+
+
+def describe_axis_engines(axis: str) -> list[WorkerEngineDTO]:
+    """
+    Every engine of one axis, with the presets it declares and each preset's resolved config.
+
+    One definition for two readers: the operations panel shows this per worker, and the cleaning
+    rules screen needs the same catalogue for the axis its ``LLM_CHECK`` rule names. The names come
+    from the registry — never from a list written here — so a preset added, changed or retired in
+    code reaches both screens without a second edit, and the catalogue the screen offers is the one
+    ``get_engine`` will accept.
+    """
+    registry = axis_registry(axis)
+    return [
+        WorkerEngineDTO(
+            name=engine_name,
+            presets=[
+                WorkerPresetDTO(name=preset_name, config=registry.describe_config(engine_name, preset_name))
+                for preset_name in registry.PRESETS
+            ],
+        )
+        for engine_name in registry.AVAILABLE_ENGINES
+    ]
+
+
+def _llm_check_axis() -> str:
+    """The axis an ``LLM_CHECK`` cleaning rule configures: the quality validator's own."""
+    axis = WORKER_CATALOGUE["quality-validator"].axis
+    if axis is None:
+        raise ValueError("O worker 'quality-validator' não declara eixo de motores.")
+    return axis
+
+
+#: The engine axis a ``LLM_CHECK`` rule configures. Derived from the worker that reads the rule, so
+#: the rules screen and the operations panel cannot name two different axes for the same engine.
+LLM_CHECK_AXIS: str = _llm_check_axis()
+
+#: The engine an ``LLM_CHECK`` rule runs when it names none. It is the worker's documented fallback,
+#: declared once here so the run, the producer identity and the write path cannot resolve three
+#: different defaults for the same empty field.
+DEFAULT_LLM_CHECK_ENGINE = "ollama_title_check"
 
 
 def count_pending(spec: WorkerSpec, db: Session, **options: Any) -> int:

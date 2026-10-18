@@ -3,7 +3,11 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import ValidationError
 
-from scrinalia.domains.archive.exceptions import CleaningRuleNotFoundError, InvalidParam
+from scrinalia.domains.archive.exceptions import (
+    CleaningRuleNotFoundError,
+    InvalidLLMCheckEngineError,
+    InvalidParam,
+)
 from scrinalia.domains.archive.models.governance import ArchiveCleaningRule
 from scrinalia.domains.archive.schemas.cleaning_schema import (
     CleanableDocumentDTO,
@@ -92,6 +96,148 @@ def test_create_rule_rejects_invalid_regex(cleaning_service):
         cleaning_service.create_cleaning_rule(dto)
 
     assert "Sintaxe de Regex inválida" in str(exc_info.value)
+
+
+# ==========================================
+# RULE CREATION TESTS (the engine of an LLM_CHECK rule, issue #124)
+# ==========================================
+def llm_dto(**overrides) -> CleaningRuleCreateDTO:
+    """An ``LLM_CHECK`` rule, which is the kind that carries an engine and a preset."""
+    fields = {
+        "rule_name": "Revisão de título por LLM",
+        "target_column": "original_title",
+        "regex_pattern": ".",
+        "replacement_string": "",
+        "rule_kind": "LLM_CHECK",
+    }
+    return CleaningRuleCreateDTO(**{**fields, **overrides})
+
+
+def test_create_rule_refuses_an_engine_the_registry_does_not_have(cleaning_service, mock_repo):
+    """
+    The placeholder said ``ex.: ollama``, and ``ollama`` is not a registered engine.
+
+    The refusal is a ``DomainException`` — the API owes a business status — and its sentence names
+    the options, which is what turns the old trap (a saved rule whose engine kills the run) into a
+    message at the door.
+    """
+    with pytest.raises(InvalidLLMCheckEngineError) as exc_info:
+        cleaning_service.create_cleaning_rule(llm_dto(engine_name="ollama"))
+
+    assert "ollama_title_check" in str(exc_info.value)
+    mock_repo.create_rule.assert_not_called()
+
+
+def test_create_rule_refuses_a_preset_the_registry_does_not_have(cleaning_service, mock_repo):
+    with pytest.raises(InvalidLLMCheckEngineError) as exc_info:
+        cleaning_service.create_cleaning_rule(llm_dto(engine_name="ollama_title_check", preset="gemma"))
+
+    assert "gemma" in str(exc_info.value)
+    mock_repo.create_rule.assert_not_called()
+
+
+def test_create_rule_refuses_a_retired_preset_with_its_reason(cleaning_service, mock_repo):
+    """The pair is validated through ``describe_config``, so a retired preset is refused too (#122)."""
+    with pytest.raises(InvalidLLMCheckEngineError) as exc_info:
+        cleaning_service.create_cleaning_rule(llm_dto(engine_name="ollama_title_check", preset="granite_local"))
+
+    assert "aposentado" in str(exc_info.value)
+    mock_repo.create_rule.assert_not_called()
+
+
+def test_create_rule_accepts_the_registry_names(cleaning_service, mock_repo):
+    mock_repo.create_rule.return_value = ArchiveCleaningRule(
+        rule_id=7,
+        rule_name="Revisão de título por LLM",
+        target_column="original_title",
+        regex_pattern=".",
+        replacement_string="",
+        rule_kind="LLM_CHECK",
+        engine_name="ollama_title_check",
+        preset="gemma_4b_local",
+        is_active=True,
+    )
+
+    result = cleaning_service.create_cleaning_rule(llm_dto(engine_name="ollama_title_check", preset="gemma_4b_local"))
+
+    assert result.engine_name == "ollama_title_check"
+    mock_repo.create_rule.assert_called_once()
+
+
+def test_an_empty_engine_stays_legal_and_means_the_default(cleaning_service, mock_repo):
+    """The field must not become required: empty is the worker's documented fallback."""
+    mock_repo.create_rule.return_value = ArchiveCleaningRule(
+        rule_id=8,
+        rule_name="Revisão de título por LLM",
+        target_column="original_title",
+        regex_pattern=".",
+        replacement_string="",
+        rule_kind="LLM_CHECK",
+        is_active=True,
+    )
+
+    cleaning_service.create_cleaning_rule(llm_dto(engine_name=None, preset=None))
+
+    mock_repo.create_rule.assert_called_once()
+
+
+def test_a_preset_with_no_engine_is_validated_against_the_default(cleaning_service, mock_repo):
+    """
+    ``rule.preset`` with an empty engine is a preset *of the default engine*.
+
+    The worker resolves ``rule.engine_name or "ollama_title_check"``, so the door has to validate the
+    pair the run will actually resolve — otherwise a preset of another engine would be saved and the
+    run would refuse it.
+    """
+    with pytest.raises(InvalidLLMCheckEngineError):
+        cleaning_service.create_cleaning_rule(llm_dto(engine_name=None, preset="preset_fantasma"))
+
+    mock_repo.create_rule.return_value = ArchiveCleaningRule(
+        rule_id=9,
+        rule_name="Revisão de título por LLM",
+        target_column="original_title",
+        regex_pattern=".",
+        replacement_string="",
+        rule_kind="LLM_CHECK",
+        preset="gemma_4b_local",
+        is_active=True,
+    )
+    cleaning_service.create_cleaning_rule(llm_dto(engine_name=None, preset="gemma_4b_local"))
+
+    assert mock_repo.create_rule.call_count == 1
+
+
+def test_the_pair_is_validated_whatever_the_rule_kind_is(cleaning_service, mock_repo):
+    """A ``REWRITE`` rule carrying an engine is dead data, not a hole in the door."""
+    with pytest.raises(InvalidLLMCheckEngineError):
+        cleaning_service.create_cleaning_rule(
+            llm_dto(rule_kind="REWRITE", engine_name="motor_que_nao_existe", preset=None)
+        )
+
+    mock_repo.create_rule.assert_not_called()
+
+
+def test_a_rule_with_no_engine_at_all_is_never_validated(cleaning_service, mock_repo):
+    """A ``REWRITE`` rule with neither field must not pay for the registry import at all."""
+    mock_repo.create_rule.return_value = ArchiveCleaningRule(
+        rule_id=10,
+        rule_name="Apagar Av",
+        target_column="original_title",
+        regex_pattern=".",
+        replacement_string="",
+        is_active=True,
+    )
+
+    cleaning_service.create_cleaning_rule(
+        CleaningRuleCreateDTO(
+            rule_name="Apagar Av",
+            target_column="original_title",
+            regex_pattern=".",
+            replacement_string="",
+        )
+    )
+
+    mock_repo.create_rule.assert_called_once()
 
 
 # ==========================================

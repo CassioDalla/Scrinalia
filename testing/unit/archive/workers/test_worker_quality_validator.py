@@ -174,3 +174,52 @@ def test_a_document_accumulates_every_reason_in_a_stable_order() -> None:
         AnomalyReason.NO_TYPOLOGY,
         AnomalyReason.NO_ENTITIES,
     ]
+
+
+# --- The engine pair of an LLM_CHECK rule (issue #124) -------------------------------------------
+
+
+def test_the_default_engine_is_a_registered_engine() -> None:
+    """
+    ``DEFAULT_LLM_CHECK_ENGINE`` is what an empty ``engine_name`` means, in the write path, in the
+    run and in the producer identity. Renaming the engine in the registry without renaming this
+    constant would make every rule with an empty field unresolvable, so the pair is pinned here.
+    """
+    from scrinalia.domains.archive.engines.title_quality.registry import AVAILABLE_ENGINES
+    from scrinalia.domains.archive.workers.catalogue import DEFAULT_LLM_CHECK_ENGINE, LLM_CHECK_AXIS
+
+    assert DEFAULT_LLM_CHECK_ENGINE in AVAILABLE_ENGINES
+    assert LLM_CHECK_AXIS == "title_quality"
+
+
+def test_an_unbuildable_rule_is_reported_with_the_registry_sentence() -> None:
+    """
+    The question the run and the identity both ask. A rule whose engine does not exist answers with
+    the registry's own sentence — which names the options — and a buildable one answers ``None``.
+    """
+    from scrinalia.domains.archive.schemas.cleaning_schema import CleaningRuleDTO
+    from scrinalia.domains.archive.workers.worker_quality_validator import unbuildable_rule_reason
+
+    def rule(engine_name: str | None, preset: str | None) -> CleaningRuleDTO:
+        return CleaningRuleDTO(
+            rule_id=1,
+            rule_name="r",
+            target_column="original_title",
+            regex_pattern=".",
+            replacement_string="",
+            rule_kind="LLM_CHECK",
+            engine_name=engine_name,
+            preset=preset,
+            is_active=True,
+        )
+
+    assert unbuildable_rule_reason(rule("ollama_title_check", None)) is None
+    assert unbuildable_rule_reason(rule(None, "gemma_4b_local")) is None
+
+    reason = unbuildable_rule_reason(rule("ollama", None))
+    assert reason is not None
+    assert "ollama_title_check" in reason
+
+    retired = unbuildable_rule_reason(rule("ollama_title_check", "granite_local"))
+    assert retired is not None
+    assert "aposentado" in retired

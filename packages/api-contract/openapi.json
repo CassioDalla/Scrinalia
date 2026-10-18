@@ -12044,6 +12044,32 @@
         ]
       }
     },
+    "/api/v1/quality/cleaning-rules/engines": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1QualityCleaningRulesEnginesListEngines",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkerEngineDTO"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ListEngines",
+        "tags": [
+          "Data Quality"
+        ]
+      }
+    },
     "/api/v1/quality/cleaning-rules/preview": {
       "post": {
         "deprecated": false,

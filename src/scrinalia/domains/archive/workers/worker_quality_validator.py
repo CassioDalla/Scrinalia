@@ -9,7 +9,7 @@ sends it to human review, which is the only place the fix can happen.
 
 import re
 from datetime import date
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.orm import Session
@@ -39,6 +39,7 @@ from scrinalia.domains.archive.worker_stamp import (
     identity_stamp_conditions,
     producer_fingerprint,
 )
+from scrinalia.domains.archive.workers.catalogue import DEFAULT_LLM_CHECK_ENGINE
 from scrinalia.domains.archive.workers.run_budget import RunBudget
 
 #: Titles that appear at least this many times are suspicious as a template leftover.
@@ -190,6 +191,34 @@ def active_llm_check_rule(db: Session) -> CleaningRuleDTO | None:
     return rules[0] if rules else None
 
 
+def unbuildable_rule_reason(rule: CleaningRuleDTO) -> str | None:
+    """
+    Why the rule's engine pair cannot be built, or ``None`` when it can.
+
+    One question, asked by the run and by the producer identity, so the two cannot disagree about
+    whether there is a model. The write path refuses the pair since #124, but a rule saved before
+    that validation exists can still be active, and the registry's ``ValueError`` used to escape
+    ``execute`` — the run was recorded ``FAILED`` and the validator validated nothing while the rule
+    stayed active. The reason is the registry's own sentence, which already names the options.
+    """
+    from scrinalia.domains.archive.engines.title_quality.registry import (
+        EngineName,
+        PresetName,
+        describe_config,
+    )
+
+    # The rule's columns are free text (``String(50)``), so the cast is where an unvalidated string
+    # meets the registry that decides whether it exists.
+    try:
+        describe_config(
+            cast("EngineName", rule.engine_name or DEFAULT_LLM_CHECK_ENGINE),
+            cast("PresetName | None", rule.preset),
+        )
+    except ValueError as e:
+        return str(e)
+    return None
+
+
 def producer_identity(
     db: Session,
     *,
@@ -209,8 +238,14 @@ def producer_identity(
     rule = active_llm_check_rule(db)
     # The rule carries free text, not the registry's Literals; ``execute`` resolves the same pair
     # with the same fallback before calling ``get_engine``.
-    engine_name = (rule.engine_name or "ollama_title_check") if rule is not None else None
+    engine_name = (rule.engine_name or DEFAULT_LLM_CHECK_ENGINE) if rule is not None else None
     preset = rule.preset if rule is not None else None
+    if rule is not None and (reason := unbuildable_rule_reason(rule)) is not None:
+        # A rule written before the door validated the pair (#124) must not take the run — or the
+        # panel's counter — down: the identity falls back to "no model", which is what the run does.
+        logger.error(f"❌ A regra LLM_CHECK '{rule.rule_name}' não pode ser construída: {reason}")
+        logger.warning("🧮 A identidade do produtor é a de 'sem modelo': a execução roda só o determinístico.")
+        engine_name = preset = None
     config = describe_config(engine_name, preset, **engine_kwargs) if engine_name else {}  # type: ignore[arg-type]
     return producer_fingerprint(
         axis="title_quality",
@@ -313,11 +348,19 @@ def execute(
 
         rule = llm_rules[0]
         logger.info(f"🤖 LLM title check enabled by rule '{rule.rule_name}' ({rule.engine_name or 'default'}).")
-        llm_engine = get_engine(
-            rule.engine_name or "ollama_title_check",  # type: ignore[arg-type]
-            rule.preset,  # type: ignore[arg-type]
-            **engine_kwargs,
-        )
+        reason = unbuildable_rule_reason(rule)
+        if reason is not None:
+            # A rule that cannot be built leaves the run standing: the deterministic stage still
+            # validates the collection, and the refusal is a sentence in the log instead of the
+            # registry's ``ValueError`` killing the whole run (#124).
+            logger.error(f"❌ A regra LLM_CHECK '{rule.rule_name}' não pode ser construída: {reason}")
+            logger.warning("🧮 Rodando só a validação determinística; corrija ou desative a regra.")
+        else:
+            llm_engine = get_engine(
+                rule.engine_name or DEFAULT_LLM_CHECK_ENGINE,  # type: ignore[arg-type]
+                rule.preset,  # type: ignore[arg-type]
+                **engine_kwargs,
+            )
     else:
         logger.info("🧮 Deterministic validation only: no active LLM_CHECK rule.")
 
