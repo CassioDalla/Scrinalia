@@ -266,6 +266,15 @@ export type CleaningRuleDryRunMatch = components["schemas"]["DryRunMatchDTO"];
 export type CreateCleaningRuleRequest = components["schemas"]["CreateCleaningRuleRequest"];
 export type CleaningRuleDryRunRequest = components["schemas"]["DryRunRequest"];
 
+/**
+ * One engine an `LLM_CHECK` rule can name, with the presets it declares.
+ *
+ * The same shape the operations panel reads per worker: the catalogue is the registry's, so the
+ * screen offers the names `get_engine` accepts instead of asking a person to remember them (#124).
+ */
+export type CleaningRuleEngine = components["schemas"]["WorkerEngineDTO"];
+export type CleaningRulePreset = components["schemas"]["WorkerPresetDTO"];
+
 /** What a rule does: rewrite the match, or only flag it. The difference is cleaning vs. destroying. */
 export type RuleKind = NonNullable<CleaningRule["rule_kind"]>;
 export type TemplateScope = NonNullable<TextTemplate["scope"]>[number];
@@ -1398,10 +1407,19 @@ export async function fetchCleaningRules(includeInactive = false): Promise<Clean
   );
 }
 
+/**
+ * The engines and presets an `LLM_CHECK` rule can name, read from the title-quality registry.
+ *
+ * The form used to be free text with a placeholder naming an engine that does not exist; this is
+ * what replaces it, so the only names a person can pick are the ones the write accepts (#124).
+ */
+export async function fetchCleaningRuleEngines(): Promise<CleaningRuleEngine[]> {
+  return unwrap<CleaningRuleEngine[]>(await client.GET("/api/v1/quality/cleaning-rules/engines"));
+}
+
 export async function createCleaningRule(
   body: CreateCleaningRuleRequest,
-): Promise<CleaningRuleMutationResponse> {
-  return unwrap<CleaningRuleMutationResponse>(
+): Promise<CleaningRuleMutationResponse> {  return unwrap<CleaningRuleMutationResponse>(
     await client.POST("/api/v1/quality/cleaning-rules", { body }),
   );
 }
