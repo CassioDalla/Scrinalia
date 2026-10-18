@@ -10,6 +10,7 @@ from typing import Literal
 from sqlalchemy import select
 
 from scrinalia.domains.archive.engines.LLMs import registry as llm_registry
+from scrinalia.domains.archive.exceptions import EngineExecutionError
 from scrinalia.domains.archive.models import ArchiveReviewStatus
 from scrinalia.domains.archive.models.governance import AnomalyType, ArchiveAIReviewQueue
 from scrinalia.domains.archive.repository.entity_repo import EntityRepository
@@ -128,6 +129,48 @@ def test_engine_failure_aborts_before_scanning(db_session, mocker, mock_registry
 
     scan.assert_not_called()
     assert _queue_entries(db_session) == []
+
+
+def test_a_call_that_fails_writes_no_verdict_and_counts_nothing_as_judged(db_session, mocker, mock_registry):
+    """
+    #122: a pair the judge could not be asked about is still pending, not a ``TAG`` verdict.
+
+    Before the fix the engine returned ``winner="TAG"`` with confidence ``0.0`` for a transport
+    failure, and the worker wrote it into the queue: the curation inbox showed a decision the model
+    never took, and ``count_judged`` counted it as judged.
+    """
+    engine = mock_registry(llm_registry)
+    engine.return_value.decide_conflict.side_effect = EngineExecutionError(
+        "O juiz de conflito não respondeu para 'parques' (modelo 'granite4.1:3b')"
+    )
+    mocker.patch.object(EntityRepository, "get_cross_domain_conflicts", return_value=[_conflict()])
+    resolve = mocker.patch.object(EntityRepository, "resolve_cross_domain_conflict")
+
+    worker.execute(db=db_session)
+
+    resolve.assert_not_called()
+    assert _queue_entries(db_session) == []
+    assert worker.count_judged(db_session) == 0
+
+
+def test_a_pair_the_judge_could_not_answer_is_asked_again(db_session, mocker, mock_registry):
+    """The other half of leaving no row: the pair stays in the queue for the next run."""
+    engine = mock_registry(llm_registry)
+    engine.return_value.decide_conflict.side_effect = EngineExecutionError("O juiz não respondeu")
+    mocker.patch.object(EntityRepository, "get_cross_domain_conflicts", return_value=[_conflict()])
+
+    worker.execute(db=db_session)
+    assert _queue_entries(db_session) == []
+
+    engine.return_value.decide_conflict.side_effect = None
+    engine.return_value.decide_conflict.return_value = _decision(confidence=0.40)
+
+    worker.execute(db=db_session)
+
+    entries = _queue_entries(db_session)
+    assert len(entries) == 1
+    assert entries[0].llm_decision == "ENTITY"
+    assert worker.count_judged(db_session) == 1
 
 
 # ==========================================

@@ -101,6 +101,16 @@ class ResolveTagEntityConflictEngine(Protocol):
     """
 
     def decide_conflict(self, tag_name: str, entity_name: str, entity_type: str) -> EntityTagDecisionSchema:
+        """
+        The verdict, or ``EngineExecutionError`` when the call could not be made.
+
+        The return type is total on purpose. ``EntityTagDecisionSchema`` has no "I could not answer"
+        state, so a failure dressed as a verdict (``winner="TAG"`` with confidence ``0.0``) is
+        indistinguishable from an opinion at the call site — and the worker writes whatever comes
+        back into the review queue, where the curation inbox shows it as a decision the model took
+        (#122). Raising is what makes the two distinguishable **by type**, for any engine: a pair the
+        engine could not be asked about stays pending.
+        """
         raise NotImplementedError
 
 
