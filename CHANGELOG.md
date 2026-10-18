@@ -386,6 +386,20 @@ commits — the history is the detail.
 
 ### Fixed
 
+- **An `LLM_CHECK` rule can no longer be saved with an engine the registry does not have** (issue
+  #124). The rule's engine and preset were free text all the way down to a `String(50)` column, the
+  form's only hint was the placeholder `ex.: ollama` — not a registered engine — and nothing validated
+  the pair: the registry's `ValueError` escaped `worker_quality_validator.execute`, so the run was
+  recorded `FAILED` and the validator validated nothing while the rule stayed active. The write now
+  validates the pair through the registry's own `describe_config` and refuses it as a
+  `DomainException` (`422`, with the sentence naming the options), whether or not the rule kind
+  carries an engine; an empty engine keeps meaning `ollama_title_check`. The form's two fields became
+  selects fed by `GET /api/v1/quality/cleaning-rules/engines` — the title-quality axis's catalogue,
+  the same names `get_engine` reads, shared with the operations panel through one definition. A rule
+  written before the door existed degrades instead of failing the run: the validator logs the reason,
+  still runs the deterministic stage, and its producer identity becomes the "no model" one, so the
+  queue and the panel's counter describe the run that actually happened.
+
 - **The conflict judge no longer writes a transport failure as a verdict** (issue #122).
   `EntityTagDecisionSchema` has no "I could not answer" state, so `OllamaJudgeEngine.decide_conflict`
   turned every failed call into `winner="TAG"` with confidence `0.0` and a `Falha: ...` reason — a
