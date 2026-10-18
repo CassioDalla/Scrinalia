@@ -386,6 +386,16 @@ commits — the history is the detail.
 
 ### Fixed
 
+- **The conflict judge no longer writes a transport failure as a verdict** (issue #122).
+  `EntityTagDecisionSchema` has no "I could not answer" state, so `OllamaJudgeEngine.decide_conflict`
+  turned every failed call into `winner="TAG"` with confidence `0.0` and a `Falha: ...` reason — a
+  decision the model never took, written into `archive_ai_review_queue` and shown by the curation
+  inbox, marked only by a prefix inside a free-text `reason`. The engine now raises
+  `EngineExecutionError`, the worker writes no `llm_decision` for that pair (it is still pending, and
+  the next run asks again), and the panel's "already judged" counter does not count it. The type is
+  what tells a failure from an opinion, so the bench's `FAILURE_REASON_PREFIX` string matching is
+  deleted: a failure is a `Failed`, never a `Judged`.
+
 - **A search filtered the term after joining the link tables, so a selective term took 18 seconds**
   (issue #140). The full-text arm reached the page, the count and every facet as an `OR` of correlated
   `EXISTS`, which the planner cannot answer with an index: the predicate was re-evaluated once per row
@@ -599,6 +609,16 @@ commits — the history is the detail.
   origin.
 
 ### Removed
+
+- **The `granite_local` preset is retired, in both Ollama axes** (issue #122): the model it named,
+  `granite4.1:3b`, does not run on the Ollama the install guide documents. Measured on 2026-10-18, on
+  Ollama 0.24.0: it terminates the llama runner with `signal arrived during cgo execution` and
+  answers `500` to every prompt, while `gemma4:e4b` answers normally on the same server. The name
+  leaves `PRESETS` — the panel stops offering it and `GET /api/v1/system/health` stops requiring the
+  model — but the record stays in `RETIRED_PRESETS`: writing it is refused with the reason and with
+  `gemma_4b_local` as what to use instead, and a row or `LLM_CHECK` rule written before the
+  retirement resolves to `gemma_4b_local` with the reason on the screen, so a stale row cannot take
+  the operations panel down.
 
 - **`archive_tag_facets` is dropped and its two routes are gone** (ADR 0013): a tag is a drawer or
   not-a-subject, and the third destination the table tried to persist — producer, place, person —
