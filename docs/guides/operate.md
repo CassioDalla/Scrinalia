@@ -130,9 +130,16 @@ stamp. They are host commands of their own, described in
 ### What each queue means
 
 A queue is not a table: it is the predicate the worker's own `count_pending` shares with `execute`.
-The panel never re-derives it. `pending` is how many units the next run would read; `processed` is
-how many carry the worker's stamp; `failed` counts the stamps that record a failure (`ERROR`, or the
-`thumbnail_failed` mark).
+The panel never re-derives it. `pending` is how many units the next run would read.
+
+For the five workers whose ledger is a stamp, the panel opens the stamp instead of reporting one
+number, because an identity slot can hold three different things and only one of them attributes the
+answer: **with a producer** is a value the slot's own pattern accepts, a fingerprint that really
+names the model; **without a known producer** is a legacy value — the `"DONE"` written before the
+fingerprint existed, or the `PRODUCER_UNKNOWN` a migration left in its place; **without a record** is
+the key absent, meaning nothing recorded a run at all. `processed` is the first two plus the
+failures, and `failed` counts the stamps that record one (`ERROR`, or the `thumbnail_failed` mark for
+the worker whose ledger is not a stamp).
 
 Five of the nine stamps carry the **producer identity** instead of a status: a fingerprint of the
 engine, the preset, the whole resolved engine configuration, the installed versions of the libraries
@@ -160,8 +167,11 @@ with `force`.
 
 A document the worker marked `ERROR` stays out of the plain queue: `force` is the way back, and it
 clears the mark on the units it processes. A unit stamped by a producer that is no longer configured
-is pending again — including every `DONE` written before this change, which is why the first run
-after upgrading re-reads the collection once. The typology identity signs the active label set as
+is pending again — including every legacy value, whether it still reads `"DONE"` or the
+`PRODUCER_UNKNOWN` the migration renamed it to. Those rows were pending before the rename and are
+pending after it, so the migration changed what the ledger **says** and not what the queue **does**:
+the next run heals them by writing a real fingerprint. That is the whole point of the distinction —
+attribution and reporting, not the queue. The typology identity signs the active label set as
 well, so after this upgrade **every** stamped description is pending once, typology or not: the whole
 ai-writable collection on the first run, and from then on only what a catalogue, model, column or
 floor change actually moved. The preview below is how to size that before paying it.
@@ -368,7 +378,7 @@ The SPA mirrors it, as cards of `/configuracoes` under *Operação*:
 
 | Screen | Shows |
 | --- | --- |
-| `/sistema/workers` | the nine workers: engine, preset and model, the queue, and a run button; the effective configuration is read-only here |
+| `/sistema/workers` | the nine workers: engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and a run button; the effective configuration is read-only here |
 | `/configuracoes/workers` | the persisted default of each worker and its revisions, with save and remove — the write the panel used to carry |
 | `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage and the effective process configuration |

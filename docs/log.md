@@ -1661,3 +1661,36 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   `InvalidLLMCheckEngineError`), but **not** by clicking *Salvar e ativar* in the browser. The legacy
   degradation is covered against the test database; no live run against Ollama was made, so the
   sentence the log carries in that path was read in the captured log, not on a screen.
+
+## 2026-10-18 — the legacy stamps stop reading as a producer (#137)
+
+- **Range:** `d18c3f0..e625d49`
+- **Pages:**
+  - `guides/operate.md` — **updated**: *What each queue means* now opens the stamp into the three
+    things a slot can name (with a producer, without a known one, without a record) instead of one
+    `processed` number; the paragraph on the `ERROR` mark says the legacy value is
+    `PRODUCER_UNKNOWN` now and that the queue is untouched either way; the `/sistema/workers` row of
+    the panel table says what the card shows.
+  - `guides/operate.pt.md` — **updated**: the same three places.
+  - `guides/data-model.md` — **updated**: the stamp vocabulary is two types with different writers
+    (a status raises in an identity slot), the five identity keys and `PRODUCER_UNKNOWN`, and the
+    migration that renamed the legacy rows — including what it deliberately did not touch (a key
+    that was never there, and the embedding's bare text hash).
+  - `guides/data-model.pt.md` — **updated**: the same paragraph.
+- **What was rendered.** `.render/workers-137.png`: the headless shell over CDP against the dev
+  server and the reference collection, with a session row inserted for the round and deleted after
+  it. The NER card, expanded, reads `0 com produtor · 1.650 sem produtor conhecido · 3.181 sem
+  registro` under `Fila (descrições)`, against `4.813` pending — the three numbers the issue asked
+  to be readable, on the collection where the single number used to say 1.691.
+- **The migration was run, not only written.** On the reference collection,
+  `f647dd7e6ad2 -> a7c1e5b9d3f2` rewrote 3,511 document slots and 921 tag slots (`worker_ner_v2`
+  1,650, `worker_quality_validator_v1` 1,650, `worker_macro_category_v1` 921,
+  `worker_typology_classifier_v2` 129, and the retired `worker_ner_v1` and
+  `worker_typology_classifier_v1` 41 each), with 0 fingerprints before and after and the pending
+  counts unchanged. The downgrade was run too: the round trip returned 1,691 values to `DONE` and
+  back to `PRODUCER_UNKNOWN`. `alembic check` reports no drift.
+- **Not verified, and said so.** No worker was run after the migration, so no document was seen
+  being healed from `PRODUCER_UNKNOWN` to a real fingerprint: that the next plain run re-reads those
+  units is the predicate in `identity_stamp_conditions`, read in the code and pinned by the unit
+  tests, not observed as a run. And the panel was read on the reference collection only — the tag
+  breakdown of `macro-category` is covered by the repository test and was not looked at on a screen.

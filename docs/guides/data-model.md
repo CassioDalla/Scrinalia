@@ -256,11 +256,14 @@ The polling queries are served by GIN indexes on the JSONB column: `ix_archive_e
 must call `flag_modified` so SQLAlchemy notices the in-place change; skipping it is how a stamp is
 written in memory and never in the database.
 
-Most stamps hold a status (`DONE`, `ERROR`). The six that key a queue on **what produced the answer**
-hold a value instead: the *producer identity*, a fingerprint of the engine, the preset, the resolved
-engine configuration, the installed versions of the libraries of that axis and the declared
-behavioural options (`producer_fingerprint` in `worker_stamp.py`). A unit stamped by another producer
-is pending again by itself:
+Most stamps hold a status (`DONE`, `ERROR`). The five that key a queue on **what produced the answer**
+are a different type (`WorkerStamp` against `IdentityStamp`), and the type is what enforces the
+difference: an identity slot accepts only a value its own `fingerprint_pattern` matches, so a status
+raises `ValueError` instead of being written, and a failure goes through `mark_failed`. That value is
+the *producer identity* — a fingerprint of the engine, the preset, the resolved engine configuration,
+the installed versions of the libraries of that axis and the declared behavioural options
+(`producer_fingerprint` in `worker_stamp.py`). A unit stamped by another producer is pending again by
+itself:
 
 - `worker_ner_v2`, `worker_typology_classifier_v2` and `worker_quality_validator_v1` store that
   identity — the last one taken from the engine of the active `LLM_CHECK` rule, or from "no model" —
@@ -277,6 +280,17 @@ is pending again by itself:
   missing.
 - `curated_macro_category` stores who, when and the destination of a curator's subject decision — free
   text, not a status, so a tag a person filed reads as curated rather than as one the machine got right.
+
+The five identity slots were rewritten once by
+`a7c1e5b9d3f2_make_the_legacy_identity_stamps_read_as_unknown.py`: every `"DONE"` in one of them —
+the current key or a retired one (`worker_ner_v1`, `worker_typology_classifier_v1`) — became
+`PRODUCER_UNKNOWN`, a name that reads as what it is and is deliberately not a fingerprint, so
+`identity_stamp_conditions` still calls those units pending. The migration invents no producer and
+touches no missing key: the 3,100-odd documents with no NER slot keep having none, because what is
+true about them is that nothing recorded a run. It also leaves the embedding's rows alone: those
+carry the bare MD5 of the text they embedded, from before the identity was composed into the value,
+and the text hash is a fact while `PRODUCER_UNKNOWN` would replace it with a false one. The panel
+reads it as "no producer" by the slot's own pattern.
 
 !!! note "One documented exception"
     `worker_embedding` deliberately does not use `ai_writable_documents()`. The embedding is a

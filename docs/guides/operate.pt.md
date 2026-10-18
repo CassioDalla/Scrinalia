@@ -85,9 +85,16 @@ de IA. São comandos de linha de comando próprios, descritos em
 ### O que cada fila significa
 
 Uma fila não é uma tabela: é o predicado que o próprio `count_pending` do worker compartilha com o
-`execute`. O painel nunca o re-deriva. `pending` é quantas unidades a próxima execução leria;
-`processed` é quantas carregam o carimbo do worker; `failed` conta os carimbos que registram falha
-(`ERROR`, ou a marca `thumbnail_failed`).
+`execute`. O painel nunca o re-deriva. `pending` é quantas unidades a próxima execução leria.
+
+Para os cinco workers cujo livro é um carimbo, o painel abre o carimbo em vez de mostrar um número
+só, porque um slot de identidade pode guardar três coisas diferentes e apenas uma delas atribui a
+resposta: **com produtor** é um valor que o próprio padrão do slot aceita, uma impressão digital que
+realmente nomeia o modelo; **sem produtor conhecido** é um valor legado — o `"DONE"` gravado antes de
+a impressão digital existir, ou o `PRODUCER_UNKNOWN` que uma migração deixou no lugar dele; **sem
+registro** é a chave ausente, ou seja, nada registrou execução alguma. `processed` é os dois
+primeiros mais as falhas, e `failed` conta os carimbos que registram uma (`ERROR`, ou a marca
+`thumbnail_failed` no worker cujo livro não é um carimbo).
 
 Cinco dos nove carimbos carregam a **identidade do produtor** em vez de um status: uma impressão
 digital da engine, do preset, de toda a configuração resolvida da engine, das versões instaladas das
@@ -115,12 +122,15 @@ servidor Ollama serve. Rode esses dois casos com `force`.
 
 Um documento que o worker marcou como `ERROR` fica fora da fila comum: `force` é o caminho de volta,
 e ele limpa a marca nas unidades que processa. Uma unidade carimbada por um produtor que não está
-mais configurado volta a estar pendente — incluindo todo `DONE` gravado antes desta mudança, e é por
-isso que a primeira execução depois da atualização relê o acervo uma vez. A identidade da tipologia
-também assina o conjunto de tipologias ativas, então depois desta atualização **toda** descrição
-carimbada fica pendente uma vez, com ou sem tipologia: o acervo inteiro editável pela IA na primeira
-execução e, daí em diante, só o que uma mudança de catálogo, modelo, coluna ou piso realmente moveu. A
-pré-visualização abaixo é como medir isso antes de pagar.
+mais configurado volta a estar pendente — incluindo todo valor legado, leia ele ainda `"DONE"` ou o
+`PRODUCER_UNKNOWN` para o qual a migração o renomeou. Essas linhas estavam pendentes antes da
+renomeação e continuam pendentes depois dela, então a migração mudou o que o livro **diz** e não o que
+a fila **faz**: a próxima execução as cura gravando uma impressão digital de verdade. É esse o ponto
+da distinção — atribuição e relato, não a fila. A identidade da tipologia também assina o conjunto de
+tipologias ativas, então depois desta atualização **toda** descrição carimbada fica pendente uma vez,
+com ou sem tipologia: o acervo inteiro editável pela IA na primeira execução e, daí em diante, só o
+que uma mudança de catálogo, modelo, coluna ou piso realmente moveu. A pré-visualização abaixo é como
+medir isso antes de pagar.
 
 O contador do `transfer` é o mais pesado: valida a tabela de staging inteira pelo mesmo port que o
 transfer usa. É lido uma vez por carga do painel e não é consultado em laço.
@@ -325,7 +335,7 @@ A SPA espelha isso, como cartões de `/configuracoes` sob *Operação*:
 
 | Tela | Mostra |
 | --- | --- |
-| `/sistema/workers` | os nove workers: engine, preset e modelo, a fila e um botão de execução; a configuração efetiva aqui é só leitura |
+| `/sistema/workers` | os nove workers: engine, preset e modelo, a fila, o que o carimbo de cada um nomeia (com produtor, sem produtor conhecido, sem registro) e um botão de execução; a configuração efetiva aqui é só leitura |
 | `/configuracoes/workers` | o padrão persistido de cada worker e suas revisões, com salvar e remover — a escrita que o painel carregava |
 | `/sistema/execucoes` | o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela |
 | `/sistema/diagnostico` | banco, modelos do Ollama, storage das miniaturas e a configuração efetiva do processo |
