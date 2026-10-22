@@ -228,8 +228,13 @@ class IdentityStamp(BaseStamp):
         :data:`StampStatus`, :data:`PRODUCER_UNKNOWN` and an empty string. That is a programming error
         in the worker and not something a client did, which is why it is not a ``DomainException``:
         the API owns no status for a caller that cannot reach this path.
+
+        The pattern is applied with ``fullmatch``, not ``match``: Python's ``$`` also matches just
+        before a trailing newline, while PostgreSQL's does not, so ``match`` would accept a value the
+        read surface then classifies as legacy — the write and the report disagreeing about the same
+        slot, which is the defect this type exists to prevent.
         """
-        if not self.fingerprint_pattern.match(fingerprint):
+        if not self.fingerprint_pattern.fullmatch(fingerprint):
             raise ValueError(
                 f"'{self.key}' holds a producer fingerprint, not '{fingerprint}'. "
                 "Use mark_failed() to record a failure."

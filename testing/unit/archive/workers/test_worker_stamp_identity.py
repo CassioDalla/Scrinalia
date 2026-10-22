@@ -157,6 +157,16 @@ def test_an_identity_stamp_refuses_a_status_where_a_fingerprint_is_expected() ->
         NER.mark_value({}, PRODUCER_UNKNOWN)
 
 
+def test_an_identity_stamp_refuses_a_fingerprint_with_a_trailing_newline() -> None:
+    """
+    ``$`` matches before a trailing newline in Python but not in PostgreSQL's ``regexp_match``, so
+    ``match`` would accept a value the read surface then calls legacy. ``fullmatch`` keeps the write
+    path and the report reading the same slot the same way.
+    """
+    with pytest.raises(ValueError, match="producer fingerprint"):
+        NER.mark_value({}, "ab" * 32 + "\n")
+
+
 def test_an_identity_stamp_writes_a_fingerprint_and_a_failure() -> None:
     """The two things a slot may hold: the identity of a producer, or the plain failure mark."""
     fingerprint = _fingerprint()
