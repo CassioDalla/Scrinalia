@@ -61,6 +61,12 @@ commits — the history is the detail.
 
 ### Changed
 
+- **The thumbnail's failure mark is `ERROR`, not the boolean `"True"`** (issue #149). `StampStatus`
+  carried a third value only because the thumbnail worker wrote `"True"` into `thumbnail_failed` — a
+  boolean serialised into a status vocabulary. The mark now uses `ERROR` like every other failure;
+  a data-only migration renames the old rows, and the thumbnail queue and its `failed` count are
+  unchanged because both read the presence of the `thumbnail_failed` key, not its value.
+
 - **An identity-keyed stamp accepts a producer fingerprint and nothing else** (issue #137). The
   vocabulary had one type carrying both `mark` (a status) and `mark_value` (an identity), so `"DONE"` —
   a legal `StampStatus` — was a legal write into a slot that promises a producer, which is how 1,691 NER

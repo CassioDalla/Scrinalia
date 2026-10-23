@@ -93,8 +93,8 @@ resposta: **com produtor** é um valor que o próprio padrão do slot aceita, um
 realmente nomeia o modelo; **sem produtor conhecido** é um valor legado — o `"DONE"` gravado antes de
 a impressão digital existir, ou o `PRODUCER_UNKNOWN` que uma migração deixou no lugar dele; **sem
 registro** é a chave ausente, ou seja, nada registrou execução alguma. `processed` é os dois
-primeiros mais as falhas, e `failed` conta os carimbos que registram uma (`ERROR`, ou a marca
-`thumbnail_failed` no worker cujo livro não é um carimbo).
+primeiros mais as falhas, e `failed` conta os carimbos que registram uma (`ERROR`; a falha do
+thumbnail vive sob a chave `thumbnail_failed`, porque o livro dele não é um carimbo).
 
 Cinco dos nove carimbos carregam a **identidade do produtor** em vez de um status: uma impressão
 digital da engine, do preset, de toda a configuração resolvida da engine, das versões instaladas das

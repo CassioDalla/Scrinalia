@@ -281,13 +281,13 @@ def test_find_documents_with_excerpt_normalizes_before_matching(
 def test_requeue_removes_only_the_given_stamps(repo: TextQualityRepository, generate_archive_doc) -> None:
     doc = generate_archive_doc(
         original_title="Rua A",
-        execution_log={"worker_ner_v2": "DONE", "worker_embedding_v1": "abc", "thumbnail": "True"},
+        execution_log={"worker_ner_v2": "DONE", "worker_embedding_v1": "abc", "thumbnail": "DONE"},
     )
 
     changed = repo.requeue_documents([doc.description_id], ["worker_ner_v2", "worker_quality_validator_v1"])
 
     assert changed == 1
-    assert doc.execution_log == {"worker_embedding_v1": "abc", "thumbnail": "True"}
+    assert doc.execution_log == {"worker_embedding_v1": "abc", "thumbnail": "DONE"}
 
 
 def test_requeue_handles_a_document_without_a_log(repo: TextQualityRepository, generate_archive_doc) -> None:

@@ -121,7 +121,7 @@ def test_the_scan_would_catch_a_status_write() -> None:
     """A gate that cannot fail is not a gate: the scanner is run over a snippet that does."""
     snippet = (
         'doc.execution_log = NER.mark_value(doc.execution_log, "DONE")\n'
-        'doc.execution_log[MACRO_CATEGORY.key] = "True"\n'
+        'doc.execution_log[MACRO_CATEGORY.key] = "DONE"\n'
         "doc.execution_log = NER.mark_failed(doc.execution_log)\n"
         "doc.execution_log = NER.mark_value(doc.execution_log, identity)\n"
     )
@@ -130,5 +130,5 @@ def test_the_scan_would_catch_a_status_write() -> None:
 
     assert [message for _line, message in findings] == [
         "NER.mark_value(..., 'DONE') writes a status, not a fingerprint",
-        "execution_log[MACRO_CATEGORY.key] = 'True' bypasses mark_value",
+        "execution_log[MACRO_CATEGORY.key] = 'DONE' bypasses mark_value",
     ]

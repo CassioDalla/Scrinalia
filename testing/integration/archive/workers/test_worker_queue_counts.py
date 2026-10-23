@@ -133,7 +133,7 @@ def test_embedding_requeues_when_the_stamp_is_not_the_text_hash(db_session, gene
 def test_thumbnail_counts_by_storage_uri_and_failure_mark(db_session, generate_archive_doc) -> None:
     generate_archive_doc(original_thumbnail_url="http://exemplo/1.jpg")
     generate_archive_doc(original_thumbnail_url="http://exemplo/2.jpg", storage_thumbnail_uri="thumbnails/2.jpg")
-    generate_archive_doc(original_thumbnail_url="http://exemplo/3.jpg", execution_log={THUMBNAIL_FAILED.key: "True"})
+    generate_archive_doc(original_thumbnail_url="http://exemplo/3.jpg", execution_log={THUMBNAIL_FAILED.key: "ERROR"})
     generate_archive_doc()
 
     assert worker_thumbnail.count_pending(db_session) == 1
