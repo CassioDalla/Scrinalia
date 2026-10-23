@@ -470,6 +470,21 @@ commits — the history is the detail.
   of `description_id`s, computed once per query, and the page, the count and the facets all read it.
   Nothing a caller sends or receives changes.
 
+### Removed
+
+- **The `granite_local` preset is retired, in both Ollama axes** (issue #122): the model it named,
+  `granite4.1:3b`, does not run on the Ollama the install guide documents. Measured on 2026-10-18, on
+  Ollama 0.24.0: it terminates the llama runner with `signal arrived during cgo execution` and
+  answers `500` to every prompt, while `gemma4:e4b` answers normally on the same server. The name
+  leaves `PRESETS` — the panel stops offering it and `GET /api/v1/system/health` stops requiring the
+  model — but the record stays in `RETIRED_PRESETS`: writing it is refused with the reason and with
+  `gemma_4b_local` as what to use instead, and a row or `LLM_CHECK` rule written before the
+  retirement resolves to `gemma_4b_local` with the reason on the screen, so a stale row cannot take
+  the operations panel down.
+
+## [1.2.0] - 2026-10-13
+
+### Added
 
 - **A whole category of tag × entity collisions decided in one call** (issue #35):
   `POST /api/v1/taxonomy/conflicts/resolve/batch` applies one verdict to the selection the
@@ -656,16 +671,6 @@ commits — the history is the detail.
   origin.
 
 ### Removed
-
-- **The `granite_local` preset is retired, in both Ollama axes** (issue #122): the model it named,
-  `granite4.1:3b`, does not run on the Ollama the install guide documents. Measured on 2026-10-18, on
-  Ollama 0.24.0: it terminates the llama runner with `signal arrived during cgo execution` and
-  answers `500` to every prompt, while `gemma4:e4b` answers normally on the same server. The name
-  leaves `PRESETS` — the panel stops offering it and `GET /api/v1/system/health` stops requiring the
-  model — but the record stays in `RETIRED_PRESETS`: writing it is refused with the reason and with
-  `gemma_4b_local` as what to use instead, and a row or `LLM_CHECK` rule written before the
-  retirement resolves to `gemma_4b_local` with the reason on the screen, so a stale row cannot take
-  the operations panel down.
 
 - **`archive_tag_facets` is dropped and its two routes are gone** (ADR 0013): a tag is a drawer or
   not-a-subject, and the third destination the table tried to persist — producer, place, person —

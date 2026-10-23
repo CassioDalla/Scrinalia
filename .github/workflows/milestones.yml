@@ -1,0 +1,51 @@
+name: Milestones
+
+# The work that is left lives in the issues and their milestones, and a milestone is a release: the
+# `1.3 — Engine` milestone closed on 2026-10-23, the day `1.3.0` shipped. `testing/milestones.py` is
+# the definition of the invariants that keep that true; this workflow is what runs it against the API,
+# because the state it checks lives on the forge and not in the repository.
+#
+# It is not part of `ci.yml` on purpose: a pull request must not fail because somebody moved a
+# milestone, and the check needs `issues: read`, which the CI token does not carry. The issue and
+# milestone events are where the state changes, `push` is what makes the gate live on `dev`, and the
+# schedule is the backstop for an edit made by hand.
+
+on:
+  issues:
+    types: [opened, edited, reopened, labeled, unlabeled, milestoned, demilestoned, closed]
+  milestone:
+    types: [created, opened, edited, closed, deleted]
+  push:
+    # `dev` is not the default branch, and GitHub reads the issue and milestone events from the
+    # default branch's copy of the workflow: without this, the gate would sleep until the next
+    # release put the file on `main`.
+    branches: [main, dev]
+  schedule:
+    # Monday, 06:00 UTC: the roadmap is checked even when nobody touches it.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+# Least privilege: the check reads the milestones and the open issues, and a gate that could rewrite
+# the roadmap it checks would be able to make itself pass.
+permissions:
+  contents: read
+  issues: read  # the milestones and the open issues; nothing here writes to the forge
+
+concurrency:
+  group: milestones-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Roadmap invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check the milestones
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -m testing.milestones
