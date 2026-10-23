@@ -262,7 +262,10 @@ FORM_STRATA: tuple[Stratum, ...] = (
     ),
     Stratum(
         key="Publicação Impressa",
-        pattern=r"livro\b|boletim|comemorativ|impress",
+        # ``\M``, not ``\b``: this pattern is evaluated by PostgreSQL (``~*``), which has no ``\b``
+        # word boundary — measured 2026-10-23, ``'LIVRO AZUL CIDADE DE CURITYBA' ~* 'livro\b'`` is
+        # false and ``livro\M`` is true. The book fell through every stratum because of the escape.
+        pattern=r"livro\M|boletim|comemorativ|impress",
         why="Printed publications: the commemorative book and the municipal bulletin.",
     ),
     Stratum(

@@ -19,6 +19,7 @@ from testing.evaluation.typology_quality import (
     LabelledRow,
     Truth,
     parse_config,
+    read_collection,
     read_input_text,
     score_live,
     score_stored,
@@ -179,3 +180,92 @@ def test_a_formatted_run_hands_the_model_the_labels_and_still_scores_catalogue_n
     assert engine.classify.call_args.args[1] == ["um documento do tipo Fotografia"]
     assert scored[0].prediction.label == "Fotografia"
     assert scored[0].correct
+
+
+#: Real titles of the reference collection, one per stratum pattern, with the form the pattern owns.
+#:
+#: They are the collection's own titles and not invented ones because the patterns are **PostgreSQL**
+#: regular expressions: the ones carrying ``\m``/``\M`` cannot be pinned by Python's ``re``, and the
+#: ``livro\b`` that PostgreSQL does not read as a word boundary (#134) passed every Python reading
+#: while matching nothing in the picker. An integration test is the only one that pins the dialect
+#: the picker actually runs.
+#:
+#: The order is load-bearing too, which is why the table includes collisions: the photographic prefix
+#: beats "vistoria" (Relatório Técnico), "Decreto / Lei / Portaria" beats the ``^Projeto`` of a bill,
+#: and "Relatório Técnico" beats the "inventário" that would send the same title to NENHUMA.
+STRATUM_CASES: tuple[tuple[str, str], ...] = (
+    (
+        "Registros Fotográficos - Vistoria na área do futuro Parque de Eventos Quielse Crisóstomo da Silva, "
+        "Campina Grande do Sul",
+        "Fotografia",
+    ),
+    ("Registros Fotográficos - 1° Encontro Nacional de Municípios e Meio Ambiente", "Fotografia"),
+    ("Croqui de um terreno para Benedito Sabino de Souza", "Mapa / Croqui Urbanístico"),
+    ("Projeto da fachada de uma casa para Valentim Demetrio do ano de 1900", "Planta Arquitetônica"),
+    ("Processo 10194 de 1915 - Fábrica de Erva Mate de David Carneiro", "Processo Administrativo"),
+    (
+        "Projeto de Lei 110 de 1969 - Autoriza doação de imóvel à Federação Parananense de Futebol",
+        "Decreto / Lei / Portaria",
+    ),
+    (
+        "Depósito de inflamáveis - Relatório e Inventario do Patrimônio Municipal de 1930",
+        "Relatório Técnico",
+    ),
+    (
+        "Requerimentos Câmara Municipal de Curitiba janeiro a julho de 1887",
+        "Requerimento à Câmara Municipal",
+    ),
+    (
+        "Registro de Sepultamentos Cemitério Municipal São Francisco de Paula de 04 dez 1912 a 22 out 1919",
+        "Livro de Sepultamento",
+    ),
+    ("LIVRO AZUL CIDADE DE CURITYBA", "Publicação Impressa"),
+    ("Boletim PMC janeiro e fevereiro 1943", "Publicação Impressa"),
+    ("Inventário e Avaliações do Matadouro Modelo Atuba", "NENHUMA"),
+)
+
+
+def test_the_strata_match_the_real_titles_they_were_written_for(
+    use_test_db,
+    db_session,
+    generate_archive_doc,
+):
+    """
+    Every stratum keeps the titles it owns, in the dialect the picker evaluates them in.
+
+    ``LIVRO AZUL CIDADE DE CURITYBA`` is the regression this pins: the pattern said ``livro\\b``,
+    PostgreSQL has no ``\\b``, and the printed book fell through every stratum — so a bench that
+    claimed to propose "Publicação Impressa" never saw the collection's only book (#134).
+    """
+    expected: dict[str, str] = {}
+    for index, (title, stratum) in enumerate(STRATUM_CASES):
+        description_id = f"stratum_{index}"
+        generate_archive_doc(description_id=description_id, original_title=title)
+        expected[description_id] = stratum
+
+    rows = {row.description_id: row for row in read_collection(db_session) if row.description_id in expected}
+
+    assert {description_id: row.stratum for description_id, row in rows.items()} == expected
+
+
+def test_a_title_that_names_the_subject_is_not_swept_into_a_form(
+    use_test_db,
+    db_session,
+    generate_archive_doc,
+):
+    """
+    The residue #134 measured is not control material, and it is not a photograph either.
+
+    A title can name the subject ("Contestação de Rescisão de contrato Matadouro Modelo Atuba") and
+    never name the medium. The curator files it as a processo, but the title does not say so; a rule
+    broad enough to propose it as ``Fotografia`` would swallow a genuinely different form. Pinned as
+    no stratum, so widening the photographic pattern is a deliberate act and not a silent one.
+    """
+    generate_archive_doc(
+        description_id="subject_title",
+        original_title="Contestação de Rescisão de contrato Matadouro Modelo Atuba",
+    )
+
+    rows = [row for row in read_collection(db_session) if row.description_id == "subject_title"]
+
+    assert rows[0].stratum is None
