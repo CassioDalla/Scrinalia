@@ -6,14 +6,20 @@ name: Milestones
 # because the state it checks lives on the forge and not in the repository.
 #
 # It is not part of `ci.yml` on purpose: a pull request must not fail because somebody moved a
-# milestone, and the check needs `issues: read`, which the CI token does not carry. The event list is
-# where the state changes, and the schedule is the backstop for an edit made by hand.
+# milestone, and the check needs `issues: read`, which the CI token does not carry. The issue and
+# milestone events are where the state changes, `push` is what makes the gate live on `dev`, and the
+# schedule is the backstop for an edit made by hand.
 
 on:
   issues:
     types: [opened, edited, reopened, labeled, unlabeled, milestoned, demilestoned, closed]
   milestone:
     types: [created, opened, edited, closed, deleted]
+  push:
+    # `dev` is not the default branch, and GitHub reads the issue and milestone events from the
+    # default branch's copy of the workflow: without this, the gate would sleep until the next
+    # release put the file on `main`.
+    branches: [main, dev]
   schedule:
     # Monday, 06:00 UTC: the roadmap is checked even when nobody touches it.
     - cron: "0 6 * * 1"
