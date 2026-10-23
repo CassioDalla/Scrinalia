@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format is
 `1.0.0` was the first release; the newest one is at the top. Entries describe **behaviour**, not
 commits — the history is the detail.
 
-## [Unreleased]
+## [1.3.0] - 2026-10-23
 
 ### Added
 
@@ -926,7 +926,8 @@ commits — the history is the detail.
   reads the **runtime** export and not the development environment: an advisory in a tool that never
   reaches an installation no longer hides the ones that do.
 
-[Unreleased]: https://github.com/CassioDalla/Scrinalia/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/CassioDalla/Scrinalia/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.3.0
 [1.2.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.2.0
 [1.1.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.1.0
 [1.0.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.0.0
