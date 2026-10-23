@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 from pandas import DataFrame
 
@@ -47,7 +47,10 @@ def _format_suggestions(
     found_categories: list[MacroCategorySuggested] = []
 
     for _, row in topic_info_df.iterrows():
-        topic_id = int(row["Topic"])
+        # ``Series.__getitem__`` is typed as a union that includes a ``Series``, because it can
+        # return one; a cell of an ``iterrows`` row is a scalar, and ``int`` turns the numpy scalar
+        # into the Python int the DTO carries.
+        topic_id = int(cast(int, row["Topic"]))
 
         if topic_id == -1:
             continue
@@ -59,7 +62,7 @@ def _format_suggestions(
             MacroCategorySuggested(
                 topic_id=topic_id,
                 suggested_name=" - ".join(row["Representation"][:3]).title(),
-                estimate_count=int(row["Count"]),
+                estimate_count=int(cast(int, row["Count"])),
                 real_samples=samples[:10],
             )
         )

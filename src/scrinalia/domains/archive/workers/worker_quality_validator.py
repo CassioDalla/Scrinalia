@@ -9,9 +9,9 @@ sends it to human review, which is the only place the fix can happen.
 
 import re
 from datetime import date
-from typing import Any
+from typing import Any, cast
 
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -20,6 +20,7 @@ from scrinalia.core.logger import logger
 from scrinalia.core.unit_of_work import UnitOfWork
 from scrinalia.domains.archive.engines.base import TitleQualityEngine
 from scrinalia.domains.archive.models import (
+    ANOMALY_REASON_SEPARATOR,
     AnomalyReason,
     ArchiveDocument,
     ArchiveDocumentEntity,
@@ -33,7 +34,13 @@ from scrinalia.domains.archive.repository.text_quality_repo import (
     effective_column_sql,
 )
 from scrinalia.domains.archive.schemas.cleaning_schema import CleaningRuleDTO
-from scrinalia.domains.archive.worker_stamp import QUALITY_VALIDATOR
+from scrinalia.domains.archive.worker_stamp import (
+    QUALITY_VALIDATOR,
+    identity_stamp_conditions,
+    producer_fingerprint,
+)
+from scrinalia.domains.archive.workers.catalogue import DEFAULT_LLM_CHECK_ENGINE
+from scrinalia.domains.archive.workers.run_budget import RunBudget
 
 #: Titles that appear at least this many times are suspicious as a template leftover.
 DEFAULT_REPEAT_THRESHOLD = 3
@@ -48,7 +55,8 @@ DEFAULT_LLM_CONFIDENCE = 0.6
 EMPTY_TITLE_VALUES = {"", "sem título", "sem titulo", "-"}
 
 
-def _compile_rules(rules: list[CleaningRuleDTO]) -> list[tuple[CleaningRuleDTO, re.Pattern]]:
+def compile_rules(rules: list[CleaningRuleDTO]) -> list[tuple[CleaningRuleDTO, re.Pattern]]:
+    """The catalogue rules with their regex compiled, skipping the ones whose pattern does not build."""
     compiled: list[tuple[CleaningRuleDTO, re.Pattern]] = []
     for rule in rules:
         try:
@@ -56,6 +64,49 @@ def _compile_rules(rules: list[CleaningRuleDTO]) -> list[tuple[CleaningRuleDTO, 
         except re.error as e:
             logger.error(f"❌ Rule {rule.rule_id} ('{rule.rule_name}') has invalid Regex syntax: {e}. Skipping.")
     return compiled
+
+
+def rule_flag_label(rule: CleaningRuleDTO) -> str:
+    """
+    The label a ``VALIDATE`` rule's flag carries in ``anomaly_reasons``.
+
+    The label the curator declared (``anomaly_reason``) when there is one, the rule's own name
+    otherwise. Named because three readers now group by it: the worker that writes the flag, the
+    facet that buckets it, and the bench that scores the rule against a human verdict.
+    """
+    return rule.anomaly_reason or rule.rule_name
+
+
+def matched_rule_labels(doc: ArchiveDocument, validate_rules: list[tuple[CleaningRuleDTO, re.Pattern]]) -> list[str]:
+    """
+    Labels of the ``VALIDATE`` rules this document matches, in catalogue order.
+
+    The one definition of "does this rule fire", shared by :func:`evaluate_document` and the bench:
+    a bench that re-implemented the match would score a rule the worker does not have, and the
+    difference would only show up as a precision the installation never had.
+    """
+    labels: list[str] = []
+    for rule, pattern in validate_rules:
+        value = getattr(doc, rule.target_column, None)
+        if value and pattern.search(str(value)):
+            labels.append(rule_flag_label(rule))
+    return labels
+
+
+def llm_check_reason(doc: ArchiveDocument, llm_engine: TitleQualityEngine | None, llm_confidence: float) -> str | None:
+    """
+    The reason the active ``LLM_CHECK`` rule adds for this document, or ``None``.
+
+    Apart from :func:`evaluate_document` so the bench asks the same question with the same floor,
+    instead of retyping ``is_suspect and confidence >= floor`` next to a model call.
+    """
+    raw_title = (doc.original_title or "").strip()
+    if llm_engine is None or not raw_title:
+        return None
+    decision = llm_engine.check_title(raw_title)
+    if decision.is_suspect and decision.confidence >= llm_confidence:
+        return f"{AnomalyReason.LLM_SUSPECT}{ANOMALY_REASON_SEPARATOR}{decision.reason}"
+    return None
 
 
 def load_repeated_titles(db: Session, threshold: int) -> set[str]:
@@ -118,41 +169,124 @@ def evaluate_document(
     if not has_entities:
         reasons.append(AnomalyReason.NO_ENTITIES)
 
-    for rule, pattern in validate_rules:
-        value = getattr(doc, rule.target_column, None)
-        if value and pattern.search(str(value)):
-            label = rule.anomaly_reason or rule.rule_name
-            reasons.append(f"{AnomalyReason.RULE_MATCH}:{label}")
+    for label in matched_rule_labels(doc, validate_rules):
+        reasons.append(f"{AnomalyReason.RULE_MATCH}{ANOMALY_REASON_SEPARATOR}{label}")
 
-    if llm_engine is not None and raw_title:
-        decision = llm_engine.check_title(raw_title)
-        if decision.is_suspect and decision.confidence >= llm_confidence:
-            reasons.append(f"{AnomalyReason.LLM_SUSPECT}:{decision.reason}")
+    llm_reason = llm_check_reason(doc, llm_engine, llm_confidence)
+    if llm_reason is not None:
+        reasons.append(llm_reason)
 
     return reasons
 
 
-def pending_conditions(force: bool = False) -> list[ColumnElement[bool]]:
+def active_llm_check_rule(db: Session) -> CleaningRuleDTO | None:
+    """
+    The rule that decides the engine of this worker, or ``None`` when there is no model.
+
+    Defined once so ``execute``, ``count_pending`` and the operations panel cannot disagree about
+    *which* rule the identity comes from. The panel refuses to let a person override the engine
+    here for the same reason: a second place to choose it would be a second source of truth.
+    """
+    rules = CleaningRepository(db).get_active_rules("LLM_CHECK")
+    return rules[0] if rules else None
+
+
+def unbuildable_rule_reason(rule: CleaningRuleDTO) -> str | None:
+    """
+    Why the rule's engine pair cannot be built, or ``None`` when it can.
+
+    One question, asked by the run and by the producer identity, so the two cannot disagree about
+    whether there is a model. The write path refuses the pair since #124, but a rule saved before
+    that validation exists can still be active, and the registry's ``ValueError`` used to escape
+    ``execute`` — the run was recorded ``FAILED`` and the validator validated nothing while the rule
+    stayed active. The reason is the registry's own sentence, which already names the options.
+    """
+    from scrinalia.domains.archive.engines.title_quality.registry import (
+        EngineName,
+        PresetName,
+        describe_config,
+    )
+
+    # The rule's columns are free text (``String(50)``), so the cast is where an unvalidated string
+    # meets the registry that decides whether it exists.
+    try:
+        describe_config(
+            cast("EngineName", rule.engine_name or DEFAULT_LLM_CHECK_ENGINE),
+            cast("PresetName | None", rule.preset),
+        )
+    except ValueError as e:
+        return str(e)
+    return None
+
+
+def producer_identity(
+    db: Session,
+    *,
+    repeat_threshold: int,
+    llm_confidence: float,
+    engine_kwargs: dict,
+) -> str:
+    """
+    Identity of the validator: the engine of the active ``LLM_CHECK`` rule and its own thresholds.
+
+    With no active rule there is no model, and the identity says so — which is why *activating* a
+    rule re-queues the collection: the verdict changes from deterministic validation to one that
+    also asks a language model.
+    """
+    from scrinalia.domains.archive.engines.title_quality.registry import describe_config
+
+    rule = active_llm_check_rule(db)
+    # The rule carries free text, not the registry's Literals; ``execute`` resolves the same pair
+    # with the same fallback before calling ``get_engine``.
+    engine_name = (rule.engine_name or DEFAULT_LLM_CHECK_ENGINE) if rule is not None else None
+    preset = rule.preset if rule is not None else None
+    if rule is not None and (reason := unbuildable_rule_reason(rule)) is not None:
+        # A rule written before the door validated the pair (#124) must not take the run — or the
+        # panel's counter — down: the identity falls back to "no model", which is what the run does.
+        logger.error(f"❌ A regra LLM_CHECK '{rule.rule_name}' não pode ser construída: {reason}")
+        logger.warning("🧮 A identidade do produtor é a de 'sem modelo': a execução roda só o determinístico.")
+        engine_name = preset = None
+    config = describe_config(engine_name, preset, **engine_kwargs) if engine_name else {}  # type: ignore[arg-type]
+    return producer_fingerprint(
+        axis="title_quality",
+        engine_name=engine_name,
+        preset=preset,
+        engine_config=config,
+        worker_options={"repeat_threshold": repeat_threshold, "llm_confidence": llm_confidence},
+    )
+
+
+def pending_conditions(producer: str, force: bool = False) -> list[ColumnElement[bool]]:
     """
     Predicate of the quality-validator queue, shared by ``execute`` and the operations panel.
 
-    ``force`` re-reads every ai-writable document; the default only reads the ones without the
-    stamp, so a second run of the worker is free.
+    ``force`` re-reads every ai-writable document; the default only reads the ones the current
+    producer has not stamped, so a second run of the worker is free. The identity is the engine of
+    the active ``LLM_CHECK`` rule and the thresholds, so editing the rule re-queues the collection
+    without a person having to remember to.
     """
-    if force:
-        return [ai_writable_documents()]
-    return [
-        ai_writable_documents(),
-        or_(
-            ArchiveDocument.execution_log.is_(None),
-            ~ArchiveDocument.execution_log.has_key(QUALITY_VALIDATOR.key),
-        ),
-    ]
+    conditions: list[ColumnElement[bool]] = [ai_writable_documents()]
+    conditions.extend(
+        identity_stamp_conditions(ArchiveDocument.execution_log, QUALITY_VALIDATOR, producer, force=force)
+    )
+    return conditions
 
 
-def count_pending(db: Session, force: bool = False, **options: Any) -> int:
-    """Documents the next validation run would read."""
-    stmt = select(func.count()).select_from(ArchiveDocument).where(*pending_conditions(force))
+def count_pending(
+    db: Session,
+    force: bool = False,
+    repeat_threshold: int = DEFAULT_REPEAT_THRESHOLD,
+    llm_confidence: float = DEFAULT_LLM_CONFIDENCE,
+    **engine_kwargs: Any,
+) -> int:
+    """Documents the next validation run would read, under the identity it would write."""
+    identity = producer_identity(
+        db,
+        repeat_threshold=repeat_threshold,
+        llm_confidence=llm_confidence,
+        engine_kwargs=engine_kwargs,
+    )
+    stmt = select(func.count()).select_from(ArchiveDocument).where(*pending_conditions(identity, force=force))
     return int(db.scalar(stmt) or 0)
 
 
@@ -160,6 +294,7 @@ def execute(
     db: Session,
     db_batch_size: int = 64,
     force: bool = False,
+    limit: int | None = None,
     repeat_threshold: int = DEFAULT_REPEAT_THRESHOLD,
     llm_confidence: float = DEFAULT_LLM_CONFIDENCE,
     **engine_kwargs: Any,
@@ -167,21 +302,45 @@ def execute(
     """
     Marks documents whose data cannot be trusted as it stands.
 
-    Every document is stamped, with or without anomalies, so the queue advances. A
+    Every document is stamped with the **identity of the producer**, with or without anomalies, so
+    the queue advances; a document validated with another engine or threshold is pending again. A
     ``HUMAN_APPROVED`` document is never touched: a human already looked at it.
 
     The language model is only built when an active ``LLM_CHECK`` rule exists — the
     default is deterministic validation at zero model cost.
+
+    The loop advances by a ``description_id`` cursor. Without it a forced run would re-read the
+    same first batch forever, because ``force`` drops the only clause that used to make a
+    document leave the queue.
+
+    Args:
+        db (Session): Database session.
+        db_batch_size (int, optional): Documents fetched and committed per transaction.
+        force (bool, optional): Re-reads every ai-writable document instead of only the ones this
+            producer has not stamped; the reasons also depend on the catalog, which a hash of the
+            engine cannot see. Default is ``False``.
+        limit (int | None, optional): Cap on the documents this run touches. Not persisted.
+        repeat_threshold (int, optional): How many equal titles make a template leftover.
+        llm_confidence (float, optional): Below this the language-model opinion is ignored.
+        **engine_kwargs (Any): Extra keyword arguments forwarded to the title-quality engine.
     """
     logger.info("🚀 Starting the Quality Validator Worker")
 
     repository = CleaningRepository(db)
-    validate_rules = _compile_rules([r for r in repository.get_active_rules() if r.rule_kind == "VALIDATE"])
-    llm_rules = [r for r in repository.get_active_rules() if r.rule_kind == "LLM_CHECK"]
+    validate_rules = compile_rules([r for r in repository.get_active_rules() if r.rule_kind == "VALIDATE"])
+    llm_rules = repository.get_active_rules("LLM_CHECK")
 
     text_repository = TextQualityRepository(db)
     title_rules = text_repository.get_active_rules("TITLE")
     text_rules = text_repository.get_active_rules("EMBEDDING")
+
+    identity = producer_identity(
+        db,
+        repeat_threshold=repeat_threshold,
+        llm_confidence=llm_confidence,
+        engine_kwargs=engine_kwargs,
+    )
+    logger.info(f"🔖 Producer identity: {identity[:12]}")
 
     llm_engine: TitleQualityEngine | None = None
     if llm_rules:
@@ -189,11 +348,19 @@ def execute(
 
         rule = llm_rules[0]
         logger.info(f"🤖 LLM title check enabled by rule '{rule.rule_name}' ({rule.engine_name or 'default'}).")
-        llm_engine = get_engine(
-            rule.engine_name or "ollama_title_check",  # type: ignore[arg-type]
-            rule.preset,  # type: ignore[arg-type]
-            **engine_kwargs,
-        )
+        reason = unbuildable_rule_reason(rule)
+        if reason is not None:
+            # A rule that cannot be built leaves the run standing: the deterministic stage still
+            # validates the collection, and the refusal is a sentence in the log instead of the
+            # registry's ``ValueError`` killing the whole run (#124).
+            logger.error(f"❌ A regra LLM_CHECK '{rule.rule_name}' não pode ser construída: {reason}")
+            logger.warning("🧮 Rodando só a validação determinística; corrija ou desative a regra.")
+        else:
+            llm_engine = get_engine(
+                rule.engine_name or DEFAULT_LLM_CHECK_ENGINE,  # type: ignore[arg-type]
+                rule.preset,  # type: ignore[arg-type]
+                **engine_kwargs,
+            )
     else:
         logger.info("🧮 Deterministic validation only: no active LLM_CHECK rule.")
 
@@ -213,7 +380,7 @@ def execute(
         .exists()
     )
 
-    where_cond: list[ColumnElement[bool]] = pending_conditions(force)
+    where_cond: list[ColumnElement[bool]] = pending_conditions(identity, force=force)
 
     pending = db.scalar(select(func.count()).select_from(ArchiveDocument).where(*where_cond))
     if not pending:
@@ -225,6 +392,8 @@ def execute(
     processed = 0
     total_anomalies = 0
     today = date.today()
+    last_id = ""
+    budget = RunBudget(limit)
     uow = UnitOfWork(db)
 
     while True:
@@ -237,13 +406,16 @@ def execute(
                     has_tags.label("has_tags"),
                     has_entities.label("has_entities"),
                 )
-                .where(*where_cond)
+                .where(*where_cond, ArchiveDocument.description_id > last_id)
                 .order_by(ArchiveDocument.description_id)
-                .limit(db_batch_size)
+                .limit(budget.batch_size(db_batch_size))
             )
             rows = db.execute(stmt).all()
             if not rows:
                 break
+
+            last_id = rows[-1][0].description_id
+            budget.spend(len(rows))
 
             for doc, effective_title, effective_scope, has_tags_value, has_entities_value in (
                 (row[0], row[1], row[2], row[3], row[4]) for row in rows
@@ -268,7 +440,7 @@ def execute(
                     if doc.review_status in (ArchiveReviewStatus.PENDING_AI, ArchiveReviewStatus.AI_APPROVED):
                         doc.review_status = ArchiveReviewStatus.NEEDS_REVIEW
 
-                doc.execution_log = QUALITY_VALIDATOR.mark(doc.execution_log)
+                doc.execution_log = QUALITY_VALIDATOR.mark_value(doc.execution_log, identity)
                 flag_modified(doc, "execution_log")
                 processed += 1
 

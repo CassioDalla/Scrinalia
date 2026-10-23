@@ -14,7 +14,6 @@ protected is *what data exists*, not who is asking (ADR 0003).
 """
 
 from datetime import date
-from typing import Literal
 
 from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
@@ -27,7 +26,7 @@ from scrinalia.api.schemas.public import (
     PublicDocumentSummary,
 )
 from scrinalia.api.security import Access
-from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery
+from scrinalia.domains.archive.schemas.query_schema import DocumentSearchQuery, SearchMode
 from scrinalia.domains.archive.services.document_service import DocumentService
 
 
@@ -44,7 +43,7 @@ class PublicController(Controller):
         self,
         document_service: NamedDependency[DocumentService],
         term: FromQuery[str | None] = None,
-        mode: FromQuery[Literal["lexical", "semantic"]] = "lexical",
+        mode: FromQuery[SearchMode] = "lexical",
         typology_id: FromQuery[int | None] = None,
         macro_category_id: FromQuery[int | None] = None,
         level_id: FromQuery[int | None] = None,

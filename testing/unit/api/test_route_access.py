@@ -78,6 +78,9 @@ READ_ONLY_POSTS = {
     # Computes candidates for the subject axis and writes nothing; the route that *applies* a
     # suggestion carries its own permission. It was the one read-only POST classified as a write.
     ("POST", "/api/v1/taxonomy/tags/suggest-macro"),
+    # Counts the queue a **proposed** worker configuration would read, so the cost of a threshold
+    # or a model change is visible before it is saved. Writes nothing.
+    ("POST", "/api/v1/system/workers/{worker_name:str}/queue/preview"),
 }
 
 #: Litestar's auto-generated preflight handler is not an operation of this API and carries no

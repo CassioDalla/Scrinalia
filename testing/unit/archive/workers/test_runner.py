@@ -173,3 +173,61 @@ def test_a_dropped_flag_is_logged_instead_of_ignored(monkeypatch) -> None:
         logger.remove(sink)
 
     assert any("db_batch_size" in message for message in received)
+
+
+def test_run_worker_coerces_options_by_the_declared_type(monkeypatch) -> None:
+    """A number has to arrive as a number: ``0.5 > "0.6"`` is a TypeError at the bottom of a run."""
+    captured: dict = {}
+    sentinel = object()
+
+    def fake_worker(db, confidence_threshold: float = 0.4, repeat_threshold: int = 3, force: bool = False):
+        captured.update(confidence_threshold=confidence_threshold, repeat_threshold=repeat_threshold, force=force)
+
+    monkeypatch.setitem(runner.WORKERS, "fake_types", fake_worker)
+
+    runner.run_worker(
+        "fake_types",
+        extra={"confidence_threshold": "0.6", "repeat_threshold": "5", "force": "true"},
+        db_factory=lambda: _fake_db_factory(sentinel),
+    )
+
+    assert captured == {"confidence_threshold": 0.6, "repeat_threshold": 5, "force": True}
+
+
+@pytest.mark.parametrize(
+    ("option", "message"),
+    [
+        ({"confidence_threshold": "muito"}, "espera um número"),
+        ({"repeat_threshold": "muitos"}, "espera um inteiro"),
+        ({"force": "talvez"}, "booleana"),
+        ({"columns_to_extract": "original_title"}, "lista ou um objeto"),
+    ],
+)
+def test_a_value_that_cannot_be_read_is_refused_at_the_top(monkeypatch, option: dict, message: str) -> None:
+    """A flag that would fail deep inside a run is refused before the run starts.
+
+    The list case is the one that used to corrupt silently: the worker would take the string and
+    iterate it character by character, so ``getattr(ArchiveDocument, "o")`` blew up inside the
+    predicate. The type is read from the declared default — an option whose default is ``None``
+    carries no type and is forwarded as the string it is.
+    """
+
+    def fake_worker(
+        db,
+        confidence_threshold: float = 0.4,
+        repeat_threshold: int = 3,
+        force: bool = False,
+        columns_to_extract: list[str] = ["original_title"],  # noqa: B006 - the default is the declaration
+    ):
+        raise AssertionError("the worker must not be reached")
+
+    monkeypatch.setitem(runner.WORKERS, "fake_refused", fake_worker)
+
+    with pytest.raises(InvalidWorkerSettingsError, match=message):
+        runner.run_worker("fake_refused", extra=option, db_factory=lambda: _fake_db_factory(object()))
+
+
+def test_a_cap_must_be_positive() -> None:
+    """``--limit 0`` reads nothing and exits successfully, which reads as "the queue is empty"."""
+    with pytest.raises(SystemExit):
+        runner.main(["embedding", "--limit", "0"])

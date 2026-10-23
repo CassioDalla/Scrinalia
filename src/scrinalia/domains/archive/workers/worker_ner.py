@@ -12,7 +12,7 @@ from scrinalia.core.runner_config import NerRunnerConfig
 from scrinalia.core.unit_of_work import UnitOfWork
 from scrinalia.domains.archive.engines.base import EntityExtractionEngine
 from scrinalia.domains.archive.engines.NER.registry import EngineName as ExtractEngineName
-from scrinalia.domains.archive.engines.NER.registry import PresetName, get_engine
+from scrinalia.domains.archive.engines.NER.registry import PresetName, describe_config, get_engine
 from scrinalia.domains.archive.models import (
     ArchiveDocument,
     DomainNerExclusion,
@@ -26,7 +26,8 @@ from scrinalia.domains.archive.repository.text_quality_repo import (
     composed_text_sql,
 )
 from scrinalia.domains.archive.schemas.command_schema import EntityLinkCommand
-from scrinalia.domains.archive.worker_stamp import NER
+from scrinalia.domains.archive.worker_stamp import NER, identity_stamp_conditions, producer_fingerprint
+from scrinalia.domains.archive.workers.run_budget import RunBudget
 
 
 def load_entity_blacklist(db_session: Session) -> set[str]:
@@ -103,34 +104,77 @@ def _clean_raw_text(text: str) -> str:
     return text_no_urls.strip()
 
 
-def pending_conditions(columns_to_extract: list[str]) -> list[ColumnElement[bool]]:
+def resolved_columns(config: NerRunnerConfig | None, columns_to_extract: list[str] | None) -> list[str]:
+    """The columns a run really reads, resolved once for ``execute`` and the panel."""
+    resolved = config or NerRunnerConfig()
+    return list(columns_to_extract or resolved.columns_to_extract)
+
+
+def producer_identity(
+    *,
+    engine_name: ExtractEngineName,
+    preset: PresetName | None,
+    columns_to_extract: list[str],
+    engine_kwargs: dict,
+) -> str:
+    """
+    Identity of the extractor that produced the entities of a document.
+
+    The configuration comes from ``describe_config``, the read-only twin of ``get_engine``, and the
+    columns are part of it because changing which text is read changes which entities are found —
+    the axis also carries the installed ``spacy`` version, whose bump rewrites every extraction
+    without touching the preset.
+    """
+    config = describe_config(engine_name, preset, **engine_kwargs)
+    return producer_fingerprint(
+        axis="NER",
+        engine_name=engine_name,
+        preset=preset,
+        engine_config=config,
+        worker_options={"columns_to_extract": columns_to_extract},
+    )
+
+
+def pending_conditions(
+    columns_to_extract: list[str],
+    producer: str,
+    force: bool = False,
+) -> list[ColumnElement[bool]]:
     """
     Predicate of the NER queue, shared by ``execute`` and the operations panel.
 
     HUMAN_APPROVED documents are shielded: the AI must not overwrite human curation. A document
-    with no text in any of the extracted columns is skipped because there is nothing to read.
+    with no text in any of the extracted columns is skipped because there is nothing to read. A
+    document stamped by **another producer** is pending again — which is what makes an extraction
+    re-runnable after a model change — and ``force`` widens the queue to everything ai-writable.
     """
     filters_columns = [getattr(ArchiveDocument, col).is_not(None) for col in columns_to_extract]
-    return [
+    conditions: list[ColumnElement[bool]] = [
         ai_writable_documents(),
         or_(*filters_columns),
-        or_(
-            ArchiveDocument.execution_log.is_(None),
-            ~ArchiveDocument.execution_log.has_key(NER.key),
-        ),
     ]
+    conditions.extend(identity_stamp_conditions(ArchiveDocument.execution_log, NER, producer, force=force))
+    return conditions
 
 
 def count_pending(
     db: Session,
     columns_to_extract: list[str] | None = None,
     config: NerRunnerConfig | None = None,
-    **options: Any,
+    force: bool = False,
+    engine_name: ExtractEngineName = "spacy_ner",
+    preset: PresetName | None = "gpu",
+    **engine_kwargs: Any,
 ) -> int:
-    """Documents the next NER run would read."""
-    resolved = config or NerRunnerConfig()
-    columns = columns_to_extract or list(resolved.columns_to_extract)
-    stmt = select(func.count()).select_from(ArchiveDocument).where(*pending_conditions(columns))
+    """Documents the next NER run would read, under the identity it would write."""
+    columns = resolved_columns(config, columns_to_extract)
+    identity = producer_identity(
+        engine_name=engine_name,
+        preset=preset,
+        columns_to_extract=columns,
+        engine_kwargs=engine_kwargs,
+    )
+    stmt = select(func.count()).select_from(ArchiveDocument).where(*pending_conditions(columns, identity, force=force))
     return int(db.scalar(stmt) or 0)
 
 
@@ -141,6 +185,8 @@ def execute(
     db_batch_size: int = 64,
     columns_to_extract: list[str] | None = None,
     config: NerRunnerConfig | None = None,
+    force: bool = False,
+    limit: int | None = None,
     **engine_kwargs: Any,
 ) -> None:
     """
@@ -155,8 +201,16 @@ def execute(
     2. Sends the texts to the injected AI engine (Strategy pattern via Registry)
        together with institutional rules loaded dynamically.
     3. Persists the found entities (UPSERT) and creates the N:N relationships.
-    4. Applies a universal stamp ("DONE" or "ERROR") on the document to guarantee
-       that the queue advances, preventing infinite loops on inference failure.
+    4. Applies a universal stamp on the document to guarantee that the queue advances,
+       preventing infinite loops on inference failure. The stamp is the **identity of the
+       extractor** (engine, preset, columns, installed spaCy), so a different model re-reads the
+       document by itself instead of leaving the old extraction silently in place.
+
+    The loop advances by a ``description_id`` cursor. The stamp is what leaves the queue in a
+    plain run, but ``force`` ignores it, and without the cursor a forced run would refetch the
+    same documents forever. The NER synonyms rules the curation edits are deliberately **not**
+    part of the identity: they are a vocabulary table a hash cannot see, which is what ``force``
+    is for.
 
     The database session is expunged (expunge_all) after each completed transaction to
     avoid memory leaks in long-running executions.
@@ -172,6 +226,11 @@ def execute(
         columns_to_extract (list[str] | None, optional): List of attributes of the model
             `ArchiveDocument` that will form the context analyzed by the AI. If `None`,
             it uses `["original_title", "admin_bio_history", "provenance", "scope_content"]`.
+        force (bool, optional): When ``True``, ignores the producer identity and re-reads every
+            ai-writable document once, which is the way back from a curation edit to the synonym
+            rules that a hash cannot see. Default is ``False``.
+        limit (int | None, optional): Cap on the documents this run touches, so a trial costs N
+            documents instead of the collection. Not persisted. Default is ``None``.
         **engine_kwargs (Any): Extra keyword arguments forwarded directly to the
             AI engine constructor to override preset configurations.
 
@@ -184,10 +243,10 @@ def execute(
         is completely empty.
 
     """
-    logger.info(f"🚀 Starting the NER Worker (Engine: {engine_name} | Preset: {preset})")
+    logger.info(f"🚀 Starting the NER Worker (Engine: {engine_name} | Preset: {preset} | Force: {force})")
 
     config = config or NerRunnerConfig()
-    columns_to_extract = columns_to_extract or list(config.columns_to_extract)
+    columns_to_extract = resolved_columns(config, columns_to_extract)
     repository = EntityRepository(db)
     uow = UnitOfWork(db)
 
@@ -203,9 +262,17 @@ def execute(
         logger.error(f"❌ Error instantiating the NER engine: {e}")
         raise
 
-    # 1. Filters (We look for docs that do NOT yet have the NER stamp).
+    identity = producer_identity(
+        engine_name=engine_name,
+        preset=preset,
+        columns_to_extract=columns_to_extract,
+        engine_kwargs=engine_kwargs,
+    )
+    logger.info(f"🔖 Producer identity: {identity[:12]}")
+
+    # 1. Filters (We look for docs that do NOT yet have the NER stamp of this producer).
     # HUMAN_APPROVED documents are shielded: the AI must not overwrite human curation.
-    where_cond = pending_conditions(columns_to_extract)
+    where_cond = pending_conditions(columns_to_extract, identity, force=force)
 
     # Pre-Query for the logs
     query_count = select(func.count()).select_from(ArchiveDocument).where(*where_cond)
@@ -227,15 +294,23 @@ def execute(
     logger.info(f"🧹 {len(rules)} approved excerpt(s) will be kept out of the extracted text.")
 
     processed_docs_count = 0
+    last_id = ""
+    budget = RunBudget(limit)
     while True:
         try:
             query = (
-                select(ArchiveDocument, text_expression.label("effective_text")).where(*where_cond).limit(db_batch_size)
+                select(ArchiveDocument, text_expression.label("effective_text"))
+                .where(*where_cond, ArchiveDocument.description_id > last_id)
+                .order_by(ArchiveDocument.description_id)
+                .limit(budget.batch_size(db_batch_size))
             )
             batch_rows = db.execute(query).all()
 
             if not batch_rows:
                 break
+
+            last_id = batch_rows[-1][0].description_id
+            budget.spend(len(batch_rows))
 
             texts_buffer = []
             valid_docs = []
@@ -246,7 +321,7 @@ def execute(
 
                 if not text_contextualized:
                     # Stamps empty docs so they do not enter a loop
-                    doc.execution_log = NER.mark(doc.execution_log)
+                    doc.execution_log = NER.mark_value(doc.execution_log, identity)
                     flag_modified(doc, "execution_log")
                     continue
 
@@ -269,7 +344,7 @@ def execute(
 
                 # 4. Application of the Results and Persistence in the Database
                 for doc, dtos_entities in zip(valid_docs, ner_results, strict=True):
-                    stamp_status = "DONE"
+                    failed = False
                     doc = cast(ArchiveDocument, doc)
                     try:
                         # If the AI found entities, we process the links
@@ -293,7 +368,7 @@ def execute(
                                         )
                                 except Exception as e_nested:
                                     logger.error(f"❌ Transactional error in doc {doc.description_id}: {e_nested}")
-                                    stamp_status = "ERROR"
+                                    failed = True
                             else:
                                 logger.debug(f"Doc {doc.description_id} ➡️ All entities blocked by the Blacklist.")
                         else:
@@ -303,11 +378,16 @@ def execute(
 
                     except Exception as e:
                         logger.error(f"❌ Structural error saving entities for doc {doc.description_id}: {e}")
-                        stamp_status = "ERROR"
+                        failed = True
 
-                    # 5. The Universal Protection Stamp
+                    # 5. The Universal Protection Stamp. A failure is written as a failure and never
+                    # as the identity, or the document would look processed by this producer.
                     try:
-                        doc.execution_log = NER.mark(doc.execution_log, status=stamp_status)
+                        doc.execution_log = (
+                            NER.mark_failed(doc.execution_log)
+                            if failed
+                            else NER.mark_value(doc.execution_log, identity)
+                        )
                         flag_modified(doc, "execution_log")
                     except Exception as e:
                         logger.critical(f"Critical failure stamping the error on doc {doc.description_id}: {e}")

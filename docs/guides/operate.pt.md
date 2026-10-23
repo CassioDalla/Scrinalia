@@ -53,6 +53,10 @@ de IA. São comandos de linha de comando próprios, descritos em
   qualidade.
 - **`ner`** extrai nomes próprios, lugares e instituições do texto composto da descrição.
 - **`typology`** classifica cada descrição contra o catálogo de tipologias ativas por zero-shot.
+  Uma descrição cujo melhor score fica abaixo do piso mantém `typology_id` NULL — a coluna diz
+  isso tanto quando o classificador recusou quanto quando nenhuma execução chegou à descrição —
+  então a recusa é gravada: uma linha em `archive_ai_review_queue` com o **score que a execução
+  viu**.
 - **`thumbnail`** baixa a imagem original e guarda uma miniatura no storage de objetos. Ele confirma
   que o bucket existe antes do primeiro documento — criando-o só quando
   `S3_AUTO_CREATE_BUCKET=true` — então um bucket ausente derruba a execução uma vez, com uma frase,
@@ -60,7 +64,9 @@ de IA. São comandos de linha de comando próprios, descritos em
   os documentos de uma execução, que é o que torna barato um teste local.
 - **`conflict-judge`** compara o vocabulário de tags com o de entidades e consulta o LLM local para
   decidir se o termo ambíguo é assunto ou nome próprio. Todo veredicto, automático ou enviado a uma
-  pessoa, deixa uma linha em `archive_ai_review_queue`.
+  pessoa, deixa uma linha em `archive_ai_review_queue`. Uma chamada que o motor não conseguiu fazer
+  levanta em vez de virar veredicto, então o par **não** deixa linha e é perguntado de novo na
+  execução seguinte: ele continua pendente, e o número de "já julgados" do painel não o conta.
 - **`macro-category`** arquiva cada tag numa categoria de assunto. A unidade dele é a **tag**, não a
   descrição, então o carimbo vive no `execution_log` da própria tag; uma tag que o curador arquivou
   à mão está fora do alcance dele.
@@ -79,21 +85,52 @@ de IA. São comandos de linha de comando próprios, descritos em
 ### O que cada fila significa
 
 Uma fila não é uma tabela: é o predicado que o próprio `count_pending` do worker compartilha com o
-`execute`. O painel nunca o re-deriva. `pending` é quantas unidades a próxima execução leria;
-`processed` é quantas carregam o carimbo do worker; `failed` conta os carimbos que registram falha
-(`ERROR`, ou a marca `thumbnail_failed`).
+`execute`. O painel nunca o re-deriva. `pending` é quantas unidades a próxima execução leria.
+
+Para os cinco workers cujo livro é um carimbo, o painel abre o carimbo em vez de mostrar um número
+só, porque um slot de identidade pode guardar três coisas diferentes e apenas uma delas atribui a
+resposta: **com produtor** é um valor que o próprio padrão do slot aceita, uma impressão digital que
+realmente nomeia o modelo; **sem produtor conhecido** é um valor legado — o `"DONE"` gravado antes de
+a impressão digital existir, ou o `PRODUCER_UNKNOWN` que uma migração deixou no lugar dele; **sem
+registro** é a chave ausente, ou seja, nada registrou execução alguma. `processed` é os dois
+primeiros mais as falhas, e `failed` conta os carimbos que registram uma (`ERROR`; a falha do
+thumbnail vive sob a chave `thumbnail_failed`, porque o livro dele não é um carimbo).
+
+Cinco dos nove carimbos carregam a **identidade do produtor** em vez de um status: uma impressão
+digital da engine, do preset, de toda a configuração resolvida da engine, das versões instaladas das
+bibliotecas daquele eixo e das opções comportamentais declaradas (`force`, `limit` e o `config`
+reservado ficam de fora). A consequência é o ponto do desenho: mudar qualquer uma dessas coisas
+devolve as unidades afetadas à fila **sozinho**, o que um `DONE` nunca poderia fazer — um bump do
+`torch` invalidava todos os vetores enquanto o carimbo continuava atual e a fila continuava vazia. O
+embedding compõe a identidade com o MD5 do texto efetivo, então uma edição humana também o
+re-enfileira; o macro-category compõe com o hash do conjunto de rótulos. Dois produtores ficam
+deliberadamente fora da identidade, porque lê-los custaria um import pesado ou uma chamada de rede no
+caminho do painel: a versão do pacote do modelo spaCy (`pt_core_news_lg`) e o digest do modelo que o
+servidor Ollama serve. Rode esses dois casos com `force`.
 
 | Worker | O que está pendente | Carimbo de idempotência |
 | --- | --- | --- |
 | `transfer` | registros de staging sem linha no Acervo, ou cujo hash do conteúdo interpretado difere do gravado — exceto descrições que uma pessoa aprovou ou rejeitou | nenhum; um hash do registro de staging, mais `hierarchy_parent_v1` para um pai declarado |
 | `cleaning` | documentos que as regras `REWRITE` ativas ainda não carimbaram; um documento pendente para duas regras conta duas vezes | `cleaning_rule_{rule_id}` |
-| `ner` | documentos sem o carimbo que têm texto em ao menos uma coluna extraída | `worker_ner_v2` |
-| `typology` | documentos sem tipologia e sem o carimbo que têm texto | `worker_typology_classifier_v2` |
+| `ner` | documentos com texto em ao menos uma coluna extraída e sem o carimbo do produtor atual | `worker_ner_v2` (o valor é a identidade do produtor) |
+| `typology` | documentos com texto e sem o carimbo do produtor atual — o carimbo assina o conjunto de tipologias ativas, então acrescentar, renomear ou aposentar uma tipologia alcança os documentos já classificados | `worker_typology_classifier_v2` (o valor é a identidade do produtor) |
 | `thumbnail` | documentos com imagem de origem, sem URI no storage e sem marca de falha — todos os marcados, com `force` | nenhum; a coluna `storage_thumbnail_uri`, mais a marca `thumbnail_failed` |
 | `conflict-judge` | **não é mensurável barato**: a fila é o produto trigram de tags × entidades, medido em 53 s no acervo real. O painel mostra o que já foi julgado | nenhum; a linha em `archive_ai_review_queue` |
-| `macro-category` | tags sem categoria de assunto cujo carimbo não carrega o conjunto de rótulos atual | `worker_macro_category_v1` (na tag; o valor é o hash do conjunto de rótulos) |
-| `quality-validator` | documentos sem o carimbo, a menos que `force` esteja ligado | `worker_quality_validator_v1` |
-| `embedding` | documentos cujo carimbo difere do MD5 do texto efetivo — a primeira execução e toda mudança de texto posterior | `worker_embedding_v1` (o valor é o MD5 do texto embedado) |
+| `macro-category` | tags sem categoria de assunto cujo carimbo não é o produtor atual (o conjunto de rótulos e o modelo estão nos dois) | `worker_macro_category_v1` (na tag; o valor é o conjunto de rótulos composto com a identidade do produtor) |
+| `quality-validator` | documentos sem o carimbo do produtor atual, a menos que `force` esteja ligado | `worker_quality_validator_v1` (o valor é a identidade da regra `LLM_CHECK` ativa, ou de "sem modelo" — inclusive quando a engine da regra não pode ser construída, que é a execução que o validador de fato faz) |
+| `embedding` | documentos cujo carimbo difere do MD5 do texto efetivo **mais** a identidade do produtor — a primeira execução, toda mudança de texto posterior e todo bump de modelo ou dependência | `worker_embedding_v1` (o valor é o MD5 seguido de `:` e da identidade) |
+
+Um documento que o worker marcou como `ERROR` fica fora da fila comum: `force` é o caminho de volta,
+e ele limpa a marca nas unidades que processa. Uma unidade carimbada por um produtor que não está
+mais configurado volta a estar pendente — incluindo todo valor legado, leia ele ainda `"DONE"` ou o
+`PRODUCER_UNKNOWN` para o qual a migração o renomeou. Essas linhas estavam pendentes antes da
+renomeação e continuam pendentes depois dela, então a migração mudou o que o livro **diz** e não o que
+a fila **faz**: a próxima execução as cura gravando uma impressão digital de verdade. É esse o ponto
+da distinção — atribuição e relato, não a fila. A identidade da tipologia também assina o conjunto de
+tipologias ativas, então depois desta atualização **toda** descrição carimbada fica pendente uma vez,
+com ou sem tipologia: o acervo inteiro editável pela IA na primeira execução e, daí em diante, só o
+que uma mudança de catálogo, modelo, coluna ou piso realmente moveu. A pré-visualização abaixo é como
+medir isso antes de pagar.
 
 O contador do `transfer` é o mais pesado: valida a tabela de staging inteira pelo mesmo port que o
 transfer usa. É lido uma vez por carga do painel e não é consultado em laço.
@@ -117,6 +154,10 @@ Por exemplo:
 uv run python -m scrinalia.domains.archive.workers.runner typology \
     --engine deberta_typology --preset cpu_local --batch 100 --by "ana"
 
+# Testa um limiar medido pelo bench só nas primeiras 200 descrições.
+uv run python -m scrinalia.domains.archive.workers.runner typology \
+    --option confidence_threshold=0.6 --limit 200 --by "ana"
+
 # Força o embedding de toda descrição, ignorando o hash do texto.
 uv run python -m scrinalia.domains.archive.workers.runner embedding --option force=true
 
@@ -129,19 +170,23 @@ uv run python -m scrinalia.domains.archive.workers.runner ner \
 | --- | --- |
 | `<name>` | um dos nove nomes acima; qualquer outro valor é recusado com a lista de opções |
 | `--engine X` | uma engine registrada do eixo do worker, por exemplo `spacy_ner`, `deberta_typology`, `ollama_judge` |
-| `--preset Y` | um preset desse eixo, por exemplo `gpu`, `lemmatizer`, `cpu_local`, `gpu_cloud`, `granite_local`, `multilingual_minilm` |
+| `--preset Y` | um preset desse eixo, por exemplo `gpu`, `lemmatizer`, `cpu_local`, `gpu_cloud`, `xlm_roberta_local`, `gemma_4b_local`, `multilingual_minilm` |
 | `--batch N` | tamanho do lote por transação, repassado aos workers que declaram `db_batch_size`; um worker sem isso registra no log que o valor foi ignorado |
-| `--limit N` | teto de unidades desta execução, para os workers que declaram `limit` (hoje o `thumbnail`); recusado nos demais, porque um teto que não faz nada em silêncio é pior do que nenhum teto |
+| `--limit N` | teto de unidades desta execução, para os workers que declaram `limit` (`embedding`, `macro-category`, `ner`, `quality-validator`, `thumbnail`, `typology`); recusado nos demais, porque um teto que não faz nada em silêncio é pior do que nenhum teto. Ele conta tentativas, então uma fila de falhas ainda termina, e nunca é persistido |
 | `--option key=value` | parâmetro extra, repetível; `key` sem `=` é recusado |
 | `--by "quem"` | texto livre com quem está executando; a CLI roda no host e não tem sessão, então isso continua sendo um nome sem conta por trás |
 
-O `--option` converte exatamente dois valores: `true` e `false` viram booleanos. Qualquer outro valor
-continua string, então uma opção que espera número ou lista não é configurável pela linha de comando.
-A flag é validada contra a assinatura do `execute` do worker: uma opção que o worker não declara é
-recusada, a menos que o worker termine em `**engine_kwargs`, que é a forma documentada de
-sobrescrever `device`, `host` e parâmetros parecidos da engine em uma execução. O `conflict-judge`
-não declara `**engine_kwargs`, então o host dele não é um `--option`: ele vem da configuração
-`OLLAMA_HOST_URL` (ou do default local).
+O `--option` é convertido pelo tipo que o worker declara para aquela opção na assinatura do
+`execute`: `true`/`false` viram booleanos, um default inteiro faz o valor virar `int`, um default
+float faz virar `float`. `--option confidence_threshold=0.6` portanto chega como número e alcança a
+comparação; um valor que não pode ser lido (`0.6x` para um float, `talvez` para um booleano) é
+recusado com uma frase antes de a execução começar, em vez de falhar no fundo dela. Uma opção cujo
+default declarado é uma lista ou um objeto também é recusada: uma string seria repassada e o worker a
+iteraria caractere por caractere. A flag é validada contra a assinatura do `execute` do worker: uma
+opção que o worker não declara é recusada, a menos que o worker termine em `**engine_kwargs`, que é a
+forma documentada de sobrescrever `device`, `host` e parâmetros parecidos da engine em uma execução.
+O `conflict-judge` não declara `**engine_kwargs`, então o host dele não é um `--option`: ele vem da
+configuração `OLLAMA_HOST_URL` (ou do default local).
 
 Duas coisas são sempre recusadas:
 
@@ -246,6 +291,25 @@ Para `quality-validator`, o `engine_source` é `llm_check_rule`: a engine e o pr
 lugar para escolher a mesma engine seria uma segunda fonte de verdade. Sem regra ativa, o worker roda
 apenas a validação determinística, e o painel diz isso na `note`.
 
+### Testar uma configuração antes de salvá-la
+
+Um padrão salvo não é só uma preferência: como a fila é chaveada pela identidade do produtor, mudar a
+engine, o preset ou uma opção declarada (um `confidence_threshold`, as colunas lidas) devolve
+unidades à fila sozinho. `POST /api/v1/system/workers/{worker_name}/queue/preview` responde quantas,
+para uma configuração que nunca foi escrita, com a mesma precedência que uma execução usa. O corpo é o
+corpo da configuração, então a tela pré-visualiza exatamente o que salvaria, e a resposta é `pending`
+mais um `pending_reason` para o worker cuja fila não é mensurável (`conflict-judge`).
+
+Medido no acervo de referência, com os documentos da tipologia carimbados pelo produtor que está no
+código: a configuração padrão responde `0 na fila`, e propor `{"confidence_threshold": 0.9}` responde
+`4.465` — o limiar faz parte da identidade, então os documentos que o limiar de 0.40 settleou estão
+pendentes sob o de 0.90, e nada foi salvo. Esse número é também o que a próxima execução custaria, e é
+por isso que a tela de configuração o coloca atrás de *Conferir impacto* em vez de deixá-lo ser
+descoberto depois da escrita.
+
+A CLI não tem rota de pré-visualização; `--limit N` numa execução é a outra forma de limitar o mesmo
+custo.
+
 ## O painel de operação
 
 O painel é a superfície `/api/v1/system/*` e os quatro cartões de `/configuracoes`, sob *Operação*, na
@@ -255,6 +319,7 @@ SPA: o menu não os carrega mais (issue #22).
 | --- | --- | --- | --- |
 | `/api/v1/system/workers` | `GET` | autenticado | os nove workers com configuração, números de fila e última execução/execução ativa, numa requisição só |
 | `/api/v1/system/workers/settings` | `GET` | autenticado | os padrões persistidos dos nove workers, sem os contadores de fila (issue #53) |
+| `/api/v1/system/workers/{worker_name}/queue/preview` | `POST` | autenticado | o pendente de uma configuração **proposta**, calculado sem escrever |
 | `/api/v1/system/workers/{worker_name}/runs` | `POST` | `OPERATE` | enfileira uma execução com overrides só para ela e responde `201` na hora |
 | `/api/v1/system/workers/{worker_name}/settings` | `PUT` | `OPERATE` | persiste o padrão de engine/preset/batch/options |
 | `/api/v1/system/workers/{worker_name}/settings` | `DELETE` | `OPERATE` | apaga o override para o worker voltar a seguir o código |
@@ -270,7 +335,7 @@ A SPA espelha isso, como cartões de `/configuracoes` sob *Operação*:
 
 | Tela | Mostra |
 | --- | --- |
-| `/sistema/workers` | os nove workers: engine, preset e modelo, a fila e um botão de execução; a configuração efetiva aqui é só leitura |
+| `/sistema/workers` | os nove workers: engine, preset e modelo, a fila, o que o carimbo de cada um nomeia (com produtor, sem produtor conhecido, sem registro) e um botão de execução; a configuração efetiva aqui é só leitura |
 | `/configuracoes/workers` | o padrão persistido de cada worker e suas revisões, com salvar e remover — a escrita que o painel carregava |
 | `/sistema/execucoes` | o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela |
 | `/sistema/diagnostico` | banco, modelos do Ollama, storage das miniaturas e a configuração efetiva do processo |
@@ -320,41 +385,58 @@ workers são limitados por CPU — dois modelos torch na mesma CPU se atrasam se
 
 ## Reprocessar um documento ou um lote
 
-Rodar um worker de novo é seguro e incremental: a fila dele é a ausência do carimbo, então uma
-segunda execução toca só o que ainda está pendente. O que devolve uma unidade à fila:
+Rodar um worker de novo é seguro e incremental: a fila dele é a ausência do carimbo do produtor
+atual, então uma segunda execução toca só o que ainda está pendente. O que devolve uma unidade à fila:
 
 - **o texto mudou** — uma edição humana ou um trecho de texto aprovado/editado/desfeito. O
-  `embedding` se re-enfileira sozinho, porque o carimbo dele *é* o MD5 do texto efetivo; os carimbos
-  dependentes do texto (`worker_ner_v2`, `worker_typology_classifier_v2`,
+  `embedding` se re-enfileira sozinho, porque o carimbo dele carrega o MD5 do texto efetivo; os
+  carimbos dependentes do texto (`worker_ner_v2`, `worker_typology_classifier_v2`,
   `worker_quality_validator_v1`) são invalidados pelo serviço de qualidade de texto.
+- **o produtor mudou** — outra engine, outro preset, outro `confidence_threshold`, outro conjunto de
+  colunas, uma atualização de `torch`/`transformers`/`sentence-transformers`/`spaCy`, ou a regra
+  `LLM_CHECK` de onde o validador de qualidade tira a engine. Tudo isso está dentro da identidade,
+  então as unidades afetadas voltam sozinhas; a pré-visualização acima diz quantas antes de a mudança
+  ser salva.
 - **a origem mudou** — o `transfer` reescreve a descrição quando o hash do conteúdo interpretado
   muda, e a escrita zera os carimbos de IA, então os enriquecimentos precisam rodar de novo.
-- **o catálogo mudou** — reescrever um rótulo de assunto muda o hash do conjunto de rótulos, então
-  as tags afetadas voltam à fila do `macro-category`. Os motivos do validador de qualidade também
-  dependem do catálogo.
-- **`force=true`** — `embedding`, `macro-category`, `thumbnail` e `quality-validator` aceitam e
-  ignoram o próprio carimbo; o `macro-category` continua sem tocar numa tag que já tem categoria. No
-  `thumbnail` ele também traz de volta os documentos marcados como `thumbnail_failed`, que é a saída
-  de um bucket que estava fora durante uma execução: a marca existe para um link morto não ficar em
-  laço, não para tornar a queda permanente.
+- **o catálogo mudou** — reescrever um rótulo de assunto muda o hash do conjunto de rótulos, então as
+  tags afetadas voltam à fila do `macro-category`, e acrescentar, renomear ou aposentar uma tipologia
+  faz o mesmo com as descrições: a identidade da tipologia assina o conjunto de rótulos ativas e o
+  carimbo é o único portão do lado da resposta, então uma descrição que já carrega tipologia volta
+  quando o catálogo se move. Uma execução que então recusa **limpa** a resposta que encontrou — uma
+  resposta escrita por outro produtor não sobrevive a uma recusa deste, ou subir o piso releria o
+  acervo sem mudar rótulo nenhum. Os motivos do validador de qualidade também dependem do catálogo, e
+  é para esse caso que o `force` existe.
+- **`force=true`** — `embedding`, `macro-category`, `ner`, `quality-validator`, `thumbnail` e
+  `typology` aceitam e ignoram o próprio carimbo; o `macro-category` continua sem tocar numa tag que
+  já tem categoria, enquanto o `typology` relê uma descrição que já carrega tipologia, porque quem
+  decide é o carimbo e não a resposta. É o caminho
+  de volta de um motivo que um hash não vê — uma regra de sinônimos editada, uma exclusão curada, um
+  prompt — e de uma marca de falha: as unidades que ele processa são carimbadas com o produtor atual,
+  o que limpa o `ERROR`. No `thumbnail` ele também traz de volta os documentos marcados como
+  `thumbnail_failed`, que é a saída de um bucket que estava fora durante uma execução: a marca existe
+  para um link morto não ficar em laço, não para tornar a queda permanente. Uma execução forçada
+  avança por cursor, então termina; `--limit N` limita ainda mais.
 
 ```bash
 uv run python -m scrinalia.domains.archive.workers.runner embedding --option force=true
+uv run python -m scrinalia.domains.archive.workers.runner typology --option force=true --limit 200
 uv run python -m scrinalia.domains.archive.workers.runner quality-validator --option force=true
 uv run python -m scrinalia.domains.archive.workers.runner thumbnail --option force=true
 ```
 
 !!! warning "A janela de reprocessamento fecha no primeiro registro aprovado por uma pessoa"
     `HUMAN_APPROVED` é a proteção: `ai_writable_documents()` a exclui, e `cleaning`, `ner`,
-    `typology`, `thumbnail` e `quality-validator` filtram por ela. O `transfer` se recusa a
-    sobrescrever uma descrição aprovada mesmo quando o hash da origem mudou. As duas exceções
+    `typology`, `thumbnail` e `quality-validator` filtram por ela — `force` incluído, e é por isso que
+    uma execução forçada relê todo documento *gravável pela IA*, não todo documento. O `transfer` se
+    recusa a sobrescrever uma descrição aprovada mesmo quando o hash da origem mudou. As duas exceções
     documentadas são o trabalho derivado — o `embedding`, que re-embeda um texto mudado, e o
     `macro-category`, cuja unidade é a tag e cuja fila é "ainda sem categoria", então a categoria de um
     curador nunca é reescrita.
 
-Não há **rota nem flag que limpe um carimbo**: para devolver um documento à fila de um worker que não
-aceita `force`, é preciso remover aquela chave do `execution_log` dele no banco. Trate isso como
-reparo, não como operação de rotina.
+Não há **rota nem flag que limpe um carimbo** para os workers que não aceitam `force` (`transfer`,
+`cleaning`, `conflict-judge`): para devolver um documento à fila ali, é preciso remover aquela chave do
+`execution_log` dele no banco. Trate isso como reparo, não como operação de rotina.
 
 ## Execuções INTERRUPTED
 
@@ -543,10 +625,11 @@ UNION ALL SELECT 'publicados', count(*)::text FROM archive_documents WHERE is_pu
 UNION ALL SELECT 'revisões humanas', count(*)::text FROM archive_document_revisions;"
 ```
 
-Um carimbo tem uma armadilha que vale saber antes de ler o número: `embedding_v1` é o **MD5 do texto
-efetivo**, não a identidade do modelo, então ele fica em dia mesmo quando os vetores não estão —
-trocar `torch`, `sentence-transformers` ou o preset não devolve uma única descrição para a fila.
-Quando o modelo de embedding muda, o vetor precisa ser reconstruído de propósito.
+Uma armadilha vale saber antes de ler esses números: `?` diz que a chave **existe**, não que ela está
+atual. Como os carimbos chaveados por identidade carregam o produtor, um documento carimbado por outro
+modelo, por uma dependência mais antiga ou por outro limiar conta aqui e continua pendente para a
+configuração que está no código — a coluna `pending` do painel e a pré-visualização de fila são o que
+responde *essa* pergunta. As contagens cruas servem para "este worker já passou por este acervo".
 
 ## O site da documentação
 
@@ -600,6 +683,8 @@ comportamento esperar, e para um limite já pago não ser lido como defeito.
   `security` para ele, porque uma exigência global também marcaria as rotas de difusão e as sondas de
   saúde como protegidas (ADR 0009). Um cliente gerado não consegue descobrir a exigência; ele recebe
   401 como qualquer requisição anônima.
-- **Ordenar só pela semântica é pior que pelo lexical.** Os vetores funcionam e a ordem não: a
-  bancada que mede isso é `testing/evaluation/retrieval_quality.py`, e combinar os dois rankings é
-  trabalho aberto. Uma busca semântica que **encontra mais** não é uma busca que **ordena melhor**.
+- **A ordenação depende do modo, e essa é uma decisão do arquivista.** Uma busca semântica que
+  **encontra mais** não é uma busca que **ordena melhor**: a ordem lexical ganha quando o termo é
+  exato, a semântica quando o assunto é conhecido mas o vocabulário do fundo não, e o modo híbrido
+  funde as duas para que a escolha não seja necessária. Os três modos e quando preferir cada um estão
+  no guia de curadoria, e `testing/evaluation/retrieval_modes.py` mede os três por estrato de consulta.

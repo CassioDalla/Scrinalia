@@ -22,25 +22,27 @@ from scrinalia.domains.archive.models.operations import WorkerSetting
 from scrinalia.domains.archive.repository.tag_repo import TagRepository
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
 from scrinalia.domains.archive.repository.worker_settings_repo import WorkerSettingsRepository
+from scrinalia.domains.archive.repository.worker_stamp_repo import StampBreakdown, WorkerStampRepository
 from scrinalia.domains.archive.schemas.system_schema import (
     SystemWorkerSettingsResponse,
     SystemWorkersResponse,
     WorkerEngineDTO,
-    WorkerPresetDTO,
+    WorkerQueuePreviewDTO,
     WorkerSettingsDTO,
     WorkerSettingsItemDTO,
     WorkerSettingsRequest,
     WorkerSettingsRevisionDTO,
     WorkerSettingsRevisionListResponse,
+    WorkerStampBreakdownDTO,
     WorkerStatusDTO,
 )
 from scrinalia.domains.archive.workers.catalogue import (
     WORKER_CATALOGUE,
     WorkerSpec,
-    axis_registry,
     count_failed,
     count_pending,
     count_processed,
+    describe_axis_engines,
     worker_module,
 )
 from scrinalia.domains.archive.workers.configuration import (
@@ -70,6 +72,9 @@ class WorkerOperationsService:
             # Counted once: the transfer's counter validates the whole staging table, so asking it
             # twice (once for the number and once for the reason) would double the panel's cost.
             pending, pending_reason = self._pending(spec, resolved)
+            # And once for the whole ledger: the four numbers of a stamp come from one aggregate, and
+            # ``processed``/``failed`` are read out of it instead of from two further queries.
+            breakdown = self._stamp_breakdown(spec)
             workers.append(
                 WorkerStatusDTO(
                     name=spec.name,
@@ -81,8 +86,9 @@ class WorkerOperationsService:
                     settings=self._settings_dto(spec, setting, resolved),
                     pending=pending,
                     pending_reason=pending_reason,
-                    processed=self._processed(spec, resolved),
-                    failed=self._failed(spec, resolved),
+                    processed=self._processed(spec, resolved, breakdown),
+                    failed=self._failed(spec, resolved, breakdown),
+                    stamp_breakdown=self._breakdown_dto(breakdown),
                     last_run=last_runs.get(spec.name),
                     active_run=active_runs.get(spec.name),
                 )
@@ -132,6 +138,29 @@ class WorkerOperationsService:
             ],
             total=total,
         )
+
+    def preview_queue(self, worker_name: str, request: WorkerSettingsRequest) -> WorkerQueuePreviewDTO:
+        """
+        The pending count of a **proposed** configuration, computed without writing anything.
+
+        A queue keyed on the producer identity makes a settings change re-queue units, so the
+        archivist has to be able to read that number before saving it — the plan that precedes the
+        write. The resolution is the one a run uses (explicit argument over persisted override over
+        signature default), so the preview cannot disagree with the run it announces.
+        """
+        spec = self._spec(worker_name)
+        setting = self.settings.get(worker_name)
+        resolved = resolve_configuration(
+            self.db,
+            spec,
+            setting,
+            engine_name=request.engine_name,
+            preset=request.preset,
+            db_batch_size=request.db_batch_size,
+            options=request.options,
+        )
+        pending, reason = self._pending(spec, resolved)
+        return WorkerQueuePreviewDTO(worker_name=worker_name, pending=pending, pending_reason=reason)
 
     # --- writes ----------------------------------------------------------------------------------
 
@@ -198,19 +227,7 @@ class WorkerOperationsService:
         )
 
     def _available_engines(self, spec: WorkerSpec) -> list[WorkerEngineDTO]:
-        if spec.axis is None:
-            return []
-        registry = axis_registry(spec.axis)
-        return [
-            WorkerEngineDTO(
-                name=engine_name,
-                presets=[
-                    WorkerPresetDTO(name=preset_name, config=registry.describe_config(engine_name, preset_name))
-                    for preset_name in registry.PRESETS
-                ],
-            )
-            for engine_name in registry.AVAILABLE_ENGINES
-        ]
+        return describe_axis_engines(spec.axis) if spec.axis is not None else []
 
     def _note(self, spec: WorkerSpec, resolved: ResolvedWorkerConfig) -> str | None:
         """Dynamic notes the catalogue cannot carry, because they depend on the collection."""
@@ -222,17 +239,29 @@ class WorkerOperationsService:
 
     def _counter_options(self, spec: WorkerSpec, resolved: ResolvedWorkerConfig) -> dict[str, Any]:
         """
-        Only the options the counter declares.
+        Only what the counter declares: the options, plus the engine and the preset it reads.
 
         The counter is a reader, not the worker: handing it ``columns_to_extract`` is useful,
         handing it a parameter it does not read (or a runner dataclass) is not. The filter is by the
         counter's own signature, so a new counter cannot be broken by an unrelated option.
+
+        The engine and the preset travel **resolved** — the same pair the run would use — because the
+        queue is keyed on the producer identity: a counter that fell back to its signature defaults
+        would show the number for a model the next run is not going to use, which is the lying panel
+        the shared predicate exists to prevent. ``quality-validator`` declares neither: its engine
+        lives in the active ``LLM_CHECK`` rule and its counter reads it there.
         """
         counter_name = spec.counter or spec.processed_counter
         if counter_name is None:
             return {}
         parameters = signature(getattr(worker_module(spec.module), counter_name)).parameters
-        return {key: value for key, value in resolved.forwarded_options.items() if key in parameters}
+        resolved_engine = {
+            key: value
+            for key, value in {"engine_name": resolved.engine_name, "preset": resolved.preset}.items()
+            if value
+        }
+        candidates = {**resolved.forwarded_options, **resolved_engine}
+        return {key: value for key, value in candidates.items() if key in parameters}
 
     def _pending(self, spec: WorkerSpec, resolved: ResolvedWorkerConfig) -> tuple[int | None, str | None]:
         """The pending number and, when there is none, the reason a person can read."""
@@ -244,8 +273,38 @@ class WorkerOperationsService:
             logger.error(f"⚠️ Não foi possível contar a fila de '{spec.name}': {exc}")
             return None, "A contagem falhou; veja o log do servidor."
 
-    def _processed(self, spec: WorkerSpec, resolved: ResolvedWorkerConfig) -> int | None:
-        if spec.stamp is None and spec.processed_counter is None:
+    def _stamp_breakdown(self, spec: WorkerSpec) -> StampBreakdown | None:
+        """
+        The four numbers of a stamped ledger, or ``None`` when the worker's ledger is not a stamp.
+
+        One read for the whole row: ``processed``, ``failed`` and the breakdown the screen shows all
+        come from this object, so a stamped worker costs one aggregate instead of the two a
+        "has the key" plus a "is it a failure" query used to cost.
+        """
+        if spec.stamp is None:
+            return None
+        try:
+            return WorkerStampRepository(self.db).count_stamp_breakdown(spec)
+        except Exception as exc:
+            logger.error(f"⚠️ Não foi possível ler o carimbo de '{spec.name}': {exc}")
+            return None
+
+    def _breakdown_dto(self, breakdown: StampBreakdown | None) -> WorkerStampBreakdownDTO | None:
+        if breakdown is None:
+            return None
+        return WorkerStampBreakdownDTO(
+            fingerprinted=breakdown.fingerprinted,
+            legacy=breakdown.legacy,
+            failed=breakdown.failed,
+            unrecorded=breakdown.unrecorded,
+        )
+
+    def _processed(
+        self, spec: WorkerSpec, resolved: ResolvedWorkerConfig, breakdown: StampBreakdown | None
+    ) -> int | None:
+        if breakdown is not None:
+            return breakdown.processed
+        if spec.processed_counter is None:
             return None
         try:
             return count_processed(spec, self.db, **self._counter_options(spec, resolved))
@@ -253,8 +312,10 @@ class WorkerOperationsService:
             logger.error(f"⚠️ Não foi possível contar o processado de '{spec.name}': {exc}")
             return None
 
-    def _failed(self, spec: WorkerSpec, resolved: ResolvedWorkerConfig) -> int | None:
-        if spec.stamp is None and spec.failed_counter is None:
+    def _failed(self, spec: WorkerSpec, resolved: ResolvedWorkerConfig, breakdown: StampBreakdown | None) -> int | None:
+        if breakdown is not None:
+            return breakdown.failed
+        if spec.failed_counter is None:
             return None
         try:
             return count_failed(spec, self.db, **self._counter_options(spec, resolved))

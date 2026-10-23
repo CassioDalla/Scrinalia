@@ -33,6 +33,11 @@ sources:
   - src/scrinalia/domains/ingestion/sources.py
   - src/scrinalia/domains/staging/worker.py
   - src/scrinalia/domains/staging/repository.py
+  - src/scrinalia/domains/archive/domain/search.py
+  - src/scrinalia/domains/archive/repository/document_repo.py
+  - src/scrinalia/domains/archive/services/document_service.py
+  - testing/evaluation/retrieval_modes.py
+  - testing/evaluation/retrieval_quality.py
   - src/scrinalia/core/cli.py
   - src/scrinalia/api/controllers/users_controller.py
   - docs/adr/0009-authentication-and-authorization.md
@@ -95,6 +100,9 @@ stamp. They are host commands of their own, described in
   kind `VALIDATE` or `LLM_CHECK` never rewrites anything — flagging is the quality validator's job.
 - **`ner`** extracts proper names, places and institutions from the composed document text.
 - **`typology`** classifies each description against the active typology catalogue by zero-shot.
+  A description whose best score stays under the floor keeps `typology_id` NULL — the column says
+  that both when the classifier declined and when no run reached the description — so the refusal
+  is recorded instead: a row in `archive_ai_review_queue` with the **score the run saw**.
 - **`thumbnail`** downloads the original image and stores a miniature in the object storage. It
   confirms the bucket exists before the first document — creating it only when
   `S3_AUTO_CREATE_BUCKET=true` — so a bucket that is missing fails the run once, with a sentence,
@@ -102,7 +110,9 @@ stamp. They are host commands of their own, described in
   caps the documents of one run, which is what makes a local test cheap.
 - **`conflict-judge`** compares the tag vocabulary with the entity vocabulary and asks the local
   LLM whether an ambiguous term is a subject or a proper name. Every verdict, auto-resolved or sent
-  to a human, leaves a row in `archive_ai_review_queue`.
+  to a human, leaves a row in `archive_ai_review_queue`. A call the engine could not make raises
+  instead of becoming a verdict, so the pair leaves **no** row and is asked again on the next run:
+  it is still pending, and the panel's "already judged" number does not count it.
 - **`macro-category`** files each tag into a subject category. Its unit is the **tag**, not the
   document, so its stamp lives in the tag's own `execution_log`; a tag a curator filed by hand is
   out of its reach.
@@ -120,21 +130,51 @@ stamp. They are host commands of their own, described in
 ### What each queue means
 
 A queue is not a table: it is the predicate the worker's own `count_pending` shares with `execute`.
-The panel never re-derives it. `pending` is how many units the next run would read; `processed` is
-how many carry the worker's stamp; `failed` counts the stamps that record a failure (`ERROR`, or the
-`thumbnail_failed` mark).
+The panel never re-derives it. `pending` is how many units the next run would read.
+
+For the five workers whose ledger is a stamp, the panel opens the stamp instead of reporting one
+number, because an identity slot can hold three different things and only one of them attributes the
+answer: **with a producer** is a value the slot's own pattern accepts, a fingerprint that really
+names the model; **without a known producer** is a legacy value — the `"DONE"` written before the
+fingerprint existed, or the `PRODUCER_UNKNOWN` a migration left in its place; **without a record** is
+the key absent, meaning nothing recorded a run at all. `processed` is the first two plus the
+failures, and `failed` counts the stamps that record one (`ERROR`; the thumbnail's failure lives under
+the `thumbnail_failed` key, because its ledger is not a stamp).
+
+Five of the nine stamps carry the **producer identity** instead of a status: a fingerprint of the
+engine, the preset, the whole resolved engine configuration, the installed versions of the libraries
+of that axis and the declared behavioural options (`force`, `limit` and the reserved `config` stay
+out of it). The consequence is the point of the design: changing any of those puts the affected units
+back in the queue **by itself**, which a `DONE` could never do — a bump of `torch` used to invalidate
+every vector while the stamp stayed current and the queue stayed empty. The embedding composes the
+identity with the MD5 of the effective text, so a human edit re-queues it too; the macro-category
+composes it with the label-set hash. Two producers are deliberately outside the identity, because
+reading them would cost a heavy import or a network call on the panel's path: the spaCy model package
+version (`pt_core_news_lg`) and the digest of the model the Ollama server serves. Re-run those two
+with `force`.
 
 | Worker | What is pending | Idempotency stamp |
 | --- | --- | --- |
 | `transfer` | staging records with no archive row, or whose parsed-content hash differs from the archived one — except documents a human approved or rejected | none; a staging-record hash, plus `hierarchy_parent_v1` for a declared parent |
 | `cleaning` | documents the active `REWRITE` rules have not stamped yet; a document pending for two rules counts twice | `cleaning_rule_{rule_id}` |
-| `ner` | documents without the stamp that have text in at least one extracted column | `worker_ner_v2` |
-| `typology` | documents with no typology and no stamp that have text | `worker_typology_classifier_v2` |
+| `ner` | documents that have text in at least one extracted column and no stamp of the current producer | `worker_ner_v2` (value is the producer identity) |
+| `typology` | documents with text and no stamp of the current producer — the stamp signs the active label set, so adding, renaming or retiring a typology reaches the documents already classified | `worker_typology_classifier_v2` (value is the producer identity) |
 | `thumbnail` | documents with a source image, no storage URI and no failure mark — every marked one, with `force` | none; the `storage_thumbnail_uri` column, plus the `thumbnail_failed` mark |
 | `conflict-judge` | **not measurable cheaply**: the queue is the trigram product of tags × entities, measured at 53 s on the real collection. The panel shows what was already judged | none; the `archive_ai_review_queue` row |
-| `macro-category` | tags with no subject category whose stamp does not carry the current label set | `worker_macro_category_v1` (on the tag; value is the hash of the label set) |
-| `quality-validator` | documents without the stamp, unless `force` is on | `worker_quality_validator_v1` |
-| `embedding` | documents whose stamp differs from the MD5 of the effective text — the first run and every later text change | `worker_embedding_v1` (value is the MD5 of the embedded text) |
+| `macro-category` | tags with no subject category whose stamp is not the current producer (the label set and the model are both in it) | `worker_macro_category_v1` (on the tag; value is the label set composed with the producer identity) |
+| `quality-validator` | documents without the stamp of the current producer, unless `force` is on | `worker_quality_validator_v1` (value is the identity of the active `LLM_CHECK` rule, or of "no model" — including a rule whose engine cannot be built, which is the run the validator actually makes) |
+| `embedding` | documents whose stamp differs from the MD5 of the effective text **plus** the producer identity — the first run, every later text change and every model or dependency bump | `worker_embedding_v1` (value is the MD5 followed by `:` and the identity) |
+
+A document the worker marked `ERROR` stays out of the plain queue: `force` is the way back, and it
+clears the mark on the units it processes. A unit stamped by a producer that is no longer configured
+is pending again — including every legacy value, whether it still reads `"DONE"` or the
+`PRODUCER_UNKNOWN` the migration renamed it to. Those rows were pending before the rename and are
+pending after it, so the migration changed what the ledger **says** and not what the queue **does**:
+the next run heals them by writing a real fingerprint. That is the whole point of the distinction —
+attribution and reporting, not the queue. The typology identity signs the active label set as
+well, so after this upgrade **every** stamped description is pending once, typology or not: the whole
+ai-writable collection on the first run, and from then on only what a catalogue, model, column or
+floor change actually moved. The preview below is how to size that before paying it.
 
 The `transfer` counter is the heaviest one: it validates the whole staging table through the same
 port the transfer uses. It is read once per panel load and is not polled in a loop.
@@ -158,6 +198,10 @@ For example:
 uv run python -m scrinalia.domains.archive.workers.runner typology \
     --engine deberta_typology --preset cpu_local --batch 100 --by "ana"
 
+# Try a threshold measured by the bench on the first 200 descriptions only.
+uv run python -m scrinalia.domains.archive.workers.runner typology \
+    --option confidence_threshold=0.6 --limit 200 --by "ana"
+
 # Force the embedding of every description, ignoring the text hash.
 uv run python -m scrinalia.domains.archive.workers.runner embedding --option force=true
 
@@ -170,19 +214,23 @@ uv run python -m scrinalia.domains.archive.workers.runner ner \
 | --- | --- |
 | `<name>` | one of the nine names above; any other value is refused with the list of options |
 | `--engine X` | a registered engine of the worker's axis, e.g. `spacy_ner`, `deberta_typology`, `ollama_judge` |
-| `--preset Y` | a preset of that axis, e.g. `gpu`, `lemmatizer`, `cpu_local`, `gpu_cloud`, `granite_local`, `multilingual_minilm` |
+| `--preset Y` | a preset of that axis, e.g. `gpu`, `lemmatizer`, `cpu_local`, `gpu_cloud`, `xlm_roberta_local`, `gemma_4b_local`, `multilingual_minilm` |
 | `--batch N` | batch size per transaction, forwarded to the workers that declare `db_batch_size`; a worker without it logs that the value was ignored |
-| `--limit N` | cap on the units this run touches, for the workers that declare `limit` (today `thumbnail`); refused for the others, because a cap that silently does nothing is worse than no cap |
+| `--limit N` | cap on the units this run touches, for the workers that declare `limit` (`embedding`, `macro-category`, `ner`, `quality-validator`, `thumbnail`, `typology`); refused for the others, because a cap that silently does nothing is worse than no cap. It counts attempts, so a queue of failures still ends, and it is never persisted |
 | `--option key=value` | an extra parameter, repeatable; `key` without `=` is refused |
 | `--by "who"` | free text naming who is running it; the CLI runs on the host and has no session, so this stays a name with no account behind it |
 
-`--option` coerces exactly two values: `true` and `false` become booleans. Every other value stays a
-string, so an option that expects a number or a list is not settable from the command line. The flag
-is validated against the worker's `execute` signature: an option the worker does not declare is
-refused, unless the worker ends with `**engine_kwargs`, which is the documented way to override
-`device`, `host` and similar engine parameters for one run. `conflict-judge` declares no
-`**engine_kwargs`, so its host is not a `--option` at all: it comes from the `OLLAMA_HOST_URL`
-setting (or the local default).
+`--option` is coerced by the type the worker declares for that option in its `execute` signature:
+`true`/`false` become booleans, an integer default makes the value an `int`, a float default a
+`float`. `--option confidence_threshold=0.6` therefore arrives as a number and reaches the
+comparison; a value that cannot be read (`0.6x` for a float, `talvez` for a boolean) is refused with
+a sentence before the run starts, instead of failing at the bottom of it. An option whose declared
+default is a list or an object is refused too: a string would be forwarded and the worker would
+iterate it character by character. The flag is validated against the worker's `execute` signature: an
+option the worker does not declare is refused, unless the worker ends with `**engine_kwargs`, which
+is the documented way to override `device`, `host` and similar engine parameters for one run.
+`conflict-judge` declares no `**engine_kwargs`, so its host is not a `--option` at all: it comes from
+the `OLLAMA_HOST_URL` setting (or the local default).
 
 Two things are always refused:
 
@@ -287,6 +335,24 @@ active `LLM_CHECK` rule, and the settings and trigger routes refuse to set them 
 second place to choose the same engine would be a second source of truth. When no rule is active the
 worker runs deterministic validation only, and the panel says so in `note`.
 
+### Trying a configuration before saving it
+
+A saved default is not only a preference: because the queue is keyed on the producer identity,
+changing the engine, the preset or a declared option (a `confidence_threshold`, the columns read)
+puts units back in the queue by itself. `POST /api/v1/system/workers/{worker_name}/queue/preview`
+answers how many, for a configuration that was never written, with the same precedence a run uses.
+The body is the settings body, so the screen previews exactly what it would save, and the answer is
+`pending` plus a `pending_reason` for the worker whose queue is not measurable (`conflict-judge`).
+
+Measured on the reference collection, with the typology's documents stamped by the producer in the
+code: the default configuration answers `0 na fila`, and proposing `{"confidence_threshold": 0.9}`
+answers `4.465` — the floor is part of the identity, so the documents the 0.40 floor settled are
+pending under the 0.90 one, and nothing was saved. That number is also what the next run would cost,
+which is why the settings screen puts it behind *Conferir impacto* instead of leaving it to be
+discovered after the write.
+
+The CLI has no preview route; `--limit N` on a run is the other way to bound the same cost.
+
 ## The operations panel
 
 The panel is the `/api/v1/system/*` surface and the four cards of `/configuracoes`, under *Operação*,
@@ -296,6 +362,7 @@ in the SPA: the menu no longer carries them (issue #22).
 | --- | --- | --- | --- |
 | `/api/v1/system/workers` | `GET` | authenticated | the nine workers with configuration, queue numbers and last/active run, in one request |
 | `/api/v1/system/workers/settings` | `GET` | authenticated | the persisted defaults of the nine workers, without the queue counters (issue #53) |
+| `/api/v1/system/workers/{worker_name}/queue/preview` | `POST` | authenticated | the pending count of a **proposed** configuration, computed without writing |
 | `/api/v1/system/workers/{worker_name}/runs` | `POST` | `OPERATE` | queues one run with per-run overrides and answers `201` immediately |
 | `/api/v1/system/workers/{worker_name}/settings` | `PUT` | `OPERATE` | persists the default engine/preset/batch/options |
 | `/api/v1/system/workers/{worker_name}/settings` | `DELETE` | `OPERATE` | drops the override so the worker follows the code |
@@ -311,7 +378,7 @@ The SPA mirrors it, as cards of `/configuracoes` under *Operação*:
 
 | Screen | Shows |
 | --- | --- |
-| `/sistema/workers` | the nine workers: engine, preset and model, the queue, and a run button; the effective configuration is read-only here |
+| `/sistema/workers` | the nine workers: engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and a run button; the effective configuration is read-only here |
 | `/configuracoes/workers` | the persisted default of each worker and its revisions, with save and remove — the write the panel used to carry |
 | `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage and the effective process configuration |
@@ -363,40 +430,58 @@ button.
 
 ## Reprocessing a document or a batch
 
-Re-running a worker is safe and incremental: its queue is the absence of its stamp, so a second run
-touches only what is still pending. What puts a unit back in the queue:
+Re-running a worker is safe and incremental: its queue is the absence of the stamp of its current
+producer, so a second run touches only what is still pending. What puts a unit back in the queue:
 
 - **the text changed** — a human edit or an approved/edited/undone text excerpt. `embedding`
-  re-queues by itself because its stamp *is* the MD5 of the effective text; the text-dependent
+  re-queues by itself because its stamp carries the MD5 of the effective text; the text-dependent
   stamps (`worker_ner_v2`, `worker_typology_classifier_v2`, `worker_quality_validator_v1`) are
   invalidated by the text-quality service.
+- **the producer changed** — another engine, preset, `confidence_threshold`, column set, an upgrade
+  of `torch`/`transformers`/`sentence-transformers`/`spaCy`, or the `LLM_CHECK` rule the
+  quality-validator takes its engine from. All of it is inside the identity, so the affected units
+  return by themselves; the preview above says how many before the change is saved.
 - **the source changed** — `transfer` rewrites the description when the parsed-content hash moves,
   and the write resets the AI stamps, so the enrichments have to run again.
 - **the catalogue changed** — a curator rewriting a subject label changes the label-set hash, so the
-  affected tags return to the `macro-category` queue. The quality validator's reasons depend on the
-  catalog too.
-- **`force=true`** — `embedding`, `macro-category`, `thumbnail` and `quality-validator` accept it and
-  ignore their own stamp; `macro-category` still never touches a tag that already has a category. For
-  `thumbnail` it also means the documents marked `thumbnail_failed` come back, which is the way out
-  of a bucket that was down during a run: the mark exists to stop a dead link from looping, not to
-  make an outage permanent.
+  affected tags return to the `macro-category` queue, and adding, renaming or retiring a typology does
+  the same for the descriptions: the typology identity signs the active label set, and the stamp is
+  the only gate on the answer side, so a description that already carries a typology comes back when
+  the catalogue moves. A run that then declines **clears** the answer it found — an answer another
+  producer wrote does not survive a refusal from this one, or raising the floor would re-run the
+  collection and change no label. The quality validator's reasons depend on the catalog too, which is
+  the case `force` exists for.
+- **`force=true`** — `embedding`, `macro-category`, `ner`, `quality-validator`, `thumbnail` and
+  `typology` accept it and ignore their own stamp; `macro-category` still never touches a tag that
+  already has a category, while `typology` re-reads a description that already carries one, because
+  the stamp is what decides and not the answer.
+  It is the way back from a reason a hash cannot see — an edited synonym rule, a curated exclusion,
+  a prompt — and from a failure mark: the units it processes are stamped with the current producer,
+  which clears the `ERROR`. For `thumbnail` it also means the documents marked `thumbnail_failed`
+  come back, which is the way out of a bucket that was down during a run: the mark exists to stop a
+  dead link from looping, not to make an outage permanent. A forced run advances by cursor, so it
+  ends; `--limit N` bounds it further.
 
 ```bash
 uv run python -m scrinalia.domains.archive.workers.runner embedding --option force=true
+uv run python -m scrinalia.domains.archive.workers.runner typology --option force=true --limit 200
 uv run python -m scrinalia.domains.archive.workers.runner quality-validator --option force=true
 uv run python -m scrinalia.domains.archive.workers.runner thumbnail --option force=true
 ```
 
 !!! warning "The reprocessing window closes at the first human-approved record"
     `HUMAN_APPROVED` is the shield: `ai_writable_documents()` excludes it, and `cleaning`, `ner`,
-    `typology`, `thumbnail` and `quality-validator` all filter by it. `transfer` refuses to overwrite
-    an approved description even when the source hash changed. The two documented exceptions are the
-    derived work — `embedding`, which re-embeds a changed text, and `macro-category`, whose unit is
-    the tag and whose queue is "no category yet", so a curator's category is never rewritten.
+    `typology`, `thumbnail` and `quality-validator` all filter by it — `force` included, which is
+    why a forced run re-reads every *ai-writable* document and not every document. `transfer` refuses
+    to overwrite an approved description even when the source hash changed. The two documented
+    exceptions are the derived work — `embedding`, which re-embeds a changed text, and
+    `macro-category`, whose unit is the tag and whose queue is "no category yet", so a curator's
+    category is never rewritten.
 
-There is **no route and no flag that clears a stamp**: to put a single document back in the queue for
-a worker that does not accept `force`, you have to remove that key from its `execution_log` in the
-database. Treat that as a repair, not as routine operation.
+There is **no route and no flag that clears a stamp** for the workers that do not accept `force`
+(`transfer`, `cleaning`, `conflict-judge`): to put a single document back in the queue there, you
+have to remove that key from its `execution_log` in the database. Treat that as a repair, not as
+routine operation.
 
 ## Interrupted runs
 
@@ -585,10 +670,11 @@ UNION ALL SELECT 'publicados', count(*)::text FROM archive_documents WHERE is_pu
 UNION ALL SELECT 'revisões humanas', count(*)::text FROM archive_document_revisions;"
 ```
 
-One stamp carries a trap worth knowing before reading the number: `embedding_v1` is the **MD5 of the
-effective text**, not the identity of the model, so it stays up to date when the vectors do not —
-changing `torch`, `sentence-transformers` or the preset does not put a single description back in the
-queue. When the embedding model changes, the vector has to be rebuilt explicitly.
+One trap is worth knowing before reading those numbers: `?` says the key **exists**, not that it is
+current. Since the identity-keyed stamps carry the producer, a document stamped by another model, by
+an older dependency or by another threshold counts here and is still pending for the configuration in
+the code — the `pending` column of the panel and the queue preview are what answer *that* question.
+The raw counts are good for "did this worker ever run over this collection".
 
 ## The documentation site
 
@@ -644,6 +730,9 @@ behaviour to expect, and so that a limit already paid for is not read as a defec
   scheme for it, because a global requirement would also mark the diffusion routes and the health
   probes as protected (ADR 0009). A generated client cannot discover the requirement; it answers 401
   like any other anonymous request.
-- **Ranking by semantics alone is weaker than the lexical one.** The vectors work and the order does
-  not: the bench that measures it is `testing/evaluation/retrieval_quality.py`, and combining the two
-  rankings is open work. A semantic search that **finds more** is not a search that **orders better**.
+- **The ranking depends on the mode, and that is a decision the archivist makes.** A semantic search
+  that **finds more** is not a search that **orders better**: the full-text ranking wins when the term
+  is exact, the semantic one when the subject is known but the vocabulary of the fonds is not, and the
+  hybrid mode fuses the two so the choice is not required. The three modes and when to prefer each one
+  are in the curation guide, and `testing/evaluation/retrieval_modes.py` measures them per query
+  stratum.

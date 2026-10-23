@@ -43,6 +43,18 @@ def test_ollama_probe_reports_the_missing_models(monkeypatch) -> None:
     assert "gemma4:e4b" in health.missing_models
 
 
+def test_a_retired_preset_is_not_a_required_model() -> None:
+    """
+    #122: the health probe compares what the **presets** name against what the server has, so a
+    preset that retired stops being demanded. ``granite4.1:3b`` is installed here and still cannot
+    run; the probe must not keep the panel asking for it.
+    """
+    required = system_health.required_ollama_models()
+
+    assert "gemma4:e4b" in required
+    assert "granite4.1:3b" not in required
+
+
 def test_ollama_probe_survives_the_server_being_down(monkeypatch) -> None:
     def explode(url, timeout):
         raise ConnectionError("connection refused")

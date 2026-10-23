@@ -34,6 +34,17 @@ class AnomalyType(enum.StrEnum):
     #: makes routing on it meaningful instead of cosmetic. An empty badge beats a wrong badge
     #: in a UI that is about to amplify both.
     SUBJECT_LOW_CONFIDENCE = "SUBJECT_LOW_CONFIDENCE"
+    #: The typology classifier looked at the description and refused to give it a drawer: the score
+    #: stayed under the floor. The document keeps ``typology_id`` NULL, so without this row the
+    #: refusal is indistinguishable from a description the run never reached — and the score that
+    #: justified it is lost, which is the one number a floor decision needs.
+    #:
+    #: It is a row in the queue and not a stamp value on purpose. ``identity_stamp_conditions``
+    #: computes pending as "the stamp is not this identity", so a distinct refusal value either puts
+    #: the document back in the queue forever or — added to ``FAILURE_STAMP_VALUES`` — stops a floor
+    #: change from reaching it at all. The stamp means "this producer read it"; the refusal is
+    #: evidence, and evidence lives in the queue (#110).
+    TYPOLOGY_LOW_CONFIDENCE = "TYPOLOGY_LOW_CONFIDENCE"
 
 
 class TagCatalogState(enum.StrEnum):
@@ -135,6 +146,24 @@ class AnomalyReason(enum.StrEnum):
     RULE_MATCH = "RULE_MATCH"
     #: The optional language-model check considered the title suspicious.
     LLM_SUSPECT = "LLM_SUSPECT"
+
+
+#: Separates an anomaly code from its payload inside ``ArchiveDocument.anomaly_reasons``:
+#: ``RULE_MATCH:<rule label>`` names the rule that matched, ``LLM_SUSPECT:<free text>`` carries the
+#: model's own words. Defined next to the codes because the column stores this format, and read by
+#: the worker that writes it, the facet that groups by it and the bench that scores it, so the three
+#: cannot disagree about where the code ends.
+ANOMALY_REASON_SEPARATOR = ":"
+
+
+def anomaly_reason_code(reason: str) -> str:
+    """The stable code of a stored reason, without its payload."""
+    return reason.partition(ANOMALY_REASON_SEPARATOR)[0]
+
+
+def anomaly_reason_payload(reason: str) -> str:
+    """What follows the code — the rule's label, or the model's free text. Empty when there is none."""
+    return reason.partition(ANOMALY_REASON_SEPARATOR)[2]
 
 
 class WorkerRunStatus(enum.StrEnum):

@@ -231,14 +231,14 @@ As chaves canônicas, definidas uma única vez em `worker_stamp.py`:
 
 | Chave do carimbo | Gravada em | Significado |
 | --- | --- | --- |
-| `worker_ner_v2` | `archive_documents` | Extração NER feita |
-| `worker_typology_classifier_v2` | `archive_documents` | Classificação de tipologia feita |
+| `worker_ner_v2` | `archive_documents` | O valor é a identidade do extrator que rodou |
+| `worker_typology_classifier_v2` | `archive_documents` | O valor é a identidade do classificador que rodou |
 | `cleaning_rule_{id}` | `archive_documents` | A regra dinâmica de limpeza com aquele id já rodou |
-| `worker_macro_category_v1` | `archive_tags` | A decisão de categoria da tag foi tentada |
-| `worker_quality_validator_v1` | `archive_documents` | Validação estrutural feita |
-| `worker_embedding_v1` | `archive_documents` | O valor é o MD5 do texto embutido |
+| `worker_macro_category_v1` | `archive_tags` | O valor é o conjunto de rótulos composto com a identidade do classificador |
+| `worker_quality_validator_v1` | `archive_documents` | O valor é a identidade da regra `LLM_CHECK` ativa, ou de "sem modelo" |
+| `worker_embedding_v1` | `archive_documents` | O valor é o MD5 do texto embutido seguido de `:` e da identidade do modelo |
 | `thumbnail` | `archive_documents` | Miniatura no armazenamento de objetos; a fila é guiada por `storage_thumbnail_uri`, então esta chave é declarada mas não gravada |
-| `thumbnail_failed` | `archive_documents` | O download da miniatura falhou; uma execução simples a ignora, `force` a retoma |
+| `thumbnail_failed` | `archive_documents` | O download da miniatura falhou; o valor é `ERROR`; uma execução simples a ignora, `force` a retoma |
 | `hierarchy_parent_v1` | `archive_documents` | O valor é `PENDING:<code>` enquanto o pai declarado falta e `DONE:<description_id>` depois de vinculado |
 | `curated_macro_category` | `archive_tags` | O valor é quem, quando e o destino de uma decisão de assunto de um curador |
 
@@ -247,13 +247,25 @@ As consultas de polling são servidas por índices GIN sobre a coluna JSONB: `ix
 precisa chamar `flag_modified` para que o SQLAlchemy perceba a mudança em vigor; esquecer isso é como
 um carimbo é gravado em memória e nunca no banco.
 
-A maioria dos carimbos guarda um status (`DONE`, `ERROR`). Quatro são **chaveados por valor**:
+A maioria dos carimbos guarda um status (`DONE`, `ERROR`). Os cinco que chaveiam uma fila por **quem
+produziu a resposta** são um tipo diferente (`WorkerStamp` contra `IdentityStamp`), e é o tipo que
+impõe a diferença: um slot de identidade só aceita um valor que o próprio `fingerprint_pattern` dele
+aceite, então um status levanta `ValueError` em vez de ser gravado, e uma falha passa por
+`mark_failed`. Esse valor é a *identidade do produtor* — uma impressão digital da engine, do preset,
+da configuração resolvida da engine, das versões instaladas das bibliotecas daquele eixo e das opções
+comportamentais declaradas (`producer_fingerprint` em `worker_stamp.py`). Uma unidade carimbada por
+outro produtor volta a estar pendente sozinha:
 
-- `worker_embedding_v1` guarda o **MD5 do texto embutido**, calculado pelo PostgreSQL (`func.md5(...)`
-  sobre o texto efetivo) e gravado com `WorkerStamp.mark_value`. Seu predicado de pendência é
-  `execution_log[key] IS DISTINCT FROM <md5>`, então uma mudança de texto — inclusive uma edição
-  humana — devolve o documento à fila sozinho.
-- `worker_macro_category_v1` guarda o hash do conjunto de rótulos contra o qual a tag foi
+- `worker_ner_v2`, `worker_typology_classifier_v2` e `worker_quality_validator_v1` guardam essa
+  identidade — a última tirada da engine da regra `LLM_CHECK` ativa, ou de "sem modelo" — então outra
+  engine, outro preset, outro limiar, outro conjunto de colunas ou outra versão de dependência
+  reenfileira as unidades. `force` é o caminho de volta de um motivo que um hash não vê (uma regra
+  editada, uma exclusão curada, um prompt).
+- `worker_embedding_v1` compõe essa identidade com o **MD5 do texto embutido**, calculado pelo
+  PostgreSQL (`func.md5(...)` sobre o texto efetivo) na mesma expressão que constrói o texto
+  (`embedding_stamp_sql`), então uma mudança de texto — inclusive uma edição humana — e um bump de
+  modelo ou de dependência devolvem o documento à fila sozinhos.
+- `worker_macro_category_v1` compõe com o hash do conjunto de rótulos contra o qual a tag foi
   classificada, então reescrever o rótulo de um curador reenfileira a tag.
 - `hierarchy_parent_v1` guarda `"PENDING:<code>"` enquanto o filho espera pelo pai que a origem
   declarou e `"DONE:<description_id>"` quando o vínculo existe, então a nova tentativa lembra qual pai
@@ -261,6 +273,17 @@ A maioria dos carimbos guarda um status (`DONE`, `ERROR`). Quatro são **chavead
 - `curated_macro_category` guarda quem, quando e o destino de uma decisão de assunto de um curador —
   texto livre, não um status, então uma tag que uma pessoa classificou se lê como curada, e não como
   uma que a máquina acertou.
+
+Os cinco slots de identidade foram reescritos uma vez por
+`a7c1e5b9d3f2_make_the_legacy_identity_stamps_read_as_unknown.py`: todo `"DONE"` num deles — na chave
+atual ou numa aposentada (`worker_ner_v1`, `worker_typology_classifier_v1`) — virou
+`PRODUCER_UNKNOWN`, um nome que se lê como o que é e que deliberadamente não é uma impressão digital,
+então `identity_stamp_conditions` continua chamando essas unidades de pendentes. A migração não
+inventa produtor nem toca em chave ausente: os mais de 3.100 documentos sem slot de NER continuam sem
+nenhum, porque o que é verdade sobre eles é que nada registrou execução. Ela também deixa as linhas do
+embedding em paz: elas carregam o MD5 puro do texto que embutaram, de antes de a identidade ser
+composta no valor, e o hash do texto é um fato, enquanto `PRODUCER_UNKNOWN` o trocaria por um falso. O
+painel o lê como "sem produtor" pelo próprio padrão do slot.
 
 !!! note "Uma exceção documentada"
     `worker_embedding` deliberadamente não usa `ai_writable_documents()`. O embedding é um índice
@@ -347,7 +370,10 @@ apontavam para a linha absorvida e foram movidas para a canônica. `undone_at` m
 `archive_ai_review_queue` é a companheira de `archive_conflict_resolution_log`, não um ledger de
 escritas: ela guarda a *decisão* (o veredicto do juiz ou o do humano), enquanto o log de resolução
 guarda a *escrita*. Ela também carrega `AnomalyType.SUBJECT_LOW_CONFIDENCE` para tags que o
-classificador de assunto não conseguiu posicionar.
+classificador de assunto não conseguiu posicionar, e `AnomalyType.TYPOLOGY_LOW_CONFIDENCE` para
+descrições que ele recusou classificar — é nessa linha que fica o **score que a execução viu**, porque
+`typology_id` continua NULL tanto quando o classificador recusou quanto quando nenhuma execução chegou
+à descrição (issue #110).
 
 `archive_worker_settings_revisions` é um ledger de revisão no mesmo espírito: a decisão e a escrita
 são fatos diferentes, e toda mudança de configuração deixa uma linha `before`/`after`.

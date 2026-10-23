@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import {
+  fetchCleaningRuleEngines,
   fetchCleaningRules,
   fetchCollectionVocabulary,
   fetchDeletions,
@@ -496,6 +497,20 @@ export const queries = {
       // The list is the whole catalogue and it changes only when an archivist writes to it, which
       // is exactly when the screen invalidates it.
       staleTime: 60_000,
+    }),
+
+  /**
+   * The engines and presets an `LLM_CHECK` rule can name, read from the registry.
+   *
+   * A read of its own and not a hand-written list in the screen: the names are the ones `get_engine`
+   * validates against, so a preset added or retired in code reaches the form without a second edit
+   * (issue #124). Long `staleTime`: it changes when the code is deployed, not while a person works.
+   */
+  cleaningRuleEngines: () =>
+    queryOptions({
+      queryKey: ["quality", "cleaning-rules", "engines"],
+      queryFn: fetchCleaningRuleEngines,
+      staleTime: 10 * 60_000,
     }),
 
   // --- The arrangement: the ladder and the tree (wave 4) --------------------------------------

@@ -7,6 +7,7 @@ import {
   deactivateCleaningRule,
   previewCleaningRule,
   type CleaningRuleDryRun,
+  type CleaningRulePreset,
   type CleaningTargetColumn,
   type CreateCleaningRuleRequest,
   type RuleKind,
@@ -36,6 +37,17 @@ const TARGETS: CleaningTargetColumn[] = [
   "archivist_notes",
 ];
 const KINDS: RuleKind[] = ["REWRITE", "VALIDATE", "LLM_CHECK"];
+
+/**
+ * ``nome — modelo``, because the model is what the archivist is choosing between.
+ *
+ * The config comes from the registry's ``describe_config`` — the read-only twin of ``get_engine`` —
+ * so the label states the model the run will actually load and not one re-derived from the name.
+ */
+function presetLabel(preset: CleaningRulePreset): string {
+  const model = preset.config?.model;
+  return typeof model === "string" && model.length > 0 ? `${preset.name} — ${model}` : preset.name;
+}
 
 function subtitleOf(active: number, retired: number): string {
   const activeLabel = active === 1 ? "1 regra ativa" : `${formatCount(active)} regras ativas`;
@@ -189,6 +201,7 @@ export function CleaningRulesRoute() {
 }
 
 function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
+  const engines = useQuery(queries.cleaningRuleEngines());
   const [draft, setDraft] = useState<CreateCleaningRuleRequest>({
     rule_name: "",
     target_column: "original_title",
@@ -200,6 +213,12 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
     preset: null,
   });
   const [preview, setPreview] = useState<CleaningRuleDryRun | null>(null);
+
+  const catalogue = engines.data ?? [];
+  // The preset list belongs to the chosen engine, and an empty engine means the worker's documented
+  // fallback — so the select of presets follows the first engine until a person picks another.
+  const chosenEngine = draft.engine_name ?? catalogue[0]?.name ?? "";
+  const presets = catalogue.find((engine) => engine.name === chosenEngine)?.presets ?? [];
 
   const dryRun = useMutation({
     mutationFn: () =>
@@ -318,17 +337,38 @@ function CreateRuleCard({ onCreated }: { onCreated: () => void }) {
         {draft.rule_kind === "LLM_CHECK" ? (
           <div className="grid gap-2 sm:grid-cols-2">
             <Field label="Engine">
-              <Input
+              <Select
                 value={draft.engine_name ?? ""}
-                onChange={(event) => patch({ engine_name: event.target.value || null })}
-                placeholder="ex.: ollama"
-              />
+                disabled={catalogue.length === 0}
+                onChange={(event) => patch({ engine_name: event.target.value || null, preset: null })}
+              >
+                <option value="">
+                  {engines.isPending ? "carregando…" : `padrão (${catalogue[0]?.name ?? "nenhum motor"})`}
+                </option>
+                {catalogue.map((engine) => (
+                  <option key={engine.name} value={engine.name}>
+                    {engine.name}
+                  </option>
+                ))}
+              </Select>
+              <span className="text-(--color-muted)">
+                A lista é a do registro de motores; vazio usa o padrão do eixo, e a regra não é salva com um
+                nome que o registro não tenha.
+              </span>
             </Field>
             <Field label="Preset">
-              <Input
+              <Select
                 value={draft.preset ?? ""}
+                disabled={presets.length === 0}
                 onChange={(event) => patch({ preset: event.target.value || null })}
-              />
+              >
+                <option value="">sem preset (o padrão do motor)</option>
+                {presets.map((preset) => (
+                  <option key={preset.name} value={preset.name}>
+                    {presetLabel(preset)}
+                  </option>
+                ))}
+              </Select>
             </Field>
           </div>
         ) : null}

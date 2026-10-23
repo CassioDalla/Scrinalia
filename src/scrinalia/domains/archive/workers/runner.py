@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import Any
 
 from scrinalia.core.author import Author
+from scrinalia.core.cli import positive_int
 from scrinalia.core.database import get_db
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.exceptions import InvalidWorkerSettingsError
@@ -66,15 +67,46 @@ def _workers_declaring(key: str) -> list[str]:
     return sorted(name for name, fn in WORKERS.items() if key in inspect.signature(fn).parameters)
 
 
-def _coerce_option(value: Any) -> Any:
-    """Turns the CLI ``true``/``false`` strings into booleans.
+def _coerce_option(key: str, value: Any, declared: Any) -> Any:
+    """
+    Coerces a CLI string to the type the worker declared for that option.
 
-    ``--option force=false`` used to arrive as the truthy string ``"false"``, so a
-    boolean flag could not be switched off from the command line. Values that are not
-    strings (a programmatic caller passing a real bool or number) are left untouched.
+    ``--option force=false`` used to arrive as the truthy string ``"false"``, so a boolean flag
+    could not be switched off from the command line. Numbers had the worse failure: they arrived as
+    strings, and ``confidence_score > "0.6"`` is a ``TypeError`` at the bottom of a run instead of a
+    refusal at the top — which is why a declared business threshold was unreachable in practice even
+    for a worker that declared it. The declared default is what tells the types apart: it is the
+    type the worker already wrote in its signature, so nothing new has to be declared twice.
+
+    Values that are not strings (a programmatic caller passing a real bool or number) are left
+    untouched, and an option whose declaration is a list or an object is refused rather than
+    forwarded as a string the worker would iterate character by character.
     """
     if not isinstance(value, str):
         return value
+
+    if isinstance(declared, bool):
+        lowered = value.strip().lower()
+        if lowered not in {"true", "false"}:
+            raise InvalidWorkerSettingsError(f"A opção '{key}' é booleana: use true ou false, não {value!r}.")
+        return lowered == "true"
+
+    if isinstance(declared, int):
+        try:
+            return int(value)
+        except ValueError as error:
+            raise InvalidWorkerSettingsError(f"A opção '{key}' espera um inteiro, não {value!r}.") from error
+
+    if isinstance(declared, float):
+        try:
+            return float(value)
+        except ValueError as error:
+            raise InvalidWorkerSettingsError(f"A opção '{key}' espera um número, não {value!r}.") from error
+
+    if isinstance(declared, (list, tuple, dict)):
+        raise InvalidWorkerSettingsError(
+            f"A opção '{key}' espera uma lista ou um objeto: ela não é configurável pela linha de comando."
+        )
 
     lowered = value.strip().lower()
     if lowered in {"true", "false"}:
@@ -121,7 +153,7 @@ def _forward_kwargs(
 
     for key, value in extra.items():
         if key in params or accepts_var_kwargs:
-            kwargs[key] = _coerce_option(value)
+            kwargs[key] = _coerce_option(key, value, params[key].default if key in params else None)
     return kwargs
 
 
@@ -242,7 +274,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--limit",
         dest="limit",
-        type=int,
+        type=positive_int,
         help="Cap on the units this run touches; accepted by the workers that declare 'limit'.",
     )
     parser.add_argument(

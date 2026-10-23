@@ -1,9 +1,27 @@
 import re
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import Float, and_, bindparam, case, delete, exists, func, or_, select, true
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import (
+    Float,
+    Select,
+    Text,
+    and_,
+    bindparam,
+    case,
+    delete,
+    exists,
+    func,
+    null,
+    nulls_last,
+    or_,
+    select,
+    true,
+    union,
+)
+from sqlalchemy.dialects.postgresql import ARRAY, insert
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -16,13 +34,20 @@ from scrinalia.domains.archive.domain.normalization import (
     escape_like,
     normalize_synonym,
 )
-from scrinalia.domains.archive.domain.search import build_tsquery, tokenize
+from scrinalia.domains.archive.domain.search import (
+    RRF_DEPTH,
+    RRF_K,
+    build_tsquery,
+    reciprocal_rank_fusion,
+    tokenize,
+)
 from scrinalia.domains.archive.exceptions import (
     EntityNotFoundError,
     HierarchyNodeNotFoundError,
     TagNotFoundError,
 )
 from scrinalia.domains.archive.models import (
+    ANOMALY_REASON_SEPARATOR,
     AnomalyReason,
     ArchiveDescriptionLevel,
     ArchiveDocument,
@@ -111,7 +136,7 @@ def _anomaly_reason_key(reason: Any) -> Any:
     the one definition of the key, used by the facet that groups and by the filter that selects, so
     the sidebar cannot offer a bucket the route refuses to filter.
     """
-    code = func.split_part(reason, ":", 1)
+    code = func.split_part(reason, ANOMALY_REASON_SEPARATOR, 1)
     return case((code == AnomalyReason.RULE_MATCH.value, reason), else_=code)
 
 
@@ -133,6 +158,29 @@ def _carries_entity(*conditions: Any) -> Any:
         .join(ArchiveEntity, ArchiveDocumentEntity.entity_id == ArchiveEntity.entity_id)
         .where(ArchiveDocumentEntity.description_id == ArchiveDocument.description_id, *conditions)
     )
+
+
+@dataclass(frozen=True)
+class _LexicalMatch:
+    """
+    The full-text arm: the descriptions it matches and the relevance that orders them.
+
+    ``matched`` is a statement of ``description_id`` and ``clause`` is the predicate built from it.
+    The arm is a **set of documents**, and not an ``OR`` of correlated ``EXISTS``, because that OR is
+    re-evaluated once per row of whatever it is joined to: inside the entity facet it ran over
+    64,504 entity links to find 12 descriptions, and the two link-table facets took 17 of the 18
+    seconds a selective search used to spend. Filtering the documents first is the same answer for a
+    fraction of the work, and it is what lets the generated ``search_vector`` GIN index be used at
+    all — the ``OR`` was enough to keep the planner away from it.
+
+    Built once and carried around, because two searches read it — the lexical one and the fused
+    one — and a second spelling of ``ts_rank`` plus the taxonomy boost would be a second
+    definition of what "the full-text ranking" means.
+    """
+
+    matched: Any
+    clause: Any
+    rank: Any
 
 
 class DocumentRepository:
@@ -464,21 +512,25 @@ class DocumentRepository:
         self,
         query: DocumentSearchQuery,
         ancestor_path: str | None,
-        term_clause: Any | None = None,
+        clause_for: Callable[[str], Any | None] | None = None,
         extra_clauses: tuple[Any, ...] = (),
     ) -> DocumentFacets:
         """
         Counts each facet dimension over the result set, minus the dimension's own filter.
 
-        ``term_clause`` is the *same* clause the page query used, so the sidebar can never disagree
-        with the list it describes; ``extra_clauses`` carries the semantic restriction (documents
-        that have an embedding), which is part of the result set rather than a user filter.
+        ``clause_for`` builds the *same* clause the page query used, given the dimension being
+        counted, so the sidebar can never disagree with the list it describes. It is a callable
+        rather than a clause because the fused clause carries the semantic window, which is part
+        of the result set and therefore is rebuilt for the dimension that is being counted;
+        ``extra_clauses`` carries a restriction that does not depend on the dimension (for the
+        semantic search, the documents that have an embedding).
         """
 
         def clauses_for(dimension: str) -> list[Any]:
             clauses = self._facet_filters(query, ancestor_path, frozenset({dimension}))
-            if term_clause is not None:
-                clauses.append(term_clause)
+            clause = clause_for(dimension) if clause_for is not None else None
+            if clause is not None:
+                clauses.append(clause)
             clauses.extend(extra_clauses)
             return clauses
 
@@ -585,7 +637,7 @@ class DocumentRepository:
         ]
 
     @staticmethod
-    def _taxonomy_match(
+    def _taxonomy_match_ids(
         link_model: Any,
         name_model: Any,
         join_on: Any,
@@ -594,25 +646,21 @@ class DocumentRepository:
         canonical_synonym: Any | None = None,
     ) -> Any:
         """
-        ``EXISTS`` on a link table whose related name contains every search token.
+        The descriptions carrying a tag/entity whose name contains every search token.
 
-        ``EXISTS`` instead of a join keeps a document with several matching tags from
-        being duplicated in the page or double-counted in ``total``. The ``ILIKE`` on
-        the names is what the existing ``gin_trgm_ops`` indexes accelerate.
+        A statement of ``description_id``, and not a correlated ``EXISTS`` as this used to be: the
+        arm travels as a *set of documents* that the page, the count and every facet filter on, so
+        the link table is read once instead of once per row of whatever the term was joined to.
 
-        ``canonical_synonym`` adds the direct path from an absorbed spelling to the
-        canonical it was merged into (see ``_merged_spelling_match``), as an *alternative*
-        to the token condition — the token semantics (all tokens required) stay untouched.
+        The ``ILIKE`` on the names is what the existing ``gin_trgm_ops`` indexes accelerate.
+        ``canonical_synonym`` adds the direct path from an absorbed spelling to the canonical it was
+        merged into (see ``_merged_spelling_match``), as an *alternative* to the token condition —
+        the token semantics (all tokens required) stay untouched.
         """
         token_condition = and_(*(name_column.ilike(f"%{token}%") for token in tokens))
         condition = token_condition if canonical_synonym is None else or_(token_condition, canonical_synonym)
 
-        return exists(
-            select(1)
-            .select_from(link_model)
-            .join(name_model, join_on)
-            .where(link_model.description_id == ArchiveDocument.description_id, condition)
-        )
+        return select(link_model.description_id).select_from(link_model).join(name_model, join_on).where(condition)
 
     @staticmethod
     def _merged_spelling_match(id_column: Any, canonical_column: Any, categories: list[str], term: str) -> Any:
@@ -662,8 +710,141 @@ class DocumentRepository:
         )
         return self._page_summaries([(doc, None) for doc in self.db.scalars(page_stmt).all()])
 
+    def _lexical_match(self, tokens: list[str]) -> _LexicalMatch | None:
+        """
+        Builds the full-text arm: the documents it matches and the rank that orders them.
+
+        The three ways a term reaches a description — the generated vector, a tag and an entity -
+        meet in **one set of ids**, and the relevance is the ``ts_rank`` plus a boost for each of the
+        two taxonomy arms the description belongs to. The membership tests read the same statements
+        the set is built from, so the arm a document is boosted for is the arm that found it.
+
+        One definition for the two searches that read it — the lexical one and the fused one —
+        because a second spelling of the taxonomy boost would be a second definition of what the
+        full-text ranking means.
+        """
+        tsquery = build_tsquery(tokens)
+        if tsquery is None:
+            return None
+
+        ts_query = func.to_tsquery(get_language().fts_dictionary, func.immutable_unaccent(tsquery))
+        merged_term = " ".join(tokens)
+        tag_ids = self._taxonomy_match_ids(
+            ArchiveDocumentTag,
+            ArchiveTag,
+            ArchiveDocumentTag.tag_id == ArchiveTag.tag_id,
+            ArchiveTag.name,
+            tokens,
+            canonical_synonym=self._merged_spelling_match(
+                ArchiveTag.tag_id, DomainSynonyms.canonical_tag_id, ["TAG"], merged_term
+            ),
+        )
+        entity_ids = self._taxonomy_match_ids(
+            ArchiveDocumentEntity,
+            ArchiveEntity,
+            ArchiveDocumentEntity.entity_id == ArchiveEntity.entity_id,
+            ArchiveEntity.name,
+            tokens,
+            canonical_synonym=self._merged_spelling_match(
+                ArchiveEntity.entity_id,
+                DomainSynonyms.canonical_entity_id,
+                ["ORG", "PER", "LOC"],
+                merged_term,
+            ),
+        )
+        matched = (
+            select(ArchiveDocument.description_id)
+            .where(ArchiveDocument.search_vector.op("@@")(ts_query))
+            .union(tag_ids, entity_ids)
+        )
+        rank = (
+            func.ts_rank(ArchiveDocument.search_vector, ts_query)
+            + case((ArchiveDocument.description_id.in_(tag_ids), TAXONOMY_MATCH_BOOST), else_=0.0)
+            + case((ArchiveDocument.description_id.in_(entity_ids), TAXONOMY_MATCH_BOOST), else_=0.0)
+        ).label("rank")
+        return _LexicalMatch(
+            matched=matched,
+            clause=ArchiveDocument.description_id.in_(matched),
+            rank=rank,
+        )
+
+    @staticmethod
+    def _semantic_distance(query_embedding: list[float]) -> Any:
+        """
+        Cosine distance between the query vector and a document's embedding.
+
+        ``return_type`` matters: without it SQLAlchemy infers the operator result from
+        the left operand (the vector column), and then ``1 - distance`` would try to
+        bind the literal 1 as a vector.
+        """
+        query_vector = bindparam("query_embedding", value=query_embedding, type_=Vector(EMBEDDING_DIMENSIONS))
+        return ArchiveDocument.embedding.op("<=>", return_type=Float)(query_vector)
+
+    def _semantic_top_ids(
+        self,
+        query: DocumentSearchQuery,
+        ancestor_path: str | None,
+        query_embedding: list[float],
+        exclude: frozenset[str] = frozenset(),
+    ) -> list[str]:
+        """
+        The documents the semantic ranking puts first inside the filtered set.
+
+        This is the **window** the fusion reads and not a predicate: the semantic arm has no
+        clause of its own — every embedded document is a candidate, ordered by distance — so a
+        candidate clause built out of "has an embedding" would count the whole collection as a
+        result.
+        """
+        distance = self._semantic_distance(query_embedding)
+        stmt = (
+            select(ArchiveDocument.description_id)
+            .where(*self._facet_filters(query, ancestor_path, exclude), ArchiveDocument.embedding.is_not(None))
+            .order_by(distance.asc(), ArchiveDocument.updated_at.desc(), ArchiveDocument.description_id)
+            .limit(RRF_DEPTH)
+        )
+        return [str(row[0]) for row in self.db.execute(stmt).all()]
+
+    def _lexical_top_ids(self, filters: list[Any], lexical: _LexicalMatch | None) -> list[str]:
+        """The documents the full-text ranking puts first; empty when there is no full-text arm."""
+        if lexical is None:
+            return []
+        stmt = (
+            select(ArchiveDocument.description_id, lexical.rank)
+            .where(*filters, lexical.clause)
+            .order_by(lexical.rank.desc(), ArchiveDocument.updated_at.desc(), ArchiveDocument.description_id)
+            .limit(RRF_DEPTH)
+        )
+        return [str(description_id) for description_id, _rank in self.db.execute(stmt).all()]
+
+    @staticmethod
+    def _hybrid_candidate_clause(lexical: _LexicalMatch | None, semantic_ids: list[str]) -> Any | None:
+        """
+        What the fusion could rank: the full-text matches plus the semantic window.
+
+        One ``IN`` over the union of the two, and not an ``OR`` of two ``IN``s: the ``OR`` is not
+        something the planner can answer with a hash semi-join, so it evaluates the predicate once per
+        document — 4,831 index probes with a 100-element array comparison each, which turned a 20 ms
+        count into 230 ms. Both arms are sets of description ids, and their union is the set.
+
+        The union is bounded by the window on the semantic side on purpose, and the full-text side is
+        not: a term matches a set that can be enumerated, while the semantic arm matches every
+        document that has an embedding.
+        """
+        candidates: list[Any] = []
+        if lexical is not None:
+            candidates.append(lexical.matched)
+        if semantic_ids:
+            candidates.append(select(func.unnest(bindparam("semantic_window", value=semantic_ids, type_=ARRAY(Text)))))
+        if not candidates:
+            return None
+        return ArchiveDocument.description_id.in_(union(*candidates))
+
     def _semantic_search(
-        self, base_stmt: Any, query: DocumentSearchQuery, query_embedding: list[float]
+        self,
+        base_stmt: Select[ArchiveDocument],
+        query: DocumentSearchQuery,
+        ancestor_path: str | None,
+        query_embedding: list[float],
     ) -> tuple[list[DocumentSummary], int, DocumentFacets]:
         """
         Ranks the embedded documents by cosine similarity to the query vector.
@@ -673,11 +854,7 @@ class DocumentRepository:
         similarity (1 = same direction), which is friendlier to read than the raw
         distance the index is ordered by.
         """
-        query_vector = bindparam("query_embedding", value=query_embedding, type_=Vector(EMBEDDING_DIMENSIONS))
-        # ``return_type`` matters: without it SQLAlchemy infers the operator result from
-        # the left operand (the vector column), and then ``1 - distance`` would try to
-        # bind the literal 1 as a vector.
-        distance = ArchiveDocument.embedding.op("<=>", return_type=Float)(query_vector)
+        distance = self._semantic_distance(query_embedding)
         rank = (1 - distance).label("rank")
 
         has_embedding = ArchiveDocument.embedding.is_not(None)
@@ -692,12 +869,85 @@ class DocumentRepository:
         )
         rows = self.db.execute(page_stmt).all()
         items = self._page_summaries([(doc, float(relevance)) for doc, relevance in rows])
-        facets = self._facets(
-            query,
-            self._ancestor_path(query.ancestor_id),
-            extra_clauses=(has_embedding,),
-        )
+        facets = self._facets(query, ancestor_path, extra_clauses=(has_embedding,))
         return items, total, facets
+
+    def _hybrid_search(
+        self,
+        query: DocumentSearchQuery,
+        ancestor_path: str | None,
+        filters: list[Any],
+        lexical: _LexicalMatch | None,
+        query_embedding: list[float],
+    ) -> tuple[list[DocumentSummary], int, DocumentFacets]:
+        """
+        Fuses the full-text and the semantic rankings with Reciprocal Rank Fusion.
+
+        The two rankings are built independently and meet in ``reciprocal_rank_fusion``: nothing
+        here normalises a ``ts_rank`` against a cosine, which is exactly why the fusion can
+        combine them at all.
+
+        ``total`` counts the documents the fusion could rank — the full-text matches plus the
+        semantic window — and not every document that has an embedding, which is the whole
+        collection and would say nothing about the search.
+
+        The page is the fused window first and the rest of the matches after it, in full-text
+        order: past ``RRF_DEPTH`` there is no position left to fuse, and the lexical ranking is
+        the only one that covers every match. ``rank`` follows the same split — the fusion's
+        score inside the window, the relevance of the ordering that placed the document outside
+        it.
+        """
+        semantic_top = self._semantic_top_ids(query, ancestor_path, query_embedding)
+        lexical_top = self._lexical_top_ids(filters, lexical)
+        fused = reciprocal_rank_fusion([ranking for ranking in (lexical_top, semantic_top) if ranking], k=RRF_K)
+
+        candidate_clause = self._hybrid_candidate_clause(lexical, semantic_top)
+        if candidate_clause is None or not fused:
+            return [], 0, DocumentFacets()
+
+        total = self._count(select(ArchiveDocument).where(*filters, candidate_clause))
+        if not total:
+            return [], 0, DocumentFacets()
+
+        fused_scores = dict(fused)
+        # ``array_position`` is the fused order as data: 1 for the best document, ``NULL`` for
+        # the ones the window does not carry, which ``NULLS LAST`` pushes into the tail. It is
+        # one parameter and one indexed lookup, against a join over a synthetic table.
+        position = func.array_position(
+            bindparam("fused_ids", value=[description_id for description_id, _score in fused], type_=ARRAY(Text)),
+            ArchiveDocument.description_id,
+        )
+        order_by: list[Any] = [nulls_last(position.asc())]
+        if lexical is not None:
+            order_by.append(lexical.rank.desc())
+        order_by.extend([ArchiveDocument.updated_at.desc(), ArchiveDocument.description_id])
+
+        page_stmt = (
+            select(ArchiveDocument)
+            .where(*filters, candidate_clause)
+            .add_columns(lexical.rank if lexical is not None else null().label("rank"))
+            .options(*self._eager_options())
+            .order_by(*order_by)
+            .limit(query.limit)
+            .offset(query.offset)
+        )
+        rows = self.db.execute(page_stmt).all()
+        scored: list[tuple[ArchiveDocument, float | None]] = []
+        for doc, lexical_rank in rows:
+            fused_score = fused_scores.get(doc.description_id)
+            if fused_score is not None:
+                scored.append((doc, fused_score))
+            else:
+                scored.append((doc, float(lexical_rank) if lexical_rank is not None else None))
+
+        def clause_for(dimension: str) -> Any | None:
+            # The window is part of the result set, so it is rebuilt for the dimension being
+            # counted: the facet rule -- every filter except the dimension's own -- has to hold
+            # for the fused clause too, or the sidebar would describe a different result set.
+            window = self._semantic_top_ids(query, ancestor_path, query_embedding, exclude=frozenset({dimension}))
+            return self._hybrid_candidate_clause(lexical, window)
+
+        return self._page_summaries(scored), total, self._facets(query, ancestor_path, clause_for=clause_for)
 
     def search(
         self, query: DocumentSearchQuery, query_embedding: list[float] | None = None
@@ -715,84 +965,61 @@ class DocumentRepository:
         entity matches either.
 
         When ``query.mode`` is ``semantic`` and a ``query_embedding`` is provided, the
-        full-text clause is replaced by the cosine-distance ranking; the facets still
-        apply.
+        full-text clause is replaced by the cosine-distance ranking; when it is ``hybrid``,
+        the two rankings are fused. Either way the facets still apply.
 
         The facet counts are computed from **the same clause the page came from** (whichever
         branch resolved it, fallback included), so the sidebar can never disagree with the list
         it describes.
         """
         ancestor_path = self._ancestor_path(query.ancestor_id)
-        base_stmt = select(ArchiveDocument).where(*self._facet_filters(query, ancestor_path))
+        filters = self._facet_filters(query, ancestor_path)
+        base_stmt = select(ArchiveDocument).where(*filters)
 
         if query.mode == "semantic" and query_embedding is not None:
-            return self._semantic_search(base_stmt, query, query_embedding)
+            return self._semantic_search(base_stmt, query, ancestor_path, query_embedding)
 
         tokens = tokenize(query.term) if query.term else []
-        tsquery = build_tsquery(tokens)
+        lexical = self._lexical_match(tokens)
 
-        if tsquery:
-            ts_query = func.to_tsquery(get_language().fts_dictionary, func.immutable_unaccent(tsquery))
-            merged_term = " ".join(tokens)
-            tag_match = self._taxonomy_match(
-                ArchiveDocumentTag,
-                ArchiveTag,
-                ArchiveDocumentTag.tag_id == ArchiveTag.tag_id,
-                ArchiveTag.name,
-                tokens,
-                canonical_synonym=self._merged_spelling_match(
-                    ArchiveTag.tag_id, DomainSynonyms.canonical_tag_id, ["TAG"], merged_term
-                ),
+        if query.mode == "hybrid" and query_embedding is not None:
+            return self._hybrid_search(query, ancestor_path, filters, lexical, query_embedding)
+
+        if lexical is None:
+            return (
+                self._browse_page(base_stmt, query),
+                self._count(base_stmt),
+                self._facets(query, ancestor_path),
             )
-            entity_match = self._taxonomy_match(
-                ArchiveDocumentEntity,
-                ArchiveEntity,
-                ArchiveDocumentEntity.entity_id == ArchiveEntity.entity_id,
-                ArchiveEntity.name,
-                tokens,
-                canonical_synonym=self._merged_spelling_match(
-                    ArchiveEntity.entity_id,
-                    DomainSynonyms.canonical_entity_id,
-                    ["ORG", "PER", "LOC"],
-                    merged_term,
-                ),
-            )
-            rank = (
-                func.ts_rank(ArchiveDocument.search_vector, ts_query)
-                + case((tag_match, TAXONOMY_MATCH_BOOST), else_=0.0)
-                + case((entity_match, TAXONOMY_MATCH_BOOST), else_=0.0)
-            ).label("rank")
-            term_clause = or_(ArchiveDocument.search_vector.op("@@")(ts_query), tag_match, entity_match)
+
+        # The count and the page share one predicate: the *documents* the term matches, filtered.
+        # The rank expression is added to the page alone, because counting rows does not need it and
+        # computing it for every match was pure work — 88 ms of the 6.6 s a broad term used to cost.
+        matched_stmt = base_stmt.where(lexical.clause)
+        total = self._count(matched_stmt)
+        if total:
             # The relevance has to be selected, not only ordered by, so the read view
             # can expose it and the caller can explain the ordering.
-            ranked_stmt = base_stmt.where(term_clause).add_columns(rank)
+            page_stmt = (
+                matched_stmt.add_columns(lexical.rank)
+                .options(*self._eager_options())
+                .order_by(lexical.rank.desc(), ArchiveDocument.updated_at.desc(), ArchiveDocument.description_id)
+                .limit(query.limit)
+                .offset(query.offset)
+            )
+            rows = self.db.execute(page_stmt).all()
+            items = self._page_summaries([(doc, float(relevance)) for doc, relevance in rows])
+            term_clause = lexical.clause
+            return items, total, self._facets(query, ancestor_path, clause_for=lambda _dimension: term_clause)
 
-            total = self._count(ranked_stmt)
+        if tokens:
+            fallback_clause = self._contains_condition(tokens)
+            fallback_stmt = base_stmt.where(fallback_clause)
+            total = self._count(fallback_stmt)
             if total:
-                page_stmt = (
-                    ranked_stmt.options(*self._eager_options())
-                    .order_by(rank.desc(), ArchiveDocument.updated_at.desc(), ArchiveDocument.description_id)
-                    .limit(query.limit)
-                    .offset(query.offset)
-                )
-                rows = self.db.execute(page_stmt).all()
-                items = self._page_summaries([(doc, float(relevance)) for doc, relevance in rows])
-                return items, total, self._facets(query, ancestor_path, term_clause=term_clause)
-
-            if tokens:
-                fallback_clause = self._contains_condition(tokens)
-                fallback_stmt = base_stmt.where(fallback_clause)
-                total = self._count(fallback_stmt)
-                if total:
-                    items = self._browse_page(fallback_stmt, query)
-                    return items, total, self._facets(query, ancestor_path, term_clause=fallback_clause)
-            return [], 0, DocumentFacets()
-
-        return (
-            self._browse_page(base_stmt, query),
-            self._count(base_stmt),
-            self._facets(query, ancestor_path),
-        )
+                items = self._browse_page(fallback_stmt, query)
+                return items, total, self._facets(query, ancestor_path, clause_for=lambda _dimension: fallback_clause)
+        return [], 0, DocumentFacets()
 
     def _ancestor_path(self, ancestor_id: str | None) -> str | None:
         """

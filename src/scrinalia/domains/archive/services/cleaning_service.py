@@ -1,6 +1,11 @@
 import re
+from typing import cast
 
-from scrinalia.domains.archive.exceptions import CleaningRuleNotFoundError, InvalidParam
+from scrinalia.domains.archive.exceptions import (
+    CleaningRuleNotFoundError,
+    InvalidLLMCheckEngineError,
+    InvalidParam,
+)
 from scrinalia.domains.archive.ports.cleaning import CleaningRepositoryPort
 from scrinalia.domains.archive.schemas.cleaning_schema import (
     CleaningRuleCreateDTO,
@@ -9,6 +14,7 @@ from scrinalia.domains.archive.schemas.cleaning_schema import (
     DryRunRequestDTO,
     DryRunResponseDTO,
 )
+from scrinalia.domains.archive.workers.catalogue import DEFAULT_LLM_CHECK_ENGINE
 
 
 class CleaningService:
@@ -22,9 +28,41 @@ class CleaningService:
         except re.error as e:
             raise InvalidParam(f"Sintaxe de Regex inválida: {e!s}") from e
 
+    def _validate_engine(self, dto: CleaningRuleCreateDTO) -> None:
+        """
+        Refuses an engine/preset pair the title-quality registry cannot build, at the door.
+
+        The check runs whenever either field is present, whatever the ``rule_kind`` is: the pair is
+        validated where it would be used, so a ``REWRITE`` rule carrying one is not a hole. An empty
+        ``engine_name`` stays legal — it means the worker's documented fallback — and a preset with
+        no engine is validated against that same fallback engine, which is the pair the run resolves.
+
+        The refusal is a ``DomainException`` and not the registry's ``ValueError``: the API owes a
+        business status, and the registry's own sentence already names the options (#124).
+        """
+        if dto.engine_name is None and dto.preset is None:
+            return
+
+        # Function-level import, like the worker's own: touching an engine registry is what pulls the
+        # axis's stack, and the cleaning catalogue is read by requests that never build an engine.
+        from scrinalia.domains.archive.engines.title_quality.registry import (
+            EngineName,
+            PresetName,
+            describe_config,
+        )
+
+        # The pair arrives as free text — that is the whole defect #124 — so the cast is the point
+        # where an unvalidated string meets the registry that decides whether it exists.
+        engine_name = dto.engine_name or DEFAULT_LLM_CHECK_ENGINE
+        try:
+            describe_config(cast("EngineName", engine_name), cast("PresetName | None", dto.preset))
+        except ValueError as e:
+            raise InvalidLLMCheckEngineError(str(e)) from e
+
     def create_cleaning_rule(self, dto: CleaningRuleCreateDTO) -> CleaningRuleDTO:
         # Early validation (Fail Fast)
         self._validate_regex(dto.regex_pattern)
+        self._validate_engine(dto)
         return self.repo.create_rule(dto)
 
     def simulate_dry_run(self, dto: DryRunRequestDTO) -> DryRunResponseDTO:

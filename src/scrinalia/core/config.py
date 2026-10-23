@@ -130,10 +130,18 @@ class Settings(BaseSettings):
 
     @property
     def DATABASE_URL(self) -> str:
-        """DSN with user and password percent-encoded, so odd credentials cannot break the URL."""
+        """
+        DSN with user and password percent-encoded, so odd credentials cannot break the URL.
+
+        The driver is spelled out (``postgresql+psycopg2``) and never left to the bare
+        ``postgresql://`` form, whose driver is SQLAlchemy's to change: 2.1 moved that default from
+        psycopg2 to psycopg v3, which this project does not install, and every test failed at setup
+        with ``No module named 'psycopg'``. Naming it here, in ``testing/conftest.py`` and in the CI
+        environment is what keeps a future default from moving under the project again.
+        """
         user = quote(self.DB_USER, safe="")
         password = quote(self.DB_PASS.get_secret_value(), safe="")
-        return f"postgresql://{user}:{password}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        return f"postgresql+psycopg2://{user}:{password}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
 
 @lru_cache

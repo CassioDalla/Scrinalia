@@ -1210,3 +1210,506 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   reasoning at the time, and none of those numbers is a rule the code has to satisfy.
   `src/scrinalia/api/openapi.py`'s docstring keeps "with `pyproject.toml` at 1.1.0" — that is the
   date of a **measurement**, and changing the number would falsify the record rather than update it.
+
+## 2026-10-14 — the held majors adopted on purpose (#40)
+
+- **Range:** `3c108cd..0ec13bb`
+- **Pages:** three were reported stale and all three hold.
+  - `guides/install.md` — **no-change**: the `DB_*` table, the "`DATABASE_URL` is a derived property"
+    paragraph and the `docker-compose.test.yml` section still describe the code. The source this page
+    declares that moved (`pyproject.toml`) is not quoted in its text, and the driver the DSN now
+    names (`postgresql+psycopg2`) is not a setting an installer chooses.
+  - `guides/data-model.md` — **no-change**: no table, column or index moved. `testing/conftest.py`
+    gained a third thing it builds before `create_all` — the native enum types the models declare
+    that the migration owns — and the page does not enumerate that list; it names the two SQL
+    functions because a generated column depends on them.
+  - `guides/operate.md` — **no-change**: no worker's unit, queue predicate, idempotency stamp or
+    governance rule changed. The two rewrites inside them are internal spellings that return the same
+    rows — `SELECT DISTINCT ON (archive_worker_runs.worker_name)`, and a `Row` that no longer needs
+    `Result.tuples()` — and the panel and queue-count tests that read them are green.
+- **Why the round exists:** `pyproject.toml` held two majors behind a comment (`pandas<3`,
+  `sqlalchemy<2.1`), and adopting them changes the environment every installation and CI gets.
+- **What the round measured.** The driver: `postgresql+psycopg2` is spelled out in `core/config.py`,
+  `testing/conftest.py` and the CI environment, so the default cannot move under the project again.
+  SQLAlchemy 2.1.4: `Enum(..., create_type=False)` stopped being ignored — the PostgreSQL impl of
+  `domain_stopwords.word_scope` comes out `create_type=False` on 2.1.4 and came out `True` on
+  2.0.54 — which cost the test schema `stopwords_scope`, `anomaly_type_enum` and
+  `scrape_status_enum` and gave **851 errors at setup** (`type "stopwords_scope" does not exist`)
+  until `conftest.py` created them from the models; nine `basedpyright` errors answered at their
+  sites; `Result.tuples()` and the expression form of `distinct()` removed, the latter measured as
+  `SELECT DISTINCT ON (archive_worker_runs.worker_name)`. pandas 3.0.6: the default string dtype is
+  the new `str` and copy-on-write is on, neither of which this code meets (no frame is mutated in
+  place, and the only frame read is BERTopic's topic info); `Series.__getitem__` now returns a union
+  that includes a `Series`, and the two `int(row[...])` sites answer with a `cast`. Final: **1610
+  passed** on a fresh test database with `-W error::DeprecationWarning`, `basedpyright` **0 errors**,
+  `ruff check` and `ruff format --check` green, `alembic check` reporting no new upgrade operations,
+  and the committed contract byte-identical to `dump_openapi` by hand.
+- **What the round looked at.** No screen was **rendered**, and none needed to be: no file under
+  `apps/curator/` changed.
+- **Not verified, and said so.** The real engines were not run — the suite mocks the registry, so
+  `bertopic` was imported, never used to cluster — and the lock was resolved on this host, not on a
+  GPU installation, which the install page already says is a different lock.
+
+## 2026-10-14 — the test schema also drops what it creates (#40)
+
+- **Range:** `0ec13bb..3227e3d`
+- **Pages:** `guides/data-model.md` — **no-change** (the previous entry judged the create half of the
+  same helper): CI's migration step, which runs after the suite against the same database, failed
+  with `type "anomaly_type_enum" already exists`, because `drop_all` skips a `create_type=False`
+  type. `testing/conftest.py` now drops them after `drop_all`, from one generator shared with the
+  create, and no table, column or index moved.
+- **What the round measured.** The CI sequence replicated on a fresh test database: 1610 passed,
+  `pg_type` and `pg_tables` empty after the teardown, `alembic upgrade head` applying every
+  migration, and `alembic check` reporting no new upgrade operations.
+
+## 2026-10-14 — the stamp names the producer (#41, #70)
+
+- **Range:** `f240c71..52ed890`
+- **Pages:** three were reported stale by `docs/_hooks/freshness.py` and all three changed.
+  - `guides/operate.md` — **updated**: the queue table and the identity paragraph (five of the nine
+    stamps now carry the producer), the `--limit` row (six workers, not `thumbnail` alone), the
+    `--option` coercion (the declared type, not just `true`/`false`), the reprocessing section (a new
+    producer re-queues by itself; `force` reaches `ner` and `typology` and clears the `ERROR`), the
+    new *Trying a configuration before saving it* section with the measured `0` → `4.465`, and the
+    route table's preview row. The paragraph that recorded the old trap — "`embedding_v1` is the MD5
+    of the text, not the identity of the model, so changing `torch` does not put a single description
+    back in the queue" — was the defect this round removes, and it now says what `?` does and does
+    not answer.
+  - `guides/data-model.md` — **updated**: the `execution_log` key table and the value-keyed paragraph
+    (six keys, the identity, the two producers deliberately outside it).
+  - `guides/curate.md` — **updated**: the `Conferir impacto` button of `/configuracoes/workers`, and
+    why the number clears when a field moves.
+- **What the round measured.** The forced-run defect, with a throwaway test (deleted) against the
+  test database: `quality-validator` with `force=True` counts the same unit *after* it is stamped
+  (`before=1 after=1`), and its loop had no cursor, so the documented command
+  `runner quality-validator --option force=true` never ended. `ner` and `typology` advance only
+  because the stamp leaves the queue (`before=1 after=0`), which is exactly the clause `force` drops.
+  The identity itself: `describe_config` for `cpu_local` and `gpu_cloud` differs only in `device`, and
+  the whole output is hashed on purpose. The suite: **1660 passed, 1 skipped** (the skip is the
+  conflict-judge's counter-parity case, which has no queue); `basedpyright` **0 errors**;
+  `ruff check` and `ruff format --check` green; `alembic check` reporting no new upgrade operations;
+  the committed contract regenerated from `dump_openapi`.
+- **What the round looked at.** The settings screen **was rendered**: headless shell + CDP against the
+  dev server and a scratch database (`scrinalia_render`, 4.842 documents) with a session row inserted
+  and deleted for the round. With the collection stamped by the producer in the code, the default
+  configuration answered `0 na fila com esta configuração (nada foi salvo).`; typing
+  `{"confidence_threshold": 0.9}` into the options field and pressing **Conferir impacto** answered
+  `4.465 na fila com esta configuração (nada foi salvo).` The screenshots are under `.render/`
+  (gitignored), not in the repository.
+- **Not verified, and said so.** The real engines were not run — the suite mocks the registry, and no
+  vector, entity or typology was produced by a model in this round. The queue numbers of the *real*
+  collection were not measured; the `4.465` above is the scratch database the render used. The
+  installed versions are read for `torch`, `transformers`, `sentence-transformers` and `spacy` only:
+  the spaCy model package (`pt_core_news_lg`) and the digest of the Ollama model stay outside the
+  identity, because the first lives in the language profile and the second would take a network call
+  on the panel's path — both documented on the page and left as a follow-up, not as a silent gap.
+- **Consequence to expect.** Every unit stamped before this change — including a `DONE` — is pending
+  again under the producer now configured, so the first run after upgrading re-reads the collection
+  once. That is the fix working, and the preview is how to size it before paying it.
+
+## 2026-10-17 — the bench family, and the rule axis with no rule to score (#114, #115, #116)
+
+- **Range:** `52ed890..4436154`
+- **Pages:** three were reported stale by `docs/_hooks/freshness.py`. All three are **no-change**, and
+  the single commit that moved a declared source is `ef11773` — the refactor the validator bench
+  needed, which named three functions and a separator instead of changing behaviour.
+  - `guides/curate.md` — **no-change**: nothing on a screen or a route moved. The rules screen still
+    offers the same three `rule_kind`s with the same three writes, and the paragraph that says a
+    `VALIDATE`/`LLM_CHECK` rule only flags and never rewrites still holds. The change to
+    `models/enums.py` is a named constant plus two accessors for a format that already existed.
+  - `guides/data-model.md` — **no-change**: no table, no column and no constraint changed.
+    `anomaly_reasons` keeps its type and its `CODE:payload` content — the separator became
+    `ANOMALY_REASON_SEPARATOR` in `models/enums.py` and the facet's SQL reads it instead of a literal
+    `":"`, which is one definition where there were two. The `archive_cleaning_rules` row and the
+    `rule_kind` paragraph are untouched.
+  - `guides/operate.md` — **no-change**: the worker table, the queue predicates and the identity
+    paragraph describe behaviour that did not move. `worker_quality_validator.py` gained
+    `matched_rule_labels`, `llm_check_reason` and `rule_flag_label`, and `_compile_rules` became
+    `compile_rules`; the worker marks the same documents with the same reasons and stamps the same
+    producer.
+- **What the round found.** The validator bench needed "did this rule fire", which existed only inside
+  `evaluate_document`, so the answer became a function the worker and the bench share — and the pin
+  between them is an integration test that runs the real worker and asks the bench what fired, with a
+  rule carrying an `anomaly_reason` rather than its name.
+- **What the round measured.** Against `memoriacuritibana` on 2026-10-16: the conflict judge agrees
+  with the 49 human resolutions at **0.918** while a constant ENTITY answer scores 1.000 (Δ −0.082),
+  and all four misses are the same direction at confidence 0.900 — high enough that the worker would
+  have auto-resolved every one of them. The validator flags **4,583 of 4,831 documents (94.9%)**, of
+  which `RULE_MATCH`/`LLM_SUSPECT` are **zero**: the catalogue holds one rule, inactive and `REWRITE`,
+  so the per-rule axis has nothing to score and both benches refuse with that sentence instead of an
+  empty table.
+- **Not verified, and said so.** `xlm_roberta_local` was never executed — the weights are not in this
+  machine's read-only Hugging Face cache — so its preset is wired at the code level only. The
+  `granite_local` conflict judge answered 500 to every prompt (`granite4.1:3b`, whose llama runner
+  crashes on this Ollama build) and the bench counted 49 engine failures rather than scoring them; the
+  engine defect that makes that possible is #122. No screen was rendered in this round: the work is a
+  bench, two refactors and a ledger.
+
+## 2026-10-17 — the typology queue is gated on the stamp (#117)
+
+- **Range:** `4436154..22bfe62`
+- **Pages:** one was reported stale by `docs/_hooks/freshness.py` and it **changed**.
+  - `guides/operate.md` — **updated**: the queue table's `typology` row no longer says "documents with
+    no typology" (the clause is gone) and now names the label set as part of the stamp; the "catalogue
+    changed" bullet gained the typology catalogue and the refusal that clears an answer; the `force`
+    bullet no longer claims `typology` never reclassifies a document that already has one, which was
+    the sentence the change falsified; and the paragraph that sizes a re-queue now says that **every**
+    stamped description is pending once after this upgrade, not only the ones stamped by an older
+    producer. The Portuguese page carries the same four edits.
+- **What the round measured.** Against `memoriacuritibana` on 2026-10-17, and the numbers are the
+  argument: `count_pending` answered **4,205** under floor 0.40, floor 0.90, two column sets and two
+  presets — 4,813 ai-writable documents minus the 608 carrying a typology, exactly — so no change the
+  identity signs could reach a single classified document. After the change the same four
+  configurations answer **4,813**. The 608 split into 135 with a typology stamp and **473 with none**;
+  the 4,223 without a typology split into 4,188 never seen and 35 seen and refused.
+- **What the round checked.** The pair is pinned by integration tests that read the real queue through
+  the worker's own `pending_conditions`: adding, renaming and retiring a typology each re-queue the
+  affected documents, an unchanged catalogue re-queues nothing, a description the current producer
+  settled stays out while the 0.55 floor reaches the one the 0.40 floor settled, and a refusal clears
+  the answer another producer wrote. Four unit tests pin the identity itself: order-independent,
+  different for an added, renamed, retired or replaced drawer, and still separating the floor and the
+  columns.
+- **Not verified, and said so.** The re-classification of the 4,813 was **not executed** — the queue
+  was counted, not paid: at the measured ~2 s per document on the title alone that is about 2.7 hours
+  of CPU, and no model was run against the real collection in this round. So "the 473 legacy answers
+  are re-read" is a projection from the predicate, not an observation, and the first run after
+  deploying is where it becomes one. The clearing on refusal is pinned against a fixture engine in the
+  test database, not against the real classifier: `gemma`/`mDeBERTa` weights are not exercised here.
+
+## 2026-10-17 — the typology bench compares label formats (#112)
+
+- **Range:** `22bfe62..a554cbe`
+- **Pages:** none. `docs/_hooks/freshness.py` reported every page fresh: the round touched
+  `testing/evaluation/typology_quality.py`, its tests and the evaluation README, and no guide declares
+  a bench as a source. The entry exists to record the verdict and to advance the floor, not because a
+  page was at risk.
+- **What the round measured.** The three formats on 111 of the 112 labelled rows, CPU, at the
+  shipping configuration `deberta_typology:cpu_local:original_title:0.40`: `bare` agrees **0.775**
+  with macro-F1 0.484 and 5.4% abstention; `trata_de` **0.784** with 0.478 and 7.2%; `sentence`
+  **0.604** with 0.414 and **29.7%**. The plans are where `sentence` breaks — recall 0.956 → 0.511,
+  with 20 of them abstaining — which is #30's lost entailment reappearing exactly where
+  `classifier_labels` warns it does.
+- **What the round decided.** "Ofício / Memorando" takes exactly **8** of the 11 descriptions no
+  typology covers **under all three formats**: the dustbin is not a wording problem, and no label shape
+  makes an uncovered form covered. `bare` wins, so the default is not changed, nothing moves in the
+  worker, and #30 keeps its decision with the measurement it never had. Adopting a proposition would
+  have cost a full re-queue under the identity #117 had just made meaningful, for no measurable gain.
+- **Not verified, and said so.** The second half of the issue's observation — that with the archival
+  history added the same drawer answers nothing because the model abstains on all 11 — was **not**
+  re-measured: the round was scoped to the shipping configuration, where the default stays. It is a
+  question about the columns that #109 already priced at 2.62× the cost, not about the label shape.
+
+## 2026-10-17 — the typology records the refusal it saw (#110)
+
+- **Range:** `a554cbe..7a40f14`
+- **Pages:** three were reported stale by `docs/_hooks/freshness.py`; two changed and one is
+  no-change, and the reason it is no-change is the honest part.
+  - `guides/data-model.md` — **updated**: the `archive_ai_review_queue` paragraph said the queue
+    carries `SUBJECT_LOW_CONFIDENCE` "for tags the subject classifier could not place"; it now also
+    names `TYPOLOGY_LOW_CONFIDENCE` and says that row is where the score the run saw is kept, because
+    `typology_id` stays NULL for a refusal and for a description no run reached.
+  - `guides/operate.md` — **updated**: the `typology` worker's bullet said only that it classifies by
+    zero-shot; it now says what a refusal leaves behind.
+  - `guides/curate.md` — **no-change**: it moved only because `models/enums.py` is one of its declared
+    sources, and no screen reads this row. The issue's Definition of Done deliberately left the
+    curator card out — the read side has to answer the count, and surfacing it is a separate decision,
+    which is now **#129**: the descriptions the classifier refused need a screen, and that issue decides
+    first whether it belongs to `/arranjo/tipologias` or widens `/qualidade/anomalias`.
+- **What the round measured and verified.** The migration was applied against a scratch database and
+  against the development one: `upgrade head` from `3f9c1a7be204` adds the value, the enum then lists
+  all three, and `downgrade -1` runs. The development database's revision matched this migration's
+  `down_revision` exactly, so nothing else moved with it. `alembic check` reports no new upgrade
+  operations.
+- **Not verified, and said so.** No worker was run against the real collection, so the number of rows
+  this writes there is a projection from the #109 abstention rate (0.000 on the title at 0.40, 0.020
+  with the archival history) and not an observation. The curator screen that would make these rows
+  actionable does not exist and is not in this DoD.
+
+## 2026-10-17 — the typology bench simulates a catalogue edit (#111)
+
+- **Range:** `7a40f14..5da851b`
+- **Pages:** none. `docs/_hooks/freshness.py` reported every page fresh: the round touched
+  `testing/evaluation/typology_quality.py` and its unit tests, and no guide declares a bench as a
+  source. The ledger entry exists to record the verdict and advance the floor.
+- **What the round measured.** Four catalogues over the same 111 signed rows at the shipping
+  configuration: as it is (agreement 0.775, macro-F1 0.484, 25 misses), without "Ofício / Memorando"
+  (**0.856**, 0.558, 16), with the three missing forms named "Livro de Registro" (0.378, 0.272, 69) and
+  with them named "Livro de Sepultamento" (0.703, 0.476, 33 — against a predicted 33).
+- **What the round concluded.** On this axis the **name is the taxonomy**: "Ofício / Memorando" is a
+  form the collection has zero of and the model's third favourite answer; "Livro de Registro" collides
+  lexically with the fonds' own titles ("Registros Fotográficos") and collapses the axis; a
+  discriminative name takes exactly its documents. A definition documents and cannot decide, because
+  #30 keeps it out of the prompt — so the catalogue edit is a naming decision, and the bench prices one
+  in about four minutes against a 2.9-hour re-queue.
+- **Not verified, and said so.** No catalogue change was written to the database: the round measured
+  simulations, and the real re-queue cost is the projection from the 2.2 s per document #109 measured.
+  The 11 control rows read as misses in the extended catalogues because the gabarito says `null` for
+  them — correct for the product, wrong for the placar, which is the re-labelling issue #111 names.
+
+## 2026-10-17 — the typology catalogue decided, and the strata follow it (#111)
+
+- **Range:** `5da851b..HEAD`
+- **Pages:** none reported stale. The round touched `testing/evaluation/typology_quality.py` and its
+  tests; no guide declares a bench as a source, and the catalogue itself is data of the installation
+  and does not ship, so nothing a page documents moved.
+- **The decision, taken and applied.** Three forms with zero instances retired (`Ofício / Memorando`,
+  `Ata de Reunião`, `Dossiê Funcional`), three forms the collection has added with names chosen for their
+  discriminative power (`Livro de Sepultamento`, `Requerimento à Câmara Municipal`, `Publicação
+  Impressa`), and three definitions corrected to say what the curator's own labels say the drawers hold.
+  Measured: agreement 0.775 → **0.865** without the dead forms, and the three added forms take exactly
+  their documents (8 burial registers at 0.968–0.982, 2 Câmara petitions at 0.926–0.939).
+- **Reversibility.** The typology catalogue has no revision ledger, so the before-state of all six
+  touched rows — names, ids and the full previous `context_description` — is recorded in the issue
+  comment that states the decision. That is what makes the change undoable.
+- **Verified.** `--pick` runs against the new catalogue and proposes 8/8, 3/3 and 1/1 for the three new
+  strata; `count_pending` is 4,813 before and after, because the re-queue #117 declared was already owed
+  and this edit changes what that run produces, not whether one is owed.
+- **Declared, not closed.** The control bucket proposes 1 of 1 candidate, so keeping a false-positive
+  control now needs the curator to name what stays out of scope; 31 descriptions match no stratum and are
+  photographs `PHOTO_STRATUM` misses; and the revised gabarito needs a human signature, which the bench's
+  `status` gate exists to require and which is not mine to give.
+
+## 2026-10-17 — a bench for the NER extractor (#113)
+
+- **Range:** `5da851b..a76dc63`
+- **Pages:** none reported stale. The round touched `testing/evaluation/` and its tests; no guide declares
+  a bench as a source, and the set's shape is versioned in `testing/evaluation/README.md`, which is not a
+  page of the site.
+- **What the round built.** `testing/evaluation/ner_quality.py`, term-level P/R/F1 per type and overall
+  with exact match only, a relaxed recall printed beside it, and the misses partitioned into hits,
+  boundary, type confusion and missing plus spurious. Nothing is written: the session is opened, read and
+  rolled back. 48 unit tests and 16 integration tests, one of which pins the composed text against what
+  the worker hands the engine.
+- **Three places the Definition of Done could not be met as written**, all recorded in the issue:
+  **there are no spans anywhere** (`EntityExtractionEngine.extract` returns a DTO with `name` and
+  `entity_type`, and the link table has no offsets), so the boundary breakdown is a token-containment
+  measure that counts the defect without locating it; `input_text` is deliberately not in the file, since
+  the sheet reads the text through the worker's own composition; and a row is *read* when it carries a
+  `confidence` or a `note`, so an untouched proposal is counted apart rather than scored as "no entity".
+- **What it found in the collection, measured directly.** 1,650 documents carry `worker_ner_v2 = "DONE"`,
+  41 carry `worker_ner_v1 = "DONE"`, 3,142 carry no NER stamp at all, and **not one carries a producer
+  fingerprint**: the NER output is unattributable in full, which is the concrete case behind #135.
+- **Not verified, and said so.** No human-corrected set exists, so there is **no measurement of the
+  extractor yet** — only the plumbing proof (a set whose `expected` is the live extraction scores 1.000,
+  and a stored set with one truncated term shows the exact-versus-relaxed pair). The proposal waits for a
+  curator, and the first real number is the one measured against the signed set.
+
+## 2026-10-18 — the hybrid ranking, and the numbers the issue was missing (#38)
+
+- **Range:** `a76dc63..8b92fef`
+- **Pages:** `guides/curate.md` — **updated**: the search section named two rankings and carried a
+  measurement that was not about them, and now names the three with the rule that decides between them
+  and the limit of the evidence. `guides/install.md` — **no-change**: `lib/screens.ts` moved, and what
+  moved is the one-line description of an existing screen; no installation fact, screen count or label
+  changed.
+- **The issue's premise was measurably wrong, and that was the first finding.** `#38` quoted
+  *"MRR fell 0.019 while Hit@10 rose to 0.625"* as evidence that the semantic ranking was weak against
+  the lexical one. Both numbers come from `9a075bc` (2026-10-04) and are the before/after of the
+  **excerpt catalogue on the semantic arm** (`MRR 0.358 → 0.339`, `Hit@10 0.562 → 0.625`), measured on
+  3,608 descriptions. No lexical-versus-semantic comparison existed anywhere in the repository, the
+  bench the issue named (`retrieval_quality.py`) has no lexical arm and never had one, and the page
+  that repeated the number — `guides/curate.md` — cited the *improved* figure as proof of weakness.
+- **What the round built.** `mode=hybrid`: the full-text and semantic rankings built independently and
+  fused by `reciprocal_rank_fusion` (`domains/archive/domain/search.py`, `RRF_K = 60`), over the
+  top `RRF_DEPTH = 100` of each arm. `total` is the union of the full-text matches with the semantic
+  **window** and not every embedded document; the page is the fused window first and the full-text
+  order after it; `rank` is the fusion's score inside the window and the relevance of the ordering
+  outside it. The facet rule survives the fusion: the window is rebuilt for each dimension that
+  excludes its own filter. One `SearchMode` alias replaces the `Literal` written three times, and the
+  full-text mode stays the default, so a lexical request still never loads the model.
+- **The measurement, per stratum, through the product path** (`retrieval_modes.py`, 16 labelled
+  queries, 4,831 descriptions): sentence — lexical `0.438 / 0.258`, semantic `0.562 / 0.293`, **hybrid
+  `0.625 / 0.296`** (Hit@10 / MRR); term — lexical `0.875 / 0.703`, semantic `0.562 / 0.338`, **hybrid
+  `0.938 / 0.679`**. The fusion wins on both strata and is therefore the mode that removes the choice;
+  it is not a free win, and the term stratum says so: one more query inside the top ten and still
+  0.024 below the full-text ranking on MRR, because agreement demotes a confident full-text hit the
+  semantic arm disagrees with.
+- **Two properties the arithmetic had to be corrected for, both measured.** RRF is **not** a dominance
+  order — a first place plus a third beats a second place twice by 8·10⁻⁶ (`1/61 + 1/63` against
+  `2/62`), because the reciprocal is convex — so neither the helper's docstring nor the tests claim
+  that a shared document always wins. And the window depth is a parameter that moves the result: the
+  pre-implementation simulation over the top 50 of each arm gave the term stratum `MRR 0.722`, the
+  shipped window of 100 gives `0.679`.
+- **Latency is the full-text one plus about 7%** (6.40 s against 5.46 s per query on the sentence
+  stratum, 13.69 s against 12.85 s on the term stratum, measured with the model loaded outside the
+  timed loop). The absolute numbers are high and are **pre-existing**: they are the cost of a broad
+  term in the full-text arm, which the fusion adds six semantic window queries to rather than creates.
+- **What the round looked at.** Two screens **were rendered**, not inferred: the headless shell over
+  CDP against the dev server and the scratch database (`scrinalia_render`, 4,842 descriptions), with a
+  session row inserted for the round and deleted after. `.render/hybrid.png` shows the hybrid mode
+  selected, the note on screen and the results of `matadouro` — 139 descriptions, the facets filled,
+  and a description **without the term in its title** ranked above the ones that carry it, which is the
+  fusion visible on the page; `.render/semantic.png` shows the semantic note and the same query
+  answering **4,842 descriptions**, the whole embedded collection, which is the count the fusion
+  exists to stop reporting.
+- **Not verified, and said so.** The public surface's `mode=hybrid` is covered by the contract and by
+  the repository tests, and was **not** rendered: no screen was opened against `/api/v1/public`. The
+  latency was measured against the live collection on this machine and not under load, and the bench's
+  labelled set remains sixteen queries whose gold is derived from the title — the report prints that
+  limit next to every number, and the numbers themselves are in the issue comment, not in a page.
+
+## 2026-10-18 — the search that filtered after joining, and the page that under-declared its sources (#140)
+
+- **Range:** `8b92fef..c884152`
+- **Pages:** `guides/operate.md` — **updated**: its last known-limit bullet said that ranking by
+  semantics alone was weaker than the lexical one and that *combining the two rankings is open work*.
+  Both halves had stopped being true in #139, which shipped the fused mode, and the page had never
+  declared the search code among its `sources:`, so no freshness report could see it. The bullet now
+  says what decides between the three modes, points at the curation guide that owns the table and at
+  the bench that measures them, and the four files it depends on (`domain/search.py`,
+  `repository/document_repo.py`, `services/document_service.py`, and the two retrieval benches) are
+  declared — which is why this round was reported at all.
+- **The defect the round fixed, measured before it was touched.** A selective term (`enchente`, 12
+  matches) took **18.0 s** and a broad one (`curitiba`, 3,286) **6.6 s**; two facet queries were 98% of
+  that. The term reached the facets as an `OR` of correlated `EXISTS`, so it was evaluated once per
+  link row — 64,504 entity links to find 12 descriptions — and the `OR` kept the planner away from the
+  `search_vector` GIN index. The hardware was ruled out by measurement: 78 MB table, 128 MB
+  `shared_buffers`, 99.98% cache hit ratio, `shared hit=598,994` and zero reads in the plan, no
+  container limits, `VACUUM (ANALYZE)` worth 72 ms of 9,020. The commit before the fusion took
+  **17,974 ms**, so nothing here was the fusion's doing.
+- **What the fix changed.** The full-text arm is a set of description ids (text ∪ tag ∪ entity),
+  computed once per query and handed to the page, the count and every facet; the taxonomy boost reads
+  the same two sets instead of a correlated `EXISTS` per candidate row; the count stopped computing a
+  rank expression it does not read; and the fused mode's candidate clause became one union of two id
+  sets instead of an `OR` of them (2.1 s → 0.31 s on its own).
+- **The measurement, and the one regression.** Eighteen query/mode/filter cases on the live collection,
+  results **identical** — same ids, order, ranks to ten decimals, `total` and all five facet counts:
+  lexical 17.5 s → 0.21 s and 6.4 s → 0.41 s, hybrid 18.0 s → 0.31 s, semantic unchanged at 0.15 s. One
+  case got slower, a term combined with a highly selective facet filter (0.19 s → 0.29 s), because the
+  term set is resolved before the filter now — the term is the floor for any query that has one.
+- **What was looked at, and what was not.** The screens were **not** rendered and did not need to be:
+  no SPA file changed, and the 18-case digest is the evidence that the answer is byte-for-byte the one
+  the routes already served. The public surface was not exercised separately.
+- **A guard, and proof that it bites.** `testing/integration/archive/repository/test_search_predicate_shape.py`
+  pins the shape of the emitted SQL, because the defect is invisible to a behavioural test: reverting
+  the clause returns exactly the same page. Both guards were run against the code before the fix and
+  fail there, and pass after it.
+
+## 2026-10-18 — the judge that wrote a failure as a verdict, and the preset that could not run (#122)
+
+- **Range:** `c884152..5bfb1f8`
+- **Pages:**
+  - `guides/install.md` — **updated**: the resource table said the presets name `granite4.1:3b` and
+    `gemma4:e4b`, and the first was retired in this change, so the table names one model now. The
+    "Ollama is down" section gained what the retirement means for an operator: the name is not
+    offered, the health probe no longer requires the model, writing it is refused, and a row written
+    before the retirement resolves with the reason on the screen.
+  - `guides/install.pt.md` — **updated**: the same two places, same structure.
+  - `guides/operate.md` — **updated**: the `conflict-judge` bullet now says a call the engine could
+    not make raises instead of becoming a verdict, so the pair leaves no row and is asked again on
+    the next run; the `--preset` example no longer lists the retired name.
+  - `guides/operate.pt.md` — **updated**: the same two places.
+- **The measurement the retirement rests on, taken in this round.** Ollama 0.24.0 on this machine:
+  `granite4.1:3b` answers `{"error":"llama runner process has terminated: signal arrived during cgo
+  execution"}` to a one-word prompt, while `gemma4:e4b` and `gemma3:4b` answer `ok` on the same
+  server. The model **is installed**, so the health probe's missing-model list could never have
+  caught it — which is why the retirement is a code decision and not an installation note.
+- **What the fix changed, and the gate that proves it.** The engine raises `EngineExecutionError`
+  instead of returning `winner="TAG"` with confidence `0.0`; the worker leaves no `llm_decision` and
+  the pair stays pending; the bench's `FAILURE_REASON_PREFIX` matching is deleted. The pair of tests
+  is `testing/unit/archive/engines/test_ollama_tag_entity_conflict.py` — a transport error, a 500 and
+  a 200 whose body is not the schema all raise, and a valid body still returns a verdict — and the
+  worker integration test: no queue row, `count_judged == 0`, and the pair is asked again on the next
+  run.
+- **What was rendered.** The panel's worker screen, with a session row inserted for the round and
+  deleted after it: `.render/workers-122.png` shows row 5 (`conflict-judge`) resolving to
+  `ollama_judge · gemma_4b_local — gemma4:e4b`, and `.render/workers-122-stale-open.png` shows the
+  same row after a `granite_local` row was written directly into `archive_worker_settings` (deleted
+  after the shot): the row reads `padrão alterado`, resolves to `gemma_4b_local`, and the note at the
+  bottom carries the reason. The retired name appears in no preset select.
+- **Not verified, and said so.** The bench was **not** run against the real model in this round: the
+  measurement above is a direct call to Ollama, so the report's own columns (agreement, constant
+  baseline, Δ) are unchanged from #114 and were not re-measured. The refusal of the retired name is
+  covered by tests on `get_engine`, `describe_config` and the API's write path; it was not exercised
+  through the SPA's save button. The title-quality axis's failure path was left as it was:
+  `check_title` still swallows a transport error into `is_suspect=False` with confidence `0.0`, the
+  same defect class in another worker, and it is outside this issue's definition of done — no test
+  covers it either way, which is a gap this round did not close.
+
+## 2026-10-18 — the engine of an LLM_CHECK rule stops being free text (#124)
+
+- **Range:** `5bfb1f8..d18c3f0`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the *Regras* section gained what the `LLM_CHECK` rule's two new
+    selects are fed by (`GET /api/v1/quality/cleaning-rules/engines`, the title-quality axis's
+    catalogue), that the pair is checked when the rule is written and refused as a `422`, that an
+    empty engine still means the default, and what a rule written before that door does now.
+  - `guides/curate.pt.md` — **updated**: the same paragraph, same structure.
+  - `guides/operate.md` — **updated**: the `quality-validator` row of the queue table now says its
+    producer identity is the "no model" one **also** when the rule's engine cannot be built, because
+    that is the run the validator actually makes.
+  - `guides/operate.pt.md` — **updated**: the same row.
+- **The defect, measured before it was touched.** The screen's only hint was the placeholder
+  `ex.: ollama`, and `ollama` is not a registered engine — the axis holds `ollama_title_check` alone.
+  Nothing validated the pair on the way in (`CleaningService.create_cleaning_rule` checked the regex
+  and nothing else), and the registry's `ValueError` escaped `worker_quality_validator.execute`, so
+  the run was recorded `FAILED` and the validator validated nothing while the rule stayed active.
+- **What the change is, in three pieces.** The catalogue is one definition
+  (`describe_axis_engines`, shared with the operations panel) behind a new read route; the write
+  validates the pair through the registry's own `describe_config` and raises
+  `InvalidLLMCheckEngineError` (`422`) whatever the rule kind is; and the two readers of a rule saved
+  before that door — `execute` and `producer_identity` — ask one question
+  (`unbuildable_rule_reason`) and degrade to the deterministic stage and the "no model" identity.
+- **What was rendered.** `.render/cleaning-rules-124.png`: the *Nova regra* form with `Tipo` =
+  *consulta o modelo*, `Engine` = *padrão (ollama_title_check)* and `Preset` = *sem preset (o padrão do
+  motor)*; the preset list read out of the DOM was
+  `gemma_4b_local — gemma4:e4b`, and the placeholder that named a non-existent engine is gone. The
+  catalogue the screen reads was checked against the live route before the shot:
+  `[{"name":"ollama_title_check","presets":[{"name":"gemma_4b_local","config":{"model":"gemma4:e4b",...}}]}]`.
+- **Not verified, and said so.** The refusal was exercised through the real route and the real
+  service by the integration test (a `POST` naming `ollama` answers `422` with
+  `InvalidLLMCheckEngineError`), but **not** by clicking *Salvar e ativar* in the browser. The legacy
+  degradation is covered against the test database; no live run against Ollama was made, so the
+  sentence the log carries in that path was read in the captured log, not on a screen.
+
+## 2026-10-18 — the legacy stamps stop reading as a producer (#137)
+
+- **Range:** `d18c3f0..e625d49`
+- **Pages:**
+  - `guides/operate.md` — **updated**: *What each queue means* now opens the stamp into the three
+    things a slot can name (with a producer, without a known one, without a record) instead of one
+    `processed` number; the paragraph on the `ERROR` mark says the legacy value is
+    `PRODUCER_UNKNOWN` now and that the queue is untouched either way; the `/sistema/workers` row of
+    the panel table says what the card shows.
+  - `guides/operate.pt.md` — **updated**: the same three places.
+  - `guides/data-model.md` — **updated**: the stamp vocabulary is two types with different writers
+    (a status raises in an identity slot), the five identity keys and `PRODUCER_UNKNOWN`, and the
+    migration that renamed the legacy rows — including what it deliberately did not touch (a key
+    that was never there, and the embedding's bare text hash).
+  - `guides/data-model.pt.md` — **updated**: the same paragraph.
+- **What was rendered.** `.render/workers-137.png`: the headless shell over CDP against the dev
+  server and the reference collection, with a session row inserted for the round and deleted after
+  it. The NER card, expanded, reads `0 com produtor · 1.650 sem produtor conhecido · 3.181 sem
+  registro` under `Fila (descrições)`, against `4.813` pending — the three numbers the issue asked
+  to be readable, on the collection where the single number used to say 1.691.
+- **The migration was run, not only written.** On the reference collection,
+  `f647dd7e6ad2 -> a7c1e5b9d3f2` rewrote 3,511 document slots and 921 tag slots (`worker_ner_v2`
+  1,650, `worker_quality_validator_v1` 1,650, `worker_macro_category_v1` 921,
+  `worker_typology_classifier_v2` 129, and the retired `worker_ner_v1` and
+  `worker_typology_classifier_v1` 41 each), with 0 fingerprints before and after and the pending
+  counts unchanged. The downgrade was run too: the round trip returned 1,691 values to `DONE` and
+  back to `PRODUCER_UNKNOWN`. `alembic check` reports no drift.
+- **Not verified, and said so.** No worker was run after the migration, so no document was seen
+  being healed from `PRODUCER_UNKNOWN` to a real fingerprint: that the next plain run re-reads those
+  units is the predicate in `identity_stamp_conditions`, read in the code and pinned by the unit
+  tests, not observed as a run. And the panel was read on the reference collection only — the tag
+  breakdown of `macro-category` is covered by the repository test and was not looked at on a screen.
+
+## 2026-10-22 — the thumbnail failure mark is the plain ERROR (#149)
+
+- **Range:** `0c09f99..d1494f1`
+- **Pages:**
+  - `guides/operate.md` — **updated**: the failure count now names `ERROR` as the value and the
+    `thumbnail_failed` key as the thumbnail's own ledger, instead of suggesting a second failure
+    spelling.
+  - `guides/operate.pt.md` — **updated**: the same paragraph, same structure.
+  - `guides/data-model.md` — **updated**: the `thumbnail_failed` row names `ERROR` as the value, so
+    the table no longer leaves the reader to infer it.
+  - `guides/data-model.pt.md` — **updated**: the same row.
+- **Measured, not assumed.** On the reference collection (`memoriacuritibana`) the key has **0**
+  rows; the migration was run **up and down** on a scratch database with a seeded `True` row and
+  returned it to `True` on the downgrade. The thumbnail queue and its `failed` count read the key's
+  presence, not the value, so the queue is unchanged.
+- **Not verified, and said so.** No screen changed, so no render was made; the panel's `failed`
+  number for the thumbnail is covered by its counter test, not looked at in a browser. The #148 gate
+  is test-only and has no documentation page.

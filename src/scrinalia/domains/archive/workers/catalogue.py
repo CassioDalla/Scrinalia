@@ -21,14 +21,19 @@ from typing import Any, Literal
 
 from sqlalchemy.orm import Session
 
-from scrinalia.domains.archive.schemas.system_schema import EngineSource, WorkerUnit
+from scrinalia.domains.archive.schemas.system_schema import (
+    EngineSource,
+    WorkerEngineDTO,
+    WorkerPresetDTO,
+    WorkerUnit,
+)
 from scrinalia.domains.archive.worker_stamp import (
     EMBEDDING,
     MACRO_CATEGORY,
     NER,
     QUALITY_VALIDATOR,
     TYPOLOGY,
-    WorkerStamp,
+    IdentityStamp,
 )
 
 
@@ -44,10 +49,13 @@ class WorkerSpec:
     unit: WorkerUnit = "document"
     governed: bool = True
     engine_source: EngineSource = "none"
-    #: Stamp whose presence in ``execution_log`` means "this unit was processed". The generic
-    #: processed/failed counters read it; a worker whose ledger is not a stamp leaves it ``None``
-    #: and names explicit counter functions instead.
-    stamp: WorkerStamp | None = None
+    #: Stamp whose presence in ``execution_log`` means "this unit was processed". It is always an
+    #: ``IdentityStamp``: the five catalogue workers whose ledger is a stamp all key their queue on
+    #: *what produced* the answer, so the panel reads their processed/failed numbers as one breakdown
+    #: (``WorkerStampRepository.count_stamp_breakdown``). A worker whose ledger is not a stamp — the
+    #: thumbnail's storage URI, the conflict judge's queue row — leaves it ``None`` and names explicit
+    #: counter functions instead.
+    stamp: IdentityStamp | None = None
     stamp_model: Literal["document", "tag"] | None = None
     #: Name of the queue-counter function in the worker module. ``None`` means the queue cannot be
     #: measured cheaply and ``unmeasurable_reason`` explains why.
@@ -224,6 +232,47 @@ def axis_registry(axis: str) -> Any:
     return import_module(ENGINE_AXES[axis])
 
 
+def describe_axis_engines(axis: str) -> list[WorkerEngineDTO]:
+    """
+    Every engine of one axis, with the presets it declares and each preset's resolved config.
+
+    One definition for two readers: the operations panel shows this per worker, and the cleaning
+    rules screen needs the same catalogue for the axis its ``LLM_CHECK`` rule names. The names come
+    from the registry — never from a list written here — so a preset added, changed or retired in
+    code reaches both screens without a second edit, and the catalogue the screen offers is the one
+    ``get_engine`` will accept.
+    """
+    registry = axis_registry(axis)
+    return [
+        WorkerEngineDTO(
+            name=engine_name,
+            presets=[
+                WorkerPresetDTO(name=preset_name, config=registry.describe_config(engine_name, preset_name))
+                for preset_name in registry.PRESETS
+            ],
+        )
+        for engine_name in registry.AVAILABLE_ENGINES
+    ]
+
+
+def _llm_check_axis() -> str:
+    """The axis an ``LLM_CHECK`` cleaning rule configures: the quality validator's own."""
+    axis = WORKER_CATALOGUE["quality-validator"].axis
+    if axis is None:
+        raise ValueError("O worker 'quality-validator' não declara eixo de motores.")
+    return axis
+
+
+#: The engine axis a ``LLM_CHECK`` rule configures. Derived from the worker that reads the rule, so
+#: the rules screen and the operations panel cannot name two different axes for the same engine.
+LLM_CHECK_AXIS: str = _llm_check_axis()
+
+#: The engine an ``LLM_CHECK`` rule runs when it names none. It is the worker's documented fallback,
+#: declared once here so the run, the producer identity and the write path cannot resolve three
+#: different defaults for the same empty field.
+DEFAULT_LLM_CHECK_ENGINE = "ollama_title_check"
+
+
 def count_pending(spec: WorkerSpec, db: Session, **options: Any) -> int:
     """Pending units of the worker's queue, through the worker's own predicate."""
     if spec.counter is None:
@@ -233,24 +282,20 @@ def count_pending(spec: WorkerSpec, db: Session, **options: Any) -> int:
 
 
 def count_processed(spec: WorkerSpec, db: Session, **options: Any) -> int:
-    """Units the worker already stamped, or the worker's explicit processed counter."""
-    if spec.processed_counter is not None:
-        counter = getattr(worker_module(spec.module), spec.processed_counter)
-        return int(counter(db, **options))
-    if spec.stamp is None:
-        raise ValueError(f"Worker '{spec.name}' has no processed counter.")
-    from scrinalia.domains.archive.repository.worker_stamp_repo import WorkerStampRepository
+    """
+    Units the worker's own ``processed_counter`` reports, for a ledger that is not a stamp.
 
-    return WorkerStampRepository(db).count_stamped(spec)
+    A stamped worker's number is one field of its stamp breakdown instead — the panel reads the four
+    numbers once and derives ``processed`` from them — so asking for it here would be the second
+    query and the second definition this refactor removed.
+    """
+    if spec.processed_counter is None:
+        raise ValueError(f"Worker '{spec.name}' has no processed counter; its number is part of its stamp breakdown.")
+    return int(getattr(worker_module(spec.module), spec.processed_counter)(db, **options))
 
 
 def count_failed(spec: WorkerSpec, db: Session, **options: Any) -> int:
-    """Units whose stamp records a failure, or the worker's explicit failed counter."""
-    if spec.failed_counter is not None:
-        counter = getattr(worker_module(spec.module), spec.failed_counter)
-        return int(counter(db, **options))
-    if spec.stamp is None:
-        raise ValueError(f"Worker '{spec.name}' has no failed counter.")
-    from scrinalia.domains.archive.repository.worker_stamp_repo import WorkerStampRepository
-
-    return WorkerStampRepository(db).count_stamp_failures(spec)
+    """Units whose own ``failed_counter`` records a failure, for a ledger that is not a stamp."""
+    if spec.failed_counter is None:
+        raise ValueError(f"Worker '{spec.name}' has no failed counter; its number is part of its stamp breakdown.")
+    return int(getattr(worker_module(spec.module), spec.failed_counter)(db, **options))

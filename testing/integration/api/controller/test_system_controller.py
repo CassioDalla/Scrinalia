@@ -23,6 +23,7 @@ from scrinalia.domains.archive.schemas.system_schema import (
     SystemHealthResponse,
     SystemWorkerSettingsResponse,
     SystemWorkersResponse,
+    WorkerQueuePreviewDTO,
     WorkerRunDTO,
     WorkerRunListResponse,
     WorkerSettingsDTO,
@@ -208,3 +209,34 @@ def test_the_health_endpoint_answers_every_probe(client: TestClient, mocker) -> 
     assert body["ollama"]["host_source"] == "default"
     assert body["storage"]["configured"] is False
     assert body["process"]["secrets_present"] == {}
+
+
+def test_the_queue_preview_answers_the_number_without_writing(client: TestClient, mocker) -> None:
+    """The cost of a proposed configuration is readable before it is saved."""
+    mock = mocker.patch.object(WorkerOperationsService, "preview_queue")
+    mock.return_value = WorkerQueuePreviewDTO(worker_name="typology", pending=4_844)
+
+    response = client.post(
+        "/api/v1/system/workers/typology/queue/preview",
+        json={"engine_name": "deberta_typology", "preset": "cpu_local", "options": {"confidence_threshold": 0.6}},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"worker_name": "typology", "pending": 4_844, "pending_reason": None}
+    # The body the screen sends is the settings body, so the preview and the write cannot diverge.
+    sent = mock.call_args.args[1]
+    assert sent.options == {"confidence_threshold": 0.6}
+
+
+def test_an_unmeasurable_queue_previews_with_a_reason(client: TestClient, mocker) -> None:
+    """``conflict-judge`` has no cheap queue; the preview says why instead of inventing a number."""
+    mock = mocker.patch.object(WorkerOperationsService, "preview_queue")
+    mock.return_value = WorkerQueuePreviewDTO(
+        worker_name="conflict-judge", pending=None, pending_reason="A fila é o produto cartesiano tags x entidades."
+    )
+
+    response = client.post("/api/v1/system/workers/conflict-judge/queue/preview", json={})
+
+    assert response.status_code == 200
+    assert response.json()["pending"] is None
+    assert response.json()["pending_reason"]

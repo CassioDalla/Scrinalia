@@ -99,3 +99,35 @@ def test_governance_flags_match_the_documented_exceptions() -> None:
     assert catalogue.WORKER_CATALOGUE["embedding"].governed is False
     assert catalogue.WORKER_CATALOGUE["macro-category"].governed is False
     assert catalogue.WORKER_CATALOGUE["ner"].governed is True
+
+
+#: The workers whose queue is the whole collection. A trial over them has to be bounded, or the
+#: only way to try a threshold is to pay for the 4.844 documents.
+BOUNDED_WORKERS = {"embedding", "macro-category", "ner", "quality-validator", "thumbnail", "typology"}
+
+
+@pytest.mark.parametrize("name", sorted(BOUNDED_WORKERS))
+def test_a_collection_sweeping_worker_accepts_a_cap(name: str) -> None:
+    """``--limit N`` costs N units instead of the collection; the runner refuses it elsewhere."""
+    assert "limit" in catalogue.worker_signature(catalogue.WORKER_CATALOGUE[name]).parameters
+
+
+@pytest.mark.parametrize("spec", SIGNATURE_DRIVEN, ids=lambda spec: spec.name)
+def test_the_counter_resolves_the_same_producer_as_the_run(spec) -> None:
+    """
+    The panel counts the queue under the identity it is about to run.
+
+    A counter that fell back to different engine or preset defaults would show the number for a
+    model the next run is not going to use — the lying panel the shared predicate exists to
+    prevent. ``quality-validator`` is absent from this list on purpose: its engine lives in the
+    active ``LLM_CHECK`` rule, and its counter reads the rule itself.
+    """
+    if spec.counter is None:
+        pytest.skip(f"'{spec.name}' has no measurable queue")
+
+    execute_parameters = catalogue.worker_signature(spec).parameters
+    counter_parameters = inspect.signature(getattr(catalogue.worker_module(spec.module), spec.counter)).parameters
+
+    for name in ("engine_name", "preset"):
+        assert name in counter_parameters, f"{spec.name}.{spec.counter} must declare '{name}'"
+        assert counter_parameters[name].default == execute_parameters[name].default

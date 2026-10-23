@@ -62,7 +62,9 @@ class TypologyRepository:
             .where(ArchiveDocument.typology_id.is_not(None))
             .group_by(ArchiveDocument.typology_id)
         ).all()
-        return {int(typology_id): int(count) for typology_id, count in rows}
+        # ``typology_id`` is a nullable FK filtered by the WHERE above; the guard states the
+        # narrowing the type checker cannot read from the SQL.
+        return {int(typology_id): int(count) for typology_id, count in rows if typology_id is not None}
 
     def get_active_typologies(self) -> dict[str, int]:
         """
@@ -78,7 +80,9 @@ class TypologyRepository:
         projection, so the column never even reaches the worker's payload.
 
         A retired typology leaves this dictionary — that is what ``is_active`` is for — while the
-        descriptions already classified with it keep it.
+        descriptions already carrying it keep the link until the classifier reads them again. Since
+        the label set is part of ``worker_typology.producer_identity``, retiring one puts those
+        descriptions back in the queue, and a run that declines clears the link (issue #117).
 
         Returns:
             dict[str, int]: Dictionary containing name and id e.g. {"Fotografia": 1}.

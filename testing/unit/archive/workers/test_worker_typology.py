@@ -31,6 +31,12 @@ def test_worker_typology_unit_ideal_flow(mocker: MockerFixture) -> None:
     mock_repo_class = mocker.patch("scrinalia.domains.archive.workers.worker_typology.TypologyRepository")
     mock_get_engine = mocker.patch("scrinalia.domains.archive.workers.worker_typology.get_engine")
     mock_flag_modified = mocker.patch("scrinalia.domains.archive.workers.worker_typology.flag_modified")
+    # The producer identity reads the engine configuration through ``describe_config``; a fake
+    # engine name would otherwise be refused by the registry before the run starts.
+    mocker.patch(
+        "scrinalia.domains.archive.workers.worker_typology.describe_config",
+        return_value={"model": "falso", "device": "cpu"},
+    )
 
     # 2. Return Configurations (Faking the DB and the AI)
     mock_repo = mock_repo_class.return_value
@@ -60,7 +66,11 @@ def test_worker_typology_unit_ideal_flow(mocker: MockerFixture) -> None:
 
     # 6. Persistence verifications
     assert test_doc.typology_id == 1
-    assert test_doc.execution_log["worker_typology_classifier_v2"] == "DONE"  # type: ignore
+    # The stamp is the producer identity, not a status: a different engine, preset or threshold
+    # has to put the document back in the queue, which a ``DONE`` never could.
+    stamp = test_doc.execution_log["worker_typology_classifier_v2"]  # type: ignore
+    assert stamp != "DONE"
+    assert len(stamp) == 64
 
     mock_flag_modified.assert_called_once_with(test_doc, "execution_log")
     mock_db.commit.assert_called_once()
@@ -87,7 +97,7 @@ def test_worker_typology_ignores_empty_texts(mocker: MockerFixture) -> None:
     mock_get_engine.return_value.classify.assert_not_called()
 
     # The stamp must have been applied so the Worker does not loop again tomorrow
-    assert empty_doc.execution_log["worker_typology_classifier_v2"] == "DONE"  # type: ignore
+    assert len(empty_doc.execution_log["worker_typology_classifier_v2"]) == 64  # type: ignore
     mock_flag_modified.assert_called_once()
 
 
@@ -114,3 +124,55 @@ def test_worker_typology_ai_failure_rolls_back(mocker: MockerFixture) -> None:
 
     # The stamp must not have been applied, allowing a future retry
     assert test_doc.execution_log is None
+
+
+# ==========================================
+# THE PRODUCER IDENTITY SIGNS THE CATALOGUE (issue #117)
+# ==========================================
+
+
+def _identity(typologies: dict[str, int], threshold: float = 0.40, columns: tuple[str, ...] = ("original_title",)):
+    return worker_typology.producer_identity(
+        engine_name="deberta_typology",
+        preset="cpu_local",
+        columns_to_classify=list(columns),
+        confidence_threshold=threshold,
+        typologies=typologies,
+        engine_kwargs={},
+    )
+
+
+def test_the_identity_is_the_same_for_the_same_catalogue_in_any_order() -> None:
+    """
+    The hash is over a sorted payload, so the order the rows came back in cannot re-queue forever.
+
+    A label set that hashed by insertion order would make every run a new producer and the queue
+    would never empty.
+    """
+    assert _identity({"Fotografia": 1, "Planta": 2}) == _identity({"Planta": 2, "Fotografia": 1})
+
+
+def test_adding_renaming_or_retiring_a_typology_changes_the_identity() -> None:
+    """Three catalogue edits, three producers: the worker has to be able to tell them apart."""
+    baseline = _identity({"Fotografia": 1})
+    added = _identity({"Fotografia": 1, "Planta": 2})
+    renamed = _identity({"Fotografia Digital": 1})
+    retired = _identity({})
+
+    assert len({baseline, added, renamed, retired}) == 4
+
+
+def test_a_drawer_replaced_under_the_same_label_changes_the_identity() -> None:
+    """
+    The id is part of the payload on purpose: a drawer that is replaced keeps the name and changes
+    what the classifier was asked, so a hash of the names alone would leave the old answer standing.
+    """
+    assert _identity({"Fotografia": 1}) != _identity({"Fotografia": 2})
+
+
+def test_the_identity_still_separates_the_floor_and_the_columns() -> None:
+    """The catalogue joins the identity; it does not replace what was already signed."""
+    baseline = _identity({"Fotografia": 1})
+
+    assert _identity({"Fotografia": 1}, threshold=0.55) != baseline
+    assert _identity({"Fotografia": 1}, columns=("original_title", "scope_content")) != baseline

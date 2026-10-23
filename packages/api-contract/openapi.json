@@ -8160,6 +8160,40 @@
         "title": "WorkerPresetDTO",
         "type": "object"
       },
+      "WorkerQueuePreviewDTO": {
+        "properties": {
+          "pending": {
+            "description": "Unidades que a execução proposta leria.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pending_reason": {
+            "description": "Por que o pendente não foi contado.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "worker_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "worker_name"
+        ],
+        "title": "WorkerQueuePreviewDTO",
+        "type": "object"
+      },
       "WorkerRunDTO": {
         "properties": {
           "config": {
@@ -8616,6 +8650,38 @@
         "title": "WorkerSettingsRevisionListResponse",
         "type": "object"
       },
+      "WorkerStampBreakdownDTO": {
+        "properties": {
+          "failed": {
+            "description": "Unidades cujo carimbo registra falha.",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "fingerprinted": {
+            "description": "Unidades cujo carimbo nomeia o produtor.",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "legacy": {
+            "description": "Unidades com um carimbo que não nomeia produtor (DONE antigo ou desconhecido).",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "unrecorded": {
+            "description": "Unidades sem carimbo algum: nada registrou uma execução.",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "failed",
+          "fingerprinted",
+          "legacy",
+          "unrecorded"
+        ],
+        "title": "WorkerStampBreakdownDTO",
+        "type": "object"
+      },
       "WorkerStatusDTO": {
         "properties": {
           "active_run": {
@@ -8703,6 +8769,17 @@
           "settings": {
             "$ref": "#/components/schemas/WorkerSettingsDTO"
           },
+          "stamp_breakdown": {
+            "description": "O carimbo aberto em impressão digital, valor legado, falha e ausência. Nulo quando o ledger do worker não é um carimbo.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorkerStampBreakdownDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "unit": {
             "enum": [
               "staging",
@@ -8729,7 +8806,7 @@
   },
   "info": {
     "title": "Scrinalia API",
-    "version": "1.2.0"
+    "version": "1.3.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -8978,7 +9055,8 @@
               "default": "lexical",
               "enum": [
                 "lexical",
-                "semantic"
+                "semantic",
+                "hybrid"
               ],
               "type": "string"
             }
@@ -11574,7 +11652,8 @@
               "default": "lexical",
               "enum": [
                 "lexical",
-                "semantic"
+                "semantic",
+                "hybrid"
               ],
               "type": "string"
             }
@@ -12003,6 +12082,32 @@
           }
         },
         "summary": "CreateRule",
+        "tags": [
+          "Data Quality"
+        ]
+      }
+    },
+    "/api/v1/quality/cleaning-rules/engines": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1QualityCleaningRulesEnginesListEngines",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkerEngineDTO"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ListEngines",
         "tags": [
           "Data Quality"
         ]
@@ -13086,6 +13191,88 @@
           }
         },
         "summary": "ListWorkerSettings",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/workers/{worker_name}/queue/preview": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemWorkersWorkerNameQueuePreviewPreviewQueue",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "worker_name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkerSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerQueuePreviewDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "PreviewQueue",
         "tags": [
           "System"
         ]

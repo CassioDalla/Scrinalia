@@ -15,7 +15,7 @@ three-layer pipeline, and enriches them with named entities, typologies and subj
 categories. Every AI decision is advisory: an archivist reviews and approves, and approved
 documents are locked against further automatic rewrites.
 
-> **Status:** `1.2.0`. The curator surface is complete: the pipeline, the AI workers, the review
+> **Status:** `1.3.0`. The curator surface is complete: the pipeline, the AI workers, the review
 > governance, the authentication and the 26 screens are in place, and the documentation covers
 > install, operation, curation and the data model. The curator UI is a React SPA (`apps/curator/`)
 > served by the API; the HTTP API is the stable contract, and the TypeScript client is generated from
@@ -348,7 +348,7 @@ docker compose -f docker-compose.test.yml up -d
 
 > If something else already holds 5433 the container starts without publishing a port and the
 > suite silently talks to the wrong database. Run with `TEST_DB_PORT=5434` and
-> `TEST_DATABASE_URL=postgresql://test_user:test_password@localhost:5434/test_db`.
+> `TEST_DATABASE_URL=postgresql+psycopg2://test_user:test_password@localhost:5434/test_db`.
 
 > The suite drops the schema on teardown. Do not serve the API against the test database
 > while pytest is running; re-apply `alembic upgrade head` before starting a server again.

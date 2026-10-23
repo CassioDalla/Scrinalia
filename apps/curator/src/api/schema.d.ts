@@ -603,6 +603,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/quality/cleaning-rules/engines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListEngines */
+        get: operations["ApiV1QualityCleaningRulesEnginesListEngines"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/quality/cleaning-rules/preview": {
         parameters: {
             query?: never;
@@ -837,6 +854,23 @@ export interface paths {
         get: operations["ApiV1SystemWorkersSettingsListWorkerSettings"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/workers/{worker_name}/queue/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** PreviewQueue */
+        post: operations["ApiV1SystemWorkersWorkerNameQueuePreviewPreviewQueue"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4046,6 +4080,14 @@ export interface components {
             };
             name: string;
         };
+        /** WorkerQueuePreviewDTO */
+        WorkerQueuePreviewDTO: {
+            /** @description Unidades que a execução proposta leria. */
+            pending?: number | null;
+            /** @description Por que o pendente não foi contado. */
+            pending_reason?: string | null;
+            worker_name: string;
+        };
         /** WorkerRunDTO */
         WorkerRunDTO: {
             /** @description Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código. */
@@ -4160,6 +4202,17 @@ export interface components {
             items?: components["schemas"]["WorkerSettingsRevisionDTO"][];
             total: number;
         };
+        /** WorkerStampBreakdownDTO */
+        WorkerStampBreakdownDTO: {
+            /** @description Unidades cujo carimbo registra falha. */
+            failed: number;
+            /** @description Unidades cujo carimbo nomeia o produtor. */
+            fingerprinted: number;
+            /** @description Unidades com um carimbo que não nomeia produtor (DONE antigo ou desconhecido). */
+            legacy: number;
+            /** @description Unidades sem carimbo algum: nada registrou uma execução. */
+            unrecorded: number;
+        };
         /** WorkerStatusDTO */
         WorkerStatusDTO: {
             active_run?: components["schemas"]["WorkerRunDTO"] | null;
@@ -4180,6 +4233,8 @@ export interface components {
             /** @description Unidades que o worker já carimbou. */
             processed?: number | null;
             settings: components["schemas"]["WorkerSettingsDTO"];
+            /** @description O carimbo aberto em impressão digital, valor legado, falha e ausência. Nulo quando o ledger do worker não é um carimbo. */
+            stamp_breakdown?: components["schemas"]["WorkerStampBreakdownDTO"] | null;
             /** @enum {string} */
             unit: "staging" | "document" | "tag" | "pair";
         };
@@ -4334,7 +4389,7 @@ export interface operations {
         parameters: {
             query?: {
                 term?: string | null;
-                mode?: "lexical" | "semantic";
+                mode?: "lexical" | "semantic" | "hybrid";
                 typology_id?: number | null;
                 macro_category_id?: number | null;
                 level_id?: number | null;
@@ -5461,7 +5516,7 @@ export interface operations {
         parameters: {
             query?: {
                 term?: string | null;
-                mode?: "lexical" | "semantic";
+                mode?: "lexical" | "semantic" | "hybrid";
                 typology_id?: number | null;
                 macro_category_id?: number | null;
                 level_id?: number | null;
@@ -5613,6 +5668,26 @@ export interface operations {
                         } | unknown[];
                         status_code: number;
                     };
+                };
+            };
+        };
+    };
+    ApiV1QualityCleaningRulesEnginesListEngines: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerEngineDTO"][];
                 };
             };
         };
@@ -6158,6 +6233,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SystemWorkerSettingsResponse"];
+                };
+            };
+        };
+    };
+    ApiV1SystemWorkersWorkerNameQueuePreviewPreviewQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkerSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerQueuePreviewDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
                 };
             };
         };

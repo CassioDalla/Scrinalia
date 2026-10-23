@@ -309,11 +309,23 @@ mostra "tela pendente" em vez de apontar para o vazio.
 
 ### Lista e busca — `/acervo/lista`
 
-A busca facetada do acervo: o termo (lexical ou semântica), tipologia, categoria de assunto, tipo de
+A busca facetada do acervo: o termo, uma de **três ordens**, tipologia, categoria de assunto, tipo de
 entidade, nível, um ramo do arranjo e um intervalo de datas. A URL é o estado, então uma lista
-filtrada é compartilhável e o botão voltar funciona. Nada é escrito. O modo semântico traz uma nota
-honesta: a qualidade medida dele é fraca (Hit@10 0,625), então prefira o lexical quando souber o
-termo.
+filtrada é compartilhável e o botão voltar funciona. Nada é escrito.
+
+As três ordens respondem a perguntas diferentes, e a tela diz qual é qual:
+
+| Modo | Pelo que ordena | Quando escolher |
+| --- | --- | --- |
+| Lexical (padrão) | `ts_rank` sobre o `search_vector` gerado, com reforço quando uma tag ou entidade casa | O arquivista sabe o termo que o título usa |
+| Semântica | Similaridade de cosseno entre o termo e o vetor da descrição | O arquivista sabe o assunto, mas não o vocabulário do fundo |
+| Híbrida | As duas fundidas por Reciprocal Rank Fusion (`RRF_K = 60`, janela `RRF_DEPTH = 100`) | O modo que não exige escolher, ao custo de carregar o modelo |
+
+Os números por trás dessas frases ficam em `docs/log.md`, ao lado da bancada que os produziu
+(`testing/evaluation/retrieval_modes.py`), e não nesta página: uma página que guarda um número que
+deve mudar mente na próxima execução. O que a tela diz é que a evidência é um conjunto rotulado
+pequeno e que serve de proxy, e que o modo lexical é preferível quando o termo é conhecido — o único
+caso em que os dois braços diferem por margem larga.
 
 ### Árvore — `/acervo/arvore`
 
@@ -901,6 +913,17 @@ dela precisa existir.
 Uma regra `REWRITE` ativa é a coisa mais barulhenta da tela, e a prévia é o que a torna visível: uma
 regra de teste já ficou ativa e carimbou o acervo inteiro sem casar com nada.
 
+Uma regra `LLM_CHECK` também nomeia uma **engine** e um **preset**, e os dois são escolhidos do
+registro em vez de digitados de memória: os dois selects são alimentados por
+`GET /api/v1/quality/cleaning-rules/engines`, que é o catálogo do próprio eixo de qualidade de título
+— os mesmos nomes contra os quais `get_engine` valida, então um modelo que se aposenta deixa de ser
+oferecido aqui na mesma mudança que o aposenta. O par é conferido quando a regra é gravada, então uma
+regra que não pode rodar não pode ser salva (a recusa é um `422` nomeando as opções), e engine vazia
+continua legal: significa o padrão do eixo. Uma regra gravada antes dessa conferência existir degrada
+em vez de derrubar a execução — o validador registra o motivo, valida de forma determinística, e a
+identidade de produtor dele é a de "sem modelo", então a fila e o contador do painel descrevem a
+execução que de fato aconteceu.
+
 ### Anomalias — `/qualidade/anomalias`
 
 O que o validador de qualidade marcou, em leitura (`GET /api/v1/documents` filtrado por
@@ -1000,6 +1023,11 @@ suas revisões — as duas escritas são `OPERATE`:
   propósito: um campo vazio continua seguindo o código, e a precedência não muda —
   `argumento explícito > a linha de archive_worker_settings > o default da assinatura`. `config`
   continua recusado como opção, porque é um dataclass do runner e não um valor JSON.
+- **Conferir impacto** — `POST /api/v1/system/workers/{worker_name}/queue/preview` responde quantas
+  unidades a configuração que o formulário mostra deixaria na fila, e não escreve nada. Existe porque a
+  fila é chaveada pela identidade do produtor: salvar outra engine, outro preset ou outro limiar relê
+  as unidades afetadas sozinho, e esse custo precisa ser legível antes de ser pago. O número some assim
+  que um campo muda, então ele nunca descreve uma configuração que o formulário não mostra mais.
 - **Voltar ao padrão do código** — `DELETE /api/v1/system/workers/{worker_name}/settings` remove a
   linha. Toda escrita deixa uma revisão
   (`GET /api/v1/system/workers/{worker_name}/settings/revisions`), listada no cartão, então o padrão é

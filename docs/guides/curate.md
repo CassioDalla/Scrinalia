@@ -331,10 +331,23 @@ linking.
 
 ### Lista e busca — `/acervo/lista`
 
-The faceted search over the collection: the term (lexical or semantic), typology, subject category,
-entity type, level, a branch of the arrangement and a date range. The URL is the state, so a filtered
-list is shareable and the back button works. Nothing is written. The semantic mode carries an honest
-note: its measured quality is weak (Hit@10 0.625), so prefer lexical when the term is known.
+The faceted search over the collection: the term, one of **three rankings**, typology, subject
+category, entity type, level, a branch of the arrangement and a date range. The URL is the state, so a
+filtered list is shareable and the back button works. Nothing is written.
+
+The three rankings answer different questions, and the screen says which is which:
+
+| Mode | What it orders by | When to choose it |
+| --- | --- | --- |
+| Lexical (default) | `ts_rank` over the generated `search_vector`, boosted by a tag or entity that matches | The archivist knows the term the title uses |
+| Semantic | Cosine similarity between the term and the description's embedding | The archivist knows the subject but not the vocabulary of the fonds |
+| Hybrid | The two fused by Reciprocal Rank Fusion (`RRF_K = 60`, window `RRF_DEPTH = 100`) | The mode that does not require the choice, at the cost of loading the model |
+
+The numbers behind those sentences live in `docs/log.md`, next to the bench that produced them
+(`testing/evaluation/retrieval_modes.py`), and not on this page: a page that stores a number which is
+expected to move lies on the next run. What the screen does state is that the evidence is a small
+labelled proxy set, and that the lexical mode is preferred when the term is known — the one place
+where the two arms differ by a wide margin.
 
 ### Árvore — `/acervo/arvore`
 
@@ -923,6 +936,16 @@ a rule is wrong, so the way out of it has to exist.
 An active `REWRITE` rule is the loudest thing on the screen, and the preview is what makes it
 visible: a test rule once sat active and stamped the whole collection without matching anything.
 
+An `LLM_CHECK` rule also names an **engine** and a **preset**, and both are chosen from the registry
+rather than typed from memory: the two selects are fed by
+`GET /api/v1/quality/cleaning-rules/engines`, which is the title-quality axis's own catalogue — the
+same names `get_engine` validates against, so a model that retires stops being offered here in the
+same change that retires it. The pair is checked when the rule is written, so a rule that cannot run
+cannot be saved (the refusal is a `422` naming the options), and an empty engine stays legal: it
+means the axis's default. A rule written before that check existed degrades instead of killing the
+run — the validator logs the reason, validates deterministically, and its producer identity is the
+"no model" one, so the queue and the panel's counter describe the run that actually happened.
+
 ### Anomalias — `/qualidade/anomalias`
 
 What the quality validator marked, read-only (`GET /api/v1/documents` filtered to `NEEDS_REVIEW`,
@@ -1022,6 +1045,12 @@ revisions — both writes `OPERATE`:
   partial on purpose: an empty field keeps following the code, and the precedence is unchanged —
   `explicit argument > the archive_worker_settings row > the signature default`. `config` is still
   refused as an option, because it is a runner dataclass and not a JSON value.
+- **Conferir impacto** — `POST /api/v1/system/workers/{worker_name}/queue/preview` answers how many
+  units the configuration the form is showing would leave in the queue, and writes nothing. It exists
+  because the queue is keyed on the producer identity: saving another engine, preset or threshold
+  re-reads the affected units by itself, and that cost has to be readable before it is paid. The
+  number disappears as soon as a field changes, so it never describes a configuration the form no
+  longer shows.
 - **Voltar ao padrão do código** — `DELETE /api/v1/system/workers/{worker_name}/settings` removes the
   row. Every write leaves a revision
   (`GET /api/v1/system/workers/{worker_name}/settings/revisions`), listed on the card, so the default

@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 from sqlalchemy import CursorResult, func, select, update
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Session
 
 from scrinalia.core.author import Author, author_columns
@@ -186,7 +187,7 @@ class WorkerRunRepository:
         """The most recent run of each worker, one query for the whole panel."""
         rows = self.db.scalars(
             select(WorkerRun)
-            .distinct(WorkerRun.worker_name)
+            .ext(distinct_on(WorkerRun.worker_name))
             .order_by(WorkerRun.worker_name, WorkerRun.queued_at.desc(), WorkerRun.id.desc())
         ).all()
         return {run.worker_name: to_dto(run) for run in rows}

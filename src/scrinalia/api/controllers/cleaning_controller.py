@@ -13,7 +13,9 @@ from scrinalia.domains.archive.schemas.cleaning_schema import (
     DryRunRequestDTO,
     DryRunResponseDTO,
 )
+from scrinalia.domains.archive.schemas.system_schema import WorkerEngineDTO
 from scrinalia.domains.archive.services.cleaning_service import CleaningService
+from scrinalia.domains.archive.workers.catalogue import LLM_CHECK_AXIS, describe_axis_engines
 
 
 class CleaningController(Controller):
@@ -37,6 +39,20 @@ class CleaningController(Controller):
         workers keep reading only the active ones.
         """
         return list(cleaning_service.list_rules(include_inactive=include_inactive))
+
+    @get("/engines", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
+    def list_engines(self) -> list[WorkerEngineDTO]:
+        """
+        The engines and presets an ``LLM_CHECK`` rule can name, read from the registry.
+
+        The rule's engine and preset belong to the title-quality axis, and the screen used to ask a
+        person to type them from memory — its placeholder suggested ``ollama``, which is not a
+        registered engine, and nothing validated the pair. The names come from the same registry
+        ``get_engine`` reads, so the catalogue the screen offers and the pair the write accepts
+        cannot drift apart (#124). An empty ``engine_name`` is still legal and still means the
+        default, which is why the default engine is the first entry rather than a replacement.
+        """
+        return describe_axis_engines(LLM_CHECK_AXIS)
 
     @patch("/{rule_id:int}/deactivate", opt={"access": Access.CATALOGUE}, sync_to_thread=True)
     def deactivate_rule(

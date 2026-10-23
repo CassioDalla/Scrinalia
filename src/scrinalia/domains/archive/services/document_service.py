@@ -28,9 +28,9 @@ class DocumentService:
     Isolates the API and the front-end from direct database access: all
     navigation (showcase) and human editing go through here.
 
-    A semantic search needs the query embedded before it reaches the repository, so the
+    A semantic or fused search needs the query embedded before it reaches the repository, so the
     service receives an embedder **factory** instead of an engine: the model is heavy and
-    must only be built when a semantic request actually arrives, never on a lexical one.
+    must only be built when such a request actually arrives, never on a lexical one.
     """
 
     def __init__(
@@ -47,7 +47,7 @@ class DocumentService:
         self._typologies = typologies
 
     def _get_engine(self) -> EmbeddingEngine:
-        """Builds (once per service) the embedding engine, on first semantic search."""
+        """Builds (once per service) the embedding engine, on the first semantic or fused search."""
         if self._engine is None:
             if self._embedder is None:
                 raise RuntimeError("Semantic search requires an embedding engine.")
@@ -57,8 +57,11 @@ class DocumentService:
     def search(self, query: DocumentSearchQuery) -> DocumentListResponse:
         query_embedding = None
 
-        if query.mode == "semantic" and query.term and query.term.strip():
-            query_embedding = self._get_engine().embed([query.term])[0]
+        # One definition of when a term is embedded, on the query itself: the bench that scores
+        # the modes reads the same property, so the two cannot disagree about what they measured.
+        term = query.term_to_embed
+        if term is not None:
+            query_embedding = self._get_engine().embed([term])[0]
 
         docs, total, facets = self.repo.search(query, query_embedding=query_embedding)
         return DocumentListResponse(

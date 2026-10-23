@@ -266,6 +266,15 @@ export type CleaningRuleDryRunMatch = components["schemas"]["DryRunMatchDTO"];
 export type CreateCleaningRuleRequest = components["schemas"]["CreateCleaningRuleRequest"];
 export type CleaningRuleDryRunRequest = components["schemas"]["DryRunRequest"];
 
+/**
+ * One engine an `LLM_CHECK` rule can name, with the presets it declares.
+ *
+ * The same shape the operations panel reads per worker: the catalogue is the registry's, so the
+ * screen offers the names `get_engine` accepts instead of asking a person to remember them (#124).
+ */
+export type CleaningRuleEngine = components["schemas"]["WorkerEngineDTO"];
+export type CleaningRulePreset = components["schemas"]["WorkerPresetDTO"];
+
 /** What a rule does: rewrite the match, or only flag it. The difference is cleaning vs. destroying. */
 export type RuleKind = NonNullable<CleaningRule["rule_kind"]>;
 export type TemplateScope = NonNullable<TextTemplate["scope"]>[number];
@@ -318,6 +327,7 @@ export type WorkerSettingsItem = components["schemas"]["WorkerSettingsItemDTO"];
 export type WorkerStatus = components["schemas"]["WorkerStatusDTO"];
 export type WorkerSettings = components["schemas"]["WorkerSettingsDTO"];
 export type WorkerSettingsRequest = components["schemas"]["WorkerSettingsRequest"];
+export type WorkerQueuePreview = components["schemas"]["WorkerQueuePreviewDTO"];
 export type WorkerSettingsRevision = components["schemas"]["WorkerSettingsRevisionDTO"];
 export type WorkerSettingsRevisionList = components["schemas"]["WorkerSettingsRevisionListResponse"];
 export type WorkerEngine = components["schemas"]["WorkerEngineDTO"];
@@ -1397,10 +1407,19 @@ export async function fetchCleaningRules(includeInactive = false): Promise<Clean
   );
 }
 
+/**
+ * The engines and presets an `LLM_CHECK` rule can name, read from the title-quality registry.
+ *
+ * The form used to be free text with a placeholder naming an engine that does not exist; this is
+ * what replaces it, so the only names a person can pick are the ones the write accepts (#124).
+ */
+export async function fetchCleaningRuleEngines(): Promise<CleaningRuleEngine[]> {
+  return unwrap<CleaningRuleEngine[]>(await client.GET("/api/v1/quality/cleaning-rules/engines"));
+}
+
 export async function createCleaningRule(
   body: CreateCleaningRuleRequest,
-): Promise<CleaningRuleMutationResponse> {
-  return unwrap<CleaningRuleMutationResponse>(
+): Promise<CleaningRuleMutationResponse> {  return unwrap<CleaningRuleMutationResponse>(
     await client.POST("/api/v1/quality/cleaning-rules", { body }),
   );
 }
@@ -1549,6 +1568,25 @@ export async function saveWorkerSettings(
 ): Promise<WorkerSettings> {
   return unwrap<WorkerSettings>(
     await client.PUT("/api/v1/system/workers/{worker_name}/settings", {
+      params: { path: { worker_name: worker } },
+      body,
+    }),
+  );
+}
+
+/**
+ * How many units a **proposed** configuration would leave in the worker's queue, without saving it.
+ *
+ * The queue is keyed on the producer identity, so trying another engine, preset or threshold
+ * re-reads units; the screen asks this before the write, and the body is the settings body so the
+ * preview and the save cannot disagree about what was proposed.
+ */
+export async function previewWorkerQueue(
+  worker: string,
+  body: WorkerSettingsRequest,
+): Promise<WorkerQueuePreview> {
+  return unwrap<WorkerQueuePreview>(
+    await client.POST("/api/v1/system/workers/{worker_name}/queue/preview", {
       params: { path: { worker_name: worker } },
       body,
     }),

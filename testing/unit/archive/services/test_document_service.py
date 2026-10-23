@@ -73,6 +73,34 @@ def test_semantic_search_embeds_the_term_and_passes_the_vector() -> None:
     assert repo.search.call_args.kwargs["query_embedding"] == [0.1, 0.2]
 
 
+def test_hybrid_search_embeds_the_term_and_passes_the_vector() -> None:
+    """The fused ranking needs the query vector exactly like the semantic one does."""
+    repo = Mock(spec=DocumentRepository)
+    repo.search.return_value = ([], 0, DocumentFacets())
+    engine = Mock()
+    engine.embed.return_value = [[0.3, 0.4]]
+    embedder = Mock(return_value=engine)
+    service = DocumentService(repo, embedder=embedder)
+
+    service.search(DocumentSearchQuery(term="enchentes", mode="hybrid"))
+
+    engine.embed.assert_called_once_with(["enchentes"])
+    assert repo.search.call_args.kwargs["query_embedding"] == [0.3, 0.4]
+
+
+def test_hybrid_search_without_a_term_does_not_load_the_model() -> None:
+    """Nothing to embed, so a fused request over the collection browses instead of fusing."""
+    repo = Mock(spec=DocumentRepository)
+    repo.search.return_value = ([], 0, DocumentFacets())
+    embedder = Mock()
+    service = DocumentService(repo, embedder=embedder)
+
+    service.search(DocumentSearchQuery(mode="hybrid"))
+
+    embedder.assert_not_called()
+    assert repo.search.call_args.kwargs["query_embedding"] is None
+
+
 def test_semantic_search_builds_the_engine_only_once() -> None:
     repo = Mock(spec=DocumentRepository)
     repo.search.return_value = ([], 0, DocumentFacets())

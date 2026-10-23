@@ -7,9 +7,469 @@ All notable changes to this project are documented here. The format is
 `1.0.0` was the first release; the newest one is at the top. Entries describe **behaviour**, not
 commits — the history is the detail.
 
-## [1.2.0] - 2026-10-13
+## [1.3.0] - 2026-10-23
 
 ### Added
+
+- **A third ranking mode: the lexical and the semantic orders fused by Reciprocal Rank Fusion**
+  (issue #38): `mode=hybrid` on `GET /api/v1/documents` and on the public surface. The two rankings
+  are built independently — `ts_rank` over the generated `search_vector` with the taxonomy boost, and
+  the cosine similarity to the embedded term — and meet in `reciprocal_rank_fusion`
+  (`domains/archive/domain/search.py`, `RRF_K = 60`), so nothing normalises a `ts_rank` against a
+  cosine. The fusion reads the **window** of each arm (`RRF_DEPTH = 100`); `total` is the count of the
+  union of the full-text matches with the semantic window, and not every document that has an
+  embedding, which would be the whole collection. The page is the fused window first and the rest of
+  the matches after it in full-text order, and `rank` follows the same split: the fusion's score
+  inside the window, the relevance of the ordering that placed the document outside it. The full-text
+  mode stays the default on both surfaces, so a lexical request still never loads the model.
+
+  **Measured on the labelled set, per query stratum, through the product path** (16 queries whose gold
+  is derived from the title term, on the 4,831-description collection):
+
+  | stratum | mode | Hit@10 | Recall@10 | MRR | found in top-50 |
+  | --- | --- | ---: | ---: | ---: | ---: |
+  | the sentence a person types | lexical | 0.438 | 0.212 | 0.258 | 0.500 |
+  | | semantic | 0.562 | 0.221 | 0.293 | 0.750 |
+  | | hybrid | **0.625** | **0.358** | **0.296** | **0.812** |
+  | the title term alone | lexical | 0.875 | **0.650** | **0.703** | 0.938 |
+  | | semantic | 0.562 | 0.225 | 0.338 | 0.688 |
+  | | hybrid | **0.938** | 0.608 | 0.679 | 0.938 |
+
+  The fusion wins on the sentence and on the term; it is the mode that removes the choice. It is **not**
+  a free win: on the term stratum it puts one more query inside the top ten and still ends 0.024 below
+  the full-text ranking on MRR, because agreement demotes a confidently-ranked full-text hit when the
+  semantic arm disagrees — the set is small (one query is worth 0.0625 of Hit@10) and its gold is a
+  proxy, so the report prints that limit next to every number. The fusion is also not a dominance order:
+  a first place plus a third beats a second place twice by 8·10⁻⁶. Latency is the full-text one plus
+  about 7% (6.4 s against 5.5 s per query on the slowest stratum, which is dominated by the pre-existing
+  cost of a broad term, not by the fusion).
+
+- **A bench for the retrieval modes** (issue #38): `testing/evaluation/retrieval_modes.py` scores the
+  three rankings **through the product path** — `DocumentService` and the repository, the same objects
+  the route uses — where `retrieval_quality.py` embeds and ranks on its own because there the embedded
+  text is the variable. It reports Hit@k, recall@k, MRR and coverage per mode and per stratum, with the
+  position of the first expected description for each query, and the shared ranking arithmetic is
+  defined once in `testing/evaluation/ranking_metrics.py`.
+
+- **The operations panel opens a worker's stamp into what it actually names** (issue #137):
+  `GET /api/v1/system/workers` now carries `stamp_breakdown` per worker — units the stamp attributes to
+  a producer, units it leaves without a known one, units recorded as failed and units with no record at
+  all — and `/sistema/workers` shows those counts on the card. It exists because one "processed" number
+  used to stand for all of them, and for NER that number was 1,650 legacy values reading as success. The
+  four numbers come from one aggregate, and `processed`/`failed` are derived from it, so the panel pays
+  one scan where it used to pay two.
+
+### Changed
+
+- **The thumbnail's failure mark is `ERROR`, not the boolean `"True"`** (issue #149). `StampStatus`
+  carried a third value only because the thumbnail worker wrote `"True"` into `thumbnail_failed` — a
+  boolean serialised into a status vocabulary. The mark now uses `ERROR` like every other failure;
+  a data-only migration renames the old rows, and the thumbnail queue and its `failed` count are
+  unchanged because both read the presence of the `thumbnail_failed` key, not its value.
+
+- **An identity-keyed stamp accepts a producer fingerprint and nothing else** (issue #137). The
+  vocabulary had one type carrying both `mark` (a status) and `mark_value` (an identity), so `"DONE"` —
+  a legal `StampStatus` — was a legal write into a slot that promises a producer, which is how 1,691 NER
+  rows came to name no extractor while reading as a success. `IdentityStamp` has no `mark`: `mark_value`
+  raises `ValueError` for any value the slot's own `fingerprint_pattern` does not accept, `mark_failed`
+  is the only failure writer, and "a run happened and its producer is unknown" has the name
+  `PRODUCER_UNKNOWN` instead of borrowing a status. `WorkerStamp` stays for the ledgers that really do
+  hold a status or a free text: the thumbnail's failure mark, the declared parent, a curator's own
+  decision.
+
+  **A migration makes the existing rows honest without inventing a producer**
+  (`a7c1e5b9d3f2_make_the_legacy_identity_stamps_read_as_unknown.py`): every `"DONE"` in an identity
+  slot — the current key or a retired one — becomes `PRODUCER_UNKNOWN`, the 3,100-odd documents with no
+  NER slot keep having none, and the embedding's bare text hashes are left alone, because that hash is
+  a fact. Those rows were pending before the rename and are pending after it — the queue is unchanged,
+  and the next run heals them by writing a real fingerprint — so the fix is attribution and reporting,
+  and `testing/unit/quality/test_identity_stamp_writes.py` fails a worker that writes a status into an
+  identity slot at all.
+
+- **The semantic mode's note no longer cites a Hit@10 that belonged to another experiment.** The
+  screen and the curation guide used to say the semantic ranking was measured as weak and quote
+  `Hit@10 0.625` — a number produced by the excerpt experiment on the embedded text, on a
+  3,608-description collection, and never a comparison with the full-text ranking. The three modes are
+  now named where the archivist reads them, with the rule that decides between them and the limit of
+  the evidence, and the numbers themselves live in `docs/log.md` and in the bench that produced them:
+  a page that stores a number which is expected to move lies on the next run.
+
+- **A bench for the NER extractor, at term level** (issue #113): `testing/evaluation/ner_quality.py`
+  scores an extraction against a labelled set at the unit that matters — a span is right or wrong by its
+  boundaries, so a document-level agreement would call an extraction perfect when one of five terms was
+  found. Term-level P/R/F1 per type and overall, exact match only, with a relaxed recall that counts a
+  boundary as found printed beside it and never replacing it; the misses are partitioned into four
+  buckets that sum to the support — **hits, boundary, type confusion, missing** — plus spurious.
+
+  **The gold is a correction of the stored run**, because there is no human NER gabarito in this
+  collection: `ner_pairs.json` does not exist, the exclusion catalogue has three rows and the merge log
+  none, while `archive_document_entities` holds 64,504 links over 4,811 documents written by the worker
+  itself. `--propose` transcribes that output and writes a sheet where a curator marks what is wrong or
+  missing, and the anchoring bias of pre-annotation is declared rather than hidden.
+
+  **Two facts about the extractor came out of building it.** The engine returns `ArchiveEntityDTO` with
+  only `name` and `entity_type` — **there are no offsets anywhere**, so the boundary breakdown is a
+  token-containment measure that counts the defect without saying where it happened, and the issue's
+  wording had to be corrected. And the collection's NER output is **unattributable in full**: 1,650
+  documents carry `worker_ner_v2 = "DONE"`, 41 carry `worker_ner_v1 = "DONE"`, 3,142 carry no NER stamp
+  at all, and not one carries a producer fingerprint — the legacy `"DONE"` is the stamp's default status
+  and not an identity, which is why the stored mode prints the producers it finds instead of claiming a
+  configuration.
+
+- **The typology bench simulates a catalogue edit before it is written** (issue #111): a catalogue
+  change is the producer identity's business — the label set is part of it since #117 — so retiring or
+  adding a form re-reads the whole collection, about 2.9 hours of CPU at the measured 2.2 seconds per
+  document. `--drop-typology NOME` and `--add-typology NOME` measure the edit **by name** first, and
+  nothing reaches the database: the decision, the write and the read stay separate (principle VI). Names
+  are all it needs, because the worker maps an answer back to an id to write it while the bench compares
+  against a gabarito written in names, and the engine only echoes the label it was handed. A name the
+  active catalogue does not have is refused rather than added, and the report names the candidate set it
+  ran against so two runs with different catalogues cannot look identical.
+
+  What it measured on the 111 labelled rows, at the shipping configuration:
+
+  | catalogue | agreement | macro-F1 | misses | Fotografia F1 | Processo Administrativo F1 |
+  | --- | ---: | ---: | ---: | ---: | ---: |
+  | as it is | 0.775 | 0.484 | 25 | 1.00 | 0.00 |
+  | without "Ofício / Memorando" | **0.856** | **0.558** | **16** | 1.00 | **0.33** |
+  | + 3 forms, "Livro de Registro" | 0.378 | 0.272 | 69 | **0.18** | — |
+  | + 3 forms, "Livro de Sepultamento" | 0.703 | 0.476 | 33 | 1.00 | 0.00 |
+
+  Retiring one form the collection has **zero** of is the largest gain measured on this axis — +8.1
+  points of agreement, better than any of the three label formats #112 compared — and it unbreaks a real
+  form: "Processo Administrativo" goes from F1 0.000 to 0.333 because the phantom was eating all four of
+  its answers. Adding the three forms the collection does have works **if the names are discriminative**:
+  "Livro de Registro" collapses the axis because the photographic fonds is called "Registros
+  Fotográficos" (48 answers, 40 stolen from Fotografia), while "Livro de Sepultamento" takes exactly the
+  8 burial registers and leaves the covered rows alone. On this axis **the name is the taxonomy** — a
+  definition documents, the name decides, because #30 keeps the definition out of the prompt.
+
+- **The typology records the refusal it saw, instead of leaving it to be inferred** (issue #110):
+  `archive_documents.typology_id` is NULL both when the classifier looked at a description and
+  declined to place it and when the run never reached it, and the column cannot say which — so the
+  score that justified the refusal was lost with it, which is the one number a floor decision needs.
+  There is now `AnomalyType.TYPOLOGY_LOW_CONFIDENCE`, and the worker writes a row in
+  `archive_ai_review_queue` per refusal carrying **the score it saw**, the label it guessed and the
+  description's context.
+
+  The issue's own Definition of Done proposed a distinct **stamp value** for the refusal. #117 broke
+  that in both directions: `identity_stamp_conditions` computes pending as "the stamp is not this
+  identity", so a `REFUSED:<identity>` value puts the description back in the queue on the next run
+  and it is refused again forever — while adding the value to `FAILURE_STAMP_VALUES` excludes it
+  permanently and a floor change would never reach it. The stamp means *this producer read it*; the
+  refusal is evidence, and evidence lives in the queue, which is the shape the subject axis already
+  had. It is a vocabulary addition and an additive migration (`ALTER TYPE ... ADD VALUE`, the
+  `SUBJECT_LOW_CONFIDENCE` pattern, with a downgrade that keeps the value).
+
+  `repository/typology_queue.py` owns the read the way `subject_queue.py` owns it for the tags: the
+  predicate asks for the row **and** the absence of a drawer, because nothing deletes the classifier's
+  evidence when a curator files the description — reading the row alone would count a description that
+  already has an answer — and the count collapses a description's rows so a run repeated with `force`
+  cannot inflate it. That is what lets the typology bench's `stored` mode drop its blanket caveat for a
+  measured **split**: `bare`'s 5.4% abstention on the labelled set is now reportable as "how many the
+  queue accounts for" against "how many no run has reached".
+
+  **Scale, measured:** the #109 run on the real pending queue gave **0.000** abstention on the title at
+  0.40 and **0.020** with the archival history, so the rows this writes are tens and not thousands. The
+  real number for the 608 descriptions the old queue never sampled is what the first run after #117
+  measures.
+
+- **The quality validator has a bench, and the installation it would measure has no rule to score**
+  (issue #115): `testing/evaluation/quality_validator_quality.py` grades the cleaning rules one by one
+  instead of grading documents, because the validator's output is a **set of flags per document** and a
+  validator that flags the right document for the wrong reason is not doing the job. For each active
+  `VALIDATE`/`LLM_CHECK` rule it prints support, firings, precision, recall and F1 — the two halves are
+  not derivable from one another, and **recall is why the set is human**: a review queue can only ever
+  measure precision, since the documents nobody flagged are exactly the ones absent from it.
+
+  `--pick` proposes rows by the flags the last run stored — one stratum per rule, plus the documents no
+  scorable rule touched (where a miss lives) and the ones with no anomaly at all (where a false positive
+  would be) — and a curator writes which rules should have fired. The rules come from the catalogue, and
+  whether one fires is decided by the worker's own functions: `matched_rule_labels` and
+  `llm_check_reason`, so the graded flag and the written flag are one definition, pinned by an
+  integration test that runs the real worker and asks the bench what fired. A rule below five labelled
+  positives is printed **não medida**, the same floor the typology bench uses.
+
+  **Measured on 2026-10-16 against `memoriacuritibana`:** the catalogue holds **one** rule — inactive,
+  `REWRITE`, named `aaaaa` — so there are **zero active `VALIDATE`/`LLM_CHECK` rules** and no flag to
+  score; `--pick` and the scorer both refuse with that sentence instead of printing an empty table. What
+  the validator does flag is almost entirely structural and almost entirely everything: **4,583 of 4,831
+  documents (94.9%)**, of which NO_TYPOLOGY 4,455, SCOPE_ONLY_BOILERPLATE 3,163, MISSING_DATE 2,160,
+  REPEATED_TITLE 2,079, NO_ENTITIES 2, ALL_CAPS_TITLE 1 — and `RULE_MATCH`/`LLM_SUSPECT`: **zero**. The
+  bench therefore lands measure-*able*, with its own evidence coming from an integration test against a
+  fixture rule, and the axis stays unmeasured until the installation writes one.
+
+  The load-bearing definitions moved into one place on the way: `matched_rule_labels`,
+  `llm_check_reason` and `rule_flag_label` are now the worker's, read by the bench, and the
+  `CODE:payload` format of `anomaly_reasons` is a named constant in `models/enums.py` instead of a
+  literal in the writer, the facet and now the scorer.
+- **The conflict judge has a bench, and on the ledger that exists it does not beat a constant**
+  (issue #114): `testing/evaluation/conflict_judge_quality.py` scores the tag x entity judge against
+  the resolutions a **human** took, read from `archive_conflict_resolution_log` at run time — so it
+  needs no labelled file, because the gabarito is already in the database and a human verdict is
+  durable intent no later suggestion run overwrites. Four rules make the read a measurement rather
+  than the model scoring itself: `source='JUDGE'` rows are counted and kept **out** of the score
+  (scoring the judge against its own auto-resolutions measures nothing), an `undone_at` decision is
+  out (the institution already withdrew the answer), the pairs come from the ledger's **own
+  snapshots** and never from the live catalogues the resolution deleted, and a failed call is **not a
+  verdict** — the decision schema has no error state, so a transport failure returns `winner="TAG"`
+  with `confidence=0.0`, and those rows are counted as engine failures and printed instead of being
+  read as a judge that answers `TAG` to everything. `FAILURE_REASON_PREFIX` is now defined once, in
+  the engine that writes it, with a test on each side pinning the pair.
+
+  Two columns sit next to the agreement. The **constant baseline** is what a judge answering only the
+  most frequent verdict would score, and `Δ` is agreement minus it: on a ledger skewed by a curator
+  working through a backlog, agreement alone flatters. The **auto-resolve split** applies the worker's
+  own `auto_resolve_threshold` (read from its signature) to the verdicts.
+
+  **Measured on 2026-10-16 against `memoriacuritibana`, on the ledger's 49 human resolutions, CPU:**
+
+  | configuration | scored | agreement | constant | Δ | auto-resolved | engine failures | s/pair |
+  | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+  | `ollama_judge:gemma_4b_local` (the default) | 49 | 0.918 | ENTITY 1.000 | **−0.082** | 49 | 0 | 5.13 |
+  | `ollama_judge:granite_local` | 0 | — | — | — | 0 | **49** | 1.26 |
+
+  The four misses are all the same mistake in the same direction — `ENTITY→TAG`, each at confidence
+  0.900 — and the agreement by entity type is LOC 0.976 (42), PER 0.800 (5), ORG **0.000** (2). Every
+  one of the 49 was confident enough to be auto-resolved, so on this ledger the judge's errors reach
+  the archive without a person seeing them. The gabarito is **single-class** (ENTITY 49/49), which is
+  a property of the ledger and not of the judge: a curator resolving a run of abbreviated street
+  spellings against their canonical entities only ever decides ENTITY, so this set cannot measure the
+  TAG direction at all, and the bench prints that instead of a flattering number. The second line is
+  the other kind of finding: **`granite4.1:3b` fails every single call** (`500 Server Error`, the
+  llama runner crashing on this Ollama build), so the preset the registry declares cannot judge
+  anything — separated from a verdict by the failure rule above rather than scored as 49 `TAG`s.
+- **The classification axis can run a second model, and the registry is where it is declared**
+  (issue #116): `xlm_roberta_local` (`joeddav/xlm-roberta-large-xnli`) joins `cpu_local` and
+  `gpu_cloud` in `engines/classification/registry.py`. The engine of that axis is a
+  `zero-shot-classification` pipeline whose model is a parameter, so a second model is a **preset**
+  and not an engine — and because the registry is the axis's single definition of what can be run,
+  the option reaches both of its workers, the typology classifier and the subject categoriser, not
+  only the bench that needed it. It exists because the subject bench compares two models and, since
+  this change, the bench names no model of its own.
+
+- **The typology bench prices a configuration on the collection's own mix, and the price says no**
+  (issue #109): `--collection` samples the **pending queue** — through the worker's own
+  `pending_conditions`, with its size compared against `count_pending`, the number the panel shows —
+  and prints seconds per document, the projection for that queue, the abstention rate and the label
+  distribution, per configuration and per stratum. It writes nothing and scores nothing: these rows
+  have no gabarito, and a wrong label there is invisible. Three rules make its number a number about
+  the collection: it does **not** deduplicate by text (the picker does, and the worker pays for a
+  repeated title every time it appears), it allocates the sample proportionally across the picker's
+  strata **with no floor** (a floor of one row per stratum would give 6% of a 100-row sample to the
+  forms that are 0.85% of the collection — the ones with the longest texts), and it measures every
+  configuration on the documents pending under **all** of them, so the comparison isolates the
+  columns from the collection.
+
+  **Measured on 2026-10-16 against `memoriacuritibana`, 100 documents of the 4.205 pending, CPU,
+  10 active typologies:**
+
+  | configuration | queue | s/doc | projection (1 worker) | abstention | largest drawer |
+  | --- | ---: | ---: | ---: | ---: | --- |
+  | `original_title` @ 0.40 (the shipping one) | 4,205 | 2.20 | 2.6 h | 0.0% | Fotografia 69% |
+  | `original_title,admin_bio_history` @ 0.40 | 4,205 | 5.76 | 6.7 h | 2.0% | Fotografia 66% |
+
+  The ratio is 2.62x and not the 3.1x of the balanced sample, and the cost sits in the photographic
+  fonds (6.33 s/doc at 416 characters against 4.57 s/doc at 332 for the plans), which is 69.2% of the
+  queue; the queue is 69.2% Fotografia, 29.5% Planta and **0.4% descriptions no typology covers**,
+  the control bucket the gabarito weighs at 9.8%. Decomposing the numbers #69 published (±1 row from
+  rounding): on the 111 scored rows, the shipping configuration gets 83 of the 100 rows the
+  catalogue covers right, and so does the archival-history one, which also abstains on 9 more of
+  them — the whole 7-point gain is the control rows it stops mislabelling. **The default is not
+  changed.** The price would be paid on 100% of the queue to fix the 0.4% the catalogue does not
+  cover, and what that 0.4% needs is a recorded abstention (issue #110) and a catalogue decision
+  (issue #111), not a longer input. The configuration stays reachable through the panel's options
+  box, and a re-measurement is one command.
+
+- **The typology classifier has a bench, and the first measurement puts the failure somewhere other
+  than where the issue expected it** (issue #69): `testing/evaluation/typology_quality.py` scores the
+  classifier against a labelled set and prints agreement, per-typology precision/recall/F1, the
+  confusion matrix, the label distribution (largest share, entropy, abstentions) and seconds per
+  document — one line per configuration, `--config engine:preset:columns:threshold`, the four fields
+  `worker_typology.producer_identity` signs. `--pick` proposes the labelled set, which is collection
+  data and stays out of the repository, with its shape versioned in `testing/evaluation/README.md`.
+  Nothing reaches the database: the session is opened, read and rolled back. An integration test pins
+  the scored text to the text the worker hands the model, with an approved excerpt in the middle so
+  the pin bites.
+
+  **Measured on 2026-10-14 against `memoriacuritibana` (4.813 descriptions), on 111 labelled rows.**
+  The gabarito was pre-labelled by an agent and then **reviewed row by row by the curator on
+  2026-10-16, who confirmed all 112 rows unchanged**: the review moved the signature, not the
+  numbers — the only field touched after the measurement was `confidence`, which no metric reads, and
+  re-running the stored mode reproduces the recorded report exactly.
+
+  | configuration | agreement | macro-F1 | abstention | s/doc |
+  | --- | ---: | ---: | ---: | ---: |
+  | `original_title,admin_bio_history` @ 0.40 | 0.847 | 0.701 | 0.207 | 6.36 |
+  | `original_title` @ 0.40 (the shipping one) | 0.775 | 0.484 | 0.054 | 2.06 |
+  | `original_title` @ 0.30 | 0.757 | 0.481 | 0.018 | 2.05 |
+  | `original_title` @ 0.55 | 0.739 | 0.479 | 0.171 | 2.00 |
+  | `original_title` @ 0.70 | 0.721 | 0.449 | 0.324 | 1.96 |
+
+  Two readings the numbers force. **The columns matter more than the floor**: reading the archival
+  history beside the title lifts agreement by 7 points and macro-F1 by 22, and turns the control
+  bucket — 11 descriptions no typology covers — into 11 abstentions; with the title alone the model
+  puts 8 of those 11 into "Ofício / Memorando", the label it uses as a dustbin (18 answers there, 0
+  of them right). The price is 3.1x the seconds per document. **The confidence floor is a band, not a
+  cliff**: 0.30/0.40/0.55/0.70 agree at 0.757/0.775/0.739/0.721, so the 0.40 has a measurement behind
+  it for the first time and is the best of the four on this set — by four rows out of 111, which is
+  not a decisive difference. The floor stays 0.40, and moving it is its own issue.
+
+  On this sample the model does **not** collapse: the largest drawer holds 42% of the answers in a
+  sample that is already 40% "Planta Arquitetônica". The sample is balanced by construction, so it
+  cannot refute the collapse the issue measured on the unbalanced reference collection — the whole
+  collection is what a collapse measurement needs, and the stored mode prints that distribution in
+  one query (4.205 of 4.813 descriptions carry no typology at all).
+
+### Changed
+
+- **The typology picker's strata are the catalogue's mirror** (issue #111): `run_pick` refuses to
+  propose by a name the active catalogue does not carry, so the strata had to move with the catalogue —
+  the forms that retired left the list, the forms the collection gained entered it **before** the control
+  bucket (the bucket's pattern matched the very titles they now own), and the bucket keeps only what the
+  catalogue deliberately leaves out.
+
+  Two consequences the round measured, and both are reported rather than papered over. **The control
+  bucket has no material left in this collection**: with registers, petitions and printed publications
+  covered, `NENHUMA` proposes 1 of 1 candidate, so keeping a false-positive control needs the curator to
+  name what stays out of scope. And **31 descriptions match no stratum at all**, overwhelmingly
+  photographic records whose titles describe the subject and not the medium ("Concerto na Pedreira do
+  Pilarzinho", "Obras de construção do Palácio 29 de Março") — a gap in `PHOTO_STRATUM`'s pattern, 0.6%
+  of the collection, and not a form the catalogue lacks.
+
+- **The typology bench compares label formats, and no proposition beats the bare name** (issue #112):
+  `--formats bare sentence trata_de`, all three in one invocation, applied to the same signed labelled
+  set. The format is a **separate** dimension and not a fifth field of `--config`, because
+  `producer_identity` does not sign it today — folding it into the configuration string would make the
+  bench name a producer the worker cannot be told to run. The templates are the bench's instrument and
+  not a product string: the product's home for a proposition is a field per catalogue row
+  (`archive_macro_categories.classifier_label`, composed by `domain.vocabulary.classifier_labels`),
+  and a wording hand-written for one catalogue's typologies would be collection data inside versioned
+  code. `sentence` is gender-invariant by construction (`um documento do tipo …`) because Portuguese
+  forces the article to agree with the typology — "uma fotografia" against "um relatório técnico" — the
+  catalogue stores no gender, and no code template can be right for a mixed catalogue.
+
+  The candidate list and the way back are **one** dictionary, `{label: catalogue name}`, which is what
+  the engine's echo requires: it answers with the label it was handed, so a bench that skipped the
+  translation would compare a proposition against a gabarito written in catalogue names and score every
+  row of every formatted run as a miss — a `0.000` that reads like a finding. Two unit tests and an
+  integration test pin each side of that pair.
+
+  **Measured on 2026-10-17 against `memoriacuritibana`, 111 of the 112 labelled rows, CPU,
+  `deberta_typology:cpu_local:original_title:0.40`:**
+
+  | format | agreement | macro-F1 | abstention | Planta Arquitetônica recall | answers "Ofício / Memorando" | `NENHUMA` → "Ofício / Memorando" |
+  | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+  | `bare` (the shipping one) | **0.775** | **0.484** | **0.054** | **0.956** | 18 | 8 |
+  | `trata_de` | 0.784 | 0.478 | 0.072 | 0.978 | 12 | 8 |
+  | `sentence` | 0.604 | 0.414 | 0.297 | **0.511** | 12 | 8 |
+
+  **The dustbin is not a wording problem.** "Ofício / Memorando" swallows exactly 8 of the 11
+  descriptions no typology covers, under all three formats — the count does not move. A label shape
+  cannot make an uncovered form covered, and #112's hypothesis ("either a sentence fixes the dustbin,
+  or it reproduces the collapse #30 measured") is answered by neither branch: the format changes how
+  many *other* rows the drawer also takes. `sentence` is decisively worse — agreement down 0.171,
+  abstention up 5.5×, and the plans collapse (recall 0.956 → 0.511, 20 of them abstaining), which is
+  #30's lost entailment reappearing exactly where `classifier_labels` warns it does. `trata_de` ties
+  `bare` within one row of 111 and is not a reason to change a documented decision.
+
+  **`bare` wins, so the default is not changed and nothing moves in the worker.** #30's decision gets
+  the measurement it never had. Adopting a proposition would have cost a full re-queue under the
+  identity #117 just made meaningful, for no measurable gain.
+
+- **The typology queue is gated on the stamp, and the stamp signs the catalogue** (issue #117): the
+  predicate of `worker_typology` no longer reads `typology_id IS NULL`. That clause was ANDed into the
+  queue and made the producer identity inert: a description that already carried a typology never went
+  back to the classifier, so **nothing** the identity signs — the floor, the model, the columns or the
+  label set — reached the documents the last run had classified. Measured on 2026-10-17 against
+  `memoriacuritibana`, `count_pending` answered **4,205** under floor 0.40, floor 0.90, two column sets
+  and two presets: 4,813 ai-writable descriptions minus the 608 that carried a typology, exactly. The
+  clause also duplicated the two gates that remain — a human verdict is `ai_writable_documents()`
+  (principle VII) and "do not redo the work" is the stamp.
+
+  `producer_identity` now composes the active label set through `label_set_fingerprint`, the same hash
+  the subject axis signs; without it, adding, renaming or retiring a typology changed no stamp at all.
+  And a run that **declines** a description clears the answer it found: with the stamp as the only
+  gate, a refusal that left the old label standing would make raising the floor re-run the collection
+  and change no label — a no-op on exactly the documents the change exists to reach. The score it saw
+  is still not recorded; that is #110.
+
+  **What it costs, declared:** the same four configurations answer **4,813** after the change — the
+  whole ai-writable collection, once. From the first run onward the identity separates them, and only
+  a catalogue, model, column or floor change moves the number again. Of the 608 re-read, **473 carry a
+  typology with no stamp at all**: none is `HUMAN_APPROVED`, so the governance gate does not cover
+  them, but they may be a curator's work from before that status existed.
+
+- **The subject bench takes its models from the engine registry** (issue #116): the two hardcoded
+  adapters and the `MODELS` dictionary inside `testing/evaluation/macro_category_quality.py` are gone.
+  `--config ENGINE[:PRESET]` resolves through `engines.classification.registry` — the same registry
+  both workers of the axis read — the default is the configuration the macro-category worker declares
+  in its own signature, and `--device` is the only engine parameter the bench overrides. A model the
+  registry does not declare is not reachable from here: adding one is a registry entry, which is what
+  makes a configuration the bench measures one the worker can also be told to run.
+
+  The change is a refactor and not a new measurement, and it is measured as one: on the first 8
+  labelled tags, mDeBERTa's 9 (label format, arrangement) combinations reproduce the pre-refactor
+  report field by field — accuracy, distribution, largest share, both mean confidences and the full
+  per-tag miss list — with **zero differences**. The second model, `xlm-roberta-large-xnli`, is
+  verified at the code level only (the registry resolves to the same model string and device the
+  deleted adapter hardcoded, and `DebertaEngine`'s pipeline defaults are the ones it passed): the
+  model is not in this machine's Hugging Face cache and the cache is read-only, so it was not
+  executed here.
+
+### Fixed
+
+- **An `LLM_CHECK` rule can no longer be saved with an engine the registry does not have** (issue
+  #124). The rule's engine and preset were free text all the way down to a `String(50)` column, the
+  form's only hint was the placeholder `ex.: ollama` — not a registered engine — and nothing validated
+  the pair: the registry's `ValueError` escaped `worker_quality_validator.execute`, so the run was
+  recorded `FAILED` and the validator validated nothing while the rule stayed active. The write now
+  validates the pair through the registry's own `describe_config` and refuses it as a
+  `DomainException` (`422`, with the sentence naming the options), whether or not the rule kind
+  carries an engine; an empty engine keeps meaning `ollama_title_check`. The form's two fields became
+  selects fed by `GET /api/v1/quality/cleaning-rules/engines` — the title-quality axis's catalogue,
+  the same names `get_engine` reads, shared with the operations panel through one definition. A rule
+  written before the door existed degrades instead of failing the run: the validator logs the reason,
+  still runs the deterministic stage, and its producer identity becomes the "no model" one, so the
+  queue and the panel's counter describe the run that actually happened.
+
+- **The conflict judge no longer writes a transport failure as a verdict** (issue #122).
+  `EntityTagDecisionSchema` has no "I could not answer" state, so `OllamaJudgeEngine.decide_conflict`
+  turned every failed call into `winner="TAG"` with confidence `0.0` and a `Falha: ...` reason — a
+  decision the model never took, written into `archive_ai_review_queue` and shown by the curation
+  inbox, marked only by a prefix inside a free-text `reason`. The engine now raises
+  `EngineExecutionError`, the worker writes no `llm_decision` for that pair (it is still pending, and
+  the next run asks again), and the panel's "already judged" counter does not count it. The type is
+  what tells a failure from an opinion, so the bench's `FAILURE_REASON_PREFIX` string matching is
+  deleted: a failure is a `Failed`, never a `Judged`.
+
+- **A search filtered the term after joining the link tables, so a selective term took 18 seconds**
+  (issue #140). The full-text arm reached the page, the count and every facet as an `OR` of correlated
+  `EXISTS`, which the planner cannot answer with an index: the predicate was re-evaluated once per row
+  of whatever it was joined to — 64,504 entity links to find 12 descriptions — and the `OR` alone kept
+  it away from the generated `search_vector` GIN index. The arm is now a **set of description ids**
+  (the union of the text match, the tag match and the entity match) that the page, the count and every
+  facet filter on, and the taxonomy boost is membership in that set instead of a correlated `EXISTS` per
+  candidate row. The fused mode's candidate clause is one union of two id sets rather than an `OR` of
+  the two, which the planner *also* could not turn into a semi-join. The count no longer computes the
+  rank expression it does not read.
+
+  Measured on the live collection, 18 query/mode/filter cases, **results identical** — same ids, same
+  order, same ranks to ten decimals, same `total`, same five facet counts: a selective term went from
+  **17.5 s to 0.21 s** (83×), a broad one from 6.4 s to 0.41 s, and the hybrid mode from 18.0 s to
+  0.31 s (58×). The semantic mode is unchanged at 0.15 s. One case got slower: a term combined with a
+  highly selective facet filter, 0.19 s → 0.29 s, because the term set is now built before the filter
+  is applied — the cost of the term is the floor for any query that has one. A structural test
+  (`testing/integration/archive/repository/test_search_predicate_shape.py`) fails if a facet is built
+  over a link join without the document predicate first; it was verified to fail against the code
+  before the fix.
+
+### Changed
+
+- **A search filters the documents before it joins the link tables** (issue #140): the term is one set
+  of `description_id`s, computed once per query, and the page, the count and the facets all read it.
+  Nothing a caller sends or receives changes.
+
 
 - **A whole category of tag × entity collisions decided in one call** (issue #35):
   `POST /api/v1/taxonomy/conflicts/resolve/batch` applies one verdict to the selection the
@@ -196,6 +656,16 @@ commits — the history is the detail.
   origin.
 
 ### Removed
+
+- **The `granite_local` preset is retired, in both Ollama axes** (issue #122): the model it named,
+  `granite4.1:3b`, does not run on the Ollama the install guide documents. Measured on 2026-10-18, on
+  Ollama 0.24.0: it terminates the llama runner with `signal arrived during cgo execution` and
+  answers `500` to every prompt, while `gemma4:e4b` answers normally on the same server. The name
+  leaves `PRESETS` — the panel stops offering it and `GET /api/v1/system/health` stops requiring the
+  model — but the record stays in `RETIRED_PRESETS`: writing it is refused with the reason and with
+  `gemma_4b_local` as what to use instead, and a row or `LLM_CHECK` rule written before the
+  retirement resolves to `gemma_4b_local` with the reason on the screen, so a stale row cannot take
+  the operations panel down.
 
 - **`archive_tag_facets` is dropped and its two routes are gone** (ADR 0013): a tag is a drawer or
   not-a-subject, and the third destination the table tried to persist — producer, place, person —
@@ -456,7 +926,8 @@ commits — the history is the detail.
   reads the **runtime** export and not the development environment: an advisory in a tool that never
   reaches an installation no longer hides the ones that do.
 
-[Unreleased]: https://github.com/CassioDalla/Scrinalia/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/CassioDalla/Scrinalia/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.3.0
 [1.2.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.2.0
 [1.1.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.1.0
 [1.0.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.0.0
