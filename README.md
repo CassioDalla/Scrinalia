@@ -88,6 +88,8 @@ becoming a tag again.
 ```bash
 # 1. Install dependencies (heavy: torch, transformers, spacy, bertopic)
 uv sync
+# the spaCy Portuguese pipeline is deliberately not in the lock; the install guide says why
+uv pip install --python .venv/bin/python --require-hashes -r models/requirements.txt
 
 # 2. Configure the environment
 cp .env.example .env      # then edit the values
