@@ -48,6 +48,11 @@ from testing.evaluation.ner_quality import (
     worker_scope_ids,
 )
 
+#: A producer fingerprint as a worker writes one (``ContentHash``: the SHA-256 hexdigest). The bench
+#: names the producer it read, and since #137 a slot only accepts a fingerprint — a free-text stand-in
+#: would be a shape no run can write.
+FINGERPRINT = "a1" * 32
+
 BLOCK = "Acervo de 35.327 fotografias que retratam a cidade de Curitiba no âmbito do Planejamento"
 #: A URL in the middle of the title on purpose: the NER worker strips it before inference, and a
 #: bench that forgot that step would compare two different strings.
@@ -220,13 +225,13 @@ def test_the_stored_mode_names_the_producer_the_documents_carry(
 ):
     """The honest substitute for the boundary breakdown in this mode: whose output was read."""
     document = generate_archive_doc(description_id="stamped", original_title="Rua Izaac")
-    document.execution_log = NER.mark_value(document.execution_log, "identidade-do-ultimo-run")
+    document.execution_log = NER.mark_value(document.execution_log, FINGERPRINT)
     db_session.flush()
     generate_archive_doc(description_id="unstamped", original_title="Rua Izaac")
 
     producers = stored_producers(db_session, ["stamped", "unstamped"])
 
-    assert producers == Counter({"identidade-do-ultimo-run": 1, "(sem carimbo)": 1})
+    assert producers == Counter({FINGERPRINT: 1, "(sem carimbo)": 1})
 
 
 def test_the_stored_mentions_are_grouped_by_document(

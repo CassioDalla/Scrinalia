@@ -247,11 +247,14 @@ As consultas de polling são servidas por índices GIN sobre a coluna JSONB: `ix
 precisa chamar `flag_modified` para que o SQLAlchemy perceba a mudança em vigor; esquecer isso é como
 um carimbo é gravado em memória e nunca no banco.
 
-A maioria dos carimbos guarda um status (`DONE`, `ERROR`). Os seis que chaveiam uma fila por **quem
-produziu a resposta** guardam um valor: a *identidade do produtor*, uma impressão digital da engine,
-do preset, da configuração resolvida da engine, das versões instaladas das bibliotecas daquele eixo e
-das opções comportamentais declaradas (`producer_fingerprint` em `worker_stamp.py`). Uma unidade
-carimbada por outro produtor volta a estar pendente sozinha:
+A maioria dos carimbos guarda um status (`DONE`, `ERROR`). Os cinco que chaveiam uma fila por **quem
+produziu a resposta** são um tipo diferente (`WorkerStamp` contra `IdentityStamp`), e é o tipo que
+impõe a diferença: um slot de identidade só aceita um valor que o próprio `fingerprint_pattern` dele
+aceite, então um status levanta `ValueError` em vez de ser gravado, e uma falha passa por
+`mark_failed`. Esse valor é a *identidade do produtor* — uma impressão digital da engine, do preset,
+da configuração resolvida da engine, das versões instaladas das bibliotecas daquele eixo e das opções
+comportamentais declaradas (`producer_fingerprint` em `worker_stamp.py`). Uma unidade carimbada por
+outro produtor volta a estar pendente sozinha:
 
 - `worker_ner_v2`, `worker_typology_classifier_v2` e `worker_quality_validator_v1` guardam essa
   identidade — a última tirada da engine da regra `LLM_CHECK` ativa, ou de "sem modelo" — então outra
@@ -270,6 +273,17 @@ carimbada por outro produtor volta a estar pendente sozinha:
 - `curated_macro_category` guarda quem, quando e o destino de uma decisão de assunto de um curador —
   texto livre, não um status, então uma tag que uma pessoa classificou se lê como curada, e não como
   uma que a máquina acertou.
+
+Os cinco slots de identidade foram reescritos uma vez por
+`a7c1e5b9d3f2_make_the_legacy_identity_stamps_read_as_unknown.py`: todo `"DONE"` num deles — na chave
+atual ou numa aposentada (`worker_ner_v1`, `worker_typology_classifier_v1`) — virou
+`PRODUCER_UNKNOWN`, um nome que se lê como o que é e que deliberadamente não é uma impressão digital,
+então `identity_stamp_conditions` continua chamando essas unidades de pendentes. A migração não
+inventa produtor nem toca em chave ausente: os mais de 3.100 documentos sem slot de NER continuam sem
+nenhum, porque o que é verdade sobre eles é que nada registrou execução. Ela também deixa as linhas do
+embedding em paz: elas carregam o MD5 puro do texto que embutaram, de antes de a identidade ser
+composta no valor, e o hash do texto é um fato, enquanto `PRODUCER_UNKNOWN` o trocaria por um falso. O
+painel o lê como "sem produtor" pelo próprio padrão do slot.
 
 !!! note "Uma exceção documentada"
     `worker_embedding` deliberadamente não usa `ai_writable_documents()`. O embedding é um índice

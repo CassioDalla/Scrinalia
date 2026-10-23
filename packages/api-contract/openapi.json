@@ -8650,6 +8650,38 @@
         "title": "WorkerSettingsRevisionListResponse",
         "type": "object"
       },
+      "WorkerStampBreakdownDTO": {
+        "properties": {
+          "failed": {
+            "description": "Unidades cujo carimbo registra falha.",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "fingerprinted": {
+            "description": "Unidades cujo carimbo nomeia o produtor.",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "legacy": {
+            "description": "Unidades com um carimbo que não nomeia produtor (DONE antigo ou desconhecido).",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "unrecorded": {
+            "description": "Unidades sem carimbo algum: nada registrou uma execução.",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "failed",
+          "fingerprinted",
+          "legacy",
+          "unrecorded"
+        ],
+        "title": "WorkerStampBreakdownDTO",
+        "type": "object"
+      },
       "WorkerStatusDTO": {
         "properties": {
           "active_run": {
@@ -8736,6 +8768,17 @@
           },
           "settings": {
             "$ref": "#/components/schemas/WorkerSettingsDTO"
+          },
+          "stamp_breakdown": {
+            "description": "O carimbo aberto em impressão digital, valor legado, falha e ausência. Nulo quando o ledger do worker não é um carimbo.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorkerStampBreakdownDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "unit": {
             "enum": [
