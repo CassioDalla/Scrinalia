@@ -15,23 +15,24 @@ def test_stamp_applies_to_only_when_key_is_absent() -> None:
     assert THUMBNAIL_FAILED.applies_to(None) is True
     assert THUMBNAIL_FAILED.applies_to({}) is True
     assert THUMBNAIL_FAILED.applies_to({"other": "DONE"}) is True
-    assert THUMBNAIL_FAILED.applies_to({THUMBNAIL_FAILED.key: "True"}) is False
+    assert THUMBNAIL_FAILED.applies_to({THUMBNAIL_FAILED.key: "ERROR"}) is False
 
 
 def test_mark_returns_new_dict_without_mutating_input() -> None:
     original = {"existing": "DONE"}
     marked = THUMBNAIL_FAILED.mark(original)
 
-    assert marked == {"existing": "DONE", THUMBNAIL_FAILED.key: "True"}
+    assert marked == {"existing": "DONE", THUMBNAIL_FAILED.key: "ERROR"}
     assert original == {"existing": "DONE"}  # original untouched
 
 
 def test_mark_can_override_status() -> None:
-    assert THUMBNAIL_FAILED.mark(None, status="ERROR")[THUMBNAIL_FAILED.key] == "ERROR"
+    """The default is ``ERROR``; an explicit ``DONE`` proves the override is not ignored."""
+    assert THUMBNAIL_FAILED.mark(None, status="DONE")[THUMBNAIL_FAILED.key] == "DONE"
 
 
 def test_mark_handles_none_log() -> None:
-    assert THUMBNAIL_FAILED.mark(None) == {THUMBNAIL_FAILED.key: "True"}
+    assert THUMBNAIL_FAILED.mark(None) == {THUMBNAIL_FAILED.key: "ERROR"}
 
 
 def test_a_status_stamp_can_write_free_text_and_erase_it() -> None:

@@ -238,7 +238,7 @@ As chaves canônicas, definidas uma única vez em `worker_stamp.py`:
 | `worker_quality_validator_v1` | `archive_documents` | O valor é a identidade da regra `LLM_CHECK` ativa, ou de "sem modelo" |
 | `worker_embedding_v1` | `archive_documents` | O valor é o MD5 do texto embutido seguido de `:` e da identidade do modelo |
 | `thumbnail` | `archive_documents` | Miniatura no armazenamento de objetos; a fila é guiada por `storage_thumbnail_uri`, então esta chave é declarada mas não gravada |
-| `thumbnail_failed` | `archive_documents` | O download da miniatura falhou; uma execução simples a ignora, `force` a retoma |
+| `thumbnail_failed` | `archive_documents` | O download da miniatura falhou; o valor é `ERROR`; uma execução simples a ignora, `force` a retoma |
 | `hierarchy_parent_v1` | `archive_documents` | O valor é `PENDING:<code>` enquanto o pai declarado falta e `DONE:<description_id>` depois de vinculado |
 | `curated_macro_category` | `archive_tags` | O valor é quem, quando e o destino de uma decisão de assunto de um curador |
 

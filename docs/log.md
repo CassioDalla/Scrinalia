@@ -1694,3 +1694,22 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   units is the predicate in `identity_stamp_conditions`, read in the code and pinned by the unit
   tests, not observed as a run. And the panel was read on the reference collection only — the tag
   breakdown of `macro-category` is covered by the repository test and was not looked at on a screen.
+
+## 2026-10-22 — the thumbnail failure mark is the plain ERROR (#149)
+
+- **Range:** `0c09f99..d1494f1`
+- **Pages:**
+  - `guides/operate.md` — **updated**: the failure count now names `ERROR` as the value and the
+    `thumbnail_failed` key as the thumbnail's own ledger, instead of suggesting a second failure
+    spelling.
+  - `guides/operate.pt.md` — **updated**: the same paragraph, same structure.
+  - `guides/data-model.md` — **updated**: the `thumbnail_failed` row names `ERROR` as the value, so
+    the table no longer leaves the reader to infer it.
+  - `guides/data-model.pt.md` — **updated**: the same row.
+- **Measured, not assumed.** On the reference collection (`memoriacuritibana`) the key has **0**
+  rows; the migration was run **up and down** on a scratch database with a seeded `True` row and
+  returned it to `True` on the downgrade. The thumbnail queue and its `failed` count read the key's
+  presence, not the value, so the queue is unchanged.
+- **Not verified, and said so.** No screen changed, so no render was made; the panel's `failed`
+  number for the thumbnail is covered by its counter test, not looked at in a browser. The #148 gate
+  is test-only and has no documentation page.

@@ -9,17 +9,18 @@ from sqlalchemy import ColumnElement, func, or_
 
 from scrinalia.core.content_hash import ContentHash
 
-StampStatus = Literal["DONE", "ERROR", "True"]
+StampStatus = Literal["DONE", "ERROR"]
 
 #: The statuses as a set, derived from the literal so a fourth one cannot be added to the type and
 #: forgotten here. An identity-keyed stamp refuses every one of them: a status where a fingerprint is
 #: expected is the defect this vocabulary exists to prevent.
 STAMP_STATUS_VALUES: frozenset[str] = frozenset(get_args(StampStatus))
 
-#: Stamp values that mean the unit failed. ``True`` is the thumbnail worker's failure mark
-#: (``thumbnail_failed``), which predates the ``ERROR`` convention; both mean "do not retry
-#: silently", and the operations panel counts them as one number.
-FAILURE_STAMP_VALUES: tuple[str, ...] = ("ERROR", "True")
+#: Stamp values that mean the unit failed. Every ledger uses the same ``ERROR``; the thumbnail's
+#: failure lives under the ``thumbnail_failed`` key, so the *key* names the failure and the value
+#: does not need a second spelling. ``"True"`` was that second spelling, a boolean serialised into
+#: a status vocabulary, and issue #149 removed it.
+FAILURE_STAMP_VALUES: tuple[str, ...] = ("ERROR",)
 
 #: The named "producer unknown": a unit an identity-keyed worker did run over, whose producer the
 #: stamp cannot name. It exists because the legacy rows carried ``"DONE"`` — a **legal status** that
@@ -272,7 +273,7 @@ MACRO_CATEGORY = IdentityStamp("worker_macro_category_v1")
 # identity, so a human edit and a model bump each put the document back in the queue.
 EMBEDDING = IdentityStamp("worker_embedding_v1", fingerprint_pattern=EMBEDDING_FINGERPRINT_PATTERN)
 THUMBNAIL = WorkerStamp("thumbnail")
-THUMBNAIL_FAILED = WorkerStamp("thumbnail_failed", status="True")
+THUMBNAIL_FAILED = WorkerStamp("thumbnail_failed", status="ERROR")
 # Structural anomaly validation (Fase 3.5-C). Identity-keyed like the other classifiers: its
 # producer is the engine of the active ``LLM_CHECK`` rule, and its reasons also depend on the
 # catalog, which is what ``force`` is for.

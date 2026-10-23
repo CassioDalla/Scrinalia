@@ -247,7 +247,7 @@ The canonical keys, defined once in `worker_stamp.py`:
 | `worker_quality_validator_v1` | `archive_documents` | Value is the identity of the active `LLM_CHECK` rule, or of "no model" |
 | `worker_embedding_v1` | `archive_documents` | Value is the MD5 of the embedded text followed by `:` and the identity of the model |
 | `thumbnail` | `archive_documents` | Miniature in the object storage; the queue is led by `storage_thumbnail_uri`, so this key is declared but not written |
-| `thumbnail_failed` | `archive_documents` | The miniature download failed; a plain run skips it, `force` retries it |
+| `thumbnail_failed` | `archive_documents` | The miniature download failed; the value is `ERROR`; a plain run skips it, `force` retries it |
 | `hierarchy_parent_v1` | `archive_documents` | Value is `PENDING:<code>` while the declared parent is missing and `DONE:<description_id>` once linked |
 | `curated_macro_category` | `archive_tags` | Value is who, when and the destination of a curator's subject decision |
 

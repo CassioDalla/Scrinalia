@@ -122,7 +122,7 @@ def test_execute_worker_thumbnails_marks_failure_in_json(mocker: MockerFixture) 
     worker_thumbnail.execute(mock_db, storage=fake_storage)
 
     # The document does not receive the URI, but receives the failure flag
-    assert fake_doc.execution_log == {"thumbnail_failed": "True"}
+    assert fake_doc.execution_log == {"thumbnail_failed": "ERROR"}
     mock_flag.assert_called_once_with(fake_doc, "execution_log")
     mock_db.commit.assert_called_once()
 
@@ -152,7 +152,7 @@ def test_execute_worker_thumbnails_stamps_unexpected_exceptions(mocker: MockerFi
 
     worker_thumbnail.execute(mock_db, storage=fake_storage)
 
-    assert fake_doc.execution_log == {"thumbnail_failed": "True"}
+    assert fake_doc.execution_log == {"thumbnail_failed": "ERROR"}
     mock_flag.assert_called_once_with(fake_doc, "execution_log")
 
 

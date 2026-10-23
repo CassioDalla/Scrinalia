@@ -138,8 +138,8 @@ answer: **with a producer** is a value the slot's own pattern accepts, a fingerp
 names the model; **without a known producer** is a legacy value — the `"DONE"` written before the
 fingerprint existed, or the `PRODUCER_UNKNOWN` a migration left in its place; **without a record** is
 the key absent, meaning nothing recorded a run at all. `processed` is the first two plus the
-failures, and `failed` counts the stamps that record one (`ERROR`, or the `thumbnail_failed` mark for
-the worker whose ledger is not a stamp).
+failures, and `failed` counts the stamps that record one (`ERROR`; the thumbnail's failure lives under
+the `thumbnail_failed` key, because its ledger is not a stamp).
 
 Five of the nine stamps carry the **producer identity** instead of a status: a fingerprint of the
 engine, the preset, the whole resolved engine configuration, the installed versions of the libraries
