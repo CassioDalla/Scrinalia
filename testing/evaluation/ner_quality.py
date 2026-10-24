@@ -2,9 +2,11 @@
 The NER bench (issue #113): what the extractor finds, and how it gets the boundary wrong.
 
 There is no human gabarito for named entities in this collection. ``archive_document_entities``
-holds 64.504 links over 4.811 documents, and every one of them was written by the worker itself
-(``bulk_link_entities``) — scoring the model against its own output measures nothing. There is also
-no second source: ``domain_ner_exclusions`` has three rows and ``archive_entity_merge_log`` has none.
+holds 64.504 links over 4.811 documents, and the ones that exist today were all written by the
+worker itself (``bulk_link_entities``) — scoring the model against its own output measures nothing.
+The link records its origin now (#135), so the bench can tell a link a person made from one an
+extraction wrote, and only the second is a proposal. There is also no second source:
+``domain_ner_exclusions`` has three rows and ``archive_entity_merge_log`` has none.
 
 So this bench is built the other way round, and the way round is the whole design: **the gold comes
 from correcting the stored output**. ``--propose`` reads the links the last run wrote and writes a
@@ -75,7 +77,12 @@ from scrinalia.domains.archive.engines.NER.registry import (
     describe_config,
     get_engine,
 )
-from scrinalia.domains.archive.models import ArchiveDocument, ArchiveDocumentEntity, ArchiveEntity
+from scrinalia.domains.archive.models import (
+    ArchiveDocument,
+    ArchiveDocumentEntity,
+    ArchiveEntity,
+    ArchiveEntityOrigin,
+)
 from scrinalia.domains.archive.repository import EntityRepository
 from scrinalia.domains.archive.repository.governance import ai_writable_documents
 from scrinalia.domains.archive.repository.text_quality_repo import (
@@ -623,14 +630,20 @@ def stored_mentions(db: Session, description_ids: Sequence[str]) -> dict[str, li
 
     The links the worker wrote through ``bulk_link_entities``. They are the model's own output, which
     is why they are a **proposal** and never a gold: the curator corrects them, and the correction is
-    the gabarito (see the module docstring).
+    the gabarito (see the module docstring). A link a person made is excluded — it is the curator's
+    decision about this description, and counting it as the model's proposal would credit the model
+    for a correction (#135). ``UNKNOWN`` stays in: every link that predates the origin column was
+    written by a run, and the column says "not attributed", not "not the model's".
     """
     if not description_ids:
         return {}
     stmt = (
         select(ArchiveDocumentEntity.description_id, ArchiveEntity.name, ArchiveEntity.entity_type)
         .join(ArchiveEntity, ArchiveEntity.entity_id == ArchiveDocumentEntity.entity_id)
-        .where(ArchiveDocumentEntity.description_id.in_(list(description_ids)))
+        .where(
+            ArchiveDocumentEntity.description_id.in_(list(description_ids)),
+            ArchiveDocumentEntity.origin != ArchiveEntityOrigin.HUMAN,
+        )
     )
     mentions: dict[str, list[Mention]] = {}
     for description_id, name, entity_type in db.execute(stmt).all():

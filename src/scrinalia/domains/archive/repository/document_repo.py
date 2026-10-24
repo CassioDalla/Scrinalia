@@ -1,7 +1,7 @@
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy import (
@@ -56,6 +56,7 @@ from scrinalia.domains.archive.models import (
     ArchiveDocumentRevision,
     ArchiveDocumentTag,
     ArchiveEntity,
+    ArchiveEntityOrigin,
     ArchiveMacroCategory,
     ArchiveReviewStatus,
     ArchiveTag,
@@ -78,6 +79,7 @@ from scrinalia.domains.archive.schemas.document_schema import (
     ArchiveDocumentDTO,
     DocumentAncestorSummary,
     DocumentDeletionDTO,
+    DocumentEntitySummary,
     DocumentFacets,
     DocumentMacroCategorySummary,
     DocumentRevisionDTO,
@@ -286,10 +288,12 @@ class DocumentRepository:
 
     @staticmethod
     def _eager_options() -> tuple[Any, ...]:
-        """Eager loads tags (with their macro category), entities, the level and the typology, avoiding N+1."""
+        """Eager loads the tags, the entity links (with their origin), the level and the typology."""
         return (
             selectinload(ArchiveDocument.tags).selectinload(ArchiveTag.macro_category),
-            selectinload(ArchiveDocument.entities),
+            # The link is the association object now: loading the entity alone would hide ``origin``,
+            # which is what the screen reads to say who wrote each name.
+            selectinload(ArchiveDocument.entity_links).selectinload(ArchiveDocumentEntity.entity),
             # ``DocumentSummary.level`` is derived from this relationship, so without the eager
             # load every read view would issue one extra query per document.
             selectinload(ArchiveDocument.level_ref),
@@ -380,6 +384,17 @@ class DocumentRepository:
         summary.suggested_final_title = self._suggest_title(doc)
         summary.ancestors = ancestors or []
         summary.children_count = children_count
+        # The link carries its origin, so the summary is built from the association and not from a
+        # bare many-to-many: the screen has to say which names a person confirmed (#135).
+        summary.entities = [
+            DocumentEntitySummary(
+                entity_id=link.entity_id,
+                name=link.entity.name,
+                entity_type=link.entity.entity_type,
+                origin=link.origin,
+            )
+            for link in sorted(doc.entity_links, key=lambda link: link.entity.name)
+        ]
         # The subject decision travels with each tag: the tab has to show *why* a document is
         # filed where it is, and asking a second route per tag would be an N+1 on the front-end.
         summary.tags = [
@@ -1275,7 +1290,13 @@ class DocumentRepository:
     def link_entity(
         self, command: EntityLinkCommand, changed_by: Author | None = None, note: str | None = None
     ) -> DocumentSummary | None:
-        """Attaches one named entity to one document as a human decision, with an audit entry."""
+        """
+        Attaches one named entity to one document as a human decision, with an audit entry.
+
+        Associating an entity the extractor already proposed is the **confirmation** the schema
+        could not express before (#135): the link is not duplicated, its origin becomes ``HUMAN``,
+        and the document is shielded from the AI exactly like any other curation.
+        """
         doc = self._get_orm_by_id(command.description_id)
         if doc is None:
             return None
@@ -1284,10 +1305,28 @@ class DocumentRepository:
         if entity is None:
             raise EntityNotFoundError(f"Entidade '{command.entity_id}' não encontrada.")
 
-        before = self._related_names(doc.entities)
-        if command.entity_id not in {linked.entity_id for linked in doc.entities}:
-            doc.entities.append(entity)
-        self._curate_relation(doc, "entities", before, self._related_names(doc.entities), changed_by, note)
+        before = self._related_names([link.entity for link in doc.entity_links])
+        existing = next((link for link in doc.entity_links if link.entity_id == entity.entity_id), None)
+        if existing is None:
+            doc.entity_links.append(
+                ArchiveDocumentEntity(
+                    entity=entity,
+                    origin=ArchiveEntityOrigin.HUMAN,
+                    created_at=datetime.now(UTC),
+                )
+            )
+        else:
+            existing.origin = ArchiveEntityOrigin.HUMAN
+            existing.created_at = datetime.now(UTC)
+        self.db.flush()
+        self._curate_relation(
+            doc,
+            "entities",
+            before,
+            self._related_names([link.entity for link in doc.entity_links]),
+            changed_by,
+            note,
+        )
         return self._page_summaries([(doc, None)])[0]
 
     def unlink_entity(
@@ -1298,15 +1337,22 @@ class DocumentRepository:
         if doc is None:
             return None
 
-        linked = next((entity for entity in doc.entities if entity.entity_id == command.entity_id), None)
+        linked = next((link for link in doc.entity_links if link.entity_id == command.entity_id), None)
         if linked is None:
             raise EntityNotFoundError(
                 f"A descrição '{command.description_id}' não tem a entidade '{command.entity_id}'."
             )
 
-        before = self._related_names(doc.entities)
-        doc.entities.remove(linked)
-        self._curate_relation(doc, "entities", before, self._related_names(doc.entities), changed_by, note)
+        before = self._related_names([link.entity for link in doc.entity_links])
+        doc.entity_links.remove(linked)
+        self._curate_relation(
+            doc,
+            "entities",
+            before,
+            self._related_names([link.entity for link in doc.entity_links]),
+            changed_by,
+            note,
+        )
         return self._page_summaries([(doc, None)])[0]
 
     def _get_orm_by_id(self, description_id: str) -> ArchiveDocument | None:

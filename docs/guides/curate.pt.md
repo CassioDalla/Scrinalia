@@ -374,6 +374,14 @@ são `POST`/`DELETE /api/v1/documents/{description_id}/tags[/{tag_id}]` e o par 
 reversíveis: a revisão guarda a **lista inteira de nomes** de cada lado, e chamar a mesma rota duas
 vezes não escreve revisão nenhuma.
 
+Cada entidade mostra a **origem do seu vínculo**: `IA` quando o extrator a escreveu, `confirmada`
+quando uma pessoa a associou ou confirmou, e `não rastreada` para um vínculo escrito antes de a coluna
+existir. Uma origem desconhecida nunca é exibida como se fosse do modelo. `Confirmar` associa uma
+entidade que o extrator já propôs sem duplicá-la: o vínculo fica onde está e sua origem vira `HUMAN` —
+o veredito positivo que o arquivista não conseguia registrar antes (#135). Confirmar um vínculo que já
+existia não muda nome nenhum, então não escreve revisão: o registro da confirmação é a origem do
+vínculo, e a descrição vira `HUMAN_APPROVED`, o que a tira da fila da IA.
+
 !!! warning "A categoria é uma decisão sobre o vocabulário, não sobre esta descrição"
 
     Mudar a categoria de uma tag move a tag em **todas** as descrições que a carregam, e a tela diz

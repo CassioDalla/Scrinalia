@@ -28,7 +28,7 @@ from .enums import ArchiveReviewStatus
 # them inside the guard is what makes CodeQL's ``py/unsafe-cyclic-import`` finding a false positive
 # (dismissed); ``testing/unit/quality/test_model_import_cycles.py`` fails if the cycle becomes real.
 if TYPE_CHECKING:
-    from .entity import ArchiveEntity
+    from .associations import ArchiveDocumentEntity
     from .hierarchy import ArchiveDescriptionLevel
     from .taxonomy import ArchiveTag, ArchiveTypology
 
@@ -192,8 +192,11 @@ class ArchiveDocument(Base):
     )
 
     # --- Relationships---
-    entities: Mapped[list["ArchiveEntity"]] = relationship(
-        secondary="archive_document_entities", back_populates="descriptions"
+    # The association object and not the bare ``ArchiveEntity``: the link itself carries the origin
+    # (who wrote it), so a relationship over the secondary table would hide the one column the
+    # screen has to show.
+    entity_links: Mapped[list["ArchiveDocumentEntity"]] = relationship(
+        back_populates="document", cascade="all, delete-orphan", lazy="selectin"
     )
     tags: Mapped[list["ArchiveTag"]] = relationship(secondary="archive_document_tags", back_populates="descriptions")
     # ``typology_ref`` and not ``typology``: the plain name is the *read contract* (the name a

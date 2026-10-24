@@ -106,7 +106,7 @@ Três propriedades desta tabela sustentam o modelo:
 | `archive_entities` | Uma entidade nomeada (pessoa, organização, lugar) encontrada por NER ou inserida à mão. | `entity_id`, `name` (único), `entity_type` |
 | `archive_entity_merge_log` | Uma linha por entidade absorvida (um **merge**) ou por nome renomeado (uma **renomeação**), retratada antes de qualquer mudança. | `kind` (`MERGE`/`RENAME`, com check), `canonical_renamed_from`, `renamed_from_synonym_created`, `undone_at`; `undo_entity_merge` restaura a linha, seus vínculos, suas grafias e o nome que a canônica perdeu. |
 | `archive_document_tags` | Quais tags uma descrição carrega. | chave composta `(description_id, tag_id)` |
-| `archive_document_entities` | Quais entidades uma descrição carrega. | chave composta `(description_id, entity_id)` |
+| `archive_document_entities` | Quais entidades uma descrição carrega, e quem escreveu cada vínculo. | chave composta `(description_id, entity_id)`, `origin` (`ArchiveEntityOrigin`: `AI`, `HUMAN` ou `UNKNOWN`), `created_at` (nulo quando o vínculo é anterior à coluna) |
 | `archive_ai_review_queue` | A fila de auditoria da IA; o lado da *decisão* de uma colisão tag × entidade. | `anomaly_type` (`AnomalyType`), `status` (`ArchiveReviewStatus`), `context_payload` (JSONB), `llm_decision`, `llm_confidence`, `llm_reason` |
 
 `archive_tags.macro_category_id` guarda no máximo uma categoria de assunto, e esse é todo o eixo de

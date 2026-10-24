@@ -339,6 +339,7 @@ class TestConflictLifecycle:
             ArchiveDocumentEntity,
             ArchiveDocumentTag,
             ArchiveEntity,
+            ArchiveEntityOrigin,
             ArchiveTag,
         )
 
@@ -352,8 +353,12 @@ class TestConflictLifecycle:
         db_session.add_all(
             [
                 ArchiveDocumentTag(description_id=first.description_id, tag_id=tag.tag_id),
-                ArchiveDocumentEntity(description_id=first.description_id, entity_id=entity.entity_id),
-                ArchiveDocumentEntity(description_id=second.description_id, entity_id=entity.entity_id),
+                ArchiveDocumentEntity(
+                    description_id=first.description_id, entity_id=entity.entity_id, origin=ArchiveEntityOrigin.AI
+                ),
+                ArchiveDocumentEntity(
+                    description_id=second.description_id, entity_id=entity.entity_id, origin=ArchiveEntityOrigin.AI
+                ),
             ]
         )
         db_session.flush()

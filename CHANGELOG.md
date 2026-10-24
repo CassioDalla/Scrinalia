@@ -59,6 +59,17 @@ commits — the history is the detail.
   four numbers come from one aggregate, and `processed`/`failed` are derived from it, so the panel pays
   one scan where it used to pay two.
 
+- **A document-entity link says who wrote it, and a person can confirm one** (issue #135):
+  `archive_document_entities` gains an `origin` (`AI`, `HUMAN` or `UNKNOWN`) and a nullable
+  `created_at`. `UNKNOWN` is what the 64,504 links that predate the column carry — the database cannot
+  prove which producer wrote them, and the migration does not guess. A link a person writes through
+  `POST /api/v1/documents/{description_id}/entities` records `HUMAN`, and associating an entity the
+  extractor already proposed is the **confirmation** the schema could not express: the link stays, its
+  origin changes, and the description becomes `HUMAN_APPROVED`. The screen shows each entity's origin
+  and offers `Confirmar` on the ones nobody has vouched for. The extraction inserts with
+  `ON CONFLICT DO NOTHING`, so it cannot rewrite a human link, and the NER bench excludes a human link
+  from the model's proposal instead of scoring the correction as its own hit.
+
 ### Changed
 
 - **The thumbnail's failure mark is `ERROR`, not the boolean `"True"`** (issue #149). `StampStatus`

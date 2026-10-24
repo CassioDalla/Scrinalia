@@ -26,6 +26,31 @@ export const ENTITY_TYPE_HINT: Record<string, string> = {
 };
 
 /**
+ * Who wrote the link between an entity and a description, which the contract calls its *origin*.
+ *
+ * The three values are the API's own (``ArchiveEntityOrigin``); only the text lives here. ``UNKNOWN``
+ * is not ``AI``: it is the link written before the column existed, and the screen says "não rastreada"
+ * instead of crediting the extractor with a row nobody can attribute (#135).
+ */
+export const ENTITY_ORIGIN_LABEL: Record<string, string> = {
+  HUMAN: "confirmada",
+  AI: "IA",
+  UNKNOWN: "não rastreada",
+};
+
+export const ENTITY_ORIGIN_TONE: Record<string, BadgeTone> = {
+  HUMAN: "ok",
+  AI: "neutral",
+  UNKNOWN: "warn",
+};
+
+export const ENTITY_ORIGIN_HINT: Record<string, string> = {
+  HUMAN: "Uma pessoa associou ou confirmou esta entidade.",
+  AI: "O extrator propôs esta entidade e ninguém a revisou ainda.",
+  UNKNOWN: "Escrita antes de o sistema registrar quem associou; não é atribuível.",
+};
+
+/**
  * The warnings the entity merge preview carries — **warnings, not blocks**.
  *
  * The codes are the contract's (``domain/entity_merge.py``); only the text lives here. ``MIXED_TYPES``

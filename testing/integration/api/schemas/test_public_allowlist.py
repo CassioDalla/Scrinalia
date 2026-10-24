@@ -15,7 +15,7 @@ from scrinalia.api.schemas.public import (
     PublicDocumentFacets,
     PublicDocumentSummary,
 )
-from scrinalia.domains.archive.models import ArchiveReviewStatus
+from scrinalia.domains.archive.models import ArchiveEntityOrigin, ArchiveReviewStatus
 from scrinalia.domains.archive.schemas.document_schema import (
     DocumentAncestorSummary,
     DocumentEntitySummary,
@@ -57,7 +57,9 @@ def _internal_summary() -> DocumentSummary:
         ancestors=[DocumentAncestorSummary(description_id="serie", title="Série", level="Série")],
         children_count=2,
         tags=[DocumentTagSummary(tag_id=1, name="urbanismo", macro_category_id=4, macro_category_name="Urbanismo")],
-        entities=[DocumentEntitySummary(entity_id=2, name="Curitiba", entity_type="LOC")],
+        entities=[
+            DocumentEntitySummary(entity_id=2, name="Curitiba", entity_type="LOC", origin=ArchiveEntityOrigin.AI)
+        ],
         macro_categories=[DocumentMacroCategorySummary(category_id=4, name="Urbanismo", tag_count=1)],
         rank=0.75,
     )

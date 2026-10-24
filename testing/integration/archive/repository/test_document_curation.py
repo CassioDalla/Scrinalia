@@ -9,12 +9,15 @@ from scrinalia.core.author import Author
 from scrinalia.domains.archive.exceptions import EntityNotFoundError, TagNotFoundError
 from scrinalia.domains.archive.models import (
     ArchiveDocument,
+    ArchiveDocumentEntity,
     ArchiveDocumentRevision,
     ArchiveEntity,
+    ArchiveEntityOrigin,
     ArchiveReviewStatus,
     ArchiveTag,
 )
 from scrinalia.domains.archive.repository.document_repo import DocumentRepository
+from scrinalia.domains.archive.repository.entity_repo import EntityRepository
 from scrinalia.domains.archive.repository.text_quality_repo import (
     TextQualityRepository,
     apply_excerpts_in_python,
@@ -381,6 +384,67 @@ def test_linking_an_entity_that_does_not_exist_is_a_business_error(db_session, g
 
     with pytest.raises(EntityNotFoundError):
         DocumentRepository(db_session).link_entity(EntityLinkCommand(description_id="ent-2", entity_id=424242))
+
+
+def _links(db_session, description_id: str) -> list[ArchiveDocumentEntity]:
+    """The link rows of one description, read from the association table itself."""
+    return list(
+        db_session.scalars(
+            select(ArchiveDocumentEntity).where(ArchiveDocumentEntity.description_id == description_id)
+        ).all()
+    )
+
+
+def test_a_link_written_by_a_person_says_so(db_session, generate_archive_doc) -> None:
+    """#135: the row that used to be only the key now carries who wrote it, and the read view shows it."""
+    entity = _entity(db_session, name="Curitiba")
+    generate_archive_doc(description_id="ent-origin", original_title="Documento")
+
+    summary = DocumentRepository(db_session).link_entity(
+        EntityLinkCommand(description_id="ent-origin", entity_id=entity.entity_id)
+    )
+
+    assert summary is not None
+    assert [item.origin for item in summary.entities] == [ArchiveEntityOrigin.HUMAN]
+    assert [link.origin for link in _links(db_session, "ent-origin")] == [ArchiveEntityOrigin.HUMAN]
+
+
+def test_confirming_an_extracted_link_keeps_one_row_and_flips_its_origin(db_session, generate_archive_doc) -> None:
+    """
+    Associating an entity the extractor already proposed is the confirmation, not a second link.
+
+    A bare many-to-many would have inserted nothing and said nothing; the curator could neither
+    finish a review nor have it remembered.
+    """
+    entity = _entity(db_session, name="Curitiba")
+    generate_archive_doc(description_id="ent-confirm", original_title="Documento")
+    repository = DocumentRepository(db_session)
+    EntityRepository(db_session).link_entities_to_document("ent-confirm", [entity.entity_id])
+    assert [link.origin for link in _links(db_session, "ent-confirm")] == [ArchiveEntityOrigin.AI]
+
+    summary = repository.link_entity(EntityLinkCommand(description_id="ent-confirm", entity_id=entity.entity_id))
+
+    assert summary is not None
+    assert [item.origin for item in summary.entities] == [ArchiveEntityOrigin.HUMAN]
+    assert [link.origin for link in _links(db_session, "ent-confirm")] == [ArchiveEntityOrigin.HUMAN]
+
+
+def test_the_extraction_never_overwrites_a_link_a_person_made(db_session, generate_archive_doc) -> None:
+    """
+    Governance: the extraction inserts through ``ON CONFLICT DO NOTHING``, so it cannot rewrite a
+    human link — the same rule ``HUMAN_APPROVED`` enforces for the fields, at link granularity.
+    """
+    entity = _entity(db_session, name="Curitiba")
+    generate_archive_doc(description_id="ent-shield", original_title="Documento")
+    repository = DocumentRepository(db_session)
+    repository.link_entity(EntityLinkCommand(description_id="ent-shield", entity_id=entity.entity_id))
+
+    EntityRepository(db_session).bulk_link_entities(
+        [EntityLinkCommand(description_id="ent-shield", entity_id=entity.entity_id)]
+    )
+    EntityRepository(db_session).link_entities_to_document("ent-shield", [entity.entity_id])
+
+    assert [link.origin for link in _links(db_session, "ent-shield")] == [ArchiveEntityOrigin.HUMAN]
 
 
 def test_the_human_tag_edit_survives_a_transfer(db_session, generate_archive_doc, generate_archive_dto) -> None:

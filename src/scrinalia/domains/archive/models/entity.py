@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from sqlalchemy import (
     Boolean,
@@ -13,15 +13,9 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from scrinalia.core.base import Base
-
-# Type-checker only, and load-bearing: the ``Mapped[...]`` strings below need this name. Keeping it
-# inside the guard is what makes CodeQL's ``py/unsafe-cyclic-import`` finding a false positive
-# (dismissed); ``testing/unit/quality/test_model_import_cycles.py`` fails if the cycle becomes real.
-if TYPE_CHECKING:
-    from .document import ArchiveDocument
 
 
 class ArchiveEntity(Base):
@@ -36,9 +30,6 @@ class ArchiveEntity(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
     entity_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
 
-    descriptions: Mapped[list["ArchiveDocument"]] = relationship(
-        secondary="archive_document_entities", back_populates="entities"
-    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (

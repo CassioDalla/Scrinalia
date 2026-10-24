@@ -403,9 +403,11 @@ no resolution, no ban, no ledger row.
 ## `ner_pairs.json` — the gold is a correction of the stored run (issue #113)
 
 There is no human NER gabarito for this collection, and there is no second source to build one from:
-`archive_document_entities` holds 64.504 links over 4.811 documents, and every one of them was written
-by the worker itself (`bulk_link_entities`), while `domain_ner_exclusions` has three rows and
-`archive_entity_merge_log` has none.
+`archive_document_entities` holds 64.504 links over 4.811 documents, and the ones that exist today
+were all written by the worker itself (`bulk_link_entities`), while `domain_ner_exclusions` has three
+rows and `archive_entity_merge_log` has none. The link records its **origin** now (#135), so
+`--propose` ignores a link a person made: the curator's decision is gold, and scoring it as the
+extractor's own answer would credit the model for a correction.
 
 So the set is built the other way round, and the way round is the design: **the gold comes from
 correcting the stored output.** `--propose` reads the links the last run wrote and writes a skeleton
