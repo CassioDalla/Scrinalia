@@ -76,6 +76,8 @@ export const ACTION = {
   create: { label: "Criar", pending: "Criando…" },
   /** Takes something off a list without destroying it — a veto, an exclusion, a term. */
   remove: { label: "Remover", pending: "Removendo…" },
+  /** Agrees with something the AI proposed, turning it into a person's decision. */
+  confirm: { label: "Confirmar", pending: "Confirmando…" },
   /** Destroys a record, always behind a preview or a typed confirmation. */
   exclude: { label: "Excluir", pending: "Excluindo…" },
   /** Flips `is_active` to false on a catalogue row. Reversible from the same row. */
