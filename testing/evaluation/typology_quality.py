@@ -253,11 +253,15 @@ FORM_STRATA: tuple[Stratum, ...] = (
     ),
     Stratum(
         key="Requerimento à Câmara Municipal",
-        pattern=r"requerimento.{0,30}c[âa]mara|c[âa]mara municipal",
+        # The petition noun is required. The bare ``|câmara municipal`` alternative also matched a
+        # plan whose title names the Câmara as its client, and proposed it as a petition (#163).
+        pattern=r"requerimento.{0,30}c[âa]mara",
         why=(
             "Third-party petitions addressed to the Câmara. The qualified name is what keeps it apart "
             "from the prorrogação inside a building process, which the curator files as Processo "
-            "Administrativo: the unqualified 'Petição / Requerimento' took those documents instead."
+            "Administrativo: the unqualified 'Petição / Requerimento' took those documents instead. "
+            "The pattern requires the petition noun: a plan that only names the Câmara as its client "
+            "falls through to Planta Arquitetônica."
         ),
     ),
     Stratum(

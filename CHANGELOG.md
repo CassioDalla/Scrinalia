@@ -441,6 +441,13 @@ commits — the history is the detail.
 
 ### Fixed
 
+- **The typology picker no longer proposes a plan as a Câmara petition** (issue #163). The
+  `Requerimento à Câmara Municipal` stratum's pattern carried a second alternative,
+  `|c[âa]mara municipal`, that matched any title naming the Câmara, including a plan whose title says
+  it is *for* the Câmara. Only the qualified `requerimento … câmara` form stays, so a plan falls
+  through to `Planta Arquitetônica`. Two synthetic titles pin both sides of the rule; no collection
+  data enters the test.
+
 - **An `LLM_CHECK` rule can no longer be saved with an engine the registry does not have** (issue
   #124). The rule's engine and preset were free text all the way down to a `String(50)` column, the
   form's only hint was the placeholder `ex.: ollama` — not a registered engine — and nothing validated
