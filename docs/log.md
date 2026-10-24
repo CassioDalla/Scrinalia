@@ -1774,3 +1774,37 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   number is the bench's `live` mode over the 122 labelled documents, not a re-extraction of the
   4,813. The screen was rendered against a copy of the collection, where flipping `alameda` to
   `TOKEN` changed both the select and the row in the database; the copy was then discarded.
+
+## 2026-10-24 — the typology refusals have a screen (#129)
+
+- **Range:** `9923231..8e3a903`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the Tipologias section gains the refusal queue,
+    `GET /api/v1/typologies/refusals`, the dossier's `PATCH` write, the empty state's meaning and
+    the note that there is no durable "no typology" verdict; the catalogue table row names the queue
+    and its reversibility.
+  - `guides/curate.pt.md` — **updated**: the same paragraph and table row.
+  - `guides/data-model.md` — **no-change**: the report named it for `models/governance.py`; the page
+    names `llm_decision` but not its length, and the queue paragraph (`TYPOLOGY_LOW_CONFIDENCE` and
+    the score it saw) is unchanged.
+  - `guides/operate.md` — **no-change**: the report named it for `router.tsx`; the diff is the typology
+    route's `offset` search, not the operations panel, and the typology worker paragraph already says
+    the refusal is recorded with the score. The screen that settles it belongs to the curation guide.
+- **Measured, not assumed.** The migration widened `llm_decision` to 100; `alembic upgrade head`
+  applied it on the dev database (`scrinalia_zeroed`) and `alembic check` reports no new operations.
+  The new API test pins the page to the predicate and the count, and the route to 401/200/403. The
+  index was not added: on the reference collection with 3,000 descriptions available, 100 queue rows
+  cost **0.5 ms** for the page with or without it; 5,000 rows cost **15.8 ms / 3.9 ms** (page/count)
+  without and **18.7 / 4.8** with; 50,000 rows cost **85.6 / 15.0** without and **78.3 / 15.6** with.
+  The only gain was 8.5% on the page at 50k, a queue this collection does not have.
+- **Looked at, not assumed.** The screen was rendered against the dev database with three seeded
+  refusals (0.39, 0.30, 0.05): the queue showed the current titles, the labels and the scores in that
+  order. Selecting `Planta Arquitetônica` and clicking `Classificar` removed the row, changed the
+  count from 3 to 2, wrote `typology_id=1` and `review_status=HUMAN_APPROVED` on `16124` and one
+  revision. The seeded rows, the revision and the temporary account were removed afterwards, and the
+  document returned to `NEEDS_REVIEW` with no typology. The empty state was rendered too, and says
+  what empty means.
+- **Not verified, and said so.** The index measurement is a synthetic queue over the reference
+  collection, not a real worker run; no typology worker ran after the change. The page was rendered on
+  the zeroed dev database's 101 documents, not on the 4,812 of the reference collection, so the
+  screenshot proves the screen and the write, not a production-sized list.

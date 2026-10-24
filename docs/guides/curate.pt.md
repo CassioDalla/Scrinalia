@@ -460,7 +460,7 @@ existiu.
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
 | Níveis de descrição — `/arranjo/niveis` | a escada contra a qual o arranjo é escrito | sim (aposentar e reativar) |
-| Tipologias — `/arranjo/tipologias` | a forma diplomática que o classificador propõe | sim (aposentar e reativar) |
+| Tipologias — `/arranjo/tipologias` | a forma diplomática que o classificador propõe, e as descrições que ele recusou | sim (aposentar e reativar; arquivar uma descrição é uma revisão do documento) |
 | Vocabulário do acervo — `/vocabulario` | o que os códigos e termos deste acervo significam | sim (aposentar e reativar) |
 
 ### Níveis de descrição — `/arranjo/niveis`
@@ -486,6 +486,18 @@ modelo perder o vínculo e colapsar o acervo numa única tipologia (medido), ent
 documentação para quem lê. Aposentar uma tipologia é a única alavanca que alcança o modelo — ela
 deixa de ser proposta sem desclassificar nenhuma descrição — e é por isso que o peso das aposentadas
 continua na tela.
+
+A tela também lista as descrições que o classificador recusou. `GET /api/v1/typologies/refusals`
+(`AUTHENTICATED`) devolve uma página das descrições cuja melhor pontuação ficou abaixo do limiar, da
+mais próxima do limiar para a mais distante, com o palpite da execução e a pontuação que ela viu. A
+lista lê o mesmo predicado da contagem do classificador e deixa de fora a descrição que uma pessoa já
+arquivou, mesmo que a linha da fila continue no banco. Escolher uma tipologia ali é
+`PATCH /api/v1/documents/{id}` (`CURATE`): a escrita do dossiê, que grava a revisão e marca a
+descrição como `HUMAN_APPROVED`. Dá para voltar atrás pelo dossiê, e o antes/depois fica na trilha.
+Uma lista vazia quer dizer que nenhuma recusa está aberta, não que o catálogo cobre o acervo — uma
+descrição que nenhuma execução alcançou não tem linha, e arquivar uma a tira da lista sem apagar a
+evidência. Se nenhuma tipologia serve, crie ou reative uma no catálogo da mesma tela; ainda não existe
+veredito durável para "esta descrição não tem tipologia".
 
 ### Vocabulário do acervo — `/vocabulario`
 
