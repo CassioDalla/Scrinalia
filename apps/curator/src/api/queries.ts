@@ -24,6 +24,7 @@ import {
   fetchMacroCategories,
   fetchTypologies,
   fetchTypologyCatalog,
+  fetchTypologyRefusals,
   fetchMaterialisationLog,
   fetchMergeLog,
   fetchMergeProposals,
@@ -78,6 +79,11 @@ export const CONFLICTS_BATCH_LIMIT = 50;
 /** The entity and tag vocabularies are read by weight, so the head of the list is what matters. */
 export const RELEVANCE_PAGE_SIZE = 50;
 export const ANOMALIES_PAGE_SIZE = 20;
+/**
+ * The refusal queue is worked description by description, and the near-misses are the point: a
+ * page has to fit a screening without pushing the catalogue below it out of reach.
+ */
+export const TYPOLOGY_REFUSALS_PAGE_SIZE = 20;
 /** The execution ledger only grows, so it pages; the settings trail is short by nature. */
 export const RUNS_PAGE_SIZE = 20;
 /** The failures panel asks about the present: 30 days is the window the API defaults to. */
@@ -200,6 +206,20 @@ export const queries = {
       queryKey: ["typologies", "catalog"],
       queryFn: fetchTypologyCatalog,
       staleTime: 60_000,
+    }),
+
+  /**
+   * One page of the descriptions the typology classifier refused, nearest miss first.
+   *
+   * The same resource family as the catalogue (``["typologies"]``) on purpose: filing one changes
+   * the catalogue's weights too, and the screen's single invalidation has to reach both.
+   */
+  typologyRefusals: (offset: number) =>
+    queryOptions({
+      queryKey: ["typologies", "refusals", offset],
+      queryFn: () => fetchTypologyRefusals({ limit: TYPOLOGY_REFUSALS_PAGE_SIZE, offset }),
+      staleTime: 15_000,
+      placeholderData: (previous) => previous,
     }),
 
   /**

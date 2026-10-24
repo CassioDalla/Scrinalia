@@ -24,7 +24,7 @@ import { SystemWorkersRoute } from "@/routes/SystemWorkersRoute";
 import { TagsRoute, validateTagsSearch } from "@/routes/TagsRoute";
 import { TextTemplatesRoute, validateTextTemplatesSearch } from "@/routes/TextTemplatesRoute";
 import { TreeRoute, validateTreeSearch } from "@/routes/TreeRoute";
-import { TypologiesRoute } from "@/routes/TypologiesRoute";
+import { TypologiesRoute, validateTypologiesSearch } from "@/routes/TypologiesRoute";
 import { UsersRoute } from "@/routes/UsersRoute";
 import { VocabularyRoute } from "@/routes/VocabularyRoute";
 import { WorkerSettingsRoute } from "@/routes/WorkerSettingsRoute";
@@ -117,6 +117,7 @@ const typologiesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/arranjo/tipologias",
   component: TypologiesRoute,
+  validateSearch: validateTypologiesSearch,
 });
 
 /**

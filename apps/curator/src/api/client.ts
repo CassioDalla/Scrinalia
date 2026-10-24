@@ -97,6 +97,8 @@ export type DocumentUpdateRequest = components["schemas"]["DocumentUpdateRequest
 export type Typology = components["schemas"]["TypologyDTO"];
 export type TypologyCreateRequest = components["schemas"]["TypologyCreateRequest"];
 export type TypologyUpdateRequest = components["schemas"]["TypologyUpdateRequest"];
+export type TypologyRefusalRow = components["schemas"]["TypologyRefusalRow"];
+export type TypologyRefusalList = components["schemas"]["TypologyRefusalListResponse"];
 
 // --- The collection vocabulary: what this archive declares, as opposed to the language ----------
 export type CollectionVocabulary = components["schemas"]["CollectionVocabularyResponse"];
@@ -381,6 +383,11 @@ export type SearchMode = NonNullable<DocumentSearch["mode"]>;
 /** The tag catalogue's filters: the contract's, for the same reason as the collection search's. */
 export type TagCatalogSearch = NonNullable<paths["/api/v1/taxonomy/tags/catalog"]["get"]["parameters"]["query"]>;
 
+/** The refusal queue's pagination, derived from the route that answers it. */
+export type TypologyRefusalSearch = NonNullable<
+  paths["/api/v1/typologies/refusals"]["get"]["parameters"]["query"]
+>;
+
 /** The merge-proposal filters, derived from the route that reads them. */
 export type MergeProposalSearch = NonNullable<
   paths["/api/v1/taxonomy/tags/merge-proposals"]["get"]["parameters"]["query"]
@@ -500,6 +507,18 @@ export async function fetchTypologies(): Promise<Typology[]> {
 export async function fetchTypologyCatalog(): Promise<Typology[]> {
   return unwrap<Typology[]>(
     await client.GET("/api/v1/typologies", { params: { query: { only_active: false } } }),
+  );
+}
+
+/**
+ * One page of the descriptions the typology classifier refused, nearest miss first.
+ *
+ * The evidence is the queue row the run wrote; filing one is the dossier's ``updateDocument`` with
+ * a ``typology_id``, so this read is the only new seam.
+ */
+export async function fetchTypologyRefusals(params: TypologyRefusalSearch): Promise<TypologyRefusalList> {
+  return unwrap<TypologyRefusalList>(
+    await client.GET("/api/v1/typologies/refusals", { params: { query: params } }),
   );
 }
 
