@@ -46,7 +46,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         "chk_stopword_match_mode",
         "domain_stopwords",
-        "match_mode IN ('TOKEN', 'EXACT')",
+        "match_mode IN (" + ", ".join(f"'{mode}'" for mode in MATCH_MODES) + ")",
     )
 
 
