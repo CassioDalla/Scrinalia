@@ -215,8 +215,12 @@ class ArchiveAIReviewQueue(Base):
     # Flexible payload: {"tag_id": 1, "entity_id": 2, "tag_name": "Batel"}
     context_payload: Mapped[dict] = mapped_column(JSONB, default=dict)
 
-    # Structured AI responses
-    llm_decision: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # Structured AI responses. ``llm_decision`` is a label or a verdict, never prose: the subject
+    # and typology classifiers write the catalogue label they refused (both catalogues allow 100
+    # characters), and the conflict judge writes ``TAG``/``ENTITY``. It is 100 and not ``Text``
+    # because the bound is the catalogue's own, and a decision longer than the longest label is not
+    # a label.
+    llm_decision: Mapped[str | None] = mapped_column(String(100), nullable=True)
     llm_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     llm_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 

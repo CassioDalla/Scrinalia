@@ -13,6 +13,7 @@ from scrinalia.domains.archive.models import (
 )
 from scrinalia.domains.archive.models.governance import AnomalyType, ArchiveAIReviewQueue
 from scrinalia.domains.archive.repository.subject_queue import subject_low_confidence, subject_pending
+from scrinalia.domains.archive.repository.typology_queue import count_refusals as count_refusals_query
 
 #: Status a proposal/plan carries while it is still waiting for a human verdict. Semantics owned by
 #: the ``chk_*_status`` constraints of the two catalogues, repeated here as a literal because it is
@@ -126,6 +127,15 @@ class CurationRepository:
         """Documents no human has looked at: the backlog of the collection."""
         return self._count_documents(ArchiveDocument.review_status == ArchiveReviewStatus.PENDING_AI)
 
+    def count_typology_refusals(self) -> int:
+        """
+        Descriptions the typology classifier refused and nobody has filed yet.
+
+        The predicate lives in ``typology_queue`` and is the same one the screen's page is filtered
+        by, so the card and the list cannot promise different numbers.
+        """
+        return count_refusals_query(self.db)
+
     def count_pending(self) -> dict[str, int]:
         """Every queue of the work list, one query per queue, all on indexed columns."""
         return {
@@ -135,6 +145,7 @@ class CurationRepository:
             "cross_domain_conflicts": self.count_queue(AnomalyType.CROSS_DOMAIN_COLLISION),
             "subject_low_confidence": self.count_subject_low_confidence_tags(),
             "orphan_subject_tags": self.count_subject_orphan_tags(),
+            "typology_low_confidence": self.count_typology_refusals(),
             "anomalies": self.count_anomalies(),
             "unreviewed_documents": self.count_unreviewed_documents(),
         }

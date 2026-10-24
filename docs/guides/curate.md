@@ -481,7 +481,7 @@ row would unclassify every description pointing at it while erasing the fact tha
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
 | Níveis de descrição — `/arranjo/niveis` | the ladder the arrangement is written against | yes (retire and reactivate) |
-| Tipologias — `/arranjo/tipologias` | the diplomatic form the classifier proposes | yes (retire and reactivate) |
+| Tipologias — `/arranjo/tipologias` | the diplomatic form the classifier proposes, and the descriptions it refused | yes (retire and reactivate; filing a description is a document revision) |
 | Vocabulário do acervo — `/vocabulario` | what this collection's codes and terms mean | yes (retire and reactivate) |
 
 ### Níveis de descrição — `/arranjo/niveis`
@@ -508,6 +508,18 @@ name**: appending the context makes the model lose the entailment and collapse t
 one typology (measured), so the context is documentation for the reader. Retiring a typology is the
 only lever that reaches the model — it stops being proposed without a single classified description
 being touched, which is why the weight of the retired ones stays on screen.
+
+The screen also lists the descriptions the classifier refused. `GET /api/v1/typologies/refusals`
+(`AUTHENTICATED`) returns one page of the descriptions whose best score stayed below the floor,
+nearest miss first, with the label the run guessed and the score it saw. The list reads the same
+predicate as the classifier's count and leaves out a description a curator has already filed, even
+though its queue row remains. Choosing a typology there is `PATCH /api/v1/documents/{id}`
+(`CURATE`): the dossier's own write, which records the revision and marks the description
+`HUMAN_APPROVED`. It is reversible from the dossier, and the before/after stays in the trail. An
+empty list means no refusal is open, not that the catalogue covers the collection — a description no
+run reached has no row, and filing one removes it from the list without deleting the evidence. If no
+typology fits, create or reactivate one in the catalogue on the same screen; there is no durable
+verdict for "this description has no typology" yet.
 
 ### Vocabulário do acervo — `/vocabulario`
 

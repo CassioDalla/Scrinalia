@@ -1738,6 +1738,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/typologies/refusals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListRefusals */
+        get: operations["ApiV1TypologiesRefusalsListRefusals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/typologies/{typology_id}": {
         parameters: {
             query?: never;
@@ -4081,6 +4098,26 @@ export interface components {
             is_active: boolean;
             name: string;
             typology_id: number;
+        };
+        /** TypologyRefusalListResponse */
+        TypologyRefusalListResponse: {
+            items?: components["schemas"]["TypologyRefusalRow"][];
+            /** @default 20 */
+            limit: number;
+            /** @default 0 */
+            offset: number;
+            /** @default 0 */
+            total: number;
+        };
+        /** TypologyRefusalRow */
+        TypologyRefusalRow: {
+            ai_confidence_score?: number | null;
+            description_id: string;
+            document_date?: string | null;
+            final_title?: string | null;
+            guessed_label?: string | null;
+            original_title: string;
+            reference_code?: string | null;
         };
         /** TypologyUpdateRequest */
         TypologyUpdateRequest: {
@@ -8589,6 +8626,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TypologyDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TypologiesRefusalsListRefusals: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TypologyRefusalListResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
