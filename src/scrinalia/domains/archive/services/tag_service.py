@@ -14,7 +14,7 @@ from scrinalia.domains.archive.exceptions import (
     TagMergeProposalNotFoundError,
     TagNotFoundError,
 )
-from scrinalia.domains.archive.models.enums import StopwordsScope, TagCatalogState
+from scrinalia.domains.archive.models.enums import StopwordMatch, StopwordsScope, TagCatalogState
 from scrinalia.domains.archive.ports.document import DocumentRepositoryPort
 from scrinalia.domains.archive.ports.taxonomy import StopwordSource, SubjectExclusionSource, TagRepositoryPort
 from scrinalia.domains.archive.schemas import (
@@ -187,7 +187,11 @@ class TagService:
         return list(set(final_ids_for_document))
 
     def save_new_stopwords(
-        self, word_list: list[str], scope: StopwordsScope = StopwordsScope.TAG, source: StopwordSource = "HUMAN"
+        self,
+        word_list: list[str],
+        scope: StopwordsScope = StopwordsScope.TAG,
+        source: StopwordSource = "HUMAN",
+        match_mode: StopwordMatch = StopwordMatch.TOKEN,
     ) -> int:
         """
         Bans terms from one axis. ``TAG`` by default: it is the axis this catalog governs.
@@ -195,8 +199,20 @@ class TagService:
         ``source`` is ``HUMAN`` for this screen — a term typed here is a deliberate act — while the
         "not a subject" screen and the conflict resolution write their own origins, which the purge
         preview reads back (ADR 0013).
+
+        ``match_mode`` only matters on the extraction axis (#160): ``TOKEN`` also rejects the names
+        that contain the word, ``EXACT`` rejects the spelling alone.
         """
-        return self.repo.save_stopwords(word_list, scope, source)
+        return self.repo.save_stopwords(word_list, scope, source, match_mode)
+
+    def set_stopword_match(self, word_list: list[str], match_mode: StopwordMatch) -> int:
+        """
+        Changes how existing bans match, without touching their axis, origin or existence.
+
+        The origin is the whole reason this is not a re-ban: a term planted by a conflict or by the
+        "not a subject" screen keeps the record of who decided it (#160).
+        """
+        return self.repo.update_stopword_match(word_list, match_mode)
 
     def list_stopwords(self, scope: StopwordsScope | None = None) -> list[StopwordDTO]:
         """

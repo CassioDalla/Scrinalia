@@ -6156,6 +6156,7 @@
           "TAG_MERGE_UNDONE",
           "TAG_STOPWORDS_BANNED",
           "TAG_STOPWORDS_REMOVED",
+          "TAG_STOPWORDS_MATCH_UPDATED",
           "TAG_STOPWORD_PURGE_DONE",
           "TAG_STOPWORD_PURGE_UNDONE",
           "SUBJECT_EXCLUSIONS_ADDED",
@@ -6280,6 +6281,9 @@
       },
       "StopwordCreateRequest": {
         "properties": {
+          "match_mode": {
+            "$ref": "#/components/schemas/StopwordMatch"
+          },
           "scope": {
             "$ref": "#/components/schemas/StopwordsScope"
           },
@@ -6300,6 +6304,9 @@
       },
       "StopwordDTO": {
         "properties": {
+          "match_mode": {
+            "$ref": "#/components/schemas/StopwordMatch"
+          },
           "scope": {
             "$ref": "#/components/schemas/StopwordsScope"
           },
@@ -6312,10 +6319,61 @@
           }
         },
         "required": [
+          "match_mode",
           "scope",
           "word"
         ],
         "title": "StopwordDTO",
+        "type": "object"
+      },
+      "StopwordMatch": {
+        "default": "TOKEN",
+        "description": "\n    How a banned spelling matches an extracted name.\n\n    ``TOKEN`` blocks the spelling **and** any name that contains it as a whole word — the rule the\n    merged-span case needs, because with ``iptu`` banned spaCy still returns ``IPTU do Exemplo``.\n    ``EXACT`` blocks the spelling alone and leaves the names that contain it: ``alameda`` by itself\n    is noise, ``Alameda Cabral`` is a street (#160).\n    ",
+        "enum": [
+          "TOKEN",
+          "EXACT"
+        ],
+        "title": "StopwordMatch",
+        "type": "string"
+      },
+      "StopwordMatchRequest": {
+        "properties": {
+          "match_mode": {
+            "$ref": "#/components/schemas/StopwordMatch"
+          },
+          "words": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "match_mode",
+          "words"
+        ],
+        "title": "StopwordMatchRequest",
+        "type": "object"
+      },
+      "StopwordMatchResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "message": {
+            "type": "string"
+          },
+          "updated": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "updated"
+        ],
+        "title": "StopwordMatchResponse",
         "type": "object"
       },
       "StopwordPurgeLogEntryDTO": {
@@ -17087,6 +17145,75 @@
           }
         },
         "summary": "ListStopwords",
+        "tags": [
+          "Taxonomy"
+        ]
+      },
+      "patch": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsStopwordsUpdateStopwordMatch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopwordMatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopwordMatchResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "UpdateStopwordMatch",
         "tags": [
           "Taxonomy"
         ]

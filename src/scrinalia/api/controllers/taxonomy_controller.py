@@ -28,6 +28,7 @@ from scrinalia.api.schemas.taxonomy import (
     NerExclusionRequest,
     ReclassifyEntityRequest,
     StopwordCreateRequest,
+    StopwordMatchRequest,
     StopwordRemovalRequest,
     StopwordsRequest,
     SubjectExclusionRemovalRequest,
@@ -93,6 +94,7 @@ from scrinalia.domains.archive.schemas.tag_schema import (
     MacroCategoriesSuggestionResponse,
     MergeResponse,
     StopwordBanResponse,
+    StopwordMatchResponse,
     StopwordPurgeResponse,
     StopwordPurgeUndoResponse,
     StopwordRemovalResponse,
@@ -398,11 +400,30 @@ class TaxonomyController(Controller):
         data: StopwordCreateRequest,
     ) -> StopwordBanResponse:
         """Bans terms. Banning does not delete anything: the purge is a separate, explicit step."""
-        created = tag_service.save_new_stopwords(data.words, data.scope)
+        created = tag_service.save_new_stopwords(data.words, data.scope, match_mode=data.match_mode)
         return StopwordBanResponse(
             code=RouteMessageCode.TAG_STOPWORDS_BANNED,
             message=f"{created} stopword(s) registrada(s) no eixo {data.scope}.",
             created=created,
+        )
+
+    @patch("/tags/stopwords", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
+    def update_stopword_match(
+        self,
+        tag_service: NamedDependency[TagService],
+        data: StopwordMatchRequest,
+    ) -> StopwordMatchResponse:
+        """
+        Changes how the given bans match, keeping their axis and who planted them.
+
+        A separate route from the ban on purpose: re-banning would take ownership of the row and
+        overwrite the ``source`` a conflict or the "not a subject" screen recorded (#160).
+        """
+        updated = tag_service.set_stopword_match(data.words, data.match_mode)
+        return StopwordMatchResponse(
+            code=RouteMessageCode.TAG_STOPWORDS_MATCH_UPDATED,
+            message=f"{updated} stopword(s) passam a casar por {data.match_mode}.",
+            updated=updated,
         )
 
     @delete("/tags/stopwords", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)

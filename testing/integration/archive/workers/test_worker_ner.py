@@ -190,12 +190,18 @@ def test_worker_ner_integration_ignores_fully_null_rows(mock_get_engine, db_sess
 # ==========================================
 
 
-def test_load_entity_blacklist_merges_stopwords_and_exclusions(use_test_db, db_session):
-    """Noise and curation decisions share one filter but keep separate origins."""
+def test_load_entity_blacklist_splits_the_spelling_from_the_token(use_test_db, db_session):
+    """
+    Noise and curation decisions share one filter but not one matching rule (#160).
+
+    An exclusion blocks the spelling; a stopword blocks by token unless the curator marks it
+    ``EXACT``, which is what a generic word that starts proper names needs.
+    """
     db_session.add_all(
         [
             DomainStopwords(word="lixo", word_scope="ENTITY"),
             DomainStopwords(word="generico", word_scope="ALL"),
+            DomainStopwords(word="alameda", word_scope="ENTITY", match_mode="EXACT"),
             DomainStopwords(word="ofício", word_scope="TAG"),  # tag-only: must stay out
             DomainNerExclusion(term="iptu", source="JUDGE"),
         ]
@@ -204,7 +210,8 @@ def test_load_entity_blacklist_merges_stopwords_and_exclusions(use_test_db, db_s
 
     blacklist = load_entity_blacklist(db_session)
 
-    assert blacklist == {"lixo", "generico", "iptu"}
+    assert blacklist.exact == {"iptu", "alameda"}
+    assert blacklist.token == {"lixo", "generico"}
 
 
 @patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
@@ -249,14 +256,15 @@ def test_worker_ner_does_not_recreate_an_excluded_entity(mock_get_engine, db_ses
 
 
 @patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
-def test_worker_ner_blocks_an_excluded_term_merged_into_a_longer_entity(
+def test_worker_ner_blocks_a_token_mode_stopword_merged_into_a_longer_entity(
     mock_get_engine, db_session, generate_archive_doc
 ):
     """Regression, found with the real spaCy engine.
 
-    The model merges neighbouring tokens, so excluding "iptu" is not enough when the
-    filter compares whole names: the engine returns "IPTU do Batel" and the false
-    positive survives the exclusion. The block must work on token boundaries.
+    The model merges neighbouring tokens, so a **token-mode** stopword is not enough when the filter
+    compares whole names: the engine returns "IPTU do Batel" and the false positive survives. The
+    block must work on token boundaries. Since #160 that is what the stopword's ``TOKEN`` mode is for;
+    an exclusion matches the spelling alone and would let this span through.
     """
     mock_get_engine.return_value.extract.return_value = [
         [
@@ -273,7 +281,7 @@ def test_worker_ner_blocks_an_excluded_term_merged_into_a_longer_entity(
     db_session.add(doc)
     db_session.commit()
 
-    EntityRepository(db_session).add_ner_exclusions(["iptu"], source="JUDGE")
+    db_session.add(DomainStopwords(word="iptu", word_scope="ENTITY", match_mode="TOKEN"))
     db_session.commit()
 
     execute(db=db_session)

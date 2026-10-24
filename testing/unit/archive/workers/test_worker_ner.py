@@ -54,8 +54,18 @@ def test_clean_raw_text_empty():
 # ==========================================
 
 
+def _token(*words: str) -> worker_ner.EntityBlacklist:
+    """A blacklist whose words match on token boundaries, the default for a stopword."""
+    return worker_ner.EntityBlacklist(exact=frozenset(), token=frozenset(words))
+
+
+def _exact(*words: str) -> worker_ner.EntityBlacklist:
+    """A blacklist whose words match the spelling alone: an exclusion or an EXACT stopword."""
+    return worker_ner.EntityBlacklist(exact=frozenset(words), token=frozenset())
+
+
 def test_is_blocked_entity_name_matches_exactly():
-    assert worker_ner.is_blocked_entity_name("IPTU", {"iptu"})
+    assert worker_ner.is_blocked_entity_name("IPTU", _token("iptu"))
 
 
 def test_is_blocked_entity_name_matches_a_token_inside_a_merged_entity():
@@ -64,17 +74,37 @@ def test_is_blocked_entity_name_matches_a_token_inside_a_merged_entity():
     Excluding "iptu" but matching the name exactly let the model's merged output
     ("IPTU do Batel") straight through — the false positive survived the exclusion.
     """
-    assert worker_ner.is_blocked_entity_name("IPTU do Batel", {"iptu"})
+    assert worker_ner.is_blocked_entity_name("IPTU do Batel", _token("iptu"))
 
 
 def test_is_blocked_entity_name_respects_token_boundaries():
     """A legitimate name that merely contains the letters must never be blocked."""
-    assert not worker_ner.is_blocked_entity_name("Iptuana", {"iptu"})
-    assert not worker_ner.is_blocked_entity_name("Prefeitura de Curitiba", {"iptu"})
+    assert not worker_ner.is_blocked_entity_name("Iptuana", _token("iptu"))
+    assert not worker_ner.is_blocked_entity_name("Prefeitura de Curitiba", _token("iptu"))
+
+
+def test_an_exclusion_blocks_the_spelling_and_not_the_names_that_contain_it():
+    """
+    #160: the conflict was about the tag ``casa``, not about ``casa da memória``.
+
+    An exclusion is a person's decision that a spelling belongs to the subject axis; matching it by
+    token rejected 47 entity names in the reference collection.
+    """
+    assert worker_ner.is_blocked_entity_name("casa", _exact("casa"))
+    assert not worker_ner.is_blocked_entity_name("casa da memória", _exact("casa"))
+
+
+def test_an_exact_stopword_blocks_the_word_and_not_the_street():
+    """`alameda` alone is noise; `Alameda Cabral` is a name — the mode is how the curator says which."""
+    blacklist = _exact("alameda")
+    assert worker_ner.is_blocked_entity_name("alameda", blacklist)
+    assert not worker_ner.is_blocked_entity_name("Alameda Cabral", blacklist)
 
 
 def test_is_blocked_entity_name_ignores_empty_blacklist():
-    assert not worker_ner.is_blocked_entity_name("IPTU", set())
+    assert not worker_ner.is_blocked_entity_name(
+        "IPTU", worker_ner.EntityBlacklist(exact=frozenset(), token=frozenset())
+    )
 
 
 # ==========================================
@@ -103,7 +133,7 @@ def test_worker_ner_unit_ideal_flow(mocker: MockerFixture) -> None:
     mock_repo_class = mocker.patch("scrinalia.domains.archive.workers.worker_ner.EntityRepository")
     mock_get_engine = mocker.patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
     mock_flag_modified = mocker.patch("scrinalia.domains.archive.workers.worker_ner.flag_modified")
-    mocker.patch(BLACKLIST_PATH, return_value=set())
+    mocker.patch(BLACKLIST_PATH, return_value=worker_ner.EntityBlacklist(exact=frozenset(), token=frozenset()))
 
     mock_repo = mock_repo_class.return_value
     mock_repo.get_ner_synonyms_rules.return_value = []
@@ -148,7 +178,7 @@ def test_worker_ner_ignores_empty_texts(mocker: MockerFixture) -> None:
     mocker.patch("scrinalia.domains.archive.workers.worker_ner.EntityRepository")
     mock_get_engine = mocker.patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
     mock_flag_modified = mocker.patch("scrinalia.domains.archive.workers.worker_ner.flag_modified")
-    mocker.patch(BLACKLIST_PATH, return_value=set())
+    mocker.patch(BLACKLIST_PATH, return_value=worker_ner.EntityBlacklist(exact=frozenset(), token=frozenset()))
 
     # Document that, after removing the email, becomes empty
     empty_doc = MockArchiveDocument("doc-2", "   ", "contato@email.com")
@@ -170,7 +200,7 @@ def test_worker_ner_ai_failure_rolls_back(mocker: MockerFixture) -> None:
 
     mocker.patch("scrinalia.domains.archive.workers.worker_ner.EntityRepository")
     mock_get_engine = mocker.patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
-    mocker.patch(BLACKLIST_PATH, return_value=set())
+    mocker.patch(BLACKLIST_PATH, return_value=worker_ner.EntityBlacklist(exact=frozenset(), token=frozenset()))
 
     test_doc = MockArchiveDocument("doc-3", "Texto válido para forçar a IA a rodar")
     mock_db.execute.return_value.all.side_effect = [[(test_doc, "Texto válido para forçar a IA a rodar")], []]
@@ -194,7 +224,7 @@ def test_worker_ner_repository_failure_stamps_error(mocker: MockerFixture) -> No
     mock_repo_class = mocker.patch("scrinalia.domains.archive.workers.worker_ner.EntityRepository")
     mock_get_engine = mocker.patch("scrinalia.domains.archive.workers.worker_ner.get_engine")
     mock_flag_modified = mocker.patch("scrinalia.domains.archive.workers.worker_ner.flag_modified")
-    mocker.patch(BLACKLIST_PATH, return_value=set())
+    mocker.patch(BLACKLIST_PATH, return_value=worker_ner.EntityBlacklist(exact=frozenset(), token=frozenset()))
 
     # Simulate that the AI found 1 entity
     mock_get_engine.return_value.extract.return_value = [[ArchiveEntityDTO(name="Prefeitura", entity_type="ORG")]]

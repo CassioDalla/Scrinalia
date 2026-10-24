@@ -1,4 +1,5 @@
 import re
+from dataclasses import dataclass
 from typing import Any, cast
 
 from sqlalchemy import func, or_, select
@@ -17,6 +18,7 @@ from scrinalia.domains.archive.models import (
     ArchiveDocument,
     DomainNerExclusion,
     DomainStopwords,
+    StopwordMatch,
     StopwordsScope,
 )
 from scrinalia.domains.archive.repository import EntityRepository
@@ -30,51 +32,78 @@ from scrinalia.domains.archive.worker_stamp import NER, identity_stamp_condition
 from scrinalia.domains.archive.workers.run_budget import RunBudget
 
 
-def load_entity_blacklist(db_session: Session) -> set[str]:
+@dataclass(frozen=True)
+class EntityBlacklist:
     """
-    Loads every spelling the NER must not extract.
+    The banned spellings, split by how each one matches an extracted name.
 
-    Two independent sources are merged, because they answer different questions:
+    ``exact`` holds what was banned as a **spelling**: every ``DomainNerExclusion`` — a person's
+    decision that the term belongs to the subject axis — and the stopwords marked ``EXACT``.
+    ``token`` holds the noise words that must also swallow the merged spans they start.
 
-    * ``DomainStopwords`` (scope ENTITY/ALL): generic noise ("lixo", "ofício"), dropped
-      from every extraction.
-    * ``DomainNerExclusion``: a curation decision that the spelling belongs to the
-      subject axis (a tag), recorded when the LLM judge or a human settled a
-      tag x entity clash. It is *not* noise — the term is a legitimate subject — so it
-      lives in its own catalog, where it can be listed, explained and undone.
-
-    Returns:
-        set[str]: Lowercase terms for O(1) filtering.
+    The split is the fix for #160. Measured on the reference collection, one token rule over the
+    union rejected 47 names for ``casa`` (among them ``casa da memória``), 23 for ``alameda`` (every
+    ``Alameda …`` street), 10 for ``patrimônio``, 7 for ``caixa`` — 115 names over 1.288 links and
+    1.170 documents. An exclusion is a decision about a spelling, and a generic word that merely
+    starts a proper name is not a reason to drop the name.
     """
-    stopwords = (
-        db_session.query(DomainStopwords.word)
-        .filter(DomainStopwords.word_scope.in_([StopwordsScope.ENTITY, StopwordsScope.ALL]))
-        .all()
-    )
-    excluded = db_session.query(DomainNerExclusion.term).all()
 
-    return {row[0].lower() for row in stopwords} | {row[0].lower() for row in excluded}
+    exact: frozenset[str]
+    token: frozenset[str]
 
 
-def is_blocked_entity_name(name: str, blacklist: set[str]) -> bool:
+def load_entity_blacklist(db_session: Session) -> EntityBlacklist:
     """
-    True when the extracted spelling is, or contains, a blocked term.
+    Loads every spelling the NER must not extract, with the way each one matches.
 
-    The exact-match check is not enough, and the real engine shows why: spaCy merges
-    neighbouring tokens, so with "iptu" excluded the model still returns the single
-    entity ``"IPTU do Exemplo"``. An exact comparison against the blacklist lets that
-    false positive straight through — the very leak the exclusion catalog exists to
-    close. Matching on token boundaries blocks the merged form while leaving
+    Two independent sources, because they answer different questions:
+
+    * ``DomainStopwords`` (scope ENTITY/ALL): generic noise ("lixo", "ofício"), dropped from every
+      extraction. Its ``match_mode`` decides whether the word also blocks the names that contain it:
+      ``iptu`` has to (the engine returns ``IPTU do Exemplo``), ``alameda`` must not.
+    * ``DomainNerExclusion``: a curation decision that the spelling belongs to the subject axis (a
+      tag), recorded when the LLM judge or a human settled a tag x entity clash. It is *not* noise —
+      the term is a legitimate subject — so it matches the spelling alone and never a name that
+      contains it: the conflict was about ``casa``, not about ``casa da memória``.
+    """
+    stopwords = db_session.execute(
+        select(DomainStopwords.word, DomainStopwords.match_mode).where(
+            DomainStopwords.word_scope.in_([StopwordsScope.ENTITY, StopwordsScope.ALL])
+        )
+    ).all()
+    excluded = db_session.scalars(select(DomainNerExclusion.term)).all()
+
+    exact = {term.lower() for term in excluded}
+    token: set[str] = set()
+    for word, mode in stopwords:
+        if mode == StopwordMatch.EXACT:
+            exact.add(word.lower())
+        else:
+            token.add(word.lower())
+    return EntityBlacklist(exact=frozenset(exact), token=frozenset(token))
+
+
+def is_blocked_entity_name(name: str, blacklist: EntityBlacklist) -> bool:
+    """
+    True when the extracted spelling is banned, or contains a token a ban must swallow.
+
+    The exact check alone is not enough for a **token-mode** stopword, and the real engine shows why:
+    spaCy merges neighbouring tokens, so with "iptu" excluded the model still returns the single
+    entity ``"IPTU do Exemplo"``. Matching on token boundaries blocks that merged form while leaving
     legitimate names that merely contain the letters untouched (``"iptu"`` blocks
     ``"iptu do exemplo"``, but never ``"iptuana"``).
+
+    An **exact** ban is the opposite: it blocks ``"casa"`` and lets ``"casa da memória"`` through,
+    because the decision was about the spelling. The token intersection reads only ``blacklist.token``
+    — an exclusion must never reject a name that merely contains the word.
     """
     normalized = name.strip().lower()
 
-    if normalized in blacklist:
+    if normalized in blacklist.exact or normalized in blacklist.token:
         return True
 
     tokens = {token for token in re.split(r"\W+", normalized) if token}
-    return bool(tokens & blacklist)
+    return bool(tokens & blacklist.token)
 
 
 #: What a URL may carry, from RFC 3986: the unreserved characters, the gen-delims, the sub-delims
@@ -285,7 +314,10 @@ def execute(
     logger.info(f"🔍 Found {total_documents} documents to process.")
 
     blacklist = load_entity_blacklist(db)
-    logger.info(f"🛡️ Loaded {len(blacklist)} blocked terms (stopwords + NER exclusions).")
+    logger.info(
+        f"🛡️ Loaded {len(blacklist.exact)} exact and {len(blacklist.token)} token blocked terms "
+        "(stopwords + NER exclusions)."
+    )
 
     # The approved excerpts are subtracted from the extracted text (and from the hash the
     # embedding stamp uses), so boilerplate stops feeding the entity extractor.
