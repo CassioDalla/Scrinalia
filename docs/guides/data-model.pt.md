@@ -106,7 +106,7 @@ Três propriedades desta tabela sustentam o modelo:
 | `archive_entities` | Uma entidade nomeada (pessoa, organização, lugar) encontrada por NER ou inserida à mão. | `entity_id`, `name` (único), `entity_type` |
 | `archive_entity_merge_log` | Uma linha por entidade absorvida (um **merge**) ou por nome renomeado (uma **renomeação**), retratada antes de qualquer mudança. | `kind` (`MERGE`/`RENAME`, com check), `canonical_renamed_from`, `renamed_from_synonym_created`, `undone_at`; `undo_entity_merge` restaura a linha, seus vínculos, suas grafias e o nome que a canônica perdeu. |
 | `archive_document_tags` | Quais tags uma descrição carrega. | chave composta `(description_id, tag_id)` |
-| `archive_document_entities` | Quais entidades uma descrição carrega. | chave composta `(description_id, entity_id)` |
+| `archive_document_entities` | Quais entidades uma descrição carrega, e quem escreveu cada vínculo. | chave composta `(description_id, entity_id)`, `origin` (`ArchiveEntityOrigin`: `AI`, `HUMAN` ou `UNKNOWN`), `created_at` (nulo quando o vínculo é anterior à coluna) |
 | `archive_ai_review_queue` | A fila de auditoria da IA; o lado da *decisão* de uma colisão tag × entidade. | `anomaly_type` (`AnomalyType`), `status` (`ArchiveReviewStatus`), `context_payload` (JSONB), `llm_decision`, `llm_confidence`, `llm_reason` |
 
 `archive_tags.macro_category_id` guarda no máximo uma categoria de assunto, e esse é todo o eixo de
@@ -153,8 +153,8 @@ do acervo, não sobre a instalação.
 
 | Tabela | Para que serve | Colunas principais |
 | --- | --- | --- |
-| `domain_stopwords` | Termos banidos pela curadoria, com o eixo que eles deixam e quem plantou o banimento. | `id`, `word` (único), `word_scope` (`StopwordsScope`: `TAG`, `ENTITY`, `ALL`), `source` (`HUMAN`/`CONFLICT`/`EXCLUSION`, com check) |
-| `domain_ner_exclusions` | Termos que a curadoria decidiu pertencerem ao eixo TAG, não a entidades nomeadas. | `id`, `term` (único), `reason`, `source` (`JUDGE`/`HUMAN`), `tag_id` |
+| `domain_stopwords` | Termos banidos pela curadoria, com o eixo que eles deixam, quem plantou o banimento e como o banimento casa com um nome. | `id`, `word` (único), `word_scope` (`StopwordsScope`: `TAG`, `ENTITY`, `ALL`), `source` (`HUMAN`/`CONFLICT`/`EXCLUSION`, com check), `match_mode` (`StopwordMatch`: `TOKEN`/`EXACT`, com check; só os eixos `ENTITY`/`ALL` leem) |
+| `domain_ner_exclusions` | Termos que a curadoria decidiu pertencerem ao eixo TAG, não a entidades nomeadas; casam pela **grafia exata**, nunca por token. | `id`, `term` (único), `reason`, `source` (`JUDGE`/`HUMAN`), `tag_id` |
 | `domain_subject_exclusions` | Termos que a curadoria decidiu não serem assunto de forma alguma, e se esta linha plantou o banimento no escopo `TAG`. | `id`, `term` (único), `reason`, `source` (`HUMAN`/`RULE`), `ban_created` |
 | `domain_synonyms` | Grafias mapeadas para uma tag ou entidade canônica. | `id`, `synonym_name`, `category` (`TAG`/`ORG`/`LOC`/`PER`), `canonical_tag_id`, `canonical_entity_id` |
 | `domain_text_templates` | Trechos repetidos que a curadoria mantém fora do texto da IA. | `template_id`, `text`, `fingerprint` (único), `variants`, `action`, `replacement`, `scope`, `status`, `occurrence_count`, `sample_document_ids` |

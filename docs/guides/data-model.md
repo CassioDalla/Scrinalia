@@ -117,7 +117,7 @@ Three properties of this table carry the model:
 | `archive_entities` | A named entity (person, organisation, place) found by NER or inserted by hand. | `entity_id`, `name` (unique), `entity_type` |
 | `archive_entity_merge_log` | One row per absorbed entity (a **merge**) or per renamed name (a **rename**), snapshotted before anything changes. | `kind` (`MERGE`/`RENAME`, checked), `canonical_renamed_from`, `renamed_from_synonym_created`, `undone_at`; `undo_entity_merge` restores the row, its links, its spellings and the name the canonical lost. |
 | `archive_document_tags` | Which tags a description carries. | `(description_id, tag_id)` composite key |
-| `archive_document_entities` | Which entities a description carries. | `(description_id, entity_id)` composite key |
+| `archive_document_entities` | Which entities a description carries, and who wrote each link. | `(description_id, entity_id)` composite key, `origin` (`ArchiveEntityOrigin`: `AI`, `HUMAN` or `UNKNOWN`), `created_at` (null when the link predates the column) |
 | `archive_ai_review_queue` | The AI auditing queue; the decision side of a tag × entity collision. | `anomaly_type` (`AnomalyType`), `status` (`ArchiveReviewStatus`), `context_payload` (JSONB), `llm_decision`, `llm_confidence`, `llm_reason` |
 
 `archive_tags.macro_category_id` holds at most one subject category, and that is the whole subject
@@ -164,8 +164,8 @@ about the domain of the archive, not about the installation.
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `domain_stopwords` | Terms the curation banned, with the axis they leave and who planted the ban. | `id`, `word` (unique), `word_scope` (`StopwordsScope`: `TAG`, `ENTITY`, `ALL`), `source` (`HUMAN`/`CONFLICT`/`EXCLUSION`, checked) |
-| `domain_ner_exclusions` | Terms the curation decided belong to the TAG axis, not to named entities. | `id`, `term` (unique), `reason`, `source` (`JUDGE`/`HUMAN`), `tag_id` |
+| `domain_stopwords` | Terms the curation banned, with the axis they leave, who planted the ban and how the ban matches a name. | `id`, `word` (unique), `word_scope` (`StopwordsScope`: `TAG`, `ENTITY`, `ALL`), `source` (`HUMAN`/`CONFLICT`/`EXCLUSION`, checked), `match_mode` (`StopwordMatch`: `TOKEN`/`EXACT`, checked; only the `ENTITY`/`ALL` axes read it) |
+| `domain_ner_exclusions` | Terms the curation decided belong to the TAG axis, not to named entities; matched by the **exact spelling**, never by a token. | `id`, `term` (unique), `reason`, `source` (`JUDGE`/`HUMAN`), `tag_id` |
 | `domain_subject_exclusions` | Terms the curation decided are not a subject at all, with whether this row planted the `TAG`-scoped ban. | `id`, `term` (unique), `reason`, `source` (`HUMAN`/`RULE`), `ban_created` |
 | `domain_synonyms` | Spellings mapped to a canonical tag or entity. | `id`, `synonym_name`, `category` (`TAG`/`ORG`/`LOC`/`PER`), `canonical_tag_id`, `canonical_entity_id` |
 | `domain_text_templates` | Repeated excerpts the curation keeps out of the AI text. | `template_id`, `text`, `fingerprint` (unique), `variants`, `action`, `replacement`, `scope`, `status`, `occurrence_count`, `sample_document_ids` |

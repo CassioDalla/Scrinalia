@@ -1713,3 +1713,98 @@ with short or full shas, and part of a `## <date> — <title>` entry.
 - **Not verified, and said so.** No screen changed, so no render was made; the panel's `failed`
   number for the thumbnail is covered by its counter test, not looked at in a browser. The #148 gate
   is test-only and has no documentation page.
+
+## 2026-10-23 — the spaCy pipeline leaves the lock for a build step
+
+- **Range:** `d1494f1..8af438e`
+- **Pages:**
+  - `guides/install.md` — **updated**: step 3 gains the install command
+    (`uv pip install --python .venv/bin/python --require-hashes -r models/requirements.txt`) and the
+    paragraph saying why the pipeline is not in the lock and that `uv sync` prunes it;
+    `models/requirements.txt` joins the page's `sources:`.
+  - `guides/install.pt.md` — **updated**: the same step and paragraph.
+  - `guides/curate.md` — **no-change**: the report named it for
+    `packages/api-contract/openapi.json`, and that file's whole diff in the range is `info.version`
+    from `1.2.0` to `1.3.0` (`5a41a2d`). No route, schema or screen moved, so the page still holds.
+- **Measured, not assumed.** `uv lock` resolved 214 packages without `pt-core-news-lg`;
+  `uv sync --locked` uninstalled the package; the install command put it back in 6.06 s against a warm
+  cache, and `importlib.metadata.version("pt-core-news-lg")` answered `3.8.0`. The requirements line
+  carries the sha256 the lock used to hold.
+- **Not verified, and said so.** The image was not built here: the Dockerfile step is that same
+  command, run after `uv sync` in the same stage. And no Dependabot run has happened since the change,
+  so the update job it exists for is still unobserved.
+
+## 2026-10-24 — the entity link that could not say who wrote it (#135)
+
+- **Range:** `d1494f1..1ac157d`
+- **Pages:**
+  - `guides/data-model.md` — **updated**: the `archive_document_entities` row carries `origin` and
+    `created_at`, and says `created_at` is null for a link that predates the column.
+  - `guides/data-model.pt.md` — **updated**: the same row.
+  - `guides/curate.md` — **updated**: the `Assuntos` tab names the origin of each link, the
+    `Confirmar` action and its consequence, and the fact that a confirmation which changes no names
+    writes no revision.
+  - `guides/curate.pt.md` — **updated**: the same paragraph.
+- **Measured, not assumed.** On a copy of the reference collection (`memoriacuritibana`, 64.504 links
+  over 4.811 documents) the migration ran up and down and `alembic check` reported no drift; the
+  backfill left exactly **64.504** rows as `UNKNOWN` and none as `AI`. The screen was rendered against
+  that copy migrated to head: `confirmada`, `IA` and `não rastreada` appear on the same list, and
+  clicking `Confirmar` on an `UNKNOWN` row flipped it to `HUMAN` both in the database and on screen.
+- **Not verified, and said so.** No NER worker was run after the change: the `IA` row in the render
+  was written through `EntityRepository.bulk_link_entities` — the worker's own write path — and not
+  by a full extraction. And a confirmation that changes no names writes no revision, so the
+  `changed_by` of that act is not stored; the link's origin is the record, which the guide states.
+
+## 2026-10-24 — the ban that matched every name (#160)
+
+- **Range:** `1ac157d..9923231`
+- **Pages:**
+  - `guides/data-model.md` — **updated**: `domain_stopwords` carries `match_mode`, and
+    `domain_ner_exclusions` matches the exact spelling; the table now says what the worker reads.
+  - `guides/data-model.pt.md` — **updated**: the same two rows.
+  - `guides/curate.md` — **updated**: the Stopwords tab gains the `Casamento` bullet — the PATCH, the
+    two modes and why an exclusion is exact.
+  - `guides/curate.pt.md` — **updated**: the same bullet.
+- **Measured, not assumed.** On the reference collection the migration ran up, down and up again and
+  `alembic check` reported no drift; the data decision set 9 stopwords to `EXACT` and removed the
+  exact `câmara municipal de curitiba`. The live measurement on the signed #138 set went from
+  **P 0.909 / R 0.920 / F1 0.915** with 13 blocked gold terms to **P 0.917 / R 0.956 / F1 0.936**
+  with none; ORG recall 0.568 → 0.611, boundary 27 → 12, spurious 109 → 115.
+- **Not verified, and said so.** No NER worker ran over the whole collection after the change: the
+  number is the bench's `live` mode over the 122 labelled documents, not a re-extraction of the
+  4,813. The screen was rendered against a copy of the collection, where flipping `alameda` to
+  `TOKEN` changed both the select and the row in the database; the copy was then discarded.
+
+## 2026-10-24 — the typology refusals have a screen (#129)
+
+- **Range:** `9923231..8e3a903`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the Tipologias section gains the refusal queue,
+    `GET /api/v1/typologies/refusals`, the dossier's `PATCH` write, the empty state's meaning and
+    the note that there is no durable "no typology" verdict; the catalogue table row names the queue
+    and its reversibility.
+  - `guides/curate.pt.md` — **updated**: the same paragraph and table row.
+  - `guides/data-model.md` — **no-change**: the report named it for `models/governance.py`; the page
+    names `llm_decision` but not its length, and the queue paragraph (`TYPOLOGY_LOW_CONFIDENCE` and
+    the score it saw) is unchanged.
+  - `guides/operate.md` — **no-change**: the report named it for `router.tsx`; the diff is the typology
+    route's `offset` search, not the operations panel, and the typology worker paragraph already says
+    the refusal is recorded with the score. The screen that settles it belongs to the curation guide.
+- **Measured, not assumed.** The migration widened `llm_decision` to 100; `alembic upgrade head`
+  applied it on the dev database (`scrinalia_zeroed`) and `alembic check` reports no new operations.
+  The new API test pins the page to the predicate and the count, and the route to 401/200/403. The
+  index was not added: on the reference collection with 3,000 descriptions available, 100 queue rows
+  cost **0.5 ms** for the page with or without it; 5,000 rows cost **15.8 ms / 3.9 ms** (page/count)
+  without and **18.7 / 4.8** with; 50,000 rows cost **85.6 / 15.0** without and **78.3 / 15.6** with.
+  The only gain was 8.5% on the page at 50k, a queue this collection does not have.
+- **Looked at, not assumed.** The screen was rendered against the dev database with three seeded
+  refusals (0.39, 0.30, 0.05): the queue showed the current titles, the labels and the scores in that
+  order. Selecting `Planta Arquitetônica` and clicking `Classificar` removed the row, changed the
+  count from 3 to 2, wrote `typology_id=1` and `review_status=HUMAN_APPROVED` on `16124` and one
+  revision. The seeded rows, the revision and the temporary account were removed afterwards, and the
+  document returned to `NEEDS_REVIEW` with no typology. The empty state was rendered too, and says
+  what empty means.
+- **Not verified, and said so.** The index measurement is a synthetic queue over the reference
+  collection, not a real worker run; no typology worker ran after the change. The page was rendered on
+  the zeroed dev database's 101 documents, not on the 4,812 of the reference collection, so the
+  screenshot proves the screen and the write, not a production-sized list.

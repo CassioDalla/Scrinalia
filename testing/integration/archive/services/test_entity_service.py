@@ -1,7 +1,7 @@
 from sqlalchemy import select, text
 
 from scrinalia.domains.archive.domain.entity_merge import KIND_MERGE, KIND_RENAME
-from scrinalia.domains.archive.models import ArchiveEntity, ArchiveEntityMergeLog, ArchiveTag
+from scrinalia.domains.archive.models import ArchiveEntity, ArchiveEntityMergeLog, ArchiveEntityOrigin, ArchiveTag
 from scrinalia.domains.archive.repository import EntityRepository
 
 # ==========================================
@@ -50,7 +50,9 @@ def test_resolve_cross_domain_conflict_tag_wins(use_test_db, db_session, generat
     db_session.commit()
 
     # Link the document ONLY to the Entity
-    db_session.add(ArchiveDocumentEntity(description_id="doc_1", entity_id=ent.entity_id))
+    db_session.add(
+        ArchiveDocumentEntity(description_id="doc_1", entity_id=ent.entity_id, origin=ArchiveEntityOrigin.AI)
+    )
     db_session.commit()
 
     # THE MAGIC: The Tag wins the conflict
@@ -256,10 +258,18 @@ def test_the_entity_preview_and_the_merge_produce_the_same_numbers(use_test_db, 
     only_second = generate_archive_doc(original_title="Só a segunda")
     db_session.add_all(
         [
-            ArchiveDocumentEntity(description_id=shared.description_id, entity_id=first.entity_id),
-            ArchiveDocumentEntity(description_id=only_second.description_id, entity_id=first.entity_id),
-            ArchiveDocumentEntity(description_id=only_second.description_id, entity_id=second.entity_id),
-            ArchiveDocumentEntity(description_id=shared.description_id, entity_id=canonical.entity_id),
+            ArchiveDocumentEntity(
+                description_id=shared.description_id, entity_id=first.entity_id, origin=ArchiveEntityOrigin.AI
+            ),
+            ArchiveDocumentEntity(
+                description_id=only_second.description_id, entity_id=first.entity_id, origin=ArchiveEntityOrigin.AI
+            ),
+            ArchiveDocumentEntity(
+                description_id=only_second.description_id, entity_id=second.entity_id, origin=ArchiveEntityOrigin.AI
+            ),
+            ArchiveDocumentEntity(
+                description_id=shared.description_id, entity_id=canonical.entity_id, origin=ArchiveEntityOrigin.AI
+            ),
         ]
     )
     db_session.flush()

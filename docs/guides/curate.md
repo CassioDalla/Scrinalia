@@ -396,6 +396,14 @@ pair (`CURATE`), plus `PATCH /api/v1/taxonomy/tags/{tag_id}` for the category. L
 are reversible: the revision stores the **whole list of names** on each side, and calling the same
 route twice writes no revision.
 
+Every entity shows the **origin of its link**: `IA` when the extractor wrote it, `confirmada` when a
+person associated or confirmed it, and `não rastreada` for a link written before the column existed.
+An unknown origin is never shown as the model's own. `Confirmar` associates an entity the extractor
+already proposed without duplicating it: the link keeps its place and its origin becomes `HUMAN` —
+the positive verdict the archivist could not record before (#135). Confirming a link that already
+existed changes no names, so it writes no revision: the record of the confirmation is the link's
+origin, and the description becomes `HUMAN_APPROVED`, which takes it out of the AI's queue.
+
 !!! warning "The category is a decision about the vocabulary, not about this description"
 
     Changing a tag's category moves it for **every** description that carries the tag, and the screen
@@ -473,7 +481,7 @@ row would unclassify every description pointing at it while erasing the fact tha
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
 | Níveis de descrição — `/arranjo/niveis` | the ladder the arrangement is written against | yes (retire and reactivate) |
-| Tipologias — `/arranjo/tipologias` | the diplomatic form the classifier proposes | yes (retire and reactivate) |
+| Tipologias — `/arranjo/tipologias` | the diplomatic form the classifier proposes, and the descriptions it refused | yes (retire and reactivate; filing a description is a document revision) |
 | Vocabulário do acervo — `/vocabulario` | what this collection's codes and terms mean | yes (retire and reactivate) |
 
 ### Níveis de descrição — `/arranjo/niveis`
@@ -500,6 +508,18 @@ name**: appending the context makes the model lose the entailment and collapse t
 one typology (measured), so the context is documentation for the reader. Retiring a typology is the
 only lever that reaches the model — it stops being proposed without a single classified description
 being touched, which is why the weight of the retired ones stays on screen.
+
+The screen also lists the descriptions the classifier refused. `GET /api/v1/typologies/refusals`
+(`AUTHENTICATED`) returns one page of the descriptions whose best score stayed below the floor,
+nearest miss first, with the label the run guessed and the score it saw. The list reads the same
+predicate as the classifier's count and leaves out a description a curator has already filed, even
+though its queue row remains. Choosing a typology there is `PATCH /api/v1/documents/{id}`
+(`CURATE`): the dossier's own write, which records the revision and marks the description
+`HUMAN_APPROVED`. It is reversible from the dossier, and the before/after stays in the trail. An
+empty list means no refusal is open, not that the catalogue covers the collection — a description no
+run reached has no row, and filing one removes it from the list without deleting the evidence. If no
+typology fits, create or reactivate one in the catalogue on the same screen; there is no durable
+verdict for "this description has no typology" yet.
 
 ### Vocabulário do acervo — `/vocabulario`
 
@@ -604,6 +624,13 @@ three things apart:
   a badge when it is not `HUMAN` — a term typed here is the default, and the badge marks the ones
   that arrived as a consequence of another decision.
 - **Desbanir** — `DELETE /api/v1/taxonomy/tags/stopwords` (`CURATE`). Reversible.
+- **Casamento** — `PATCH /api/v1/taxonomy/tags/stopwords` (`CURATE`) changes how an existing ban
+  matches without re-banning it: a re-ban would overwrite the origin a conflict or the *Não é
+  assunto* screen recorded. `TOKEN` blocks the word **and any name that contains it as a whole
+  word** — the merged span `IPTU do Exemplo` — and `EXACT` blocks the spelling alone, which is what a
+  generic word that starts a proper name needs: `alameda` blocks `alameda`, never `Alameda Cabral`.
+  Only the `ENTITY`/`ALL` axes read it. Every entry of `domain_ner_exclusions` matches the exact
+  spelling for the same reason: the conflict was about `casa`, not about `casa da memória` (#160).
 - **Purgar** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), after
   `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. This is the write that deletes the tags. The
   preview lists the tags that would die, with their document count, their category **and where the

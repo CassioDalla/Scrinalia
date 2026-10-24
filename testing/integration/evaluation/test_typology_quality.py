@@ -190,6 +190,10 @@ def test_a_formatted_run_hands_the_model_the_labels_and_still_scores_catalogue_n
 #: while matching nothing in the picker. An integration test is the only one that pins the dialect
 #: the picker actually runs.
 #:
+#: The two synthetic Câmara cases are the exception, and they exist so the fix of #163 needs no new
+#: collection title in versioned code: one petition that must stay in the stratum, one plan that only
+#: names the Câmara as its client and must fall through to ``Planta Arquitetônica``.
+#:
 #: The order is load-bearing too, which is why the table includes collisions: the photographic prefix
 #: beats "vistoria" (Relatório Técnico), "Decreto / Lei / Portaria" beats the ``^Projeto`` of a bill,
 #: and "Relatório Técnico" beats the "inventário" that would send the same title to NENHUMA.
@@ -215,6 +219,8 @@ STRATUM_CASES: tuple[tuple[str, str], ...] = (
         "Requerimentos Câmara Municipal de Curitiba janeiro a julho de 1887",
         "Requerimento à Câmara Municipal",
     ),
+    ("Requerimento de um particular à Câmara Municipal", "Requerimento à Câmara Municipal"),
+    ("Projeto de planta para a Câmara Municipal", "Planta Arquitetônica"),
     (
         "Registro de Sepultamentos Cemitério Municipal São Francisco de Paula de 04 dez 1912 a 22 out 1919",
         "Livro de Sepultamento",

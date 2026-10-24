@@ -20,7 +20,7 @@ from litestar.status_codes import HTTP_200_OK
 from litestar.testing import TestClient
 from sqlalchemy.orm import Session
 
-from scrinalia.domains.archive.models import ArchiveDocumentEntity, ArchiveEntity
+from scrinalia.domains.archive.models import ArchiveDocumentEntity, ArchiveEntity, ArchiveEntityOrigin
 
 
 def _seed(db_session: Session) -> tuple[ArchiveEntity, ArchiveEntity]:
@@ -51,10 +51,18 @@ def test_the_badge_and_the_expansion_total_are_the_same_number(
     db_session.add_all(
         [
             # Two entities of the same type on one description: the row the join would multiply.
-            ArchiveDocumentEntity(description_id=heavy.description_id, entity_id=urbanismo.entity_id),
-            ArchiveDocumentEntity(description_id=heavy.description_id, entity_id=fundacao.entity_id),
-            ArchiveDocumentEntity(description_id=light.description_id, entity_id=urbanismo.entity_id),
-            ArchiveDocumentEntity(description_id=elsewhere.description_id, entity_id=fundacao.entity_id),
+            ArchiveDocumentEntity(
+                description_id=heavy.description_id, entity_id=urbanismo.entity_id, origin=ArchiveEntityOrigin.AI
+            ),
+            ArchiveDocumentEntity(
+                description_id=heavy.description_id, entity_id=fundacao.entity_id, origin=ArchiveEntityOrigin.AI
+            ),
+            ArchiveDocumentEntity(
+                description_id=light.description_id, entity_id=urbanismo.entity_id, origin=ArchiveEntityOrigin.AI
+            ),
+            ArchiveDocumentEntity(
+                description_id=elsewhere.description_id, entity_id=fundacao.entity_id, origin=ArchiveEntityOrigin.AI
+            ),
         ]
     )
     db_session.flush()
@@ -94,7 +102,11 @@ def test_an_orphan_is_not_ranked_and_its_expansion_is_empty(
 
     # A description exists and carries the other name, so an empty answer cannot come from an empty table.
     document = generate_archive_doc(original_title="Uma descrição qualquer")
-    db_session.add(ArchiveDocumentEntity(description_id=document.description_id, entity_id=other.entity_id))
+    db_session.add(
+        ArchiveDocumentEntity(
+            description_id=document.description_id, entity_id=other.entity_id, origin=ArchiveEntityOrigin.AI
+        )
+    )
     db_session.flush()
 
     ranking = client.get("/api/v1/taxonomy/entities/relevance?limit=50")

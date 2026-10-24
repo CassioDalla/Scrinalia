@@ -374,6 +374,14 @@ são `POST`/`DELETE /api/v1/documents/{description_id}/tags[/{tag_id}]` e o par 
 reversíveis: a revisão guarda a **lista inteira de nomes** de cada lado, e chamar a mesma rota duas
 vezes não escreve revisão nenhuma.
 
+Cada entidade mostra a **origem do seu vínculo**: `IA` quando o extrator a escreveu, `confirmada`
+quando uma pessoa a associou ou confirmou, e `não rastreada` para um vínculo escrito antes de a coluna
+existir. Uma origem desconhecida nunca é exibida como se fosse do modelo. `Confirmar` associa uma
+entidade que o extrator já propôs sem duplicá-la: o vínculo fica onde está e sua origem vira `HUMAN` —
+o veredito positivo que o arquivista não conseguia registrar antes (#135). Confirmar um vínculo que já
+existia não muda nome nenhum, então não escreve revisão: o registro da confirmação é a origem do
+vínculo, e a descrição vira `HUMAN_APPROVED`, o que a tira da fila da IA.
+
 !!! warning "A categoria é uma decisão sobre o vocabulário, não sobre esta descrição"
 
     Mudar a categoria de uma tag move a tag em **todas** as descrições que a carregam, e a tela diz
@@ -452,7 +460,7 @@ existiu.
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
 | Níveis de descrição — `/arranjo/niveis` | a escada contra a qual o arranjo é escrito | sim (aposentar e reativar) |
-| Tipologias — `/arranjo/tipologias` | a forma diplomática que o classificador propõe | sim (aposentar e reativar) |
+| Tipologias — `/arranjo/tipologias` | a forma diplomática que o classificador propõe, e as descrições que ele recusou | sim (aposentar e reativar; arquivar uma descrição é uma revisão do documento) |
 | Vocabulário do acervo — `/vocabulario` | o que os códigos e termos deste acervo significam | sim (aposentar e reativar) |
 
 ### Níveis de descrição — `/arranjo/niveis`
@@ -478,6 +486,18 @@ modelo perder o vínculo e colapsar o acervo numa única tipologia (medido), ent
 documentação para quem lê. Aposentar uma tipologia é a única alavanca que alcança o modelo — ela
 deixa de ser proposta sem desclassificar nenhuma descrição — e é por isso que o peso das aposentadas
 continua na tela.
+
+A tela também lista as descrições que o classificador recusou. `GET /api/v1/typologies/refusals`
+(`AUTHENTICATED`) devolve uma página das descrições cuja melhor pontuação ficou abaixo do limiar, da
+mais próxima do limiar para a mais distante, com o palpite da execução e a pontuação que ela viu. A
+lista lê o mesmo predicado da contagem do classificador e deixa de fora a descrição que uma pessoa já
+arquivou, mesmo que a linha da fila continue no banco. Escolher uma tipologia ali é
+`PATCH /api/v1/documents/{id}` (`CURATE`): a escrita do dossiê, que grava a revisão e marca a
+descrição como `HUMAN_APPROVED`. Dá para voltar atrás pelo dossiê, e o antes/depois fica na trilha.
+Uma lista vazia quer dizer que nenhuma recusa está aberta, não que o catálogo cobre o acervo — uma
+descrição que nenhuma execução alcançou não tem linha, e arquivar uma a tira da lista sem apagar a
+evidência. Se nenhuma tipologia serve, crie ou reative uma no catálogo da mesma tela; ainda não existe
+veredito durável para "esta descrição não tem tipologia".
 
 ### Vocabulário do acervo — `/vocabulario`
 
@@ -580,6 +600,13 @@ coisas:
   não é `HUMAN` — um termo digitado aqui é o padrão, e o selo marca os que chegaram como consequência
   de outra decisão.
 - **Desbanir** — `DELETE /api/v1/taxonomy/tags/stopwords` (`CURATE`). Reversível.
+- **Casamento** — `PATCH /api/v1/taxonomy/tags/stopwords` (`CURATE`) muda como um banimento existente
+  casa, sem banir de novo: banir de novo sobrescreveria a origem que um conflito ou a tela *Não é
+  assunto* registraram. `TOKEN` bloqueia a palavra **e qualquer nome que a contenha como palavra
+  inteira** — o span fundido `IPTU do Exemplo` — e `EXACT` bloqueia só a grafia, que é o que uma
+  palavra genérica que inicia um nome próprio precisa: `alameda` bloqueia `alameda`, nunca `Alameda
+  Cabral`. Só os eixos `ENTITY`/`ALL` leem isso. Toda entrada de `domain_ner_exclusions` casa pela
+  grafia exata pelo mesmo motivo: o conflito era sobre `casa`, não sobre `casa da memória` (#160).
 - **Purgar** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), depois de
   `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. Esta é a escrita que apaga as tags. A prévia
   lista as tags que morreriam, com a contagem de documentos, a categoria **e de onde veio o

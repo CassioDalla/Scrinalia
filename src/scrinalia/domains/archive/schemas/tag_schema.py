@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from scrinalia.core.author import Author
-from scrinalia.domains.archive.models.enums import StopwordsScope
+from scrinalia.domains.archive.models.enums import StopwordMatch, StopwordsScope
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode, RouteResponse
 from scrinalia.domains.archive.schemas.types import TagName
 
@@ -194,6 +194,9 @@ class StopwordDTO(BaseModel):
     word: str
     scope: StopwordsScope
     source: str = "HUMAN"
+    #: How the ban matches an extracted name (#160): ``TOKEN`` also blocks the names that contain it,
+    #: ``EXACT`` blocks the spelling alone. Only the ENTITY/ALL axes read it.
+    match_mode: StopwordMatch
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -721,6 +724,12 @@ class StopwordRemovalResponse(RouteResponse):
     """Terms un-banned. The purge keeps a ledger, so this is no longer the only way back."""
 
     removed: int
+
+
+class StopwordMatchResponse(RouteResponse):
+    """The match mode of the given terms was changed. The bans and their origins stay."""
+
+    updated: int
 
 
 class StopwordPurgeResult(BaseModel):

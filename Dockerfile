@@ -90,6 +90,18 @@ COPY main.py ./
 # UI. Do not add ``--no-editable``, and keep the source tree at /app/src.
 RUN uv sync --frozen --no-dev
 
+# The spaCy pipeline is **not** in the lock: `models/requirements.txt` is the one place it is defined,
+# and it has to be installed after the project because ``uv sync`` is exact — it prunes every package
+# the lock does not name, so the model would not survive an install that came before it. Same reason
+# it is the last install step in this stage.
+#
+# It used to be a ``[tool.uv.sources]`` URL in pyproject.toml, which made every ``uv lock`` download
+# the 542 MB wheel; Dependabot's proxy answers that download with a 401 after the redirect to the
+# release CDN and kills the update job before it reaches the package it was updating (measured
+# 2026-10-23). Here the wheel is fetched once, at build time, with its hash.
+COPY models models
+RUN uv pip install --python /app/.venv/bin/python --require-hashes -r models/requirements.txt
+
 # ------------------------------------------------------------------------------------------------
 # Stage 3 — runtime
 # ------------------------------------------------------------------------------------------------

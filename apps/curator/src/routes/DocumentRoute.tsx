@@ -28,6 +28,7 @@ import { Notice } from "@/components/ui/Notice";
 import { Tabs } from "@/components/ui/Tabs";
 import { Typeahead } from "@/components/ui/Typeahead";
 import { ACTION } from "@/lib/copy";
+import { ENTITY_ORIGIN_HINT, ENTITY_ORIGIN_LABEL, ENTITY_ORIGIN_TONE } from "@/lib/entities";
 import { formatCount, formatDate, formatDateTime, REVIEW_STATUS_LABEL, REVIEW_STATUS_TONE } from "@/lib/format";
 
 const routeApi = getRouteApi("/acervo/$descriptionId");
@@ -467,15 +468,31 @@ function SubjectsTab({ document }: { document: DocumentSummary }) {
                 <span className="flex items-center gap-2">
                   <span className="text-sm">{entity.name}</span>
                   <Badge tone="neutral">{entity.entity_type}</Badge>
+                  <Badge tone={ENTITY_ORIGIN_TONE[entity.origin]} title={ENTITY_ORIGIN_HINT[entity.origin]}>
+                    {ENTITY_ORIGIN_LABEL[entity.origin]}
+                  </Badge>
                 </span>
-                <Button
-                  size="sm"
-                  variant="danger"
-                  disabled={removeEntity.isPending}
-                  onClick={() => removeEntity.mutate(entity.entity_id)}
-                >
-                  {ACTION.remove.label}
-                </Button>
+                <span className="flex items-center gap-1.5">
+                  {entity.origin === "HUMAN" ? null : (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={addEntity.isPending}
+                      title="Registra que uma pessoa revisou e mantém esta entidade."
+                      onClick={() => addEntity.mutate(entity.entity_id)}
+                    >
+                      {ACTION.confirm.label}
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    disabled={removeEntity.isPending}
+                    onClick={() => removeEntity.mutate(entity.entity_id)}
+                  >
+                    {ACTION.remove.label}
+                  </Button>
+                </span>
               </li>
             ))}
           </ul>

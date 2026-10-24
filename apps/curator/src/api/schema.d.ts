@@ -1561,7 +1561,8 @@ export interface paths {
         delete: operations["ApiV1TaxonomyTagsStopwordsRemoveStopwords"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** UpdateStopwordMatch */
+        patch: operations["ApiV1TaxonomyTagsStopwordsUpdateStopwordMatch"];
         trace?: never;
     };
     "/api/v1/taxonomy/tags/stopwords/purge": {
@@ -1731,6 +1732,23 @@ export interface paths {
         put?: never;
         /** CreateTypology */
         post: operations["ApiV1TypologiesCreateTypology"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/typologies/refusals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ListRefusals */
+        get: operations["ApiV1TypologiesRefusalsListRefusals"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1930,6 +1948,18 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ArchiveEntityOrigin
+         * @description Who wrote a document-entity link.
+         *
+         *         ``UNKNOWN`` is not a synonym for ``AI``: it is what the links written before this column existed
+         *         carry, because the schema cannot prove which producer wrote them and a migration that guessed
+         *         would invent the very fact the column exists to keep. A link created by a vocabulary operation —
+         *         a merge, a restore, a conflict resolution — is also ``UNKNOWN``: it was not an extraction and not
+         *         a person reading a description.
+         * @enum {string}
+         */
+        ArchiveEntityOrigin: "AI" | "HUMAN" | "UNKNOWN";
         /** ArchiveMacroCategoryEntityDTO */
         ArchiveMacroCategoryEntityDTO: {
             category_id: number;
@@ -2487,6 +2517,7 @@ export interface components {
             entity_id: number;
             entity_type: string;
             name: string;
+            origin: components["schemas"]["ArchiveEntityOrigin"];
         };
         /** DocumentFacets */
         DocumentFacets: {
@@ -3503,7 +3534,7 @@ export interface components {
          *         things and a translation catalogue needs to tell them apart.
          * @enum {string}
          */
-        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORD_PURGE_DONE" | "TAG_STOPWORD_PURGE_UNDONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_BLOCKED" | "SUBJECT_EXCLUSIONS_PARTIAL" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "NER_PURGE_DONE" | "NER_PURGE_UNDONE" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "ENTITY_RENAMED" | "ENTITY_MERGE_UNDONE" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "PASSWORD_CHANGE_REQUIRED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
+        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORDS_MATCH_UPDATED" | "TAG_STOPWORD_PURGE_DONE" | "TAG_STOPWORD_PURGE_UNDONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_BLOCKED" | "SUBJECT_EXCLUSIONS_PARTIAL" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "NER_PURGE_DONE" | "NER_PURGE_UNDONE" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "ENTITY_RENAMED" | "ENTITY_MERGE_UNDONE" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "PASSWORD_CHANGE_REQUIRED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
         /** RouteResponse */
         RouteResponse: {
             code: components["schemas"]["RouteMessageCode"];
@@ -3537,16 +3568,41 @@ export interface components {
         };
         /** StopwordCreateRequest */
         StopwordCreateRequest: {
+            match_mode?: components["schemas"]["StopwordMatch"];
             scope?: components["schemas"]["StopwordsScope"];
             /** @description Termos a banir (normalizados ao gravar). */
             words: string[];
         };
         /** StopwordDTO */
         StopwordDTO: {
+            match_mode: components["schemas"]["StopwordMatch"];
             scope: components["schemas"]["StopwordsScope"];
             /** @default HUMAN */
             source: string;
             word: string;
+        };
+        /**
+         * StopwordMatch
+         * @description How a banned spelling matches an extracted name.
+         *
+         *         ``TOKEN`` blocks the spelling **and** any name that contains it as a whole word — the rule the
+         *         merged-span case needs, because with ``iptu`` banned spaCy still returns ``IPTU do Exemplo``.
+         *         ``EXACT`` blocks the spelling alone and leaves the names that contain it: ``alameda`` by itself
+         *         is noise, ``Alameda Cabral`` is a street (#160).
+         * @default TOKEN
+         * @enum {string}
+         */
+        StopwordMatch: "TOKEN" | "EXACT";
+        /** StopwordMatchRequest */
+        StopwordMatchRequest: {
+            match_mode: components["schemas"]["StopwordMatch"];
+            words: string[];
+        };
+        /** StopwordMatchResponse */
+        StopwordMatchResponse: {
+            code: components["schemas"]["RouteMessageCode"];
+            message: string;
+            updated: number;
         };
         /** StopwordPurgeLogEntryDTO */
         StopwordPurgeLogEntryDTO: {
@@ -4042,6 +4098,26 @@ export interface components {
             is_active: boolean;
             name: string;
             typology_id: number;
+        };
+        /** TypologyRefusalListResponse */
+        TypologyRefusalListResponse: {
+            items?: components["schemas"]["TypologyRefusalRow"][];
+            /** @default 20 */
+            limit: number;
+            /** @default 0 */
+            offset: number;
+            /** @default 0 */
+            total: number;
+        };
+        /** TypologyRefusalRow */
+        TypologyRefusalRow: {
+            ai_confidence_score?: number | null;
+            description_id: string;
+            document_date?: string | null;
+            final_title?: string | null;
+            guessed_label?: string | null;
+            original_title: string;
+            reference_code?: string | null;
         };
         /** TypologyUpdateRequest */
         TypologyUpdateRequest: {
@@ -8062,6 +8138,45 @@ export interface operations {
             };
         };
     };
+    ApiV1TaxonomyTagsStopwordsUpdateStopwordMatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StopwordMatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopwordMatchResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
     ApiV1TaxonomyTagsStopwordsPurgePurgeStopwords: {
         parameters: {
             query?: never;
@@ -8511,6 +8626,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TypologyDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1TypologiesRefusalsListRefusals: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TypologyRefusalListResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

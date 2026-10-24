@@ -15,7 +15,7 @@ three-layer pipeline, and enriches them with named entities, typologies and subj
 categories. Every AI decision is advisory: an archivist reviews and approves, and approved
 documents are locked against further automatic rewrites.
 
-> **Status:** `1.3.0`. The curator surface is complete: the pipeline, the AI workers, the review
+> **Status:** `1.4.0`. The curator surface is complete: the pipeline, the AI workers, the review
 > governance, the authentication and the 26 screens are in place, and the documentation covers
 > install, operation, curation and the data model. The curator UI is a React SPA (`apps/curator/`)
 > served by the API; the HTTP API is the stable contract, and the TypeScript client is generated from
@@ -88,6 +88,8 @@ becoming a tag again.
 ```bash
 # 1. Install dependencies (heavy: torch, transformers, spacy, bertopic)
 uv sync
+# the spaCy Portuguese pipeline is deliberately not in the lock; the install guide says why
+uv pip install --python .venv/bin/python --require-hashes -r models/requirements.txt
 
 # 2. Configure the environment
 cp .env.example .env      # then edit the values

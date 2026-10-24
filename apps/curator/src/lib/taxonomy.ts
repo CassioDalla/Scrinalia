@@ -85,6 +85,25 @@ export const STOPWORD_SCOPE_HINT: Record<string, string> = {
 };
 
 /**
+ * How a ban on the extraction axis matches an extracted name (#160).
+ *
+ * Only ``TOKEN`` has to swallow the merged span the engine returns around a noise word
+ * (``IPTU do Exemplo``); ``EXACT`` is what a generic word that also starts proper names needs
+ * (``alameda`` alone, never ``Alameda Cabral``). The labels are the two behaviours, not the codes.
+ */
+export const STOPWORD_MATCH_LABEL: Record<string, string> = {
+  TOKEN: "a palavra e os nomes que a contêm",
+  EXACT: "só a grafia exata",
+};
+
+export const STOPWORD_MATCH_HINT: Record<string, string> = {
+  TOKEN:
+    "Bloqueia a palavra e qualquer nome que a contenha como palavra inteira — é o que pega o span fundido que o extrator devolve (IPTU do Exemplo).",
+  EXACT:
+    "Bloqueia só a palavra inteira. Um nome que apenas começa ou contém a palavra passa: alameda sozinho é ruído, Alameda Cabral é uma rua.",
+};
+
+/**
  * Who planted a ban.
  *
  * The column exists because the purge preview has to tell a term banned **with the archive in mind**

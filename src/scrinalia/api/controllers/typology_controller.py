@@ -10,6 +10,7 @@ from scrinalia.api.security import Access
 from scrinalia.domains.archive.schemas.typology_schema import (
     CreateTypologyCommand,
     TypologyDTO,
+    TypologyRefusalListResponse,
     UpdateTypologyCommand,
 )
 from scrinalia.domains.archive.services.typology_service import TypologyService
@@ -52,6 +53,27 @@ class TypologyController(Controller):
         classified with it. Hiding them would make the catalogue look lighter than it is.
         """
         return typology_service.list_typologies(only_active=only_active)
+
+    @get("/refusals", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
+    def list_refusals(
+        self,
+        typology_service: NamedDependency[TypologyService],
+        limit: FromQuery[int] = 20,
+        offset: FromQuery[int] = 0,
+    ) -> TypologyRefusalListResponse:
+        """
+        The descriptions the classifier refused, nearest miss first.
+
+        The list exists because ``typology_id`` NULL cannot tell a refusal from a description no run
+        reached: the queue row is the evidence, and this read puts the description and the score the
+        run saw in front of the person who can settle it. A description a curator has already filed
+        is not listed, even though its queue row remains — the predicate says so.
+
+        The write is not here: filing one is the dossier's ``PATCH /api/v1/documents/{id}`` with
+        ``typology_id``, the same command that records the revision and marks the record
+        ``HUMAN_APPROVED``. This route only reads.
+        """
+        return typology_service.list_refusals(limit=limit, offset=offset)
 
     @post("/", opt={"access": Access.CATALOGUE}, status_code=201, sync_to_thread=True)
     def create_typology(

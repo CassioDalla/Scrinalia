@@ -223,8 +223,10 @@ A skill per topic. Open the one that owns what you are about to touch.
 - `auth` — access classification, the guard, sessions, lockout, rate limiting and the ADMIN surface.
 - `render` — whether this machine can render a screen and how; and what to say when it cannot.
 - `commit` — the commit format and the DCO sign-off.
+- `release` — cutting a release: the version declarations, the changelog split, the citation date,
+  the release branch, the merge into `main` and the tag workflow.
 - `environment` — the agent sandbox: `$HOME` read-only, `/tmp` private per command, the workspace
   writable, and where `uv`'s and `pre-commit`'s caches must point.
 - `documenter` — the procedure for a documentation triage round.
 
-**Version**: 1.1.0 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-13
+**Version**: 1.2.0 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-24

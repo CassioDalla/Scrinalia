@@ -7,6 +7,53 @@ All notable changes to this project are documented here. The format is
 `1.0.0` was the first release; the newest one is at the top. Entries describe **behaviour**, not
 commits — the history is the detail.
 
+## [1.4.0] - 2026-10-24
+
+### Added
+
+- **A document-entity link says who wrote it, and a person can confirm one** (issue #135):
+  `archive_document_entities` gains an `origin` (`AI`, `HUMAN` or `UNKNOWN`) and a nullable
+  `created_at`. `UNKNOWN` is what the 64,504 links that predate the column carry — the database cannot
+  prove which producer wrote them, and the migration does not guess. A link a person writes through
+  `POST /api/v1/documents/{description_id}/entities` records `HUMAN`, and associating an entity the
+  extractor already proposed is the **confirmation** the schema could not express: the link stays, its
+  origin changes, and the description becomes `HUMAN_APPROVED`. The screen shows each entity's origin
+  and offers `Confirmar` on the ones nobody has vouched for. The extraction inserts with
+  `ON CONFLICT DO NOTHING`, so it cannot rewrite a human link, and the NER bench excludes a human link
+  from the model's proposal instead of scoring the correction as its own hit.
+
+- **The typology screen lists the descriptions the classifier refused** (issue #129):
+  `GET /api/v1/typologies/refusals` returns one page of the descriptions whose best score stayed
+  below the floor — one row per description, the latest refusal, nearest miss first, with the label
+  the run guessed and the score it saw. The page, the count and the inbox card compose the same
+  `_open_evidence()` predicate, so the total cannot drift from the rows, and a description a curator
+  has already filed leaves the list even though its queue row remains. Filing from the screen is the
+  dossier's own `PATCH /api/v1/documents/{id}` with a `typology_id`, which records the revision and
+  marks the description `HUMAN_APPROVED`; the empty state says no refusal is open, not that the
+  catalogue covers the collection.
+
+### Changed
+
+- **A banned spelling says how it matches, and the extraction stops losing names that contain it**
+  (issue #160). `domain_stopwords` gains `match_mode` (`TOKEN`/`EXACT`) and a
+  `PATCH /api/v1/taxonomy/tags/stopwords` route changes it without re-banning, which would overwrite
+  the origin the conflict or the "não é assunto" screen recorded. Every `domain_ner_exclusions` entry
+  now matches the **exact spelling**: the token rule over the union of both catalogues was rejecting
+  115 entity names over 1,288 links in 1,170 documents — `casa da memória` for `casa`, `Alameda
+  Cabral` for `alameda`, `Caixa Econômica` for `caixa`. On the #138 set, the live measurement went
+  from **P 0.909 / R 0.920 / F1 0.915** with 13 blocked gold terms to **P 0.917 / R 0.956 / F1
+  0.936** with none; ORG recall 0.568 → 0.611 and the boundary cases 27 → 12. The token rule stays
+  where it was written for: a `TOKEN` stopword still rejects the merged span `IPTU do Exemplo`.
+
+### Fixed
+
+- **The typology picker no longer proposes a plan as a Câmara petition** (issue #163). The
+  `Requerimento à Câmara Municipal` stratum's pattern carried a second alternative,
+  `|c[âa]mara municipal`, that matched any title naming the Câmara, including a plan whose title says
+  it is *for* the Câmara. Only the qualified `requerimento … câmara` form stays, so a plan falls
+  through to `Planta Arquitetônica`. Two synthetic titles pin both sides of the rule; no collection
+  data enters the test.
+
 ## [1.3.0] - 2026-10-23
 
 ### Added
@@ -59,7 +106,10 @@ commits — the history is the detail.
   four numbers come from one aggregate, and `processed`/`failed` are derived from it, so the panel pays
   one scan where it used to pay two.
 
+
+
 ### Changed
+
 
 - **The thumbnail's failure mark is `ERROR`, not the boolean `"True"`** (issue #149). `StampStatus`
   carried a third value only because the thumbnail worker wrote `"True"` into `thumbnail_failed` — a
@@ -419,6 +469,7 @@ commits — the history is the detail.
 
 ### Fixed
 
+
 - **An `LLM_CHECK` rule can no longer be saved with an engine the registry does not have** (issue
   #124). The rule's engine and preset were free text all the way down to a `String(50)` column, the
   form's only hint was the placeholder `ex.: ollama` — not a registered engine — and nothing validated
@@ -470,6 +521,21 @@ commits — the history is the detail.
   of `description_id`s, computed once per query, and the page, the count and the facets all read it.
   Nothing a caller sends or receives changes.
 
+### Removed
+
+- **The `granite_local` preset is retired, in both Ollama axes** (issue #122): the model it named,
+  `granite4.1:3b`, does not run on the Ollama the install guide documents. Measured on 2026-10-18, on
+  Ollama 0.24.0: it terminates the llama runner with `signal arrived during cgo execution` and
+  answers `500` to every prompt, while `gemma4:e4b` answers normally on the same server. The name
+  leaves `PRESETS` — the panel stops offering it and `GET /api/v1/system/health` stops requiring the
+  model — but the record stays in `RETIRED_PRESETS`: writing it is refused with the reason and with
+  `gemma_4b_local` as what to use instead, and a row or `LLM_CHECK` rule written before the
+  retirement resolves to `gemma_4b_local` with the reason on the screen, so a stale row cannot take
+  the operations panel down.
+
+## [1.2.0] - 2026-10-13
+
+### Added
 
 - **A whole category of tag × entity collisions decided in one call** (issue #35):
   `POST /api/v1/taxonomy/conflicts/resolve/batch` applies one verdict to the selection the
@@ -656,16 +722,6 @@ commits — the history is the detail.
   origin.
 
 ### Removed
-
-- **The `granite_local` preset is retired, in both Ollama axes** (issue #122): the model it named,
-  `granite4.1:3b`, does not run on the Ollama the install guide documents. Measured on 2026-10-18, on
-  Ollama 0.24.0: it terminates the llama runner with `signal arrived during cgo execution` and
-  answers `500` to every prompt, while `gemma4:e4b` answers normally on the same server. The name
-  leaves `PRESETS` — the panel stops offering it and `GET /api/v1/system/health` stops requiring the
-  model — but the record stays in `RETIRED_PRESETS`: writing it is refused with the reason and with
-  `gemma_4b_local` as what to use instead, and a row or `LLM_CHECK` rule written before the
-  retirement resolves to `gemma_4b_local` with the reason on the screen, so a stale row cannot take
-  the operations panel down.
 
 - **`archive_tag_facets` is dropped and its two routes are gone** (ADR 0013): a tag is a drawer or
   not-a-subject, and the third destination the table tried to persist — producer, place, person —
@@ -926,7 +982,8 @@ commits — the history is the detail.
   reads the **runtime** export and not the development environment: an advisory in a tool that never
   reaches an installation no longer hides the ones that do.
 
-[Unreleased]: https://github.com/CassioDalla/Scrinalia/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/CassioDalla/Scrinalia/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.4.0
 [1.3.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.3.0
 [1.2.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.2.0
 [1.1.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.1.0

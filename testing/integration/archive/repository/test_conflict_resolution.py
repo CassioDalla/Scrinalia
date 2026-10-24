@@ -26,6 +26,7 @@ from scrinalia.domains.archive.models import (
     ArchiveDocumentEntity,
     ArchiveDocumentTag,
     ArchiveEntity,
+    ArchiveEntityOrigin,
     ArchiveReviewStatus,
     ArchiveTag,
     DomainNerExclusion,
@@ -41,7 +42,9 @@ def _link_tag(db_session, tag: ArchiveTag, document_id: str) -> None:
 
 
 def _link_entity(db_session, entity: ArchiveEntity, document_id: str) -> None:
-    db_session.add(ArchiveDocumentEntity(description_id=document_id, entity_id=entity.entity_id))
+    db_session.add(
+        ArchiveDocumentEntity(description_id=document_id, entity_id=entity.entity_id, origin=ArchiveEntityOrigin.AI)
+    )
 
 
 def _pair(db_session, tag_name: str = "batel", entity_name: str = "Batel", entity_type: str = "LOC"):

@@ -1,6 +1,6 @@
 [project]
 name = "scrinalia"
-version = "1.3.0"
+version = "1.4.0"
 description = "Archival description cataloguing and AI-driven enrichment system (ISAD(G))"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -24,7 +24,6 @@ dependencies = [
     "pandas>=3.0.6",
     "pillow>=12.2.0",
     "psycopg2==2.9.13",
-    "pt-core-news-lg",
     "pydantic-settings>=2.15.0",
     "requests>=2.34.2",
     "scikit-learn>=1.8.0",
@@ -35,7 +34,13 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-pt-core-news-lg = { url = "https://github.com/explosion/spacy-models/releases/download/pt_core_news_lg-3.8.0/pt_core_news_lg-3.8.0-py3-none-any.whl" }
+# The spaCy pipeline (`pt_core_news_lg`) is deliberately **not** a source here. As a URL source it
+# made every `uv lock` download its 542 MB wheel, and Dependabot's proxy answers that download with a
+# 401 after the redirect to the release CDN — which killed the whole update job with
+# `private_source_authentication_failure` before it reached the package it was updating. The wheel is
+# defined once in `models/requirements.txt` and installed after `uv sync`, by the command in
+# `docs/guides/install.md`.
+#
 # torch comes from the CPU-only index. The shipped process runs on the CPU (`Procfile` hides the GPU),
 # and the default wheel drags the whole CUDA runtime along: measured, the lock resolved to 3.46 GB, of
 # which 2.19 GB were `nvidia-*` packages and 248 MB `triton` — none of it executed by a CPU host. The
