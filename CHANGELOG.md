@@ -72,6 +72,17 @@ commits — the history is the detail.
 
 ### Changed
 
+- **A banned spelling says how it matches, and the extraction stops losing names that contain it**
+  (issue #160). `domain_stopwords` gains `match_mode` (`TOKEN`/`EXACT`) and a
+  `PATCH /api/v1/taxonomy/tags/stopwords` route changes it without re-banning, which would overwrite
+  the origin the conflict or the "não é assunto" screen recorded. Every `domain_ner_exclusions` entry
+  now matches the **exact spelling**: the token rule over the union of both catalogues was rejecting
+  115 entity names over 1,288 links in 1,170 documents — `casa da memória` for `casa`, `Alameda
+  Cabral` for `alameda`, `Caixa Econômica` for `caixa`. On the #138 set, the live measurement went
+  from **P 0.909 / R 0.920 / F1 0.915** with 13 blocked gold terms to **P 0.917 / R 0.956 / F1
+  0.936** with none; ORG recall 0.568 → 0.611 and the boundary cases 27 → 12. The token rule stays
+  where it was written for: a `TOKEN` stopword still rejects the merged span `IPTU do Exemplo`.
+
 - **The thumbnail's failure mark is `ERROR`, not the boolean `"True"`** (issue #149). `StampStatus`
   carried a third value only because the thumbnail worker wrote `"True"` into `thumbnail_failed` — a
   boolean serialised into a status vocabulary. The mark now uses `ERROR` like every other failure;

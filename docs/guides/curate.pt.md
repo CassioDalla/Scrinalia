@@ -588,6 +588,13 @@ coisas:
   não é `HUMAN` — um termo digitado aqui é o padrão, e o selo marca os que chegaram como consequência
   de outra decisão.
 - **Desbanir** — `DELETE /api/v1/taxonomy/tags/stopwords` (`CURATE`). Reversível.
+- **Casamento** — `PATCH /api/v1/taxonomy/tags/stopwords` (`CURATE`) muda como um banimento existente
+  casa, sem banir de novo: banir de novo sobrescreveria a origem que um conflito ou a tela *Não é
+  assunto* registraram. `TOKEN` bloqueia a palavra **e qualquer nome que a contenha como palavra
+  inteira** — o span fundido `IPTU do Exemplo` — e `EXACT` bloqueia só a grafia, que é o que uma
+  palavra genérica que inicia um nome próprio precisa: `alameda` bloqueia `alameda`, nunca `Alameda
+  Cabral`. Só os eixos `ENTITY`/`ALL` leem isso. Toda entrada de `domain_ner_exclusions` casa pela
+  grafia exata pelo mesmo motivo: o conflito era sobre `casa`, não sobre `casa da memória` (#160).
 - **Purgar** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), depois de
   `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. Esta é a escrita que apaga as tags. A prévia
   lista as tags que morreriam, com a contagem de documentos, a categoria **e de onde veio o

@@ -164,8 +164,8 @@ about the domain of the archive, not about the installation.
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `domain_stopwords` | Terms the curation banned, with the axis they leave and who planted the ban. | `id`, `word` (unique), `word_scope` (`StopwordsScope`: `TAG`, `ENTITY`, `ALL`), `source` (`HUMAN`/`CONFLICT`/`EXCLUSION`, checked) |
-| `domain_ner_exclusions` | Terms the curation decided belong to the TAG axis, not to named entities. | `id`, `term` (unique), `reason`, `source` (`JUDGE`/`HUMAN`), `tag_id` |
+| `domain_stopwords` | Terms the curation banned, with the axis they leave, who planted the ban and how the ban matches a name. | `id`, `word` (unique), `word_scope` (`StopwordsScope`: `TAG`, `ENTITY`, `ALL`), `source` (`HUMAN`/`CONFLICT`/`EXCLUSION`, checked), `match_mode` (`StopwordMatch`: `TOKEN`/`EXACT`, checked; only the `ENTITY`/`ALL` axes read it) |
+| `domain_ner_exclusions` | Terms the curation decided belong to the TAG axis, not to named entities; matched by the **exact spelling**, never by a token. | `id`, `term` (unique), `reason`, `source` (`JUDGE`/`HUMAN`), `tag_id` |
 | `domain_subject_exclusions` | Terms the curation decided are not a subject at all, with whether this row planted the `TAG`-scoped ban. | `id`, `term` (unique), `reason`, `source` (`HUMAN`/`RULE`), `ban_created` |
 | `domain_synonyms` | Spellings mapped to a canonical tag or entity. | `id`, `synonym_name`, `category` (`TAG`/`ORG`/`LOC`/`PER`), `canonical_tag_id`, `canonical_entity_id` |
 | `domain_text_templates` | Repeated excerpts the curation keeps out of the AI text. | `template_id`, `text`, `fingerprint` (unique), `variants`, `action`, `replacement`, `scope`, `status`, `occurrence_count`, `sample_document_ids` |
