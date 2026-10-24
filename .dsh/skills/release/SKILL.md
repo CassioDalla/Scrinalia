@@ -51,6 +51,14 @@ bun install                             # bun.lock
 git checkout -b "release/X.Y.Z" dev
 ```
 
+**Cut this branch from the `dev` tip that already contains the version-bump pull request.** The 1.4.0
+cut branched before the bump PR merged: the merge into `main` recorded the content but not the `dev`
+merge commit, so `git log dev ^main` still showed one commit after the release and the two branches
+diverged. The clean order is bump → pull request into `dev` → merge → update `dev` → cut this branch.
+If the branch was already cut, the repair is a **history-only sync**: merge `dev` into a branch off
+`main`, keep `main`'s changelog and citation, and the tree does not change — only the merge commit is
+recorded. Do it **before** the Release workflow tags.
+
 - **CHANGELOG.md.** Add `## [X.Y.Z] - YYYY-MM-DD` with only the entries since the previous release.
   The previous release's section stays exactly as it shipped. The `[Unreleased]` link moves to
   `compare/vX.Y.Z...HEAD`, and an `[X.Y.Z]` tag link joins the footer.
@@ -85,6 +93,9 @@ UV_CACHE_DIR="$PWD/.cache-uv" uv run pytest testing/unit/repo testing/unit/docs 
 git log --oneline dev ^main   # must be empty: main contains every dev commit
 git diff --stat main..dev     # only the release-preparation files
 ```
+
+If `git log dev ^main` is not empty, stop before tagging: the release branch was cut before the
+version-bump PR merged, and the history-only sync in step 3 is what repairs it.
 
 Check the version in each declaration (`pyproject.toml`, `package.json`, `openapi.json`,
 `CITATION.cff`, `README.md`) and confirm the committed contract matches
