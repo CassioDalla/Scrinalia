@@ -23,6 +23,7 @@ from scrinalia.domains.archive.models import (
     ArchiveDocument,
     ArchiveDocumentEntity,
     ArchiveEntity,
+    ArchiveEntityOrigin,
     ArchiveReviewStatus,
     DomainStopwords,
     StopwordsScope,
@@ -68,11 +69,18 @@ def labelled(description_id: str, terms: list[tuple[str, str]]) -> LabelledRow:
     )
 
 
-def add_entity(db_session, description_id: str, name: str, entity_type: str) -> ArchiveEntity:
+def add_entity(
+    db_session,
+    description_id: str,
+    name: str,
+    entity_type: str,
+    origin: ArchiveEntityOrigin = ArchiveEntityOrigin.AI,
+) -> ArchiveEntity:
+    """One stored link, of the origin the test needs: ``AI`` by default, which is what a run writes."""
     entity = ArchiveEntity(name=name, entity_type=entity_type)
     db_session.add(entity)
     db_session.flush()
-    db_session.add(ArchiveDocumentEntity(description_id=description_id, entity_id=entity.entity_id))
+    db_session.add(ArchiveDocumentEntity(description_id=description_id, entity_id=entity.entity_id, origin=origin))
     db_session.flush()
     return entity
 
@@ -248,6 +256,39 @@ def test_the_stored_mentions_are_grouped_by_document(
 
     assert mentions["grouped"] == [Mention(term="Curitiba", type="LOC")]
     assert mentions["other"] == [Mention(term="Paraná", type="LOC")]
+
+
+def test_a_link_a_person_made_is_not_the_models_proposal(
+    use_test_db,
+    db_session,
+    generate_archive_doc,
+):
+    """
+    #135: the gold a curator writes cannot also be the model's answer.
+
+    Counting a human link as a proposal would score the correction as the extractor's own hit, which
+    is the silent false positive this bench was built to avoid.
+    """
+    generate_archive_doc(description_id="human-link", original_title="Rua Izaac")
+    add_entity(db_session, "human-link", "Curitiba", "LOC", origin=ArchiveEntityOrigin.HUMAN)
+
+    mentions = stored_mentions(db_session, ["human-link"])
+
+    assert "human-link" not in mentions
+
+
+def test_a_link_written_before_the_origin_column_is_still_a_proposal(
+    use_test_db,
+    db_session,
+    generate_archive_doc,
+):
+    """``UNKNOWN`` means "not attributed", not "not the model's": every legacy link came from a run."""
+    generate_archive_doc(description_id="legacy-link", original_title="Rua Izaac")
+    add_entity(db_session, "legacy-link", "Curitiba", "LOC", origin=ArchiveEntityOrigin.UNKNOWN)
+
+    mentions = stored_mentions(db_session, ["legacy-link"])
+
+    assert mentions["legacy-link"] == [Mention(term="Curitiba", type="LOC")]
 
 
 # =============================================================================
