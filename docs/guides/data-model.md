@@ -117,7 +117,7 @@ Three properties of this table carry the model:
 | `archive_entities` | A named entity (person, organisation, place) found by NER or inserted by hand. | `entity_id`, `name` (unique), `entity_type` |
 | `archive_entity_merge_log` | One row per absorbed entity (a **merge**) or per renamed name (a **rename**), snapshotted before anything changes. | `kind` (`MERGE`/`RENAME`, checked), `canonical_renamed_from`, `renamed_from_synonym_created`, `undone_at`; `undo_entity_merge` restores the row, its links, its spellings and the name the canonical lost. |
 | `archive_document_tags` | Which tags a description carries. | `(description_id, tag_id)` composite key |
-| `archive_document_entities` | Which entities a description carries. | `(description_id, entity_id)` composite key |
+| `archive_document_entities` | Which entities a description carries, and who wrote each link. | `(description_id, entity_id)` composite key, `origin` (`ArchiveEntityOrigin`: `AI`, `HUMAN` or `UNKNOWN`), `created_at` (null when the link predates the column) |
 | `archive_ai_review_queue` | The AI auditing queue; the decision side of a tag × entity collision. | `anomaly_type` (`AnomalyType`), `status` (`ArchiveReviewStatus`), `context_payload` (JSONB), `llm_decision`, `llm_confidence`, `llm_reason` |
 
 `archive_tags.macro_category_id` holds at most one subject category, and that is the whole subject

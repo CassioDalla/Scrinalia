@@ -396,6 +396,14 @@ pair (`CURATE`), plus `PATCH /api/v1/taxonomy/tags/{tag_id}` for the category. L
 are reversible: the revision stores the **whole list of names** on each side, and calling the same
 route twice writes no revision.
 
+Every entity shows the **origin of its link**: `IA` when the extractor wrote it, `confirmada` when a
+person associated or confirmed it, and `não rastreada` for a link written before the column existed.
+An unknown origin is never shown as the model's own. `Confirmar` associates an entity the extractor
+already proposed without duplicating it: the link keeps its place and its origin becomes `HUMAN` —
+the positive verdict the archivist could not record before (#135). Confirming a link that already
+existed changes no names, so it writes no revision: the record of the confirmation is the link's
+origin, and the description becomes `HUMAN_APPROVED`, which takes it out of the AI's queue.
+
 !!! warning "The category is a decision about the vocabulary, not about this description"
 
     Changing a tag's category moves it for **every** description that carries the tag, and the screen

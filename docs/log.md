@@ -1713,3 +1713,24 @@ with short or full shas, and part of a `## <date> — <title>` entry.
 - **Not verified, and said so.** No screen changed, so no render was made; the panel's `failed`
   number for the thumbnail is covered by its counter test, not looked at in a browser. The #148 gate
   is test-only and has no documentation page.
+
+## 2026-10-24 — the entity link that could not say who wrote it (#135)
+
+- **Range:** `d1494f1..1ac157d`
+- **Pages:**
+  - `guides/data-model.md` — **updated**: the `archive_document_entities` row carries `origin` and
+    `created_at`, and says `created_at` is null for a link that predates the column.
+  - `guides/data-model.pt.md` — **updated**: the same row.
+  - `guides/curate.md` — **updated**: the `Assuntos` tab names the origin of each link, the
+    `Confirmar` action and its consequence, and the fact that a confirmation which changes no names
+    writes no revision.
+  - `guides/curate.pt.md` — **updated**: the same paragraph.
+- **Measured, not assumed.** On a copy of the reference collection (`memoriacuritibana`, 64.504 links
+  over 4.811 documents) the migration ran up and down and `alembic check` reported no drift; the
+  backfill left exactly **64.504** rows as `UNKNOWN` and none as `AI`. The screen was rendered against
+  that copy migrated to head: `confirmada`, `IA` and `não rastreada` appear on the same list, and
+  clicking `Confirmar` on an `UNKNOWN` row flipped it to `HUMAN` both in the database and on screen.
+- **Not verified, and said so.** No NER worker was run after the change: the `IA` row in the render
+  was written through `EntityRepository.bulk_link_entities` — the worker's own write path — and not
+  by a full extraction. And a confirmation that changes no names writes no revision, so the
+  `changed_by` of that act is not stored; the link's origin is the record, which the guide states.
