@@ -20,13 +20,16 @@ from scrinalia.domains.archive.models import (
     ArchiveDocument,
     ArchiveDocumentEntity,
     ArchiveEntity,
+    ArchiveEntityOrigin,
 )
 from scrinalia.domains.archive.repository.entity_repo import EntityRepository
 from scrinalia.domains.archive.schemas import ArchiveEntityDTO, SynonymCommand
 
 
 def _link(db_session, entity: ArchiveEntity, document_id: str) -> None:
-    db_session.add(ArchiveDocumentEntity(description_id=document_id, entity_id=entity.entity_id))
+    db_session.add(
+        ArchiveDocumentEntity(description_id=document_id, entity_id=entity.entity_id, origin=ArchiveEntityOrigin.AI)
+    )
 
 
 def _merge(repo: EntityRepository, canonical_id: int, ids_to_merge: list[int], new_name: str | None = None):

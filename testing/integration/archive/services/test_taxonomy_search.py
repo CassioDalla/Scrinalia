@@ -16,6 +16,7 @@ from scrinalia.domains.archive.exceptions import MacroCategoryNotFoundError, Tag
 from scrinalia.domains.archive.models import (
     ArchiveDocumentTag,
     ArchiveEntity,
+    ArchiveEntityOrigin,
     ArchiveMacroCategory,
     ArchiveStopwordPurgeLog,
     ArchiveTag,
@@ -254,10 +255,18 @@ class TestEntitySearch:
         db_session.flush()
         for index in range(9):
             document = generate_archive_doc(description_id=f"matriz-{index}", original_title=f"Igreja Matriz {index}")
-            db_session.add(ArchiveDocumentEntity(description_id=document.description_id, entity_id=2))
+            db_session.add(
+                ArchiveDocumentEntity(
+                    description_id=document.description_id, entity_id=2, origin=ArchiveEntityOrigin.AI
+                )
+            )
         for index in range(2):
             document = generate_archive_doc(description_id=f"rosario-{index}", original_title=f"Rosário {index}")
-            db_session.add(ArchiveDocumentEntity(description_id=document.description_id, entity_id=1))
+            db_session.add(
+                ArchiveDocumentEntity(
+                    description_id=document.description_id, entity_id=1, origin=ArchiveEntityOrigin.AI
+                )
+            )
         db_session.flush()
 
         results = entity_service.search_entities("igreja", limit=5)

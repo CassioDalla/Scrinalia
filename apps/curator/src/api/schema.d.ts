@@ -1930,6 +1930,18 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ArchiveEntityOrigin
+         * @description Who wrote a document-entity link.
+         *
+         *         ``UNKNOWN`` is not a synonym for ``AI``: it is what the links written before this column existed
+         *         carry, because the schema cannot prove which producer wrote them and a migration that guessed
+         *         would invent the very fact the column exists to keep. A link created by a vocabulary operation —
+         *         a merge, a restore, a conflict resolution — is also ``UNKNOWN``: it was not an extraction and not
+         *         a person reading a description.
+         * @enum {string}
+         */
+        ArchiveEntityOrigin: "AI" | "HUMAN" | "UNKNOWN";
         /** ArchiveMacroCategoryEntityDTO */
         ArchiveMacroCategoryEntityDTO: {
             category_id: number;
@@ -2487,6 +2499,7 @@ export interface components {
             entity_id: number;
             entity_type: string;
             name: string;
+            origin: components["schemas"]["ArchiveEntityOrigin"];
         };
         /** DocumentFacets */
         DocumentFacets: {

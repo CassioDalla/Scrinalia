@@ -8,6 +8,7 @@ from scrinalia.domains.archive.models import (
     ArchiveDocumentEntity,
     ArchiveDocumentTag,
     ArchiveEntity,
+    ArchiveEntityOrigin,
     ArchiveMacroCategory,
     ArchiveReviewStatus,
     ArchiveTag,
@@ -382,7 +383,9 @@ def test_search_finds_a_document_through_its_tag_and_entity(use_test_db, db_sess
     db_session.add_all(
         [
             ArchiveDocumentTag(description_id=doc.description_id, tag_id=tag.tag_id),
-            ArchiveDocumentEntity(description_id=doc.description_id, entity_id=entity.entity_id),
+            ArchiveDocumentEntity(
+                description_id=doc.description_id, entity_id=entity.entity_id, origin=ArchiveEntityOrigin.AI
+            ),
         ]
     )
     db_session.commit()
@@ -450,7 +453,11 @@ def test_search_still_finds_a_document_through_a_merged_entity_spelling(use_test
     canonical = ArchiveEntity(name="prefeitura de curitiba", entity_type="ORG")
     db_session.add(canonical)
     db_session.commit()
-    db_session.add(ArchiveDocumentEntity(description_id=doc.description_id, entity_id=canonical.entity_id))
+    db_session.add(
+        ArchiveDocumentEntity(
+            description_id=doc.description_id, entity_id=canonical.entity_id, origin=ArchiveEntityOrigin.AI
+        )
+    )
     db_session.add(DomainSynonyms(synonym_name="prefeiruta", category="ORG", canonical_entity_id=canonical.entity_id))
     db_session.commit()
 
@@ -508,8 +515,12 @@ def test_search_filters_by_entity_type(use_test_db, db_session, generate_archive
     doc_org = generate_archive_doc(description_id="e2", original_title="Instituição")
     db_session.add_all(
         [
-            ArchiveDocumentEntity(description_id=doc_place.description_id, entity_id=place.entity_id),
-            ArchiveDocumentEntity(description_id=doc_org.description_id, entity_id=institution.entity_id),
+            ArchiveDocumentEntity(
+                description_id=doc_place.description_id, entity_id=place.entity_id, origin=ArchiveEntityOrigin.AI
+            ),
+            ArchiveDocumentEntity(
+                description_id=doc_org.description_id, entity_id=institution.entity_id, origin=ArchiveEntityOrigin.AI
+            ),
         ]
     )
     db_session.commit()

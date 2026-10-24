@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from scrinalia.domains.archive.models import ArchiveReviewStatus
+from scrinalia.domains.archive.models import ArchiveEntityOrigin, ArchiveReviewStatus
 from scrinalia.domains.archive.schemas.responses import RouteResponse
 
 
@@ -105,11 +105,12 @@ class DocumentTagSummary(BaseModel):
 
 
 class DocumentEntitySummary(BaseModel):
-    """Streamlined named entity (NER) attached to a document."""
+    """Streamlined named entity (NER) attached to a document, and who wrote the link."""
 
     entity_id: int
     name: str
     entity_type: str
+    origin: ArchiveEntityOrigin
 
     model_config = ConfigDict(from_attributes=True)
 

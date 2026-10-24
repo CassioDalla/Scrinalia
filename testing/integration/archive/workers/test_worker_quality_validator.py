@@ -8,6 +8,7 @@ from scrinalia.domains.archive.models import (
     ArchiveDocumentEntity,
     ArchiveDocumentTag,
     ArchiveEntity,
+    ArchiveEntityOrigin,
     ArchiveReviewStatus,
     ArchiveTag,
     ArchiveTypology,
@@ -55,7 +56,9 @@ def _complete_document(db_session, **overrides):
     db_session.add_all(
         [
             ArchiveDocumentTag(description_id=doc.description_id, tag_id=tag.tag_id),
-            ArchiveDocumentEntity(description_id=doc.description_id, entity_id=entity.entity_id),
+            ArchiveDocumentEntity(
+                description_id=doc.description_id, entity_id=entity.entity_id, origin=ArchiveEntityOrigin.AI
+            ),
         ]
     )
     db_session.flush()

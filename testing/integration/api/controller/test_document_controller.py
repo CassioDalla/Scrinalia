@@ -11,7 +11,7 @@ from litestar.status_codes import HTTP_200_OK, HTTP_404_NOT_FOUND, HTTP_409_CONF
 from litestar.testing import TestClient
 
 from scrinalia.domains.archive.exceptions import DocumentHasChildrenError, DocumentNotFoundError
-from scrinalia.domains.archive.models import ArchiveReviewStatus
+from scrinalia.domains.archive.models import ArchiveEntityOrigin, ArchiveReviewStatus
 from scrinalia.domains.archive.schemas.document_schema import (
     DocumentDeletionDTO,
     DocumentDeletionListResponse,
@@ -41,7 +41,9 @@ def _summary(description_id: str = "doc-1") -> DocumentSummary:
                 ai_confidence_score=0.91,
             )
         ],
-        entities=[DocumentEntitySummary(entity_id=2, name="Curitiba", entity_type="LOC")],
+        entities=[
+            DocumentEntitySummary(entity_id=2, name="Curitiba", entity_type="LOC", origin=ArchiveEntityOrigin.AI)
+        ],
     )
 
 
@@ -148,7 +150,8 @@ def test_get_document_returns_tags_and_entities(client: TestClient, mocker):
             "ai_confidence_score": 0.91,
         }
     ]
-    assert body["entities"] == [{"entity_id": 2, "name": "Curitiba", "entity_type": "LOC"}]
+    # The origin travels with each name: the subject tab says which ones a person confirmed (#135).
+    assert body["entities"] == [{"entity_id": 2, "name": "Curitiba", "entity_type": "LOC", "origin": "AI"}]
     mock_get.assert_called_once_with("doc-7")
 
 

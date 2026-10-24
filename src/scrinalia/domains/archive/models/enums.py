@@ -14,6 +14,22 @@ class ArchiveReviewStatus(enum.StrEnum):
     REJECTED = "REJECTED"  # The human decided the data is garbage
 
 
+class ArchiveEntityOrigin(enum.StrEnum):
+    """
+    Who wrote a document-entity link.
+
+    ``UNKNOWN`` is not a synonym for ``AI``: it is what the links written before this column existed
+    carry, because the schema cannot prove which producer wrote them and a migration that guessed
+    would invent the very fact the column exists to keep. A link created by a vocabulary operation —
+    a merge, a restore, a conflict resolution — is also ``UNKNOWN``: it was not an extraction and not
+    a person reading a description.
+    """
+
+    AI = "AI"
+    HUMAN = "HUMAN"
+    UNKNOWN = "UNKNOWN"
+
+
 class StopwordsScope(enum.StrEnum):
     """Which axis a banned term leaves: TAG (the subject axis), ENTITY (NER) or ALL (both)."""
 

@@ -1,6 +1,16 @@
 {
   "components": {
     "schemas": {
+      "ArchiveEntityOrigin": {
+        "description": "\n    Who wrote a document-entity link.\n\n    ``UNKNOWN`` is not a synonym for ``AI``: it is what the links written before this column existed\n    carry, because the schema cannot prove which producer wrote them and a migration that guessed\n    would invent the very fact the column exists to keep. A link created by a vocabulary operation —\n    a merge, a restore, a conflict resolution — is also ``UNKNOWN``: it was not an extraction and not\n    a person reading a description.\n    ",
+        "enum": [
+          "AI",
+          "HUMAN",
+          "UNKNOWN"
+        ],
+        "title": "ArchiveEntityOrigin",
+        "type": "string"
+      },
       "ArchiveMacroCategoryEntityDTO": {
         "properties": {
           "category_id": {
@@ -1991,12 +2001,16 @@
           },
           "name": {
             "type": "string"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/ArchiveEntityOrigin"
           }
         },
         "required": [
           "entity_id",
           "entity_type",
-          "name"
+          "name",
+          "origin"
         ],
         "title": "DocumentEntitySummary",
         "type": "object"

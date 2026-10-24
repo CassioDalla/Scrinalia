@@ -9,6 +9,7 @@ from scrinalia.domains.archive.models import (
     ArchiveDocumentEntity,
     ArchiveDocumentTag,
     ArchiveEntity,
+    ArchiveEntityOrigin,
     ArchiveMacroCategory,
     ArchiveTag,
     ArchiveTypology,
@@ -120,10 +121,18 @@ def test_entity_type_facet_counts_documents_not_links(db_session, generate_archi
     other = generate_archive_doc(description_id="d2", original_title="Outro")
     db_session.add_all(
         [
-            ArchiveDocumentEntity(description_id=doc.description_id, entity_id=org_a.entity_id),
-            ArchiveDocumentEntity(description_id=doc.description_id, entity_id=org_b.entity_id),
-            ArchiveDocumentEntity(description_id=doc.description_id, entity_id=org_c.entity_id),
-            ArchiveDocumentEntity(description_id=other.description_id, entity_id=place.entity_id),
+            ArchiveDocumentEntity(
+                description_id=doc.description_id, entity_id=org_a.entity_id, origin=ArchiveEntityOrigin.AI
+            ),
+            ArchiveDocumentEntity(
+                description_id=doc.description_id, entity_id=org_b.entity_id, origin=ArchiveEntityOrigin.AI
+            ),
+            ArchiveDocumentEntity(
+                description_id=doc.description_id, entity_id=org_c.entity_id, origin=ArchiveEntityOrigin.AI
+            ),
+            ArchiveDocumentEntity(
+                description_id=other.description_id, entity_id=place.entity_id, origin=ArchiveEntityOrigin.AI
+            ),
         ]
     )
     db_session.flush()

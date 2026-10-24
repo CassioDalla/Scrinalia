@@ -45,6 +45,7 @@ from scrinalia.domains.archive.models import (
     ArchiveDocumentTag,
     ArchiveEntity,
     ArchiveEntityMergeLog,
+    ArchiveEntityOrigin,
     ArchiveNerPurgeLog,
     ArchiveReviewStatus,
     ArchiveTag,
@@ -812,7 +813,19 @@ class EntityRepository:
             if created_link_ids:
                 self.db.execute(
                     insert(ArchiveDocumentEntity)
-                    .values([{"description_id": d, "entity_id": plan.entity_id} for d in created_link_ids])
+                    .values(
+                        [
+                            {
+                                "description_id": d,
+                                "entity_id": plan.entity_id,
+                                # Born of the conflict resolution: neither an extraction nor a person
+                                # reading the description, and the tag it came from carried no origin.
+                                "origin": ArchiveEntityOrigin.UNKNOWN,
+                                "created_at": datetime.now(UTC),
+                            }
+                            for d in created_link_ids
+                        ]
+                    )
                     .on_conflict_do_nothing()
                 )
             transferred = len(created_link_ids)
@@ -923,7 +936,16 @@ class EntityRepository:
 
         if row.winner == "TAG":
             stmt = insert(ArchiveDocumentEntity).values(
-                [{"description_id": d, "entity_id": row.entity_id} for d in sorted(existing)]
+                [
+                    {
+                        "description_id": d,
+                        "entity_id": row.entity_id,
+                        # Restored from the resolution's snapshot, which does not record an origin.
+                        "origin": ArchiveEntityOrigin.UNKNOWN,
+                        "created_at": datetime.now(UTC),
+                    }
+                    for d in sorted(existing)
+                ]
             )
         else:
             stmt = insert(ArchiveDocumentTag).values(
@@ -1363,7 +1385,23 @@ class EntityRepository:
     # --- Methods for the Merge ---
 
     def link_documents_to_entity(self, doc_ids: set[str], target_entity_id: int) -> None:
-        new_links = [{"description_id": doc_id, "entity_id": target_entity_id} for doc_id in doc_ids]
+        """
+        Links the documents of an absorbed entity to the canonical one.
+
+        ``UNKNOWN`` and not the absorbed link's origin: this is a vocabulary operation, and the links
+        it recreates are not what a person decided about *this* description. The merge keeps the
+        ``ON CONFLICT DO NOTHING`` rule, so a human link already on the canonical survives untouched.
+        """
+        now = datetime.now(UTC)
+        new_links = [
+            {
+                "description_id": doc_id,
+                "entity_id": target_entity_id,
+                "origin": ArchiveEntityOrigin.UNKNOWN,
+                "created_at": now,
+            }
+            for doc_id in doc_ids
+        ]
         stmt = insert(ArchiveDocumentEntity).values(new_links).on_conflict_do_nothing()
         self.db.execute(stmt)
 
@@ -1372,8 +1410,12 @@ class EntityRepository:
         if not entity_ids:
             return
 
+        now = datetime.now(UTC)
         # We use set(entity_ids) to avoid trying to insert the same entity twice in the same document
-        new_links = [{"description_id": description_id, "entity_id": e_id} for e_id in set(entity_ids)]
+        new_links = [
+            {"description_id": description_id, "entity_id": e_id, "origin": ArchiveEntityOrigin.AI, "created_at": now}
+            for e_id in set(entity_ids)
+        ]
         stmt = insert(ArchiveDocumentEntity).values(new_links).on_conflict_do_nothing()
         self.db.execute(stmt)
 
@@ -1386,9 +1428,16 @@ class EntityRepository:
         if not links:
             return
 
+        now = datetime.now(UTC)
         unique_links = {(link.description_id, link.entity_id) for link in links}
         rows = [
-            {"description_id": description_id, "entity_id": entity_id} for description_id, entity_id in unique_links
+            {
+                "description_id": description_id,
+                "entity_id": entity_id,
+                "origin": ArchiveEntityOrigin.AI,
+                "created_at": now,
+            }
+            for description_id, entity_id in unique_links
         ]
 
         stmt = insert(ArchiveDocumentEntity).values(rows).on_conflict_do_nothing()
