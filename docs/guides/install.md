@@ -7,6 +7,7 @@ sources:
   - docker-compose.test.yml
   - docker/entrypoint.sh
   - docker/postgres/Dockerfile
+  - models/requirements.txt
   - package.json
   - pyproject.toml
   - src/scrinalia/core/config.py
@@ -141,9 +142,15 @@ This starts PostgreSQL 15 on port 5432 and nothing else. The application service
 
 ```bash
 uv sync
+uv pip install --python .venv/bin/python --require-hashes -r models/requirements.txt
 ```
 
-Heavy: `torch`, `transformers`, `spacy` and `bertopic` are in the default dependency set.
+Heavy: `torch`, `transformers`, `spacy` and `bertopic` are in the default dependency set. The second
+command installs `pt_core_news_lg`, the 542 MB Portuguese pipeline the NER engine loads. It is
+deliberately **not** in `uv.lock`: as a URL source, it made every `uv lock` download the wheel, and
+Dependabot's update job died on that download before it reached the package it was updating (the
+measurement is in the comment at the top of `models/requirements.txt`). `uv sync` is exact and prunes
+what the lock does not name, so run the second command again after any `uv sync`.
 
 ### 4. Create the database and the schema
 

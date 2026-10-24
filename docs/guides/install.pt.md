@@ -117,9 +117,16 @@ Isso sobe o PostgreSQL 15 na porta 5432 e nada mais. O serviço da aplicação f
 
 ```bash
 uv sync
+uv pip install --python .venv/bin/python --require-hashes -r models/requirements.txt
 ```
 
-Pesado: `torch`, `transformers`, `spacy` e `bertopic` estão no conjunto padrão de dependências.
+Pesado: `torch`, `transformers`, `spacy` e `bertopic` estão no conjunto padrão de dependências. O
+segundo comando instala o `pt_core_news_lg`, o pipeline português de 542 MB que o motor de NER
+carrega. Ele **não** está no `uv.lock` de propósito: como fonte por URL, ele fazia todo `uv lock`
+baixar o wheel, e a atualização do Dependabot morria nesse download antes de chegar ao pacote que
+estava atualizando (a medição está no comentário no topo de `models/requirements.txt`). O `uv sync` é
+exato e remove o que o lock não nomeia, então rode o segundo comando de novo depois de qualquer
+`uv sync`.
 
 ### 4. Crie o banco de dados e o schema
 

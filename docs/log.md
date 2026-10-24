@@ -1714,6 +1714,26 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   number for the thumbnail is covered by its counter test, not looked at in a browser. The #148 gate
   is test-only and has no documentation page.
 
+## 2026-10-23 — the spaCy pipeline leaves the lock for a build step
+
+- **Range:** `d1494f1..8af438e`
+- **Pages:**
+  - `guides/install.md` — **updated**: step 3 gains the install command
+    (`uv pip install --python .venv/bin/python --require-hashes -r models/requirements.txt`) and the
+    paragraph saying why the pipeline is not in the lock and that `uv sync` prunes it;
+    `models/requirements.txt` joins the page's `sources:`.
+  - `guides/install.pt.md` — **updated**: the same step and paragraph.
+  - `guides/curate.md` — **no-change**: the report named it for
+    `packages/api-contract/openapi.json`, and that file's whole diff in the range is `info.version`
+    from `1.2.0` to `1.3.0` (`5a41a2d`). No route, schema or screen moved, so the page still holds.
+- **Measured, not assumed.** `uv lock` resolved 214 packages without `pt-core-news-lg`;
+  `uv sync --locked` uninstalled the package; the install command put it back in 6.06 s against a warm
+  cache, and `importlib.metadata.version("pt-core-news-lg")` answered `3.8.0`. The requirements line
+  carries the sha256 the lock used to hold.
+- **Not verified, and said so.** The image was not built here: the Dockerfile step is that same
+  command, run after `uv sync` in the same stage. And no Dependabot run has happened since the change,
+  so the update job it exists for is still unobserved.
+
 ## 2026-10-24 — the entity link that could not say who wrote it (#135)
 
 - **Range:** `d1494f1..1ac157d`

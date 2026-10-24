@@ -17,6 +17,7 @@ the design decisions are documented, and the document that matters most before y
 
 ```bash
 uv sync                        # Python 3.12, managed by uv
+uv pip install --python .venv/bin/python --require-hashes -r models/requirements.txt  # the spaCy pt pipeline
 bun install                    # packages and scripts; Vite is the bundler
 docker compose up -d           # PostgreSQL (object storage is an endpoint you bring)
 uv run alembic upgrade head    # the schema is owned by Alembic
