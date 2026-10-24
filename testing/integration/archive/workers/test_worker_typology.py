@@ -603,6 +603,34 @@ def test_a_refusal_is_recorded_with_the_score_it_saw(
     assert count_refusals(db_session) == 1
 
 
+def test_a_refusal_stores_a_label_as_long_as_the_catalogue_allows(
+    use_test_db, db_session, generate_typology, generate_archive_doc, mock_registry
+) -> None:
+    """
+    A typology name may be 100 characters; the refusal row has to be able to carry it.
+
+    The column was ``String(50)`` when only the conflict judge wrote it (``TAG``/``ENTITY``). The
+    subject and typology classifiers write the catalogue label they refused, so a long name would
+    have failed the batch commit — and taken the run's other decisions with it.
+    """
+    label = "T" * 100
+    typology = generate_typology(id=1, name=label)
+    generate_archive_doc(original_title="Descrição com nome de tipologia longo")
+
+    MockClass = mock_registry(typology_registry)
+    MockClass.return_value.classify.return_value = [{"labels": [typology.name], "scores": [0.30]}]
+
+    execute(
+        db=db_session,
+        engine_name="motor_fake",  # type: ignore[arg-type]
+        preset="preset_teste",  # type: ignore[arg-type]
+    )
+
+    rows = _refusal_rows(db_session)
+    assert len(rows) == 1
+    assert rows[0].llm_decision == label
+
+
 def test_an_answer_writes_no_refusal_row(
     use_test_db, db_session, generate_typology, generate_archive_doc, mock_registry
 ) -> None:
