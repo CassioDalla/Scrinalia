@@ -42,6 +42,20 @@ class StopwordsScope(enum.StrEnum):
     ALL = "ALL"  # Both axes
 
 
+class StopwordMatch(enum.StrEnum):
+    """
+    How a banned spelling matches an extracted name.
+
+    ``TOKEN`` blocks the spelling **and** any name that contains it as a whole word — the rule the
+    merged-span case needs, because with ``iptu`` banned spaCy still returns ``IPTU do Exemplo``.
+    ``EXACT`` blocks the spelling alone and leaves the names that contain it: ``alameda`` by itself
+    is noise, ``Alameda Cabral`` is a street (#160).
+    """
+
+    TOKEN = "TOKEN"
+    EXACT = "EXACT"
+
+
 class AnomalyType(enum.StrEnum):
     CROSS_DOMAIN_COLLISION = "CROSS_DOMAIN_COLLISION"
     #: The subject classifier was not confident enough to give the tag a drawer, so it stays

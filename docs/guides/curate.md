@@ -612,6 +612,13 @@ three things apart:
   a badge when it is not `HUMAN` — a term typed here is the default, and the badge marks the ones
   that arrived as a consequence of another decision.
 - **Desbanir** — `DELETE /api/v1/taxonomy/tags/stopwords` (`CURATE`). Reversible.
+- **Casamento** — `PATCH /api/v1/taxonomy/tags/stopwords` (`CURATE`) changes how an existing ban
+  matches without re-banning it: a re-ban would overwrite the origin a conflict or the *Não é
+  assunto* screen recorded. `TOKEN` blocks the word **and any name that contains it as a whole
+  word** — the merged span `IPTU do Exemplo` — and `EXACT` blocks the spelling alone, which is what a
+  generic word that starts a proper name needs: `alameda` blocks `alameda`, never `Alameda Cabral`.
+  Only the `ENTITY`/`ALL` axes read it. Every entry of `domain_ner_exclusions` matches the exact
+  spelling for the same reason: the conflict was about `casa`, not about `casa da memória` (#160).
 - **Purgar** — `POST /api/v1/taxonomy/tags/stopwords/purge` (`CURATE`), after
   `POST /api/v1/taxonomy/tags/stopwords/purge/preview`. This is the write that deletes the tags. The
   preview lists the tags that would die, with their document count, their category **and where the

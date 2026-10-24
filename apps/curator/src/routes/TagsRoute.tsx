@@ -14,6 +14,7 @@ import {
   previewTagPair,
   purgeStopwords,
   suggestMergeProposals,
+  setStopwordMatch,
   unbanStopwords,
   undoMerge,
   undoStopwordPurge,
@@ -23,6 +24,7 @@ import {
   type MergeReason,
   type MergeResponse,
   type ProposalStatus,
+  type StopwordMatch,
   type StopwordPurgePreview,
   type StopwordsScope,
   type TagCatalogRow,
@@ -54,6 +56,8 @@ import {
   PROPOSAL_STATUS_TONE,
   REVIEW_FLAG_HINT,
   REVIEW_FLAG_LABEL,
+  STOPWORD_MATCH_HINT,
+  STOPWORD_MATCH_LABEL,
   STOPWORD_SCOPE_HINT,
   STOPWORD_SCOPE_LABEL,
   STOPWORD_SOURCE_HINT,
@@ -79,6 +83,8 @@ const TABS = [
 
 const REASONS: MergeReason[] = ["TRIGRAM", "PLURAL", "MIXED"];
 const SCOPE_VALUES: StopwordsScope[] = ["TAG", "ENTITY", "ALL"];
+/** The two ways a ban matches, in the order the screen offers them (#160). */
+const MATCH_VALUES: StopwordMatch[] = ["TOKEN", "EXACT"];
 const CATALOG_STATES: TagCatalogState[] = ["ALL", "PENDING", "NOT_SUBJECT", "LOW_CONFIDENCE"];
 
 /**
@@ -1993,6 +1999,8 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState("");
   const [draftScope, setDraftScope] = useState<StopwordsScope>("TAG");
+  /** Only the extraction axis reads it: a TAG ban never reaches the NER filter (#160). */
+  const [draftMatch, setDraftMatch] = useState<StopwordMatch>("TOKEN");
   const [preview, setPreview] = useState<StopwordPurgePreview | null>(null);
   const [purged, setPurged] = useState<number | null>(null);
   const [purgeIds, setPurgeIds] = useState<number[]>([]);
@@ -2012,11 +2020,17 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
   };
 
   const ban = useMutation({
-    mutationFn: () => banStopwords({ words: splitWords(draft), scope: draftScope }),
+    mutationFn: () => banStopwords({ words: splitWords(draft), scope: draftScope, match_mode: draftMatch }),
     onSuccess: () => {
       setDraft("");
       invalidate();
     },
+  });
+
+  const setMatch = useMutation({
+    mutationFn: (input: { word: string; match_mode: StopwordMatch }) =>
+      setStopwordMatch({ words: [input.word], match_mode: input.match_mode }),
+    onSuccess: invalidate,
   });
 
   const unban = useMutation({
@@ -2125,6 +2139,31 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
                         {labelOf(STOPWORD_SOURCE_LABEL, item.source)}
                       </Badge>
                     ) : null}
+                    {/*
+                      The mode is a control, not a badge: it decides whether the ban swallows the
+                      names that contain the word, and changing it is one act on its own (#160).
+                      A TAG ban never reaches the NER filter, so it carries no mode here.
+                    */}
+                    {item.scope !== "TAG" ? (
+                      <Select
+                        className="h-7 w-64 text-xs"
+                        value={item.match_mode}
+                        title={STOPWORD_MATCH_HINT[item.match_mode]}
+                        disabled={setMatch.isPending}
+                        onChange={(event) =>
+                          setMatch.mutate({
+                            word: item.word,
+                            match_mode: event.target.value as StopwordMatch,
+                          })
+                        }
+                      >
+                        {MATCH_VALUES.map((mode) => (
+                          <option key={mode} value={mode}>
+                            {labelOf(STOPWORD_MATCH_LABEL, mode)}
+                          </option>
+                        ))}
+                      </Select>
+                    ) : null}
                   </span>
                   <Button
                     size="sm"
@@ -2168,6 +2207,22 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
                 ))}
               </Select>
             </label>
+            {/*
+              Only the extraction axis reads the mode: a TAG ban never reaches the NER filter, and
+              offering the choice there would imply it does.
+            */}
+            {draftScope !== "TAG" ? (
+              <label className="w-64">
+                <span className="mb-1 block text-xs font-medium text-(--color-muted)">Casamento</span>
+                <Select value={draftMatch} onChange={(event) => setDraftMatch(event.target.value as StopwordMatch)}>
+                  {MATCH_VALUES.map((mode) => (
+                    <option key={mode} value={mode}>
+                      {labelOf(STOPWORD_MATCH_LABEL, mode)}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+            ) : null}
             <Button
               variant="primary"
               disabled={splitWords(draft).length === 0 || ban.isPending}
@@ -2176,7 +2231,10 @@ function StopwordsTab({ search, patch }: { search: TagsSearch; patch: (changes: 
               {ban.isPending ? ACTION.ban.pending : ACTION.ban.label}
             </Button>
           </div>
-          <p className="text-xs text-(--color-muted)">{STOPWORD_SCOPE_HINT[draftScope]}</p>
+          <p className="text-xs text-(--color-muted)">
+            {STOPWORD_SCOPE_HINT[draftScope]}
+            {draftScope !== "TAG" ? ` ${STOPWORD_MATCH_HINT[draftMatch]}` : ""}
+          </p>
           {ban.error ? <ErrorState error={ban.error} /> : null}
           {unban.error ? <ErrorState error={unban.error} /> : null}
         </CardBody>

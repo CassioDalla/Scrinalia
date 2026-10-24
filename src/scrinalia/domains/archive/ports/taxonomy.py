@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from typing import Any, Literal, Protocol
 
 from scrinalia.core.author import Author
-from scrinalia.domains.archive.models.enums import StopwordsScope, TagCatalogState
+from scrinalia.domains.archive.models.enums import StopwordMatch, StopwordsScope, TagCatalogState
 from scrinalia.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     ArchiveTagDTO,
@@ -147,8 +147,15 @@ class TagRepositoryPort(Protocol):
         raise NotImplementedError
 
     def save_stopwords(
-        self, words_list: list[str], scope: StopwordsScope = StopwordsScope.TAG, source: StopwordSource = "HUMAN"
+        self,
+        words_list: list[str],
+        scope: StopwordsScope = StopwordsScope.TAG,
+        source: StopwordSource = "HUMAN",
+        match_mode: StopwordMatch = StopwordMatch.TOKEN,
     ) -> int:
+        raise NotImplementedError
+
+    def update_stopword_match(self, words: list[str], match_mode: StopwordMatch) -> int:
         raise NotImplementedError
 
     def ensure_tag_ban(self, words: Sequence[str], source: StopwordSource = "HUMAN") -> set[str]:

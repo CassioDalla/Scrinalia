@@ -994,24 +994,41 @@ def test_entity_search_route_reaches_the_service_with_the_term(client: TestClien
 
 
 def test_stopword_list_route_carries_the_axis(client: TestClient, mocker):
-    """The axis and the origin both travel with the term: one decides the purge, the other explains it."""
-    from scrinalia.domains.archive.models.enums import StopwordsScope
+    """The axis, the origin and the match mode travel with the term: each explains a different act."""
+    from scrinalia.domains.archive.models.enums import StopwordMatch, StopwordsScope
     from scrinalia.domains.archive.schemas.tag_schema import StopwordDTO
 
     mocked = mocker.patch.object(TagService, "list_stopwords")
     mocked.return_value = [
-        StopwordDTO(word="pessoas", scope=StopwordsScope.TAG),
-        StopwordDTO(word="alfa", scope=StopwordsScope.TAG, source="CONFLICT"),
+        StopwordDTO(word="pessoas", scope=StopwordsScope.TAG, match_mode=StopwordMatch.TOKEN),
+        StopwordDTO(word="alfa", scope=StopwordsScope.ENTITY, source="CONFLICT", match_mode=StopwordMatch.EXACT),
     ]
 
     response = client.get("/api/v1/taxonomy/tags/stopwords")
 
     assert response.status_code == HTTP_200_OK
     assert response.json() == [
-        {"word": "pessoas", "scope": "TAG", "source": "HUMAN"},
-        {"word": "alfa", "scope": "TAG", "source": "CONFLICT"},
+        {"word": "pessoas", "scope": "TAG", "source": "HUMAN", "match_mode": "TOKEN"},
+        {"word": "alfa", "scope": "ENTITY", "source": "CONFLICT", "match_mode": "EXACT"},
     ]
     mocked.assert_called_once_with(None)
+
+
+def test_stopword_match_route_updates_only_the_mode(client: TestClient, mocker):
+    """#160: the mode changes without a re-ban, which would overwrite the origin of the ban."""
+    from scrinalia.domains.archive.models.enums import StopwordMatch
+
+    mocked = mocker.patch.object(TagService, "set_stopword_match", return_value=2)
+
+    response = client.patch(
+        "/api/v1/taxonomy/tags/stopwords",
+        json={"words": ["alameda", "caixa"], "match_mode": "EXACT"},
+    )
+
+    assert response.status_code == HTTP_200_OK
+    assert response.json()["updated"] == 2
+    assert response.json()["code"] == "TAG_STOPWORDS_MATCH_UPDATED"
+    mocked.assert_called_once_with(["alameda", "caixa"], StopwordMatch.EXACT)
 
 
 def test_stopword_list_route_filters_by_scope(client: TestClient, mocker):

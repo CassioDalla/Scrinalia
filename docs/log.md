@@ -1754,3 +1754,23 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   was written through `EntityRepository.bulk_link_entities` — the worker's own write path — and not
   by a full extraction. And a confirmation that changes no names writes no revision, so the
   `changed_by` of that act is not stored; the link's origin is the record, which the guide states.
+
+## 2026-10-24 — the ban that matched every name (#160)
+
+- **Range:** `1ac157d..9923231`
+- **Pages:**
+  - `guides/data-model.md` — **updated**: `domain_stopwords` carries `match_mode`, and
+    `domain_ner_exclusions` matches the exact spelling; the table now says what the worker reads.
+  - `guides/data-model.pt.md` — **updated**: the same two rows.
+  - `guides/curate.md` — **updated**: the Stopwords tab gains the `Casamento` bullet — the PATCH, the
+    two modes and why an exclusion is exact.
+  - `guides/curate.pt.md` — **updated**: the same bullet.
+- **Measured, not assumed.** On the reference collection the migration ran up, down and up again and
+  `alembic check` reported no drift; the data decision set 9 stopwords to `EXACT` and removed the
+  exact `câmara municipal de curitiba`. The live measurement on the signed #138 set went from
+  **P 0.909 / R 0.920 / F1 0.915** with 13 blocked gold terms to **P 0.917 / R 0.956 / F1 0.936**
+  with none; ORG recall 0.568 → 0.611, boundary 27 → 12, spurious 109 → 115.
+- **Not verified, and said so.** No NER worker ran over the whole collection after the change: the
+  number is the bench's `live` mode over the 122 labelled documents, not a re-extraction of the
+  4,813. The screen was rendered against a copy of the collection, where flipping `alameda` to
+  `TOKEN` changed both the select and the row in the database; the copy was then discarded.

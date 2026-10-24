@@ -153,8 +153,8 @@ do acervo, não sobre a instalação.
 
 | Tabela | Para que serve | Colunas principais |
 | --- | --- | --- |
-| `domain_stopwords` | Termos banidos pela curadoria, com o eixo que eles deixam e quem plantou o banimento. | `id`, `word` (único), `word_scope` (`StopwordsScope`: `TAG`, `ENTITY`, `ALL`), `source` (`HUMAN`/`CONFLICT`/`EXCLUSION`, com check) |
-| `domain_ner_exclusions` | Termos que a curadoria decidiu pertencerem ao eixo TAG, não a entidades nomeadas. | `id`, `term` (único), `reason`, `source` (`JUDGE`/`HUMAN`), `tag_id` |
+| `domain_stopwords` | Termos banidos pela curadoria, com o eixo que eles deixam, quem plantou o banimento e como o banimento casa com um nome. | `id`, `word` (único), `word_scope` (`StopwordsScope`: `TAG`, `ENTITY`, `ALL`), `source` (`HUMAN`/`CONFLICT`/`EXCLUSION`, com check), `match_mode` (`StopwordMatch`: `TOKEN`/`EXACT`, com check; só os eixos `ENTITY`/`ALL` leem) |
+| `domain_ner_exclusions` | Termos que a curadoria decidiu pertencerem ao eixo TAG, não a entidades nomeadas; casam pela **grafia exata**, nunca por token. | `id`, `term` (único), `reason`, `source` (`JUDGE`/`HUMAN`), `tag_id` |
 | `domain_subject_exclusions` | Termos que a curadoria decidiu não serem assunto de forma alguma, e se esta linha plantou o banimento no escopo `TAG`. | `id`, `term` (único), `reason`, `source` (`HUMAN`/`RULE`), `ban_created` |
 | `domain_synonyms` | Grafias mapeadas para uma tag ou entidade canônica. | `id`, `synonym_name`, `category` (`TAG`/`ORG`/`LOC`/`PER`), `canonical_tag_id`, `canonical_entity_id` |
 | `domain_text_templates` | Trechos repetidos que a curadoria mantém fora do texto da IA. | `template_id`, `text`, `fingerprint` (único), `variants`, `action`, `replacement`, `scope`, `status`, `occurrence_count`, `sample_document_ids` |

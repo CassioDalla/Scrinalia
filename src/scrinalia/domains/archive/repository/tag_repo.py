@@ -64,6 +64,7 @@ from scrinalia.domains.archive.models import (
     DomainStopwords,
     DomainSubjectExclusion,
     DomainSynonyms,
+    StopwordMatch,
     StopwordsScope,
     TagCatalogState,
 )
@@ -173,7 +174,11 @@ class TagRepository:
         return list(self.db.scalars(stmt_select).all())
 
     def save_stopwords(
-        self, words_list: list[str], scope: StopwordsScope = StopwordsScope.TAG, source: StopwordSource = "HUMAN"
+        self,
+        words_list: list[str],
+        scope: StopwordsScope = StopwordsScope.TAG,
+        source: StopwordSource = "HUMAN",
+        match_mode: StopwordMatch = StopwordMatch.TOKEN,
     ) -> int:
         """
         Bans a list of words from one axis, in batch, and records who planted the ban.
@@ -198,7 +203,9 @@ class TagRepository:
             return 0
 
         clean_words = [
-            {"word": normalize_stopword(w), "word_scope": scope, "source": source} for w in words_list if w.strip()
+            {"word": normalize_stopword(w), "word_scope": scope, "source": source, "match_mode": match_mode}
+            for w in words_list
+            if w.strip()
         ]
 
         if not clean_words:
@@ -207,7 +214,11 @@ class TagRepository:
         stmt = insert(DomainStopwords).values(clean_words)
         stmt = stmt.on_conflict_do_update(
             index_elements=["word"],
-            set_={"word_scope": stmt.excluded.word_scope, "source": stmt.excluded.source},
+            set_={
+                "word_scope": stmt.excluded.word_scope,
+                "source": stmt.excluded.source,
+                "match_mode": stmt.excluded.match_mode,
+            },
         )
 
         result = cast(CursorResult, self.db.execute(stmt))
@@ -286,11 +297,31 @@ class TagRepository:
         words are added is harder to scan than one that grows in place.
         """
         stmt = select(
-            DomainStopwords.word, DomainStopwords.word_scope.label("scope"), DomainStopwords.source.label("source")
+            DomainStopwords.word,
+            DomainStopwords.word_scope.label("scope"),
+            DomainStopwords.source.label("source"),
+            DomainStopwords.match_mode.label("match_mode"),
         )
         if scope is not None:
             stmt = stmt.where(DomainStopwords.word_scope == scope)
         return [StopwordDTO.model_validate(row) for row in self.db.execute(stmt.order_by(DomainStopwords.word)).all()]
+
+    def update_stopword_match(self, words: list[str], match_mode: StopwordMatch) -> int:
+        """
+        Changes how the given bans match, keeping their axis, their origin and the ban itself.
+
+        Its own write and not the upsert in :meth:`save_stopwords`: re-banning through the ban form
+        would take ownership of the row and overwrite the ``source`` a conflict or the "not a
+        subject" screen planted (#160).
+        """
+        clean = [normalize_stopword(word) for word in words if word.strip()]
+        if not clean:
+            return 0
+
+        result = self.db.execute(
+            update(DomainStopwords).where(DomainStopwords.word.in_(clean)).values(match_mode=match_mode)
+        )
+        return cast(CursorResult, result).rowcount
 
     def remove_stopwords(self, words: list[str], scope: StopwordsScope | None = None) -> int:
         """

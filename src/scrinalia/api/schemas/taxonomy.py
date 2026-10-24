@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from scrinalia.domains.archive.models.enums import StopwordsScope
+from scrinalia.domains.archive.models.enums import StopwordMatch, StopwordsScope
 from scrinalia.domains.archive.schemas.entity_schema import (
     ConflictBatchResult,
     ConflictPairKind,
@@ -90,6 +90,9 @@ class StopwordCreateRequest(BaseModel):
     # ``StopwordsScope`` for the whole contract — and which field is walked first depends on the
     # hash seed. The axis is documented once, on the enum, and every field inherits it.
     scope: StopwordsScope = Field(default=StopwordsScope.TAG)
+    #: How the ban matches an extracted name. ``TOKEN`` also blocks the names that contain the word;
+    #: ``EXACT`` blocks the spelling alone (#160). Only the ENTITY/ALL axes read it.
+    match_mode: StopwordMatch = Field(default=StopwordMatch.TOKEN)
 
 
 class StopwordRemovalRequest(BaseModel):
@@ -97,6 +100,13 @@ class StopwordRemovalRequest(BaseModel):
 
     words: list[str] = Field(min_length=1)
     scope: StopwordsScope | None = Field(default=None)
+
+
+class StopwordMatchRequest(BaseModel):
+    """Changes how the given banned terms match, leaving their axis, origin and existence alone."""
+
+    words: list[str] = Field(min_length=1)
+    match_mode: StopwordMatch
 
 
 class StopwordsRequest(BaseModel):

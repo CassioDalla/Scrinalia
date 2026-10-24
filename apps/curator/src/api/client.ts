@@ -158,9 +158,11 @@ export type MergeLogList = components["schemas"]["MergeLogListResponse"];
 export type MergeLogEntry = components["schemas"]["MergeLogEntryDTO"];
 export type MergeResponse = components["schemas"]["MergeResponse"];
 export type Stopword = components["schemas"]["StopwordDTO"];
+export type StopwordMatch = NonNullable<Stopword["match_mode"]>;
 export type StopwordPurgePreview = components["schemas"]["StopwordPurgePreview"];
 export type StopwordPurgeTag = components["schemas"]["StopwordPurgeTag"];
 export type StopwordBanResponse = components["schemas"]["StopwordBanResponse"];
+export type StopwordMatchResponse = components["schemas"]["StopwordMatchResponse"];
 export type StopwordRemovalResponse = components["schemas"]["StopwordRemovalResponse"];
 export type StopwordPurgeResponse = components["schemas"]["StopwordPurgeResponse"];
 export type StopwordPurgeLogEntryDTO = components["schemas"]["StopwordPurgeLogEntryDTO"];
@@ -916,8 +918,17 @@ export async function fetchStopwords(axis?: StopwordsScope): Promise<Stopword[]>
 export async function banStopwords(body: {
   words: string[];
   scope?: StopwordsScope;
+  match_mode?: StopwordMatch;
 }): Promise<StopwordBanResponse> {
   return unwrap<StopwordBanResponse>(await client.POST("/api/v1/taxonomy/tags/stopwords", { body }));
+}
+
+/** Changes how existing bans match, keeping their axis and who planted them. */
+export async function setStopwordMatch(body: {
+  words: string[];
+  match_mode: StopwordMatch;
+}): Promise<StopwordMatchResponse> {
+  return unwrap<StopwordMatchResponse>(await client.PATCH("/api/v1/taxonomy/tags/stopwords", { body }));
 }
 
 /** Un-bans terms. The purge keeps a ledger, so this is no longer the only way back. */

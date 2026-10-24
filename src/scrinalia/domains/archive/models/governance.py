@@ -20,7 +20,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from scrinalia.core.base import Base
 
-from .enums import AnomalyType, ArchiveReviewStatus, StopwordsScope
+from .enums import AnomalyType, ArchiveReviewStatus, StopwordMatch, StopwordsScope
 
 
 class DomainStopwords(Base):
@@ -49,8 +49,18 @@ class DomainStopwords(Base):
     #: backfilled the existing rows by evidence: a term the conflict ledger recorded planting is
     #: ``CONFLICT``, and everything else predates the column and came from a person.
     source: Mapped[str] = mapped_column(String(20), nullable=False, default="HUMAN", server_default="HUMAN")
+    #: How the ban matches an extracted name (#160). A generic word that merely starts a proper name
+    #: (`alameda`, `caixa`) has to be ``EXACT``, or it rejects `Alameda Cabral` and `Caixa
+    #: Econômica`; a noise word that the engine returns inside a merged span (`IPTU do Exemplo`) has
+    #: to stay ``TOKEN``. The default is ``TOKEN``, the behaviour every existing row had.
+    match_mode: Mapped[StopwordMatch] = mapped_column(
+        String(8), nullable=False, default=StopwordMatch.TOKEN, server_default=StopwordMatch.TOKEN.value
+    )
 
-    __table_args__ = (CheckConstraint("source IN ('HUMAN', 'CONFLICT', 'EXCLUSION')", name="chk_stopword_source"),)
+    __table_args__ = (
+        CheckConstraint("source IN ('HUMAN', 'CONFLICT', 'EXCLUSION')", name="chk_stopword_source"),
+        CheckConstraint("match_mode IN ('TOKEN', 'EXACT')", name="chk_stopword_match_mode"),
+    )
 
 
 class DomainSynonyms(Base):
