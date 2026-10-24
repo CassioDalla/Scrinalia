@@ -70,6 +70,16 @@ commits — the history is the detail.
   `ON CONFLICT DO NOTHING`, so it cannot rewrite a human link, and the NER bench excludes a human link
   from the model's proposal instead of scoring the correction as its own hit.
 
+- **The typology screen lists the descriptions the classifier refused** (issue #129):
+  `GET /api/v1/typologies/refusals` returns one page of the descriptions whose best score stayed
+  below the floor — one row per description, the latest refusal, nearest miss first, with the label
+  the run guessed and the score it saw. The page, the count and the inbox card compose the same
+  `_open_evidence()` predicate, so the total cannot drift from the rows, and a description a curator
+  has already filed leaves the list even though its queue row remains. Filing from the screen is the
+  dossier's own `PATCH /api/v1/documents/{id}` with a `typology_id`, which records the revision and
+  marks the description `HUMAN_APPROVED`; the empty state says no refusal is open, not that the
+  catalogue covers the collection.
+
 ### Changed
 
 - **A banned spelling says how it matches, and the extraction stops losing names that contain it**
