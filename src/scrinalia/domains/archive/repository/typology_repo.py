@@ -7,8 +7,12 @@ from scrinalia.domains.archive.models import (
 )
 from scrinalia.domains.archive.schemas.typology_schema import (
     CreateTypologyCommand,
+    TypologyRefusalRow,
     UpdateTypologyCommand,
 )
+
+from .typology_queue import count_refusals as count_open_refusals
+from .typology_queue import read_refusals as read_open_refusals
 
 
 class TypologyRepository:
@@ -65,6 +69,19 @@ class TypologyRepository:
         # ``typology_id`` is a nullable FK filtered by the WHERE above; the guard states the
         # narrowing the type checker cannot read from the SQL.
         return {int(typology_id): int(count) for typology_id, count in rows if typology_id is not None}
+
+    def count_open_refusals(self) -> int:
+        """
+        Descriptions the classifier refused and nobody has filed yet.
+
+        The count is the queue's own predicate (``repository/typology_queue.py``), not a second
+        definition here: the inbox card and the screen's total have to answer the same number.
+        """
+        return count_open_refusals(self.db)
+
+    def list_open_refusals(self, limit: int, offset: int) -> list[TypologyRefusalRow]:
+        """One page of the refusal queue, nearest miss first; the predicate stays in its module."""
+        return read_open_refusals(self.db, limit, offset)
 
     def get_active_typologies(self) -> dict[str, int]:
         """

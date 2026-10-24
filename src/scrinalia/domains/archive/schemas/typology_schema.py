@@ -1,5 +1,7 @@
 """Catalogue of documental typologies (the diplomatic form of a record)."""
 
+from datetime import date
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -17,6 +19,38 @@ class TypologyDTO(BaseModel):
     document_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TypologyRefusalRow(BaseModel):
+    """
+    One description the classifier refused, with the evidence that explains the decision.
+
+    Deliberately not ``DocumentSummary``: the queue read needs the label the run guessed and the
+    score it saw, and a summary would carry every ISAD(G) field of the record for a list whose only
+    question is "which typology does this one get?". The title comes from the document, not from the
+    queue's ``context_payload`` snapshot, so a rename is what the archivist reads.
+    """
+
+    description_id: str
+    original_title: str
+    final_title: str | None = None
+    document_date: date | None = None
+    reference_code: str | None = None
+    #: The candidate label the run scored highest before refusing; ``None`` for a legacy row that
+    #: did not carry one.
+    guessed_label: str | None = None
+    #: The score the run saw, kept in the queue because ``typology_id`` cannot say whether a run
+    #: declined or never reached the description.
+    ai_confidence_score: float | None = None
+
+
+class TypologyRefusalListResponse(BaseModel):
+    """One page of the refusal queue, with the total for the same predicate."""
+
+    total: int = 0
+    limit: int = 20
+    offset: int = 0
+    items: list[TypologyRefusalRow] = Field(default_factory=list)
 
 
 class CreateTypologyCommand(BaseModel):

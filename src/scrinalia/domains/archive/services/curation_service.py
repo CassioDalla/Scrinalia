@@ -47,6 +47,12 @@ QUEUE_CATALOGUE: tuple[tuple[str, str, str, str], ...] = (
         "Tags sem categoria: nenhum selo de assunto pode ser mostrado para elas.",
     ),
     (
+        "typology_low_confidence",
+        "Tipologia com confiança baixa",
+        "/arranjo/tipologias",
+        "Descrições que o classificador de tipologia não conseguiu posicionar acima do limiar.",
+    ),
+    (
         "anomalies",
         "Anomalias detectadas",
         "/qualidade/anomalias",

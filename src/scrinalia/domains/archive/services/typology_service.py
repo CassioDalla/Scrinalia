@@ -10,8 +10,14 @@ from scrinalia.domains.archive.repository.typology_repo import TypologyRepositor
 from scrinalia.domains.archive.schemas.typology_schema import (
     CreateTypologyCommand,
     TypologyDTO,
+    TypologyRefusalListResponse,
     UpdateTypologyCommand,
 )
+
+#: Upper bound of one page of the refusal queue. The list is a working queue, not an export: the
+#: screen shows twenty rows and the number of refusals is bounded by the collection, so a caller
+#: cannot ask for the whole set in one request.
+MAX_REFUSALS_PAGE = 200
 
 
 class TypologyService:
@@ -42,6 +48,25 @@ class TypologyService:
             )
             for typology in self.repo.list_typologies(only_active=only_active)
         ]
+
+    def list_refusals(self, limit: int = 20, offset: int = 0) -> TypologyRefusalListResponse:
+        """
+        One page of the descriptions the classifier refused, nearest miss first.
+
+        ``total`` comes from the same predicate the page is filtered by, so the count the screen
+        prints and the number of rows it can page through cannot drift. The clamps live here and not
+        only on the query parameter: a negative ``offset`` reaches PostgreSQL as ``OFFSET -1`` (a
+        ``DataError`` and a 500), and the service is the boundary every caller goes through — the
+        same clamp ``TagService.list_catalog`` already applies.
+        """
+        limit = max(1, min(limit, MAX_REFUSALS_PAGE))
+        offset = max(0, offset)
+        return TypologyRefusalListResponse(
+            total=self.repo.count_open_refusals(),
+            limit=limit,
+            offset=offset,
+            items=self.repo.list_open_refusals(limit, offset),
+        )
 
     def get_typology(self, typology_id: int) -> ArchiveTypology:
         typology = self.repo.get(typology_id)
