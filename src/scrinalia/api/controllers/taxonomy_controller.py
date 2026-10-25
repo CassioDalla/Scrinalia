@@ -32,6 +32,7 @@ from scrinalia.api.schemas.taxonomy import (
     StopwordMatchRequest,
     StopwordRemovalRequest,
     StopwordsRequest,
+    SubjectExclusionPreviewRequest,
     SubjectExclusionRemovalRequest,
     SubjectExclusionRequest,
     SuggestMacroRequest,
@@ -594,7 +595,7 @@ class TaxonomyController(Controller):
         "/tags/subject-exclusions/preview", opt={"access": Access.AUTHENTICATED}, status_code=200, sync_to_thread=True
     )
     def preview_subject_exclusions(
-        self, tag_service: NamedDependency[TagService], data: SubjectExclusionRequest
+        self, tag_service: NamedDependency[TagService], data: SubjectExclusionPreviewRequest
     ) -> SubjectExclusionPlan:
         """
         What confirming these terms would do, without writing anything.

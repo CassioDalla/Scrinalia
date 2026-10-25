@@ -12,7 +12,7 @@ count and the page come from the same predicate module (``repository/subject_que
 day one of them drifts this fails instead of the archivist noticing.
 """
 
-from litestar.status_codes import HTTP_200_OK, HTTP_201_CREATED
+from litestar.status_codes import HTTP_200_OK, HTTP_201_CREATED, HTTP_400_BAD_REQUEST
 from litestar.testing import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -286,6 +286,16 @@ def test_the_preview_says_what_the_write_would_do_without_writing(
     # A preview writes nothing.
     assert client.get("/api/v1/taxonomy/tags/subject-exclusions").json() == []
     assert db_session.scalars(select(DomainStopwords)).all() == []
+
+
+def test_the_subject_exclusion_preview_declares_only_the_terms(client: TestClient, api_uses_test_db) -> None:
+    """The dry run reads the terms since #175, so the write's ``reason`` and ``source`` are a 400."""
+    response = client.post(
+        "/api/v1/taxonomy/tags/subject-exclusions/preview",
+        json={"words": ["centro"], "reason": "um motivo", "source": "RULE"},
+    )
+
+    assert response.status_code == HTTP_400_BAD_REQUEST, response.text
 
 
 def test_confirming_not_a_subject_bans_the_spelling_at_tag_scope(

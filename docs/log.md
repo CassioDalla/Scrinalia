@@ -1918,3 +1918,36 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   generated type, and the screen behind it sends the same body before and after. The API was not
   driven by hand against the reference collection either — the 400 is the integration test's client.
 
+## 2026-10-24 — the refusal comes before the write (#175)
+
+- **Range:** `2e0e9b9..83f7d39`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the *Não é assunto* section said the preview route "exists as
+    an API read — no screen calls it". It now describes the box asking the route as the typing
+    settles (250 ms), what the two lines on the screen mean, why a partial refusal leaves the button
+    enabled, and that the route takes only the terms.
+  - `guides/curate.pt.md` — **updated**: the same paragraph, same structure.
+- **Why the round exists:** #175. The plan route has existed since #83, and the client function that
+  read it had none of the 130 callers and was deleted in #93; the screen read `blocked` from the
+  write's answer instead, so the refusal arrived after the click. The route also declared the write's
+  `SubjectExclusionRequest` and read only `data.words` — #176's smell in a second place, which this
+  round fixed with `SubjectExclusionPreviewRequest` rather than adding a narrowing to the client.
+- **What the round measured.** The contract diff is the new schema and the one operation's `$ref`.
+  The behaviour is pinned by `test_the_subject_exclusion_preview_declares_only_the_terms` — the
+  preview refuses a `reason`/`source` body with **400** — and by the existing dry-run test, which
+  sends `{"words": [...]}` and still reads the same plan. `pytest` over the tag catalogue and the
+  body-shape gate: **20 passed**; `tsc`, ESLint, `ruff check`/`format --check` and `basedpyright`
+  answer zero.
+- **What was rendered.** `.render/subject-exclusions-preview.png` and
+  `.render/subject-exclusions-blocked.png`: the built SPA served by the API (`create_app()` mounts
+  `dist`) against `scrinalia_zeroed`, with a session row inserted for the round and deleted after
+  it, driven over CDP. With `capejo, vista aerea` in the box the screen reads, **before any click**,
+  `1 termo(s) já estão numa categoria de assunto e não serão registrados: capejo (Mobilidade e
+  Transporte)` beside `1 termo(s) serão registrados e banidos de voltar a virar tag.`, and the
+  button stays enabled; with `capejo` alone only the refusal line renders and the button is
+  **disabled** (CDP reported `disabled=true` and the pixels show it greyed).
+- **Not verified, and said so.** No write was performed from the screen: the ban would have recorded
+  a human verdict in the reference collection for the sake of a screenshot, and the write path is
+  covered by the integration suite. The screen was read on `scrinalia_zeroed` only (101
+  descriptions, 139 exclusions, 83 tags in drawers), not on the large collection.
+

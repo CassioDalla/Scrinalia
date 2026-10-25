@@ -710,9 +710,14 @@ termo é um lugar, se a mesma grafia também é entidade, a categoria que o bloq
 está banida) e oferece registrá-los com `source=RULE` ou um a um.
 
 Confirmar planeja e aplica numa só chamada: a escrita abaixo consome o mesmo planejador que a rota de
-prévia usa, então as duas não podem discordar. A prévia, `POST
-/api/v1/taxonomy/tags/subject-exclusions/preview` (`AUTHENTICATED`), devolve `applicable` e
-`blocked`, mas existe como leitura da API — nenhuma tela a chama.
+prévia usa, então as duas não podem discordar. A prévia é `POST
+/api/v1/taxonomy/tags/subject-exclusions/preview` (`AUTHENTICATED`); ela recebe os termos e nada mais,
+porque um plano não tem motivo a declarar nem proveniência a informar, e responde `applicable` e
+`blocked`. O campo **Vetar termos** a consulta enquanto a digitação assenta (250 ms) e mostra a
+recusa **antes** do clique: um termo cuja tag já está numa categoria é nomeado com a categoria
+enquanto o arquivista ainda pode mudar o termo, e a resposta da escrita só confirma. O campo grava
+todos os termos que se aplicam, então uma recusa parcial não desabilita o botão — só uma lista em que
+**todos** os termos estão bloqueados desabilita, porque aí a escrita não registraria nada.
 
 A escrita é `POST /api/v1/taxonomy/tags/subject-exclusions` (`CURATE`), e ela faz duas coisas de uma
 vez: registra o termo em `domain_subject_exclusions`, para o classificador de assunto parar de

@@ -37,6 +37,7 @@ import {
   fetchStopwords,
   fetchSubjectExclusionSuggestions,
   fetchSubjectExclusions,
+  previewSubjectExclusions,
   fetchSystemFailures,
   fetchSystemHealth,
   fetchSystemRuns,
@@ -393,6 +394,21 @@ export const queries = {
     queryOptions({
       queryKey: ["taxonomy", "subject-exclusions"],
       queryFn: fetchSubjectExclusions,
+      staleTime: 30_000,
+    }),
+
+  /**
+   * What the write would do with these terms, read before the click (#175).
+   *
+   * The plan is the write's own — ``plan_subject_exclusions`` is what the write consumes — so a
+   * term a drawer already claims is named here instead of after the write. Empty terms ask nothing:
+   * an empty list is the write's own 400, and a screen with an empty box should not pay for it.
+   */
+  subjectExclusionPreview: (words: string[]) =>
+    queryOptions({
+      queryKey: ["taxonomy", "subject-exclusion-preview", words],
+      queryFn: () => previewSubjectExclusions({ words }),
+      enabled: words.length > 0,
       staleTime: 30_000,
     }),
 

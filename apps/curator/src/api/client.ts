@@ -261,6 +261,8 @@ export type ConflictPairKindFilter = "all" | "exact_name" | "near_duplicate";
 
 // --- The subject vocabulary: exclusions and the agrupamento discovery ------------------------------
 export type SubjectExclusionBanResponse = components["schemas"]["SubjectExclusionBanResponse"];
+export type SubjectExclusionPreviewRequest = components["schemas"]["SubjectExclusionPreviewRequest"];
+export type SubjectExclusionPlan = components["schemas"]["SubjectExclusionPlan"];
 export type SubjectExclusionRequest = components["schemas"]["SubjectExclusionRequest"];
 export type SubjectExclusionRemovalRequest = components["schemas"]["SubjectExclusionRemovalRequest"];
 export type SubjectExclusionSuggestion = components["schemas"]["SubjectExclusionSuggestion"];
@@ -1040,6 +1042,18 @@ export async function fetchSubjectExclusionSuggestions(
 ): Promise<SubjectExclusionSuggestionResponse> {
   return unwrap<SubjectExclusionSuggestionResponse>(
     await client.GET("/api/v1/taxonomy/tags/subject-exclusions/suggestions", { params: { query: params } }),
+  );
+}
+
+/**
+ * What confirming these terms would do, before anything is written (#175).
+ *
+ * The plan is the write's own — ``plan_subject_exclusions`` is what the write consumes — so the
+ * screen can name the drawer that already claims a term instead of learning it from the answer.
+ */
+export async function previewSubjectExclusions(body: SubjectExclusionPreviewRequest): Promise<SubjectExclusionPlan> {
+  return unwrap<SubjectExclusionPlan>(
+    await client.POST("/api/v1/taxonomy/tags/subject-exclusions/preview", { body }),
   );
 }
 
