@@ -1984,3 +1984,37 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   run: the ledger numbers are the clone's own state, not a fresh run's. The four non-stamp workers'
   `Processados` fact was not opened in pixels — the NER card is the stamp case the issue is about.
 
+## 2026-10-24 — the clustering's columns are a read (#174)
+
+- **Range:** `c71f3aa..5900c48`
+- **Pages:**
+  - `guides/curate.md` — **updated**: *Descobrir Categorias* gains the picker — the read route, why
+    `final_title` is in the corpus and out of the default, and the three refusals (unknown column,
+    empty list, list with `source_type=tags`).
+  - `guides/curate.pt.md` — **updated**: the same paragraph.
+  - `guides/operate.md` — **no-change**: the report named it through `document_repo.py`, where the
+    four-column fallback became `CLUSTERING_TEXT_COLUMNS`. The value is the same four columns and the
+    page never described them; what the clustering reads is the curation page's subject now.
+- **Why the round exists:** #174. The route accepted `columns_to_extract` since it existed and no
+  screen sent it; #93 narrowed the client to `Pick<SuggestMacroRequest, "source_type">` rather than
+  advertise a knob nothing set. The other half was a second definition: the repository fell back to a
+  literal list of four while `AI_TEXT_COLUMNS` has five, and an unknown name reached
+  `getattr(ArchiveDocument, column)` for a **500**.
+- **What the round measured.** The contract grows by one operation and one schema
+  (`ClusteringColumnsResponse`, 45 lines in `schema.d.ts`). `CLUSTERING_TEXT_COLUMNS` keeps the same
+  four values, so no behaviour changed for a caller that omits the field; the unit test pins that the
+  difference from `AI_TEXT_COLUMNS` is exactly `final_title`. The integration tests answer **41
+  passed** over the tag catalogue, the text-quality domain and the body-shape gate — including the
+  400 that names `original_titel`, the 400 for `source_type=tags`, and the 400 for `[]`.
+- **What was rendered.** `.render/discover-columns.png`, `.render/discover-off.png` and
+  `.render/discover-send.png`: the built SPA served by the API against `scrinalia_zeroed`, with a
+  session row inserted for the round and deleted after it, driven over CDP. Seen in the pixels: the
+  five checkboxes with the four defaults marked `(padrão)` and `final_title` unchecked; every box
+  unchecked disables *Propor Categorias* and prints `Escolha ao menos uma coluna.`; and with the five
+  checked the request the screen sent was, read off the network event,
+  `{"source_type":"documents","columns_to_extract":["original_title","admin_bio_history","provenance","scope_content","final_title"]}`.
+- **Not verified, and said so.** The clustering itself was **not run to completion**: the browser was
+  closed as soon as the request was captured, so BERTopic never answered and no proposal was seen on
+  the screen. The run's use of the columns rests on the service test that already asserted
+  `fetch_documents_for_clustering(columns_to_extract=...)` receives them.
+

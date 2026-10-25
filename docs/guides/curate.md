@@ -723,6 +723,15 @@ clusters are **proposals** — nothing enters the vocabulary until the archivist
 `POST /api/v1/taxonomy/macro-categories` (`CATALOGUE`). Discarding a proposal is local to the screen.
 A corpus too small answers an empty suggestion with a message, not an error.
 
+Reading the **documents** offers the columns the clustering reads: `GET
+/api/v1/taxonomy/tags/suggest-macro/columns` publishes the AI text columns and the subset the run
+reads when the body names none, and the screen renders one checkbox per column from that read — it
+does not type the five names. `final_title` is in the corpus and **out** of the default: a column can
+join what the AI reads without silently changing what the clustering reads. The body carries
+`columns_to_extract` only after a column moves, and the route refuses an unknown name with a **400**
+that names it (before #174 the typo reached a `getattr` and answered **500**), an empty list, and a
+list sent with `source_type=tags`, where it would be ignored.
+
 ### Não é assunto — `/assuntos/excecoes`
 
 The curated half of "this is not a subject at all". The deterministic guard catches what has a shape
