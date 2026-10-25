@@ -2262,3 +2262,42 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   followed in the browser this round; `/sistema/ingestao` itself was rendered in the #44 round. The
   health probe's database-down path is a unit test with a double, not a stopped database. No new
   migration: the table and columns are the #44 ones.
+
+## 2026-10-25 — the description thumbnail reaches the screen (#102)
+
+- **Range:** `89b2ec6..ed52347`
+- **Pages:**
+  - `adr/0017-the-thumbnail-reaches-the-browser-through-the-api.md` — **created**: the delivery
+    decision (an authenticated proxy route, a `thumbnail_url` derived on the read view, 404/503 for
+    the two failure states, the public route deferred to #46) and the rejected presigned, redirect
+    and public-read alternatives.
+  - `adr/index.md`, `mkdocs.yml` — **updated**: the new ADR is linked and in the nav.
+  - `guides/curate.md` / `curate.pt.md` — **updated**: the dossier's media card, the list's 56 px
+    miniature, the three states ("sem imagem", "indisponível", the image), the route and its
+    `thumbnail_url`, and the public projection still carrying the raw `s3://` reference (#46).
+  - `guides/operate.md` / `operate.pt.md` — **updated**: the worker writes the object; the API serves
+    it on demand, so the endpoint must stay reachable from the API and allow `GetObject`.
+- **Why the round exists:** #102 — the `thumbnail` worker had filled 97 of the 101 reference
+  descriptions and no screen read the field; the browser cannot resolve an `s3://` URI, and the
+  endpoint is the API's private one (`.env` says `http://localhost:8333`, the compose file says
+  `http://host.docker.internal:9000`). The issue also asked for a documented decision between a
+  presigned GET and a proxy, and for a screen that still renders when the object is gone.
+- **What the round measured.** Full suite **2187 passed, 1 skipped**; `basedpyright` **0 errors**;
+  `ruff check` and `ruff format --check` green; `tsc`, ESLint and the Vite build green; the API
+  contract was regenerated and matches the app; `mkdocs build --strict` green. The 101 descriptions
+  yield **97** with a `storage_thumbnail_uri` and **4** with neither a stored URI nor a source image;
+  one object sampled in the local bucket is **384×249, 119,702 bytes, image/jpeg**.
+- **What was rendered.** `.render/102-built-dossie-imagem.png` is the dossier with a real stored
+  image; `.render/102-built-dossie-sem-imagem.png` is description 2731, one of the four without a
+  source image; `.render/102-built-dossie-indisponivel.png` is description 1000, whose URI has no
+  object in the bucket and therefore answers 404; `.render/102-built-lista.png` is the collection
+  list with miniatures and the same two placeholders. All four are the **built** SPA served by the
+  API at `:8000`, rendered in the headless shell at 1280×1000, with a temporary session row that was
+  removed afterwards.
+- **Not verified, and said so.** The bucket used for the render had 40 of the 97 objects (copied
+  from the old `memoria-curitibana-bronze` volume into `meu-bucket-teste`); the other 57 answered
+  404 and are represented by the unavailable state, not by a success. The 503 path is an integration
+  test with a doubled reader, not a stopped endpoint observed in the browser. The mobile stack below
+  `sm` was **not** rendered; the evidence there is the classes. The public route is #46 and was not
+  implemented, so `PublicDocumentSummary` still publishes the raw `s3://` URI. No migration.
+
