@@ -29,6 +29,7 @@ from scrinalia.domains.archive.repository.text_quality_repo import (
 )
 from scrinalia.domains.archive.schemas.command_schema import EntityLinkCommand
 from scrinalia.domains.archive.worker_stamp import NER, identity_stamp_conditions, producer_fingerprint
+from scrinalia.domains.archive.workers.cancellation import RunControl, checkpoint
 from scrinalia.domains.archive.workers.run_budget import RunBudget
 
 
@@ -227,6 +228,7 @@ def execute(
     config: NerRunnerConfig | None = None,
     force: bool = False,
     limit: int | None = None,
+    run_control: RunControl | None = None,
     **engine_kwargs: Any,
 ) -> None:
     """
@@ -340,6 +342,7 @@ def execute(
     last_id = ""
     budget = RunBudget(limit)
     while True:
+        checkpoint(run_control)
         try:
             query = (
                 select(ArchiveDocument, text_expression.label("effective_text"))
