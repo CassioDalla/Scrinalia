@@ -271,6 +271,7 @@ export type SubjectExclusionSuggestionResponse =
 export type SubjectExclusionRemovalResponse = components["schemas"]["SubjectExclusionRemovalResponse"];
 export type MacroCategorySuggested = components["schemas"]["MacroCategorySuggested"];
 export type MacroCategoriesSuggestionResponse = components["schemas"]["MacroCategoriesSuggestionResponse"];
+export type ClusteringColumnsResponse = components["schemas"]["ClusteringColumnsResponse"];
 export type SuggestMacroRequest = components["schemas"]["SuggestMacroRequest"];
 
 // --- Quality of the input data: excerpts, cleaning rules and the dry runs ----------------------
@@ -1095,7 +1096,15 @@ export async function restoreToSubjects(body: SubjectExclusionRemovalRequest): P
  * screen offers it yet, so exposing it here would advertise a knob nothing sets. It comes back with
  * the Discover screen's picker (#174).
  */
-type MacroSuggestionBody = Pick<SuggestMacroRequest, "source_type">;
+/**
+ * The AI text columns the clustering can read, and the ones it reads when none is chosen.
+ *
+ * The picker on the Discover screen renders from this read, so the list cannot drift from the tuple
+ * the route validates against (#174).
+ */
+export async function fetchClusteringColumns(): Promise<ClusteringColumnsResponse> {
+  return unwrap<ClusteringColumnsResponse>(await client.GET("/api/v1/taxonomy/tags/suggest-macro/columns"));
+}
 
 /**
  * Agrupamentos the collection so a drawer the vocabulary lacks can be discovered.
@@ -1104,7 +1113,7 @@ type MacroSuggestionBody = Pick<SuggestMacroRequest, "source_type">;
  * page load. Below the engine's own floor it answers ``total_suggestions: 0`` with a message,
  * which is why the screen must render the message instead of an empty list.
  */
-export async function suggestMacroCategories(body: MacroSuggestionBody): Promise<MacroCategoriesSuggestionResponse> {
+export async function suggestMacroCategories(body: SuggestMacroRequest): Promise<MacroCategoriesSuggestionResponse> {
   return unwrap<MacroCategoriesSuggestionResponse>(
     await client.POST("/api/v1/taxonomy/tags/suggest-macro", { body }),
   );

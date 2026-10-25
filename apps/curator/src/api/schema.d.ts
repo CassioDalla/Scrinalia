@@ -1703,6 +1703,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/taxonomy/tags/suggest-macro/columns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** SuggestMacroColumns */
+        get: operations["ApiV1TaxonomyTagsSuggestMacroColumnsSuggestMacroColumns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/taxonomy/tags/{tag_id}": {
         parameters: {
             query?: never;
@@ -2067,6 +2084,13 @@ export interface components {
             code: components["schemas"]["RouteMessageCode"];
             data: components["schemas"]["CleaningRuleDTO"];
             message: string;
+        };
+        /** ClusteringColumnsResponse */
+        ClusteringColumnsResponse: {
+            /** @description Todo o texto da IA que o clustering pode ler. */
+            columns: string[];
+            /** @description O que ele lê quando a requisição não escolhe coluna. */
+            defaults: string[];
         };
         /** CollectionTermCreateRequest */
         CollectionTermCreateRequest: {
@@ -3805,6 +3829,7 @@ export interface components {
         };
         /** SuggestMacroRequest */
         SuggestMacroRequest: {
+            /** @description The AI text columns the clustering reads. Omitted means the code default, published by ``GET /taxonomy/tags/suggest-macro/columns``; it only applies with source_type='documents'. */
             columns_to_extract?: string[] | null;
             /**
              * @description The data source the AI will use to generate the clusters.
@@ -8562,6 +8587,26 @@ export interface operations {
                         } | unknown[];
                         status_code: number;
                     };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyTagsSuggestMacroColumnsSuggestMacroColumns: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClusteringColumnsResponse"];
                 };
             };
         };

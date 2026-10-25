@@ -1,6 +1,8 @@
 """Unit tests of the pure text-quality rules (no database, no model)."""
 
 from scrinalia.domains.archive.domain.text_quality import (
+    AI_TEXT_COLUMNS,
+    CLUSTERING_TEXT_COLUMNS,
     EXCERPT_MIN_LENGTH,
     ExcerptSuggestionAggregator,
     excerpt_fingerprint,
@@ -186,3 +188,21 @@ def test_aggregator_scopes_a_body_excerpt_to_the_ai_text() -> None:
 
     candidate = next(c for c in aggregator.candidates(min_count=5) if c.text == BLOCK)
     assert candidate.scope == ["EMBEDDING", "NER"]
+
+
+# ==========================================
+# THE CLUSTERING'S DEFAULT CORPUS (#174)
+# ==========================================
+
+
+def test_the_clustering_columns_are_a_subset_of_the_ai_text() -> None:
+    """
+    The corpus of AI text and the clustering's default are two definitions, deliberately different.
+
+    Pinning the difference keeps a column added to ``AI_TEXT_COLUMNS`` from silently joining what
+    the clustering reads: the divergence becomes a line here, in a diff, instead of a change of
+    behaviour nobody chose.
+    """
+    assert set(CLUSTERING_TEXT_COLUMNS) <= set(AI_TEXT_COLUMNS)
+    assert set(AI_TEXT_COLUMNS) - set(CLUSTERING_TEXT_COLUMNS) == {"final_title"}
+    assert len(CLUSTERING_TEXT_COLUMNS) == len(set(CLUSTERING_TEXT_COLUMNS))

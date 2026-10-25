@@ -120,7 +120,21 @@ class SuggestMacroRequest(BaseModel):
     source_type: Literal["tags", "documents"] = Field(
         default="tags", description="The data source the AI will use to generate the clusters."
     )
-    columns_to_extract: list[str] | None = None
+    columns_to_extract: list[str] | None = Field(
+        default=None,
+        min_length=1,
+        description=(
+            "The AI text columns the clustering reads. Omitted means the code default, published by "
+            "``GET /taxonomy/tags/suggest-macro/columns``; it only applies with source_type='documents'."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _columns_only_for_documents(self) -> "SuggestMacroRequest":
+        """Refuse a list the clustering would ignore, instead of accepting it in silence (#174)."""
+        if self.source_type == "tags" and self.columns_to_extract is not None:
+            raise ValueError("columns_to_extract só vale com source_type='documents'.")
+        return self
 
 
 class MacroCategoryCreateRequest(BaseModel):

@@ -6,6 +6,7 @@ from typing import Literal
 from scrinalia.core.author import Author
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.domain.normalization import normalize_stopword, normalize_tag
+from scrinalia.domains.archive.domain.text_quality import AI_TEXT_COLUMNS, unknown_ai_columns
 from scrinalia.domains.archive.exceptions import (
     DomainException,
     InvalidMergeError,
@@ -695,6 +696,17 @@ class TagService:
         else:
             # ``documents``, the only other value the guard above admits. An ``elif`` would leave
             # ``texts_to_analyze`` unbound on a path the reader has to prove cannot happen.
+            #
+            # The columns are checked before the repository reads anything: an unknown name reached
+            # ``getattr(ArchiveDocument, column)`` and answered **500** instead of naming the typo
+            # (#174). The refusal is the same catalogue the route publishes, so a screen that offers
+            # the list cannot send a name this would reject.
+            unknown = unknown_ai_columns(columns_to_extract or [])
+            if unknown:
+                raise InvalidParam(
+                    f"Estas colunas não fazem parte do texto da IA: {', '.join(unknown)}. "
+                    f"O texto da IA tem: {', '.join(AI_TEXT_COLUMNS)}."
+                )
             texts_to_analyze = self.document_repo.fetch_documents_for_clustering(columns_to_extract=columns_to_extract)
 
         return texts_to_analyze
