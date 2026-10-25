@@ -26,6 +26,7 @@ sources:
   - src/scrinalia/domains/archive/services/worker_run_service.py
   - src/scrinalia/domains/archive/services/failure_service.py
   - src/scrinalia/api/controllers/system_controller.py
+  - src/scrinalia/api/controllers/ingestion_controller.py
   - src/scrinalia/api/controllers/health_controller.py
   - src/scrinalia/api/controllers/setup_controller.py
   - src/scrinalia/api/middleware.py
@@ -37,6 +38,10 @@ sources:
   - src/scrinalia/domains/ingestion/worker.py
   - src/scrinalia/domains/ingestion/repository.py
   - src/scrinalia/domains/ingestion/sources.py
+  - src/scrinalia/domains/ingestion/origin_registry.py
+  - src/scrinalia/domains/ingestion/origins.py
+  - src/scrinalia/domains/ingestion/origin_repo.py
+  - src/scrinalia/domains/ingestion/service.py
   - src/scrinalia/domains/staging/worker.py
   - src/scrinalia/domains/staging/repository.py
   - src/scrinalia/domains/archive/domain/search.py
@@ -72,32 +77,33 @@ position in the pipeline, the unit its queue counts, whether it respects the rev
 and the stamp it writes. The catalogue imports no worker — it resolves each module lazily — so
 reading it is cheap.
 
-Nine workers, in pipeline order:
+Ten workers, in pipeline order:
 
 | # | Name | Module | Unit | Governed | Effective engine from |
 | --- | --- | --- | --- | --- | --- |
-| 1 | `transfer` | `worker_archive_transfer` | staging record | no | — |
-| 2 | `cleaning` | `worker_cleaning_regex` | document | yes | — |
-| 3 | `ner` | `worker_ner` | document | yes | signature |
-| 4 | `typology` | `worker_typology` | document | yes | signature |
-| 5 | `thumbnail` | `worker_thumbnail` | document | yes | — |
-| 6 | `conflict-judge` | `worker_resolve_tag_entity_conflict` | tag × entity pair | no | signature |
-| 7 | `macro-category` | `worker_macro_category` | tag | no | signature |
-| 8 | `quality-validator` | `worker_quality_validator` | document | yes | active `LLM_CHECK` rule |
-| 9 | `embedding` | `worker_embedding` | document | no | signature |
+| 1 | `ingestion` | `ingestion.worker` | origin | no | — |
+| 2 | `transfer` | `worker_archive_transfer` | staging record | no | — |
+| 3 | `cleaning` | `worker_cleaning_regex` | document | yes | — |
+| 4 | `ner` | `worker_ner` | document | yes | signature |
+| 5 | `typology` | `worker_typology` | document | yes | signature |
+| 6 | `thumbnail` | `worker_thumbnail` | document | yes | — |
+| 7 | `conflict-judge` | `worker_resolve_tag_entity_conflict` | tag × entity pair | no | signature |
+| 8 | `macro-category` | `worker_macro_category` | tag | no | signature |
+| 9 | `quality-validator` | `worker_quality_validator` | document | yes | active `LLM_CHECK` rule |
+| 10 | `embedding` | `worker_embedding` | document | no | signature |
 
 The order is the order in which the stages unblock each other, and it is the order the pipeline
 section of the panel shows:
 
 ```text
-transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-category -> quality-validator -> embedding
+ingestion -> transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-judge -> macro-category -> quality-validator -> embedding
 ```
 
-The two stages **in front** of that table — reading the origin into `raw_data` and structuring it into
-`staging_documents` — are not workers of this catalogue, because they load no engine and write no AI
-stamp. They are host commands of their own, described in
-[the scrape and the transform](#the-scrape-and-the-transform).
-
+- **`ingestion`** is the stage in front of the archive: it lists one origin, reads its detail pages
+  into `raw_data` and structures the new records into `staging_documents`. Its unit is the **origin**,
+  not a document, and it has no engine; each origin is a row with its own queue, agenda and
+  configuration, described in [the ingestion origins](#the-ingestion-origins). The host commands
+  below still exist for a one-off run, but the panel is the operational path.
 - **`transfer`** copies the structured staging record into the archive description, keyed on the
   hash of the parsed record (`staging_content_hash`). It is the only stage that rewrites content:
   when the hash changes, the written `execution_log` is reset and the AI enrichments have to run
@@ -316,35 +322,55 @@ overrides, the concurrency guard and the `--option` coercion, and it uses whatev
 and `preset` the module's `__main__` block hardcodes (for `ner`, `db_batch_size=100` and otherwise
 the signature defaults). Nothing appears in the run history, so nothing tells you it happened.
 
-### The scrape and the transform
+### The ingestion origins
 
-The two stages in front of the archive are not in the runner and not in the panel, and their
-commands are the operational path for those layers rather than a debugging shortcut:
+An origin is a definition in code plus a row in `ingestion_origins` (ADR 0016). The definition — its
+adapter and the `SourceSchema` that says which of its labels fills which staging column — stays next
+to the adapter; the row is the lifecycle: enabled/paused, the URLs (or the path, for a future CSV
+origin), the run policy a scheduled execution inherits, and the cron/zone of its agenda. Adding an
+origin is a module, a registry entry and a row; the staging transform learns no site.
+
+`/sistema/ingestao` is the screen. Each card answers *which queue is this, what does it read, when
+does it run and what happened last time*: the origin's own pending/processed/failed numbers, the last
+and active run, the agenda and the runner availability. The operator can **Enfileirar execução**,
+edit the configuration and save the agenda; a curator reaches the screen for the manual form and sees
+the same cards read-only. The generic worker routes refuse `ingestion`: a run of it needs an origin,
+so the origin routes are the selector (`/api/v1/ingestion/origins/...`).
+
+The stage runs in the **same** ledger, runner, lease and cancellation as the AI workers. A run has
+`worker_name="ingestion"` and `origin_code` set; the partial unique index is
+`(worker_name, COALESCE(origin_code, ''))`, so the archive workers keep one slot per worker while each
+origin has a slot of its own. The scheduler reads the due origins and enqueues one run per origin; a
+period that arrives while that origin is already running is skipped, and a failed scheduled run is
+retried by the existing policy.
+
+The host commands remain for a one-off run, and they now always name the origin:
 
 ```bash
 # List the origin's identifiers into the queue, walking at most ten listing pages.
-uv run python -m scrinalia.domains.ingestion.worker discover --pages 10
+uv run python -m scrinalia.domains.ingestion.worker discover --origin pmc --pages 10
 
 # Read the detail page of at most a hundred of the identifiers the queue holds.
-uv run python -m scrinalia.domains.ingestion.worker scrape --limit 100
+uv run python -m scrinalia.domains.ingestion.worker scrape --origin pmc --limit 100
 
-# Both phases in one process, which is what a scheduler would run.
-uv run python -m scrinalia.domains.ingestion.worker run --pages 10 --limit 100
+# Both phases, then the staging transform, in one process.
+uv run python -m scrinalia.domains.ingestion.worker run --origin pmc --pages 10 --limit 100
 
-# Structure at most a hundred raw records into staging.
+# Structure raw records into staging; with no --origin, each record resolves its own schema.
 uv run python -m scrinalia.domains.staging.worker --limit 100
 ```
 
-Both take `--origin` to name the origin for that run; without it, the code is the one
-`ACERVO_SOURCE` names, and there is still no default. `scrape` also takes `--audit-ttl-days N` to
-re-read the descriptions completed more than N days ago, `--force-retry-fatal` to include the rows
-marked `FATAL_ERROR`, `--ignore-sliding-window` to drop the discovery and TTL windows, and
-`--max-retries`, `--discovery-window-days` and `--scraped-ttl-days` to override the run policy for
-that run only.
+`--origin` is **required** for the ingestion commands and there is still no default:
+`ACERVO_SOURCE` was removed. The reference adapter accepts `PUBLIC_SCRAPE_URL` and
+`PUBLIC_SCRAPE_DETAIL_URL` as a fallback for its URLs, which is what keeps an existing `.env`
+working; the origin's row wins when it has a value. `scrape` also takes `--audit-ttl-days N` to re-read
+the descriptions completed more than N days ago, `--force-retry-fatal` to include the rows marked
+`FATAL_ERROR`, `--ignore-sliding-window` to drop the discovery and TTL windows, and `--max-retries`,
+`--discovery-window-days` and `--scraped-ttl-days` to override the run policy for that run only.
 
 **A bounded run resumes by itself.** The queue is ordered by `last_scraped_at`, never-tried first,
 and every outcome — done, a transient failure, a fatal one — stamps it, so the batch that just ran
-moves behind the ones that have not. The transform is keyed on the hash of the raw payload, so
+moves behind the ones that have not. The transform is keyed on the hash of the parsed record, so
 whatever a run structured stops being pending. `--limit 100` over a queue of thousands therefore
 takes the next hundred on the next run, and both commands log how much is still pending when they
 finish. The one exception is a scrape whose write rolls back: the row keeps its place and holds a
@@ -356,8 +382,19 @@ what `--after <description_id>` is for: the run logs the id its window ended at 
 continue from there. Do not use `--after` without `--force`: under the comparison, skipping ahead
 would skip pending records instead of already-structured ones.
 
-Neither command writes to `archive_worker_runs` — the ledger belongs to the runner — and neither
-shows up in the operations panel, which is a separate change.
+### The manual entry
+
+The `manual` origin is the form at `/sistema/ingestao`, and it is **not** an approval. The submit
+writes `raw_data` (with `created_by`), a `scraping_queue` row marked `DONE` (the form is the
+discovery) and the staging record, then enqueues the same `transfer` worker the scraper uses. The
+archive description is born `PENDING_AI`, and the AI queues see it; the archivist approves in the
+dossier after the AI runs. If a transfer is already in flight, the record stays staged and the
+response says it enters the next one. A duplicate `description_id` is refused before the write; the
+form generates a `manual-<uuid>` id so a retried submit is the same record.
+
+The form ships the essential ISAD(G) fields (title, reference code, level, date, scope and content,
+producers, administrative/biographical history, access conditions and access points). The rest of the
+staging contract and the CSV import (parsed in the browser, no object storage) are #192 and #191.
 
 ## Configuration: what a run actually uses
 
@@ -443,8 +480,8 @@ in the SPA: the menu no longer carries them (issue #22).
 
 | Route | Method | Permission | What it does |
 | --- | --- | --- | --- |
-| `/api/v1/system/workers` | `GET` | authenticated | the nine workers with configuration, queue numbers, last/active run and the runner registry, in one request |
-| `/api/v1/system/workers/settings` | `GET` | authenticated | the persisted defaults of the nine workers, without the queue counters (issue #53) |
+| `/api/v1/system/workers` | `GET` | authenticated | the ten workers with configuration, queue numbers, last/active run and the runner registry, in one request |
+| `/api/v1/system/workers/settings` | `GET` | authenticated | the persisted defaults of the AI workers, without the queue counters (issue #53) |
 | `/api/v1/system/workers/{worker_name}/queue/preview` | `POST` | authenticated | the pending count of a **proposed** configuration, computed without writing |
 | `/api/v1/system/workers/{worker_name}/runs` | `POST` | `OPERATE` | queues one run with per-run overrides and answers `201` immediately |
 | `/api/v1/system/workers/{worker_name}/schedule` | `GET` | authenticated | the worker's agenda, or null when it has none (ADR 0015) |
@@ -453,21 +490,30 @@ in the SPA: the menu no longer carries them (issue #22).
 | `/api/v1/system/workers/{worker_name}/settings` | `PUT` | `OPERATE` | persists the default engine/preset/batch/options |
 | `/api/v1/system/workers/{worker_name}/settings` | `DELETE` | `OPERATE` | drops the override so the worker follows the code |
 | `/api/v1/system/workers/{worker_name}/settings/revisions` | `GET` | authenticated | who changed what, when |
-| `/api/v1/system/runs` | `GET` | authenticated | the execution ledger, newest first; filters `worker`, `status`, `fingerprint`, `limit`, `offset` |
+| `/api/v1/system/runs` | `GET` | authenticated | the execution ledger, newest first; filters `worker`, `origin`, `status`, `fingerprint`, `limit`, `offset` |
 | `/api/v1/system/runs/{run_id}/cancel` | `POST` | `OPERATE` | asks one execution to stop: closes a queued run no runner claimed, records the request on a running one (#72) |
 | `/api/v1/system/failures` | `GET` | authenticated | the grouped root causes; filters `days` (default 30), `worker`, `limit` |
 | `/api/v1/system/health` | `GET` | `OPERATE` | database, Ollama models, object storage and the process |
+| `/api/v1/ingestion/origins` | `GET` | authenticated | every origin with its own queue, its last run and its agenda (#44) |
+| `/api/v1/ingestion/origins/{code}` | `PATCH` | `OPERATE` | the origin's lifecycle and adapter configuration (URLs, espera) |
+| `/api/v1/ingestion/origins/{code}/schedule` | `PUT` | `OPERATE` | the origin's cron and IANA zone |
+| `/api/v1/ingestion/origins/{code}/schedule` | `DELETE` | `OPERATE` | removes the origin's agenda, keeping its configuration |
+| `/api/v1/ingestion/origins/{code}/runs` | `POST` | `OPERATE` | queues one ingestion run for the origin, with per-run options |
+| `/api/v1/ingestion/manual` | `POST` | `CURATE` | writes one typed record, stages it and queues the transfer |
 
 Only `ADMIN` carries `OPERATE`; `CURATOR` and `VIEWER` can read the workers, the ledger and the
-failures, but cannot trigger a run or change a default.
+failures, but cannot trigger a run or change a default. The manual entry is the one ingestion write a
+curator owns (`CURATE`): typing a record is curation, while pointing an origin at a site or starting a
+crawl is operation.
 
 The SPA mirrors it, as cards of `/configuracoes` under *Operação*:
 
 | Screen | Shows |
 | --- | --- |
-| `/sistema/workers` | the nine workers: engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and an **Enfileirar execução** button; above them, the runner cards (online, host, version, concurrency, capabilities, last heartbeat) and a warning when none is online. A worker no online runner accepts is marked **sem runner** — the row still queues and waits. The **Agenda** badge and fact show the cron, the zone, the next run and the last skipped period. The effective configuration is read-only here |
+| `/sistema/workers` | the ten workers: engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and an **Enfileirar execução** button; above them, the runner cards (online, host, version, concurrency, capabilities, last heartbeat) and a warning when none is online. A worker no online runner accepts is marked **sem runner** — the row still queues and waits. The **Agenda** badge and fact show the cron, the zone, the next run and the last skipped period. The effective configuration is read-only here |
 | `/configuracoes/workers` | the persisted default of each worker and its revisions, with save and remove, and the worker's **Agenda** (the cron, the zone, the enabled state and the pinned request) — the write the panel used to carry |
 | `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences. Each row says who asked (`painel`, `linha de comando` or `agenda`), the attempt (`tentativa 2/3`), the row it retries and, when it is queued with a `not_before`, when it starts. An active row offers **Cancelar execução…** with an inline confirmation, and a requested stop is shown as a note while the worker finishes the current batch |
+| `/sistema/ingestao` | the origins, one card each: its own queue and last run, the adapter configuration, the agenda and **Enfileirar execução** (operator); and the **Entrada manual** form, which writes a record as `PENDING_AI` and queues the transfer (curator). The screen is a card of *Operação* but declares `CURATE`, because the manual form is the write a curator owns; the operator-only controls are hidden for a curator |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage and the effective process configuration |
 
 The screen polls every 5 s while a run is running and every 15 s while one is queued, because the
@@ -494,7 +540,8 @@ operating system's TCP timeout.
 ## The run ledger
 
 `archive_worker_runs` has one row per execution, for **both** the CLI and the panel: the ledger is
-about the worker, not about the button that started it. A row carries `worker_name`, `status`,
+about the worker, not about the button that started it. A row carries `worker_name`, `origin_code`
+(the origin an `ingestion` run processed; null for an archive worker), `status`,
 `trigger` (`CLI`, `API` or `SCHEDULE`), `requested_by` (and `requested_by_user_id`), `engine_name`,
 `preset`,
 the validated `request` (what a runner reproduces), the resolved `config`, the **effective worker
@@ -520,9 +567,11 @@ A cancellation is a **request** before it is a status: `cancel_requested_at` (an
 and only the worker's batch boundary turns it into `CANCELLED`. [Cancelling a run](#cancelling-a-run)
 is the whole story.
 
-`uq_worker_run_active` is a **partial unique index** on `(worker_name)` where the status is `QUEUED`
-or `RUNNING`. It, and not a process lock, is the concurrency guard: at most one run per worker may
-be in flight, across processes and across a reload. A second submission becomes an
+`uq_worker_run_active` is a **partial unique index** on `(worker_name, COALESCE(origin_code, ''))`
+where the status is `QUEUED` or `RUNNING`. It, and not a process lock, is the concurrency guard: at
+most one run per worker may be in flight, across processes and across a reload. The origin in the
+key is what gives each ingestion origin a slot of its own without weakening the archive workers'
+one-slot-per-worker rule (their `origin_code` is null and coalesces to one value). A second submission becomes an
 `IntegrityError` that the API turns into `409` with a sentence ("Já existe uma execução em
 andamento para o worker '…'"). The CLI reaches the same error but has no handler for it, so it stops
 with a traceback instead of the sentence.
@@ -658,6 +707,13 @@ request. It is written on `/configuracoes/workers` (the Agenda section) and read
 agenda stores no next run; turning it back on recomputes it from the cron. The cron is evaluated in
 the schedule's zone, never the server's: the spring-forward gap runs at the next valid instant, and the
 repeated wall time on the fall-back day runs once.
+
+The **origins** have their agenda on the origin row (`ingestion_origins.cron`/`timezone`) and are
+written on `/sistema/ingestao`, not on the worker settings screen. A due origin enqueues one
+`ingestion` run with `origin_code`; the slot is one per origin (`uq_worker_run_active` includes
+`COALESCE(origin_code, '')`), so one origin's crawl does not wait behind another's, while the archive
+workers keep one slot per worker. A period that arrives while that origin is running is skipped and
+`last_skipped_at` is written; a failed scheduled ingestion is retried by the same policy as a worker.
 
 A scheduled run that ends `FAILED` or `INTERRUPTED` is retried by the scheduler as a **new ledger row**:
 `attempt = previous + 1`, `retry_of` the failed row, the same request, and a `not_before`

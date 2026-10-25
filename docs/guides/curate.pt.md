@@ -976,19 +976,38 @@ correção é a revisão humana da ficha, na descrição.
 
 ## Sistema
 
-A máquina, não o acervo. Tudo aqui pertence a quem opera a instalação, e as três telas são alcançadas
-por `/configuracoes`, sob *Operação*: o menu ficou com o que o arquivista consulta catalogando, e não
-é isto.
+A máquina, não o acervo. Tudo aqui pertence a quem opera a instalação, e as quatro telas são
+alcançadas por `/configuracoes`, sob *Operação*: o menu ficou com o que o arquivista consulta
+catalogando, e não é isto. A tela de ingestão é a exceção à regra "só operador" — o formulário manual
+é uma escrita do curador (#44) — e por isso é um cartão `CURATE`.
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
+| Ingestão — `/sistema/ingestao` | qual origem ler, as URLs e a agenda (operador); e digitar um registro (curador) | a configuração e a agenda são reversíveis; um registro manual entra no pipeline e é aprovado (ou rejeitado) no dossiê |
 | Workers de IA — `/sistema/workers` | se roda um worker agora | sim (a configuração da própria execução); os efeitos de uma execução seguem o que ela escreveu |
 | Execuções — `/sistema/execucoes` | se para uma execução ativa (o ledger e as falhas agrupadas são só leitura) | sem desfazer: uma execução cancelada continua cancelada; uma nova execução é uma nova linha no ledger |
 | Saúde do sistema — `/sistema/diagnostico` | nenhuma (banco, modelos, storage, processo) | sim (só leitura) |
 
+### Ingestão — `/sistema/ingestao`
+
+A etapa à frente do Acervo, origem por origem (ADR 0016). Cada cartão é uma origem: a própria fila (o
+que a próxima execução leria), os números de processados e falhas, a última execução e a ativa, e a
+agenda. O **operador** edita a configuração do adaptador (URLs de listagem e detalhe da coleta de
+referência, a espera de cortesia), salva um cron de cinco campos num fuso IANA e **Enfileira
+execução**. A execução é o mesmo ledger dos workers de IA; um período que dispara com a origem já
+rodando é pulado, não enfileirado. As rotas genéricas de worker recusam `ingestion` — uma execução
+dela precisa da origem, e as rotas da origem são o seletor.
+
+O **curador** vê os mesmos cartões só para leitura e o formulário **Entrada manual**. Esse formulário
+é a origem `manual`: o envio grava o registro digitado como payload bruto da origem, estrutura-o pelo
+mesmo transform e enfileira o mesmo worker `transfer`. A descrição do Acervo nasce `PENDING_AI`; as
+filas de IA a veem, e a aprovação é o `PATCH /documents/{id}` do dossiê depois que a IA rodar. Digitar
+um registro **não** é uma aprovação, e um `description_id` duplicado é recusado antes da gravação. O
+resto dos campos de staging e a importação de CSV interpretada no navegador são #192 e #191.
+
 ### Workers de IA — `/sistema/workers`
 
-O catálogo dos nove workers, na ordem do pipeline, com a engine, o preset e a configuração efetiva na
+O catálogo dos dez workers, na ordem do pipeline, com a engine, o preset e a configuração efetiva na
 linha recolhida — "com qual modelo isto está rodando?" é a pergunta que a tela existe para responder,
 e aqui a resposta é **só leitura**. O que a instalação está *configurada* a fazer é uma tela própria
 (*Configuração dos Workers*, abaixo), porque são perguntas diferentes: esta é o que a máquina está

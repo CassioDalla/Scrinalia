@@ -249,6 +249,8 @@ fecha a janela (ADR 0011). **Configure a instância antes de expô-la.**
 uv run uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
 ```
 
+Depois da migração, a origem `pmc` já existe em `ingestion_origins` (as URLs acima são semeadas nela quando presentes) e a origem `manual` está habilitada. A tela `/sistema/ingestao` é onde a instalação configura as duas.
+
 A API fica em `http://localhost:8000/`, a interface no mesmo endereço e o documento OpenAPI em
 `/schema/swagger`. O `--reload` é de desenvolvimento (`bun run api:dev`), não de uma instalação.
 Antes de expor a instância, defina o `AUTH_COOKIE_SECURE` — veja [HTTPS](#https).
@@ -257,8 +259,7 @@ Antes de expor a instância, defina o `AUTH_COOKIE_SECURE` — veja [HTTPS](#htt
 
 Cada configuração é definida uma única vez em `src/scrinalia/core/config.py` (`Settings`). Todas
 têm valor padrão, então a API sobe com um `.env` vazio; o que falha rápido sem configuração é o
-pipeline, não o boot — o `ACERVO_SOURCE` é exigido pela transformação de staging e os
-`PUBLIC_SCRAPE_*` pelo adaptador de coleta.
+pipeline, não o boot — a origem é uma linha em `ingestion_origins` e os `PUBLIC_SCRAPE_*` são o fallback do adaptador de referência.
 
 | Variável | Padrão | O que ela muda |
 | --- | --- | --- |
@@ -269,9 +270,8 @@ pipeline, não o boot — o `ACERVO_SOURCE` é exigido pela transformação de s
 | `DB_NAME` | `scrinalia` | nome do banco; o serviço do compose o cria no primeiro boot |
 | `DB_SSLMODE` | `prefer` | transporte libpq acrescentado ao DSN derivado; `verify-full` com uma CA quando o banco é alcançado pela rede |
 | `RUNNER_DATABASE_URL` | não definido | o DSN próprio do runner externo (um segredo); sem ele, o runner usa `DB_*`. Permite que um host de GPU tenha uma role de menor privilégio e seu próprio `sslmode` (ADR 0014) |
-| `PUBLIC_SCRAPE_URL` | vazio | URL base do site de origem que o worker de coleta lista; exigida para coletar |
-| `PUBLIC_SCRAPE_DETAIL_URL` | vazio | prefixo da página de detalhe de onde o adaptador monta cada registro; exigido para coletar |
-| `ACERVO_SOURCE` | vazio | nomeia a origem ativa — os rótulos de campo que a transformação de staging lê e as portas que a coleta monta; a única embarcada é `pmc`, o `--origin` a sobrepõe numa execução, e **não há padrão**: uma execução de staging falha rápido sem ela |
+| `PUBLIC_SCRAPE_URL` | vazio | URL base da listagem do site de referência; fallback do `pmc` — a configuração da origem na tela de ingestão vence |
+| `PUBLIC_SCRAPE_DETAIL_URL` | vazio | prefixo da página de detalhe do site de referência; fallback do `pmc`, como acima |
 | `DEFAULT_TIMEZONE` | `America/Sao_Paulo` | o fuso em que a agenda de um worker é avaliada quando o operador não nomeia um; o cron roda aqui, não no fuso do servidor (ADR 0015) |
 | `ACERVO_LANGUAGE` | `pt-BR` | seleciona o perfil de língua — stopwords, gramática de datas, regras de plural, o dicionário de busca textual e o modelo do spaCy. O dicionário chega a uma coluna gerada, então mudá-lo é uma **migração**, não um reinício |
 | `S3_ENDPOINT_URL` | vazio | o endpoint compatível com S3 (MinIO, Ceph, SeaweedFS, um bucket na nuvem); de dentro de um contêiner, `localhost` é o próprio contêiner |

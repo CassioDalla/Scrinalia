@@ -56,18 +56,29 @@ uv run python -c "from scrinalia.core.base import Base; import scrinalia.domains
 
 | Tabela | Para que serve | Colunas principais |
 | --- | --- | --- |
-| `scraping_queue` | Uma linha por identificador descoberto na origem, com seu estado de extração e contagem de tentativas. | `description_id` (chave de negócio, única), `scrape_status` (`ScrapeStatus`), `discovered_at`, `last_scraped_at`, `retry_count`, `last_error_message` |
+| `ingestion_origins` | O ciclo de vida, a configuração e a agenda de uma origem: o que o operador edita sem deploy. | `code` (chave primária), `enabled`, `config` (JSONB: URLs, caminho, espera), `options` (JSONB: a política de execução), `cron`, `timezone`, `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id` |
+| `scraping_queue` | Uma linha por identificador descoberto na origem, com seu estado de extração e contagem de tentativas. | `description_id` (chave de negócio, única), `origin_code`, `scrape_status` (`ScrapeStatus`), `discovered_at`, `last_scraped_at`, `retry_count`, `last_error_message` |
 | `raw_data` | O payload exato devolvido pelo adaptador, sem tipagem nem limpeza. | `description_id` (único), `content_hash`, `raw_title`, `payload` (JSONB) |
 
 `scrape_status` distingue uma falha transitória (`NETWORK_ERROR`, com nova tentativa) de uma
 permanente (`NOT_FOUND`, `FATAL_ERROR`). `raw_data.payload` é a evidência do que a origem realmente
-enviou; nada a jusante o lê diretamente.
+enviou; nada a jusante o lê diretamente. `raw_data.created_by` só é preenchido pela origem manual: um
+scraper não tem autor, o autor é a origem.
+
+**A origem é proveniência, não identidade.** O `origin_code` está em cada camada e no ledger de
+execuções, mas o `description_id` continua sendo a chave de negócio global; um adaptador que pudesse
+colidir prefixa os próprios ids (`manual-<uuid>`). A **definição** da origem — o adaptador e o
+`SourceSchema` que diz qual rótulo preenche qual coluna do staging — fica ao lado do adaptador, em
+código; a linha acima é o ciclo de vida, e uma linha cujo código saiu do registro continua legível mas
+não roda (ADR 0016). O transform de staging resolve o schema **por registro**, então uma execução pode
+ler várias origens; a origem é deliberadamente excluída de `StagingRecord.parsed_content_hash()`, ou
+toda linha pareceria mudada uma vez por uma coluna que nenhum worker de IA escreve.
 
 ### Staging — o registro parseado
 
 | Tabela | Para que serve | Colunas principais |
 | --- | --- | --- |
-| `staging_documents` | A descrição higienizada e tipada antes de qualquer IA tocar nela: a fonte única de verdade higienizada. | `description_id` (chave primária), `raw_content_hash`, `title`, `document_date`, `reference_code`, `parent_reference_code`, `hierarchy_path`, `level`, as colunas de texto ISAD(G), `raw_metadata` (JSONB), `created_at`, `updated_at` |
+| `staging_documents` | A descrição higienizada e tipada antes de qualquer IA tocar nela: a fonte única de verdade higienizada. | `description_id` (chave primária), `origin_code`, `raw_content_hash`, `title`, `document_date`, `reference_code`, `parent_reference_code`, `hierarchy_path`, `level`, as colunas de texto ISAD(G), `raw_metadata` (JSONB), `created_at`, `updated_at` |
 
 `parent_reference_code` é opcional de propósito: uma origem que entrega um filho antes do pai deixa a
 descrição órfã e *marcada* em vez de derrubar o lote. `raw_metadata` guarda as chaves que não foram
@@ -79,7 +90,7 @@ mapeadas para uma coluna.
 
 | Tabela | Para que serve | Colunas principais |
 | --- | --- | --- |
-| `archive_documents` | A descrição final, limpa e enriquecida, servida aos usuários e enriquecida pelos workers de IA. | `description_id` (chave primária), `original_title`, `final_title`, `document_date`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `path`, `review_status`, `is_anomaly`, `anomaly_reasons`, `is_published`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (gerada), timestamps |
+| `archive_documents` | A descrição final, limpa e enriquecida, servida aos usuários e enriquecida pelos workers de IA. | `description_id` (chave primária), `origin_code`, `original_title`, `final_title`, `document_date`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `path`, `review_status`, `is_anomaly`, `anomaly_reasons`, `is_published`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (gerada), timestamps |
 
 Três propriedades desta tabela sustentam o modelo:
 
@@ -193,7 +204,7 @@ são um estado da tag.
 | --- | --- | --- |
 | `archive_worker_settings` | A configuração padrão persistida de um worker. | `worker_name` (chave primária), `engine_name`, `preset`, `db_batch_size`, `options` (JSONB), `updated_by`, `updated_at` |
 | `archive_worker_settings_revisions` | Trilha de auditoria das escritas de configuração, uma linha por escrita. | `id`, `worker_name`, `before` (JSONB), `after` (JSONB), `changed_by`, `changed_by_user_id`, `changed_at` |
-| `archive_worker_runs` | Uma linha por execução de worker, tanto pela CLI quanto pelo painel; desde a ADR 0014 uma linha `QUEUED` é também o item de fila que um runner reivindica. | `id`, `worker_name`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `request` (JSONB, a requisição validada), `config` (JSONB), `options` (JSONB), `attempt`, `retry_of`, `not_before`, `queued_at`, `runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`, `cancel_requested_at`, `cancel_requested_by`, `cancel_requested_by_user_id`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (gerada) |
+| `archive_worker_runs` | Uma linha por execução de worker, tanto pela CLI quanto pelo painel; desde a ADR 0014 uma linha `QUEUED` é também o item de fila que um runner reivindica. Uma execução de ingestão nomeia a origem que processou em `origin_code`; a de um worker de archive a deixa nula. | `id`, `worker_name`, `origin_code`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `request` (JSONB, a requisição validada), `config` (JSONB), `options` (JSONB), `attempt`, `retry_of`, `not_before`, `queued_at`, `runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`, `cancel_requested_at`, `cancel_requested_by`, `cancel_requested_by_user_id`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (gerada) |
 | `archive_worker_schedules` | A agenda de um worker: um cron de cinco campos num fuso explícito, o request pinado que ela roda e a próxima execução. | `worker_name` (chave primária), `enabled`, `cron`, `timezone`, `request` (JSONB, a requisição validada), `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id`, `created_at`, `updated_at` |
 | `archive_worker_runners` | O registro dos runners vivos: quem está conectado, quais workers aceita e quando deu o último sinal. | `runner_id` (chave primária), `name`, `hostname`, `version`, `capabilities` (array de texto), `concurrency`, `heartbeat_seconds`, `started_at`, `last_heartbeat_at`, `stopped_at` |
 | `archive_api_errors` | As falhas HTTP inesperadas da própria API. | `id`, `occurred_at`, `request_id`, `method`, `path`, `status_code`, `message`, `error_fingerprint` (gerada) |
