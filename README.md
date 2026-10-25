@@ -306,6 +306,15 @@ uv run python -m scrinalia.domains.archive.workers.runner_daemon \
 operations guide. The panel shows it and marks **sem runner** the workers no online runner accepts; a
 run enqueued for one waits. `bun run dev` starts the API, the runner and the SPA together.
 
+The **scheduler** is a third process (ADR 0015): `python -m
+scrinalia.domains.archive.workers.scheduler` turns each worker's agenda (a five-field cron in an
+explicit zone, pinned to a request) into `QUEUED` rows. It takes a database advisory lock, so one
+instance runs at a time; a tick that fires while the worker already has a run skips the period, and a
+period missed while it was down is a single catch-up. A scheduled run that ends `FAILED` or
+`INTERRUPTED` is retried as a new ledger row (three attempts, exponential backoff capped at 30
+minutes); a manual or CLI run is never retried. `bun run dev` starts the API, the runner and the
+scheduler together; the agenda is written on `/configuracoes/workers` and shown on `/sistema/workers`.
+
 For one-off runs, the unified runner exposes every worker behind one interface:
 
 ```bash
@@ -323,9 +332,8 @@ A worker runs with the **effective configuration**, which is `explicit argument 
 override > signature default`; `/sistema/workers` in the curator UI shows it read-only and
 **enqueues** a run, while `/configuracoes/workers` is where the persisted default is changed, and
 every run — from the CLI or from the screen — leaves a row in `archive_worker_runs` with the request,
-the resolved configuration, the runner and the lease. The queue is one slot per worker and is not a
-scheduler: there is no retry and no cron (`docs/adr/0014-the-workers-leave-the-api.md`; the retry
-policy is #43).
+the resolved configuration, the runner and the lease. The queue is one slot per worker; the cron and the retry are the scheduler's
+(`docs/adr/0015-schedules-and-retries.md`).
 
 ## Development
 

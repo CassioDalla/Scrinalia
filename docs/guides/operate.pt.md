@@ -396,6 +396,9 @@ SPA: o menu não os carrega mais (issue #22).
 | `/api/v1/system/workers/settings` | `GET` | autenticado | os padrões persistidos dos nove workers, sem os contadores de fila (issue #53) |
 | `/api/v1/system/workers/{worker_name}/queue/preview` | `POST` | autenticado | o pendente de uma configuração **proposta**, calculado sem escrever |
 | `/api/v1/system/workers/{worker_name}/runs` | `POST` | `OPERATE` | enfileira uma execução com overrides só para ela e responde `201` na hora |
+| `/api/v1/system/workers/{worker_name}/schedule` | `GET` | autenticado | a agenda do worker, ou nulo quando ele não tem uma (ADR 0015) |
+| `/api/v1/system/workers/{worker_name}/schedule` | `PUT` | `OPERATE` | cria ou substitui a agenda: o cron de cinco campos, o fuso IANA, o request pinado e o estado |
+| `/api/v1/system/workers/{worker_name}/schedule` | `DELETE` | `OPERATE` | remove a agenda; as execuções que ela criou ficam no ledger |
 | `/api/v1/system/workers/{worker_name}/settings` | `PUT` | `OPERATE` | persiste o padrão de engine/preset/batch/options |
 | `/api/v1/system/workers/{worker_name}/settings` | `DELETE` | `OPERATE` | apaga o override para o worker voltar a seguir o código |
 | `/api/v1/system/workers/{worker_name}/settings/revisions` | `GET` | autenticado | quem mudou o quê, quando |
@@ -410,9 +413,9 @@ A SPA espelha isso, como cartões de `/configuracoes` sob *Operação*:
 
 | Tela | Mostra |
 | --- | --- |
-| `/sistema/workers` | os nove workers: engine, preset e modelo, a fila, o que o carimbo de cada um nomeia (com produtor, sem produtor conhecido, sem registro) e um botão **Enfileirar execução**; acima deles, os cartões dos runners (online, host, versão, concorrência, capacidades, último sinal) e um aviso quando nenhum está online. Um worker que nenhum runner online aceita aparece como **sem runner** — a linha ainda enfileira e espera. A configuração efetiva aqui é só leitura |
-| `/configuracoes/workers` | o padrão persistido de cada worker e suas revisões, com salvar e remover — a escrita que o painel carregava |
-| `/sistema/execucoes` | o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela |
+| `/sistema/workers` | os nove workers: engine, preset e modelo, a fila, o que o carimbo de cada um nomeia (com produtor, sem produtor conhecido, sem registro) e um botão **Enfileirar execução**; acima deles, os cartões dos runners (online, host, versão, concorrência, capacidades, último sinal) e um aviso quando nenhum está online. Um worker que nenhum runner online aceita aparece como **sem runner** — a linha ainda enfileira e espera. O selo e o fato **Agenda** mostram o cron, o fuso, a próxima execução e o último período pulado. A configuração efetiva aqui é só leitura |
+| `/configuracoes/workers` | o padrão persistido de cada worker e suas revisões, com salvar e remover, e a **Agenda** do worker (o cron, o fuso, o estado habilitado e o request pinado) — a escrita que o painel carregava |
+| `/sistema/execucoes` | o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela. Cada linha diz quem pediu (`painel`, `linha de comando` ou `agenda`), a tentativa (`tentativa 2/3`), a linha que ela retenta e, quando está na fila com `not_before`, quando começa |
 | `/sistema/diagnostico` | banco, modelos do Ollama, storage das miniaturas e a configuração efetiva do processo |
 
 A tela consulta a cada 5 s enquanto uma execução está rodando e a cada 15 s enquanto uma está na fila,
@@ -441,7 +444,7 @@ timeout de TCP do sistema operacional.
 `archive_worker_runs` tem uma linha por execução, tanto da CLI quanto do painel: o ledger é sobre o
 worker, não sobre o botão que o iniciou. Uma linha carrega `worker_name`, `status`, `trigger` (`CLI`
 ou `API`), `requested_by` (e `requested_by_user_id`), `engine_name`, `preset`, o `request` validado
-(o que um runner reproduz), o `config` resolvido, as **`options` efetivas do worker**, `queued_at`,
+(o que um runner reproduz), o `config` resolvido, as **`options` efetivas do worker**, `attempt`, `retry_of`, `not_before`, `queued_at`,
 `runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`, `finished_at`, `duration_ms`, `error`
 e o `error_fingerprint` gerado.
 
@@ -533,7 +536,7 @@ lease) marca a linha como `INTERRUPTED`, com `finished_at` e o texto "O runner p
 antes do fim desta execução." O boot da API não repara nada, então vários processos da API são
 seguros. A varredura toca só as linhas vencidas: a reivindicação viva de um irmão nunca é fechada.
 
-Nada é retentado automaticamente. Depois de uma execução `INTERRUPTED`:
+Uma execução agendada `INTERRUPTED` é retentada pelo scheduler (veja [Agendamento e retentativas](#agendamento-e-retentativas)); uma manual ou da CLI não é. Para o caso manual, depois de uma execução `INTERRUPTED`:
 
 1. Leia `GET /api/v1/system/runs?status=INTERRUPTED` (ou o painel) e abra o erro da linha.
 2. Corrija a causa — um modelo do Ollama faltando, um bucket inalcançável, um banco que estava fora.
@@ -543,27 +546,35 @@ Nada é retentado automaticamente. Depois de uma execução `INTERRUPTED`:
 A execução enfileirada sem runner online espera, e o painel diz isso. O cancelamento é a #72 e a
 política de retry é a #43: a ADR 0014 fixa o vocabulário, as issues o implementam.
 
-## Agendamento
+## Agendamento e retentativas
 
-Hoje não existe agendador. Na prática, isso significa que um cron externo — ou qualquer orquestrador
-que você já opere — tem de pendurar em uma das duas entradas:
+O scheduler é um processo próprio (ADR 0015):
+`python -m scrinalia.domains.archive.workers.scheduler`. Ele toma o `pg_try_advisory_lock` pela vida
+toda — uma segunda instância fica em standby — e bate a cada 30 s (`--tick-seconds`). Cada agenda devida
+é processada numa transação com `FOR UPDATE SKIP LOCKED`: se o worker já tem uma linha
+`QUEUED`/`RUNNING`, o período é pulado (`last_skipped_at` é gravado); senão a execução é enfileirada com
+`trigger=SCHEDULE` e `attempt=1`, e o `next_run_at` avança para a próxima ocorrência futura. Um
+scheduler que ficou fora por vários períodos cria **um** catch-up, não um replay.
 
-```bash
-# No host, a partir da raiz do repositório.
-uv run python -m scrinalia.domains.archive.workers.runner embedding --by "cron"
+A agenda é uma linha por worker (`archive_worker_schedules`): um cron de cinco campos
+(`minuto hora dia-do-mês mês dia-da-semana`), um fuso IANA, o estado habilitado e o request pinado. Ela
+é escrita em `/configuracoes/workers` (a seção Agenda) e lida em `/sistema/workers`; `DEFAULT_TIMEZONE`
+é o fuso da instância e o padrão do formulário. Uma agenda pausada não guarda próxima execução;
+religá-la a recalcula do cron. O cron é avaliado no fuso da agenda, nunca no do servidor: o buraco do
+horário de verão roda no próximo instante válido, e a hora repetida no dia de recuo roda uma vez.
 
-# Ou pela API, que enfileira a execução e retorna na hora.
-curl -sS -X POST "http://localhost:8000/api/v1/system/workers/embedding/runs" \
-    -H "Content-Type: application/json" -H "Origin: http://localhost:8000" \
-    -b "scrinalia_session=<cookie>" \
-    -d '{"db_batch_size": 100}'
-```
+Uma execução agendada que termina `FAILED` ou `INTERRUPTED` é retentada pelo scheduler como uma **nova
+linha do ledger**: `attempt = anterior + 1`, `retry_of` a linha falha, o mesmo request e um `not_before`
+`60 s x 2^(attempt-1)` depois, ±20% de jitter, teto de 30 minutos. Três tentativas no total; a terceira
+falha é final. Uma execução manual ou da CLI nunca é retentada. A linha do retry nasce na hora e espera
+no slot — o claim só pega uma linha cujo `not_before` passou — então uma execução manual do mesmo worker
+responde `409` até ela começar. `CANCELLED` (#72) nunca será retentada.
 
-Dois avisos que o desenho deixa explícitos:
+Dois avisos que sobrevivem ao scheduler:
 
-- **Uma execução pode durar mais que o intervalo do cron.** A rota responde `201` assim que a
-  execução entra na fila, então o cron não tem como saber se a anterior terminou. Agende num período
-  maior que uma execução, ou leia o ledger antes de disparar.
+- **Uma agenda pode disparar com uma execução ativa.** O período é pulado, não enfileirado: a fila é um
+  slot por worker, e o painel mostra o último horário pulado. Um período perdido é um catch-up, nunca um
+  replay.
 - **A concorrência é recusada pelo banco, não por um lock.** O índice único parcial rejeita a segunda
   execução em andamento do mesmo worker; a API responde `409` e a CLI levanta a mesma recusa. Nada no
   processo serializa as chamadas, então a garantia vale entre processos, através de um reload e mesmo
@@ -573,7 +584,8 @@ Dois avisos que o desenho deixa explícitos:
   uma vez.
 
 A rota da API é uma mutação, então também exige sessão de `ADMIN` autenticada e cabeçalho `Origin` de
-mesma origem. Um cron em host remoto é mais simples pela CLI.
+mesma origem. Um cron externo continua uma forma suportada de rodar trabalho pontual, pela CLI ou pela
+rota, mas não é mais a resposta embutida: a agenda é dona da próxima execução, do pulo e do catch-up.
 
 ## Lendo as falhas
 
@@ -761,8 +773,14 @@ comportamento esperar, e para um limite já pago não ser lido como defeito.
   execução duplicada depois de um lease vencido é possível. Um fence rígido é trabalho futuro.
 - **A fila é um slot por worker.** Uma segunda execução de um worker com uma em andamento responde
   `409`, e um agendamento precisa coalescer; backlog ou prioridade não é o que esta fila é.
-- **Ainda não há retry nem cancelamento.** Uma execução que falhou continua falha e uma em andamento
-  não pode ser parada pelo painel até a #43/#72; uma interrompida é visível e um novo disparo é seguro.
+- **O retry é limitado e não classificado.** Uma falha agendada gasta até três tentativas, qualquer que
+  seja a causa: um modelo faltando custa três tentativas limitadas, porque um classificador errado na
+  outra direção ou desperdiça a GPU ou esconde uma falha real. O retry segura o slot do worker durante o
+  backoff.
+- **Um scheduler, um lock.** O advisory lock é liberado quando a conexão morre e um standby assume
+  dentro do intervalo de retentativa dele; ainda há uma janela de um tick sem scheduler.
+- **Ainda não há cancelamento.** Uma execução em andamento não pode ser parada pelo painel até a #72;
+  uma interrompida é visível e um novo disparo é seguro.
 - **O `path` do arranjo não é garantido pelo banco.** A coluna é materializada pelo serviço, então um
   `UPDATE` escrito à mão pode divergi-la da árvore; o diagnóstico `PATH_DIVERGENCE` é o que encontra.
   Não escreva `path` diretamente — passe pelas rotas que são donas da movimentação.
