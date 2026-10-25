@@ -2382,7 +2382,7 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   the constraint the design had to respect: the storage is optional, so an ingestion feature cannot
   depend on it. The choice recorded in ADR 0019 keeps the file in the browser, publishes one map and
   one set of bounds, and makes the API the authority over every row.
-- **What the round measured.** Full suite **2227 passed, 1 skipped** (the test database on 5434,
+- **What the round measured.** Full suite **2228 passed, 1 skipped** (the test database on 5434,
   `postgresql+psycopg2`; 5433 was held by another process); `ruff check` and `ruff format --check`
   green; `basedpyright` **0 errors**; the contract was regenerated with the repository's
   `openapi.json` + `codegen` path and the SPA's `tsc`, ESLint, `bun test` (**20 pass**) and Vite build
