@@ -1,17 +1,25 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 
+import {
+  cancelWorkerRun,
+  type FailureGroup,
+  type WorkerRun,
+  type WorkerRunStatus,
+} from "@/api/client";
 import { queries, FAILURES_PAGE_SIZE, RUNS_PAGE_SIZE } from "@/api/queries";
-import type { FailureGroup, WorkerRunStatus } from "@/api/client";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Select } from "@/components/ui/Input";
+import { Notice } from "@/components/ui/Notice";
 import { PageBody } from "@/components/layout/PageBody";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { routeMessage } from "@/lib/messages";
 import { asEnum, asNumber, asString } from "@/lib/search";
 import {
   describeConfig,
@@ -19,6 +27,7 @@ import {
   FAILURE_SOURCE_LABEL,
   formatDuration,
   isActiveRun,
+  isCancelRequested,
   MAX_ATTEMPTS,
   RUN_STATUS_LABEL,
   RUN_STATUS_TONE,
@@ -28,7 +37,14 @@ import {
 const routeApi = getRouteApi("/sistema/execucoes");
 
 /** The closed vocabulary of the run lifecycle, read from the contract's enum. */
-const RUN_STATUSES: readonly WorkerRunStatus[] = ["QUEUED", "RUNNING", "SUCCESS", "FAILED", "INTERRUPTED"];
+const RUN_STATUSES: readonly WorkerRunStatus[] = [
+  "QUEUED",
+  "RUNNING",
+  "SUCCESS",
+  "FAILED",
+  "INTERRUPTED",
+  "CANCELLED",
+];
 
 export type SystemRunsSearch = { worker?: string; status?: WorkerRunStatus; fingerprint?: string; offset?: number };
 
@@ -224,6 +240,8 @@ export function SystemRunsRoute() {
                   ) : null}
 
                   {run.error ? <p className="text-xs text-(--color-danger)">{run.error}</p> : null}
+
+                  <RunCancel run={run} />
                 </CardBody>
               </Card>
             </li>
@@ -257,6 +275,75 @@ export function SystemRunsRoute() {
         ) : null}
       </PageBody>
     </>
+  );
+}
+
+/**
+ * The stop of one run: the button, its confirmation, and the pending request.
+ *
+ * The confirmation is inline and in two steps, the shape the other destructive actions use: closing
+ * a run is not deleting a record, so a typed code would be ceremony, but a single click on a page
+ * full of rows would stop the wrong execution. The sentence is the honest limit — the current batch
+ * is committed, not interrupted — and the row keeps saying "em execução" until the worker honours
+ * the request, because releasing the slot before then would let a second run overlap it (#72).
+ */
+function RunCancel({ run }: { run: WorkerRun }) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+
+  const cancel = useMutation({
+    mutationFn: () => cancelWorkerRun(run.run_id),
+    onSuccess: () => {
+      setOpen(false);
+      void queryClient.invalidateQueries({ queryKey: ["system"] });
+    },
+    // A 409 means the row finished between the render and the click: refetch so the screen stops
+    // offering an action that no longer exists.
+    onError: () => {
+      void queryClient.invalidateQueries({ queryKey: ["system"] });
+    },
+  });
+
+  if (!isActiveRun(run)) return null;
+
+  if (isCancelRequested(run)) {
+    return (
+      <p className="text-xs text-(--color-warn)">
+        Cancelamento pedido em {formatDateTime(run.cancel_requested_at)}
+        {run.cancel_requested_by ? ` por ${run.cancel_requested_by}` : ""}. A execução para no fim do lote
+        atual; o que já foi gravado fica.
+      </p>
+    );
+  }
+
+  return (
+    <div className="grid gap-2">
+      <div>
+        <Button size="sm" variant="danger" onClick={() => setOpen((current) => !current)}>
+          {open ? "Fechar" : "Cancelar execução…"}
+        </Button>
+      </div>
+
+      {open ? (
+        <Notice tone="warn" as="div" className="grid gap-2">
+          <p>
+            A execução para no fim do lote atual e o que já foi gravado fica. Se ela ainda não começou, é
+            cancelada agora. O lote em curso não é interrompido: uma passada do modelo não pode ser cortada no
+            meio.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="danger" disabled={cancel.isPending} onClick={() => cancel.mutate()}>
+              {cancel.isPending ? "Cancelando…" : "Confirmar cancelamento"}
+            </Button>
+            <Button size="sm" variant="ghost" disabled={cancel.isPending} onClick={() => setOpen(false)}>
+              Voltar
+            </Button>
+          </div>
+          {cancel.error ? <ErrorState error={cancel.error} /> : null}
+          {cancel.data ? <p className="text-xs text-(--color-muted)">{routeMessage(cancel.data)}</p> : null}
+        </Notice>
+      ) : null}
+    </div>
   );
 }
 

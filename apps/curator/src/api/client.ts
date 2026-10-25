@@ -364,6 +364,7 @@ export type WorkerPreset = components["schemas"]["WorkerPresetDTO"];
 export type WorkerOption = components["schemas"]["WorkerOptionDTO"];
 export type WorkerRun = components["schemas"]["WorkerRunDTO"];
 export type WorkerRunList = components["schemas"]["WorkerRunListResponse"];
+export type WorkerRunCancel = components["schemas"]["WorkerRunCancelResponse"];
 export type FailureGroup = components["schemas"]["FailureGroupDTO"];
 export type FailureGroupList = components["schemas"]["FailureGroupListResponse"];
 export type FailureSource = components["schemas"]["FailureSource"];
@@ -1614,6 +1615,20 @@ export async function triggerWorkerRun(worker: string, body: WorkerRunRequest): 
       params: { path: { worker_name: worker } },
       body,
     }),
+  );
+}
+
+/**
+ * Asks one execution to stop, and answers which of the two things happened.
+ *
+ * A run still queued with no runner closes ``CANCELLED`` at once; a run in flight only receives the
+ * request and stops at the next batch boundary, because a thread cannot be killed mid-batch
+ * (ADR 0014 decision 9). The code is the distinction, and the row comes back so the screen updates
+ * the line it already shows.
+ */
+export async function cancelWorkerRun(runId: number): Promise<WorkerRunCancel> {
+  return unwrap<WorkerRunCancel>(
+    await client.POST("/api/v1/system/runs/{run_id}/cancel", { params: { path: { run_id: runId } } }),
   );
 }
 
