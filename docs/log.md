@@ -2349,3 +2349,55 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   but the real cost per document on this machine is unmeasured, and no typology preset was chosen from
   it. The comparison card's editors start from the current settings, not from the last trial's
   configurations; repeating a measured comparison means re-entering it.
+
+## 2026-10-25 — a CSV imported without storage (#191)
+
+- **Range:** `6cc6349..6ff7c7d`
+- **Pages:**
+  - `adr/0019-the-csv-import-is-parsed-in-the-browser.md` — **created**: the file never leaves the
+    browser, the `csv` origin has no adapter and no storage, the map and the bounds are published by
+    the API, and the answer is a per-row report. The alternatives (bucket upload, server-side text
+    parse, one transfer per row, a durable import ledger, all staging fields now) and their reasons
+    are recorded there.
+  - `adr/index.md` — **updated**: the 0019 row.
+  - `guides/curate.md` / `curate.pt.md` — **updated**: the Importação CSV card in the ingestion
+    screen, the table row that now says a curator may type a record **or** import a CSV, and the
+    per-row answer (accepted/duplicated/invalid, partial import, `PENDING_AI`).
+  - `guides/operate.md` / `operate.pt.md` — **updated**: a "The CSV import" section beside the manual
+    entry (the browser parse, the spec route, the 413, the duplicate rule, the one transfer and the
+    re-import caveat), the two routes in the API table, the origins paragraph (`csv` has no adapter
+    configuration) and the permissions sentence that now names both curator writes.
+  - `guides/data-model.md` / `data-model.pt.md` — **updated**: `raw_data.created_by` is set by the
+    form-based origins (`manual`, `csv`), and `ingestion_origins.config` says the csv origin has none.
+    The Portuguese `raw_data` row had lost `origin_code` and the two author columns; the round put
+    them back in step with the English table.
+  - `guides/install.md` — **no-change**: the hook flags `package.json` and `sources.py`, but the
+    change adds a contributor test script and an origin vocabulary, not a setting or an installation
+    step; the `curator:test` command is in `CONTRIBUTING.md`, where the local checks live.
+  - `.dsh/skills/ingestion/SKILL.md` — **updated**: the CSV rules (no storage, the one catalogue and
+    the limits, the strict row rules, the `description_ids` staging window).
+  - `CHANGELOG.md` — **updated**: the Unreleased/Added entry.
+  - `mkdocs.yml` — **updated**: the ADR 0019 nav entry.
+- **Why the round exists.** #191 was the CSV ingestion ADR 0016 deferred, and the issue opened with
+  the constraint the design had to respect: the storage is optional, so an ingestion feature cannot
+  depend on it. The choice recorded in ADR 0019 keeps the file in the browser, publishes one map and
+  one set of bounds, and makes the API the authority over every row.
+- **What the round measured.** Full suite **2227 passed, 1 skipped** (the test database on 5434,
+  `postgresql+psycopg2`; 5433 was held by another process); `ruff check` and `ruff format --check`
+  green; `basedpyright` **0 errors**; the contract was regenerated with the repository's
+  `openapi.json` + `codegen` path and the SPA's `tsc`, ESLint, `bun test` (**20 pass**) and Vite build
+  are green; `mkdocs build --strict` green and the documentation coverage gate **29 passed**;
+  `alembic upgrade head` applied `191c5f0a7b2e` and `alembic check` reports no new operations.
+  Rendered with the headless shell over CDP at 1280×1600, against the built SPA served by the API and
+  a temporary session: `.render/191-preview.png` is the card with the detected headers, the preview
+  table and the local duplicate warning; `.render/191-result.png` is the per-row report — 2 accepted,
+  1 duplicated and 1 invalid (`A data 'banana' não foi reconhecida.`) — with the transfer enqueued.
+  The two accepted rows and the queued transfer were scratch data and were deleted after the round;
+  the temporary session and the sample file are gone, and the screenshots remain.
+- **Not verified, and said so.** The transfer was **not run** during the render — no runner was
+  attached — so the archive description reaching `PENDING_AI` was not observed in the browser; it is
+  asserted by the integration test that runs `worker_archive_transfer.execute` over the imported
+  rows. The **Baixar modelo** button was not clicked; `buildTemplate`/`toCsv` are covered by
+  `bun test`, and the button only creates the Blob. The HTTP 413 path is a controller test with the
+  service mocked, not a real oversized request. The install guide's `no-change` is a judgement from
+  the diff, not from a page render.
