@@ -3024,7 +3024,6 @@ export interface components {
         };
         /** HierarchyNodeDetail */
         HierarchyNodeDetail: {
-            /** @description Root first. */
             ancestors?: components["schemas"]["HierarchyNodeSummary"][];
             children?: components["schemas"]["HierarchyNodeSummary"][];
             node: components["schemas"]["HierarchyNodeSummary"];
@@ -3889,7 +3888,6 @@ export interface components {
         SystemWorkersResponse: {
             /** Format: date-time */
             generated_at: string;
-            /** @description Os runners registrados, online ou não. As capacidades dizem qual worker cada um aceita; sem nenhum online, uma execução fica na fila até um subir (ADR 0014). */
             runners?: components["schemas"]["WorkerRunnerDTO"][];
             workers?: components["schemas"]["WorkerStatusDTO"][];
         };
@@ -4284,10 +4282,7 @@ export interface components {
             offset: number;
             total: number;
         };
-        /**
-         * WorkerRunRequest
-         * @description O corpo validado que cada execução agendada usa; as partes não pinadas seguem as configurações.
-         */
+        /** WorkerRunRequest */
         WorkerRunRequest: {
             db_batch_size?: number | null;
             engine_name?: string | null;
@@ -4367,7 +4362,6 @@ export interface components {
                 [key: string]: unknown;
             };
             db_batch_size?: number | null;
-            /** @description As opções que este worker aceita, derivadas da assinatura do execute. */
             declared_options?: components["schemas"]["WorkerOptionDTO"][];
             engine_name?: string | null;
             /** @description As chaves que o eixo repassa ao construtor do engine (model, device, host, ...). É a dica do bloco avançado; os valores seguem os do próprio motor. */
@@ -4457,10 +4451,8 @@ export interface components {
              * @default false
              */
             runner_available: boolean;
-            /** @description A agenda do worker (ADR 0015); nula quando ele não tem uma. */
             schedule?: components["schemas"]["WorkerScheduleDTO"] | null;
             settings: components["schemas"]["WorkerSettingsDTO"];
-            /** @description Os quatro números do **ledger** do worker — com produtor, valor legado, falha e ausência de registro — e não da fila: `pending` é o predicado da fila, e uma unidade com carimbo de falha ou de produtor antigo conta aqui sem estar pendente. Nulo quando o ledger do worker não é um carimbo. */
             stamp_breakdown?: components["schemas"]["WorkerStampBreakdownDTO"] | null;
             /** @enum {string} */
             unit: "staging" | "document" | "tag" | "pair";
