@@ -270,6 +270,7 @@ def save_raw_data(
     *,
     origin_code: str | None = None,
     author: Author | None = None,
+    raw_title: str | None = None,
 ) -> bool:
     """
     Persists the raw data extracted by the Adapter in the Ingestion layer.
@@ -283,6 +284,11 @@ def save_raw_data(
         db (Session): Active SQLAlchemy session.
         description_id (str): Unique identifier of the document in the external source.
         scraped_data (dict): Raw dictionary containing the extracted metadata.
+        origin_code (str | None): The origin that produced the payload.
+        author (Author | None): Who sent it, when a person did.
+        raw_title (str | None): The title for the quick-search column when the payload does not
+            carry it under the scraper's ``title`` key. The manual form's payload does; the CSV's
+            payload carries the file's label (``Título``), so the CSV import passes it here.
 
     Raises:
         Exception: Propagates any critical database error for the Orchestrator to handle.
@@ -290,14 +296,14 @@ def save_raw_data(
     Returns:
         bool: True if the data was successfully inserted or verified.
     """
-    raw_title = scraped_data.get("title")
+    title = raw_title if raw_title is not None else scraped_data.get("title")
 
     content_hash = ContentHash.of(scraped_data)
 
     values: dict[str, object] = {
         "description_id": description_id,
         "origin_code": origin_code,
-        "raw_title": raw_title,
+        "raw_title": title,
         "payload": scraped_data,
         "content_hash": content_hash,
         **author_columns("created_by", author),

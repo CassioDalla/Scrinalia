@@ -271,10 +271,11 @@ padrões da assinatura). Nada aparece no histórico de execuções, então nada 
 
 Uma origem é uma definição em código mais uma linha em `ingestion_origins` (ADR 0016). A definição —
 o adaptador e o `SourceSchema` que diz qual rótulo dela preenche qual coluna do staging — fica ao
-lado do adaptador; a linha é o ciclo de vida: habilitada/pausada, as URLs (ou o caminho, para uma
-futura origem CSV), a política de execução que uma execução agendada herda e o cron/fuso da agenda.
-Adicionar uma origem é um módulo, uma entrada no registro e uma linha; o transform de staging não
-aprende site nenhum.
+lado do adaptador; a linha é o ciclo de vida: habilitada/pausada, as URLs, a política de execução que
+uma execução agendada herda e o cron/fuso da agenda. A origem `csv` não tem configuração de adaptador:
+a entrada dela é o arquivo que o navegador lê, e o `SourceSchema` dela mapeia os cabeçalhos desse
+arquivo para as colunas do staging. Adicionar uma origem é um módulo, uma entrada no registro e uma
+linha; o transform de staging não aprende site nenhum.
 
 `/sistema/ingestao` é a tela. Cada cartão responde *qual fila é esta, o que ela lê, quando roda e o
 que aconteceu na última vez*: os números de pendentes/processados/falhas da própria origem, a última
@@ -343,8 +344,34 @@ gera um id `manual-<uuid>` para que um reenvio seja o mesmo registro.
 
 O formulário traz os campos essenciais do ISAD(G) (título, código de referência, nível, data, âmbito
 e conteúdo, produtores, história administrativa/biográfica, condições de acesso e pontos de acesso).
-O resto do contrato de staging e a importação de CSV (interpretada no navegador, sem storage) são
-#192 e #191.
+O resto do contrato de staging é #192.
+
+### A importação CSV
+
+A origem `csv` é o cartão **Importação CSV** em `/sistema/ingestao`, e é uma escrita do mesmo tipo da
+entrada manual: as linhas entram no staging e uma `transfer` é enfileirada, então a descrição do
+Acervo nasce `PENDING_AI` (#191, ADR 0019).
+
+O arquivo nunca chega ao servidor como arquivo. O navegador o interpreta (vírgula ou ponto e vírgula,
+campos entre aspas, CRLF, UTF-8 com fallback para Windows-1252), mapeia os cabeçalhos detectados para
+os rótulos declarados da origem e mostra uma prévia; só uma **lista limitada de linhas** é enviada como
+JSON para `POST /api/v1/ingestion/csv`. Não existe rota multipart nem storage de objetos neste caminho:
+uma instalação cujo bucket de miniaturas não está configurado importa um CSV do mesmo jeito.
+
+`GET /api/v1/ingestion/csv/spec` publica o mapa e os limites — o rótulo, o atributo de staging, o
+caráter obrigatório e o teto de cada coluna, além de `max_rows`, `max_bytes`, `max_row_bytes` e
+`max_field_chars`. Os valores vivem em `domains/ingestion/csv_import.py`, uma definição só; a rota
+recusa um pedido acima deles com **413** e uma frase.
+
+A API é a autoridade, não a tela: cada linha é validada com o mesmo `StagingDocumentDTO` e o mesmo
+`SourceSchema` que o transform de staging usa, e a resposta reporta cada linha como **aceita**,
+**duplicada** (o `description_id` já existe em `raw_data`, `scraping_queue` ou no Acervo) ou
+**inválida** (título ausente, data ilegível, campo desconhecido, valor acima do limite), com a linha do
+arquivo e o campo. Uma importação parcial é um desfecho normal, não um erro. As linhas aceitas são
+gravadas com `origin_code='csv'` e estruturadas numa execução só; se já houver uma transferência em
+andamento, a resposta diz que elas entram na próxima. Reimportar um arquivo sem a coluna
+`Identificador` cria registros novos — a coluna é opcional e a tela gera um `csv-<uuid>` quando ela
+falta.
 
 Nenhum dos dois comandos escreve em `archive_worker_runs` — o ledger é do runner — e nenhum dos
 dois aparece no painel de sistema, o que é uma mudança à parte.
@@ -506,11 +533,13 @@ SPA: o menu não os carrega mais (issue #22).
 | `/api/v1/ingestion/origins/{code}/schedule` | `DELETE` | `OPERATE` | remove a agenda da origem, mantendo a configuração |
 | `/api/v1/ingestion/origins/{code}/runs` | `POST` | `OPERATE` | enfileira uma execução de ingestão para a origem, com opções só desta execução |
 | `/api/v1/ingestion/manual` | `POST` | `CURATE` | grava um registro digitado, estrutura o staging e enfileira a transferência |
+| `/api/v1/ingestion/csv/spec` | `GET` | autenticado | o mapa do CSV, os tetos dos campos e os limites de linha/bytes (#191) |
+| `/api/v1/ingestion/csv` | `POST` | `CURATE` | importa uma lista limitada de linhas de CSV, estrutura as aceitas e enfileira uma transferência (#191) |
 
 Só o `ADMIN` carrega `OPERATE`; `CURATOR` e `VIEWER` leem os workers, o ledger e as falhas, mas não
-disparam execução nem mudam padrão. A entrada manual é a única escrita de ingestão que um curador
-possui (`CURATE`): digitar um registro é curadoria, apontar uma origem para um site ou iniciar uma
-coleta é operação.
+disparam execução nem mudam padrão. A entrada manual e a importação CSV são as escritas de ingestão
+que um curador possui (`CURATE`): digitar um registro ou importar uma planilha é curadoria, apontar
+uma origem para um site ou iniciar uma coleta é operação.
 
 A SPA espelha isso, como cartões de `/configuracoes` sob *Operação*:
 
@@ -519,7 +548,7 @@ A SPA espelha isso, como cartões de `/configuracoes` sob *Operação*:
 | `/sistema/workers` | os dez workers: engine, preset e modelo, a fila, o que o carimbo de cada um nomeia (com produtor, sem produtor conhecido, sem registro) e um botão **Enfileirar execução**; acima deles, os cartões dos runners (online, host, versão, concorrência, capacidades, último sinal) e um aviso quando nenhum está online. Um worker que nenhum runner online aceita aparece como **sem runner** — a linha ainda enfileira e espera. O selo e o fato **Agenda** mostram o cron, o fuso, a próxima execução e o último período pulado. A configuração efetiva aqui é só leitura. A linha `ingestion` é a exceção: não tem engine, não tem contadores agregados de pendentes/processados/falhas, e a execução dela pertence a uma origem, então ela leva a `/sistema/ingestao` em vez de um botão genérico — os números por origem ficam naquela tela |
 | `/configuracoes/workers` | o padrão persistido de cada worker e suas revisões, com salvar e remover, e a **Agenda** do worker (o cron, o fuso, o estado habilitado e o request pinado) — a escrita que o painel carregava. Um worker que o catálogo marca `trial` (hoje a tipologia) também carrega **Comparar configurações**: duas configurações, o tamanho da amostra, a tabela lado a lado (concordância com o denominador, cobertura, abstenção, a maior gaveta, entropia, segundos por documento, a fila e as horas projetadas) e **Usar esta**, que salva o corpo medido, e **Rodar no acervo inteiro**, que lê a fila do corpo salvo e dispara a execução real |
 | `/sistema/execucoes` | o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela. Cada linha diz quem pediu (`painel`, `linha de comando` ou `agenda`), a tentativa (`tentativa 2/3`), a linha que ela retenta e, quando está na fila com `not_before`, quando começa. Uma linha de **ensaio** carrega o selo `ensaio` e leva ao cartão de comparação, para nunca ser confundida com uma execução de produção (ADR 0018). Uma linha ativa oferece **Cancelar execução…** com confirmação embutida, e um pedido de parada aparece como nota enquanto o worker termina o lote atual |
-| `/sistema/ingestao` | as origens, um cartão cada: a própria fila e a última execução, a configuração do adaptador, a agenda e **Enfileirar execução** (operador); e o formulário **Entrada manual**, que grava um registro como `PENDING_AI` e enfileira a transferência (curador). A tela é um cartão de *Operação*, mas declara `CURATE`, porque o formulário manual é a escrita que um curador possui; os controles só de operador ficam escondidos para um curador |
+| `/sistema/ingestao` | as origens, um cartão cada: a própria fila e a última execução, a configuração do adaptador, a agenda e **Enfileirar execução** (operador); o formulário **Entrada manual**, que grava um registro como `PENDING_AI` e enfileira a transferência; e o cartão **Importação CSV**, que interpreta o arquivo no navegador, mostra os cabeçalhos e o resultado por linha e envia só as linhas (curador). A tela é um cartão de *Operação*, mas declara `CURATE`, porque o formulário manual e a importação CSV são as escritas que um curador possui; os controles só de operador ficam escondidos para um curador |
 | `/sistema/diagnostico` | banco, modelos do Ollama, storage das miniaturas, as origens da ingestão (ativas/total, com link para `/sistema/ingestao`) e a configuração efetiva do processo |
 
 A tela consulta a cada 5 s enquanto uma execução está rodando e a cada 15 s enquanto uma está na fila,

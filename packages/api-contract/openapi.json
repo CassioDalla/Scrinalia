@@ -1565,6 +1565,283 @@
         "title": "CrossDomainConflictPage",
         "type": "object"
       },
+      "CsvFieldDTO": {
+        "properties": {
+          "attribute": {
+            "type": "string"
+          },
+          "help": {
+            "type": "string"
+          },
+          "kind": {
+            "default": "text",
+            "enum": [
+              "text",
+              "long_text",
+              "date",
+              "tags",
+              "url"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "max_length": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "required": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "attribute",
+          "help",
+          "label"
+        ],
+        "title": "CsvFieldDTO",
+        "type": "object"
+      },
+      "CsvImportRequest": {
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CsvImportRow"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "title": "CsvImportRequest",
+        "type": "object"
+      },
+      "CsvImportResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CsvImportResultDTO"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "title": "CsvImportResponse",
+        "type": "object"
+      },
+      "CsvImportResultDTO": {
+        "properties": {
+          "accepted": {
+            "type": "integer"
+          },
+          "duplicated": {
+            "type": "integer"
+          },
+          "invalid": {
+            "type": "integer"
+          },
+          "origin_code": {
+            "type": "string"
+          },
+          "received": {
+            "type": "integer"
+          },
+          "review_status": {
+            "default": "PENDING_AI",
+            "description": "O estado inicial no archive: a importação não marca HUMAN_APPROVED.",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CsvRowResultDTO"
+            },
+            "type": "array"
+          },
+          "transfer_queued": {
+            "default": false,
+            "type": "boolean"
+          },
+          "transfer_run_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "accepted",
+          "duplicated",
+          "invalid",
+          "origin_code",
+          "received"
+        ],
+        "title": "CsvImportResultDTO",
+        "type": "object"
+      },
+      "CsvImportRow": {
+        "properties": {
+          "description_id": {
+            "description": "Identificador único do registro.",
+            "type": "string"
+          },
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "As células da linha, com o rótulo do mapa como chave.",
+            "type": "object"
+          },
+          "line": {
+            "default": 0,
+            "description": "A linha do arquivo, para a tela.",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "description_id"
+        ],
+        "title": "CsvImportRow",
+        "type": "object"
+      },
+      "CsvImportSpecResponse": {
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/CsvFieldDTO"
+            },
+            "type": "array"
+          },
+          "id": {
+            "$ref": "#/components/schemas/CsvFieldDTO"
+          },
+          "max_bytes": {
+            "type": "integer"
+          },
+          "max_field_chars": {
+            "type": "integer"
+          },
+          "max_row_bytes": {
+            "type": "integer"
+          },
+          "max_rows": {
+            "type": "integer"
+          },
+          "origin_code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "max_bytes",
+          "max_field_chars",
+          "max_row_bytes",
+          "max_rows",
+          "origin_code"
+        ],
+        "title": "CsvImportSpecResponse",
+        "type": "object"
+      },
+      "CsvRowIssueCode": {
+        "description": "\n    Why one row did not enter, as a stable identifier rather than a sentence.\n\n    The codes are additive and shared by the rows that produce the same outcome; the sentence\n    beside it is Portuguese and can be translated later without renaming the code.\n    ",
+        "enum": [
+          "MISSING_REQUIRED",
+          "UNKNOWN_FIELD",
+          "TOO_LONG",
+          "ROW_TOO_LARGE",
+          "INVALID_DATE",
+          "INVALID_VALUE",
+          "INVALID_IDENTIFIER",
+          "DUPLICATE_IN_BATCH",
+          "ALREADY_EXISTS",
+          "STAGING_FAILED"
+        ],
+        "title": "CsvRowIssueCode",
+        "type": "string"
+      },
+      "CsvRowIssueDTO": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/CsvRowIssueCode"
+          },
+          "field": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "CsvRowIssueDTO",
+        "type": "object"
+      },
+      "CsvRowResultDTO": {
+        "properties": {
+          "description_id": {
+            "type": "string"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/CsvRowIssueDTO"
+            },
+            "type": "array"
+          },
+          "line": {
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CsvRowStatus"
+          }
+        },
+        "required": [
+          "description_id",
+          "line",
+          "status"
+        ],
+        "title": "CsvRowResultDTO",
+        "type": "object"
+      },
+      "CsvRowStatus": {
+        "description": "The outcome of one row of the import, as the screen reports it.",
+        "enum": [
+          "ACCEPTED",
+          "DUPLICATED",
+          "INVALID"
+        ],
+        "title": "CsvRowStatus",
+        "type": "string"
+      },
       "CurationInbox": {
         "properties": {
           "generated_at": {
@@ -7008,6 +7285,9 @@
           "DOCUMENT_DELETED",
           "MANUAL_INGESTION_QUEUED",
           "MANUAL_INGESTION_STAGED",
+          "CSV_IMPORT_QUEUED",
+          "CSV_IMPORT_STAGED",
+          "CSV_IMPORT_REFUSED",
           "WORKER_RUN_CANCELLED",
           "WORKER_RUN_CANCEL_REQUESTED",
           "TAG_MERGE_PROPOSAL_DECIDED",
@@ -13668,6 +13948,100 @@
         "summary": "GetTree",
         "tags": [
           "Hierarchy"
+        ]
+      }
+    },
+    "/api/v1/ingestion/csv": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1IngestionCsvImportCsv",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CsvImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CsvImportResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ImportCsv",
+        "tags": [
+          "Ingestion"
+        ]
+      }
+    },
+    "/api/v1/ingestion/csv/spec": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1IngestionCsvSpecCsvImportSpec",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CsvImportSpecResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "CsvImportSpec",
+        "tags": [
+          "Ingestion"
         ]
       }
     },

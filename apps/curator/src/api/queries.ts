@@ -8,6 +8,7 @@ import {
   fetchDeletions,
   fetchConflictResolutions,
   fetchCrossDomainConflicts,
+  fetchCsvImportSpec,
   fetchJudgedConflicts,
   fetchDiagnosticSummary,
   fetchDiagnostics,
@@ -653,6 +654,19 @@ export const queries = {
       queryKey: ["ingestion", "origins"],
       queryFn: listIngestionOrigins,
       staleTime: 15_000,
+    }),
+
+  /**
+   * The CSV map and its limits.
+   *
+   * Static for a running API — a deploy changes it — so it is fetched with the screen and kept for
+   * the session; the card validates the file against this answer before sending it.
+   */
+  csvImportSpec: () =>
+    queryOptions({
+      queryKey: ["ingestion", "csv", "spec"],
+      queryFn: fetchCsvImportSpec,
+      staleTime: 5 * 60_000,
     }),
 
   /**

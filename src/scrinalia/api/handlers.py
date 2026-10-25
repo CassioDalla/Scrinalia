@@ -6,6 +6,7 @@ from litestar.status_codes import (
     HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
     HTTP_409_CONFLICT,
+    HTTP_413_REQUEST_ENTITY_TOO_LARGE,
     HTTP_422_UNPROCESSABLE_ENTITY,
     HTTP_423_LOCKED,
     HTTP_429_TOO_MANY_REQUESTS,
@@ -80,6 +81,7 @@ from scrinalia.domains.identity.exceptions import (
     WeakPasswordError,
 )
 from scrinalia.domains.ingestion.exceptions import (
+    CsvImportLimitError,
     DuplicateManualRecordError,
     InvalidOriginConfigError,
     OriginDisabledError,
@@ -154,6 +156,11 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
         ),
     ):
         status_code = HTTP_409_CONFLICT
+
+    elif isinstance(exc, CsvImportLimitError):
+        # The payload is well formed and too large: the next move is to split the file, not to fix
+        # a field, which is why this is 413 and not 422.
+        status_code = HTTP_413_REQUEST_ENTITY_TOO_LARGE
 
     elif isinstance(exc, InvalidCredentialsError):
         # The one refusal that is about *being* someone rather than about the payload: the client's

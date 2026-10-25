@@ -16,13 +16,25 @@ from scrinalia.core.author import Author
 from scrinalia.domains.archive.exceptions import WorkerRunAlreadyActiveError
 from scrinalia.domains.archive.models import ArchiveDocument, ArchiveReviewStatus
 from scrinalia.domains.archive.models.operations import WorkerRun
+from scrinalia.domains.archive.schemas.responses import RouteMessageCode
 from scrinalia.domains.archive.workers import worker_archive_transfer, worker_ner
 from scrinalia.domains.archive.workers.ledger import WorkerRunLedger
 from scrinalia.domains.archive.workers.scheduler import SchedulerConfig, SchedulerService
-from scrinalia.domains.ingestion import repository
-from scrinalia.domains.ingestion.exceptions import DuplicateManualRecordError, OriginDisabledError
+from scrinalia.domains.ingestion import repository, worker
+from scrinalia.domains.ingestion.adapters.csv import CSV_SOURCE_SCHEMA
+from scrinalia.domains.ingestion.csv_import import CsvRowStatus
+from scrinalia.domains.ingestion.exceptions import (
+    CsvImportLimitError,
+    DuplicateManualRecordError,
+    OriginDisabledError,
+)
 from scrinalia.domains.ingestion.models import IngestionOrigin, RawData, ScrapeStatus, ScrapingQueue
-from scrinalia.domains.ingestion.schemas import IngestionRunRequest, ManualIngestionRequest
+from scrinalia.domains.ingestion.schemas import (
+    CsvImportRequest,
+    CsvImportRow,
+    IngestionRunRequest,
+    ManualIngestionRequest,
+)
 from scrinalia.domains.ingestion.service import IngestionOriginService
 from scrinalia.domains.staging.models import StagingDocument
 from scrinalia.domains.staging.worker import run_staging_pipeline
@@ -40,6 +52,7 @@ def _shared_session(db):
 def origins(db_session):
     db_session.add(IngestionOrigin(code="pmc", enabled=True, config={}, options={}))
     db_session.add(IngestionOrigin(code="manual", enabled=True, config={}, options={}))
+    db_session.add(IngestionOrigin(code="csv", enabled=True, config={}, options={}))
     db_session.flush()
 
 
@@ -222,3 +235,155 @@ def test_a_due_origin_is_skipped_while_its_run_is_active(db_session, origins) ->
     runs = db_session.scalars(select(WorkerRun).where(WorkerRun.worker_name == "ingestion")).all()
     assert len(runs) == 1
     assert origin.last_skipped_at is not None
+
+
+# ==========================================
+# THE CSV IMPORT (#191)
+# ==========================================
+
+
+def _csv_service(db_session) -> IngestionOriginService:
+    return IngestionOriginService(
+        db_session, ledger=WorkerRunLedger(session_factory=lambda: _shared_session(db_session))
+    )
+
+
+def _row(identifier: str, line: int, title: str, **fields: str) -> CsvImportRow:
+    return CsvImportRow(line=line, description_id=identifier, fields={"Título": title, **fields})
+
+
+def test_the_csv_import_stages_the_accepted_rows_and_queues_one_transfer(db_session, origins) -> None:
+    service = _csv_service(db_session)
+
+    response = service.import_csv(
+        CsvImportRequest(
+            rows=[
+                _row("csv-1", 2, "Ofício A", **{"Código de referência": "BR A"}),
+                _row("csv-2", 3, "Ofício B", **{"Data de produção": "05/07/1929"}),
+                _row("csv-2", 4, "Repetido no arquivo"),
+                _row("csv-3", 5, "   "),
+            ]
+        ),
+        author=AUTHOR,
+    )
+
+    data = response.data
+    assert response.code is RouteMessageCode.CSV_IMPORT_QUEUED
+    assert (data.received, data.accepted, data.duplicated, data.invalid) == (4, 2, 1, 1)
+    assert data.transfer_queued is True and data.transfer_run_id is not None
+    assert data.review_status == "PENDING_AI"
+    assert [(row.line, row.status) for row in data.rows] == [
+        (2, CsvRowStatus.ACCEPTED),
+        (3, CsvRowStatus.ACCEPTED),
+        (4, CsvRowStatus.DUPLICATED),
+        (5, CsvRowStatus.INVALID),
+    ]
+
+    raws = {raw.description_id: raw for raw in db_session.scalars(select(RawData).where(RawData.origin_code == "csv"))}
+    assert set(raws) == {"csv-1", "csv-2"}
+    assert raws["csv-1"].created_by == "curador"
+    assert raws["csv-1"].payload["Título"] == "Ofício A"
+    assert raws["csv-1"].raw_title == "Ofício A"
+
+    queues = {
+        queue.description_id: queue
+        for queue in db_session.scalars(select(ScrapingQueue).where(ScrapingQueue.origin_code == "csv"))
+    }
+    assert set(queues) == {"csv-1", "csv-2"}
+    assert all(queue.scrape_status is ScrapeStatus.DONE for queue in queues.values())
+
+    staged = db_session.get(StagingDocument, "csv-1")
+    assert staged is not None and staged.origin_code == "csv"
+    assert staged.title == "Ofício A" and staged.reference_code == "BR A"
+    staged_two = db_session.get(StagingDocument, "csv-2")
+    assert staged_two is not None and staged_two.document_date is not None
+    assert staged_two.document_date.isoformat() == "1929-07-05"
+
+    # Not an approval: the transfer creates the archive description as PENDING_AI and the AI queues
+    # see it, exactly like the manual form.
+    worker_archive_transfer.execute(db_session)
+    archived = db_session.get(ArchiveDocument, "csv-1")
+    assert archived is not None
+    assert archived.review_status is ArchiveReviewStatus.PENDING_AI
+    assert archived.origin_code == "csv"
+    assert worker_ner.count_pending(db_session) >= 1
+
+
+def test_an_id_the_collection_already_has_is_reported_duplicated(db_session, origins) -> None:
+    repository.save_raw_data(db_session, "csv-1", {"Título": "O original"}, origin_code="csv")
+    db_session.flush()
+
+    response = _csv_service(db_session).import_csv(
+        CsvImportRequest(rows=[_row("csv-1", 2, "A tentativa nova")]),
+        author=AUTHOR,
+    )
+
+    assert response.code is RouteMessageCode.CSV_IMPORT_REFUSED
+    assert (response.data.accepted, response.data.duplicated) == (0, 1)
+    assert response.data.rows[0].status is CsvRowStatus.DUPLICATED
+    assert response.data.rows[0].issues[0].code.value == "ALREADY_EXISTS"
+
+    raw = db_session.scalar(select(RawData).where(RawData.description_id == "csv-1"))
+    assert raw is not None and raw.payload == {"Título": "O original"}
+
+
+def test_the_csv_import_refuses_more_rows_than_the_limit(db_session, origins, monkeypatch) -> None:
+    monkeypatch.setattr("scrinalia.domains.ingestion.service.MAX_CSV_ROWS", 1)
+
+    with pytest.raises(CsvImportLimitError, match="no máximo 1 linhas"):
+        _csv_service(db_session).import_csv(
+            CsvImportRequest(rows=[_row("csv-1", 2, "A"), _row("csv-2", 3, "B")]),
+            author=AUTHOR,
+        )
+
+
+def test_a_paused_csv_origin_refuses_the_import(db_session, origins) -> None:
+    origin = db_session.scalar(select(IngestionOrigin).where(IngestionOrigin.code == "csv"))
+    assert origin is not None
+    origin.enabled = False
+    db_session.flush()
+
+    with pytest.raises(OriginDisabledError):
+        _csv_service(db_session).import_csv(CsvImportRequest(rows=[_row("csv-1", 2, "A")]), author=AUTHOR)
+
+
+def test_the_csv_origin_counts_like_the_manual_one(db_session, origins) -> None:
+    _csv_service(db_session).import_csv(
+        CsvImportRequest(rows=[_row("csv-1", 2, "A"), _row("csv-2", 3, "B")]),
+        author=AUTHOR,
+    )
+
+    assert worker.count_processed(db_session, "csv") == 2
+    assert worker.count_pending(db_session, "csv") == 0
+    assert worker.count_failed(db_session, "csv") == 0
+
+
+def test_the_staging_window_stages_only_the_named_ids(db_session, origins) -> None:
+    repository.save_raw_data(db_session, "csv-1", {"Título": "Um"}, origin_code="csv")
+    repository.save_raw_data(db_session, "csv-2", {"Título": "Dois"}, origin_code="csv")
+    db_session.flush()
+
+    run_staging_pipeline(db_session, source_schema=CSV_SOURCE_SCHEMA, origin_code="csv", description_ids=["csv-1"])
+
+    assert db_session.get(StagingDocument, "csv-1") is not None
+    assert db_session.get(StagingDocument, "csv-2") is None
+
+
+def test_a_transfer_already_in_flight_says_the_rows_enter_the_next_one(db_session, origins, mocker) -> None:
+    """
+    The second promise: the rows are staged and the response says they enter the next transfer.
+
+    The active run is simulated at the ledger's boundary instead of by a real unique-index violation,
+    because the suite hands the ledger the test's own session: an ``IntegrityError`` there poisons the
+    session the assertions below need. The unique-index behaviour itself is pinned by
+    ``test_one_ingestion_slot_per_origin`` and the ledger's own tests.
+    """
+    service = _csv_service(db_session)
+    mocker.patch.object(service.ledger, "enqueue", side_effect=WorkerRunAlreadyActiveError("já existe"))
+
+    response = service.import_csv(CsvImportRequest(rows=[_row("csv-1", 2, "A")]), author=AUTHOR)
+
+    assert response.code is RouteMessageCode.CSV_IMPORT_STAGED
+    assert response.data.transfer_queued is False
+    assert response.data.accepted == 1
+    assert db_session.get(StagingDocument, "csv-1") is not None

@@ -1,4 +1,5 @@
 import argparse
+from collections.abc import Sequence
 from typing import Any
 
 from pydantic import ValidationError
@@ -25,6 +26,7 @@ def run_staging_pipeline(
     after: str | None = None,
     origin_code: str | None = None,
     description_id: str | None = None,
+    description_ids: Sequence[str] | None = None,
     run_control: Any | None = None,
 ) -> None:
     """
@@ -60,6 +62,8 @@ def run_staging_pipeline(
         origin_code (str | None): Bounds the run to one origin's records. The ingestion worker
             passes its own; ``None`` is the whole pending set.
         description_id (str | None): Bounds the run to the one record a manual entry just wrote.
+        description_ids (Sequence[str] | None): Bounds the run to the exact window a batch import
+            wrote (the CSV import), so leftovers from an earlier import are not staged in its place.
         run_control (Any | None): The cancellation control of the execution that called this
             helper; ``None`` for a host run. It is checked once per record.
     """
@@ -78,6 +82,7 @@ def run_staging_pipeline(
         after=after,
         origin_code=origin_code,
         description_id=description_id,
+        description_ids=description_ids,
     )
 
     total = len(pending_records)
@@ -141,6 +146,7 @@ def run_staging_pipeline(
         after=after,
         origin_code=origin_code,
         description_id=description_id,
+        description_ids=description_ids,
     )
     logger.info(
         f"🎯 Staging Pipeline Completed! Success: {success} | failures: {failures} | still pending: {remaining}"

@@ -20,6 +20,7 @@ class InMemoryRawSource:
         after: str | None = None,
         origin_code: str | None = None,
         description_id: str | None = None,
+        description_ids: Sequence[str] | None = None,
     ) -> Sequence[RawRecord]:
         records = [
             record
@@ -27,6 +28,7 @@ class InMemoryRawSource:
             if (after is None or record.description_id > after)
             and (origin_code is None or record.origin_code == origin_code)
             and (description_id is None or record.description_id == description_id)
+            and (description_ids is None or record.description_id in description_ids)
         ]
         return records[:limit] if limit is not None else records
 
@@ -36,6 +38,7 @@ class InMemoryRawSource:
         after: str | None = None,
         origin_code: str | None = None,
         description_id: str | None = None,
+        description_ids: Sequence[str] | None = None,
     ) -> int:
         self.counted += 1
         return len(
@@ -45,6 +48,7 @@ class InMemoryRawSource:
                 if (after is None or record.description_id > after)
                 and (origin_code is None or record.origin_code == origin_code)
                 and (description_id is None or record.description_id == description_id)
+                and (description_ids is None or record.description_id in description_ids)
             ]
         )
 

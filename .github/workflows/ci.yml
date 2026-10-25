@@ -237,6 +237,11 @@ jobs:
         run: bun run --cwd apps/curator typecheck
       - name: Lint
         run: bun run --cwd apps/curator lint
+      - name: Unit tests
+        # The CSV parser and the header mapper run in the browser and nothing in pytest can reach
+        # them. Bun is already installed here, so the one JS test file has a gate instead of relying
+        # on a rendered screenshot (issue #191).
+        run: bun run --cwd apps/curator test
       - name: Build
         run: bun run --cwd apps/curator build
 

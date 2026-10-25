@@ -384,6 +384,14 @@ export type IngestionOption = components["schemas"]["IngestionOptionDTO"];
 export type OriginConfigField = components["schemas"]["OriginConfigFieldDTO"];
 export type ManualIngestionRequest = components["schemas"]["ManualIngestionRequest"];
 export type ManualIngestionResponse = components["schemas"]["ManualIngestionResponse"];
+/** The CSV import's map, its bounded rows and its per-row report (#191). */
+export type CsvImportSpecResponse = components["schemas"]["CsvImportSpecResponse"];
+export type CsvImportRequest = components["schemas"]["CsvImportRequest"];
+export type CsvImportResponse = components["schemas"]["CsvImportResponse"];
+export type CsvImportResult = components["schemas"]["CsvImportResultDTO"];
+export type CsvRowResult = components["schemas"]["CsvRowResultDTO"];
+export type CsvRowStatus = components["schemas"]["CsvRowStatus"];
+export type CsvRowIssue = components["schemas"]["CsvRowIssueDTO"];
 export type SystemHealth = components["schemas"]["SystemHealthResponse"];
 export type DatabaseHealth = components["schemas"]["DatabaseHealthDTO"];
 export type OllamaHealth = components["schemas"]["OllamaHealthDTO"];
@@ -1714,6 +1722,27 @@ export async function triggerIngestionRun(code: string, body: IngestionRunReques
  */
 export async function createManualIngestion(body: ManualIngestionRequest): Promise<ManualIngestionResponse> {
   return unwrap<ManualIngestionResponse>(await client.POST("/api/v1/ingestion/manual", { body }));
+}
+
+/**
+ * The CSV map and its bounds, read before the file is sent.
+ *
+ * The card parses and validates against this answer; the route re-validates the rows, so this is a
+ * convenience and never the authority.
+ */
+export async function fetchCsvImportSpec(): Promise<CsvImportSpecResponse> {
+  return unwrap<CsvImportSpecResponse>(await client.GET("/api/v1/ingestion/csv/spec"));
+}
+
+/**
+ * Sends the parsed CSV rows — never the file.
+ *
+ * The body is bounded by the limits the spec publishes, and each row carries its identity; the
+ * answer is a per-row report, not a single success, because a partial import is normal. Nothing is
+ * uploaded: the browser parsed the file and the API only sees the rows (#191).
+ */
+export async function importCsv(body: CsvImportRequest): Promise<CsvImportResponse> {
+  return unwrap<CsvImportResponse>(await client.POST("/api/v1/ingestion/csv", { body }));
 }
 
 /**

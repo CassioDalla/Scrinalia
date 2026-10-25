@@ -11,6 +11,22 @@ commits — the history is the detail.
 
 ### Added
 
+- **A CSV is imported from the screen without object storage** (issue #191). The **Importação CSV**
+  card at `/sistema/ingestao` parses the file in the browser, shows the detected headers and a
+  preview, and sends only a **bounded list of rows** to `POST /api/v1/ingestion/csv`: no multipart, no
+  bucket object, no temporary file, and an installation whose thumbnail storage is unconfigured
+  imports exactly the same. `GET /api/v1/ingestion/csv/spec` publishes the `csv` origin's map — the
+  file's header, its staging attribute, the required flag and the per-field cap — together with the
+  row/byte limits, which live once in `domains/ingestion/csv_import.py` and are refused with a
+  **413** and a sentence. The API re-validates every row with the same `StagingDocumentDTO` and
+  `SourceSchema` the staging transform uses, and answers per row: **accepted**, **duplicated** (the
+  `description_id` already exists in the raw, the queue or the archive — never a 500 and never an
+  overwrite) or **invalid** (missing title, an unreadable date, an unknown field, a value over the
+  limit), with the file's line and the field. A partial import is normal; the accepted rows are
+  written as `origin_code='csv'`, staged in one run and followed by one `transfer`, so the archive
+  description is born `PENDING_AI` like the manual entry. The CSV field set is the manual contract's,
+  pinned by a test so #192 expands both together; the parser has its own `bun test` cases.
+
 - **The clustering's columns are a read, and the screen offers them** (issue #174). `POST
   /api/v1/taxonomy/tags/suggest-macro` accepted `columns_to_extract` and no screen sent it, so the
   archivist could not choose which part of the description the clustering reads; a mistyped column
