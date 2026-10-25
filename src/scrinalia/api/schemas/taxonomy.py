@@ -201,6 +201,21 @@ class NerExclusionRemovalRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class SubjectExclusionPreviewRequest(BaseModel):
+    """
+    The terms the dry run would act on, and nothing else.
+
+    Deliberately **not** ``SubjectExclusionRequest``: a plan reads the terms, while a ``reason``
+    describes the decision the *write* records and ``source`` says where the verdict came from — a
+    preview can know neither. Declaring the write's model advertised both to every caller of the
+    dry run (issue #175).
+    """
+
+    words: list[str] = Field(min_length=1, description="Terms the write would record, or refuse.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class SubjectExclusionRequest(BaseModel):
     """
     Terms a curator declares to be no subject at all (the second half of NENHUMA).

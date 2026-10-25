@@ -6781,6 +6781,23 @@
         "title": "SubjectExclusionPlan",
         "type": "object"
       },
+      "SubjectExclusionPreviewRequest": {
+        "properties": {
+          "words": {
+            "description": "Terms the write would record, or refuse.",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "words"
+        ],
+        "title": "SubjectExclusionPreviewRequest",
+        "type": "object"
+      },
       "SubjectExclusionRemovalRequest": {
         "properties": {
           "words": {
@@ -17919,7 +17936,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SubjectExclusionRequest"
+                "$ref": "#/components/schemas/SubjectExclusionPreviewRequest"
               }
             }
           },

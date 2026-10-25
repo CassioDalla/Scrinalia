@@ -3716,6 +3716,11 @@ export interface components {
             applicable?: components["schemas"]["SubjectExclusionTarget"][];
             blocked?: components["schemas"]["SubjectExclusionTarget"][];
         };
+        /** SubjectExclusionPreviewRequest */
+        SubjectExclusionPreviewRequest: {
+            /** @description Terms the write would record, or refuse. */
+            words: string[];
+        };
         /** SubjectExclusionRemovalRequest */
         SubjectExclusionRemovalRequest: {
             /** @description Terms to put back into the subject classifier. */
@@ -8453,7 +8458,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SubjectExclusionRequest"];
+                "application/json": components["schemas"]["SubjectExclusionPreviewRequest"];
             };
         };
         responses: {

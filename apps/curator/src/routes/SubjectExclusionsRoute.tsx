@@ -17,6 +17,7 @@ import { ACTION } from "@/lib/copy";
 import { descricoes, formatCount } from "@/lib/format";
 import { SIGNAL_HINT, SIGNAL_LABEL } from "@/lib/quality";
 import { routeMessage } from "@/lib/messages";
+import { useDebounced } from "@/lib/useDebounced";
 
 /**
  * The curated half of ``NENHUMA``: "this is not a subject at all".
@@ -32,8 +33,19 @@ import { routeMessage } from "@/lib/messages";
  * the collection and reachable by search, and purging the banned tags is a separate, previewed step
  * on the Stopwords tab. A term whose tag already sits in a subject **drawer** is refused and named
  * instead (issue #83, option C): that drawer is a human verdict, and the write that settles a tag is
- * the tag catalogue's ``PATCH``.
+ * the tag catalogue's ``PATCH``. Since #175 that refusal is read **before** the click: the box asks
+ * the preview route as it settles, so the drawer is named while the archivist can still change the
+ * term, and the answer the write returns only confirms it.
  */
+
+/** The terms the box holds: the write and the preview split it the same way, or they disagree. */
+function draftWords(draft: string): string[] {
+  return draft
+    .split(/[,\n]/)
+    .map((word) => word.trim())
+    .filter(Boolean);
+}
+
 export function SubjectExclusionsRoute() {
   const queryClient = useQueryClient();
   const exclusions = useQuery(queries.subjectExclusions());
@@ -45,6 +57,18 @@ export function SubjectExclusionsRoute() {
   const [reason, setReason] = useState("");
   /** The last write, kept so the screen can name what it refused instead of only counting. */
   const [report, setReport] = useState<SubjectExclusionBanResponse | null>(null);
+
+  const draftTerms = draftWords(draft);
+  const settledDraft = useDebounced(draft);
+  const preview = useQuery(queries.subjectExclusionPreview(draftWords(settledDraft)));
+  /**
+   * The plan belongs to the terms in the box: the preview settles 250 ms behind the typing, and a
+   * refusal computed for a prefix would name a word the archivist already changed.
+   */
+  const plan = settledDraft === draft && !preview.isFetching ? preview.data : undefined;
+  const blocked = plan?.blocked ?? [];
+  const applicable = plan?.applicable ?? [];
+  const allBlocked = blocked.length > 0 && applicable.length === 0;
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["taxonomy", "subject-exclusions"] });
@@ -288,16 +312,29 @@ export function SubjectExclusionsRoute() {
               onChange={(event) => setReason(event.target.value)}
               placeholder="motivo (guardado para auditoria)"
             />
+            {preview.isError ? <ErrorState error={preview.error} /> : null}
+            {blocked.length > 0 ? (
+              <p className="text-xs text-(--color-danger)">
+                {formatCount(blocked.length)} termo(s) já estão numa categoria de assunto e não serão
+                registrados:{" "}
+                {blocked
+                  .map((item) => `${item.term} (${item.macro_category_name ?? `#${item.macro_category_id}`})`)
+                  .join(", ")}
+                . Tire a tag da categoria na aba Classificar e volte aqui.
+              </p>
+            ) : null}
+            {applicable.length > 0 ? (
+              <p className="text-xs text-(--color-muted)">
+                {formatCount(applicable.length)} termo(s) serão registrados e banidos de voltar a virar tag.
+              </p>
+            ) : null}
             <div>
               <Button
                 variant="primary"
-                disabled={draft.trim().length === 0 || ban.isPending}
+                disabled={draftTerms.length === 0 || ban.isPending || allBlocked}
                 onClick={() =>
                   ban.mutate({
-                    words: draft
-                      .split(/[,\n]/)
-                      .map((word) => word.trim())
-                      .filter(Boolean),
+                    words: draftTerms,
                     reason: reason.trim() || null,
                     source: "HUMAN",
                   })
