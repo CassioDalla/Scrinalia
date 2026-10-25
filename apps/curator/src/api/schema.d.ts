@@ -1703,6 +1703,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/taxonomy/tags/suggest-macro/columns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** SuggestMacroColumns */
+        get: operations["ApiV1TaxonomyTagsSuggestMacroColumnsSuggestMacroColumns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/taxonomy/tags/{tag_id}": {
         parameters: {
             query?: never;
@@ -2067,6 +2084,13 @@ export interface components {
             code: components["schemas"]["RouteMessageCode"];
             data: components["schemas"]["CleaningRuleDTO"];
             message: string;
+        };
+        /** ClusteringColumnsResponse */
+        ClusteringColumnsResponse: {
+            /** @description Todo o texto da IA que o clustering pode ler. */
+            columns: string[];
+            /** @description O que ele lê quando a requisição não escolhe coluna. */
+            defaults: string[];
         };
         /** CollectionTermCreateRequest */
         CollectionTermCreateRequest: {
@@ -3338,6 +3362,11 @@ export interface components {
             created: number;
             message: string;
         };
+        /** NerExclusionRemovalRequest */
+        NerExclusionRemovalRequest: {
+            /** @description Terms to put back into the NER extraction. */
+            words: string[];
+        };
         /** NerExclusionRemovalResponse */
         NerExclusionRemovalResponse: {
             code: components["schemas"]["RouteMessageCode"];
@@ -3711,6 +3740,11 @@ export interface components {
             applicable?: components["schemas"]["SubjectExclusionTarget"][];
             blocked?: components["schemas"]["SubjectExclusionTarget"][];
         };
+        /** SubjectExclusionPreviewRequest */
+        SubjectExclusionPreviewRequest: {
+            /** @description Terms the write would record, or refuse. */
+            words: string[];
+        };
         /** SubjectExclusionRemovalRequest */
         SubjectExclusionRemovalRequest: {
             /** @description Terms to put back into the subject classifier. */
@@ -3795,6 +3829,7 @@ export interface components {
         };
         /** SuggestMacroRequest */
         SuggestMacroRequest: {
+            /** @description The AI text columns the clustering reads. Omitted means the code default, published by ``GET /taxonomy/tags/suggest-macro/columns``; it only applies with source_type='documents'. */
             columns_to_extract?: string[] | null;
             /**
              * @description The data source the AI will use to generate the clusters.
@@ -4149,6 +4184,21 @@ export interface components {
             name: string;
             presets?: components["schemas"]["WorkerPresetDTO"][];
         };
+        /** WorkerOptionDTO */
+        WorkerOptionDTO: {
+            /** @description Os valores admitidos quando kind='columns': as colunas que o texto da IA tem. */
+            choices?: string[];
+            default?: unknown;
+            /** @enum {string} */
+            kind: "boolean" | "integer" | "number" | "text" | "list" | "columns";
+            name: string;
+            /**
+             * @description 'run' é uma opção de uma execução (o cap 'limit'): não aparece no formulário de padrão.
+             * @default both
+             * @enum {string}
+             */
+            scope: "setting" | "run" | "both";
+        };
         /** WorkerPresetDTO */
         WorkerPresetDTO: {
             config?: {
@@ -4176,6 +4226,10 @@ export interface components {
             /** @description A causa raiz da falha, derivada da mensagem pelo PostgreSQL. Duas execuções com a mesma causa compartilham este valor. */
             error_fingerprint?: string | null;
             finished_at?: string | null;
+            /** @description Opções efetivas do worker nesta execução (as colunas lidas, o limite de confiança), resolvidas quando a execução começou. Vazio numa linha antiga, ou numa que ainda não começou. */
+            options?: {
+                [key: string]: unknown;
+            };
             preset?: string | null;
             /** Format: date-time */
             queued_at: string;
@@ -4198,6 +4252,11 @@ export interface components {
         WorkerRunRequest: {
             db_batch_size?: number | null;
             engine_name?: string | null;
+            /** @description Repasse cru ao construtor do engine, para quem conhece a biblioteca. Por execução: não vira padrão. Uma chave de opção declarada aqui é recusada. */
+            engine_options?: {
+                [key: string]: unknown;
+            };
+            /** @description As opções declaradas pelo worker; uma chave que ele não declara é recusada. */
             options?: {
                 [key: string]: unknown;
             };
@@ -4227,7 +4286,11 @@ export interface components {
                 [key: string]: unknown;
             };
             db_batch_size?: number | null;
+            /** @description As opções que este worker aceita, derivadas da assinatura do execute. */
+            declared_options?: components["schemas"]["WorkerOptionDTO"][];
             engine_name?: string | null;
+            /** @description As chaves que o eixo repassa ao construtor do engine (model, device, host, ...). É a dica do bloco avançado; os valores seguem os do próprio motor. */
+            engine_option_names?: string[];
             /** @enum {string} */
             engine_source: "signature" | "llm_check_rule" | "none";
             note?: string | null;
@@ -4309,7 +4372,7 @@ export interface components {
             /** @description Unidades que o worker já carimbou. */
             processed?: number | null;
             settings: components["schemas"]["WorkerSettingsDTO"];
-            /** @description O carimbo aberto em impressão digital, valor legado, falha e ausência. Nulo quando o ledger do worker não é um carimbo. */
+            /** @description Os quatro números do **ledger** do worker — com produtor, valor legado, falha e ausência de registro — e não da fila: `pending` é o predicado da fila, e uma unidade com carimbo de falha ou de produtor antigo conta aqui sem estar pendente. Nulo quando o ledger do worker não é um carimbo. */
             stamp_breakdown?: components["schemas"]["WorkerStampBreakdownDTO"] | null;
             /** @enum {string} */
             unit: "staging" | "document" | "tag" | "pair";
@@ -7048,7 +7111,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["NerExclusionRequest"];
+                "application/json": components["schemas"]["NerExclusionRemovalRequest"];
             };
         };
         responses: {
@@ -8420,7 +8483,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SubjectExclusionRequest"];
+                "application/json": components["schemas"]["SubjectExclusionPreviewRequest"];
             };
         };
         responses: {
@@ -8524,6 +8587,26 @@ export interface operations {
                         } | unknown[];
                         status_code: number;
                     };
+                };
+            };
+        };
+    };
+    ApiV1TaxonomyTagsSuggestMacroColumnsSuggestMacroColumns: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClusteringColumnsResponse"];
                 };
             };
         };

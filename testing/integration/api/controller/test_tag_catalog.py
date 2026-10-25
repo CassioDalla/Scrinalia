@@ -12,11 +12,12 @@ count and the page come from the same predicate module (``repository/subject_que
 day one of them drifts this fails instead of the archivist noticing.
 """
 
-from litestar.status_codes import HTTP_200_OK, HTTP_201_CREATED
+from litestar.status_codes import HTTP_200_OK, HTTP_201_CREATED, HTTP_400_BAD_REQUEST
 from litestar.testing import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from scrinalia.domains.archive.domain.text_quality import AI_TEXT_COLUMNS, CLUSTERING_TEXT_COLUMNS
 from scrinalia.domains.archive.models import (
     AnomalyType,
     ArchiveAIReviewQueue,
@@ -288,6 +289,16 @@ def test_the_preview_says_what_the_write_would_do_without_writing(
     assert db_session.scalars(select(DomainStopwords)).all() == []
 
 
+def test_the_subject_exclusion_preview_declares_only_the_terms(client: TestClient, api_uses_test_db) -> None:
+    """The dry run reads the terms since #175, so the write's ``reason`` and ``source`` are a 400."""
+    response = client.post(
+        "/api/v1/taxonomy/tags/subject-exclusions/preview",
+        json={"words": ["centro"], "reason": "um motivo", "source": "RULE"},
+    )
+
+    assert response.status_code == HTTP_400_BAD_REQUEST, response.text
+
+
 def test_confirming_not_a_subject_bans_the_spelling_at_tag_scope(
     client: TestClient, api_uses_test_db, db_session: Session
 ) -> None:
@@ -452,3 +463,49 @@ def test_a_negative_offset_is_clamped_instead_of_failing(
     assert response.status_code == HTTP_200_OK, response.text
     assert response.json()["offset"] == 0
     assert response.json()["total"] == 1
+
+
+# ==========================================
+# THE CLUSTERING'S COLUMNS ARE A READ (#174)
+# ==========================================
+
+
+def test_the_suggestion_columns_route_publishes_the_catalogue(client: TestClient) -> None:
+    """The picker reads the code's own tuples, so it cannot offer a column the route would refuse."""
+    response = client.get("/api/v1/taxonomy/tags/suggest-macro/columns")
+
+    assert response.status_code == HTTP_200_OK, response.text
+    body = response.json()
+    assert body["columns"] == list(AI_TEXT_COLUMNS)
+    assert body["defaults"] == list(CLUSTERING_TEXT_COLUMNS)
+
+
+def test_an_unknown_clustering_column_is_named_in_the_refusal(client: TestClient, api_uses_test_db) -> None:
+    """A typo was a ``getattr`` miss and answered 500; it is a 400 that names the column now."""
+    response = client.post(
+        "/api/v1/taxonomy/tags/suggest-macro",
+        json={"source_type": "documents", "columns_to_extract": ["original_titel"]},
+    )
+
+    assert response.status_code == HTTP_400_BAD_REQUEST, response.text
+    assert "original_titel" in response.json()["message"]
+
+
+def test_the_columns_are_refused_for_the_tags_source(client: TestClient) -> None:
+    """The field only applies to documents, so a list the run would ignore is a 400, not silence."""
+    response = client.post(
+        "/api/v1/taxonomy/tags/suggest-macro",
+        json={"source_type": "tags", "columns_to_extract": ["original_title"]},
+    )
+
+    assert response.status_code == HTTP_400_BAD_REQUEST, response.text
+
+
+def test_an_empty_column_list_is_refused(client: TestClient) -> None:
+    """``[]`` would fall back to the defaults, which is not what the caller wrote."""
+    response = client.post(
+        "/api/v1/taxonomy/tags/suggest-macro",
+        json={"source_type": "documents", "columns_to_extract": []},
+    )
+
+    assert response.status_code == HTTP_400_BAD_REQUEST, response.text

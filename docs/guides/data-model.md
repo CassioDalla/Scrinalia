@@ -203,12 +203,14 @@ is what the subject axis stops guessing at — they are not a state of the tag.
 | --- | --- | --- |
 | `archive_worker_settings` | The persisted default configuration of one worker. | `worker_name` (primary key), `engine_name`, `preset`, `db_batch_size`, `options` (JSONB), `updated_by`, `updated_at` |
 | `archive_worker_settings_revisions` | Audit trail of configuration writes, one row per write. | `id`, `worker_name`, `before` (JSONB), `after` (JSONB), `changed_by`, `changed_by_user_id`, `changed_at` |
-| `archive_worker_runs` | One row per worker execution, from the CLI and from the panel alike. | `id`, `worker_name`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `config` (JSONB), `queued_at`, `started_at`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (generated) |
+| `archive_worker_runs` | One row per worker execution, from the CLI and from the panel alike. | `id`, `worker_name`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `config` (JSONB), `options` (JSONB), `queued_at`, `started_at`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (generated) |
 | `archive_api_errors` | The API's own unexpected HTTP failures. | `id`, `occurred_at`, `request_id`, `method`, `path`, `status_code`, `message`, `error_fingerprint` (generated) |
 
 `archive_worker_settings` is a **partial** row on purpose: a field left `NULL` keeps following the
 code, so the precedence is `explicit argument > this row > the signature default`. `archive_worker_runs`
-carries the **resolved** configuration, so the row keeps its meaning when a preset changes in code.
+carries the **resolved** configuration — `config` for the engine, `options` for the worker's own
+options, resolved when the run starts — so the row keeps its meaning when a preset or a code default
+changes in code.
 There is deliberately no foreign key from either table to a worker table: workers are code, not rows.
 `archive_api_errors` records only *unexpected* failures — a 404, a 409 and a 422 are answers the API
 owes a client, and recording them buries the real defects.

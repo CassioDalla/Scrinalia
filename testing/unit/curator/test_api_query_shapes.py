@@ -15,9 +15,10 @@ the type said did not exist. Sizing the defect found **seventeen** more hand-wri
 it, all in sync by luck. They are all derived now, from the route each one calls.
 
 Two rules, because a query shape appears in two forms: an object literal in the signature, and a named
-type alias. A request **body** is deliberately out of scope — it is a different position with a
-different failure (a body field that the model does not know is a validation question, not a silently
-ignored filter) — which is why the first rule is scoped to the ``query:`` the call sends.
+type alias. A request **body** is the other position, and it has its own rule file —
+``test_api_body_shapes.py`` — because its failure is the mirror image of this one: pydantic refuses a
+missing *required* field and *ignores* an unknown one, so a body typed out by hand loses an **optional**
+field without a trace. That is why the first rule here is scoped to the ``query:`` the call sends.
 
 The parser is deliberately textual, like ``test_curator_copy.py`` and
 ``test_entities_merge_doors.py``: the SPA has no test runner of its own (there is no ``vitest``), and
@@ -76,8 +77,8 @@ def inline_query_literals(source: str) -> list[str]:
     The functions whose ``query:`` argument is a **declared** object literal, typed out by hand.
 
     Scoped twice, and both scopes are the point. To the ``query:`` the call sends, because a request
-    body is a parameter literal too and flagging it would say "derive this" about something that is not
-    a filter. And to the *declared shape*, because ten functions here build a one-key value at the call
+    body is a parameter literal too and it is the sibling file's rule (``test_api_body_shapes.py``).
+    And to the *declared shape*, because ten functions here build a one-key value at the call
     site instead — `query: { only_active: true }`, `query: { term, limit }` — and that is a value whose
     key has to be written somewhere, not a shape that shadows the contract. Those ten are measured and
     left alone: fixing them means changing the client's own signature and every caller.

@@ -5,7 +5,7 @@ from contextlib import contextmanager
 import pytest
 
 from scrinalia.core.author import Author
-from scrinalia.domains.archive.exceptions import WorkerRunAlreadyActiveError
+from scrinalia.domains.archive.exceptions import InvalidWorkerSettingsError, WorkerRunAlreadyActiveError
 from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
 from scrinalia.domains.archive.repository.worker_settings_repo import WorkerSettingsRepository
@@ -175,3 +175,78 @@ def test_the_runner_precedence_is_explicit_then_override_then_default(db_session
         "ner", preset="gpu", db_batch_size=32, db_factory=lambda: _shared_session(db_session), ledger=ledger
     )
     assert captured[-1] == {"engine_name": "spacy_ner", "preset": "gpu", "db_batch_size": 32}
+
+
+# --- the options of a run (#120) ---------------------------------------------------------------
+
+
+def test_the_ledger_records_the_effective_options_when_the_run_starts(db_session, ledger) -> None:
+    run = WorkerRunRepository(db_session).create_queued(
+        "ner", trigger=WorkerRunTrigger.API, requested_by=None, engine_name="spacy_ner", preset="gpu", config={}
+    )
+    db_session.flush()
+    assert run.options == {}
+
+    ledger.mark_running(run.run_id, options={"columns_to_extract": ["original_title"], "force": False})
+
+    stored = WorkerRunRepository(db_session).get(run.run_id)
+    assert stored is not None
+    assert stored.options == {"columns_to_extract": ["original_title"], "force": False}
+
+
+def test_the_runner_writes_the_columns_the_run_read(db_session, ledger, monkeypatch) -> None:
+    """
+    "Which columns did run #N read?" is a value in the row, not the fingerprint the stamp hashed.
+
+    Nobody named the columns here, so the row carries the worker's own resolution of the code
+    default — the only place that can answer the question for the common case.
+    """
+    seen: dict[str, object] = {}
+
+    def fake_ner(db, **kwargs) -> None:
+        seen.update(kwargs)
+
+    monkeypatch.setitem(runner.WORKERS, "ner", fake_ner)
+
+    runner.run_worker("ner", db_factory=lambda: _shared_session(db_session), ledger=ledger)
+
+    stored = WorkerRunRepository(db_session).last_by_worker()["ner"]
+    assert stored.status == WorkerRunStatus.SUCCESS
+    assert stored.options["columns_to_extract"] == [
+        "original_title",
+        "admin_bio_history",
+        "provenance",
+        "scope_content",
+    ]
+    assert stored.options["force"] is False
+    # The row records the resolution; it does not change what the worker was called with.
+    assert "columns_to_extract" not in seen
+
+
+def test_the_engine_pass_through_reaches_the_config_and_the_run(service, runtime) -> None:
+    run = service.trigger("ner", WorkerRunRequest(engine_options={"device": "cpu"}))
+
+    assert run.config["device"] == "cpu"
+    _worker_name, _run_id, resolved = runtime.calls[0]
+    assert resolved.engine_kwargs == {"device": "cpu"}
+    assert resolved.worker_options == {}
+
+
+def test_a_declared_option_is_refused_as_a_pass_through(service) -> None:
+    with pytest.raises(InvalidWorkerSettingsError, match="use 'options'"):
+        service.trigger("ner", WorkerRunRequest(engine_options={"force": True}))
+
+
+def test_the_run_refuses_an_unknown_option_and_a_mistyped_column(service) -> None:
+    with pytest.raises(InvalidWorkerSettingsError, match="colunas_to_classify"):
+        service.trigger("ner", WorkerRunRequest(options={"colunas_to_classify": ["original_title"]}))
+
+    with pytest.raises(InvalidWorkerSettingsError, match="admin_bio_historia"):
+        service.trigger("typology", WorkerRunRequest(options={"columns_to_classify": ["admin_bio_historia"]}))
+
+
+def test_a_run_cap_is_accepted_for_one_execution(service) -> None:
+    """``limit`` is a run option; only the persisted default refuses it."""
+    run = service.trigger("ner", WorkerRunRequest(options={"limit": 5}))
+
+    assert run.status == WorkerRunStatus.QUEUED

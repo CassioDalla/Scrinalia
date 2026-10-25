@@ -591,6 +591,19 @@ class MacroCategoriesSuggestionResponse(BaseModel):
     message: str | None = None
 
 
+class ClusteringColumnsResponse(BaseModel):
+    """
+    The AI text columns the clustering can read, and the ones it reads when none is named.
+
+    A read of the code's own catalogue, so the Discover screen renders the picker instead of typing
+    the names (#174). ``defaults`` is a subset of ``columns``: the corpus of AI text and what the
+    clustering reads by default are two definitions, and the second is deliberately narrower.
+    """
+
+    columns: list[str] = Field(description="Todo o texto da IA que o clustering pode ler.")
+    defaults: list[str] = Field(description="O que ele lê quando a requisição não escolhe coluna.")
+
+
 class ArchiveMacroCategoryEntityDTO(BaseModel):
     category_id: int
     name: str

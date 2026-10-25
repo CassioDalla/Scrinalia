@@ -150,7 +150,7 @@ def test_the_trigger_answers_the_queued_run(client: TestClient, mocker) -> None:
     mock = mocker.patch.object(WorkerRunService, "trigger")
     mock.return_value = _run()
 
-    response = client.post("/api/v1/system/workers/ner/runs", json={"requested_by": "teste"})
+    response = client.post("/api/v1/system/workers/ner/runs", json={})
 
     assert response.status_code == 201
     body = response.json()

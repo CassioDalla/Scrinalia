@@ -723,6 +723,15 @@ clusters are **proposals** — nothing enters the vocabulary until the archivist
 `POST /api/v1/taxonomy/macro-categories` (`CATALOGUE`). Discarding a proposal is local to the screen.
 A corpus too small answers an empty suggestion with a message, not an error.
 
+Reading the **documents** offers the columns the clustering reads: `GET
+/api/v1/taxonomy/tags/suggest-macro/columns` publishes the AI text columns and the subset the run
+reads when the body names none, and the screen renders one checkbox per column from that read — it
+does not type the five names. `final_title` is in the corpus and **out** of the default: a column can
+join what the AI reads without silently changing what the clustering reads. The body carries
+`columns_to_extract` only after a column moves, and the route refuses an unknown name with a **400**
+that names it (before #174 the typo reached a `getattr` and answered **500**), an empty list, and a
+list sent with `source_type=tags`, where it would be ignored.
+
 ### Não é assunto — `/assuntos/excecoes`
 
 The curated half of "this is not a subject at all". The deterministic guard catches what has a shape
@@ -734,9 +743,14 @@ it and whether its spelling is already banned), and offers to register them with
 at a time.
 
 Confirming plans and applies in one call: the write below consumes the same planner the preview route
-uses, so the two cannot disagree. The preview, `POST
-/api/v1/taxonomy/tags/subject-exclusions/preview` (`AUTHENTICATED`), returns `applicable` and
-`blocked`, but it exists as an API read — no screen calls it.
+uses, so the two cannot disagree. The preview is `POST
+/api/v1/taxonomy/tags/subject-exclusions/preview` (`AUTHENTICATED`); it takes the terms and nothing
+else, because a plan has no reason to declare and no provenance to report, and it answers
+`applicable` and `blocked`. The **Vetar termos** box asks it as the typing settles (250 ms) and shows
+the refusal **before** the click: a term whose tag already sits in a drawer is named with the drawer
+while the archivist can still change it, and the write's own answer only confirms it. The box writes
+every term that applies, so a partial refusal does not disable the button — only a list where **all**
+terms are blocked does, because then the write would record nothing.
 
 The write is `POST /api/v1/taxonomy/tags/subject-exclusions` (`CURATE`), and it does two things at
 once: it registers the term in `domain_subject_exclusions`, so the subject classifier stops guessing
@@ -1001,13 +1015,24 @@ the collapsed row — "with which model is this running?" is the question the sc
 and here the answer is **read only**. What the installation is *set* to do is a screen of its own
 (*Configuração dos Workers*, below), because the two questions are different: this one is what the
 machine is doing. The row carries the queue — pending, processed, failed, last run — and the one
-write is `OPERATE`:
+write is `OPERATE`. Expanding it opens four facts: the effective configuration, the **queue**, the
+worker's **ledger** (`Carimbos (descrições)` when the ledger is a stamp, `Processados` otherwise) and
+the last run. The queue and the ledger sit apart on purpose, and `guides/operate.md` owns what each
+of the two counts:
 
 - **Rodar agora** — `POST /api/v1/system/workers/{worker_name}/runs`. The run uses the effective
   configuration, adjusted only for this execution; nothing adjusted here becomes the default. Every
   run leaves a row in the run ledger, and a worker with a run in flight disables the button — the
   guarantee is the partial unique index in the database, and the screen only avoids offering what
   the database would reject.
+
+The run panel's fields come from the contract, not from a text box: `declared_options` names the
+options the worker accepts and, for a column list, the columns the AI text has
+(`original_title`, `final_title`, `scope_content`, `admin_bio_history`, `provenance`), so the screen
+renders a checkbox, a number or the columns themselves. The one free-form block is *Repasses ao
+engine (avançado)*: a raw pass-through to the engine constructor, per run and never persisted, with
+the keys the axis already passes (`model`, `device`, `host`, ...) as a hint. It is the named
+exception of #120 — it exists for whoever knows the library, and the engine validates the value.
 
 The panel itself offers no undo for a run. The reversibility of a run is the reversibility of what it
 wrote — a merge undo, a materialisation undo, a conflict undo — and a worker that stamps its queue
@@ -1021,7 +1046,9 @@ staging record, a pair, a tag).
 
 The run ledger, read-only: one row per execution, from the command line and from the panel, carrying
 the **resolved** configuration the run used (so it stays readable after a preset changes in code),
-the duration, the outcome and who asked. Above it, the failures of the last 30 days grouped by root
+the **effective worker options** (the columns it read, the floor, the cap — resolved when the run
+started, so "which columns did run #N read?" has an answer), the duration, the outcome and who
+asked. A row older than the options column says "opções não registradas nesta execução". Above it, the failures of the last 30 days grouped by root
 cause (`GET /api/v1/system/failures`), which answer the question the ledger cannot: forty rows saying
 the same sentence are one cause. Clicking a group filters the ledger below instead of opening a
 second list, and a failure's reference is what is searched in the log.
@@ -1070,8 +1097,12 @@ revisions — both writes `OPERATE`:
 
 - **Salvar padrão** — `PUT /api/v1/system/workers/{worker_name}/settings` writes the default. It is
   partial on purpose: an empty field keeps following the code, and the precedence is unchanged —
-  `explicit argument > the archive_worker_settings row > the signature default`. `config` is still
-  refused as an option, because it is a runner dataclass and not a JSON value.
+  `explicit argument > the archive_worker_settings row > the signature default`. The form renders one
+  control per declared option (a column list as the columns the AI text has); `limit` is absent
+  because a cap belongs to one execution, and `config` is still refused as an option, because it is
+  a runner dataclass and not a JSON value. `engine_name`, `preset` and `db_batch_size` have fields of
+  their own and are refused inside the options, which would otherwise be a second definition of the
+  same field.
 - **Conferir impacto** — `POST /api/v1/system/workers/{worker_name}/queue/preview` answers how many
   units the configuration the form is showing would leave in the queue, and writes nothing. It exists
   because the queue is keyed on the producer identity: saving another engine, preset or threshold
@@ -1088,6 +1119,11 @@ engine/preset choice here: a second place to choose the same engine would be a s
 truth, so the card says where it lives and offers only the run parameters. The screen reads
 `GET /api/v1/system/workers/settings`, which is not the panel's `GET /api/v1/system/workers` — the
 panel counts nine queues, and this screen shows none of them.
+
+A row written before the option validation is not a new mistake: the read ignores the option it can
+no longer honour and explains it in the card's note ("Padrão salvo ignorado — …"), so the screen
+answers with the code default instead of failing the queue counter. Saving the form again writes
+only the fields it shows, which heals the row.
 
 ### Usuários — `/configuracoes/usuarios`
 

@@ -1,9 +1,11 @@
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from scrinalia.core.schemas import RequestModel
 
 
-class DocumentUpdateRequest(BaseModel):
+class DocumentUpdateRequest(RequestModel):
     """
     Every ISAD(G) field the archivist may correct.
 
@@ -48,22 +50,16 @@ class DocumentUpdateRequest(BaseModel):
 
     review_note: str | None = Field(default=None, description="Motivo da edição; fica no histórico.")
 
-    model_config = ConfigDict(extra="forbid")
 
-
-class TagLinkRequest(BaseModel):
+class TagLinkRequest(RequestModel):
     """Attaches or detaches one tag on one description, as a human decision."""
 
     tag_id: int = Field(description="Id da tag no vocabulário (GET /api/v1/taxonomy/tags).")
     review_note: str | None = Field(default=None, description="Por que decidiu; fica no histórico do documento.")
 
-    model_config = ConfigDict(extra="forbid")
 
-
-class EntityLinkRequest(BaseModel):
+class EntityLinkRequest(RequestModel):
     """Attaches or detaches one named entity on one description, as a human decision."""
 
     entity_id: int = Field(description="Id da entidade nomeada.")
     review_note: str | None = Field(default=None, description="Por que decidiu; fica no histórico do documento.")
-
-    model_config = ConfigDict(extra="forbid")

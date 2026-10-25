@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from scrinalia.core.author import Author
+from scrinalia.core.schemas import RequestModel
 from scrinalia.domains.archive.domain.hierarchy import PlanStatus
 
 
@@ -371,7 +372,7 @@ class HierarchyMaterialisationPreview(BaseModel):
     items: list[HierarchyMaterialisationItem] = Field(default_factory=list)
 
 
-class HierarchyMaterialisationRequest(BaseModel):
+class HierarchyMaterialisationCommand(RequestModel):
     """Who authorised the run, and why. The decision itself lives in the plan rows."""
 
     changed_by: Author | None = None

@@ -7,6 +7,100 @@ All notable changes to this project are documented here. The format is
 `1.0.0` was the first release; the newest one is at the top. Entries describe **behaviour**, not
 commits — the history is the detail.
 
+## [1.5.0] - 2026-10-25
+
+### Added
+
+- **The clustering's columns are a read, and the screen offers them** (issue #174). `POST
+  /api/v1/taxonomy/tags/suggest-macro` accepted `columns_to_extract` and no screen sent it, so the
+  archivist could not choose which part of the description the clustering reads; a mistyped column
+  reached `getattr(ArchiveDocument, column)` and answered **500**. `GET
+  /api/v1/taxonomy/tags/suggest-macro/columns` publishes the five AI text columns and the four the
+  run reads when none is named, the Discover screen renders one checkbox per column from that read,
+  and the body carries the list again. The default became `CLUSTERING_TEXT_COLUMNS`, its own
+  definition beside `AI_TEXT_COLUMNS` — `final_title` is in the corpus and out of the default, and a
+  unit test pins the difference, so a column added to the corpus does not silently change what the
+  clustering reads. The route refuses an unknown column with a **400** that names it, an empty list,
+  and a list sent with `source_type=tags`, where the run would ignore it.
+
+- **The "não é assunto" refusal is shown before the write** (issue #175). The preview route
+  (`POST /api/v1/taxonomy/tags/subject-exclusions/preview`) has answered `applicable` and `blocked`
+  since #83 and no screen called it — the client function was even deleted in #93 for having no
+  caller — so the archivist learned that a term's tag already sat in a drawer from the write's
+  answer, after the click. The **Vetar termos** box now asks it as the typing settles (250 ms) and
+  names the drawer while the term can still be changed. The box writes every term that applies, so a
+  partial refusal leaves the button enabled; only a list where **all** terms are blocked disables it,
+  because then the write would record nothing. The route declares only `words` now: a plan has no
+  reason to declare and no provenance to report, and the generated client can no longer be handed
+  either.
+
+- **A worker option is declared, validated and rendered as a field** (issue #120). What a worker
+  accepts is its `execute` signature, and the API publishes it: `GET /api/v1/system/workers` and
+  `/workers/settings` carry `declared_options` — the name, the kind of control (`boolean`, `integer`,
+  `number`, `text`, `list`, `columns`), the signature default, whether the option is a persisted
+  default or one execution's (`scope: "run"` for `limit`) and, for a column list, the values it
+  admits. The configuration and run screens render that list as fields instead of a JSON box, so the
+  form cannot offer a key the write path would refuse. A key the worker does not declare — the
+  measured typo `colunas_to_classify` — is refused with the options it does take, **422** at the
+  route, and a column outside `AI_TEXT_COLUMNS` is refused when the default is saved, with the known
+  ones in the sentence.
+
+### Changed
+
+- **The materialisation command has its own name** (issue #184). Two pydantic models were called
+  `HierarchyMaterialisationRequest` — the HTTP body (`note`, `limit`, the one the contract points at)
+  and the service command (`changed_by`, `note`, `limit`) — and the controller imported both, the
+  second under an alias. The two docstrings had already drifted by a word, which is how a copy starts.
+  The domain class is `HierarchyMaterialisationCommand` now, the `*Command` the other domain inputs
+  carry, and the alias is gone. `testing/unit/quality/test_model_names.py` walks the three schema
+  packages and fails when two models share a name (276 models, one duplicate before this change). No
+  contract line moved: `openapi.json` and `schema.d.ts` are byte-identical.
+
+- **An unknown field in a request body is a 400 on every route** (issue #177). The policy was per
+  model: of the 53 bodies the contract carried, 22 declared `extra="forbid"` and 31 kept pydantic's
+  default, so the same stale client was refused on one route and accepted on the next, with the field
+  dropped without a trace — a renamed optional field is the half pydantic never protects. Every body
+  model now inherits `scrinalia.core.schemas.RequestModel`, and
+  `testing/unit/api/test_request_models.py` walks the built application and fails on one that does
+  not (and on a walk that stops finding the bodies the contract declares). Two calls that used to be
+  accepted and ignored are now refused: a `role` in the setup body and a `requested_by` in the run
+  trigger. The generated contract is **unchanged** — Litestar emits no `additionalProperties`, so
+  `openapi.json` and `schema.d.ts` are byte-identical after the change.
+
+- **The stamp breakdown says which ledger it counts** (issue #150). `stamp_breakdown` has been in
+  `GET /api/v1/system/workers` since #137, and the panel printed the four numbers under
+  *Fila (descrições)* — a placement that reads as a decomposition of the queue, when the breakdown
+  is over the worker's **whole ledger** while `pending` is the queue predicate. The numbers now sit
+  in their own fact, **Carimbos (descrições)**, beside the queue, the queue fact says it is the
+  predicate and not the ledger, and the contract's field description states the same scope. On the
+  reference collection the NER card reads **4.831** stamped against **4.813** pending, and the
+  difference is the **18** descriptions a human approved, which `ai_writable_documents()` keeps out
+  of the queue.
+
+- **The NER removal declares only the terms it reads** (issue #176). `DELETE
+  /api/v1/taxonomy/entities/ner-exclusions` took the same `NerExclusionRequest` as the `POST` and
+  read only `words`, so a `reason` sent to the removal answered 200 and was dropped without a
+  record — and the contract advertised the field only because the write model was shared. The
+  removal now declares its own `NerExclusionRemovalRequest`, the way
+  `SubjectExclusionRemovalRequest` already did for the subject exclusions: the generated client
+  stops offering a field the route ignores, and a caller that still sends it gets **400** instead of
+  a silent drop.
+
+- **The SPA derives its request bodies from the contract, as it already did its query shapes**
+  (issue #93). Fifteen functions typed the body out in the signature, and the failure is the mirror
+  image of the filter one: measured against the request models, pydantic refuses a **required** field
+  that is renamed or missing (400) and **ignores** an optional one and an unknown one (200) —
+  `EntityMergePreviewRequest` with `new_name` renamed to `new_nam` validates, and the merge simply
+  does not rename. Ten of the thirteen models keep `extra="ignore"` and three forbid it, so the
+  silence is not even uniform; the API-side question is #177. Every body is now the model its route
+  declares, three narrowings stay derived (`Pick`/`Omit`/`Required` over the model) with the screen or
+  route named beside them — the merge pair, the exclusion's `source`, and the macro suggestion
+  without `columns_to_extract` (#174) — and
+  `testing/unit/curator/test_api_body_shapes.py` fails on the next literal and on the next narrowing
+  that is not in its table. The client function `previewSubjectExclusions`, the only unused export
+  among 130, is gone: the screen it was written for reads the refusal from the write's answer instead
+  (#175). No behaviour changed: the built bundle is byte-identical.
+
 ## [1.4.0] - 2026-10-24
 
 ### Added
@@ -982,7 +1076,8 @@ commits — the history is the detail.
   reads the **runtime** export and not the development environment: an advisory in a tool that never
   reaches an installation no longer hides the ones that do.
 
-[Unreleased]: https://github.com/CassioDalla/Scrinalia/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/CassioDalla/Scrinalia/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.5.0
 [1.4.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.4.0
 [1.3.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.3.0
 [1.2.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.2.0

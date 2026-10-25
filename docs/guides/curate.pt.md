@@ -700,6 +700,15 @@ cadastrar, o que é `POST /api/v1/taxonomy/macro-categories` (`CATALOGUE`). Desc
 local à tela. Um corpus pequeno demais responde com uma sugestão vazia e uma mensagem, não com um
 erro.
 
+Lendo os **documentos**, a tela oferece as colunas que o clustering lê: `GET
+/api/v1/taxonomy/tags/suggest-macro/columns` publica o texto da IA e o subconjunto que a execução lê
+quando o corpo não escolhe nenhuma, e a tela desenha um checkbox por coluna a partir dessa leitura —
+ela não digita os cinco nomes. `final_title` está no corpus e **fora** do padrão: uma coluna pode
+entrar no que a IA lê sem mudar em silêncio o que o clustering lê. O corpo só leva
+`columns_to_extract` depois que uma coluna se move, e a rota recusa um nome desconhecido com **400**
+que o nomeia (antes do #174 o erro de digitação chegava a um `getattr` e respondia **500**), recusa
+uma lista vazia, e recusa a lista com `source_type=tags`, onde ela seria ignorada.
+
 ### Não é assunto — `/assuntos/excecoes`
 
 A metade curada do "isto não é assunto de jeito nenhum". O guarda determinístico pega o que tem forma
@@ -710,9 +719,14 @@ termo é um lugar, se a mesma grafia também é entidade, a categoria que o bloq
 está banida) e oferece registrá-los com `source=RULE` ou um a um.
 
 Confirmar planeja e aplica numa só chamada: a escrita abaixo consome o mesmo planejador que a rota de
-prévia usa, então as duas não podem discordar. A prévia, `POST
-/api/v1/taxonomy/tags/subject-exclusions/preview` (`AUTHENTICATED`), devolve `applicable` e
-`blocked`, mas existe como leitura da API — nenhuma tela a chama.
+prévia usa, então as duas não podem discordar. A prévia é `POST
+/api/v1/taxonomy/tags/subject-exclusions/preview` (`AUTHENTICATED`); ela recebe os termos e nada mais,
+porque um plano não tem motivo a declarar nem proveniência a informar, e responde `applicable` e
+`blocked`. O campo **Vetar termos** a consulta enquanto a digitação assenta (250 ms) e mostra a
+recusa **antes** do clique: um termo cuja tag já está numa categoria é nomeado com a categoria
+enquanto o arquivista ainda pode mudar o termo, e a resposta da escrita só confirma. O campo grava
+todos os termos que se aplicam, então uma recusa parcial não desabilita o botão — só uma lista em que
+**todos** os termos estão bloqueados desabilita, porque aí a escrita não registraria nada.
 
 A escrita é `POST /api/v1/taxonomy/tags/subject-exclusions` (`CURATE`), e ela faz duas coisas de uma
 vez: registra o termo em `domain_subject_exclusions`, para o classificador de assunto parar de
@@ -979,12 +993,23 @@ linha recolhida — "com qual modelo isto está rodando?" é a pergunta que a te
 e aqui a resposta é **só leitura**. O que a instalação está *configurada* a fazer é uma tela própria
 (*Configuração dos Workers*, abaixo), porque são perguntas diferentes: esta é o que a máquina está
 fazendo. A linha carrega a fila — pendentes, processados, falhas, última execução — e a única escrita
-é `OPERATE`:
+é `OPERATE`. Expandida, ela abre quatro fatos: a configuração efetiva, a **fila**, o **livro** do
+worker (`Carimbos (descrições)` quando o livro é um carimbo, `Processados` caso contrário) e a última
+execução. A fila e o livro ficam separados de propósito, e `guides/operate.pt.md` é quem diz o que
+cada um dos dois conta:
 
 - **Rodar agora** — `POST /api/v1/system/workers/{worker_name}/runs`. A execução usa a configuração
   efetiva, ajustada só para esta vez; nada ajustado aqui vira padrão. Toda execução deixa uma linha no
   ledger de execuções, e um worker com execução em andamento desabilita o botão — a garantia é o
   índice único parcial no banco, e a tela só evita oferecer o que o banco recusaria.
+
+Os campos do painel de execução vêm do contrato, não de uma caixa de texto: `declared_options` nomeia
+as opções que o worker aceita e, para uma lista de colunas, as colunas que o texto da IA tem
+(`original_title`, `final_title`, `scope_content`, `admin_bio_history`, `provenance`), então a tela
+renderiza um checkbox, um número ou as próprias colunas. O único bloco livre é *Repasses ao engine
+(avançado)*: um repasse cru ao construtor da engine, por execução e nunca persistido, com as chaves que
+o eixo já repassa (`model`, `device`, `host`, ...) como dica. É a exceção nomeada da #120 — existe para
+quem conhece a biblioteca, e a engine valida o valor.
 
 O painel em si não oferece desfazer para uma execução. A reversibilidade de uma execução é a
 reversibilidade do que ela escreveu — um desfazer de merge, de materialização, de conflito — e um
@@ -999,7 +1024,10 @@ descrições (um registro de staging, um par, uma tag).
 
 O ledger de execuções, em leitura: uma linha por execução, da linha de comando e do painel, com a
 configuração **já resolvida** que a execução usou (então ele continua legível depois que um preset
-muda no código), a duração, o desfecho e quem pediu. Acima dele, as falhas dos últimos 30 dias
+muda no código), as **opções efetivas do worker** (as colunas que ele leu, o limiar, o teto —
+resolvidas quando a execução começou, então "quais colunas a execução #N leu?" tem resposta), a
+duração, o desfecho e quem pediu. Uma linha anterior à coluna de opções diz "opções não registradas
+nesta execução". Acima dele, as falhas dos últimos 30 dias
 agrupadas por causa (`GET /api/v1/system/failures`), que respondem à pergunta que o ledger não
 responde: quarenta linhas dizendo a mesma frase são uma causa. Clicar num grupo filtra o ledger
 abaixo em vez de abrir uma segunda lista, e a referência de uma falha é o que se procura no log.
@@ -1048,8 +1076,12 @@ suas revisões — as duas escritas são `OPERATE`:
 
 - **Salvar padrão** — `PUT /api/v1/system/workers/{worker_name}/settings` grava o padrão. É parcial de
   propósito: um campo vazio continua seguindo o código, e a precedência não muda —
-  `argumento explícito > a linha de archive_worker_settings > o default da assinatura`. `config`
-  continua recusado como opção, porque é um dataclass do runner e não um valor JSON.
+  `argumento explícito > a linha de archive_worker_settings > o default da assinatura`. O formulário
+  renderiza um controle por opção declarada (uma lista de colunas como as colunas que o texto da IA
+  tem); `limit` não aparece, porque um teto pertence a uma execução, e `config` continua recusado como
+  opção, porque é um dataclass do runner e não um valor JSON. `engine_name`, `preset` e
+  `db_batch_size` têm campo próprio e são recusados dentro das opções, que seriam uma segunda
+  definição do mesmo campo.
 - **Conferir impacto** — `POST /api/v1/system/workers/{worker_name}/queue/preview` responde quantas
   unidades a configuração que o formulário mostra deixaria na fila, e não escreve nada. Existe porque a
   fila é chaveada pela identidade do produtor: salvar outra engine, outro preset ou outro limiar relê
@@ -1065,6 +1097,11 @@ engine/preset aqui: um segundo lugar para escolher a mesma engine seria uma segu
 então o cartão diz onde ela vive e oferece só os parâmetros de execução. A tela lê
 `GET /api/v1/system/workers/settings`, que não é o `GET /api/v1/system/workers` do painel — o painel
 conta nove filas, e esta tela não mostra nenhuma delas.
+
+Uma linha gravada antes da validação de opções não é um erro novo: a leitura ignora a opção que não
+consegue mais honrar e explica isso na nota do cartão ("Padrão salvo ignorado — …"), então a tela
+responde com o default do código em vez de derrubar o contador da fila. Salvar o formulário de novo
+escreve só os campos que ele mostra, o que cura a linha.
 
 ### Usuários — `/configuracoes/usuarios`
 

@@ -8,6 +8,8 @@ policy is a setting enforced in the domain, which is the one place the API and t
 
 from pydantic import BaseModel, Field
 
+from scrinalia.core.schemas import RequestModel
+
 
 class SetupStatusResponse(BaseModel):
     """
@@ -20,7 +22,7 @@ class SetupStatusResponse(BaseModel):
     needs_setup: bool
 
 
-class SetupFirstAdminCommand(BaseModel):
+class SetupFirstAdminCommand(RequestModel):
     """The account the first-run screen creates. It always becomes an ``ADMIN``."""
 
     email: str = Field(min_length=3, max_length=320, description="Identificador da conta; normalizado para minúsculas.")

@@ -25,22 +25,26 @@ from scrinalia.api.schemas.taxonomy import (
     MergeProposalDecisionRequest,
     MergeRequest,
     MergeSuggestionRequest,
+    NerExclusionRemovalRequest,
     NerExclusionRequest,
     ReclassifyEntityRequest,
     StopwordCreateRequest,
     StopwordMatchRequest,
     StopwordRemovalRequest,
     StopwordsRequest,
+    SubjectExclusionPreviewRequest,
     SubjectExclusionRemovalRequest,
     SubjectExclusionRequest,
     SuggestMacroRequest,
     TagCurationRequest,
 )
 from scrinalia.api.security import Access, AuthenticatedUser
+from scrinalia.domains.archive.domain.text_quality import AI_TEXT_COLUMNS, CLUSTERING_TEXT_COLUMNS
 from scrinalia.domains.archive.models.enums import StopwordsScope, TagCatalogState
 from scrinalia.domains.archive.schemas import (
     ArchiveMacroCategoryEntityDTO,
     BatchMergeResponse,
+    ClusteringColumnsResponse,
     ConflictResolutionLogListResponse,
     ConflictResolutionPlan,
     CreateMacroCategoryCommand,
@@ -520,6 +524,17 @@ class TaxonomyController(Controller):
             data=entry,
         )
 
+    @get("/tags/suggest-macro/columns", opt={"access": Access.AUTHENTICATED}, sync_to_thread=False)
+    def suggest_macro_columns(self) -> ClusteringColumnsResponse:
+        """
+        The AI text columns the clustering can read, and the ones it reads by default.
+
+        A pure read of the code's own catalogue: the screen renders the picker from it instead of
+        typing the five names, and the route that runs the clustering validates against the same
+        tuple (#174). ``AUTHENTICATED`` like the run — it computes nothing and writes nothing.
+        """
+        return ClusteringColumnsResponse(columns=list(AI_TEXT_COLUMNS), defaults=list(CLUSTERING_TEXT_COLUMNS))
+
     # ``AUTHENTICATED`` and not ``CURATE``: the route computes candidates and writes nothing, and
     # the permission is about what a request can *change* — the route that applies a suggestion has
     # its own permission. The clustering is expensive (BERTopic, seconds of CPU) and that is the
@@ -593,7 +608,7 @@ class TaxonomyController(Controller):
         "/tags/subject-exclusions/preview", opt={"access": Access.AUTHENTICATED}, status_code=200, sync_to_thread=True
     )
     def preview_subject_exclusions(
-        self, tag_service: NamedDependency[TagService], data: SubjectExclusionRequest
+        self, tag_service: NamedDependency[TagService], data: SubjectExclusionPreviewRequest
     ) -> SubjectExclusionPlan:
         """
         What confirming these terms would do, without writing anything.
@@ -934,7 +949,7 @@ class TaxonomyController(Controller):
 
     @delete("/entities/ner-exclusions", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def remove_ner_exclusions(
-        self, entity_service: NamedDependency[EntityService], data: NerExclusionRequest
+        self, entity_service: NamedDependency[EntityService], data: NerExclusionRemovalRequest
     ) -> NerExclusionRemovalResponse:
         """
         Undoes the ban and re-opens the terms for the NER engine.

@@ -34,6 +34,7 @@ from scrinalia.domains.archive.schemas.hierarchy_schema import (
     DescriptionLevelDTO,
     HierarchyDiagnosticListResponse,
     HierarchyDiagnosticSummary,
+    HierarchyMaterialisationCommand,
     HierarchyMaterialisationLogListResponse,
     HierarchyMaterialisationPreview,
     HierarchyMaterialisationResult,
@@ -49,9 +50,6 @@ from scrinalia.domains.archive.schemas.hierarchy_schema import (
     HierarchyVocabulary,
     MoveNodeCommand,
     UpdateDescriptionLevelCommand,
-)
-from scrinalia.domains.archive.schemas.hierarchy_schema import (
-    HierarchyMaterialisationRequest as MaterialisationCommand,
 )
 from scrinalia.domains.archive.services.hierarchy_materialisation_service import (
     HierarchyMaterialisationService,
@@ -357,7 +355,7 @@ class HierarchyController(Controller):
         the number the write produces.
         """
         return materialisation_service.preview(
-            MaterialisationCommand(**data.model_dump(), changed_by=current_user.author)
+            HierarchyMaterialisationCommand(**data.model_dump(), changed_by=current_user.author)
         )
 
     @post("/materialisation/apply", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
@@ -374,7 +372,7 @@ class HierarchyController(Controller):
         can reverse it: a decision a human took, a human can undo.
         """
         return materialisation_service.apply(
-            MaterialisationCommand(**data.model_dump(), changed_by=current_user.author)
+            HierarchyMaterialisationCommand(**data.model_dump(), changed_by=current_user.author)
         )
 
     @get("/materialisation/log", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)

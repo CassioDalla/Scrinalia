@@ -1,8 +1,9 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { createMacroCategory, suggestMacroCategories, type MacroCategorySuggested } from "@/api/client";
+import { queries } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -31,10 +32,28 @@ import { routeMessage } from "@/lib/messages";
  */
 export function DiscoverRoute() {
   const [sourceType, setSourceType] = useState<"tags" | "documents">("tags");
+  /** ``null`` means "the code's defaults": nothing is sent, and the route resolves them itself. */
+  const [columns, setColumns] = useState<string[] | null>(null);
   const [dismissed, setDismissed] = useState<number[]>([]);
+  const catalogue = useQuery(queries.clusteringColumns());
+
+  const selected = columns ?? catalogue.data?.defaults ?? [];
+  const noColumnChosen = sourceType === "documents" && selected.length === 0;
+
+  const toggleColumn = (name: string) => {
+    setColumns((current) => {
+      const base = current ?? catalogue.data?.defaults ?? [];
+      return base.includes(name) ? base.filter((item) => item !== name) : [...base, name];
+    });
+  };
 
   const suggest = useMutation({
-    mutationFn: () => suggestMacroCategories({ source_type: sourceType }),
+    mutationFn: () =>
+      suggestMacroCategories(
+        sourceType === "documents" && columns !== null
+          ? { source_type: "documents", columns_to_extract: columns }
+          : { source_type: sourceType },
+      ),
   });
 
   const suggestions = (suggest.data?.categories ?? []).filter(
@@ -75,10 +94,44 @@ export function DiscoverRoute() {
               >
                 A partir dos Documentos
               </Button>
-              <Button variant="primary" disabled={suggest.isPending} onClick={() => suggest.mutate()}>
+              <Button
+                variant="primary"
+                disabled={suggest.isPending || noColumnChosen}
+                onClick={() => suggest.mutate()}
+              >
                 {suggest.isPending ? "Agrupando… (pode levar alguns segundos)" : "Propor Categorias"}
               </Button>
             </div>
+            {/*
+              The columns the clustering reads, offered only for the documents source: the route
+              refuses them with ``source_type='tags'``, and a control that a body would reject is a
+              control the screen must not show (#174). The list comes from the route that validates
+              it, so the screen never types a column name.
+            */}
+            {sourceType === "documents" ? (
+              <div className="grid gap-1">
+                <span className="text-xs text-(--color-muted)">
+                  O clustering lê o texto destas colunas. Desmarcar todas não é uma escolha válida.
+                </span>
+                {catalogue.isError ? <ErrorState error={catalogue.error} /> : null}
+                {catalogue.data ? (
+                  <div className="flex flex-wrap items-center gap-3">
+                    {catalogue.data.columns.map((column) => (
+                      <label key={column} className="flex items-center gap-1 text-xs">
+                        <input type="checkbox" checked={selected.includes(column)} onChange={() => toggleColumn(column)} />
+                        <code>{column}</code>
+                        {catalogue.data.defaults.includes(column) ? (
+                          <span className="text-(--color-muted)">(padrão)</span>
+                        ) : null}
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
+                {noColumnChosen ? (
+                  <span className="text-xs text-(--color-danger)">Escolha ao menos uma coluna.</span>
+                ) : null}
+              </div>
+            ) : null}
             {suggest.error ? <ErrorState error={suggest.error} /> : null}
           </CardBody>
         </Card>

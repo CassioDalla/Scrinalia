@@ -193,12 +193,13 @@ são um estado da tag.
 | --- | --- | --- |
 | `archive_worker_settings` | A configuração padrão persistida de um worker. | `worker_name` (chave primária), `engine_name`, `preset`, `db_batch_size`, `options` (JSONB), `updated_by`, `updated_at` |
 | `archive_worker_settings_revisions` | Trilha de auditoria das escritas de configuração, uma linha por escrita. | `id`, `worker_name`, `before` (JSONB), `after` (JSONB), `changed_by`, `changed_by_user_id`, `changed_at` |
-| `archive_worker_runs` | Uma linha por execução de worker, tanto pela CLI quanto pelo painel. | `id`, `worker_name`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `config` (JSONB), `queued_at`, `started_at`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (gerada) |
+| `archive_worker_runs` | Uma linha por execução de worker, tanto pela CLI quanto pelo painel. | `id`, `worker_name`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `config` (JSONB), `options` (JSONB), `queued_at`, `started_at`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (gerada) |
 | `archive_api_errors` | As falhas HTTP inesperadas da própria API. | `id`, `occurred_at`, `request_id`, `method`, `path`, `status_code`, `message`, `error_fingerprint` (gerada) |
 
 `archive_worker_settings` é uma linha **parcial** de propósito: um campo deixado `NULL` continua
 seguindo o código, então a precedência é `argumento explícito > esta linha > o default da assinatura`.
-`archive_worker_runs` guarda a configuração **resolvida**, então a linha mantém o sentido quando um
+`archive_worker_runs` guarda a configuração **resolvida** — `config` da engine, `options` do próprio
+worker, resolvidas quando a execução começa — então a linha mantém o sentido quando um
 preset muda no código. Deliberadamente não há chave estrangeira de nenhuma das duas para uma tabela
 de workers: workers são código, não linhas. `archive_api_errors` registra apenas falhas
 *inesperadas* — um 404, um 409 e um 422 são respostas que a API deve a um cliente, e registrá-las

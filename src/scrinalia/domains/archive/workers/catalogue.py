@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import cache
 from importlib import import_module
-from inspect import Signature, signature
+from inspect import Parameter, Signature, signature
 from typing import Any, Literal
 
 from sqlalchemy.orm import Session
@@ -62,6 +62,12 @@ class WorkerSpec:
     counter: str | None = "count_pending"
     processed_counter: str | None = None
     failed_counter: str | None = None
+    #: Name of the function in the worker module that resolves the option values a run really uses.
+    #: It exists for the options whose default lives in the worker's own runner dataclass (the
+    #: columns a run reads, the typology floor), which the signature alone cannot tell: the ledger
+    #: records the effective values, so "which columns did run #N read?" has an answer (#120). The
+    #: function calls the same helper ``execute`` calls — never a second resolution.
+    option_resolver: str | None = None
     unmeasurable_reason: str | None = None
     note: str | None = None
 
@@ -116,6 +122,7 @@ WORKER_CATALOGUE: dict[str, WorkerSpec] = {
             engine_source="signature",
             stamp=NER,
             stamp_model="document",
+            option_resolver="effective_options",
         ),
         WorkerSpec(
             name="typology",
@@ -126,6 +133,7 @@ WORKER_CATALOGUE: dict[str, WorkerSpec] = {
             engine_source="signature",
             stamp=TYPOLOGY,
             stamp_model="document",
+            option_resolver="effective_options",
         ),
         WorkerSpec(
             name="thumbnail",
@@ -170,6 +178,7 @@ WORKER_CATALOGUE: dict[str, WorkerSpec] = {
             engine_source="signature",
             stamp=MACRO_CATEGORY,
             stamp_model="tag",
+            option_resolver="effective_options",
             note="Uma tag com categoria definida pelo curador está fora do alcance deste worker.",
         ),
         WorkerSpec(
@@ -224,6 +233,55 @@ def _signature_of(module_path: str) -> Signature:
 def worker_signature(spec: WorkerSpec) -> Signature:
     """Signature of ``execute``, used to validate overrides against what the worker accepts."""
     return _signature_of(spec.module)
+
+
+def accepts_extra_kwargs(spec: WorkerSpec) -> bool:
+    """Whether ``execute`` ends in ``**engine_kwargs``, the door a per-run pass-through uses."""
+    return any(parameter.kind is Parameter.VAR_KEYWORD for parameter in worker_signature(spec).parameters.values())
+
+
+@cache
+def axis_engine_option_values(axis: str) -> dict[str, Any]:
+    """
+    One representative value per free key the axis itself hands the engine.
+
+    This is how the panel can offer a pass-through without anybody inventorying a third-party
+    library: the axis already declares what it passes to the engine constructor (``model``,
+    ``device``, ``disable``, ``batch_size``, ``dimensions``), and ``describe_config`` adds the one
+    key the registry injects rather than the preset (``host``, on the two Ollama axes). The value is
+    what the preset says, which is also the type a ``--engine-option`` has to be coerced to. A key
+    outside the union is either a typo or a knob this project never named — neither is a value it
+    can carry.
+    """
+    registry = axis_registry(axis)
+    values: dict[str, Any] = {}
+    for engine_name in registry.AVAILABLE_ENGINES:
+        for preset_name, preset in registry.PRESETS.items():
+            for key, value in preset.items():
+                values.setdefault(key, value)
+            for key, value in registry.describe_config(engine_name, preset_name).items():
+                values.setdefault(key, value)
+    return values
+
+
+def axis_engine_option_names(axis: str) -> tuple[str, ...]:
+    """The free keys of an axis, sorted."""
+    return tuple(sorted(axis_engine_option_values(axis)))
+
+
+def engine_option_names(spec: WorkerSpec) -> tuple[str, ...]:
+    """The engine pass-through keys a worker can carry; empty for a worker without the door."""
+    if spec.axis is None or not accepts_extra_kwargs(spec):
+        return ()
+    return axis_engine_option_names(spec.axis)
+
+
+def engine_option_values(name: str) -> dict[str, Any]:
+    """The free keys of a worker's axis, with a representative value each; empty without the door."""
+    spec = WORKER_CATALOGUE.get(name)
+    if spec is None or spec.axis is None or not accepts_extra_kwargs(spec):
+        return {}
+    return axis_engine_option_values(spec.axis)
 
 
 @cache

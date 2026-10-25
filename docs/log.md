@@ -1808,3 +1808,276 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   collection, not a real worker run; no typology worker ran after the change. The page was rendered on
   the zeroed dev database's 101 documents, not on the 4,812 of the reference collection, so the
   screenshot proves the screen and the write, not a production-sized list.
+
+## 2026-10-24 — the declared worker options are validated, published and recorded (#120)
+
+- **Range:** `8e3a903..dbb00c8`
+- **Pages:**
+  - `guides/operate.md` — **updated**: "What a worker accepts" (the declared options, the two column
+    options and the `AI_TEXT_COLUMNS` they are checked against, the run-only `limit`), the
+    `--engine-option` flag and its row, the two doors, the five refusals, the run ledger's `options`
+    and the stale row that is ignored with a note.
+  - `guides/operate.pt.md` — **updated**: the same sections.
+  - `guides/curate.md` — **updated**: the run panel is rendered from `declared_options` with the
+    pass-through block as the only free-form one, the settings form no longer has a JSON box and
+    hides `limit`, and the ledger row shows the effective options.
+  - `guides/curate.pt.md` — **updated**: the same three passages.
+  - `guides/data-model.md` — **updated**: `archive_worker_runs.options`, and the note that the ledger
+    carries the resolved engine configuration *and* the resolved worker options.
+  - `guides/data-model.pt.md` — **updated**: the same row and note.
+  - `guides/install.md` — **no-change**: the report named it for `pyproject.toml`, and the only
+    movement there is the release's version bump.
+- **Measured, not assumed.** `uv run pytest` answers **2028 passed, 1 skipped** (the 34 new unit
+  tests of `test_worker_options.py`, the 3 of the pin in `test_option_columns_pin.py`, and the new
+  cases in the runner and service suites); `ruff check`/`ruff format --check` and `basedpyright`
+  answer zero. `alembic upgrade head` applied `efe037349552` on the dev database and `alembic check`
+  reports **no new upgrade operations**. `bun run contract` regenerated the document and the client,
+  and `tsc`, ESLint and the Vite build are green.
+- **The pair was measured, not asserted.** The typology benchmark and the write path now refuse the
+  same spelling through the same helper: `unknown_ai_columns(["original_title", "admin_bio_historia"])`
+  answers `["admin_bio_historia"]` for both, and the API's sentence names the five known columns. The
+  measured default of `columns_to_extract`, resolved by the worker itself, is
+  `original_title, admin_bio_history, provenance, scope_content`.
+- **Looked at, not assumed.** The three screens were rendered on the dev database through a temporary
+  admin account: the settings card of `typology` shows five column checkboxes, the confidence field and
+  the `force` flag, **no JSON box and no `limit`**; the run panel of `ner` shows the same fields plus
+  `limit`, and its opened *Repasses ao engine (avançado)* block lists `device, disable, model` as what
+  the axis passes; the ledger shows a seeded run with
+  `columns_to_classify=original_title,scope_content · confidence_threshold=0.4` and a row without the
+  column reading "opções não registradas nesta execução". The seeded rows and the account were removed
+  afterwards.
+- **Not verified, and said so.** No worker was run after the change: the recorded-options path is
+  proved by the integration test with a fake worker (the record of `ner` carries the resolved default
+  columns and not the `None` of the signature), not by a real extraction or classification over the
+  collection on this machine, and the screens were rendered over the 100 descriptions of the dev
+  database rather than the reference collection. The `--engine-option` coercion is covered by unit
+  tests on argument parsing, not by a run that loaded a model with an overridden `device`.
+
+## 2026-10-24 — the SPA's request bodies are derived too (no page changed)
+
+- **Range:** `dbb00c8..77bca6b`
+- **Pages:** **none**, and that is the verdict this entry records. The change lives inside
+  `apps/curator/src/api/` and `testing/unit/curator/`, and no page declares either path among its
+  `sources:` — `uv run python docs/_hooks/freshness.py` answers "every page is fresh" and names
+  none. What changed is a **rule file**, `.dsh/skills/curator-ui/SKILL.md`: a request body is
+  derived from the model the route declares, never typed out, with the measured asymmetry beside it.
+- **Why the round exists:** #93 recorded the half #88 left out. The query position fails loudly
+  (an unknown filter is ignored and the screen filters by nothing); the body position fails the
+  other way, because pydantic refuses a missing *required* field and silently ignores an unknown
+  one. Sizing it against the checkout found **fifteen** functions typing a body by hand, not the
+  thirteen the issue counted: the issue already subcounted (fourteen at `32d19f1`, the commit
+  nearest its date) and `setStopwordMatch` arrived afterwards in `9923231`.
+- **What the round measured.** The thirteen request models do not share one policy: ten keep
+  pydantic's default (`extra="ignore"`) and three declare `extra="forbid"` —
+  `SubjectExclusionRequest`, `SubjectExclusionRemovalRequest`, `ConflictPreviewRequest`. Renaming an
+  optional field is silent in ten of the thirteen: `EntityMergePreviewRequest` with `new_name` →
+  `new_nam` validates and the merge simply does not rename, while `MergePreviewRequest` fails only
+  because its cross-field validator then finds neither source of truth — an accident, not a policy.
+  The API-side question is #177.
+- **Three things the issue did not know.** `SubjectExclusionRequest.source` has a `HUMAN` default,
+  so the client's "required by the contract, and deliberately so" was false — the client now requires
+  it by a derived `Omit`/`Required<Pick<>>`, and the comment says why. `NerExclusionRequest` is
+  shared by the `POST` and the `DELETE`, whose handler reads only `data.words`, the exact smell
+  `SubjectExclusionRemovalRequest` already documents — filed as #176. And
+  `previewSubjectExclusions` had no caller since it was born in `32d19f1`: measured, the only unused
+  export among 130, so the client function and its two response types are gone and the intent lives
+  in #175.
+- **Verified, and what was not.** The gate was proved by mutation, not by passing: putting one body
+  back inline fails both rules, deriving a body from another route's model fails the second, and
+  adding a narrowing outside the table fails the third; the file was restored byte-identical
+  afterwards. `tsc`, ESLint, the Vite build, `ruff check`/`format --check` and `basedpyright` answer
+  zero, and `uv run pytest testing/unit` answers **1044 passed, 1 skipped**. **Not looked at in a
+  browser, and nothing to look at**: the emitted bundle is byte-identical to the pre-change one
+  (`dist/assets/index-DIQDkiK4.js`, sha256
+  `21ca64dc0b02571364431c9c52300079d69fc236c8d03b54a06ddc015dd0b75c`), because a type-level change
+  erases at compile time — so no screen's pixels can differ, and no rendering would show the change.
+
+## 2026-10-24 — the NER removal declares only what it reads (#176)
+
+- **Range:** `77bca6b..2e0e9b9`
+- **Pages:**
+  - `guides/curate.md` — **no-change**: the page was reported stale through the contract and the
+    taxonomy controller, and the paragraph it owns (*Exclusões de NER*) names the reversal as a plain
+    `DELETE` that re-opens the term, never as a body. The removal's model is not described there, and
+    the screen's call sends `{words: [word]}` either way, so the text still holds.
+- **Why the round exists:** the `DELETE` on `/entities/ner-exclusions` took the ban's
+  `NerExclusionRequest` and read only `data.words`, so a `reason` answered 200 and vanished; the
+  client had narrowed it back with `Pick<NerExclusionRequest, "words">`. #176 gave the removal its
+  own model, `SubjectExclusionRemovalRequest`'s twin, and the narrowing went with it.
+- **What the round measured.** The contract diff is the new schema and the `$ref` of the one
+  operation, nothing else: `bun run contract` emits `NerExclusionRemovalRequest` with `words` and
+  `minItems: 1`, and the generated client's signature changes from the narrowing to the model.
+  The behaviour is pinned by `test_remove_ner_exclusions_refuses_the_reason_the_route_ignores`
+  (a `reason` is a **400**, and the service is not called) and by the table in
+  `testing/unit/curator/test_api_body_shapes.py`, which now lists **three** narrowings instead of
+  four. `uv run pytest testing/integration/api/controller/test_taxonomy_controller.py` answers **63
+  passed** against the test database; `testing/unit/api`, `testing/unit/curator` and
+  `testing/unit/docs` answer **147 passed**; `ruff check`, `ruff format --check` and `basedpyright`
+  answer zero, and `tsc`/ESLint are green.
+- **Not verified, and said so.** No screen was rendered: the change is a request model and a
+  generated type, and the screen behind it sends the same body before and after. The API was not
+  driven by hand against the reference collection either — the 400 is the integration test's client.
+
+## 2026-10-24 — the refusal comes before the write (#175)
+
+- **Range:** `2e0e9b9..83f7d39`
+- **Pages:**
+  - `guides/curate.md` — **updated**: the *Não é assunto* section said the preview route "exists as
+    an API read — no screen calls it". It now describes the box asking the route as the typing
+    settles (250 ms), what the two lines on the screen mean, why a partial refusal leaves the button
+    enabled, and that the route takes only the terms.
+  - `guides/curate.pt.md` — **updated**: the same paragraph, same structure.
+- **Why the round exists:** #175. The plan route has existed since #83, and the client function that
+  read it had none of the 130 callers and was deleted in #93; the screen read `blocked` from the
+  write's answer instead, so the refusal arrived after the click. The route also declared the write's
+  `SubjectExclusionRequest` and read only `data.words` — #176's smell in a second place, which this
+  round fixed with `SubjectExclusionPreviewRequest` rather than adding a narrowing to the client.
+- **What the round measured.** The contract diff is the new schema and the one operation's `$ref`.
+  The behaviour is pinned by `test_the_subject_exclusion_preview_declares_only_the_terms` — the
+  preview refuses a `reason`/`source` body with **400** — and by the existing dry-run test, which
+  sends `{"words": [...]}` and still reads the same plan. `pytest` over the tag catalogue and the
+  body-shape gate: **20 passed**; `tsc`, ESLint, `ruff check`/`format --check` and `basedpyright`
+  answer zero.
+- **What was rendered.** `.render/subject-exclusions-preview.png` and
+  `.render/subject-exclusions-blocked.png`: the built SPA served by the API (`create_app()` mounts
+  `dist`) against `scrinalia_zeroed`, with a session row inserted for the round and deleted after
+  it, driven over CDP. With `capejo, vista aerea` in the box the screen reads, **before any click**,
+  `1 termo(s) já estão numa categoria de assunto e não serão registrados: capejo (Mobilidade e
+  Transporte)` beside `1 termo(s) serão registrados e banidos de voltar a virar tag.`, and the
+  button stays enabled; with `capejo` alone only the refusal line renders and the button is
+  **disabled** (CDP reported `disabled=true` and the pixels show it greyed).
+- **Not verified, and said so.** No write was performed from the screen: the ban would have recorded
+  a human verdict in the reference collection for the sake of a screenshot, and the write path is
+  covered by the integration suite. The screen was read on `scrinalia_zeroed` only (101
+  descriptions, 139 exclusions, 83 tags in drawers), not on the large collection.
+
+## 2026-10-24 — the stamp breakdown says which ledger it counts (#150)
+
+- **Range:** `83f7d39..55fda25`
+- **Pages:**
+  - `guides/operate.md` — **updated**: *What each queue means* gains the paragraph that separates the
+    four numbers from `pending` — the breakdown is over the worker's whole ledger, and the reference
+    collection's NER card reads 4.831 stamped against 4.813 pending, the difference being the 18
+    descriptions a human approved.
+  - `guides/operate.pt.md` — **updated**: the same paragraph.
+  - `guides/curate.md` — **updated**: the workers screen opens four facts now, with the queue and the
+    ledger apart, and the page points at the operate guide for what each one counts.
+  - `guides/curate.pt.md` — **updated**: the same sentence.
+- **Why the round exists:** #150. The placement read as a decomposition of the queue — "4.813 pending
+  beside 0 + 1.650 + 3.181" — and the 18 units that are not pending had nowhere to be seen. #137 had
+  added `stamp_breakdown` and the card rendered it under `Fila`; the number was right and the scope
+  was not.
+- **What the round measured.** The difference is not arithmetic in the abstract: on the collection the
+  render used, `select review_status, count(*)` gives **18** `HUMAN_APPROVED` and no document without
+  text in the extracted columns, so `4.831 − 18 = 4.813` is `ai_writable_documents()` doing exactly
+  what it promises. The contract diff is the description of one field (`stamp_breakdown`), with the
+  component untouched (the field node carries the description, not the `WorkerStampBreakdownDTO`).
+- **What was rendered.** `.render/workers-150.png`: the built SPA served by the API against a **clone**
+  of the large collection (`scrinalia_150`, `CREATE DATABASE ... TEMPLATE memoriacuritibana`, then
+  `alembic upgrade head` — two additive migrations — dropped after the round), with a session row
+  inserted and deleted for it, driven over CDP. The NER card, expanded, reads **FILA
+  (DESCRIÇÕES) 4.813** with "o predicado da fila: o que a próxima execução leria. Não é o ledger do
+  worker." beside **CARIMBOS (DESCRIÇÕES) 4.831** with "0 com produtor · 1.650 sem produtor
+  conhecido · 3.181 sem registro — o ledger inteiro do worker, não a fila." The four facts fit one
+  row at 1280px (`sm:grid-cols-2 xl:grid-cols-4`).
+- **Not verified, and said so.** The card was read on the cloned collection only, and no worker was
+  run: the ledger numbers are the clone's own state, not a fresh run's. The four non-stamp workers'
+  `Processados` fact was not opened in pixels — the NER card is the stamp case the issue is about.
+
+## 2026-10-24 — the clustering's columns are a read (#174)
+
+- **Range:** `c71f3aa..5900c48`
+- **Pages:**
+  - `guides/curate.md` — **updated**: *Descobrir Categorias* gains the picker — the read route, why
+    `final_title` is in the corpus and out of the default, and the three refusals (unknown column,
+    empty list, list with `source_type=tags`).
+  - `guides/curate.pt.md` — **updated**: the same paragraph.
+  - `guides/operate.md` — **no-change**: the report named it through `document_repo.py`, where the
+    four-column fallback became `CLUSTERING_TEXT_COLUMNS`. The value is the same four columns and the
+    page never described them; what the clustering reads is the curation page's subject now.
+- **Why the round exists:** #174. The route accepted `columns_to_extract` since it existed and no
+  screen sent it; #93 narrowed the client to `Pick<SuggestMacroRequest, "source_type">` rather than
+  advertise a knob nothing set. The other half was a second definition: the repository fell back to a
+  literal list of four while `AI_TEXT_COLUMNS` has five, and an unknown name reached
+  `getattr(ArchiveDocument, column)` for a **500**.
+- **What the round measured.** The contract grows by one operation and one schema
+  (`ClusteringColumnsResponse`, 45 lines in `schema.d.ts`). `CLUSTERING_TEXT_COLUMNS` keeps the same
+  four values, so no behaviour changed for a caller that omits the field; the unit test pins that the
+  difference from `AI_TEXT_COLUMNS` is exactly `final_title`. The integration tests answer **41
+  passed** over the tag catalogue, the text-quality domain and the body-shape gate — including the
+  400 that names `original_titel`, the 400 for `source_type=tags`, and the 400 for `[]`.
+- **What was rendered.** `.render/discover-columns.png`, `.render/discover-off.png` and
+  `.render/discover-send.png`: the built SPA served by the API against `scrinalia_zeroed`, with a
+  session row inserted for the round and deleted after it, driven over CDP. Seen in the pixels: the
+  five checkboxes with the four defaults marked `(padrão)` and `final_title` unchecked; every box
+  unchecked disables *Propor Categorias* and prints `Escolha ao menos uma coluna.`; and with the five
+  checked the request the screen sent was, read off the network event,
+  `{"source_type":"documents","columns_to_extract":["original_title","admin_bio_history","provenance","scope_content","final_title"]}`.
+- **Not verified, and said so.** The clustering itself was **not run to completion**: the browser was
+  closed as soon as the request was captured, so BERTopic never answered and no proposal was seen on
+  the screen. The run's use of the columns rests on the service test that already asserted
+  `fetch_documents_for_clustering(columns_to_extract=...)` receives them.
+
+## 2026-10-24 — a request body refuses what it does not know (#177)
+
+- **Range:** `5900c48..4a8b78f`
+- **Pages:**
+  - `guides/operate.md` — **no-change**: the report named it through `system_schema.py`, whose two
+    request models now inherit `RequestModel`. The page documents the *options* contract — a key the
+    worker does not declare is refused inside `options` — and this change is about an unknown key at
+    the top level of a body, which the page never said was accepted.
+- **Why the round exists:** #177, with the policy the owner chose (forbid everywhere). The body
+  position was loud only where a model happened to say so: 22 of the 53 bodies declared
+  `extra="forbid"` and 31 kept pydantic's default, so the same stale client answered 400 on one route
+  and 200 on the next.
+- **What the round measured.** The generated contract is **unchanged**: `additionalProperties` was
+  already absent for the 22 strict models, so Litestar never expressed the difference, and adding
+  `extra="forbid"` to the other 31 emits nothing either — measured here by regenerating
+  `openapi.json` and `schema.d.ts` and getting a **0-line** diff. The gate is
+  `testing/unit/api/test_request_models.py`: it resolves the bodies from the **built** application
+  (55 of them, exactly the names the contract points at from a `requestBody`), and fails both on a
+  body model that does not forbid and on a walk that stops finding them. The full suite answers
+  **2041 passed, 1 skipped**; `basedpyright`, `ruff check` and `ruff format --check` answer zero.
+- **What the policy changed in behaviour, and the two tests that said otherwise.** Two calls used to
+  be accepted and silently ignored: a `role` in the setup body (`test_the_client_cannot_choose_the_role`
+  asserted 201 and ADMIN) and a `requested_by` in the run trigger. Both are **400** now, and the
+  tests say so — the first also checks that the installation is still unconfigured after the refusal.
+  A third test was added where the policy is a security property: a `changed_by` in the
+  materialisation body is refused, because the author is the session's.
+- **A finding, not fixed here.** `HierarchyMaterialisationRequest` exists twice: in
+  `api/schemas/hierarchy_requests.py` (the body: `note`, `limit`) and in
+  `domains/archive/schemas/hierarchy_schema.py` (the command: the same plus `changed_by`). The handler
+  spreads the body and adds the session author into the command. They answer different questions, so
+  the duplication is a name collision rather than a second definition — renaming would move a contract
+  component and belongs to a round of its own.
+- **Not verified, and said so.** No screen was rendered: no route changed shape and the SPA sends
+  bodies derived from the contract, so the pixels cannot differ. The 53 bodies were not exercised
+  against a live server one by one — the gate reads the policy, and the suite drives the routes.
+
+## 2026-10-25 — the materialisation command has its own name (#184)
+
+- **Range:** `4a8b78f..74a3a5c`
+- **Pages:** **none changed by this round**, and the two the report named are the merge's trace:
+  - `guides/curate.md` — **no-change**: the report named it through `a24154e`, the merge of the #174
+    branch, whose page text was written and triaged in that round (`c71f3aa..5900c48`). No declared
+    source moved after it — the change here is a class name in the domain schemas, which the page
+    never prints.
+  - `guides/curate.pt.md` — **no-change**: the same merge, and the translation was updated with the
+    English page in the #174 round.
+- **Why the round exists:** #184, the finding #177 recorded. Two models shared the name
+  `HierarchyMaterialisationRequest` — the HTTP body (no author, the one the contract `$ref`s) and the
+  service command (`changed_by`); the controller imported both, the second as
+  `MaterialisationCommand`, and the docstrings had drifted by a word.
+- **What the round measured.** The rename moved **22 references in 4 files** — the domain schema, the
+  package `__init__`, the service and the controller (whose alias disappeared) — plus 12 constructions
+  in the service's integration test, and **zero** lines of contract: regenerating `openapi.json` and
+  `schema.d.ts` leaves both byte-identical, because the command is not bound to a route. The gate is
+  `testing/unit/quality/test_model_names.py`: of the **276** pydantic models in the three schema
+  packages, the duplicate was the only one, and the test fails with the two module names when one is
+  reintroduced — proved by mutation (a duplicate class appended to `hierarchy_requests.py` made it
+  fail; the file was restored byte-identical). Full suite **2044 passed, 1 skipped**; `basedpyright`,
+  `ruff check`/`format --check` and `tsc`/ESLint green.
+- **Not verified, and said so.** No screen was rendered — the rename touches no route and no generated
+  type, so no pixel can differ. The materialisation routes were exercised only through their
+  integration tests, not against a live server.
+

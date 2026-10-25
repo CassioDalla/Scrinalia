@@ -41,6 +41,7 @@ from scrinalia.domains.archive.domain.search import (
     reciprocal_rank_fusion,
     tokenize,
 )
+from scrinalia.domains.archive.domain.text_quality import CLUSTERING_TEXT_COLUMNS
 from scrinalia.domains.archive.exceptions import (
     EntityNotFoundError,
     HierarchyNodeNotFoundError,
@@ -257,7 +258,7 @@ class DocumentRepository:
         in any order, and the clustering suggestion would then depend on the plan rather than on
         the collection.
         """
-        columns = columns_to_extract or ["original_title", "admin_bio_history", "provenance", "scope_content"]
+        columns = columns_to_extract or list(CLUSTERING_TEXT_COLUMNS)
 
         filters = [getattr(ArchiveDocument, col).is_not(None) for col in columns]
         stmt = select(ArchiveDocument).where(or_(*filters)).order_by(ArchiveDocument.description_id)
