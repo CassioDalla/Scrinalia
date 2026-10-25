@@ -105,6 +105,15 @@ commits — the history is the detail.
 
 ### Changed
 
+- **The materialisation command has its own name** (issue #184). Two pydantic models were called
+  `HierarchyMaterialisationRequest` — the HTTP body (`note`, `limit`, the one the contract points at)
+  and the service command (`changed_by`, `note`, `limit`) — and the controller imported both, the
+  second under an alias. The two docstrings had already drifted by a word, which is how a copy starts.
+  The domain class is `HierarchyMaterialisationCommand` now, the `*Command` the other domain inputs
+  carry, and the alias is gone. `testing/unit/quality/test_model_names.py` walks the three schema
+  packages and fails when two models share a name (276 models, one duplicate before this change). No
+  contract line moved: `openapi.json` and `schema.d.ts` are byte-identical.
+
 - **An unknown field in a request body is a 400 on every route** (issue #177). The policy was per
   model: of the 53 bodies the contract carried, 22 declared `extra="forbid"` and 31 kept pydantic's
   default, so the same stale client was refused on one route and accepted on the next, with the field
