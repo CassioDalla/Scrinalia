@@ -984,7 +984,10 @@ linha recolhida — "com qual modelo isto está rodando?" é a pergunta que a te
 e aqui a resposta é **só leitura**. O que a instalação está *configurada* a fazer é uma tela própria
 (*Configuração dos Workers*, abaixo), porque são perguntas diferentes: esta é o que a máquina está
 fazendo. A linha carrega a fila — pendentes, processados, falhas, última execução — e a única escrita
-é `OPERATE`:
+é `OPERATE`. Expandida, ela abre quatro fatos: a configuração efetiva, a **fila**, o **livro** do
+worker (`Carimbos (descrições)` quando o livro é um carimbo, `Processados` caso contrário) e a última
+execução. A fila e o livro ficam separados de propósito, e `guides/operate.pt.md` é quem diz o que
+cada um dos dois conta:
 
 - **Rodar agora** — `POST /api/v1/system/workers/{worker_name}/runs`. A execução usa a configuração
   efetiva, ajustada só para esta vez; nada ajustado aqui vira padrão. Toda execução deixa uma linha no
