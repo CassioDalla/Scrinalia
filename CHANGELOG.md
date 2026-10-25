@@ -82,6 +82,15 @@ commits — the history is the detail.
 
 ### Changed
 
+- **The NER removal declares only the terms it reads** (issue #176). `DELETE
+  /api/v1/taxonomy/entities/ner-exclusions` took the same `NerExclusionRequest` as the `POST` and
+  read only `words`, so a `reason` sent to the removal answered 200 and was dropped without a
+  record — and the contract advertised the field only because the write model was shared. The
+  removal now declares its own `NerExclusionRemovalRequest`, the way
+  `SubjectExclusionRemovalRequest` already did for the subject exclusions: the generated client
+  stops offering a field the route ignores, and a caller that still sends it gets **400** instead of
+  a silent drop.
+
 - **The SPA derives its request bodies from the contract, as it already did its query shapes**
   (issue #93). Fifteen functions typed the body out in the signature, and the failure is the mirror
   image of the filter one: measured against the request models, pydantic refuses a **required** field
@@ -89,9 +98,9 @@ commits — the history is the detail.
   `EntityMergePreviewRequest` with `new_name` renamed to `new_nam` validates, and the merge simply
   does not rename. Ten of the thirteen models keep `extra="ignore"` and three forbid it, so the
   silence is not even uniform; the API-side question is #177. Every body is now the model its route
-  declares, four narrowings stay derived (`Pick`/`Omit`/`Required` over the model) with the screen or
-  route named beside them — the merge pair, the exclusion's `source`, the NER removal's `words`
-  (#176), and the macro suggestion without `columns_to_extract` (#174) — and
+  declares, three narrowings stay derived (`Pick`/`Omit`/`Required` over the model) with the screen or
+  route named beside them — the merge pair, the exclusion's `source`, and the macro suggestion
+  without `columns_to_extract` (#174) — and
   `testing/unit/curator/test_api_body_shapes.py` fails on the next literal and on the next narrowing
   that is not in its table. The client function `previewSubjectExclusions`, the only unused export
   among 130, is gone: the screen it was written for reads the refusal from the write's answer instead
