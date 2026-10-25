@@ -56,14 +56,15 @@ uv run python -c "from scrinalia.core.base import Base; import scrinalia.domains
 
 | Tabela | Para que serve | Colunas principais |
 | --- | --- | --- |
-| `ingestion_origins` | O ciclo de vida, a configuração e a agenda de uma origem: o que o operador edita sem deploy. | `code` (chave primária), `enabled`, `config` (JSONB: URLs, caminho, espera), `options` (JSONB: a política de execução), `cron`, `timezone`, `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id` |
+| `ingestion_origins` | O ciclo de vida, a configuração e a agenda de uma origem: o que o operador edita sem deploy. | `code` (chave primária), `enabled`, `config` (JSONB: URLs e espera; a origem `csv` não tem), `options` (JSONB: a política de execução), `cron`, `timezone`, `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id` |
 | `scraping_queue` | Uma linha por identificador descoberto na origem, com seu estado de extração e contagem de tentativas. | `description_id` (chave de negócio, única), `origin_code`, `scrape_status` (`ScrapeStatus`), `discovered_at`, `last_scraped_at`, `retry_count`, `last_error_message` |
-| `raw_data` | O payload exato devolvido pelo adaptador, sem tipagem nem limpeza. | `description_id` (único), `content_hash`, `raw_title`, `payload` (JSONB) |
+| `raw_data` | O payload exato devolvido pelo adaptador, sem tipagem nem limpeza. | `description_id` (único), `origin_code`, `content_hash`, `raw_title`, `payload` (JSONB), `created_by`, `created_by_user_id` |
 
 `scrape_status` distingue uma falha transitória (`NETWORK_ERROR`, com nova tentativa) de uma
 permanente (`NOT_FOUND`, `FATAL_ERROR`). `raw_data.payload` é a evidência do que a origem realmente
-enviou; nada a jusante o lê diretamente. `raw_data.created_by` só é preenchido pela origem manual: um
-scraper não tem autor, o autor é a origem.
+enviou; nada a jusante o lê diretamente. `raw_data.created_by` é preenchido pelas origens de
+formulário (`manual`, `csv`): uma pessoa digitou ou enviou o registro, enquanto um scraper não tem
+autor — o autor é a origem.
 
 **A origem é proveniência, não identidade.** O `origin_code` está em cada camada e no ledger de
 execuções, mas o `description_id` continua sendo a chave de negócio global; um adaptador que pudesse

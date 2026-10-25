@@ -71,14 +71,15 @@ uv run python -c "from scrinalia.core.base import Base; import scrinalia.domains
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `ingestion_origins` | One origin's lifecycle, configuration and agenda: what the operator edits without a deploy. | `code` (primary key), `enabled`, `config` (JSONB: URLs, path, delay), `options` (JSONB: the run policy), `cron`, `timezone`, `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id` |
+| `ingestion_origins` | One origin's lifecycle, configuration and agenda: what the operator edits without a deploy. | `code` (primary key), `enabled`, `config` (JSONB: URLs and delay; the `csv` origin has none), `options` (JSONB: the run policy), `cron`, `timezone`, `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id` |
 | `scraping_queue` | One row per identifier discovered at the origin, with its extraction state and retry count. | `description_id` (business key, unique), `origin_code`, `scrape_status` (`ScrapeStatus`), `discovered_at`, `last_scraped_at`, `retry_count`, `last_error_message` |
 | `raw_data` | The exact payload returned by the adapter, with no typing or cleaning. | `description_id` (unique), `origin_code`, `content_hash`, `raw_title`, `payload` (JSONB), `created_by`, `created_by_user_id` |
 
 `scrape_status` distinguishes a transient failure (`NETWORK_ERROR`, retried) from a permanent one
 (`NOT_FOUND`, `FATAL_ERROR`). `raw_data.payload` is the evidence of what the origin actually sent;
-nothing downstream reads it directly. `raw_data.created_by` is set only by the manual origin: a
-scraper has no author, its author is the origin.
+nothing downstream reads it directly. `raw_data.created_by` is set by the form-based origins
+(`manual`, `csv`): a person typed or uploaded the record, while a scraper has no author — its author
+is the origin.
 
 **The origin is provenance, not identity.** `origin_code` is on every layer and on the run ledger,
 but `description_id` stays the global business key; an adapter that could collide namespaces its own
