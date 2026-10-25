@@ -369,6 +369,16 @@ export type FailureGroup = components["schemas"]["FailureGroupDTO"];
 export type FailureGroupList = components["schemas"]["FailureGroupListResponse"];
 export type FailureSource = components["schemas"]["FailureSource"];
 export type WorkerRunRequest = components["schemas"]["WorkerRunRequest"];
+/** The ingestion origin and the writes its screen owns (#44). */
+export type IngestionOrigin = components["schemas"]["IngestionOriginDTO"];
+export type IngestionOriginList = components["schemas"]["IngestionOriginListResponse"];
+export type IngestionOriginUpdateRequest = components["schemas"]["IngestionOriginUpdateRequest"];
+export type IngestionScheduleRequest = components["schemas"]["IngestionScheduleRequest"];
+export type IngestionRunRequest = components["schemas"]["IngestionRunRequest"];
+export type IngestionOption = components["schemas"]["IngestionOptionDTO"];
+export type OriginConfigField = components["schemas"]["OriginConfigFieldDTO"];
+export type ManualIngestionRequest = components["schemas"]["ManualIngestionRequest"];
+export type ManualIngestionResponse = components["schemas"]["ManualIngestionResponse"];
 export type SystemHealth = components["schemas"]["SystemHealthResponse"];
 export type DatabaseHealth = components["schemas"]["DatabaseHealthDTO"];
 export type OllamaHealth = components["schemas"]["OllamaHealthDTO"];
@@ -1616,6 +1626,67 @@ export async function triggerWorkerRun(worker: string, body: WorkerRunRequest): 
       body,
     }),
   );
+}
+
+// --- The ingestion origins: the stage in front of the archive --------------------------------
+
+/** Every origin with its queue, its last run and its agenda — one request for the whole screen. */
+export async function listIngestionOrigins(): Promise<IngestionOriginList> {
+  return unwrap<IngestionOriginList>(await client.GET("/api/v1/ingestion/origins"));
+}
+
+/** Saves the origin's lifecycle and adapter configuration; the agenda has its own call. */
+export async function updateIngestionOrigin(
+  code: string,
+  body: IngestionOriginUpdateRequest,
+): Promise<IngestionOrigin> {
+  return unwrap<IngestionOrigin>(
+    await client.PATCH("/api/v1/ingestion/origins/{code}", {
+      params: { path: { code } },
+      body,
+    }),
+  );
+}
+
+/** Creates or replaces the origin's cron in an explicit IANA zone. */
+export async function saveIngestionSchedule(
+  code: string,
+  body: IngestionScheduleRequest,
+): Promise<IngestionOrigin> {
+  return unwrap<IngestionOrigin>(
+    await client.PUT("/api/v1/ingestion/origins/{code}/schedule", {
+      params: { path: { code } },
+      body,
+    }),
+  );
+}
+
+/** Removes the agenda; the configuration and the runs stay. */
+export async function deleteIngestionSchedule(code: string): Promise<IngestionOrigin> {
+  return unwrap<IngestionOrigin>(
+    await client.DELETE("/api/v1/ingestion/origins/{code}/schedule", { params: { path: { code } } }),
+  );
+}
+
+/** Enqueues one ingestion execution for the origin; the body overrides this run's options. */
+export async function triggerIngestionRun(code: string, body: IngestionRunRequest): Promise<WorkerRun> {
+  return unwrap<WorkerRun>(
+    await client.POST("/api/v1/ingestion/origins/{code}/runs", {
+      params: { path: { code } },
+      body,
+    }),
+  );
+}
+
+/**
+ * The manual origin's one-record write.
+ *
+ * It returns the record id and whether the transfer was queued or is waiting for the one in flight;
+ * the record is not approved by being typed, so the screen says it entered the AI queue, not that it
+ * is done.
+ */
+export async function createManualIngestion(body: ManualIngestionRequest): Promise<ManualIngestionResponse> {
+  return unwrap<ManualIngestionResponse>(await client.POST("/api/v1/ingestion/manual", { body }));
 }
 
 /**

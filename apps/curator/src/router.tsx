@@ -12,6 +12,7 @@ import { DiscoverRoute } from "@/routes/DiscoverRoute";
 import { DocumentRoute } from "@/routes/DocumentRoute";
 import { EntitiesRoute, validateEntitiesSearch } from "@/routes/EntitiesRoute";
 import { InboxRoute } from "@/routes/InboxRoute";
+import { IngestionRoute } from "@/routes/IngestionRoute";
 import { LevelsRoute } from "@/routes/LevelsRoute";
 import { NerExclusionsRoute } from "@/routes/NerExclusionsRoute";
 import { NotFoundRoute } from "@/routes/NotFoundRoute";
@@ -213,6 +214,12 @@ const systemWorkersRoute = createRoute({
   component: SystemWorkersRoute,
 });
 
+const ingestionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/sistema/ingestao",
+  component: IngestionRoute,
+});
+
 const systemRunsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sistema/execucoes",
@@ -291,6 +298,7 @@ export const router = createRouter({
     cleaningRulesRoute,
     anomaliesRoute,
     systemWorkersRoute,
+    ingestionRoute,
     systemRunsRoute,
     systemHealthRoute,
     settingsRoute,
