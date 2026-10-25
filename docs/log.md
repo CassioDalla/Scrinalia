@@ -2303,7 +2303,7 @@ with short or full shas, and part of a `## <date> — <title>` entry.
 
 ## 2026-10-25 — a trial before committing the collection, and the gabarito it reads (#71)
 
-- **Range:** `89b2ec6..HEAD`
+- **Range:** `89b2ec6..855f341`
 - **Pages:**
   - `adr/0018-trials-and-the-human-gabarito.md` — **new**: a trial is a ledger row (`trial`,
     `trial_result`) that runs two to four configurations over one sample and writes no archival
