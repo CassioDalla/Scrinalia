@@ -2054,3 +2054,30 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   bodies derived from the contract, so the pixels cannot differ. The 53 bodies were not exercised
   against a live server one by one — the gate reads the policy, and the suite drives the routes.
 
+## 2026-10-25 — the materialisation command has its own name (#184)
+
+- **Range:** `4a8b78f..74a3a5c`
+- **Pages:** **none changed by this round**, and the two the report named are the merge's trace:
+  - `guides/curate.md` — **no-change**: the report named it through `a24154e`, the merge of the #174
+    branch, whose page text was written and triaged in that round (`c71f3aa..5900c48`). No declared
+    source moved after it — the change here is a class name in the domain schemas, which the page
+    never prints.
+  - `guides/curate.pt.md` — **no-change**: the same merge, and the translation was updated with the
+    English page in the #174 round.
+- **Why the round exists:** #184, the finding #177 recorded. Two models shared the name
+  `HierarchyMaterialisationRequest` — the HTTP body (no author, the one the contract `$ref`s) and the
+  service command (`changed_by`); the controller imported both, the second as
+  `MaterialisationCommand`, and the docstrings had drifted by a word.
+- **What the round measured.** The rename moved **22 references in 4 files** — the domain schema, the
+  package `__init__`, the service and the controller (whose alias disappeared) — plus 12 constructions
+  in the service's integration test, and **zero** lines of contract: regenerating `openapi.json` and
+  `schema.d.ts` leaves both byte-identical, because the command is not bound to a route. The gate is
+  `testing/unit/quality/test_model_names.py`: of the **276** pydantic models in the three schema
+  packages, the duplicate was the only one, and the test fails with the two module names when one is
+  reintroduced — proved by mutation (a duplicate class appended to `hierarchy_requests.py` made it
+  fail; the file was restored byte-identical). Full suite **2044 passed, 1 skipped**; `basedpyright`,
+  `ruff check`/`format --check` and `tsc`/ESLint green.
+- **Not verified, and said so.** No screen was rendered — the rename touches no route and no generated
+  type, so no pixel can differ. The materialisation routes were exercised only through their
+  integration tests, not against a live server.
+
