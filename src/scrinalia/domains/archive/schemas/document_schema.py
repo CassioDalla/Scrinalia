@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from scrinalia.domains.archive.models import ArchiveEntityOrigin, ArchiveReviewStatus
 from scrinalia.domains.archive.schemas.responses import RouteResponse
@@ -177,6 +177,15 @@ class DocumentAncestorSummary(BaseModel):
     level: str | None = None
 
 
+#: The collection's resource and the one sub-route a description advertises for its miniature.
+#: They live beside the read view because ``DocumentSummary.thumbnail_url`` *is* that route: a client
+#: that assembled the path from an id would be a second definition of a URL the API already declares,
+#: and the two would drift in the direction no compiler catches.
+DOCUMENTS_RESOURCE = "/api/v1/documents"
+THUMBNAIL_SEGMENT = "/{description_id:str}/thumbnail"
+_THUMBNAIL_URL_TEMPLATE = DOCUMENTS_RESOURCE + "/{description_id}/thumbnail"
+
+
 class DocumentSummary(BaseModel):
     """Read view of the collection, consumed by the API and the front-end."""
 
@@ -239,6 +248,21 @@ class DocumentSummary(BaseModel):
     rank: float | None = Field(default=None, description="Full-text relevance score.")
 
     model_config = ConfigDict(from_attributes=True)
+
+    @computed_field
+    @property
+    def thumbnail_url(self) -> str | None:
+        """
+        Where the browser reads the miniature, or ``None`` when the source had no image to store.
+
+        Derived on the server from ``storage_thumbnail_uri`` and **never** assembled by the client:
+        the SPA binds this string to an ``<img>``, so it does not know the bucket and cannot drift
+        from the route. The bytes themselves come from the authenticated route, which answers 404
+        when the object is gone; the screen shows "imagem indisponível" instead of a broken image.
+        """
+        if not self.storage_thumbnail_uri:
+            return None
+        return _THUMBNAIL_URL_TEMPLATE.format(description_id=self.description_id)
 
 
 class DocumentRevisionDTO(BaseModel):

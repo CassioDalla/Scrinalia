@@ -227,6 +227,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/{description_id}/thumbnail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetThumbnail */
+        get: operations["ApiV1DocumentsDescriptionIdThumbnailGetThumbnail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/hierarchy/diagnostics": {
         parameters: {
             query?: never;
@@ -2737,6 +2754,15 @@ export interface components {
             /** @description Title proposal; never stored, disappears once final_title is written. */
             suggested_final_title?: string | null;
             tags?: components["schemas"]["DocumentTagSummary"][];
+            /**
+             * @description Where the browser reads the miniature, or ``None`` when the source had no image to store.
+             *
+             *     Derived on the server from ``storage_thumbnail_uri`` and **never** assembled by the client:
+             *     the SPA binds this string to an ``<img>``, so it does not know the bucket and cannot drift
+             *     from the route. The bytes themselves come from the authenticated route, which answers 404
+             *     when the object is gone; the screen shows "imagem indisponível" instead of a broken image.
+             */
+            readonly thumbnail_url: string | null;
             typology?: string | null;
             typology_id?: number | null;
         };
@@ -5309,6 +5335,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentSummary"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1DocumentsDescriptionIdThumbnailGetThumbnail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                description_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The stored miniature, read from the object storage on demand. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
                 };
             };
             /** @description Bad request syntax or unsupported method */

@@ -63,7 +63,10 @@ ingestion -> transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-ju
   que o bucket existe antes do primeiro documento — criando-o só quando
   `S3_AUTO_CREATE_BUCKET=true` — então um bucket ausente derruba a execução uma vez, com uma frase,
   em vez de carimbar a fila inteira com o `AccessDenied` enganoso do endpoint. O `--limit N` limita
-  os documentos de uma execução, que é o que torna barato um teste local.
+  os documentos de uma execução, que é o que torna barato um teste local. O worker só escreve o
+  objeto; a API o serve sob demanda em `GET /api/v1/documents/{description_id}/thumbnail` (ADR 0017).
+  O endpoint precisa continuar alcançável a partir do **processo da API** e as credenciais precisam
+  permitir `GetObject` — o navegador nunca fala com ele.
 - **`conflict-judge`** compara o vocabulário de tags com o de entidades e consulta o LLM local para
   decidir se o termo ambíguo é assunto ou nome próprio. Todo veredicto, automático ou enviado a uma
   pessoa, deixa uma linha em `archive_ai_review_queue`. Uma chamada que o motor não conseguiu fazer

@@ -87,6 +87,15 @@ class DocumentService:
             raise DocumentNotFoundError(f"Documento '{description_id}' não encontrado no acervo.")
         return doc
 
+    def get_thumbnail_uri(self, description_id: str) -> str | None:
+        """
+        The stored miniature's URI, or ``None`` when there is nothing to serve.
+
+        The route reads it through this method instead of ``get``: a miniature request needs one
+        column, not the tags, entities and ancestors the dossier read view decorates.
+        """
+        return self.repo.get_thumbnail_uri(description_id)
+
     def list_revisions(self, description_id: str) -> list[DocumentRevisionDTO]:
         """Human review audit trail of one document."""
         return self.repo.list_revisions(description_id)

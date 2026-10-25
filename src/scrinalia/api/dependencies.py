@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 from functools import lru_cache
+from typing import Protocol, runtime_checkable
 
 from litestar import Request
 from litestar.di import NamedDependency
@@ -63,6 +64,35 @@ def provide_embedding_engine() -> EmbeddingEngine:
     from scrinalia.domains.archive.engines.embeddings.registry import get_engine
 
     return get_engine("sentence_transformer", preset="multilingual_minilm")
+
+
+@runtime_checkable
+class ThumbnailReader(Protocol):
+    """
+    What the miniature route needs from the object storage: one object, by the URI the archive wrote.
+
+    A protocol and not ``S3Storage`` so this module — imported by the app at start-up — does not
+    import boto3, and so the route's test can hand it a dictionary. ``S3Storage`` satisfies it
+    structurally: ``(bytes, media_type)``, or ``None`` when there is nothing to serve.
+    """
+
+    def read_object(self, uri: str) -> tuple[bytes, str] | None:
+        raise NotImplementedError
+
+
+@lru_cache(maxsize=1)
+def provide_thumbnail_reader() -> ThumbnailReader:
+    """
+    The process-wide object reader behind ``GET /documents/{id}/thumbnail``.
+
+    Cached because a boto3 client costs milliseconds to build and a page of twenty-five miniatures
+    would build twenty-five of them. The import is local for the reason the health probe's is: the
+    API must start — and serve every other screen — in an installation whose object storage is
+    missing or misconfigured.
+    """
+    from scrinalia.core.storage import S3Storage
+
+    return S3Storage()
 
 
 def provide_unit_of_work() -> Iterator[UnitOfWork]:

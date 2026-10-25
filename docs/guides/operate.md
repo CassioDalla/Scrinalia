@@ -28,6 +28,8 @@ sources:
   - src/scrinalia/api/controllers/system_controller.py
   - src/scrinalia/api/controllers/ingestion_controller.py
   - src/scrinalia/api/controllers/health_controller.py
+  - src/scrinalia/api/controllers/document_controller.py
+  - src/scrinalia/core/storage.py
   - src/scrinalia/api/controllers/setup_controller.py
   - src/scrinalia/api/middleware.py
   - src/scrinalia/api/system_health.py
@@ -120,7 +122,10 @@ ingestion -> transfer -> cleaning -> ner -> typology -> thumbnail -> conflict-ju
   confirms the bucket exists before the first document — creating it only when
   `S3_AUTO_CREATE_BUCKET=true` — so a bucket that is missing fails the run once, with a sentence,
   instead of stamping the whole backlog with the endpoint's misleading `AccessDenied`. `--limit N`
-  caps the documents of one run, which is what makes a local test cheap.
+  caps the documents of one run, which is what makes a local test cheap. The worker only writes the
+  object; the API serves it on demand through `GET
+  /api/v1/documents/{description_id}/thumbnail` (ADR 0017). The endpoint must stay reachable from the
+  **API process** and the credentials must allow `GetObject` — the browser never talks to it.
 - **`conflict-judge`** compares the tag vocabulary with the entity vocabulary and asks the local
   LLM whether an ambiguous term is a subject or a proper name. Every verdict, auto-resolved or sent
   to a human, leaves a row in `archive_ai_review_queue`. A call the engine could not make raises

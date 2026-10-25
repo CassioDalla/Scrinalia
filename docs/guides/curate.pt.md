@@ -118,7 +118,8 @@ publicado responde 404, nunca 403, porque um status distinto confirmaria que a d
 A projeção pública é mais estreita que a do curador, campo a campo. Ela carrega os campos ISAD(G)
 `original_title`, `final_title`, `document_date`, `reference_code`, `level`, `scope_content`,
 `language_name` e `producers`; o enriquecimento `typology`, as tags (nome), as entidades (nome e
-tipo) e as categorias de assunto (nome e contagem); a miniatura; o ramo (`ancestors`) e o
+tipo) e as categorias de assunto (nome e contagem); a miniatura — ainda a referência `s3://`
+guardada, porque a rota pública que serve os bytes é a #46 (ADR 0017); o ramo (`ancestors`) e o
 `children_count`. Ela deliberadamente **não** carrega o processo de curadoria nem a narrativa não
 publicada: `review_status`, `is_anomaly`, `anomaly_reasons`, `archivist_notes`, `provenance`,
 `suggested_final_title`, `admin_bio_history`, `admin_archival_history` e `access_conditions`. O
@@ -357,6 +358,15 @@ nunca é o valor guardado: ele é derivado na leitura a partir dos trechos de es
 arquivista escreve `final_title`.
 
 #### Descrição
+
+O primeiro cartão é a **miniatura**, e ela vem da API, não do navegador: a leitura anuncia
+`thumbnail_url` e a SPA a liga a um `<img>`, então o cliente nunca monta um caminho e nunca fala com o
+bucket (ADR 0017). Os bytes são `GET /api/v1/documents/{description_id}/thumbnail` (`AUTHENTICATED`);
+a rota responde 404 quando a origem não tinha imagem ou o objeto não está mais no bucket, e 503
+quando o próprio storage está indisponível. Quatro das 101 descrições do acervo de referência não
+têm imagem de origem, então "Sem imagem" é um estado normal, e uma URI guardada cujo objeto sumiu
+mostra "Imagem indisponível" — nunca o ícone de imagem quebrada. A lista do acervo mostra a mesma
+miniatura a 56 px, que é como se reconhece uma fotografia sem abrir o dossiê.
 
 A decisão é o próprio registro: qualquer campo ISAD(G), o nível, a tipologia, `access_conditions` e
 `is_published`, com uma nota do porquê. A escrita é `PATCH /api/v1/documents/{description_id}`
