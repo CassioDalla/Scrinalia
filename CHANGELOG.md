@@ -11,6 +11,18 @@ commits — the history is the detail.
 
 ### Added
 
+- **The clustering's columns are a read, and the screen offers them** (issue #174). `POST
+  /api/v1/taxonomy/tags/suggest-macro` accepted `columns_to_extract` and no screen sent it, so the
+  archivist could not choose which part of the description the clustering reads; a mistyped column
+  reached `getattr(ArchiveDocument, column)` and answered **500**. `GET
+  /api/v1/taxonomy/tags/suggest-macro/columns` publishes the five AI text columns and the four the
+  run reads when none is named, the Discover screen renders one checkbox per column from that read,
+  and the body carries the list again. The default became `CLUSTERING_TEXT_COLUMNS`, its own
+  definition beside `AI_TEXT_COLUMNS` — `final_title` is in the corpus and out of the default, and a
+  unit test pins the difference, so a column added to the corpus does not silently change what the
+  clustering reads. The route refuses an unknown column with a **400** that names it, an empty list,
+  and a list sent with `source_type=tags`, where the run would ignore it.
+
 - **The "não é assunto" refusal is shown before the write** (issue #175). The preview route
   (`POST /api/v1/taxonomy/tags/subject-exclusions/preview`) has answered `applicable` and `blocked`
   since #83 and no screen called it — the client function was even deleted in #93 for having no
