@@ -122,11 +122,11 @@ change at a time and attributable.
 Always run from the repo root. Python 3.12, managed by `uv` (`uv.lock`).
 
 - Install: `uv sync` (heavy: `torch`, `transformers`, `spacy`, `bertopic`). Whole dev stack:
-  `bun run dev` — `docker compose up -d`, then the API on `:8000`, the runner and SPA on `:5173`. The
-  pieces run alone too: `bun run db:up`, `bun run api:dev`, `bun run runner:dev`, `bun run curator:dev`.
-  **A 502 on `/api` from the Vite dev server means the API is not up** (the proxy targets
-  `localhost:8000`); the SPA itself still answers 200, which is what makes the symptom look like a
-  front-end bug.
+  `bun run dev` — `docker compose up -d`, then the API on `:8000`, the runner, the scheduler and SPA on
+  `:5173`. The pieces run alone too: `bun run db:up`, `bun run api:dev`, `bun run runner:dev`,
+  `bun run scheduler:dev`, `bun run curator:dev`. **A 502 on `/api` from Vite means the API is not up**
+  (the proxy targets `localhost:8000`); the SPA still answers 200, which makes it look like a front-end
+  bug.
 - API: `uv run uvicorn main:app --reload`.
 - Curator UI: `bun install` once at the repo root, then `bun run curator:dev` or `bun run curator:build`.
   **Bun manages packages and scripts; Vite is the bundler** — do not replace it with `bun build`
@@ -134,9 +134,9 @@ Always run from the repo root. Python 3.12, managed by `uv` (`uv.lock`).
 - Contract: `bun run contract` regenerates `openapi.json` and the TypeScript client (principle III).
 - Migrations: `uv run alembic upgrade head`; `uv run alembic check` must report no drift.
 - Workers: `uv run python -m scrinalia.domains.archive.workers.runner <name> [--engine X --preset Y
-  --batch N --option k=v --by "quem"]` for one-off runs; `uv run python -m
-  scrinalia.domains.archive.workers.runner_daemon` serves the queue (ADR 0014). The names, pipeline
-  order and panel are the rule file `workers`.
+  --batch N --option k=v --by "quem"]` for one-off runs; `...runner_daemon` serves the queue and
+  `...scheduler` turns the agendas into runs (ADR 0014/0015). The names, pipeline order and panel are
+  the rule file `workers`.
 - Tests: `uv run pytest` from the root; one test is
   `uv run pytest testing/unit/archive/workers/test_worker_ner.py::test_name`. The fixtures and the test
   database are the rule file `testing`.
@@ -231,4 +231,4 @@ A skill per topic. Open the one that owns what you are about to touch.
   writable, and where `uv`'s and `pre-commit`'s caches must point.
 - `documenter` — the procedure for a documentation triage round.
 
-**Version**: 1.2.1 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-25
+**Version**: 1.2.2 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-25

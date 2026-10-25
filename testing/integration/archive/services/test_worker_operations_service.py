@@ -1,5 +1,7 @@
 """The panel's read model and the settings writes, against the database."""
 
+from datetime import UTC, datetime
+
 import pytest
 
 from scrinalia.core.author import Author
@@ -10,6 +12,7 @@ from scrinalia.domains.archive.models.operations import WorkerSetting
 from scrinalia.domains.archive.repository import TypologyRepository
 from scrinalia.domains.archive.repository.cleaning_repo import CleaningRepository
 from scrinalia.domains.archive.repository.worker_runner_repo import WorkerRunnerRepository
+from scrinalia.domains.archive.repository.worker_schedule_repo import WorkerScheduleRepository
 from scrinalia.domains.archive.schemas.cleaning_schema import CleaningRuleCreateDTO
 from scrinalia.domains.archive.schemas.system_schema import WorkerSettingsRequest
 from scrinalia.domains.archive.services.worker_operations_service import WorkerOperationsService
@@ -412,3 +415,26 @@ def test_without_an_online_runner_no_worker_is_available(service) -> None:
 
     assert panel.runners == []
     assert all(worker.runner_available is False for worker in panel.workers)
+
+
+def test_the_panel_carries_the_worker_agenda(db_session, service) -> None:
+    now = datetime.now(UTC)
+    WorkerScheduleRepository(db_session).upsert(
+        "cleaning",
+        enabled=True,
+        cron="0 2 * * *",
+        timezone="UTC",
+        request={},
+        next_run_at=now,
+        author=Author("ana"),
+    )
+    db_session.flush()
+
+    panel = service.list_workers()
+    cleaning = next(worker for worker in panel.workers if worker.name == "cleaning")
+    ner = next(worker for worker in panel.workers if worker.name == "ner")
+
+    assert cleaning.schedule is not None
+    assert cleaning.schedule.cron == "0 2 * * *"
+    assert cleaning.schedule.next_run_at == now
+    assert ner.schedule is None

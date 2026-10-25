@@ -42,6 +42,7 @@ from scrinalia.domains.archive.exceptions import (
     InvalidMergeError,
     InvalidParam,
     InvalidTypologyError,
+    InvalidWorkerScheduleError,
     InvalidWorkerSettingsError,
     MacroCategoryNotFoundError,
     MaterialisationAlreadyUndoneError,
@@ -60,6 +61,7 @@ from scrinalia.domains.archive.exceptions import (
     WorkerNotFoundError,
     WorkerRunAlreadyActiveError,
     WorkerRunNotFoundError,
+    WorkerScheduleNotFoundError,
 )
 from scrinalia.domains.archive.repository.api_error_repo import ApiErrorRecorder
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode
@@ -113,6 +115,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             MaterialisationNotFoundError,
             WorkerNotFoundError,
             WorkerRunNotFoundError,
+            WorkerScheduleNotFoundError,
             UserNotFoundError,
             SessionNotFoundError,
         ),
@@ -167,6 +170,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             InvalidLLMCheckEngineError,
             InvalidTypologyError,
             UnresolvableConflictError,
+            InvalidWorkerScheduleError,
             InvalidWorkerSettingsError,
             InvalidCurrentPasswordError,
             InvalidEmailError,

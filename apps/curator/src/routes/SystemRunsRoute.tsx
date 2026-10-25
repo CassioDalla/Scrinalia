@@ -19,8 +19,10 @@ import {
   FAILURE_SOURCE_LABEL,
   formatDuration,
   isActiveRun,
+  MAX_ATTEMPTS,
   RUN_STATUS_LABEL,
   RUN_STATUS_TONE,
+  TRIGGER_LABEL,
 } from "@/lib/system";
 
 const routeApi = getRouteApi("/sistema/execucoes");
@@ -180,7 +182,7 @@ export function SystemRunsRoute() {
                       <Badge tone={RUN_STATUS_TONE[run.status]}>{RUN_STATUS_LABEL[run.status]}</Badge>
                       <span className="truncate text-sm font-medium">{labelOf(run.worker_name)}</span>
                       <span className="font-mono text-[11px] text-(--color-muted)">{run.worker_name}</span>
-                      <Badge tone="neutral">{run.trigger === "API" ? "painel" : "linha de comando"}</Badge>
+                      <Badge tone="neutral">{TRIGGER_LABEL[run.trigger]}</Badge>
                     </div>
                     <span className="text-xs text-(--color-muted)">
                       #{run.run_id} · {formatDateTime(run.queued_at)} · {formatDuration(run.duration_ms)}
@@ -200,6 +202,16 @@ export function SystemRunsRoute() {
                     model?", and a row older than the column says so instead of guessing.
                   */}
                   <p className="font-mono text-[11px] text-(--color-muted)">{describeOptions(run.options)}</p>
+
+                  {run.attempt > 1 || run.retry_of || (run.not_before && run.status === "QUEUED") ? (
+                    <p className="text-xs text-(--color-muted)">
+                      {run.attempt > 1 ? `tentativa ${run.attempt}/${MAX_ATTEMPTS}` : ""}
+                      {run.retry_of ? `${run.attempt > 1 ? " · " : ""}nova tentativa de #${run.retry_of}` : ""}
+                      {run.not_before && run.status === "QUEUED"
+                        ? `${run.attempt > 1 || run.retry_of ? " · " : ""}começa em ${formatDateTime(run.not_before)}`
+                        : ""}
+                    </p>
+                  ) : null}
 
                   {run.runner_id ? (
                     <p className="font-mono text-[11px] text-(--color-muted)">

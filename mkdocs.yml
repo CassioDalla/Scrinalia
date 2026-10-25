@@ -129,4 +129,5 @@ nav:
       - 0012 The documentation site is published by CI: adr/0012-the-documentation-site-is-published-by-ci.md
       - 0013 The tag axis is the subject axis: adr/0013-the-tag-axis-is-the-subject-axis.md
       - 0014 The workers leave the API: adr/0014-the-workers-leave-the-api.md
+      - 0015 Schedules and retries: adr/0015-schedules-and-retries.md
   - Documentation log: log.md

@@ -214,10 +214,11 @@ class WorkerRunStatus(enum.StrEnum):
 
 
 class WorkerRunTrigger(enum.StrEnum):
-    """Who asked for the run: the command line or the curator's panel."""
+    """Who asked for the run: the command line, the curator's panel or the schedule (ADR 0015)."""
 
     CLI = "CLI"
     API = "API"
+    SCHEDULE = "SCHEDULE"
 
 
 class FailureSource(enum.StrEnum):

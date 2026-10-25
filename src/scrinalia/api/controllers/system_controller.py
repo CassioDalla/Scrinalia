@@ -14,6 +14,7 @@ from scrinalia.api.dependencies import (
     provide_failure_service,
     provide_worker_operations_service,
     provide_worker_run_service,
+    provide_worker_schedule_service,
 )
 from scrinalia.api.security import Access, AuthenticatedUser
 from scrinalia.api.system_health import probe_infrastructure
@@ -27,6 +28,8 @@ from scrinalia.domains.archive.schemas.system_schema import (
     WorkerRunDTO,
     WorkerRunListResponse,
     WorkerRunRequest,
+    WorkerScheduleDTO,
+    WorkerScheduleRequest,
     WorkerSettingsDTO,
     WorkerSettingsRequest,
     WorkerSettingsRevisionListResponse,
@@ -34,6 +37,7 @@ from scrinalia.domains.archive.schemas.system_schema import (
 from scrinalia.domains.archive.services.failure_service import FailureService
 from scrinalia.domains.archive.services.worker_operations_service import WorkerOperationsService
 from scrinalia.domains.archive.services.worker_run_service import WorkerRunService
+from scrinalia.domains.archive.services.worker_schedule_service import WorkerScheduleService
 
 
 class SystemController(Controller):
@@ -44,6 +48,7 @@ class SystemController(Controller):
         "current_user": Provide(provide_current_user, sync_to_thread=False),
         "operations_service": Provide(provide_worker_operations_service, sync_to_thread=False),
         "run_service": Provide(provide_worker_run_service, sync_to_thread=False),
+        "schedule_service": Provide(provide_worker_schedule_service, sync_to_thread=False),
         "failure_service": Provide(provide_failure_service, sync_to_thread=False),
     }
 
@@ -122,6 +127,45 @@ class SystemController(Controller):
         partial unique index, not from a check the API could race.
         """
         return run_service.trigger(worker_name, data, requested_by=current_user.author)
+
+    @get("/workers/{worker_name:str}/schedule", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
+    def get_schedule(
+        self,
+        schedule_service: NamedDependency[WorkerScheduleService],
+        worker_name: FromPath[str],
+    ) -> WorkerScheduleDTO | None:
+        """
+        The worker's agenda, or null when it has none (ADR 0015).
+
+        A separate read from the panel: the schedule card opens for one worker, and the whole panel's
+        nine agenda rows are already in ``/workers``.
+        """
+        return schedule_service.get(worker_name)
+
+    @put("/workers/{worker_name:str}/schedule", opt={"access": Access.OPERATE}, status_code=200, sync_to_thread=True)
+    def put_schedule(
+        self,
+        schedule_service: NamedDependency[WorkerScheduleService],
+        worker_name: FromPath[str],
+        data: WorkerScheduleRequest,
+        current_user: NamedDependency[AuthenticatedUser],
+    ) -> WorkerScheduleDTO:
+        """
+        Creates or replaces the worker's agenda: the cron, the zone and the pinned request.
+
+        The cron is five fields and the zone is IANA; an invalid pair, or a request the worker cannot
+        accept, answers 422 before anything is written.
+        """
+        return schedule_service.upsert(worker_name, data, author=current_user.author)
+
+    @delete("/workers/{worker_name:str}/schedule", opt={"access": Access.OPERATE}, status_code=200, sync_to_thread=True)
+    def delete_schedule(
+        self,
+        schedule_service: NamedDependency[WorkerScheduleService],
+        worker_name: FromPath[str],
+    ) -> None:
+        """Removes the agenda; the runs it already created stay in the ledger."""
+        schedule_service.delete(worker_name)
 
     @put("/workers/{worker_name:str}/settings", opt={"access": Access.OPERATE}, status_code=200, sync_to_thread=True)
     def update_settings(

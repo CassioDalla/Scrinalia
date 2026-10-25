@@ -6,6 +6,7 @@ import pytest
 
 from scrinalia.core.database import SessionFactory
 from scrinalia.domains.archive.workers import runner_daemon
+from scrinalia.domains.archive.workers import schema as schema_module
 from scrinalia.domains.archive.workers.catalogue import WORKER_CATALOGUE
 
 #: The schema check must not open a connection in these tests; the functions it calls are faked.
@@ -44,22 +45,22 @@ def test_a_stable_runner_id_can_be_given() -> None:
 
 
 def test_the_schema_check_accepts_the_head(monkeypatch) -> None:
-    monkeypatch.setattr(runner_daemon, "schema_head", lambda: "abc")
-    monkeypatch.setattr(runner_daemon, "current_schema_revision", lambda _: "abc")
+    monkeypatch.setattr(schema_module, "schema_head", lambda: "abc")
+    monkeypatch.setattr(schema_module, "current_schema_revision", lambda _: "abc")
 
-    runner_daemon.assert_schema_at_head(_NO_SESSION)
+    schema_module.assert_schema_at_head(_NO_SESSION)
 
 
 def test_the_schema_check_refuses_a_database_behind_the_code(monkeypatch) -> None:
-    monkeypatch.setattr(runner_daemon, "schema_head", lambda: "abc")
-    monkeypatch.setattr(runner_daemon, "current_schema_revision", lambda _: "old")
+    monkeypatch.setattr(schema_module, "schema_head", lambda: "abc")
+    monkeypatch.setattr(schema_module, "current_schema_revision", lambda _: "old")
 
     with pytest.raises(SystemExit, match="migrations"):
-        runner_daemon.assert_schema_at_head(_NO_SESSION)
+        schema_module.assert_schema_at_head(_NO_SESSION)
 
 
 def test_the_schema_check_is_skipped_when_the_head_is_unreadable(monkeypatch) -> None:
-    monkeypatch.setattr(runner_daemon, "schema_head", lambda: None)
-    monkeypatch.setattr(runner_daemon, "current_schema_revision", lambda _: "unreachable")
+    monkeypatch.setattr(schema_module, "schema_head", lambda: None)
+    monkeypatch.setattr(schema_module, "current_schema_revision", lambda _: "unreachable")
 
-    runner_daemon.assert_schema_at_head(_NO_SESSION)
+    schema_module.assert_schema_at_head(_NO_SESSION)

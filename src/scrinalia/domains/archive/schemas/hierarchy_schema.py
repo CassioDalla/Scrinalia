@@ -95,7 +95,7 @@ class HierarchyNodeDetail(BaseModel):
     """
 
     node: HierarchyNodeSummary
-    ancestors: list[HierarchyNodeSummary] = Field(default_factory=list, description="Root first.")
+    ancestors: list[HierarchyNodeSummary] = Field(default_factory=list)
     children: list[HierarchyNodeSummary] = Field(default_factory=list)
 
 

@@ -6,6 +6,9 @@ sources:
   - src/scrinalia/domains/archive/workers/lease.py
   - src/scrinalia/domains/archive/workers/configuration.py
   - src/scrinalia/domains/archive/workers/ledger.py
+  - src/scrinalia/domains/archive/workers/retry.py
+  - src/scrinalia/domains/archive/workers/schedule.py
+  - src/scrinalia/domains/archive/workers/scheduler.py
   - src/scrinalia/domains/archive/workers/worker_*.py
   - src/scrinalia/domains/archive/worker_stamp.py
   - src/scrinalia/domains/archive/models/operations.py
@@ -13,8 +16,10 @@ sources:
   - src/scrinalia/domains/archive/schemas/system_schema.py
   - src/scrinalia/domains/archive/repository/worker_run_repo.py
   - src/scrinalia/domains/archive/repository/worker_runner_repo.py
+  - src/scrinalia/domains/archive/repository/worker_schedule_repo.py
   - src/scrinalia/domains/archive/repository/worker_settings_repo.py
   - src/scrinalia/domains/archive/repository/worker_stamp_repo.py
+  - src/scrinalia/domains/archive/services/worker_schedule_service.py
   - src/scrinalia/domains/archive/repository/governance.py
   - src/scrinalia/domains/archive/repository/failure_repo.py
   - src/scrinalia/domains/archive/services/worker_operations_service.py
@@ -442,6 +447,9 @@ in the SPA: the menu no longer carries them (issue #22).
 | `/api/v1/system/workers/settings` | `GET` | authenticated | the persisted defaults of the nine workers, without the queue counters (issue #53) |
 | `/api/v1/system/workers/{worker_name}/queue/preview` | `POST` | authenticated | the pending count of a **proposed** configuration, computed without writing |
 | `/api/v1/system/workers/{worker_name}/runs` | `POST` | `OPERATE` | queues one run with per-run overrides and answers `201` immediately |
+| `/api/v1/system/workers/{worker_name}/schedule` | `GET` | authenticated | the worker's agenda, or null when it has none (ADR 0015) |
+| `/api/v1/system/workers/{worker_name}/schedule` | `PUT` | `OPERATE` | creates or replaces the agenda: the five-field cron, the IANA zone, the pinned request and the enabled state |
+| `/api/v1/system/workers/{worker_name}/schedule` | `DELETE` | `OPERATE` | removes the agenda; the runs it already created stay in the ledger |
 | `/api/v1/system/workers/{worker_name}/settings` | `PUT` | `OPERATE` | persists the default engine/preset/batch/options |
 | `/api/v1/system/workers/{worker_name}/settings` | `DELETE` | `OPERATE` | drops the override so the worker follows the code |
 | `/api/v1/system/workers/{worker_name}/settings/revisions` | `GET` | authenticated | who changed what, when |
@@ -456,9 +464,9 @@ The SPA mirrors it, as cards of `/configuracoes` under *Operação*:
 
 | Screen | Shows |
 | --- | --- |
-| `/sistema/workers` | the nine workers: engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and an **Enfileirar execução** button; above them, the runner cards (online, host, version, concurrency, capabilities, last heartbeat) and a warning when none is online. A worker no online runner accepts is marked **sem runner** — the row still queues and waits. The effective configuration is read-only here |
-| `/configuracoes/workers` | the persisted default of each worker and its revisions, with save and remove — the write the panel used to carry |
-| `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences |
+| `/sistema/workers` | the nine workers: engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and an **Enfileirar execução** button; above them, the runner cards (online, host, version, concurrency, capabilities, last heartbeat) and a warning when none is online. A worker no online runner accepts is marked **sem runner** — the row still queues and waits. The **Agenda** badge and fact show the cron, the zone, the next run and the last skipped period. The effective configuration is read-only here |
+| `/configuracoes/workers` | the persisted default of each worker and its revisions, with save and remove, and the worker's **Agenda** (the cron, the zone, the enabled state and the pinned request) — the write the panel used to carry |
+| `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences. Each row says who asked (`painel`, `linha de comando` or `agenda`), the attempt (`tentativa 2/3`), the row it retries and, when it is queued with a `not_before`, when it starts |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage and the effective process configuration |
 
 The screen polls every 5 s while a run is running and every 15 s while one is queued, because the
@@ -512,9 +520,10 @@ andamento para o worker '…'"). The CLI reaches the same error but has no handl
 with a traceback instead of the sentence.
 
 A runner claims a `QUEUED` row and renews the lease while it runs; `--concurrency` decides how many
-it executes at once, and the workers are CPU/GPU-bound, so one is the default. It is **not a
-scheduler**: no retry, no cron, no priority. The queue is one slot per worker, so a second run waits
-in the ledger or answers `409`.
+it executes at once, and the workers are CPU/GPU-bound, so one is the default. The runner is **not**
+the scheduler: the cron and the retry belong to the scheduler (see [Scheduling and
+retries](#scheduling-and-retries)). The queue is one slot per worker, so a second run waits in the
+ledger or answers `409`.
 
 ## Reprocessing a document or a batch
 
@@ -579,7 +588,7 @@ same lease) marks the row `INTERRUPTED`, with a `finished_at` and the error text
 enviar sinal antes do fim desta execução." The API's boot repairs nothing, so several API processes
 are safe. The sweep only touches the expired rows: a live claim of a sibling is never closed.
 
-Nothing is retried automatically. After an `INTERRUPTED` run:
+A scheduled `INTERRUPTED` run is retried by the scheduler (see [Scheduling and retries](#scheduling-and-retries)); a manual or CLI run is not. For the manual case, after an `INTERRUPTED` run:
 
 1. Read `GET /api/v1/system/runs?status=INTERRUPTED` (or the panel) and open the error of the row.
 2. Fix the cause — a missing Ollama model, an unreachable bucket, a database that was down.
@@ -589,27 +598,36 @@ Nothing is retried automatically. After an `INTERRUPTED` run:
 A queued run with no runner online waits, and the panel says so. Cancellation is #72 and the retry
 policy is #43: ADR 0014 fixes the vocabulary, the issues implement it.
 
-## Scheduling
+## Scheduling and retries
 
-There is no scheduler today. Operationally, that means an external cron — or any orchestrator you
-already run — has to hang off one of the two entry points:
+The scheduler is a process of its own (ADR 0015):
+`python -m scrinalia.domains.archive.workers.scheduler`. It takes `pg_try_advisory_lock` for its
+lifetime — a second instance stands by — and ticks every 30 s (`--tick-seconds`). Each due schedule is
+processed in one transaction with `FOR UPDATE SKIP LOCKED`: if the worker already has a
+`QUEUED`/`RUNNING` row the period is skipped (`last_skipped_at` is written), otherwise the run is
+enqueued with `trigger=SCHEDULE` and `attempt=1`, and `next_run_at` advances to the next future
+occurrence. A scheduler that was down for several periods creates **one** catch-up run, not a replay.
 
-```bash
-# On the host, from the repository root.
-uv run python -m scrinalia.domains.archive.workers.runner embedding --by "cron"
+The agenda is one row per worker (`archive_worker_schedules`): a five-field cron
+(`minute hour day-of-month month day-of-week`), an IANA zone, the enabled state and the pinned
+request. It is written on `/configuracoes/workers` (the Agenda section) and read on
+`/sistema/workers`; `DEFAULT_TIMEZONE` is the instance's zone and the form's default. A disabled
+agenda stores no next run; turning it back on recomputes it from the cron. The cron is evaluated in
+the schedule's zone, never the server's: the spring-forward gap runs at the next valid instant, and the
+repeated wall time on the fall-back day runs once.
 
-# Or through the API, which queues the run and returns immediately.
-curl -sS -X POST "http://localhost:8000/api/v1/system/workers/embedding/runs" \
-    -H "Content-Type: application/json" -H "Origin: http://localhost:8000" \
-    -b "scrinalia_session=<cookie>" \
-    -d '{"db_batch_size": 100}'
-```
+A scheduled run that ends `FAILED` or `INTERRUPTED` is retried by the scheduler as a **new ledger row**:
+`attempt = previous + 1`, `retry_of` the failed row, the same request, and a `not_before`
+`60 s x 2^(attempt-1)` later, ±20% jitter, capped at 30 minutes. Three attempts in total; the third
+failure is final. A manual or CLI run is never retried. The retry row is created immediately and waits
+in the slot — the claim only takes a row whose `not_before` has passed — so a manual run of the same
+worker answers `409` until it starts. `CANCELLED` (#72) will never be retried.
 
-Two warnings that the design makes explicit:
+Two warnings that survive the scheduler:
 
-- **A run may last longer than the cron interval.** The route answers `201` as soon as the run is
-  queued, so the cron has no idea whether the previous run finished. Schedule on a period longer
-  than a run, or read the ledger before triggering.
+- **A schedule can fire while a run is active.** The period is skipped, not queued: the queue is one
+  slot per worker, and the panel shows the last skipped time. A missed period is one catch-up, never a
+  replay.
 - **Concurrency is refused by the database, not by a lock.** The partial unique index rejects the
   second in-flight run of the same worker; the API answers `409` and the CLI raises the same
   refusal. Nothing in the process serialises the calls, so the guard holds across processes, across
@@ -619,7 +637,9 @@ Two warnings that the design makes explicit:
   `--concurrency` decides how many it executes at once.
 
 The API route is a mutation, so it also needs an authenticated `ADMIN` session and a same-origin
-`Origin` header. A cron on a remote host is simpler through the CLI.
+`Origin` header. An external cron remains a supported way to run one-off work, through the CLI or the
+route, but it is no longer the built-in answer: the agenda owns the next run, the skip and the
+catch-up.
 
 ## Reading the failures
 
@@ -806,8 +826,14 @@ behaviour to expect, and so that a limit already paid for is not read as a defec
   duplicate execution after a lease expiry is possible. A hard fence is future work.
 - **The queue is one slot per worker.** A second run for a worker with one in flight answers `409`,
   and a schedule has to coalesce; a backlog or a priority is not what this queue is.
-- **No retry and no cancellation yet.** A failed run stays failed and a running one cannot be
-  stopped from the panel until #43/#72; an interrupted one is visible and a re-trigger is safe.
+- **The retry is bounded and unclassified.** A scheduled failure spends up to three attempts,
+  whatever the cause: a missing model costs three bounded attempts, because a classifier that is
+  wrong in the other direction either wastes the GPU or hides a real failure. The retry holds the
+  worker's slot during the backoff.
+- **One scheduler, one lock.** The advisory lock releases when the connection dies and a standby
+  takes over within its retry interval; there is still a window of one tick with no scheduler.
+- **No cancellation yet.** A running run cannot be stopped from the panel until #72; an interrupted
+  one is visible and a re-trigger is safe.
 - **The arrangement `path` is not enforced by the database.** The column is materialised by the
   service, so a hand-written `UPDATE` can diverge it from the tree; the `PATH_DIVERGENCE` diagnostic
   is what finds it. Do not write `path` directly — go through the routes that own the move.

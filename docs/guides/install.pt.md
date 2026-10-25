@@ -97,6 +97,12 @@ e se ele aceita cada worker; uma execução enfileirada sem runner online espera
 
 O banco é o único canal entre a API e um runner: a API nunca chama um.
 
+O scheduler (ADR 0015) é um terceiro processo, separado de propósito: ele transforma a agenda de cada
+worker em linhas `QUEUED` e nunca executa uma. `python -m scrinalia.domains.archive.workers.scheduler`
+toma um advisory lock, então uma instância por vez é decisão do banco; o serviço `scheduler` do compose
+e o `bun run scheduler:dev` o iniciam. A API, o runner e o scheduler podem cada um viver na própria
+máquina, e só o scheduler escreve a tabela de agendas.
+
 ## A rede e a credencial
 
 Um runner em outra máquina alcança o mesmo PostgreSQL. Duas coisas tornam isso seguro:
@@ -266,6 +272,7 @@ pipeline, não o boot — o `ACERVO_SOURCE` é exigido pela transformação de s
 | `PUBLIC_SCRAPE_URL` | vazio | URL base do site de origem que o worker de coleta lista; exigida para coletar |
 | `PUBLIC_SCRAPE_DETAIL_URL` | vazio | prefixo da página de detalhe de onde o adaptador monta cada registro; exigido para coletar |
 | `ACERVO_SOURCE` | vazio | nomeia a origem ativa — os rótulos de campo que a transformação de staging lê e as portas que a coleta monta; a única embarcada é `pmc`, o `--origin` a sobrepõe numa execução, e **não há padrão**: uma execução de staging falha rápido sem ela |
+| `DEFAULT_TIMEZONE` | `America/Sao_Paulo` | o fuso em que a agenda de um worker é avaliada quando o operador não nomeia um; o cron roda aqui, não no fuso do servidor (ADR 0015) |
 | `ACERVO_LANGUAGE` | `pt-BR` | seleciona o perfil de língua — stopwords, gramática de datas, regras de plural, o dicionário de busca textual e o modelo do spaCy. O dicionário chega a uma coluna gerada, então mudá-lo é uma **migração**, não um reinício |
 | `S3_ENDPOINT_URL` | vazio | o endpoint compatível com S3 (MinIO, Ceph, SeaweedFS, um bucket na nuvem); de dentro de um contêiner, `localhost` é o próprio contêiner |
 | `S3_BUCKET_NAME` | vazio | o bucket para onde vão as miniaturas; o worker o confirma uma vez, antes da execução |
@@ -383,14 +390,15 @@ imagem contendo a API **e** a interface do curador, mais um segundo serviço par
 docker compose --profile app up -d --build   # API + runner + PostgreSQL
 docker compose --profile app logs -f app
 docker compose --profile app logs -f runner
+docker compose --profile app logs -f scheduler
 # → http://localhost:8000
 ```
 
 O serviço `app` fica atrás do profile `app` de propósito, então o `docker compose up -d` — e
 portanto o `bun run dev` — continua subindo só a infraestrutura.
 
-O profile também traz um serviço `runner`: a mesma imagem, sem porta publicada, o módulo dos workers
-como entrypoint. É o formato CPU de uma instalação de um host só; um host com GPU roda a imagem
+O profile também traz um serviço `runner` e um `scheduler`: a mesma imagem, sem porta publicada, o
+módulo dos workers como entrypoint do runner e o módulo do scheduler como entrypoint do scheduler. É o formato CPU de uma instalação de um host só; um host com GPU roda a imagem
 naquela máquina com uma build CUDA e um caminho privado até o banco, como em [a rede e a
 credencial](#a-rede-e-a-credencial). A API nunca o chama.
 

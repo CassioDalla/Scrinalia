@@ -24,3 +24,4 @@ because the obvious alternative was measured and lost.
 | [0012](0012-the-documentation-site-is-published-by-ci.md) | The documentation site is published by CI from `main`, into the Pages artifact, latest-only. Amends ADR 0010. |
 | [0013](0013-the-tag-axis-is-the-subject-axis.md) | The tag axis is the subject axis: a tag is a drawer or not-a-subject, the place/producer/person cases live on the entity axis, and the exclusion bans the spelling it confirms. |
 | [0014](0014-the-workers-leave-the-api.md) | The workers leave the API: the run ledger is the queue, a runner claims with a lease and the database clock, the API only enqueues, and the runner authenticates as a PostgreSQL client. Supersedes ADR 0004. |
+| [0015](0015-schedules-and-retries.md) | Schedules are one cron row per worker, a dedicated scheduler holds an advisory lock, and a retry is a new ledger row with `attempt`/`retry_of`/`not_before`. Amends ADR 0014. |

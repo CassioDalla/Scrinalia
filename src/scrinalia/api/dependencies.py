@@ -43,6 +43,7 @@ from scrinalia.domains.archive.services.text_quality_service import TextQualityS
 from scrinalia.domains.archive.services.typology_service import TypologyService
 from scrinalia.domains.archive.services.worker_operations_service import WorkerOperationsService
 from scrinalia.domains.archive.services.worker_run_service import WorkerRunService
+from scrinalia.domains.archive.services.worker_schedule_service import WorkerScheduleService
 from scrinalia.domains.identity.repository.login_attempt_repo import LoginAttemptRecorder
 from scrinalia.domains.identity.repository.session_repo import SessionRepository
 from scrinalia.domains.identity.repository.user_repo import UserRepository
@@ -187,6 +188,11 @@ def provide_worker_run_service(unit_of_work: NamedDependency[UnitOfWork]) -> Wor
     ledger writes through its own committed session, so the row is durable before the response.
     """
     return WorkerRunService(unit_of_work.db)
+
+
+def provide_worker_schedule_service(unit_of_work: NamedDependency[UnitOfWork]) -> WorkerScheduleService:
+    """Builds the agenda service over the request transaction; the write commits before returning."""
+    return WorkerScheduleService(unit_of_work.db)
 
 
 def provide_failure_service(unit_of_work: NamedDependency[UnitOfWork]) -> FailureService:

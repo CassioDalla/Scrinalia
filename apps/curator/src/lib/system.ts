@@ -36,6 +36,16 @@ export const FAILURE_SOURCE_LABEL: Record<FailureSource, string> = {
   API: "requisição",
 };
 
+/** Who asked for the run, as the ledger records it (ADR 0014/0015). */
+export const TRIGGER_LABEL: Record<WorkerRun["trigger"], string> = {
+  API: "painel",
+  CLI: "linha de comando",
+  SCHEDULE: "agenda",
+};
+
+/** The retry bound of ADR 0014/0015; the panel shows "tentativa 2/3". */
+export const MAX_ATTEMPTS = 3;
+
 /** True while the run has not reached a terminal state — what makes the screen poll. */
 export function isActiveRun(run?: WorkerRun | null): boolean {
   return run?.status === "QUEUED" || run?.status === "RUNNING";

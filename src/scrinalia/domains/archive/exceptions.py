@@ -347,3 +347,17 @@ class InvalidWorkerSettingsError(DomainException):
 
     # Ideal translation in Litestar: HTTP 422 (Unprocessable Entity)
     pass
+
+
+class WorkerScheduleNotFoundError(DomainException):
+    """Raised when a worker has no agenda to read or remove (ADR 0015)."""
+
+    # Ideal translation in Litestar: HTTP 404 (Not Found)
+    pass
+
+
+class InvalidWorkerScheduleError(DomainException):
+    """Raised when the cron, the zone or the pinned request is not something the worker accepts."""
+
+    # Ideal translation in Litestar: HTTP 422 (Unprocessable Entity)
+    pass

@@ -9,6 +9,7 @@ sources:
   - src/scrinalia/domains/archive/repository/tag_repo.py
   - src/scrinalia/api/schemas/public.py
   - src/scrinalia/core/language/__init__.py
+  - migrations/versions/b7e4c2a9f1d0_the_schedule_and_the_retry.py
   - migrations/versions/fe7fcab37207_add_the_failure_fingerprint_and_the_api_.py
   - testing/conftest.py
 ---
@@ -203,7 +204,8 @@ is what the subject axis stops guessing at — they are not a state of the tag.
 | --- | --- | --- |
 | `archive_worker_settings` | The persisted default configuration of one worker. | `worker_name` (primary key), `engine_name`, `preset`, `db_batch_size`, `options` (JSONB), `updated_by`, `updated_at` |
 | `archive_worker_settings_revisions` | Audit trail of configuration writes, one row per write. | `id`, `worker_name`, `before` (JSONB), `after` (JSONB), `changed_by`, `changed_by_user_id`, `changed_at` |
-| `archive_worker_runs` | One row per worker execution, from the CLI and from the panel alike; since ADR 0014 a `QUEUED` row is also the queue item a runner claims. | `id`, `worker_name`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `request` (JSONB, the validated request), `config` (JSONB), `options` (JSONB), `queued_at`, `runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (generated) |
+| `archive_worker_runs` | One row per worker execution, from the CLI and from the panel alike; since ADR 0014 a `QUEUED` row is also the queue item a runner claims. | `id`, `worker_name`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `request` (JSONB, the validated request), `config` (JSONB), `options` (JSONB), `attempt`, `retry_of`, `not_before`, `queued_at`, `runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (generated) |
+| `archive_worker_schedules` | The agenda of one worker: a five-field cron in an explicit zone, the pinned request it runs and the next run. | `worker_name` (primary key), `enabled`, `cron`, `timezone`, `request` (JSONB, the validated request), `next_run_at`, `last_enqueued_at`, `last_skipped_at`, `updated_by`, `updated_by_user_id`, `created_at`, `updated_at` |
 | `archive_worker_runners` | The live runner registry: who is connected, which workers it accepts, and when it last signalled. | `runner_id` (primary key), `name`, `hostname`, `version`, `capabilities` (text array), `concurrency`, `heartbeat_seconds`, `started_at`, `last_heartbeat_at`, `stopped_at` |
 | `archive_api_errors` | The API's own unexpected HTTP failures. | `id`, `occurred_at`, `request_id`, `method`, `path`, `status_code`, `message`, `error_fingerprint` (generated) |
 
@@ -217,6 +219,13 @@ writes `runner_id`, `started_at`, `heartbeat_at` and `lease_expires_at` with Pos
 runner renews the lease; a claim whose lease expires is marked `INTERRUPTED` by the next runner, never
 by the API's boot. `archive_worker_runners` is the registry the panel reads to answer whether a runner
 is alive and whether it can run a given worker.
+
+`archive_worker_schedules` is one row per worker because the queue is one slot per worker: two
+agendas for the same worker would only collide. `next_run_at` is what the scheduler's tick reads;
+`last_enqueued_at`/`last_skipped_at` are the facts the panel shows. The retry's columns are the three
+the ledger needs to explain a second attempt: `attempt` (1 for a run asked once), `retry_of` (the
+failed row) and `not_before` (when the claim may take it). A retry is a new row created after the
+previous one is terminal, so the partial unique index is never violated (ADR 0015).
 There is deliberately no foreign key from either table to a worker table: workers are code, not rows.
 `archive_api_errors` records only *unexpected* failures — a 404, a 409 and a 422 are answers the API
 owes a client, and recording them buries the real defects.

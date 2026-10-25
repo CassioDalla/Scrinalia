@@ -29,12 +29,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, Integer, func, select, update
+from sqlalchemy import CursorResult, Integer, exists, func, or_, select, update
 from sqlalchemy import cast as sql_cast
 from sqlalchemy.dialects.postgresql import distinct_on
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from scrinalia.core.author import Author, author_columns
 from scrinalia.domains.archive.models.enums import (
@@ -82,6 +83,9 @@ def to_dto(run: WorkerRun) -> WorkerRunDTO:
         worker_name=run.worker_name,
         status=run.status,
         trigger=run.trigger,
+        attempt=run.attempt,
+        retry_of=run.retry_of,
+        not_before=run.not_before,
         requested_by=run.requested_by,
         engine_name=run.engine_name,
         preset=run.preset,
@@ -116,6 +120,9 @@ class WorkerRunRepository:
         config: dict[str, Any],
         request: dict[str, Any] | None = None,
         options: dict[str, Any] | None = None,
+        attempt: int = 1,
+        retry_of: int | None = None,
+        not_before: datetime | None = None,
     ) -> WorkerRunDTO:
         """
         Accepts a run before it starts, so the panel can show it waiting for a runner.
@@ -124,11 +131,17 @@ class WorkerRunRepository:
         item: the runner reproduces the execution from it without the process that accepted it
         (ADR 0014). ``config`` beside it is the resolution shown to the curator; it is a promise,
         and the runner writes the effective one when the run starts.
+
+        ``attempt``/``retry_of``/``not_before`` are the scheduler's (ADR 0015): a retry is a new row
+        created after the previous one is terminal. A manual/CLI run leaves them at 1/None/None.
         """
         run = WorkerRun(
             worker_name=worker_name,
             status=WorkerRunStatus.QUEUED,
             trigger=trigger,
+            attempt=attempt,
+            retry_of=retry_of,
+            not_before=not_before,
             **author_columns("requested_by", requested_by),
             engine_name=engine_name,
             preset=preset,
@@ -183,6 +196,44 @@ class WorkerRunRepository:
         self.db.refresh(run)
         return to_dto(run)
 
+    def has_active_run(self, worker_name: str) -> bool:
+        """Whether the worker already has a ``QUEUED``/``RUNNING`` row: the scheduler's skip check."""
+        return bool(
+            self.db.scalar(
+                select(
+                    exists().where(
+                        WorkerRun.worker_name == worker_name,
+                        WorkerRun.status.in_(ACTIVE_WORKER_RUN_STATUSES),
+                    )
+                )
+            )
+        )
+
+    def due_retries(self, max_attempts: int) -> list[WorkerRun]:
+        """
+        The ``SCHEDULE`` runs that ended ``FAILED``/``INTERRUPTED`` and have no retry yet.
+
+        The status check is the eligibility rule (ADR 0014): a manual or CLI run is never retried,
+        and a success has nothing to retry. ``attempt < max_attempts`` enforces the three-attempt
+        bound at the query, and the correlated ``NOT EXISTS`` is what makes the tick idempotent — a
+        crash after creating the retry does not create a second one on the next tick. The rows are
+        locked so the advisory lock's owner and a concurrent sweep cannot both retry the same row.
+        """
+        child = aliased(WorkerRun)
+        return list(
+            self.db.scalars(
+                select(WorkerRun)
+                .where(
+                    WorkerRun.trigger == WorkerRunTrigger.SCHEDULE,
+                    WorkerRun.status.in_((WorkerRunStatus.FAILED, WorkerRunStatus.INTERRUPTED)),
+                    WorkerRun.attempt < max_attempts,
+                    ~exists().where(child.retry_of == WorkerRun.id),
+                )
+                .order_by(WorkerRun.finished_at, WorkerRun.id)
+                .with_for_update(skip_locked=True)
+            )
+        )
+
     def claim_next(self, worker_names: Sequence[str], *, runner_id: str, lease_seconds: int) -> ClaimedRun | None:
         """
         Claims the oldest queued run this runner advertises, in one statement.
@@ -198,7 +249,13 @@ class WorkerRunRepository:
 
         next_run = (
             select(WorkerRun.id)
-            .where(WorkerRun.status == WorkerRunStatus.QUEUED, WorkerRun.worker_name.in_(list(worker_names)))
+            .where(
+                WorkerRun.status == WorkerRunStatus.QUEUED,
+                WorkerRun.worker_name.in_(list(worker_names)),
+                # A retry carries the moment its backoff ends; until then it waits in the slot without
+                # being claimable (ADR 0015).
+                or_(WorkerRun.not_before.is_(None), WorkerRun.not_before <= func.now()),
+            )
             .order_by(WorkerRun.queued_at, WorkerRun.id)
             .with_for_update(skip_locked=True)
             .limit(1)

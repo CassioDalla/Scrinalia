@@ -39,6 +39,19 @@ class WorkerRunDTO(BaseModel):
     worker_name: str
     status: WorkerRunStatus
     trigger: WorkerRunTrigger
+    attempt: int = Field(
+        default=1,
+        ge=1,
+        description="Qual tentativa esta linha é: 1 numa execução pedida uma vez, N numa agendada (ADR 0015).",
+    )
+    retry_of: int | None = Field(
+        default=None,
+        description="A execução que esta retenta; nula na primeira tentativa.",
+    )
+    not_before: datetime | None = Field(
+        default=None,
+        description="O instante a partir do qual a linha pode ser reivindicada; nulo significa já (ADR 0015).",
+    )
     requested_by: str | None = Field(
         default=None, description="Quem pediu a execução; nulo quando ela veio do host, sem --by."
     )
@@ -138,6 +151,41 @@ class WorkerRunRequest(RequestModel):
     )
 
 
+class WorkerScheduleRequest(RequestModel):
+    """A worker's agenda: the cron, the zone and the pinned request it enqueues (ADR 0015)."""
+
+    enabled: bool = True
+    cron: str = Field(
+        min_length=1,
+        max_length=120,
+        description="Cinco campos: minuto, hora, dia do mês, mês e dia da semana.",
+    )
+    timezone: str | None = Field(
+        default=None,
+        max_length=64,
+        description="Nome IANA da zona em que o cron é avaliado; o padrão é DEFAULT_TIMEZONE.",
+    )
+    request: WorkerRunRequest = Field(default_factory=WorkerRunRequest)
+
+
+class WorkerScheduleDTO(BaseModel):
+    """A worker's agenda, as the panel reads it (ADR 0015)."""
+
+    worker_name: str
+    enabled: bool
+    cron: str
+    timezone: str
+    request: WorkerRunRequest
+    next_run_at: datetime | None = Field(default=None, description="Nulo enquanto a agenda está pausada.")
+    last_enqueued_at: datetime | None = None
+    last_skipped_at: datetime | None = Field(
+        default=None,
+        description="O último período pulado porque o worker já tinha uma execução ativa.",
+    )
+    updated_by: str | None = None
+    updated_at: datetime | None = None
+
+
 class WorkerPresetDTO(BaseModel):
     name: str
     config: dict[str, Any] = Field(default_factory=dict)
@@ -191,10 +239,7 @@ class WorkerSettingsDTO(BaseModel):
     engine_source: EngineSource
     config: dict[str, Any] = Field(default_factory=dict)
     available_engines: list[WorkerEngineDTO] = Field(default_factory=list)
-    declared_options: list[WorkerOptionDTO] = Field(
-        default_factory=list,
-        description="As opções que este worker aceita, derivadas da assinatura do execute.",
-    )
+    declared_options: list[WorkerOptionDTO] = Field(default_factory=list)
     engine_option_names: list[str] = Field(
         default_factory=list,
         description=(
@@ -257,17 +302,10 @@ class WorkerStatusDTO(BaseModel):
     pending_reason: str | None = Field(default=None, description="Por que o pendente não é contado.")
     processed: int | None = Field(default=None, description="Unidades que o worker já carimbou.")
     failed: int | None = Field(default=None, description="Unidades cujo carimbo registra falha.")
-    stamp_breakdown: WorkerStampBreakdownDTO | None = Field(
-        default=None,
-        description=(
-            "Os quatro números do **ledger** do worker — com produtor, valor legado, falha e ausência "
-            "de registro — e não da fila: `pending` é o predicado da fila, e uma unidade com carimbo "
-            "de falha ou de produtor antigo conta aqui sem estar pendente. Nulo quando o ledger do "
-            "worker não é um carimbo."
-        ),
-    )
+    stamp_breakdown: WorkerStampBreakdownDTO | None = None
     last_run: WorkerRunDTO | None = None
     active_run: WorkerRunDTO | None = None
+    schedule: WorkerScheduleDTO | None = None
     runner_available: bool = Field(
         default=False,
         description="Se algum runner online declara este worker; falso não impede enfileirar (ADR 0014).",
@@ -301,13 +339,7 @@ class SystemWorkersResponse(BaseModel):
     """The whole panel in one request: the workers, their queues and the runners that drain them."""
 
     workers: list[WorkerStatusDTO] = Field(default_factory=list)
-    runners: list[WorkerRunnerDTO] = Field(
-        default_factory=list,
-        description=(
-            "Os runners registrados, online ou não. As capacidades dizem qual worker cada um aceita; "
-            "sem nenhum online, uma execução fica na fila até um subir (ADR 0014)."
-        ),
-    )
+    runners: list[WorkerRunnerDTO] = Field(default_factory=list)
     generated_at: datetime
 
 

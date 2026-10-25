@@ -354,6 +354,8 @@ export type WorkerStatus = components["schemas"]["WorkerStatusDTO"];
 export type WorkerRunner = components["schemas"]["WorkerRunnerDTO"];
 export type WorkerSettings = components["schemas"]["WorkerSettingsDTO"];
 export type WorkerSettingsRequest = components["schemas"]["WorkerSettingsRequest"];
+export type WorkerSchedule = components["schemas"]["WorkerScheduleDTO"];
+export type WorkerScheduleRequest = components["schemas"]["WorkerScheduleRequest"];
 export type WorkerQueuePreview = components["schemas"]["WorkerQueuePreviewDTO"];
 export type WorkerSettingsRevision = components["schemas"]["WorkerSettingsRevisionDTO"];
 export type WorkerSettingsRevisionList = components["schemas"]["WorkerSettingsRevisionListResponse"];
@@ -1651,6 +1653,37 @@ export async function previewWorkerQueue(
 export async function clearWorkerSettings(worker: string): Promise<WorkerSettings> {
   return unwrap<WorkerSettings>(
     await client.DELETE("/api/v1/system/workers/{worker_name}/settings", {
+      params: { path: { worker_name: worker } },
+    }),
+  );
+}
+
+/** The worker's agenda, or ``null`` when it has none (ADR 0015). */
+export async function fetchSystemSchedule(worker: string): Promise<WorkerSchedule | null> {
+  return unwrap<WorkerSchedule | null>(
+    await client.GET("/api/v1/system/workers/{worker_name}/schedule", {
+      params: { path: { worker_name: worker } },
+    }),
+  );
+}
+
+/** Creates or replaces the worker's agenda: the cron, the zone and the pinned request. */
+export async function saveWorkerSchedule(
+  worker: string,
+  body: WorkerScheduleRequest,
+): Promise<WorkerSchedule> {
+  return unwrap<WorkerSchedule>(
+    await client.PUT("/api/v1/system/workers/{worker_name}/schedule", {
+      params: { path: { worker_name: worker } },
+      body,
+    }),
+  );
+}
+
+/** Removes the agenda; the runs it already created stay in the ledger. */
+export async function clearWorkerSchedule(worker: string): Promise<void> {
+  return unwrap<void>(
+    await client.DELETE("/api/v1/system/workers/{worker_name}/schedule", {
       params: { path: { worker_name: worker } },
     }),
   );

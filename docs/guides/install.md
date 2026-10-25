@@ -12,6 +12,7 @@ sources:
   - pyproject.toml
   - src/scrinalia/core/config.py
   - src/scrinalia/core/database.py
+  - src/scrinalia/domains/archive/workers/scheduler.py
   - src/scrinalia/core/database_cli.py
   - src/scrinalia/core/logger.py
   - src/scrinalia/core/storage.py
@@ -123,6 +124,12 @@ configuration. It refuses a schema behind its code: apply the API's migrations f
 the runner and whether it accepts each worker; a run enqueued with no online runner waits.
 
 The database is the only channel between the API and a runner: the API never calls one.
+
+The scheduler (ADR 0015) is a third process, separate on purpose: it turns each worker's agenda into
+`QUEUED` rows and never executes one. `python -m scrinalia.domains.archive.workers.scheduler` takes an
+advisory lock, so one instance at a time is the database's decision; the compose `scheduler` service
+and `bun run scheduler:dev` start it. The API, the runner and the scheduler can each live on their own
+machine, and only the scheduler writes the schedule table.
 
 ## The network and the credential
 
@@ -294,6 +301,7 @@ pipeline, not the boot — `ACERVO_SOURCE` is required by the staging transform 
 | `PUBLIC_SCRAPE_URL` | unset | base URL of the source site the ingestion worker lists; required to scrape |
 | `PUBLIC_SCRAPE_DETAIL_URL` | unset | detail-page URL prefix the ingestion adapter builds each record from; required to scrape |
 | `ACERVO_SOURCE` | unset | names the active origin — the field labels the staging transform reads and the ports the scrape builds; the only one shipped is `pmc`, `--origin` overrides it for one run, and there is **no default**: a staging run fails fast without it |
+| `DEFAULT_TIMEZONE` | `America/Sao_Paulo` | the zone a worker's schedule is evaluated in when the operator does not name one; the cron runs here, not in the server's zone (ADR 0015) |
 | `ACERVO_LANGUAGE` | `pt-BR` | selects the language profile — stopwords, date grammar, plural rules, the full-text dictionary and the spaCy model. The full-text dictionary reaches a generated column, so changing it is a **migration**, not a restart |
 | `S3_ENDPOINT_URL` | unset | the S3-compatible endpoint (MinIO, Ceph, SeaweedFS, a cloud bucket); from a container, `localhost` is the container itself |
 | `S3_BUCKET_NAME` | unset | the bucket the thumbnails go to; the worker confirms it once, before the run |
@@ -412,14 +420,15 @@ runner.
 docker compose --profile app up -d --build   # API + runner + PostgreSQL
 docker compose --profile app logs -f app
 docker compose --profile app logs -f runner
+docker compose --profile app logs -f scheduler
 # → http://localhost:8000
 ```
 
 The `app` service is behind the `app` profile on purpose, so `docker compose up -d` — and therefore
 `bun run dev` — keeps starting the infrastructure alone.
 
-The profile also carries a `runner` service: the same image, no published port, the worker module as
-its entrypoint. It is the CPU shape of a single-host installation; a GPU host runs the image on that
+The profile also carries a `runner` service and a `scheduler` service: the same image, no published
+port, the worker module as the runner's entrypoint and the scheduler module as the scheduler's. It is the CPU shape of a single-host installation; a GPU host runs the image on that
 machine with a CUDA build and a private path to the database, as in [the network and the
 credential](#the-network-and-the-credential). The API never calls it.
 

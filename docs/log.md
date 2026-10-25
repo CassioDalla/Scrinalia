@@ -2116,3 +2116,35 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   TLS/tunnel was not exercised; the `RUNNER_DATABASE_URL`/`DB_SSLMODE` path is tested against the
   local database only. #43/#72 are vocabulary in the ADR, not code. The API with several processes was
   not run; the claim/lease tests use two runners on one database.
+
+## 2026-10-25 — schedules and retries (ADR 0015)
+
+- **Range:** `27063f7..692de01`
+- **Pages:**
+  - `adr/0015-schedules-and-retries.md` — **created**: the agenda, the scheduler, the retry and the slot.
+  - `adr/index.md` — **updated**.
+  - `guides/install.md` / `install.pt.md` — **updated**: the `DEFAULT_TIMEZONE` row, the scheduler process,
+    the compose service.
+  - `guides/operate.md` / `operate.pt.md` — **updated**: the "no scheduler" section replaced by
+    "Scheduling and retries"; the agenda on `/configuracoes/workers` and `/sistema/workers`; the retry
+    policy and the slot; the limits.
+  - `guides/data-model.md` / `data-model.pt.md` — **updated**: `archive_worker_schedules` and the
+    `attempt`/`retry_of`/`not_before` columns.
+  - `README.md` — **updated**: the scheduler and the retry.
+  - `AGENTS.md` — **updated**: the scheduler command and the dev script (PATCH 1.2.2, 15,998 B).
+  - `.dsh/skills/workers`, `.dsh/skills/data` — **updated**: the scheduler/retry and the 34 settings.
+- **Why the round exists:** #43, milestone 1.6: the scheduling and the retry ADR 0014 deferred.
+- **What the round measured.** Six commits: the ADR 0015; the schedule table and the attempt columns; the
+  scheduler (the advisory lock, the tick, the skip, the catch-up, the cron's DST); the retry and the
+  API (the routes, the DTOs, the retry as a new row); the panel; the dev/deploy. The migration
+  `b7e4c2a9f1d0`, and `alembic check` reports no drift. Full suite **2124 passed, 1 skipped**;
+  `basedpyright`, `ruff`, `tsc`, ESLint and the Vite build green; `mkdocs --strict` green. Rendered and
+  looked at: the agenda in `/configuracoes/workers` (the `*/1 * * * *` cron, `America/Sao_Paulo`, the
+  enabled state and the next run), the **agenda** badge and fact in `/sistema/workers` (with `sem
+  runner` on the seven workers the runner does not accept) and four `SCHEDULE` runs in
+  `/sistema/execucoes`, claimed by `render:9055ae26`.
+- **Not verified, and said so.** The retry's live path was not rendered: the render's cleaning run
+  succeeds, so "tentativa 2/3" and "nova tentativa de #N" are covered by the integration tests, not by
+  a screenshot. The advisory lock's standby/failover was tested with two services on one test database,
+  not observed across two hosts. A GPU host or a multi-host deploy was not exercised.
+

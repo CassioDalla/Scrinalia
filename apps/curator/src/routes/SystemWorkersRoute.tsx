@@ -24,9 +24,11 @@ import {
   describeConfig,
   formatDuration,
   isActiveRun,
+  MAX_ATTEMPTS,
   parseOptions,
   RUN_STATUS_LABEL,
   RUN_STATUS_TONE,
+  TRIGGER_LABEL,
   UNIT_LABEL,
 } from "@/lib/system";
 
@@ -264,7 +266,10 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
                 <Badge tone={RUN_STATUS_TONE[worker.last_run.status]}>{RUN_STATUS_LABEL[worker.last_run.status]}</Badge>
                 <p className="mt-1 text-xs text-(--color-muted)">
                   {formatDateTime(worker.last_run.queued_at)} · {formatDuration(worker.last_run.duration_ms)} ·{" "}
-                  {worker.last_run.trigger === "API" ? "painel" : "linha de comando"}
+                  {TRIGGER_LABEL[worker.last_run.trigger]}
+                  {worker.last_run.attempt > 1
+                    ? ` · tentativa ${worker.last_run.attempt}/${MAX_ATTEMPTS}`
+                    : ""}
                   {worker.last_run.runner_id ? ` · ${worker.last_run.runner_id}` : ""}
                 </p>
                 {worker.last_run.error ? (
@@ -273,6 +278,27 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
               </>
             ) : (
               <span className="text-sm text-(--color-muted)">nunca rodou</span>
+            )}
+          </Fact>
+
+          <Fact label="Agenda">
+            {worker.schedule ? (
+              <>
+                <span className="font-mono text-xs">{worker.schedule.cron}</span>
+                <p className="mt-1 text-xs text-(--color-muted)">
+                  {worker.schedule.timezone} ·{" "}
+                  {worker.schedule.enabled
+                    ? `próxima ${formatDateTime(worker.schedule.next_run_at)}`
+                    : "pausada"}
+                </p>
+                {worker.schedule.last_skipped_at ? (
+                  <p className="mt-1 text-xs text-(--color-muted)">
+                    pulada em {formatDateTime(worker.schedule.last_skipped_at)} (execução ativa)
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <span className="text-sm text-(--color-muted)">sem agenda</span>
             )}
           </Fact>
         </div>
@@ -317,6 +343,11 @@ function WorkerHeader({ worker }: { worker: WorkerStatus }) {
       {worker.settings.overridden ? <Badge tone="accent">padrão alterado</Badge> : null}
       {active ? <Badge tone="accent">{RUN_STATUS_LABEL[worker.active_run!.status]}</Badge> : null}
       {!worker.runner_available ? <Badge tone="warn">sem runner</Badge> : null}
+      {worker.schedule ? (
+        <Badge tone={worker.schedule.enabled ? "accent" : "neutral"}>
+          {worker.schedule.enabled ? `agenda ${worker.schedule.cron}` : "agenda pausada"}
+        </Badge>
+      ) : null}
       {worker.pending != null && worker.pending > 0 ? (
         <Badge tone="warn">{formatCount(worker.pending)} na fila</Badge>
       ) : null}
@@ -334,6 +365,7 @@ function WorkerHeader({ worker }: { worker: WorkerStatus }) {
         <span className="w-full font-mono text-[11px] text-(--color-muted)">
           runner {worker.active_run.runner_id}
           {worker.active_run.heartbeat_at ? ` · sinal ${formatDateTime(worker.active_run.heartbeat_at)}` : ""}
+          {worker.active_run.not_before ? ` · recomeça às ${formatDateTime(worker.active_run.not_before)}` : ""}
         </span>
       ) : null}
       <span className="w-full text-xs text-(--color-muted)">{worker.description}</span>
