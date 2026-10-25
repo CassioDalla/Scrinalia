@@ -1852,3 +1852,42 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   collection on this machine, and the screens were rendered over the 100 descriptions of the dev
   database rather than the reference collection. The `--engine-option` coercion is covered by unit
   tests on argument parsing, not by a run that loaded a model with an overridden `device`.
+
+## 2026-10-24 — the SPA's request bodies are derived too (no page changed)
+
+- **Range:** `dbb00c8..77bca6b`
+- **Pages:** **none**, and that is the verdict this entry records. The change lives inside
+  `apps/curator/src/api/` and `testing/unit/curator/`, and no page declares either path among its
+  `sources:` — `uv run python docs/_hooks/freshness.py` answers "every page is fresh" and names
+  none. What changed is a **rule file**, `.dsh/skills/curator-ui/SKILL.md`: a request body is
+  derived from the model the route declares, never typed out, with the measured asymmetry beside it.
+- **Why the round exists:** #93 recorded the half #88 left out. The query position fails loudly
+  (an unknown filter is ignored and the screen filters by nothing); the body position fails the
+  other way, because pydantic refuses a missing *required* field and silently ignores an unknown
+  one. Sizing it against the checkout found **fifteen** functions typing a body by hand, not the
+  thirteen the issue counted: the issue already subcounted (fourteen at `32d19f1`, the commit
+  nearest its date) and `setStopwordMatch` arrived afterwards in `9923231`.
+- **What the round measured.** The thirteen request models do not share one policy: ten keep
+  pydantic's default (`extra="ignore"`) and three declare `extra="forbid"` —
+  `SubjectExclusionRequest`, `SubjectExclusionRemovalRequest`, `ConflictPreviewRequest`. Renaming an
+  optional field is silent in ten of the thirteen: `EntityMergePreviewRequest` with `new_name` →
+  `new_nam` validates and the merge simply does not rename, while `MergePreviewRequest` fails only
+  because its cross-field validator then finds neither source of truth — an accident, not a policy.
+  The API-side question is #177.
+- **Three things the issue did not know.** `SubjectExclusionRequest.source` has a `HUMAN` default,
+  so the client's "required by the contract, and deliberately so" was false — the client now requires
+  it by a derived `Omit`/`Required<Pick<>>`, and the comment says why. `NerExclusionRequest` is
+  shared by the `POST` and the `DELETE`, whose handler reads only `data.words`, the exact smell
+  `SubjectExclusionRemovalRequest` already documents — filed as #176. And
+  `previewSubjectExclusions` had no caller since it was born in `32d19f1`: measured, the only unused
+  export among 130, so the client function and its two response types are gone and the intent lives
+  in #175.
+- **Verified, and what was not.** The gate was proved by mutation, not by passing: putting one body
+  back inline fails both rules, deriving a body from another route's model fails the second, and
+  adding a narrowing outside the table fails the third; the file was restored byte-identical
+  afterwards. `tsc`, ESLint, the Vite build, `ruff check`/`format --check` and `basedpyright` answer
+  zero, and `uv run pytest testing/unit` answers **1044 passed, 1 skipped**. **Not looked at in a
+  browser, and nothing to look at**: the emitted bundle is byte-identical to the pre-change one
+  (`dist/assets/index-DIQDkiK4.js`, sha256
+  `21ca64dc0b02571364431c9c52300079d69fc236c8d03b54a06ddc015dd0b75c`), because a type-level change
+  erases at compile time — so no screen's pixels can differ, and no rendering would show the change.

@@ -82,6 +82,21 @@ commits — the history is the detail.
 
 ### Changed
 
+- **The SPA derives its request bodies from the contract, as it already did its query shapes**
+  (issue #93). Fifteen functions typed the body out in the signature, and the failure is the mirror
+  image of the filter one: measured against the request models, pydantic refuses a **required** field
+  that is renamed or missing (400) and **ignores** an optional one and an unknown one (200) —
+  `EntityMergePreviewRequest` with `new_name` renamed to `new_nam` validates, and the merge simply
+  does not rename. Ten of the thirteen models keep `extra="ignore"` and three forbid it, so the
+  silence is not even uniform; the API-side question is #177. Every body is now the model its route
+  declares, four narrowings stay derived (`Pick`/`Omit`/`Required` over the model) with the screen or
+  route named beside them — the merge pair, the exclusion's `source`, the NER removal's `words`
+  (#176), and the macro suggestion without `columns_to_extract` (#174) — and
+  `testing/unit/curator/test_api_body_shapes.py` fails on the next literal and on the next narrowing
+  that is not in its table. The client function `previewSubjectExclusions`, the only unused export
+  among 130, is gone: the screen it was written for reads the refusal from the write's answer instead
+  (#175). No behaviour changed: the built bundle is byte-identical.
+
 - **A banned spelling says how it matches, and the extraction stops losing names that contain it**
   (issue #160). `domain_stopwords` gains `match_mode` (`TOKEN`/`EXACT`) and a
   `PATCH /api/v1/taxonomy/tags/stopwords` route changes it without re-banning, which would overwrite
