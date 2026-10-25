@@ -504,6 +504,15 @@ class TestMaterialisationOverHttp:
         assert response.status_code == HTTP_200_OK
         assert response.json()["materialisation_id"] == 3
 
+    def test_the_materialisation_author_cannot_come_from_the_body(self, client: TestClient):
+        """The body has no author field, and #177 makes the attempt a 400 instead of a silent drop."""
+        response = client.post(
+            "/api/v1/hierarchy/materialisation/apply",
+            json={"changed_by": {"name": "outra pessoa"}},
+        )
+
+        assert response.status_code == HTTP_400_BAD_REQUEST, response.text
+
     def test_undone_entries_can_be_hidden(self, client: TestClient, mocker):
         mocked = mocker.patch.object(
             HierarchyMaterialisationService,
