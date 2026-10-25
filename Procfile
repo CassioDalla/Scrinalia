@@ -9,3 +9,6 @@
 # `RUNNER_DATABASE_URL`) and the same `S3_*`/`OLLAMA_HOST_URL`.
 api: CUDA_VISIBLE_DEVICES="" uv run uvicorn main:app --reload
 runner: CUDA_VISIBLE_DEVICES="" uv run python -m scrinalia.domains.archive.workers.runner_daemon --name heroku
+# `scheduler` turns the workers' schedules into queue rows (ADR 0015). It takes a database advisory
+# lock, so a second instance stands by instead of double-enqueuing a period.
+scheduler: uv run python -m scrinalia.domains.archive.workers.scheduler
