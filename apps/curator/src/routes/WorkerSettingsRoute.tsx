@@ -2,9 +2,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import {
+  clearWorkerSchedule,
   clearWorkerSettings,
   previewWorkerQueue,
+  saveWorkerSchedule,
   saveWorkerSettings,
+  type WorkerRunRequest,
+  type WorkerSchedule,
+  type WorkerScheduleRequest,
   type WorkerSettingsItem,
   type WorkerSettingsRequest,
 } from "@/api/client";
@@ -16,12 +21,12 @@ import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Field } from "@/components/ui/Field";
-import { Input, Select } from "@/components/ui/Input";
+import { Input, Select, Textarea } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { WorkerOptionsFields, initialOptionValues, optionsForRequest } from "@/components/workers/WorkerOptionsFields";
 import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
-import { describeConfig } from "@/lib/system";
+import { describeConfig, parseOptions } from "@/lib/system";
 
 /**
  * The persisted configuration of the AI workers: the default each one follows, and its history.
@@ -77,6 +82,7 @@ function WorkerSettingsCard({ worker }: { worker: WorkerSettingsItem }) {
       <div className="grid gap-3">
         {feedback ? <Notice tone="ok">{feedback}</Notice> : null}
         <SettingsForm worker={worker} onDone={setFeedback} />
+        <ScheduleCard worker={worker} />
       </div>
     </Disclosure>
   );
@@ -306,6 +312,195 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function ScheduleCard({ worker }: { worker: WorkerSettingsItem }) {
+  const schedule = useQuery(queries.systemSchedule(worker.name));
+
+  if (schedule.isPending) return <Skeleton className="h-24" />;
+  if (schedule.error) return <ErrorState error={schedule.error} />;
+  return <ScheduleForm worker={worker} schedule={schedule.data ?? null} />;
+}
+
+/**
+ * The worker's agenda: the cron, the zone and the request each scheduled run uses.
+ *
+ * The request is pinned, which is why the form starts from the schedule's body and not from the
+ * settings: the parts the operator did not name fall back to the settings at enqueue time, and the
+ * ones named here stay. A paused agenda stores no next run, so the form shows "pausada" instead of a
+ * date it would have to invent.
+ */
+function ScheduleForm({ worker, schedule }: { worker: WorkerSettingsItem; schedule: WorkerSchedule | null }) {
+  const queryClient = useQueryClient();
+  const settings = worker.settings;
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [enabled, setEnabled] = useState(schedule?.enabled ?? false);
+  const [cron, setCron] = useState(schedule?.cron ?? "");
+  const [timezone, setTimezone] = useState(
+    schedule?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+  );
+  const [engine, setEngine] = useState(schedule?.request.engine_name ?? "");
+  const [preset, setPreset] = useState(schedule?.request.preset ?? "");
+  const [batch, setBatch] = useState(
+    schedule?.request.db_batch_size ? String(schedule.request.db_batch_size) : "",
+  );
+  const [optionValues, setOptionValues] = useState<Record<string, unknown>>(
+    initialOptionValues(schedule?.request.options ?? {}, settings.declared_options ?? [], "run"),
+  );
+  const [engineText, setEngineText] = useState(
+    schedule && Object.keys(schedule.request.engine_options ?? {}).length > 0
+      ? JSON.stringify(schedule.request.engine_options)
+      : "",
+  );
+
+  const parsed = parseOptions(engineText);
+
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ["system"] });
+  };
+
+  const buildBody = (): WorkerScheduleRequest => {
+    const request: WorkerRunRequest = {
+      engine_name: settings.engine_source === "signature" ? engine || null : null,
+      preset: settings.engine_source === "signature" ? preset || null : null,
+      db_batch_size: batch ? Number(batch) : null,
+      options: optionsForRequest(optionValues, settings.declared_options ?? [], "run"),
+      engine_options: parsed.options ?? {},
+    };
+    return { enabled, cron, timezone: timezone.trim() || null, request };
+  };
+
+  const save = useMutation({
+    mutationFn: () => saveWorkerSchedule(worker.name, buildBody()),
+    onSuccess: (saved) => {
+      invalidate();
+      setFeedback(
+        saved.enabled
+          ? `Agenda salva; a próxima execução é ${formatDateTime(saved.next_run_at)}.`
+          : "Agenda pausada; o worker não roda sozinho.",
+      );
+    },
+  });
+
+  const clear = useMutation({
+    mutationFn: () => clearWorkerSchedule(worker.name),
+    onSuccess: () => {
+      invalidate();
+      setEnabled(false);
+      setCron("");
+      setFeedback("Agenda removida; o worker não roda sozinho.");
+    },
+  });
+
+  return (
+    <div className="grid gap-3 rounded-lg bg-black/[0.02] p-3 ring-1 ring-(--color-line)">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm font-medium">Agenda</span>
+        <span className="text-xs text-(--color-muted)">
+          {schedule ? (schedule.enabled ? `próxima ${formatDateTime(schedule.next_run_at)}` : "pausada") : "sem agenda"}
+        </span>
+      </div>
+
+      <p className="text-xs text-(--color-muted)">
+        Cinco campos (minuto, hora, dia do mês, mês e dia da semana) avaliados no fuso abaixo. O request
+        fica pinado; o que ficar vazio segue as configurações persistidas.
+      </p>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label="Estado">
+          <Select value={enabled ? "on" : "off"} onChange={(event) => setEnabled(event.target.value === "on")}>
+            <option value="on">ativa</option>
+            <option value="off">pausada</option>
+          </Select>
+        </Field>
+        <Field label="Cron">
+          <Input value={cron} onChange={(event) => setCron(event.target.value)} placeholder="0 2 * * *" />
+        </Field>
+        <Field label="Fuso (IANA)">
+          <Input
+            value={timezone}
+            onChange={(event) => setTimezone(event.target.value)}
+            placeholder="America/Sao_Paulo"
+          />
+        </Field>
+      </div>
+
+      {settings.engine_source === "signature" ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Engine (pinar)">
+            <Select
+              value={engine}
+              onChange={(event) => {
+                setEngine(event.target.value);
+                setPreset("");
+              }}
+            >
+              <option value="">(a das configurações)</option>
+              {(settings.available_engines ?? []).map((item) => (
+                <option key={item.name} value={item.name}>
+                  {item.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Preset">
+            <Select value={preset} onChange={(event) => setPreset(event.target.value)}>
+              <option value="">(o das configurações)</option>
+              {((settings.available_engines ?? []).find((item) => item.name === engine)?.presets ?? []).map(
+                (item) => (
+                  <option key={item.name} value={item.name}>
+                    {item.name} — {describeConfig(item.config)}
+                  </option>
+                ),
+              )}
+            </Select>
+          </Field>
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Lote (db_batch_size)">
+          <Input
+            value={batch}
+            onChange={(event) => setBatch(event.target.value)}
+            placeholder="(o das configurações)"
+          />
+        </Field>
+        <Field label='Repasses (JSON; ex.: {"device": "cpu"})'>
+          <Textarea
+            rows={2}
+            value={engineText}
+            onChange={(event) => setEngineText(event.target.value)}
+            placeholder="{}"
+          />
+        </Field>
+      </div>
+
+      <WorkerOptionsFields settings={settings} mode="run" values={optionValues} onChange={setOptionValues} />
+
+      {parsed.error ? <Notice tone="warn">{parsed.error}</Notice> : null}
+      {save.error ? <ErrorState error={save.error} /> : null}
+      {feedback ? <Notice tone="ok">{feedback}</Notice> : null}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="primary"
+          onClick={() => save.mutate()}
+          disabled={save.isPending || parsed.error !== undefined}
+        >
+          {save.isPending ? ACTION.save.pending : ACTION.save.label}
+        </Button>
+        {schedule ? (
+          <Button variant="secondary" onClick={() => clear.mutate()} disabled={clear.isPending}>
+            {clear.isPending ? ACTION.remove.pending : ACTION.remove.label}
+          </Button>
+        ) : null}
+        <span className="text-xs text-(--color-muted)">
+          {schedule ? `atualizada por ${schedule.updated_by ?? "—"}` : "sem agenda"}
+        </span>
+      </div>
     </div>
   );
 }

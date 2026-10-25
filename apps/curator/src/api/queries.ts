@@ -42,6 +42,7 @@ import {
   fetchSystemFailures,
   fetchSystemHealth,
   fetchSystemRuns,
+  fetchSystemSchedule,
   fetchSystemWorkerSettings,
   fetchSystemWorkers,
   fetchTagRelevance,
@@ -652,6 +653,17 @@ export const queries = {
     }),
 
   /** The execution ledger, one page at a time; the filters are server-side like the collection's. */
+  /**
+   * The agenda of one worker. One worker's read, because the card opens for one; the whole panel's
+   * nine agendas are already on ``systemWorkers``.
+   */
+  systemSchedule: (worker: string) =>
+    queryOptions({
+      queryKey: ["system", "workers", worker, "schedule"],
+      queryFn: () => fetchSystemSchedule(worker),
+      staleTime: 10_000,
+    }),
+
   systemRuns: (
     worker: string | undefined,
     status: WorkerRunStatus | undefined,
