@@ -826,6 +826,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/runs/{run_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** CancelRun */
+        post: operations["ApiV1SystemRunsRunIdCancelCancelRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/workers": {
         parameters: {
             query?: never;
@@ -3581,7 +3598,7 @@ export interface components {
          *         things and a translation catalogue needs to tell them apart.
          * @enum {string}
          */
-        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORDS_MATCH_UPDATED" | "TAG_STOPWORD_PURGE_DONE" | "TAG_STOPWORD_PURGE_UNDONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_BLOCKED" | "SUBJECT_EXCLUSIONS_PARTIAL" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "NER_PURGE_DONE" | "NER_PURGE_UNDONE" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "ENTITY_RENAMED" | "ENTITY_MERGE_UNDONE" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "PASSWORD_CHANGE_REQUIRED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
+        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "WORKER_RUN_CANCELLED" | "WORKER_RUN_CANCEL_REQUESTED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORDS_MATCH_UPDATED" | "TAG_STOPWORD_PURGE_DONE" | "TAG_STOPWORD_PURGE_UNDONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_BLOCKED" | "SUBJECT_EXCLUSIONS_PARTIAL" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "NER_PURGE_DONE" | "NER_PURGE_UNDONE" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "ENTITY_RENAMED" | "ENTITY_MERGE_UNDONE" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "PASSWORD_CHANGE_REQUIRED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
         /** RouteResponse */
         RouteResponse: {
             code: components["schemas"]["RouteMessageCode"];
@@ -4233,6 +4250,12 @@ export interface components {
             pending_reason?: string | null;
             worker_name: string;
         };
+        /** WorkerRunCancelResponse */
+        WorkerRunCancelResponse: {
+            code: components["schemas"]["RouteMessageCode"];
+            data: components["schemas"]["WorkerRunDTO"];
+            message: string;
+        };
         /** WorkerRunDTO */
         WorkerRunDTO: {
             /**
@@ -4240,6 +4263,10 @@ export interface components {
              * @default 1
              */
             attempt: number;
+            /** @description Quando o operador pediu o cancelamento; nulo enquanto ninguém pediu. É um pedido, não um estado: a linha continua na fila ou em execução, e segura a vaga, até o worker honrá-lo no limite do lote. */
+            cancel_requested_at?: string | null;
+            /** @description Quem pediu o cancelamento; nulo quando o pedido veio de um sinal do processo, não do painel. */
+            cancel_requested_by?: string | null;
             /** @description Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código. */
             config?: {
                 [key: string]: unknown;
@@ -4304,9 +4331,16 @@ export interface components {
          *         single run at a time, so a submitted run may wait before it actually starts. ``INTERRUPTED`` is
          *         written by the next start-up for a row the previous process left behind — without it the row
          *         would stay ``RUNNING`` forever, and the partial unique index would block that worker for good.
+         *
+         *         ``CANCELLED`` is the operator's stop (ADR 0014 decision 9, #72). It is deliberately distinct
+         *         from ``INTERRUPTED``: a process death is an accident the sweep repairs, a cancellation is a
+         *         deliberate verdict on the execution. The request that precedes it is the nullable
+         *         ``cancel_requested_at`` column, not this status: a requested run stays ``QUEUED``/``RUNNING``
+         *         and keeps its slot until the worker honours the request at a batch boundary, or the API closes
+         *         it at once when no runner has claimed it.
          * @enum {string}
          */
-        WorkerRunStatus: "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "INTERRUPTED";
+        WorkerRunStatus: "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "INTERRUPTED" | "CANCELLED";
         /**
          * WorkerRunTrigger
          * @description Who asked for the run: the command line, the curator's panel or the schedule (ADR 0015).
@@ -6397,6 +6431,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkerRunListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1SystemRunsRunIdCancelCancelRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerRunCancelResponse"];
                 };
             };
             /** @description Bad request syntax or unsupported method */

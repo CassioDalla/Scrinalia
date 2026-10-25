@@ -983,7 +983,7 @@ por `/configuracoes`, sob *Operação*: o menu ficou com o que o arquivista cons
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
 | Workers de IA — `/sistema/workers` | se roda um worker agora | sim (a configuração da própria execução); os efeitos de uma execução seguem o que ela escreveu |
-| Execuções — `/sistema/execucoes` | nenhuma (o ledger e as falhas agrupadas) | sim (só leitura) |
+| Execuções — `/sistema/execucoes` | se para uma execução ativa (o ledger e as falhas agrupadas são só leitura) | sem desfazer: uma execução cancelada continua cancelada; uma nova execução é uma nova linha no ledger |
 | Saúde do sistema — `/sistema/diagnostico` | nenhuma (banco, modelos, storage, processo) | sim (só leitura) |
 
 ### Workers de IA — `/sistema/workers`
@@ -1022,15 +1022,21 @@ descrições (um registro de staging, um par, uma tag).
 
 ### Execuções — `/sistema/execucoes`
 
-O ledger de execuções, em leitura: uma linha por execução, da linha de comando e do painel, com a
-configuração **já resolvida** que a execução usou (então ele continua legível depois que um preset
-muda no código), as **opções efetivas do worker** (as colunas que ele leu, o limiar, o teto —
+O ledger de execuções, em leitura exceto pela parada: uma linha por execução, da linha de comando e do
+painel, com a configuração **já resolvida** que a execução usou (então ele continua legível depois que
+um preset muda no código), as **opções efetivas do worker** (as colunas que ele leu, o limiar, o teto —
 resolvidas quando a execução começou, então "quais colunas a execução #N leu?" tem resposta), a
 duração, o desfecho e quem pediu. Uma linha anterior à coluna de opções diz "opções não registradas
 nesta execução". Acima dele, as falhas dos últimos 30 dias
 agrupadas por causa (`GET /api/v1/system/failures`), que respondem à pergunta que o ledger não
 responde: quarenta linhas dizendo a mesma frase são uma causa. Clicar num grupo filtra o ledger
 abaixo em vez de abrir uma segunda lista, e a referência de uma falha é o que se procura no log.
+
+A única escrita é **Cancelar execução…** numa linha ativa (`POST /api/v1/system/runs/{run_id}/cancel`,
+`OPERATE`). Uma execução na fila que nenhum runner reivindicou é cancelada na hora; uma em andamento só
+recebe o pedido, e a linha continua dizendo "em execução" com uma nota até o worker chegar ao limite do
+lote — o lote em curso é comitado, não interrompido, porque uma passada do modelo não pode ser cortada
+no meio. Um segundo clique é o mesmo pedido, e uma execução que já terminou responde `409`.
 
 ### Saúde do sistema — `/sistema/diagnostico`
 

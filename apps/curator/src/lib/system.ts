@@ -12,6 +12,7 @@ export const RUN_STATUS_LABEL: Record<WorkerRunStatus, string> = {
   SUCCESS: "Concluída",
   FAILED: "Falhou",
   INTERRUPTED: "Interrompida",
+  CANCELLED: "Cancelada",
 };
 
 export const RUN_STATUS_TONE: Record<
@@ -23,6 +24,9 @@ export const RUN_STATUS_TONE: Record<
   SUCCESS: "ok",
   FAILED: "danger",
   INTERRUPTED: "warn",
+  // A cancellation is a deliberate verdict, not an accident: neutral, where the interrupted run
+  // (the runner disappeared) keeps the warning tone. The label says which one it was.
+  CANCELLED: "neutral",
 };
 
 /**
@@ -49,6 +53,17 @@ export const MAX_ATTEMPTS = 3;
 /** True while the run has not reached a terminal state — what makes the screen poll. */
 export function isActiveRun(run?: WorkerRun | null): boolean {
   return run?.status === "QUEUED" || run?.status === "RUNNING";
+}
+
+/**
+ * True while a stop was requested but not yet honoured.
+ *
+ * The row is still ``QUEUED``/``RUNNING`` and keeps its slot (ADR 0014 decision 9), so the screen
+ * says "cancelamento pedido", never "cancelada": the worker stops at the next batch boundary, and
+ * pretending it stopped now would be the same lie as hiding the button.
+ */
+export function isCancelRequested(run?: WorkerRun | null): boolean {
+  return isActiveRun(run) && Boolean(run?.cancel_requested_at);
 }
 
 /** Duration a person can read at a glance; milliseconds only matter for the instant runs. */

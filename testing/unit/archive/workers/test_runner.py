@@ -284,3 +284,20 @@ def test_an_unknown_pass_through_key_keeps_the_string_the_shell_gave(monkeypatch
 def test_a_pass_through_without_a_value_is_a_usage_error(monkeypatch) -> None:
     with pytest.raises(SystemExit):
         runner.main(["ner", "--engine-option", "device"])
+
+
+def test_the_first_signal_asks_and_the_second_forces() -> None:
+    """
+    ``SIGINT``/``SIGTERM`` give the CLI the same ending as the panel, in two steps (#72).
+
+    The first signal is a request the worker honours at the next batch boundary; the second is the
+    operator insisting, and ``run_worker`` closes the row ``CANCELLED`` before the process exits.
+    """
+    control = runner.RunControl()
+    stop = runner._StopOnSignal(control)
+
+    stop(2, None)
+    assert control.stop_requested is True
+
+    with pytest.raises(KeyboardInterrupt):
+        stop(2, None)

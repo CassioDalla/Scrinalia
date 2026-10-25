@@ -13,6 +13,7 @@ A test that needs the clock to move sets the lease directly; the sweep then read
 from sqlalchemy import delete, func, update
 from sqlalchemy.orm import Session
 
+from scrinalia.core.author import Author
 from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
 from scrinalia.domains.archive.models.operations import WorkerRun
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
@@ -254,3 +255,91 @@ def test_a_claim_committed_by_one_session_is_invisible_to_the_next(engine) -> No
             with Session(bind=engine) as cleanup:
                 cleanup.execute(delete(WorkerRun).where(WorkerRun.id == run_id))
                 cleanup.commit()
+
+
+# --- Cancellation (#72) -----------------------------------------------------------------------
+
+
+def test_an_unclaimed_queued_run_is_closed_cancelled(db_session) -> None:
+    """
+    A row no runner claimed never started: the API closes it at once and the slot is free.
+
+    The request timestamp and its author are written by the same statement, and ``duration_ms``
+    stays NULL because the run has no ``started_at``.
+    """
+    repo = WorkerRunRepository(db_session)
+    run = _queued(repo)
+
+    assert repo.close_unclaimed(run.run_id, requested_by=Author(name="ana")) is True
+
+    stored = repo.get(run.run_id, populate_existing=True)
+    assert stored is not None
+    assert stored.status == WorkerRunStatus.CANCELLED
+    assert stored.cancel_requested_at is not None
+    assert stored.cancel_requested_by == "ana"
+    assert stored.finished_at is not None
+    assert stored.duration_ms is None
+    assert repo.is_cancel_requested(run.run_id) is True
+    # A second immediate close is not a second write: the row is already terminal.
+    assert repo.close_unclaimed(run.run_id, requested_by=Author(name="bia")) is False
+
+
+def test_the_request_on_a_claimed_run_keeps_it_running_and_holding_the_slot(db_session) -> None:
+    """
+    The request is not a status: the row stays ``RUNNING`` until the worker honours it.
+
+    This is the invariant ``uq_worker_run_active`` depends on (ADR 0014 decision 9). The first
+    author and instant survive a repeated request, and the close the runner writes is ``CANCELLED``
+    with no error text — a cancellation is not a failure the failures screen should group.
+    """
+    repo = WorkerRunRepository(db_session)
+    run = _queued(repo)
+    claimed = repo.claim_next(["ner"], runner_id="runner-a", lease_seconds=60)
+    assert claimed is not None and claimed.run_id == run.run_id
+
+    assert repo.close_unclaimed(run.run_id, requested_by=Author(name="ana")) is False
+    assert repo.request_cancel(run.run_id, requested_by=Author(name="ana")) is True
+
+    requested = repo.get(run.run_id, populate_existing=True)
+    assert requested is not None
+    assert requested.status == WorkerRunStatus.RUNNING
+    assert requested.cancel_requested_at is not None
+    assert requested.cancel_requested_by == "ana"
+    assert repo.has_active_run("ner") is True
+
+    assert repo.request_cancel(run.run_id, requested_by=Author(name="bia")) is False
+    still = repo.get(run.run_id, populate_existing=True)
+    assert still is not None
+    assert still.cancel_requested_by == "ana"
+
+    assert repo.finish(run.run_id, status=WorkerRunStatus.CANCELLED, runner_id="runner-a") is True
+
+    closed = repo.get(run.run_id, populate_existing=True)
+    assert closed is not None
+    assert closed.status == WorkerRunStatus.CANCELLED
+    assert closed.error is None
+    assert closed.error_fingerprint is None
+    assert repo.has_active_run("ner") is False
+
+
+def test_a_cancelled_scheduled_run_is_never_retried(db_session) -> None:
+    """ADR 0014 decision 9: a deliberate stop is not a failure the scheduler retries."""
+    repo = WorkerRunRepository(db_session)
+    failed = _queued(repo)
+    cancelled = _queued(repo, "typology")
+    # ``_queued`` creates API rows; the retry eligibility is the SCHEDULE trigger's, so mark both.
+    db_session.execute(
+        update(WorkerRun)
+        .where(WorkerRun.id.in_([failed.run_id, cancelled.run_id]))
+        .values(trigger=WorkerRunTrigger.SCHEDULE)
+    )
+    db_session.flush()
+
+    claimed = repo.claim_next(["ner"], runner_id="runner-a", lease_seconds=60)
+    assert claimed is not None and claimed.run_id == failed.run_id
+    assert repo.finish(failed.run_id, status=WorkerRunStatus.FAILED, runner_id="runner-a") is True
+    assert repo.close_unclaimed(cancelled.run_id, requested_by=Author(name="ana")) is True
+
+    retried = repo.due_retries(max_attempts=3)
+
+    assert [run.id for run in retried] == [failed.run_id]

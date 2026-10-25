@@ -60,6 +60,7 @@ from scrinalia.domains.archive.exceptions import (
     UnresolvableConflictError,
     WorkerNotFoundError,
     WorkerRunAlreadyActiveError,
+    WorkerRunNotCancellableError,
     WorkerRunNotFoundError,
     WorkerScheduleNotFoundError,
 )
@@ -137,6 +138,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             ConflictResolutionAlreadyUndoneError,
             DocumentHasChildrenError,
             WorkerRunAlreadyActiveError,
+            WorkerRunNotCancellableError,
             DuplicateUserEmailError,
             LastAdminError,
             SetupAlreadyCompleteError,

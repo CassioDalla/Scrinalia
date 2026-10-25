@@ -1,8 +1,8 @@
 """HTTP surface of the operations panel (``/api/v1/system``).
 
-Read the workers and their queues, change a worker's persisted defaults, trigger a run and read the
-ledger. The probes are the one place where the API talks to something other than PostgreSQL (Ollama
-and the object storage), and each of them answers on its own.
+Read the workers and their queues, change a worker's persisted defaults, trigger or cancel a run and
+read the ledger. The probes are the one place where the API talks to something other than PostgreSQL
+(Ollama and the object storage), and each of them answers on its own.
 """
 
 from litestar import Controller, delete, get, post, put
@@ -25,6 +25,7 @@ from scrinalia.domains.archive.schemas.system_schema import (
     SystemWorkerSettingsResponse,
     SystemWorkersResponse,
     WorkerQueuePreviewDTO,
+    WorkerRunCancelResponse,
     WorkerRunDTO,
     WorkerRunListResponse,
     WorkerRunRequest,
@@ -127,6 +128,24 @@ class SystemController(Controller):
         partial unique index, not from a check the API could race.
         """
         return run_service.trigger(worker_name, data, requested_by=current_user.author)
+
+    @post("/runs/{run_id:int}/cancel", opt={"access": Access.OPERATE}, status_code=200, sync_to_thread=True)
+    def cancel_run(
+        self,
+        run_service: NamedDependency[WorkerRunService],
+        run_id: FromPath[int],
+        current_user: NamedDependency[AuthenticatedUser],
+    ) -> WorkerRunCancelResponse:
+        """
+        Asks one execution to stop, and says which of the two things happened.
+
+        A run still queued with no runner never started, so it closes ``CANCELLED`` at once and frees
+        its worker's slot. A run in flight keeps its status and its slot: the request is recorded and
+        the worker honours it at the next batch boundary, because a thread cannot be killed mid-batch
+        (ADR 0014 decision 9). A terminal run answers 409 — there is nothing to cancel — and an unknown
+        id answers 404. Repeating the request is idempotent.
+        """
+        return run_service.cancel(run_id, requested_by=current_user.author)
 
     @get("/workers/{worker_name:str}/schedule", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def get_schedule(

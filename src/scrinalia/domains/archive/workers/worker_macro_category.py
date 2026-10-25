@@ -29,6 +29,7 @@ from scrinalia.domains.archive.worker_stamp import (
     identity_stamp_conditions,
     producer_fingerprint,
 )
+from scrinalia.domains.archive.workers.cancellation import RunControl, checkpoint
 from scrinalia.domains.archive.workers.run_budget import RunBudget
 
 
@@ -131,6 +132,7 @@ def execute(
     confidence_threshold: float | None = None,
     force: bool = False,
     limit: int | None = None,
+    run_control: RunControl | None = None,
     **engine_kwargs,
 ) -> None:
     """
@@ -239,6 +241,7 @@ def execute(
     budget = RunBudget(limit)
 
     while True:
+        checkpoint(run_control)
         try:
             query = (
                 select(ArchiveTag)

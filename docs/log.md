@@ -2148,3 +2148,40 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   a screenshot. The advisory lock's standby/failover was tested with two services on one test database,
   not observed across two hosts. A GPU host or a multi-host deploy was not exercised.
 
+## 2026-10-25 — a run can be stopped from the panel (#72)
+
+- **Range:** `57c58fd..b84cad3`
+- **Pages:**
+  - `guides/operate.md` / `operate.pt.md` — **updated**: the ledger columns and the `CANCELLED`
+    status, the new **Cancelling a run** section (the request, the two outcomes, the batch boundary,
+    the CLI signals and the daemon's `INTERRUPTED`), the route and screen tables, the retry note and
+    the limits. The trigger list now names `SCHEDULE`, which the #43 round left out.
+  - `guides/data-model.md` / `data-model.pt.md` — **updated**: `cancel_requested_at`,
+    `cancel_requested_by`/`_user_id` and the `CANCELLED` value on `archive_worker_runs`.
+  - `guides/curate.md` / `curate.pt.md` — **updated**: the Execuções screen's one write, with the
+    confirmation and the honest granularity.
+  - `.dsh/skills/workers` — **updated**: the cancellation is a request, `RunControl.checkpoint`, the
+    source gate, the `BaseException` choice and the CLI/daemon split.
+  - `adr/0014` — **no-change**: decision 9 fixed this vocabulary and named #72; the ADR records the
+    decision, and this round is its implementation.
+- **Why the round exists:** #72, milestone 1.6 — the panel could start work it could not stop, and
+  the only lever was `docker compose stop`.
+- **What the round measured.** Four code commits: the ledger (the enum value, the two columns with
+  their author link, the migration `d72c0a4b1e9f`, the DTO and the repository); the runner (the one
+  `RunControl.checkpoint`, the six loop checks, the CLI signal handler, the service use case); the
+  API (the route, the two codes, the generated contract); the SPA (the status mirror and the row
+  action). Full suite **2146 passed, 1 skipped**; `basedpyright`, `ruff`, `tsc`, ESLint and the Vite
+  build green; `alembic upgrade head` and `alembic check` report no drift; `mkdocs --strict` green.
+- **What was rendered.** `.render/72-runs.png` shows the three states together: the `RUNNING`
+  `embedding` row with "Cancelamento pedido em 25/10/2026, 14:05 por Cassio…", the `CANCELLED`
+  `thumbnail` row, and the `QUEUED` `typology` row with **Cancelar execução…**.
+  `.render/72-confirm.png` shows the inline confirmation and its sentence; `.render/72-cancelled.png`
+  shows the `typology` row after the browser clicked **Confirmar cancelamento** — the POST ran
+  through the real route and the row came back **Cancelada**. The `RUNNING` row was claimed by
+  `render:demo` with a direct `UPDATE` (no worker process), and the request was recorded through the
+  API; the scratch session row and the three runs were deleted after the round.
+- **Not verified, and said so.** The batch-boundary stop of a real model run was not observed: the
+  checkpoint is covered by the integration tests with a double, not by a spaCy/torch run. The CLI's
+  signal handler is unit-tested as a callable, but no `SIGTERM` was delivered by the operating system
+  to a process mid-batch. The daemon's `SIGTERM` → lease → `INTERRUPTED` path was not exercised.
+

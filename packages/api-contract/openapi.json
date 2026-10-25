@@ -6192,6 +6192,8 @@
           "TEXT_TEMPLATE_UPDATED",
           "TEXT_TEMPLATE_DELETED",
           "DOCUMENT_DELETED",
+          "WORKER_RUN_CANCELLED",
+          "WORKER_RUN_CANCEL_REQUESTED",
           "TAG_MERGE_PROPOSAL_DECIDED",
           "TAG_MERGE_UNDONE",
           "TAG_STOPWORDS_BANNED",
@@ -8465,6 +8467,26 @@
         "title": "WorkerQueuePreviewDTO",
         "type": "object"
       },
+      "WorkerRunCancelResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkerRunDTO"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "title": "WorkerRunCancelResponse",
+        "type": "object"
+      },
       "WorkerRunDTO": {
         "properties": {
           "attempt": {
@@ -8472,6 +8494,29 @@
             "description": "Qual tentativa esta linha é: 1 numa execução pedida uma vez, N numa agendada (ADR 0015).",
             "minimum": 1.0,
             "type": "integer"
+          },
+          "cancel_requested_at": {
+            "description": "Quando o operador pediu o cancelamento; nulo enquanto ninguém pediu. É um pedido, não um estado: a linha continua na fila ou em execução, e segura a vaga, até o worker honrá-lo no limite do lote.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cancel_requested_by": {
+            "description": "Quem pediu o cancelamento; nulo quando o pedido veio de um sinal do processo, não do painel.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "config": {
             "additionalProperties": {},
@@ -8731,13 +8776,14 @@
         "type": "object"
       },
       "WorkerRunStatus": {
-        "description": "\n    Lifecycle of one execution of an AI worker.\n\n    ``QUEUED`` exists so the ledger does not lie about the start time: the executor accepts a\n    single run at a time, so a submitted run may wait before it actually starts. ``INTERRUPTED`` is\n    written by the next start-up for a row the previous process left behind — without it the row\n    would stay ``RUNNING`` forever, and the partial unique index would block that worker for good.\n    ",
+        "description": "\n    Lifecycle of one execution of an AI worker.\n\n    ``QUEUED`` exists so the ledger does not lie about the start time: the executor accepts a\n    single run at a time, so a submitted run may wait before it actually starts. ``INTERRUPTED`` is\n    written by the next start-up for a row the previous process left behind — without it the row\n    would stay ``RUNNING`` forever, and the partial unique index would block that worker for good.\n\n    ``CANCELLED`` is the operator's stop (ADR 0014 decision 9, #72). It is deliberately distinct\n    from ``INTERRUPTED``: a process death is an accident the sweep repairs, a cancellation is a\n    deliberate verdict on the execution. The request that precedes it is the nullable\n    ``cancel_requested_at`` column, not this status: a requested run stays ``QUEUED``/``RUNNING``\n    and keeps its slot until the worker honours the request at a batch boundary, or the API closes\n    it at once when no runner has claimed it.\n    ",
         "enum": [
           "QUEUED",
           "RUNNING",
           "SUCCESS",
           "FAILED",
-          "INTERRUPTED"
+          "INTERRUPTED",
+          "CANCELLED"
         ],
         "title": "WorkerRunStatus",
         "type": "string"
@@ -13705,6 +13751,78 @@
           }
         },
         "summary": "ListRuns",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/runs/{run_id}/cancel": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemRunsRunIdCancelCancelRun",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunCancelResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "CancelRun",
         "tags": [
           "System"
         ]
