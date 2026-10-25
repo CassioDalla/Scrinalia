@@ -1891,3 +1891,30 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   (`dist/assets/index-DIQDkiK4.js`, sha256
   `21ca64dc0b02571364431c9c52300079d69fc236c8d03b54a06ddc015dd0b75c`), because a type-level change
   erases at compile time — so no screen's pixels can differ, and no rendering would show the change.
+
+## 2026-10-24 — the NER removal declares only what it reads (#176)
+
+- **Range:** `77bca6b..2e0e9b9`
+- **Pages:**
+  - `guides/curate.md` — **no-change**: the page was reported stale through the contract and the
+    taxonomy controller, and the paragraph it owns (*Exclusões de NER*) names the reversal as a plain
+    `DELETE` that re-opens the term, never as a body. The removal's model is not described there, and
+    the screen's call sends `{words: [word]}` either way, so the text still holds.
+- **Why the round exists:** the `DELETE` on `/entities/ner-exclusions` took the ban's
+  `NerExclusionRequest` and read only `data.words`, so a `reason` answered 200 and vanished; the
+  client had narrowed it back with `Pick<NerExclusionRequest, "words">`. #176 gave the removal its
+  own model, `SubjectExclusionRemovalRequest`'s twin, and the narrowing went with it.
+- **What the round measured.** The contract diff is the new schema and the `$ref` of the one
+  operation, nothing else: `bun run contract` emits `NerExclusionRemovalRequest` with `words` and
+  `minItems: 1`, and the generated client's signature changes from the narrowing to the model.
+  The behaviour is pinned by `test_remove_ner_exclusions_refuses_the_reason_the_route_ignores`
+  (a `reason` is a **400**, and the service is not called) and by the table in
+  `testing/unit/curator/test_api_body_shapes.py`, which now lists **three** narrowings instead of
+  four. `uv run pytest testing/integration/api/controller/test_taxonomy_controller.py` answers **63
+  passed** against the test database; `testing/unit/api`, `testing/unit/curator` and
+  `testing/unit/docs` answer **147 passed**; `ruff check`, `ruff format --check` and `basedpyright`
+  answer zero, and `tsc`/ESLint are green.
+- **Not verified, and said so.** No screen was rendered: the change is a request model and a
+  generated type, and the screen behind it sends the same body before and after. The API was not
+  driven by hand against the reference collection either — the 400 is the integration test's client.
+
