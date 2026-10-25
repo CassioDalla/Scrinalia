@@ -193,17 +193,23 @@ são um estado da tag.
 | --- | --- | --- |
 | `archive_worker_settings` | A configuração padrão persistida de um worker. | `worker_name` (chave primária), `engine_name`, `preset`, `db_batch_size`, `options` (JSONB), `updated_by`, `updated_at` |
 | `archive_worker_settings_revisions` | Trilha de auditoria das escritas de configuração, uma linha por escrita. | `id`, `worker_name`, `before` (JSONB), `after` (JSONB), `changed_by`, `changed_by_user_id`, `changed_at` |
-| `archive_worker_runs` | Uma linha por execução de worker, tanto pela CLI quanto pelo painel. | `id`, `worker_name`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `config` (JSONB), `options` (JSONB), `queued_at`, `started_at`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (gerada) |
+| `archive_worker_runs` | Uma linha por execução de worker, tanto pela CLI quanto pelo painel; desde a ADR 0014 uma linha `QUEUED` é também o item de fila que um runner reivindica. | `id`, `worker_name`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `request` (JSONB, a requisição validada), `config` (JSONB), `options` (JSONB), `queued_at`, `runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (gerada) |
+| `archive_worker_runners` | O registro dos runners vivos: quem está conectado, quais workers aceita e quando deu o último sinal. | `runner_id` (chave primária), `name`, `hostname`, `version`, `capabilities` (array de texto), `concurrency`, `heartbeat_seconds`, `started_at`, `last_heartbeat_at`, `stopped_at` |
 | `archive_api_errors` | As falhas HTTP inesperadas da própria API. | `id`, `occurred_at`, `request_id`, `method`, `path`, `status_code`, `message`, `error_fingerprint` (gerada) |
 
 `archive_worker_settings` é uma linha **parcial** de propósito: um campo deixado `NULL` continua
 seguindo o código, então a precedência é `argumento explícito > esta linha > o default da assinatura`.
 `archive_worker_runs` guarda a configuração **resolvida** — `config` da engine, `options` do próprio
 worker, resolvidas quando a execução começa — então a linha mantém o sentido quando um
-preset muda no código. Deliberadamente não há chave estrangeira de nenhuma das duas para uma tabela
-de workers: workers são código, não linhas. `archive_api_errors` registra apenas falhas
-*inesperadas* — um 404, um 409 e um 422 são respostas que a API deve a um cliente, e registrá-las
-enterra os defeitos de verdade.
+preset muda no código. Desde a ADR 0014 o ledger de execuções é também a fila: uma linha `QUEUED`
+carrega a `request` validada, para um runner reproduzir a execução sem o processo que a aceitou, e o
+claim grava `runner_id`, `started_at`, `heartbeat_at` e `lease_expires_at` com o relógio do
+PostgreSQL. O runner renova o lease; um claim cujo lease vence é marcado `INTERRUPTED` pelo próximo
+runner, nunca pelo boot da API. `archive_worker_runners` é o registro que o painel lê para responder
+se um runner está vivo e se ele pode rodar determinado worker. Deliberadamente não há chave
+estrangeira de nenhuma das duas para uma tabela de workers: workers são código, não linhas.
+`archive_api_errors` registra apenas falhas *inesperadas* — um 404, um 409 e um 422 são respostas que
+a API deve a um cliente, e registrá-las enterra os defeitos de verdade.
 
 ### Identity — a instalação, não o acervo
 

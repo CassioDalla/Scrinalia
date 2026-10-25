@@ -4226,6 +4226,10 @@ export interface components {
             /** @description A causa raiz da falha, derivada da mensagem pelo PostgreSQL. Duas execuções com a mesma causa compartilham este valor. */
             error_fingerprint?: string | null;
             finished_at?: string | null;
+            /** @description O último sinal de vida do runner, no relógio do banco. */
+            heartbeat_at?: string | null;
+            /** @description Quando o claim vence se o runner parar de renovar. A próxima varredura do runner marca a execução como interrompida. */
+            lease_expires_at?: string | null;
             /** @description Opções efetivas do worker nesta execução (as colunas lidas, o limite de confiança), resolvidas quando a execução começou. Vazio numa linha antiga, ou numa que ainda não começou. */
             options?: {
                 [key: string]: unknown;
@@ -4236,6 +4240,8 @@ export interface components {
             /** @description Quem pediu a execução; nulo quando ela veio do host, sem --by. */
             requested_by?: string | null;
             run_id: number;
+            /** @description O runner que reivindicou a execução; nulo enquanto ninguém a pegou. */
+            runner_id?: string | null;
             started_at?: string | null;
             status: components["schemas"]["WorkerRunStatus"];
             trigger: components["schemas"]["WorkerRunTrigger"];

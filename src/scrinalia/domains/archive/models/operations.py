@@ -1,13 +1,17 @@
-"""Operational state of the AI workers: persisted defaults and the execution ledger.
+"""Operational state of the AI workers: persisted defaults, the execution ledger and its runners.
 
-Two concerns live here, both owned by the *operation* of the system rather than by the archival
+Three concerns live here, all owned by the *operation* of the system rather than by the archival
 record:
 
 * ``WorkerSetting`` — the default engine/preset/batch/options of a worker, which the runner uses
   when the command line says nothing. ``WorkerSettingRevision`` is its audit trail, in the same
   spirit as ``ArchiveDocumentRevision``: the decision and the write are different facts.
 * ``WorkerRun`` — one line per execution, written by the runner for **both** the CLI and the panel,
-  so the ledger is about the worker and not about the button that started it.
+  so the ledger is about the worker and not about the button that started it. Since ADR 0014 the
+  ``QUEUED`` row is also the **work item** the external runner claims, and the row carries the
+  request it was asked for, the runner that holds it and the lease that proves the runner is alive.
+* ``WorkerRunner`` — the live runner registry: who is connected, which workers it accepts, and
+  when it last said so. It is what lets the panel answer "why did nothing happen?".
 
 There is deliberately **no foreign key to a worker table**: workers are code, not rows. A run whose
 worker was later removed from the catalogue stays readable, which is what a ledger is for.
@@ -17,7 +21,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import Computed, DateTime, Enum, ForeignKey, Index, Integer, String, Text, func, text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scrinalia.core.base import Base
@@ -27,6 +31,12 @@ from .enums import WorkerRunStatus, WorkerRunTrigger
 #: Literal form of the partial index predicate. Kept next to the index so the model, the migration
 #: and any hand-written query read the same words; ``ACTIVE_WORKER_RUN_STATUSES`` owns the meaning.
 ACTIVE_RUN_PREDICATE = "status IN ('QUEUED', 'RUNNING')"
+
+#: The queue's index: the claim reads the oldest ``QUEUED`` row, and only those rows are the queue.
+QUEUED_RUN_PREDICATE = "status = 'QUEUED'"
+
+#: The lease's index: the sweeper and the heartbeat only ever look at the runs in flight.
+RUNNING_RUN_PREDICATE = "status = 'RUNNING'"
 
 #: The expression of the generated ``error_fingerprint`` column. ``public.`` is spelled out because
 #: that is how PostgreSQL reflects the expression back: without it ``alembic check`` would report a
@@ -85,12 +95,16 @@ class WorkerRun(Base):
     """
     One execution of a worker, from the queue to the outcome.
 
-    ``config`` is the **resolved** configuration (the preset already merged with the overrides), so
-    the row keeps its meaning when a preset changes in code; ``options`` is the resolved set of the
-    worker's own options, so "which columns did this run read?" is a value and not a fingerprint. ``error`` is the exception text,
-    prefixed with its class (``ValueError: ...``) and truncated: enough to act on, not a stack trace
-    storage. ``error_fingerprint`` is the *root cause* of that text, computed by PostgreSQL — see
-    the column below.
+    Since ADR 0014 a ``QUEUED`` row is also the **work item**: an external runner claims it with
+    ``FOR UPDATE SKIP LOCKED``, and the row carries the request (``request``), the runner that holds
+    it (``runner_id``) and the lease that proves that runner is still alive (``heartbeat_at``,
+    ``lease_expires_at``). ``config`` is the **resolved** configuration (the preset already merged
+    with the overrides), so the row keeps its meaning when a preset changes in code; ``options`` is
+    the resolved set of the worker's own options, so "which columns did this run read?" is a value
+    and not a fingerprint. ``error`` is the exception text, prefixed with its class
+    (``ValueError: ...``) and truncated: enough to act on, not a stack trace storage.
+    ``error_fingerprint`` is the *root cause* of that text, computed by PostgreSQL — see the column
+    below.
     """
 
     __tablename__ = "archive_worker_runs"
@@ -109,6 +123,12 @@ class WorkerRun(Base):
     )
     engine_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
     preset: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    #: The validated request this run was asked for (``engine_name``, ``preset``,
+    #: ``db_batch_size``, ``options``, ``engine_options``). It is what makes a ``QUEUED`` row a work
+    #: item the external runner can reproduce without the process that accepted it (ADR 0014). The
+    #: runner resolves it again at claim and records the effective ``config``/``options``, so the
+    #: queued row is the promise and the running row is the truth.
+    request: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict, server_default=_EMPTY_JSON)
     config: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict, server_default=_EMPTY_JSON)
     #: The **effective worker options** of the run (the columns it read, the floor it applied),
     #: resolved when the run started. ``config`` beside it is the engine's resolved configuration, so
@@ -116,7 +136,18 @@ class WorkerRun(Base):
     #: Rows written before the column existed keep the empty default, and the panel says so.
     options: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict, server_default=_EMPTY_JSON)
     queued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    #: The runner that claimed the row. Null while it is queued; set at claim, together with the
+    #: lease. ``record_start``, ``heartbeat`` and ``finish`` are fenced by it, so a runner that lost
+    #: its lease cannot close another runner's execution.
+    runner_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    #: Last sign of life from the claiming runner, written with the database's clock. The sweep
+    #: only expires rows whose lease is older than ``now()``, so two machines never disagree about
+    #: whether a runner is alive.
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    #: When the claim expires if the runner stops renewing. A claim whose runner disappeared is
+    #: marked ``INTERRUPTED`` by the next runner's sweep, never by the API's boot.
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -136,12 +167,59 @@ class WorkerRun(Base):
     __table_args__ = (
         # The concurrency guard, enforced by PostgreSQL: at most one run per worker may be in
         # flight, across processes and across a reload. A second submission becomes an
-        # IntegrityError the API translates into a 409 with a sentence a person can read.
+        # IntegrityError the API translates into a 409 with a sentence a person can read. It is
+        # also the reason the queue is one slot per worker and not a backlog (ADR 0014).
         Index("uq_worker_run_active", "worker_name", unique=True, postgresql_where=text(ACTIVE_RUN_PREDICATE)),
+        # The claim reads the oldest queued row; only queued rows are the queue, so the index is
+        # partial and stays small no matter how long the ledger grows.
+        Index("ix_worker_run_queue", "queued_at", postgresql_where=text(QUEUED_RUN_PREDICATE)),
+        # The lease's two readers: the sweeper finds expired claims, and the runner's heartbeat
+        # extends the claims it owns. Both only look at the rows in flight.
+        Index("ix_worker_run_lease", "lease_expires_at", postgresql_where=text(RUNNING_RUN_PREDICATE)),
+        Index("ix_worker_run_runner", "runner_id", postgresql_where=text(RUNNING_RUN_PREDICATE)),
         Index("ix_worker_run_queued_at", "queued_at"),
         # The grouped read of the failures screen. Without it the group-by would scan the ledger,
         # which is small today and is not a thing to rely on.
         Index("ix_worker_run_error_fingerprint", "error_fingerprint"),
+    )
+
+
+class WorkerRunner(Base):
+    """
+    One runner process, as the operations panel sees it.
+
+    The row is written at start-up (or refreshed with the same ``runner_id``) and renewed with the
+    runner's own heartbeat. It is what lets the panel answer "is any runner alive?" and "can any of
+    them run this worker?" without the API ever talking to a runner — the database is the only
+    channel (ADR 0014).
+
+    ``capabilities`` is the list of worker names the runner accepts (the ``--workers`` flag, or the
+    whole catalogue). ``heartbeat_seconds`` is stored so the API can decide whether the runner is
+    online from *its own* declared interval instead of a constant the runner cannot change. A
+    stopped runner keeps its row: the ledger and the panel are allowed to remember it.
+    """
+
+    __tablename__ = "archive_worker_runners"
+
+    runner_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    hostname: Mapped[str] = mapped_column(String(255), nullable=False)
+    #: The installed package version; ``NULL`` when the runner could not read its distribution.
+    version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    capabilities: Mapped[list[str]] = mapped_column(
+        ARRAY(String), nullable=False, default=list, server_default=text("'{}'::text[]")
+    )
+    concurrency: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default=text("1"))
+    heartbeat_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=15, server_default=text("15"))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    last_heartbeat_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    stopped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        # The panel's only read: the runners whose heartbeat is recent enough to count as online.
+        Index("ix_worker_runner_last_heartbeat", "last_heartbeat_at"),
     )
 
 

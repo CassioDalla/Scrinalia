@@ -8519,6 +8519,30 @@
               }
             ]
           },
+          "heartbeat_at": {
+            "description": "O último sinal de vida do runner, no relógio do banco.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lease_expires_at": {
+            "description": "Quando o claim vence se o runner parar de renovar. A próxima varredura do runner marca a execução como interrompida.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "options": {
             "additionalProperties": {},
             "description": "Opções efetivas do worker nesta execução (as colunas lidas, o limite de confiança), resolvidas quando a execução começou. Vazio numa linha antiga, ou numa que ainda não começou.",
@@ -8551,6 +8575,17 @@
           },
           "run_id": {
             "type": "integer"
+          },
+          "runner_id": {
+            "description": "O runner que reivindicou a execução; nulo enquanto ninguém a pegou.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "started_at": {
             "oneOf": [

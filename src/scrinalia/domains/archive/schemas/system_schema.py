@@ -56,7 +56,22 @@ class WorkerRunDTO(BaseModel):
         ),
     )
     queued_at: datetime
+    runner_id: str | None = Field(
+        default=None,
+        description="O runner que reivindicou a execução; nulo enquanto ninguém a pegou.",
+    )
     started_at: datetime | None = None
+    heartbeat_at: datetime | None = Field(
+        default=None,
+        description="O último sinal de vida do runner, no relógio do banco.",
+    )
+    lease_expires_at: datetime | None = Field(
+        default=None,
+        description=(
+            "Quando o claim vence se o runner parar de renovar. A próxima varredura do runner "
+            "marca a execução como interrompida."
+        ),
+    )
     finished_at: datetime | None = None
     duration_ms: int | None = None
     error: str | None = None
