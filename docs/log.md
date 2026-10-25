@@ -2320,6 +2320,11 @@ with short or full shas, and part of a `## <date> — <title>` entry.
     `trial` and `trial_result` (JSONB).
   - `.dsh/skills/workers` — **updated**: the trial is a run kind, the metric lives in the package, the
     gabarito rule, and the counter options now come from `configuration.counter_options`.
+  - `guides/curate.md` — **no-change**: the hook flags it because the SPA routes and the contract it
+    declares moved, but the comparison card lives on `/configuracoes/workers`, the operator screen
+    the operations guide owns, and it needs `OPERATE`; no curation workflow changed.
+  - `guides/install.md` — **no-change**: the runner daemon's flags and the deploy are unchanged; the
+    trial is dispatched from a claimed row, not from a new installation step.
 - **Why the round exists:** #70 made a classified description re-classifiable, so a configuration can
   be re-run; #71 answers the question before the run — *which configuration is better on this
   collection, and what does it cost?* The decision the issue demanded first, which screen owns the
