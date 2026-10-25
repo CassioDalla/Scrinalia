@@ -109,7 +109,7 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
       }
     >
       <div className="grid gap-4">
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Fact label="Configuração efetiva">
             <span className="font-mono text-xs">{worker.settings.engine_name ?? "sem modelo"}</span>
             {worker.settings.preset ? <span className="text-(--color-muted)"> · {worker.settings.preset}</span> : null}
@@ -133,18 +133,47 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
                 {formatCount(worker.pending)}
               </span>
             )}
+            <p className="mt-1 text-xs text-(--color-muted)">
+              O predicado da fila: o que a próxima execução leria. Não é o ledger do worker.
+            </p>
+          </Fact>
+
+          {/*
+            The breakdown in its own fact, not under the queue (#150): these four numbers cover the
+            worker's whole ledger, and ``pending`` is a different set. Side by side the operator can
+            see the difference — on the reference collection 4.831 stamped against 4.813 pending —
+            instead of reading the breakdown as a decomposition of the queue.
+          */}
+          <Fact label={`${worker.stamp_breakdown ? "Carimbos" : "Processados"} (${UNIT_LABEL[worker.unit]})`}>
             {worker.stamp_breakdown ? (
-              <p className="mt-1 text-xs text-(--color-muted)">
-                {formatCount(worker.stamp_breakdown.fingerprinted)} com produtor
-                {` · ${formatCount(worker.stamp_breakdown.legacy)} sem produtor conhecido`}
-                {` · ${formatCount(worker.stamp_breakdown.unrecorded)} sem registro`}
-                {worker.stamp_breakdown.failed ? ` · ${formatCount(worker.stamp_breakdown.failed)} com falha` : ""}
-              </p>
+              <>
+                <span className="text-2xl leading-none font-semibold tabular-nums">
+                  {formatCount(
+                    worker.stamp_breakdown.fingerprinted +
+                      worker.stamp_breakdown.legacy +
+                      worker.stamp_breakdown.failed +
+                      worker.stamp_breakdown.unrecorded,
+                  )}
+                </span>
+                <p className="mt-1 text-xs text-(--color-muted)">
+                  {formatCount(worker.stamp_breakdown.fingerprinted)} com produtor
+                  {` · ${formatCount(worker.stamp_breakdown.legacy)} sem produtor conhecido`}
+                  {` · ${formatCount(worker.stamp_breakdown.unrecorded)} sem registro`}
+                  {worker.stamp_breakdown.failed ? ` · ${formatCount(worker.stamp_breakdown.failed)} com falha` : ""}
+                  {" — o ledger inteiro do worker, não a fila."}
+                </p>
+              </>
             ) : (
-              <p className="mt-1 text-xs text-(--color-muted)">
-                {formatCount(worker.processed ?? 0)} já processados
-                {worker.failed ? ` · ${formatCount(worker.failed)} com falha` : ""}
-              </p>
+              <>
+                <span className="text-2xl leading-none font-semibold tabular-nums">
+                  {formatCount(worker.processed ?? 0)}
+                </span>
+                <p className="mt-1 text-xs text-(--color-muted)">
+                  já processados
+                  {worker.failed ? ` · ${formatCount(worker.failed)} com falha` : ""} — o ledger do
+                  worker, não a fila.
+                </p>
+              </>
             )}
           </Fact>
 

@@ -4347,7 +4347,7 @@ export interface components {
             /** @description Unidades que o worker já carimbou. */
             processed?: number | null;
             settings: components["schemas"]["WorkerSettingsDTO"];
-            /** @description O carimbo aberto em impressão digital, valor legado, falha e ausência. Nulo quando o ledger do worker não é um carimbo. */
+            /** @description Os quatro números do **ledger** do worker — com produtor, valor legado, falha e ausência de registro — e não da fila: `pending` é o predicado da fila, e uma unidade com carimbo de falha ou de produtor antigo conta aqui sem estar pendente. Nulo quando o ledger do worker não é um carimbo. */
             stamp_breakdown?: components["schemas"]["WorkerStampBreakdownDTO"] | null;
             /** @enum {string} */
             unit: "staging" | "document" | "tag" | "pair";
