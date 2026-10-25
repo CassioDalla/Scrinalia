@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import inspect
+import os
+import socket
 from collections.abc import Callable
 from typing import Any
 
@@ -25,9 +27,15 @@ from scrinalia.domains.archive.workers import (
 )
 from scrinalia.domains.archive.workers.catalogue import WORKER_CATALOGUE, engine_option_values
 from scrinalia.domains.archive.workers.configuration import effective_worker_options, resolve_configuration
+from scrinalia.domains.archive.workers.lease import RunLeaseMonitor
 from scrinalia.domains.archive.workers.ledger import WorkerRunLedger
 
 WorkerFn = Callable[..., None]
+
+
+class WorkerRunLeaseLostError(RuntimeError):
+    """The claim was swept between the claim and the start; the runner must not execute it."""
+
 
 # Registry of executable workers. The key is the CLI name.
 WORKERS: dict[str, WorkerFn] = {
@@ -201,6 +209,9 @@ def run_worker(
     run_id: int | None = None,
     trigger: WorkerRunTrigger = WorkerRunTrigger.CLI,
     requested_by: Author | None = None,
+    runner_id: str | None = None,
+    lease_seconds: int = 60,
+    lease_monitor: RunLeaseMonitor | None = None,
 ) -> None:
     """
     Resolves the configuration, opens a database session and dispatches to the requested worker.
@@ -214,9 +225,16 @@ def run_worker(
     test does not sweep the backlog, and a cap that outlived the command would be a trap. It is
     refused for a worker whose ``execute`` does not declare it, instead of being dropped.
 
-    ``ledger``/``run_id`` are how the execution becomes visible in the panel: the CLI passes a
-    ledger and no id (the runner opens the row), the API passes the id of the row it queued. A
-    programmatic caller that passes neither runs without a ledger line — explicit, not silent.
+    ``ledger``/``run_id`` are how the execution becomes visible in the panel. The CLI passes a
+    ledger, its own ``runner_id`` and no id: the runner opens the row with a lease. The external
+    runner passes the id it claimed **and** its ``runner_id``: the row is already ``RUNNING``, so
+    ``record_start`` writes the effective configuration and a lost lease aborts before the worker
+    runs. The in-process API path (being removed) passes an id and no runner id, and keeps
+    ``mark_running``. A programmatic caller that passes no ledger runs without a ledger line —
+    explicit, not silent.
+
+    ``lease_monitor`` renews the run's lease while the worker executes; the CLI and the daemon both
+    pass one (ADR 0014).
 
     ``engine_options`` is the named exception of the option validation (#120): a raw pass-through to
     the engine constructor, per run, for an operator who knows the library. It is never persisted and
@@ -279,12 +297,31 @@ def run_worker(
                     preset=resolved_preset,
                     config=run_config,
                     options=run_options,
+                    runner_id=runner_id,
+                    lease_seconds=lease_seconds if runner_id is not None else None,
                 )
-            else:
-                # The effective options are known only here, inside the run: a worker resolves the
-                # default of a column list from its own runner dataclass, and the request that
-                # queued the row never saw it.
+            elif runner_id is None:
+                # The in-process path that is being removed: its row is already open as RUNNING.
                 ledger.mark_running(run_id, options=run_options)
+            else:
+                # The external runner claimed the row before resolving anything; this is where the
+                # effective configuration lands. ``False`` means the lease was swept in between.
+                recorded = ledger.record_start(
+                    run_id,
+                    runner_id=runner_id,
+                    engine_name=resolved_engine,
+                    preset=resolved_preset,
+                    config=run_config,
+                    options=run_options,
+                )
+                if not recorded:
+                    raise WorkerRunLeaseLostError(
+                        f"run {run_id} is no longer owned by runner '{runner_id}': "
+                        "the lease expired before the run started"
+                    )
+
+        if lease_monitor is not None and run_id is not None:
+            lease_monitor.track(run_id)
 
         kwargs = _forward_kwargs(
             fn,
@@ -300,11 +337,20 @@ def run_worker(
             fn(**kwargs)
         except BaseException as exc:
             if ledger is not None and run_id is not None:
-                ledger.finish(run_id, status=WorkerRunStatus.FAILED, error=str(exc), error_kind=type(exc).__name__)
+                ledger.finish(
+                    run_id,
+                    status=WorkerRunStatus.FAILED,
+                    error=str(exc),
+                    error_kind=type(exc).__name__,
+                    runner_id=runner_id,
+                )
             raise
         else:
             if ledger is not None and run_id is not None:
-                ledger.finish(run_id, status=WorkerRunStatus.SUCCESS)
+                ledger.finish(run_id, status=WorkerRunStatus.SUCCESS, runner_id=runner_id)
+        finally:
+            if lease_monitor is not None and run_id is not None:
+                lease_monitor.release(run_id)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -323,6 +369,16 @@ def main(argv: list[str] | None = None) -> int:
         "--by",
         dest="requested_by",
         help="Quem está executando: texto livre, porque a CLI roda no host e não tem sessão.",
+    )
+    parser.add_argument(
+        "--lease-seconds",
+        dest="lease_seconds",
+        type=positive_int,
+        default=60,
+        help=(
+            "Lease the CLI gives its own run, renewed by a heartbeat; a crash is repaired by the "
+            "next CLI or runner instead of by the API's boot (ADR 0014)."
+        ),
     )
     parser.add_argument(
         "--option",
@@ -358,18 +414,40 @@ def main(argv: list[str] | None = None) -> int:
     known = engine_option_values(args.worker)
     engine_options = {key: _coerce_engine_option(key, value, known) for key, value in raw_engine_options.items()}
 
-    run_worker(
-        args.worker,
-        engine_name=args.engine_name,
-        preset=args.preset,
-        db_batch_size=args.db_batch_size,
-        limit=args.limit,
-        extra=extra,
-        engine_options=engine_options,
-        ledger=WorkerRunLedger(),
-        trigger=WorkerRunTrigger.CLI,
-        requested_by=Author(name=args.requested_by) if args.requested_by else None,
+    if args.lease_seconds < 2:
+        parser.error("--lease-seconds must be at least 2 so the heartbeat fits inside the lease.")
+
+    ledger = WorkerRunLedger()
+    # The CLI is a one-shot runner: its own identity and lease, no registry row (ADR 0014). The
+    # sweep repairs a run a previous CLI left behind before this one opens another.
+    runner_id = f"cli:{socket.gethostname()}:{os.getpid()}"
+    monitor = RunLeaseMonitor(
+        runner_id,
+        lease_seconds=args.lease_seconds,
+        interval_seconds=max(1, args.lease_seconds // 4),
+        ledger=ledger,
+        heartbeat_runner=False,
     )
+    ledger.expire_stale_leases()
+    monitor.start()
+    try:
+        run_worker(
+            args.worker,
+            engine_name=args.engine_name,
+            preset=args.preset,
+            db_batch_size=args.db_batch_size,
+            limit=args.limit,
+            extra=extra,
+            engine_options=engine_options,
+            ledger=ledger,
+            trigger=WorkerRunTrigger.CLI,
+            requested_by=Author(name=args.requested_by) if args.requested_by else None,
+            runner_id=runner_id,
+            lease_seconds=args.lease_seconds,
+            lease_monitor=monitor,
+        )
+    finally:
+        monitor.stop()
     return 0
 
 

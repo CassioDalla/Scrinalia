@@ -250,3 +250,26 @@ def test_a_run_cap_is_accepted_for_one_execution(service) -> None:
     run = service.trigger("ner", WorkerRunRequest(options={"limit": 5}))
 
     assert run.status == WorkerRunStatus.QUEUED
+
+
+def test_the_cli_opens_its_run_with_a_lease(db_session, ledger, monkeypatch) -> None:
+    """The CLI is a one-shot runner: its row carries the identity and the lease (ADR 0014)."""
+
+    def fake_cleaning(db, **kwargs) -> None:
+        pass
+
+    monkeypatch.setitem(runner.WORKERS, "cleaning", fake_cleaning)
+
+    runner.run_worker(
+        "cleaning",
+        db_factory=lambda: _shared_session(db_session),
+        ledger=ledger,
+        runner_id="cli:host:1",
+        lease_seconds=60,
+    )
+
+    stored = WorkerRunRepository(db_session).last_by_worker()["cleaning"]
+    assert stored.status == WorkerRunStatus.SUCCESS
+    assert stored.runner_id == "cli:host:1"
+    assert stored.heartbeat_at is not None
+    assert stored.lease_expires_at is not None
