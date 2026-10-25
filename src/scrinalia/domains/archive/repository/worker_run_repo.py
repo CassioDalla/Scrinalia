@@ -29,6 +29,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, cast
 
 from sqlalchemy import CursorResult, Integer, func, select, update
@@ -116,6 +117,9 @@ class WorkerRunRepository:
         config: dict[str, Any],
         request: dict[str, Any] | None = None,
         options: dict[str, Any] | None = None,
+        attempt: int = 1,
+        retry_of: int | None = None,
+        not_before: datetime | None = None,
     ) -> WorkerRunDTO:
         """
         Accepts a run before it starts, so the panel can show it waiting for a runner.
@@ -124,11 +128,17 @@ class WorkerRunRepository:
         item: the runner reproduces the execution from it without the process that accepted it
         (ADR 0014). ``config`` beside it is the resolution shown to the curator; it is a promise,
         and the runner writes the effective one when the run starts.
+
+        ``attempt``/``retry_of``/``not_before`` are the scheduler's (ADR 0015): a retry is a new row
+        created after the previous one is terminal. A manual/CLI run leaves them at 1/None/None.
         """
         run = WorkerRun(
             worker_name=worker_name,
             status=WorkerRunStatus.QUEUED,
             trigger=trigger,
+            attempt=attempt,
+            retry_of=retry_of,
+            not_before=not_before,
             **author_columns("requested_by", requested_by),
             engine_name=engine_name,
             preset=preset,

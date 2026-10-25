@@ -29,7 +29,7 @@ from .governance import (
     DomainTextTemplate,
 )
 from .hierarchy import ArchiveDescriptionLevel, ArchiveHierarchyMaterialisationLog, ArchiveHierarchyNodePlan
-from .operations import ApiError, WorkerRun, WorkerSetting, WorkerSettingRevision
+from .operations import ApiError, WorkerRun, WorkerRunner, WorkerSchedule, WorkerSetting, WorkerSettingRevision
 from .taxonomy import (
     ArchiveMacroCategory,
     ArchiveNerPurgeLog,
@@ -84,6 +84,8 @@ __all__ = [
     "WorkerRun",
     "WorkerRunStatus",
     "WorkerRunTrigger",
+    "WorkerRunner",
+    "WorkerSchedule",
     "WorkerSetting",
     "WorkerSettingRevision",
 ]

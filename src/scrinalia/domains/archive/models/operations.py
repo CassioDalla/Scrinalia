@@ -12,6 +12,8 @@ record:
   request it was asked for, the runner that holds it and the lease that proves the runner is alive.
 * ``WorkerRunner`` — the live runner registry: who is connected, which workers it accepts, and
   when it last said so. It is what lets the panel answer "why did nothing happen?".
+  * ``WorkerSchedule`` — the agenda of one worker: a five-field cron in an explicit timezone and the
+  request it runs. It survives a restart and is what the scheduler reads (ADR 0015).
 
 There is deliberately **no foreign key to a worker table**: workers are code, not rows. A run whose
 worker was later removed from the catalogue stays readable, which is what a ledger is for.
@@ -20,7 +22,7 @@ worker was later removed from the catalogue stays readable, which is what a ledg
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Computed, DateTime, Enum, ForeignKey, Index, Integer, String, Text, func, text
+from sqlalchemy import Boolean, Computed, DateTime, Enum, ForeignKey, Index, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -115,6 +117,17 @@ class WorkerRun(Base):
         Enum(WorkerRunStatus, name="worker_run_status"), nullable=False, index=True
     )
     trigger: Mapped[WorkerRunTrigger] = mapped_column(Enum(WorkerRunTrigger, name="worker_run_trigger"), nullable=False)
+    #: The attempt this row is: 1 for a run that was asked once, N for the N-th attempt of a
+    #: scheduled run (ADR 0015). A manual/CLI run is always 1 and is never retried.
+    attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default=text("1"))
+    #: The row this one retries. Null on a first attempt; a retry is a new row created after the
+    #: previous one is terminal, so the partial unique index is never violated (ADR 0014/0015).
+    retry_of: Mapped[int | None] = mapped_column(
+        ForeignKey("archive_worker_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    #: The earliest moment this row may be claimed. Null means "now"; a retry carries the backoff's
+    #: deadline computed from the database's clock, and the claim checks it (ADR 0015).
+    not_before: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     requested_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
     #: The account behind the name above. ``SET NULL`` and not ``CASCADE``: an account is deactivated, never deleted,
     #: and if one ever were, the decision it took must survive with its author's name.
@@ -181,6 +194,52 @@ class WorkerRun(Base):
         # The grouped read of the failures screen. Without it the group-by would scan the ledger,
         # which is small today and is not a thing to rely on.
         Index("ix_worker_run_error_fingerprint", "error_fingerprint"),
+        # The scheduler's "does this failed run already have a retry?" lookup (ADR 0015).
+        Index("ix_worker_run_retry_of", "retry_of"),
+    )
+
+
+class WorkerSchedule(Base):
+    """
+    The agenda of one worker: a five-field cron in an explicit timezone and the request it runs.
+
+    One row per worker (the primary key), because the queue is one slot per worker: two schedules for
+    the same worker would only collide and be skipped (ADR 0015). ``request`` is the validated body
+    the schedule was configured with, pinned here; the enqueue resolves the configuration from it and
+    the persisted settings, so the parts the operator did not name still follow the settings.
+
+    ``next_run_at`` is the scheduler's due check and survives a restart; ``last_enqueued_at`` and
+    ``last_skipped_at`` are what let the panel say "ran at 02:00" and "skipped at 03:00 (a run was
+    active)" without inventing a row. A disabled schedule has no ``next_run_at``: the toggle pauses,
+    it does not delete, and turning it back on recomputes it from the cron.
+    """
+
+    __tablename__ = "archive_worker_schedules"
+
+    worker_name: Mapped[str] = mapped_column(String(120), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
+    #: The five-field cron expression (``minute hour day-of-month month day-of-week``), evaluated in
+    #: ``timezone``. The pair is validated at save time; the scheduler only trusts what it stored.
+    cron: Mapped[str] = mapped_column(String(120), nullable=False)
+    timezone: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: The validated ``WorkerRunRequest`` (engine, preset, batch, options, engine options), pinned.
+    request: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict, server_default=_EMPTY_JSON)
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_enqueued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_skipped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    #: The account behind the name above; ``SET NULL`` for the same reason as the run's author.
+    updated_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        # The scheduler's due query: ``next_run_at <= now()`` over the enabled schedules.
+        Index("ix_worker_schedule_next_run_at", "next_run_at"),
     )
 
 
