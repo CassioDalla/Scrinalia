@@ -2234,3 +2234,31 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   directly. A real scraper execution of the `ingestion` worker against the reference site was not
   run, and the scheduler's origin tick was tested against the test database, not observed in a live
   process. The CSV import (#191) and the full manual field set (#192) are not in this change.
+
+## 2026-10-25 — the ingestion panel stops reporting a total (#49)
+
+- **Range:** `8e0c42f..e1362e1`
+- **Pages:**
+  - `guides/operate.md` / `operate.pt.md` — **updated**: the `ingestion` row in `/sistema/workers` has
+    no aggregate pending/processed/failed counters — those are per origin on `/sistema/ingestao`; the
+    health card reads `ingestion_origins` (active/total and each origin's label, with a link), and the
+    process card labels `PUBLIC_SCRAPE_*` as the environment fallback it is. The health route and
+    screen rows name the new summary.
+  - `.dsh/skills/workers` — **updated**: the `ingestion` spec has no aggregate counters; the row is
+    a pipeline index.
+  - `.dsh/skills/observability` — **updated**: the health probe reads the origin table, not the env
+    flag, and the queue stays on the ingestion screen.
+- **Why the round exists:** #49 was written before `/sistema/ingestao`; #44 delivered the intent, but
+  left a row whose `processed`/`failed` were record totals under an "origens" label, and a health flag
+  that could say "not configured" with the origin row configured. The round repurposes #49 for those
+  two truthfulness defects instead of duplicating the origin screen.
+- **What the round measured.** Full suite **2167 passed, 1 skipped**; `basedpyright` 0 errors;
+  `ruff check` and `ruff format --check` green; `tsc`, ESLint and the Vite build green; the API
+  contract was regenerated and matches; `mkdocs build --strict` green. Rendered with the dev database
+  and a temporary admin: `.render/49-health.png` shows "2 de 2 origens ativas", both labels and the
+  **Abrir ingestão** link, and the process card says "fallback de coleta no .env presente";
+  `.render/49-workers.png` shows the `ingestion` row with **Abrir ingestão**, no aggregate counters.
+- **Not verified, and said so.** The **Abrir ingestão** link was rendered and typechecked, but was not
+  followed in the browser this round; `/sistema/ingestao` itself was rendered in the #44 round. The
+  health probe's database-down path is a unit test with a double, not a stopped database. No new
+  migration: the table and columns are the #44 ones.

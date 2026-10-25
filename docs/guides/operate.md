@@ -493,7 +493,7 @@ in the SPA: the menu no longer carries them (issue #22).
 | `/api/v1/system/runs` | `GET` | authenticated | the execution ledger, newest first; filters `worker`, `origin`, `status`, `fingerprint`, `limit`, `offset` |
 | `/api/v1/system/runs/{run_id}/cancel` | `POST` | `OPERATE` | asks one execution to stop: closes a queued run no runner claimed, records the request on a running one (#72) |
 | `/api/v1/system/failures` | `GET` | authenticated | the grouped root causes; filters `days` (default 30), `worker`, `limit` |
-| `/api/v1/system/health` | `GET` | `OPERATE` | database, Ollama models, object storage and the process |
+| `/api/v1/system/health` | `GET` | `OPERATE` | database, Ollama models, object storage, the ingestion origins and the process |
 | `/api/v1/ingestion/origins` | `GET` | authenticated | every origin with its own queue, its last run and its agenda (#44) |
 | `/api/v1/ingestion/origins/{code}` | `PATCH` | `OPERATE` | the origin's lifecycle and adapter configuration (URLs, espera) |
 | `/api/v1/ingestion/origins/{code}/schedule` | `PUT` | `OPERATE` | the origin's cron and IANA zone |
@@ -510,11 +510,11 @@ The SPA mirrors it, as cards of `/configuracoes` under *Operação*:
 
 | Screen | Shows |
 | --- | --- |
-| `/sistema/workers` | the ten workers: engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and an **Enfileirar execução** button; above them, the runner cards (online, host, version, concurrency, capabilities, last heartbeat) and a warning when none is online. A worker no online runner accepts is marked **sem runner** — the row still queues and waits. The **Agenda** badge and fact show the cron, the zone, the next run and the last skipped period. The effective configuration is read-only here. The `ingestion` row is the exception: it has no engine and its run belongs to an origin, so it links to `/sistema/ingestao` instead of a generic run button |
+| `/sistema/workers` | the ten workers: engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and an **Enfileirar execução** button; above them, the runner cards (online, host, version, concurrency, capabilities, last heartbeat) and a warning when none is online. A worker no online runner accepts is marked **sem runner** — the row still queues and waits. The **Agenda** badge and fact show the cron, the zone, the next run and the last skipped period. The effective configuration is read-only here. The `ingestion` row is the exception: it has no engine, no aggregate pending/processed/failed counters, and its run belongs to an origin, so it links to `/sistema/ingestao` instead of a generic run button — the per-origin numbers live on that screen |
 | `/configuracoes/workers` | the persisted default of each worker and its revisions, with save and remove, and the worker's **Agenda** (the cron, the zone, the enabled state and the pinned request) — the write the panel used to carry |
 | `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences. Each row says who asked (`painel`, `linha de comando` or `agenda`), the attempt (`tentativa 2/3`), the row it retries and, when it is queued with a `not_before`, when it starts. An active row offers **Cancelar execução…** with an inline confirmation, and a requested stop is shown as a note while the worker finishes the current batch |
 | `/sistema/ingestao` | the origins, one card each: its own queue and last run, the adapter configuration, the agenda and **Enfileirar execução** (operator); and the **Entrada manual** form, which writes a record as `PENDING_AI` and queues the transfer (curator). The screen is a card of *Operação* but declares `CURATE`, because the manual form is the write a curator owns; the operator-only controls are hidden for a curator |
-| `/sistema/diagnostico` | database, Ollama models, thumbnail storage and the effective process configuration |
+| `/sistema/diagnostico` | database, Ollama models, thumbnail storage, the ingestion origins (active/total, with a link to `/sistema/ingestao`) and the effective process configuration |
 
 The screen polls every 5 s while a run is running and every 15 s while one is queued, because the
 `transfer` counter makes one `/system/workers` call cost about two seconds on the real collection;
@@ -530,7 +530,12 @@ They are not interchangeable, and merging them is the mistake to avoid.
 | --- | --- | --- |
 | `GET /health/live` | is the process alive? | touches nothing, always `200` while the process answers; excluded from the OpenAPI document |
 | `GET /health/ready` | may this instance receive traffic? | runs `SELECT 1`; `200`, or `503` when the database does not answer; also outside `/api/v1` and outside the contract |
-| `GET /api/v1/system/health` | which piece is down? | the human panel: database counts, the Ollama models the presets require and which are missing, the object-storage bucket, and the effective process configuration — secrets as presence, never as value |
+| `GET /api/v1/system/health` | which piece is down? | the human panel: database counts, the Ollama models the presets require and which are missing, the object-storage bucket, the `ingestion_origins` summary, and the effective process configuration — secrets as presence, never as value |
+
+The ingestion card reads `ingestion_origins`, not `PUBLIC_SCRAPE_*`: since #44 an origin is a row, so
+an installation can have `pmc` configured with an empty `.env`. The process card labels the variable
+as a **fallback** for the reference adapter, and the per-origin queue, agenda and counters stay on
+`/sistema/ingestao`.
 
 A liveness probe that consults the database would restart the API whenever the database restarts,
 which is why `live` touches nothing. The readiness probe owns its own engine with a connection and a
