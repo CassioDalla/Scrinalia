@@ -105,6 +105,17 @@ commits — the history is the detail.
 
 ### Changed
 
+- **An unknown field in a request body is a 400 on every route** (issue #177). The policy was per
+  model: of the 53 bodies the contract carried, 22 declared `extra="forbid"` and 31 kept pydantic's
+  default, so the same stale client was refused on one route and accepted on the next, with the field
+  dropped without a trace — a renamed optional field is the half pydantic never protects. Every body
+  model now inherits `scrinalia.core.schemas.RequestModel`, and
+  `testing/unit/api/test_request_models.py` walks the built application and fails on one that does
+  not (and on a walk that stops finding the bodies the contract declares). Two calls that used to be
+  accepted and ignored are now refused: a `role` in the setup body and a `requested_by` in the run
+  trigger. The generated contract is **unchanged** — Litestar emits no `additionalProperties`, so
+  `openapi.json` and `schema.d.ts` are byte-identical after the change.
+
 - **The stamp breakdown says which ledger it counts** (issue #150). `stamp_breakdown` has been in
   `GET /api/v1/system/workers` since #137, and the panel printed the four numbers under
   *Fila (descrições)* — a placement that reads as a decomposition of the queue, when the breakdown
