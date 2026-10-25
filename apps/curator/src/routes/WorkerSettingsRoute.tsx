@@ -24,6 +24,7 @@ import { Field } from "@/components/ui/Field";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
 import { WorkerOptionsFields, initialOptionValues, optionsForRequest } from "@/components/workers/WorkerOptionsFields";
+import { WorkerTrialCard } from "@/components/workers/WorkerTrialCard";
 import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { describeConfig, parseOptions } from "@/lib/system";
@@ -82,6 +83,7 @@ function WorkerSettingsCard({ worker }: { worker: WorkerSettingsItem }) {
       <div className="grid gap-3">
         {feedback ? <Notice tone="ok">{feedback}</Notice> : null}
         <SettingsForm worker={worker} onDone={setFeedback} />
+        {worker.settings.trial_supported ? <WorkerTrialCard worker={worker} onSaved={setFeedback} /> : null}
         <ScheduleCard worker={worker} />
       </div>
     </Disclosure>

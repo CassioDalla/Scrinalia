@@ -427,6 +427,56 @@ descoberto depois da escrita.
 A CLI não tem rota de pré-visualização; `--limit N` numa execução é a outra forma de limitar o mesmo
 custo.
 
+### Comparar configurações numa amostra
+
+A prévia responde *quantos* a configuração leria. Ela não responde *se os rótulos estão certos*, e é
+essa a pergunta que produziu a #70: a tipologia rodou sobre 4.844 descrições com uma configuração que
+ninguém mediu, e rodar de novo é caro. Um **ensaio** responde sem escrever no acervo (ADR 0018).
+
+`POST /api/v1/system/workers/{worker_name}/trial` recebe o tamanho da amostra, de duas a quatro
+configurações (cada uma com a mesma forma `engine_name`/`preset`/`db_batch_size`/`options` de uma
+execução) e uma semente opcional, e enfileira **uma** linha no ledger com `trial=true`. O runner
+executa as configurações em sequência dentro dessa linha, sobre a mesma amostra, e grava o resultado
+no `trial_result` dela. Um ensaio:
+
+- **não escreve conteúdo arquivístico** — nem `typology_id`, nem carimbo, nem linha na fila de
+  revisão. O executor compartilha a composição do texto, o registro de engines e a regra de decisão
+  (`score > confidence_threshold`) do worker, mas nunca chama `execute`;
+- **ocupa a vaga do worker**, porque carrega o modelo e lê o acervo, e o painel o mostra como
+  `ensaio`; a "última execução" do painel é uma execução de produção, nunca um ensaio;
+- é cancelável como qualquer execução, e nunca é retentado.
+
+Duas populações são medidas, e são diferentes de propósito:
+
+- o **gabarito** é a decisão humana já registrada: a última linha de `archive_document_revisions` que
+  mudou `typology_id` (o dossiê, ou o arquivamento de uma recusa), e o nome atual do catálogo para o
+  qual ela aponta. `HUMAN_APPROVED` **não** é veredito — aprovar um registro não é certificar cada
+  rótulo dele. A concordância (a fração de vereditos que a configuração acertou, com o denominador
+  visível) e a cobertura (a fração que ela respondeu em vez de abster) são medidas aqui;
+- o **escopo de produção** é uma amostra aleatória semeada das descrições ai-writable que as
+  configurações leriam (a interseção dos predicados sem o carimbo). A distribuição, a abstenção, a
+  entropia e os segundos por documento são medidos aqui, porque o gabarito é um conjunto difícil e
+  não a mistura que a próxima execução vai pagar.
+
+O engine é construído uma vez por `(engine, preset, opções do engine)` e compartilhado, então uma
+configuração que só muda o limiar não paga o carregamento do modelo de novo. Uma instalação nova não
+tem veredito humano de tipologia e a tela diz isso em vez de imprimir uma concordância sobre um
+conjunto vazio. Uma tipologia aposentada do catálogo ativo é um erro garantido (o engine só responde
+nomes ativos) e o resultado a nomeia.
+
+A comparação produz a escolha; ela não vira a escolha. **Usar esta** envia o corpo `settings` da
+própria configuração — o que o ensaio mediu — para `PUT /api/v1/system/workers/{worker_name}/settings`,
+então o padrão continua vivendo numa linha só. **Rodar no acervo inteiro** então lê o pendente do
+corpo salvo (`queue/preview`, depois da escrita) e dispara a execução real com um request **vazio**,
+para que a precedência resolva a linha que acabou de ser salva: o número na tela é o número que a
+execução vai ler.
+
+`limit` e `engine_options` são recusados dentro de uma configuração de ensaio: o primeiro é um teto
+de uma execução e o segundo é um repasse cru ao construtor do engine, e nenhum dos dois é padrão
+persistido — a comparação tem de ser de algo que a tela consegue salvar. Hoje o ensaio existe para o
+worker de tipologia; a rota recusa os outros, e a tela de configuração só oferece o cartão onde o
+catálogo diz `trial`.
+
 ## O painel de operação
 
 O painel é a superfície `/api/v1/system/*` e os quatro cartões de `/configuracoes`, sob *Operação*, na
@@ -438,13 +488,15 @@ SPA: o menu não os carrega mais (issue #22).
 | `/api/v1/system/workers/settings` | `GET` | autenticado | os padrões persistidos dos workers de IA, sem os contadores de fila (issue #53) |
 | `/api/v1/system/workers/{worker_name}/queue/preview` | `POST` | autenticado | o pendente de uma configuração **proposta**, calculado sem escrever |
 | `/api/v1/system/workers/{worker_name}/runs` | `POST` | `OPERATE` | enfileira uma execução com overrides só para ela e responde `201` na hora |
+| `/api/v1/system/workers/{worker_name}/trial` | `POST` | `OPERATE` | enfileira um ensaio: duas ou mais configurações sobre uma amostra, sem escrever conteúdo arquivístico (ADR 0018) |
 | `/api/v1/system/workers/{worker_name}/schedule` | `GET` | autenticado | a agenda do worker, ou nulo quando ele não tem uma (ADR 0015) |
 | `/api/v1/system/workers/{worker_name}/schedule` | `PUT` | `OPERATE` | cria ou substitui a agenda: o cron de cinco campos, o fuso IANA, o request pinado e o estado |
 | `/api/v1/system/workers/{worker_name}/schedule` | `DELETE` | `OPERATE` | remove a agenda; as execuções que ela criou ficam no ledger |
 | `/api/v1/system/workers/{worker_name}/settings` | `PUT` | `OPERATE` | persiste o padrão de engine/preset/batch/options |
 | `/api/v1/system/workers/{worker_name}/settings` | `DELETE` | `OPERATE` | apaga o override para o worker voltar a seguir o código |
 | `/api/v1/system/workers/{worker_name}/settings/revisions` | `GET` | autenticado | quem mudou o quê, quando |
-| `/api/v1/system/runs` | `GET` | autenticado | o ledger de execuções, mais recente primeiro; filtros `worker`, `origin`, `status`, `fingerprint`, `limit`, `offset` |
+| `/api/v1/system/runs` | `GET` | autenticado | o ledger de execuções, mais recente primeiro; filtros `worker`, `origin`, `status`, `fingerprint`, `trial`, `limit`, `offset` |
+| `/api/v1/system/runs/{run_id}` | `GET` | autenticado | uma execução, com o resultado do ensaio quando ela é uma comparação (ADR 0018) |
 | `/api/v1/system/runs/{run_id}/cancel` | `POST` | `OPERATE` | pede que uma execução pare: fecha uma na fila que nenhum runner reivindicou, registra o pedido numa em andamento (#72) |
 | `/api/v1/system/failures` | `GET` | autenticado | as causas raiz agrupadas; filtros `days` (padrão 30), `worker`, `limit` |
 | `/api/v1/system/health` | `GET` | `OPERATE` | banco, modelos do Ollama, storage de objetos, as origens da ingestão e o processo |
@@ -465,8 +517,8 @@ A SPA espelha isso, como cartões de `/configuracoes` sob *Operação*:
 | Tela | Mostra |
 | --- | --- |
 | `/sistema/workers` | os dez workers: engine, preset e modelo, a fila, o que o carimbo de cada um nomeia (com produtor, sem produtor conhecido, sem registro) e um botão **Enfileirar execução**; acima deles, os cartões dos runners (online, host, versão, concorrência, capacidades, último sinal) e um aviso quando nenhum está online. Um worker que nenhum runner online aceita aparece como **sem runner** — a linha ainda enfileira e espera. O selo e o fato **Agenda** mostram o cron, o fuso, a próxima execução e o último período pulado. A configuração efetiva aqui é só leitura. A linha `ingestion` é a exceção: não tem engine, não tem contadores agregados de pendentes/processados/falhas, e a execução dela pertence a uma origem, então ela leva a `/sistema/ingestao` em vez de um botão genérico — os números por origem ficam naquela tela |
-| `/configuracoes/workers` | o padrão persistido de cada worker e suas revisões, com salvar e remover, e a **Agenda** do worker (o cron, o fuso, o estado habilitado e o request pinado) — a escrita que o painel carregava |
-| `/sistema/execucoes` | o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela. Cada linha diz quem pediu (`painel`, `linha de comando` ou `agenda`), a tentativa (`tentativa 2/3`), a linha que ela retenta e, quando está na fila com `not_before`, quando começa. Uma linha ativa oferece **Cancelar execução…** com confirmação embutida, e um pedido de parada aparece como nota enquanto o worker termina o lote atual |
+| `/configuracoes/workers` | o padrão persistido de cada worker e suas revisões, com salvar e remover, e a **Agenda** do worker (o cron, o fuso, o estado habilitado e o request pinado) — a escrita que o painel carregava. Um worker que o catálogo marca `trial` (hoje a tipologia) também carrega **Comparar configurações**: duas configurações, o tamanho da amostra, a tabela lado a lado (concordância com o denominador, cobertura, abstenção, a maior gaveta, entropia, segundos por documento, a fila e as horas projetadas) e **Usar esta**, que salva o corpo medido, e **Rodar no acervo inteiro**, que lê a fila do corpo salvo e dispara a execução real |
+| `/sistema/execucoes` | o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela. Cada linha diz quem pediu (`painel`, `linha de comando` ou `agenda`), a tentativa (`tentativa 2/3`), a linha que ela retenta e, quando está na fila com `not_before`, quando começa. Uma linha de **ensaio** carrega o selo `ensaio` e leva ao cartão de comparação, para nunca ser confundida com uma execução de produção (ADR 0018). Uma linha ativa oferece **Cancelar execução…** com confirmação embutida, e um pedido de parada aparece como nota enquanto o worker termina o lote atual |
 | `/sistema/ingestao` | as origens, um cartão cada: a própria fila e a última execução, a configuração do adaptador, a agenda e **Enfileirar execução** (operador); e o formulário **Entrada manual**, que grava um registro como `PENDING_AI` e enfileira a transferência (curador). A tela é um cartão de *Operação*, mas declara `CURATE`, porque o formulário manual é a escrita que um curador possui; os controles só de operador ficam escondidos para um curador |
 | `/sistema/diagnostico` | banco, modelos do Ollama, storage das miniaturas, as origens da ingestão (ativas/total, com link para `/sistema/ingestao`) e a configuração efetiva do processo |
 
@@ -500,7 +552,7 @@ timeout de TCP do sistema operacional.
 
 `archive_worker_runs` tem uma linha por execução, tanto da CLI quanto do painel: o ledger é sobre o
 worker, não sobre o botão que o iniciou. Uma linha carrega `worker_name`, `status`, `trigger` (`CLI`,
-`API` ou `SCHEDULE`), `requested_by` (e `requested_by_user_id`), `engine_name`, `preset`, o `request` validado
+`API` ou `SCHEDULE`), `trial` (se a execução é uma comparação, ADR 0018), `requested_by` (e `requested_by_user_id`), `engine_name`, `preset`, o `request` validado
 (o que um runner reproduz), o `config` resolvido, as **`options` efetivas do worker**, `attempt`, `retry_of`, `not_before`, `queued_at`,
 `runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`, `cancel_requested_at`,
 `cancel_requested_by` (e `cancel_requested_by_user_id`), `finished_at`, `duration_ms`, `error`
@@ -512,6 +564,13 @@ default de uma lista de colunas vive no dataclass do runner do próprio worker e
 colunas leu; uma linha enfileirada e ainda não iniciada, ou escrita antes de a coluna existir, carrega
 o default vazio e a tela do ledger diz "opções não registradas nesta execução". A identidade do
 produtor faz o hash dos mesmos valores no carimbo, então a linha é a metade legível desse hash.
+
+Um ensaio é a exceção que o schema torna explícita: ele não carrega um `engine_name`/`preset`/
+`config` único (as configurações estão no `request`, e os valores resolvidos delas estão em
+`trial_result.configs`), não escreve conteúdo arquivístico, e é a única linha que pode ter um
+`trial_result`. A "última execução" do painel filtra `trial = false`: um experimento não é o trabalho
+que o worker fez por último. Um ensaio ainda ocupa a vaga do worker e aparece como execução ativa
+enquanto roda, porque carrega o modelo e lê o acervo.
 
 Os status são `QUEUED`, `RUNNING`, `SUCCESS`, `FAILED`, `INTERRUPTED` e `CANCELLED`. A linha `QUEUED` é
 comitada pela **sessão própria do ledger antes de a requisição retornar**, para que um runner externo

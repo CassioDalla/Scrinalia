@@ -10,8 +10,6 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from datetime import UTC, datetime
-from inspect import signature
-from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -48,10 +46,10 @@ from scrinalia.domains.archive.workers.catalogue import (
     count_processed,
     describe_axis_engines,
     engine_option_names,
-    worker_module,
 )
 from scrinalia.domains.archive.workers.configuration import (
     ResolvedWorkerConfig,
+    counter_options,
     declared_options,
     resolve_configuration,
     validate_engine_choice,
@@ -244,6 +242,7 @@ class WorkerOperationsService:
             updated_by=setting.updated_by if setting is not None else None,
             updated_at=setting.updated_at if setting is not None else None,
             engine_source=spec.engine_source,
+            trial_supported=spec.trial,
             config=resolved.config,
             available_engines=self._available_engines(spec),
             declared_options=self._declared_options(spec),
@@ -275,38 +274,12 @@ class WorkerOperationsService:
         present = [note for note in notes if note]
         return " ".join(present) if present else None
 
-    def _counter_options(self, spec: WorkerSpec, resolved: ResolvedWorkerConfig) -> dict[str, Any]:
-        """
-        Only what the counter declares: the options, plus the engine and the preset it reads.
-
-        The counter is a reader, not the worker: handing it ``columns_to_extract`` is useful,
-        handing it a parameter it does not read (or a runner dataclass) is not. The filter is by the
-        counter's own signature, so a new counter cannot be broken by an unrelated option.
-
-        The engine and the preset travel **resolved** — the same pair the run would use — because the
-        queue is keyed on the producer identity: a counter that fell back to its signature defaults
-        would show the number for a model the next run is not going to use, which is the lying panel
-        the shared predicate exists to prevent. ``quality-validator`` declares neither: its engine
-        lives in the active ``LLM_CHECK`` rule and its counter reads it there.
-        """
-        counter_name = spec.counter or spec.processed_counter
-        if counter_name is None:
-            return {}
-        parameters = signature(getattr(worker_module(spec.module), counter_name)).parameters
-        resolved_engine = {
-            key: value
-            for key, value in {"engine_name": resolved.engine_name, "preset": resolved.preset}.items()
-            if value
-        }
-        candidates = {**resolved.forwarded_options, **resolved_engine}
-        return {key: value for key, value in candidates.items() if key in parameters}
-
     def _pending(self, spec: WorkerSpec, resolved: ResolvedWorkerConfig) -> tuple[int | None, str | None]:
         """The pending number and, when there is none, the reason a person can read."""
         if spec.counter is None:
             return None, spec.unmeasurable_reason
         try:
-            return count_pending(spec, self.db, **self._counter_options(spec, resolved)), None
+            return count_pending(spec, self.db, **counter_options(spec, resolved)), None
         except Exception as exc:
             logger.error(f"⚠️ Não foi possível contar a fila de '{spec.name}': {exc}")
             return None, "A contagem falhou; veja o log do servidor."
@@ -345,7 +318,7 @@ class WorkerOperationsService:
         if spec.processed_counter is None:
             return None
         try:
-            return count_processed(spec, self.db, **self._counter_options(spec, resolved))
+            return count_processed(spec, self.db, **counter_options(spec, resolved))
         except Exception as exc:
             logger.error(f"⚠️ Não foi possível contar o processado de '{spec.name}': {exc}")
             return None
@@ -356,7 +329,7 @@ class WorkerOperationsService:
         if spec.failed_counter is None:
             return None
         try:
-            return count_failed(spec, self.db, **self._counter_options(spec, resolved))
+            return count_failed(spec, self.db, **counter_options(spec, resolved))
         except Exception as exc:
             logger.error(f"⚠️ Não foi possível contar as falhas de '{spec.name}': {exc}")
             return None

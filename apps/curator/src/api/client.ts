@@ -363,8 +363,13 @@ export type WorkerEngine = components["schemas"]["WorkerEngineDTO"];
 export type WorkerPreset = components["schemas"]["WorkerPresetDTO"];
 export type WorkerOption = components["schemas"]["WorkerOptionDTO"];
 export type WorkerRun = components["schemas"]["WorkerRunDTO"];
+export type WorkerRunDetail = components["schemas"]["WorkerRunDetailDTO"];
 export type WorkerRunList = components["schemas"]["WorkerRunListResponse"];
 export type WorkerRunCancel = components["schemas"]["WorkerRunCancelResponse"];
+export type WorkerTrialRequest = components["schemas"]["WorkerTrialRequest"];
+export type WorkerTrialResult = components["schemas"]["WorkerTrialResultDTO"];
+export type WorkerTrialConfig = components["schemas"]["WorkerTrialConfigDTO"];
+export type WorkerTrialSample = components["schemas"]["WorkerTrialSampleDTO"];
 export type FailureGroup = components["schemas"]["FailureGroupDTO"];
 export type FailureGroupList = components["schemas"]["FailureGroupListResponse"];
 export type FailureSource = components["schemas"]["FailureSource"];
@@ -1625,6 +1630,28 @@ export async function triggerWorkerRun(worker: string, body: WorkerRunRequest): 
       params: { path: { worker_name: worker } },
       body,
     }),
+  );
+}
+
+/**
+ * Queues a comparison of configurations over one sample, writing nothing (ADR 0018).
+ *
+ * The answer is the queued row, like a run. The trial holds the worker's slot and, when the runner
+ * finishes it, its result is read from {@link fetchSystemRun}.
+ */
+export async function triggerWorkerTrial(worker: string, body: WorkerTrialRequest): Promise<WorkerRun> {
+  return unwrap<WorkerRun>(
+    await client.POST("/api/v1/system/workers/{worker_name}/trial", {
+      params: { path: { worker_name: worker } },
+      body,
+    }),
+  );
+}
+
+/** One execution with its trial result, when it is a comparison. */
+export async function fetchSystemRun(runId: number): Promise<WorkerRunDetail> {
+  return unwrap<WorkerRunDetail>(
+    await client.GET("/api/v1/system/runs/{run_id}", { params: { path: { run_id: runId } } }),
   );
 }
 

@@ -2301,3 +2301,51 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   `sm` was **not** rendered; the evidence there is the classes. The public route is #46 and was not
   implemented, so `PublicDocumentSummary` still publishes the raw `s3://` URI. No migration.
 
+## 2026-10-25 — a trial before committing the collection, and the gabarito it reads (#71)
+
+- **Range:** `984b514..06bada0`
+- **Pages:**
+  - `adr/0018-trials-and-the-human-gabarito.md` — **new**: a trial is a ledger row (`trial`,
+    `trial_result`) that runs two to four configurations over one sample and writes no archival
+    content; the gabarito is the human decision already recorded per axis — the latest
+    `archive_document_revisions` row that changed `typology_id`, `curated_macro_category`,
+    `origin=HUMAN`, the conflict resolution — and **never `HUMAN_APPROVED` alone**; the sample is the
+    verdict set plus a seeded ai-writable sample; the comparison produces the settings write. Index
+    and `mkdocs.yml` nav updated.
+  - `guides/operate.md` / `operate.pt.md` — **updated**: "Comparing configurations on a sample" (the
+    trial, the two populations, the save/run flow), the two new routes and the `trial` filter in the
+    operations table, the `ensaio` badge and the comparison card in the screens table, and
+    `trial`/`trial_result` in the run ledger.
+  - `guides/data-model.md` / `data-model.pt.md` — **updated**: the `archive_worker_runs` row carries
+    `trial` and `trial_result` (JSONB).
+  - `.dsh/skills/workers` — **updated**: the trial is a run kind, the metric lives in the package, the
+    gabarito rule, and the counter options now come from `configuration.counter_options`.
+  - `guides/curate.md` — **no-change**: the hook flags it because the SPA routes and the contract it
+    declares moved, but the comparison card lives on `/configuracoes/workers`, the operator screen
+    the operations guide owns, and it needs `OPERATE`; no curation workflow changed.
+  - `guides/install.md` — **no-change**: the runner daemon's flags and the deploy are unchanged; the
+    trial is dispatched from a claimed row, not from a new installation step.
+- **Why the round exists:** #70 made a classified description re-classifiable, so a configuration can
+  be re-run; #71 answers the question before the run — *which configuration is better on this
+  collection, and what does it cost?* The decision the issue demanded first, which screen owns the
+  human verdict and how it relates to `HUMAN_APPROVED`, is in ADR 0018: the verdict is the decision the
+  dossier, the tags screen or the conflicts screen already recorded; approving a record is not
+  certifying its labels. The plan, the metric and the bench now share one definition
+  (`domains/archive/evaluation/metrics.py`), and the worker calls the same `link_decision`.
+- **What the round measured.** Full suite **2197 passed, 1 skipped** on the rebased branch (test database on 5434,
+  `postgresql+psycopg2`); `basedpyright` 0 errors; `ruff check` and `ruff format --check` green; the
+  contract was regenerated with `bun run contract` and the SPA's `tsc`, ESLint and Vite build are green;
+  `mkdocs build --strict` green; `alembic upgrade head` applied `71a2b4c6d8e0` and `alembic check`
+  reports no drift. Rendered with the headless shell over CDP: `.render/71-trial-table.png` is the
+  comparison card of a finished trial (the side-by-side table, the `melhor concordância` badge and the
+  disabled **Rodar no acervo inteiro**), `.render/71-ledger-ensaio.png` is the ledger row with the
+  `ensaio` badge and the link back to the settings, and `.render/71-settings-trial.png` is the settings
+  screen with the card in place.
+- **Not verified, and said so.** The trial was **not run against a real model**: the rendered result is
+  a scratch `archive_worker_runs` row (and a scratch session) inserted into the dev database and deleted
+  after the round, so the numbers in the screenshot are a fixture, not a measurement of the reference
+  collection; the screen's **Rodar ensaio** was not clicked. The route is covered by the controller
+  test, the executor by unit tests with a fake engine, and the daemon dispatch by an integration test —
+  but the real cost per document on this machine is unmeasured, and no typology preset was chosen from
+  it. The comparison card's editors start from the current settings, not from the last trial's
+  configurations; repeating a measured comparison means re-entering it.

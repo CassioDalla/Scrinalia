@@ -30,9 +30,11 @@ from uuid import uuid4
 from scrinalia.core.cli import positive_int
 from scrinalia.core.database import SessionFactory, create_runner_session
 from scrinalia.core.logger import logger
+from scrinalia.domains.archive.evaluation.trial import run_trial
 from scrinalia.domains.archive.models.enums import WorkerRunStatus
 from scrinalia.domains.archive.repository.worker_run_repo import ClaimedRun
 from scrinalia.domains.archive.repository.worker_runner_repo import WorkerRunnerRepository
+from scrinalia.domains.archive.schemas.system_schema import WorkerTrialRequest
 from scrinalia.domains.archive.workers.catalogue import WORKER_CATALOGUE
 from scrinalia.domains.archive.workers.lease import RunLeaseMonitor
 from scrinalia.domains.archive.workers.ledger import WorkerRunLedger
@@ -154,6 +156,9 @@ class RunnerService:
             return None
 
     def _execute(self, claimed: ClaimedRun) -> None:
+        if claimed.trial:
+            self._execute_trial(claimed)
+            return
         try:
             run_worker(
                 claimed.worker_name,
@@ -174,6 +179,37 @@ class RunnerService:
             logger.exception(f"❌ The run {claimed.run_id} of '{claimed.worker_name}' failed: {exc}")
             # The runner records its own failures; this covers the ones before ``run_worker`` takes
             # over (resolving the request, opening the session), which would leave the row RUNNING.
+            self._ledger.finish(
+                claimed.run_id,
+                status=WorkerRunStatus.FAILED,
+                error=str(exc),
+                error_kind=type(exc).__name__,
+                runner_id=self.config.runner_id,
+            )
+
+    def _execute_trial(self, claimed: ClaimedRun) -> None:
+        """
+        Runs a claimed comparison and lets the executor close the row (ADR 0018).
+
+        The executor owns the finish because it also owns the result: it writes ``trial_result`` in
+        the same statement that closes the run, and it turns a cancellation into ``CANCELLED``
+        without an error text. This handler only covers what fails **before** the executor takes
+        over — parsing the request, opening the session — which would otherwise leave the row
+        ``RUNNING`` until the lease sweeps it.
+        """
+        try:
+            with self._session_factory() as db:
+                run_trial(
+                    claimed.worker_name,
+                    db=db,
+                    request=WorkerTrialRequest.model_validate(claimed.request),
+                    run_id=claimed.run_id,
+                    runner_id=self.config.runner_id,
+                    ledger=self._ledger,
+                    lease_monitor=self._monitor,
+                )
+        except Exception as exc:
+            logger.exception(f"❌ The trial {claimed.run_id} of '{claimed.worker_name}' failed: {exc}")
             self._ledger.finish(
                 claimed.run_id,
                 status=WorkerRunStatus.FAILED,

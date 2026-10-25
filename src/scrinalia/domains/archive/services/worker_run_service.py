@@ -33,12 +33,15 @@ from scrinalia.domains.archive.repository.worker_settings_repo import WorkerSett
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode
 from scrinalia.domains.archive.schemas.system_schema import (
     WorkerRunCancelResponse,
+    WorkerRunDetailDTO,
     WorkerRunDTO,
     WorkerRunListResponse,
     WorkerRunRequest,
+    WorkerTrialRequest,
 )
 from scrinalia.domains.archive.workers.catalogue import WORKER_CATALOGUE
 from scrinalia.domains.archive.workers.configuration import (
+    RUN_ONLY_OPTIONS,
     resolve_configuration,
     validate_engine_choice,
     validate_engine_options,
@@ -101,6 +104,53 @@ class WorkerRunService:
             request=request.model_dump(mode="json"),
         )
 
+    def trigger_trial(
+        self, worker_name: str, request: WorkerTrialRequest, *, requested_by: Author | None = None
+    ) -> WorkerRunDTO:
+        """
+        Queues a comparison of configurations and answers the ``QUEUED`` row (ADR 0018).
+
+        The configurations are validated here with the same rules a run uses, so a typo is a 422
+        before anything is queued. The row deliberately carries no ``engine_name``/``preset``/
+        ``config``: there is no single resolved configuration until the runner measures each one,
+        and the result records them. ``limit`` and ``engine_options`` are refused because the trial
+        compares what "use this configuration" can save, and neither of them is a persisted default.
+        """
+        spec = WORKER_CATALOGUE.get(worker_name)
+        if spec is None:
+            raise WorkerNotFoundError(f"Worker '{worker_name}' não existe. Opções: {sorted(WORKER_CATALOGUE)}.")
+        if not spec.trial:
+            raise InvalidWorkerSettingsError(
+                f"O worker '{worker_name}' não aceita ensaio: ele não tem uma comparação registrada. "
+                "Hoje aceitam: os workers com 'trial' no catálogo."
+            )
+        if spec.origin_axis:
+            raise InvalidWorkerSettingsError("A ingestão não tem ensaio: a unidade dela é a origem.")
+
+        for position, config in enumerate(request.configs, start=1):
+            validate_engine_choice(spec, config.engine_name, config.preset)
+            validate_options(spec, config.options)
+            if config.engine_options:
+                raise InvalidWorkerSettingsError(
+                    f"Configuração {position}: 'engine_options' é um repasse de uma execução e não "
+                    "vira padrão; o ensaio compara o que a tela pode salvar."
+                )
+            refused = sorted(set(config.options) & RUN_ONLY_OPTIONS)
+            if refused:
+                raise InvalidWorkerSettingsError(
+                    f"Configuração {position}: o ensaio não aceita {refused}; o tamanho da amostra é o campo 'sample'."
+                )
+
+        return self.ledger.enqueue(
+            worker_name,
+            requested_by=requested_by,
+            engine_name=None,
+            preset=None,
+            config={},
+            request=request.model_dump(mode="json"),
+            trial=True,
+        )
+
     def cancel(self, run_id: int, *, requested_by: Author | None = None) -> WorkerRunCancelResponse:
         """
         Asks one run to stop, and answers what the request did to the row.
@@ -145,6 +195,13 @@ class WorkerRunService:
             raise WorkerRunNotFoundError(f"Execução {run_id} não existe no ledger.")
         return WorkerRunCancelResponse(code=code, message=message, data=run)
 
+    def get_run(self, run_id: int) -> WorkerRunDetailDTO:
+        """One execution with its trial result, when it is a trial (ADR 0018)."""
+        run = self.runs.get_detail(run_id)
+        if run is None:
+            raise WorkerRunNotFoundError(f"Execução {run_id} não existe no ledger.")
+        return run
+
     def list_runs(
         self,
         *,
@@ -152,6 +209,7 @@ class WorkerRunService:
         status: WorkerRunStatus | None,
         origin_code: str | None = None,
         fingerprint: str | None = None,
+        trial: bool | None = None,
         limit: int,
         offset: int,
     ) -> WorkerRunListResponse:
@@ -160,6 +218,7 @@ class WorkerRunService:
             origin_code=origin_code,
             status=status,
             fingerprint=fingerprint,
+            trial=trial,
             limit=limit,
             offset=offset,
         )

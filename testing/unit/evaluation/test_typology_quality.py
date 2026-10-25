@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+from scrinalia.domains.archive.evaluation import metrics
+from testing.evaluation import typology_quality as bench
 from testing.evaluation.typology_quality import (
     ABSTAINED,
     LABEL_FORMATS,
@@ -40,6 +42,31 @@ from testing.evaluation.typology_quality import (
 
 DEFAULT_COLUMNS = ("original_title",)
 DEFAULT_THRESHOLD = 0.40
+
+
+def test_the_bench_scores_with_the_package_metric() -> None:
+    """
+    One definition of the arithmetic (ADR 0018, principle IV).
+
+    The bench and the panel's trial print the same numbers for the same question. If the bench
+    re-exported a copy, or the package were imported twice under different names, the two could
+    drift while both suites stayed green; identity is the only assertion that pins the pair.
+    """
+    for name in (
+        "Truth",
+        "Prediction",
+        "Scored",
+        "agreement",
+        "distribution",
+        "confusion",
+        "entropy_bits",
+        "largest_share",
+        "abstention_rate",
+        "per_class",
+        "macro_f1",
+        "link_decision",
+    ):
+        assert getattr(bench, name) is getattr(metrics, name), f"{name} is not the package's definition"
 
 
 def scored(expected: str | list[str] | None, predicted: str | None, score: float | None = None) -> Scored:

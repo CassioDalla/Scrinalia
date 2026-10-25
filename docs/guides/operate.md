@@ -478,6 +478,57 @@ discovered after the write.
 
 The CLI has no preview route; `--limit N` on a run is the other way to bound the same cost.
 
+### Comparing configurations on a sample
+
+The preview answers *how many* units a configuration would read. It does not answer *whether the
+labels are right*, and that is the question that produced #70: the typology was run over 4,844
+descriptions with a configuration nobody had measured, and re-running it is expensive. A **trial**
+answers it without writing the collection (ADR 0018).
+
+`POST /api/v1/system/workers/{worker_name}/trial` takes the sample size, two to four configurations
+(each with the same `engine_name`/`preset`/`db_batch_size`/`options` shape a run uses) and an
+optional seed, and queues **one** ledger row with `trial=true`. The runner executes the
+configurations sequentially inside that row, over the same sample, and stores the result in the
+row's `trial_result`. A trial:
+
+- **writes no archival content** — no `typology_id`, no stamp, no review-queue row. The executor
+  shares the worker's text composition, engine registry and decision rule (`score >
+  confidence_threshold`) but never calls `execute`;
+- **holds the worker's slot**, because it loads the model and reads the collection, and the panel
+  shows it as an `ensaio`; the panel's "last run" is a production run, never a trial;
+- is cancellable like any run, and is never retried.
+
+Two populations are measured, and they are different on purpose:
+
+- the **gabarito** is the human decision already recorded: the latest `archive_document_revisions`
+  row that changed `typology_id` (the dossier, or filing a refusal), and the current catalogue name
+  it points to. `HUMAN_APPROVED` is **not** a verdict — approving a record is not certifying every
+  label in it. Agreement (the share of verdicts the configuration got right, with the denominator
+  shown) and coverage (the share it answered instead of abstaining) are measured here;
+- the **production scope** is a seeded random sample of the ai-writable descriptions the
+  configurations would read (the intersection of their non-stamp predicates). The distribution, the
+  abstention rate, the entropy and the seconds per document are measured here, because the gabarito
+  is a hard set and not the mix the next run will pay for.
+
+The engine is built once per `(engine, preset, engine options)` and shared, so a configuration that
+only changes the floor does not pay the model load twice. A fresh installation has no human typology
+verdict and the screen says so instead of printing an agreement over an empty set. A typology that
+has been retired from the active catalogue is a guaranteed miss (the engine can only answer active
+names) and the result names it.
+
+The comparison produces the choice; it does not become the choice. **Usar esta** sends the
+configuration's own `settings` body — the one the trial measured — to `PUT
+/api/v1/system/workers/{worker_name}/settings`, so the default keeps living in one row. **Rodar no
+acervo inteiro** then reads the pending count of the saved body (`queue/preview`, after the write)
+and triggers the real run with an **empty** request, so the precedence resolves the row that was just
+saved: the number on the screen is the number the run will read.
+
+`limit` and `engine_options` are refused inside a trial configuration: the first is a cap for one
+execution and the second is a raw pass-through to the engine constructor, and neither is a persisted
+default — a comparison has to be of something the screen can save. Today the trial exists for the
+typology worker; the route refuses the others, and the configuration screen only offers the card
+where the catalogue says `trial`.
+
 ## The operations panel
 
 The panel is the `/api/v1/system/*` surface and the four cards of `/configuracoes`, under *Operação*,
@@ -489,13 +540,15 @@ in the SPA: the menu no longer carries them (issue #22).
 | `/api/v1/system/workers/settings` | `GET` | authenticated | the persisted defaults of the AI workers, without the queue counters (issue #53) |
 | `/api/v1/system/workers/{worker_name}/queue/preview` | `POST` | authenticated | the pending count of a **proposed** configuration, computed without writing |
 | `/api/v1/system/workers/{worker_name}/runs` | `POST` | `OPERATE` | queues one run with per-run overrides and answers `201` immediately |
+| `/api/v1/system/workers/{worker_name}/trial` | `POST` | `OPERATE` | queues a trial: two or more configurations over one sample, writing no archival content (ADR 0018) |
 | `/api/v1/system/workers/{worker_name}/schedule` | `GET` | authenticated | the worker's agenda, or null when it has none (ADR 0015) |
 | `/api/v1/system/workers/{worker_name}/schedule` | `PUT` | `OPERATE` | creates or replaces the agenda: the five-field cron, the IANA zone, the pinned request and the enabled state |
 | `/api/v1/system/workers/{worker_name}/schedule` | `DELETE` | `OPERATE` | removes the agenda; the runs it already created stay in the ledger |
 | `/api/v1/system/workers/{worker_name}/settings` | `PUT` | `OPERATE` | persists the default engine/preset/batch/options |
 | `/api/v1/system/workers/{worker_name}/settings` | `DELETE` | `OPERATE` | drops the override so the worker follows the code |
 | `/api/v1/system/workers/{worker_name}/settings/revisions` | `GET` | authenticated | who changed what, when |
-| `/api/v1/system/runs` | `GET` | authenticated | the execution ledger, newest first; filters `worker`, `origin`, `status`, `fingerprint`, `limit`, `offset` |
+| `/api/v1/system/runs` | `GET` | authenticated | the execution ledger, newest first; filters `worker`, `origin`, `status`, `fingerprint`, `trial`, `limit`, `offset` |
+| `/api/v1/system/runs/{run_id}` | `GET` | authenticated | one execution, with its trial result when it is a comparison (ADR 0018) |
 | `/api/v1/system/runs/{run_id}/cancel` | `POST` | `OPERATE` | asks one execution to stop: closes a queued run no runner claimed, records the request on a running one (#72) |
 | `/api/v1/system/failures` | `GET` | authenticated | the grouped root causes; filters `days` (default 30), `worker`, `limit` |
 | `/api/v1/system/health` | `GET` | `OPERATE` | database, Ollama models, object storage, the ingestion origins and the process |
@@ -516,8 +569,8 @@ The SPA mirrors it, as cards of `/configuracoes` under *Operação*:
 | Screen | Shows |
 | --- | --- |
 | `/sistema/workers` | the ten workers: engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and an **Enfileirar execução** button; above them, the runner cards (online, host, version, concurrency, capabilities, last heartbeat) and a warning when none is online. A worker no online runner accepts is marked **sem runner** — the row still queues and waits. The **Agenda** badge and fact show the cron, the zone, the next run and the last skipped period. The effective configuration is read-only here. The `ingestion` row is the exception: it has no engine, no aggregate pending/processed/failed counters, and its run belongs to an origin, so it links to `/sistema/ingestao` instead of a generic run button — the per-origin numbers live on that screen |
-| `/configuracoes/workers` | the persisted default of each worker and its revisions, with save and remove, and the worker's **Agenda** (the cron, the zone, the enabled state and the pinned request) — the write the panel used to carry |
-| `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences. Each row says who asked (`painel`, `linha de comando` or `agenda`), the attempt (`tentativa 2/3`), the row it retries and, when it is queued with a `not_before`, when it starts. An active row offers **Cancelar execução…** with an inline confirmation, and a requested stop is shown as a note while the worker finishes the current batch |
+| `/configuracoes/workers` | the persisted default of each worker and its revisions, with save and remove, and the worker's **Agenda** (the cron, the zone, the enabled state and the pinned request) — the write the panel used to carry. A worker the catalogue marks `trial` (today the typology) also carries **Comparar configurações**: two configurations, the sample size, the side-by-side table (agreement with its denominator, coverage, abstention, the largest drawer, entropy, seconds per document, the queue and the projected hours) and **Usar esta**, which saves the measured body, and **Rodar no acervo inteiro**, which reads the saved body's queue and triggers the real run |
+| `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences. Each row says who asked (`painel`, `linha de comando` or `agenda`), the attempt (`tentativa 2/3`), the row it retries and, when it is queued with a `not_before`, when it starts. A **trial** row carries an `ensaio` badge and links to the comparison card, so it is never mistaken for a production run (ADR 0018). An active row offers **Cancelar execução…** with an inline confirmation, and a requested stop is shown as a note while the worker finishes the current batch |
 | `/sistema/ingestao` | the origins, one card each: its own queue and last run, the adapter configuration, the agenda and **Enfileirar execução** (operator); and the **Entrada manual** form, which writes a record as `PENDING_AI` and queues the transfer (curator). The screen is a card of *Operação* but declares `CURATE`, because the manual form is the write a curator owns; the operator-only controls are hidden for a curator |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage, the ingestion origins (active/total, with a link to `/sistema/ingestao`) and the effective process configuration |
 
@@ -552,12 +605,12 @@ operating system's TCP timeout.
 `archive_worker_runs` has one row per execution, for **both** the CLI and the panel: the ledger is
 about the worker, not about the button that started it. A row carries `worker_name`, `origin_code`
 (the origin an `ingestion` run processed; null for an archive worker), `status`,
-`trigger` (`CLI`, `API` or `SCHEDULE`), `requested_by` (and `requested_by_user_id`), `engine_name`,
-`preset`,
+`trigger` (`CLI`, `API` or `SCHEDULE`), `trial` (whether the execution is a comparison, ADR 0018),
+`requested_by` (and `requested_by_user_id`), `engine_name`, `preset`,
 the validated `request` (what a runner reproduces), the resolved `config`, the **effective worker
 `options`**, `queued_at`, `runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`,
 `cancel_requested_at`, `cancel_requested_by` (and `cancel_requested_by_user_id`), `finished_at`,
-`duration_ms`, `error` and the generated `error_fingerprint`.
+`duration_ms`, `error`, the generated `error_fingerprint` and, on a trial, the `trial_result` JSONB.
 
 `config` answers "with which model?" and `options` answers "over which text, with which floor?" —
 the two halves of one run. `options` is resolved **when the run starts**, because the default of a
@@ -565,6 +618,13 @@ column list lives in the worker's own runner dataclass and only the worker can s
 read; a row queued but not started, or written before the column existed, carries the empty default
 and the ledger screen says "opções não registradas nesta execução". The producer identity hashes the
 same values into the stamp, so the row is the readable half of that hash.
+
+A trial is the exception the schema makes explicit: it carries no single `engine_name`/`preset`/
+`config` (the configurations are in its `request`, and their resolved values are in
+`trial_result.configs`), it writes no archival content, and it is the only row that may have a
+`trial_result`. The panel's "last run" of a worker filters `trial = false`: an experiment is not the
+work the worker last did. A trial still holds the worker's slot and appears as the active run while
+it executes, because it loads the model and reads the collection.
 
 The statuses are `QUEUED`, `RUNNING`, `SUCCESS`, `FAILED`, `INTERRUPTED` and `CANCELLED`. The `QUEUED`
 row is committed through the ledger's **own session before the request returns**, so an external
