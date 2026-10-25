@@ -96,6 +96,14 @@ registro** é a chave ausente, ou seja, nada registrou execução alguma. `proce
 primeiros mais as falhas, e `failed` conta os carimbos que registram uma (`ERROR`; a falha do
 thumbnail vive sob a chave `thumbnail_failed`, porque o livro dele não é um carimbo).
 
+Os quatro números aparecem em **Carimbos (descrições)**, ao lado da fila e não embaixo dela, porque
+respondem a uma pergunta diferente da de `pending`: o detalhamento é sobre o **livro inteiro** do
+worker, enquanto `pending` é o predicado da fila, e os dois conjuntos não são o mesmo. Na coleção de
+referência o card do NER lê **4.831** carimbados contra **4.813** na fila, e a diferença são as
+**18** descrições que uma pessoa aprovou — a fila aplica `ai_writable_documents()`, então uma
+descrição curada é contada no livro e nunca na fila. Quem lêsse o detalhamento como decomposição da
+fila via 4.831 onde a fila dizia 4.813 e não tinha onde pôr a diferença.
+
 Cinco dos nove carimbos carregam a **identidade do produtor** em vez de um status: uma impressão
 digital da engine, do preset, de toda a configuração resolvida da engine, das versões instaladas das
 bibliotecas daquele eixo e das opções comportamentais declaradas (`force`, `limit` e o `config`

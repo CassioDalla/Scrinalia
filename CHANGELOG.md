@@ -93,6 +93,16 @@ commits — the history is the detail.
 
 ### Changed
 
+- **The stamp breakdown says which ledger it counts** (issue #150). `stamp_breakdown` has been in
+  `GET /api/v1/system/workers` since #137, and the panel printed the four numbers under
+  *Fila (descrições)* — a placement that reads as a decomposition of the queue, when the breakdown
+  is over the worker's **whole ledger** while `pending` is the queue predicate. The numbers now sit
+  in their own fact, **Carimbos (descrições)**, beside the queue, the queue fact says it is the
+  predicate and not the ledger, and the contract's field description states the same scope. On the
+  reference collection the NER card reads **4.831** stamped against **4.813** pending, and the
+  difference is the **18** descriptions a human approved, which `ai_writable_documents()` keeps out
+  of the queue.
+
 - **The NER removal declares only the terms it reads** (issue #176). `DELETE
   /api/v1/taxonomy/entities/ner-exclusions` took the same `NerExclusionRequest` as the `POST` and
   read only `words`, so a `reason` sent to the removal answered 200 and was dropped without a

@@ -1951,3 +1951,36 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   covered by the integration suite. The screen was read on `scrinalia_zeroed` only (101
   descriptions, 139 exclusions, 83 tags in drawers), not on the large collection.
 
+## 2026-10-24 — the stamp breakdown says which ledger it counts (#150)
+
+- **Range:** `83f7d39..55fda25`
+- **Pages:**
+  - `guides/operate.md` — **updated**: *What each queue means* gains the paragraph that separates the
+    four numbers from `pending` — the breakdown is over the worker's whole ledger, and the reference
+    collection's NER card reads 4.831 stamped against 4.813 pending, the difference being the 18
+    descriptions a human approved.
+  - `guides/operate.pt.md` — **updated**: the same paragraph.
+  - `guides/curate.md` — **updated**: the workers screen opens four facts now, with the queue and the
+    ledger apart, and the page points at the operate guide for what each one counts.
+  - `guides/curate.pt.md` — **updated**: the same sentence.
+- **Why the round exists:** #150. The placement read as a decomposition of the queue — "4.813 pending
+  beside 0 + 1.650 + 3.181" — and the 18 units that are not pending had nowhere to be seen. #137 had
+  added `stamp_breakdown` and the card rendered it under `Fila`; the number was right and the scope
+  was not.
+- **What the round measured.** The difference is not arithmetic in the abstract: on the collection the
+  render used, `select review_status, count(*)` gives **18** `HUMAN_APPROVED` and no document without
+  text in the extracted columns, so `4.831 − 18 = 4.813` is `ai_writable_documents()` doing exactly
+  what it promises. The contract diff is the description of one field (`stamp_breakdown`), with the
+  component untouched (the field node carries the description, not the `WorkerStampBreakdownDTO`).
+- **What was rendered.** `.render/workers-150.png`: the built SPA served by the API against a **clone**
+  of the large collection (`scrinalia_150`, `CREATE DATABASE ... TEMPLATE memoriacuritibana`, then
+  `alembic upgrade head` — two additive migrations — dropped after the round), with a session row
+  inserted and deleted for it, driven over CDP. The NER card, expanded, reads **FILA
+  (DESCRIÇÕES) 4.813** with "o predicado da fila: o que a próxima execução leria. Não é o ledger do
+  worker." beside **CARIMBOS (DESCRIÇÕES) 4.831** with "0 com produtor · 1.650 sem produtor
+  conhecido · 3.181 sem registro — o ledger inteiro do worker, não a fila." The four facts fit one
+  row at 1280px (`sm:grid-cols-2 xl:grid-cols-4`).
+- **Not verified, and said so.** The card was read on the cloned collection only, and no worker was
+  run: the ledger numbers are the clone's own state, not a fresh run's. The four non-stamp workers'
+  `Processados` fact was not opened in pixels — the NER card is the stamp case the issue is about.
+

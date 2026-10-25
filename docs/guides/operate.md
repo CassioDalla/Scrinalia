@@ -141,6 +141,15 @@ the key absent, meaning nothing recorded a run at all. `processed` is the first 
 failures, and `failed` counts the stamps that record one (`ERROR`; the thumbnail's failure lives under
 the `thumbnail_failed` key, because its ledger is not a stamp).
 
+The four numbers are read in **Carimbos (descrições)**, beside the queue and not under it, because
+they answer a different question from `pending`: the breakdown is over the worker's **whole ledger**,
+while `pending` is the queue predicate, and the two sets are not the same. On the reference
+collection the NER card reads **4.831** stamped against **4.813** pending, and the difference is the
+**18** descriptions a human approved — the queue applies `ai_writable_documents()`, so a curated
+description is counted in the ledger and never in the queue. A reader who took the breakdown as a
+decomposition of the queue saw 4.831 where the queue said 4.813 and had nowhere to put the
+difference.
+
 Five of the nine stamps carry the **producer identity** instead of a status: a fingerprint of the
 engine, the preset, the whole resolved engine configuration, the installed versions of the libraries
 of that axis and the declared behavioural options (`force`, `limit` and the reserved `config` stay

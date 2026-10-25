@@ -1006,7 +1006,10 @@ the collapsed row — "with which model is this running?" is the question the sc
 and here the answer is **read only**. What the installation is *set* to do is a screen of its own
 (*Configuração dos Workers*, below), because the two questions are different: this one is what the
 machine is doing. The row carries the queue — pending, processed, failed, last run — and the one
-write is `OPERATE`:
+write is `OPERATE`. Expanding it opens four facts: the effective configuration, the **queue**, the
+worker's **ledger** (`Carimbos (descrições)` when the ledger is a stamp, `Processados` otherwise) and
+the last run. The queue and the ledger sit apart on purpose, and `guides/operate.md` owns what each
+of the two counts:
 
 - **Rodar agora** — `POST /api/v1/system/workers/{worker_name}/runs`. The run uses the effective
   configuration, adjusted only for this execution; nothing adjusted here becomes the default. Every

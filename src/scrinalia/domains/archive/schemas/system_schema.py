@@ -243,7 +243,12 @@ class WorkerStatusDTO(BaseModel):
     failed: int | None = Field(default=None, description="Unidades cujo carimbo registra falha.")
     stamp_breakdown: WorkerStampBreakdownDTO | None = Field(
         default=None,
-        description="O carimbo aberto em impressão digital, valor legado, falha e ausência. Nulo quando o ledger do worker não é um carimbo.",
+        description=(
+            "Os quatro números do **ledger** do worker — com produtor, valor legado, falha e ausência "
+            "de registro — e não da fila: `pending` é o predicado da fila, e uma unidade com carimbo "
+            "de falha ou de produtor antigo conta aqui sem estar pendente. Nulo quando o ledger do "
+            "worker não é um carimbo."
+        ),
     )
     last_run: WorkerRunDTO | None = None
     active_run: WorkerRunDTO | None = None
