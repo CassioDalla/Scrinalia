@@ -278,6 +278,7 @@ The screens that exist today, in the order the work happens:
 | `/qualidade/regras` | cleaning rules: `REWRITE` replaces, `VALIDATE`/`LLM_CHECK` only flag |
 | `/qualidade/anomalias` | what the quality validator marked, with the reason counts over the whole filtered set and each reason as the filter |
 | `/sistema/workers` | the AI workers as the machine sees them: the queue, the pending and failed counters, the effective configuration read only, and a run button |
+| `/sistema/ingestao` | the origins, one card each: its queue, adapters, agenda and run button; and the manual form, which is a `PENDING_AI` record, not an approval |
 | `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage and the effective process configuration |
 | `/configuracoes` | the landing: one card per screen nobody opens in the middle of cataloguing, on three tabs |
@@ -313,7 +314,8 @@ instance runs at a time; a tick that fires while the worker already has a run sk
 period missed while it was down is a single catch-up. A scheduled run that ends `FAILED` or
 `INTERRUPTED` is retried as a new ledger row (three attempts, exponential backoff capped at 30
 minutes); a manual or CLI run is never retried. `bun run dev` starts the API, the runner and the
-scheduler together; the agenda is written on `/configuracoes/workers` and shown on `/sistema/workers`.
+scheduler together; the worker agenda is written on `/configuracoes/workers` and shown on
+`/sistema/workers`, while an origin's agenda is written on `/sistema/ingestao`.
 
 For one-off runs, the unified runner exposes every worker behind one interface:
 
@@ -322,9 +324,10 @@ uv run python -m scrinalia.domains.archive.workers.runner <name> \
     [--engine X --preset Y --batch N --limit N --option key=value --by "who"]
 ```
 
-Available names: `transfer`, `cleaning`, `ner`, `typology`, `thumbnail`, `conflict-judge`,
-`macro-category`, `quality-validator`, `embedding`.
-Each of the nine workers above also carries an `execute(db, ...)` function and a `__main__` block, so
+Available names: `ingestion`, `transfer`, `cleaning`, `ner`, `typology`, `thumbnail`,
+`conflict-judge`, `macro-category`, `quality-validator`, `embedding`. The `ingestion` run takes
+`--origin` and is the stage in front of the transfer; each origin has its own row, queue and agenda.
+Each of the ten workers above also carries an `execute(db, ...)` function and a `__main__` block, so
 a single worker can be run directly while developing; `worker_suggest_macro_category.py` is the
 exception, a helper the API's category-suggestion route imports instead of running on its own.
 

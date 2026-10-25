@@ -14,14 +14,39 @@ class InMemoryRawSource:
         self.counted = 0
 
     def next_batch(
-        self, force: bool = False, limit: int | None = None, after: str | None = None
+        self,
+        force: bool = False,
+        limit: int | None = None,
+        after: str | None = None,
+        origin_code: str | None = None,
+        description_id: str | None = None,
     ) -> Sequence[RawRecord]:
-        records = [record for record in self._records if after is None or record.description_id > after]
+        records = [
+            record
+            for record in self._records
+            if (after is None or record.description_id > after)
+            and (origin_code is None or record.origin_code == origin_code)
+            and (description_id is None or record.description_id == description_id)
+        ]
         return records[:limit] if limit is not None else records
 
-    def count_pending(self, force: bool = False, after: str | None = None) -> int:
+    def count_pending(
+        self,
+        force: bool = False,
+        after: str | None = None,
+        origin_code: str | None = None,
+        description_id: str | None = None,
+    ) -> int:
         self.counted += 1
-        return len([record for record in self._records if after is None or record.description_id > after])
+        return len(
+            [
+                record
+                for record in self._records
+                if (after is None or record.description_id > after)
+                and (origin_code is None or record.origin_code == origin_code)
+                and (description_id is None or record.description_id == description_id)
+            ]
+        )
 
 
 class RecordingWriter:

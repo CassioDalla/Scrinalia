@@ -278,6 +278,8 @@ it.**
 uv run uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
 ```
 
+After the migration, the `pmc` origin already exists in `ingestion_origins` (the URLs above are seeded into it when present) and the `manual` origin is enabled. `/sistema/ingestao` is where the installation configures both.
+
 The API is then at `http://localhost:8000/`, the UI at the same address and the OpenAPI document at
 `/schema/swagger`. `--reload` belongs to development (`bun run api:dev`), not to an installation.
 Before exposing the instance, set `AUTH_COOKIE_SECURE` — see [HTTPS](#https).
@@ -286,8 +288,9 @@ Before exposing the instance, set `AUTH_COOKIE_SECURE` — see [HTTPS](#https).
 
 Every setting is defined once in `src/scrinalia/core/config.py` (`Settings`). All of them have a
 default, so the API boots with an empty `.env`; what fails fast without configuration is the
-pipeline, not the boot — `ACERVO_SOURCE` is required by the staging transform and
-`PUBLIC_SCRAPE_*` by the ingestion adapter.
+pipeline, not the boot — an origin's URLs are a row in `ingestion_origins`, and
+`PUBLIC_SCRAPE_*` is only the reference adapter's fallback. The origin is selected by its code on
+every command and by the row on the ingestion screen; there is no default origin.
 
 | Variable | Default | What it changes |
 | --- | --- | --- |
@@ -298,9 +301,8 @@ pipeline, not the boot — `ACERVO_SOURCE` is required by the staging transform 
 | `DB_NAME` | `scrinalia` | database name; the compose service creates it on first boot |
 | `DB_SSLMODE` | `prefer` | libpq transport appended to the derived DSN; `verify-full` with a CA when the database is reached across a network |
 | `RUNNER_DATABASE_URL` | unset | the external runner's own DSN (a secret); when unset it uses `DB_*`. It lets a GPU host hold a least-privilege role and its own `sslmode` (ADR 0014) |
-| `PUBLIC_SCRAPE_URL` | unset | base URL of the source site the ingestion worker lists; required to scrape |
-| `PUBLIC_SCRAPE_DETAIL_URL` | unset | detail-page URL prefix the ingestion adapter builds each record from; required to scrape |
-| `ACERVO_SOURCE` | unset | names the active origin — the field labels the staging transform reads and the ports the scrape builds; the only one shipped is `pmc`, `--origin` overrides it for one run, and there is **no default**: a staging run fails fast without it |
+| `PUBLIC_SCRAPE_URL` | unset | base URL of the reference site's listing; the `pmc` fallback — the origin's configuration on the ingestion screen wins |
+| `PUBLIC_SCRAPE_DETAIL_URL` | unset | detail-page prefix of the reference site; the `pmc` fallback, as above |
 | `DEFAULT_TIMEZONE` | `America/Sao_Paulo` | the zone a worker's schedule is evaluated in when the operator does not name one; the cron runs here, not in the server's zone (ADR 0015) |
 | `ACERVO_LANGUAGE` | `pt-BR` | selects the language profile — stopwords, date grammar, plural rules, the full-text dictionary and the spaCy model. The full-text dictionary reaches a generated column, so changing it is a **migration**, not a restart |
 | `S3_ENDPOINT_URL` | unset | the S3-compatible endpoint (MinIO, Ceph, SeaweedFS, a cloud bucket); from a container, `localhost` is the container itself |

@@ -46,12 +46,19 @@ const RUN_STATUSES: readonly WorkerRunStatus[] = [
   "CANCELLED",
 ];
 
-export type SystemRunsSearch = { worker?: string; status?: WorkerRunStatus; fingerprint?: string; offset?: number };
+export type SystemRunsSearch = {
+  worker?: string;
+  origin?: string;
+  status?: WorkerRunStatus;
+  fingerprint?: string;
+  offset?: number;
+};
 
 export function validateSystemRunsSearch(search: Record<string, unknown>): SystemRunsSearch {
   const offset = asNumber(search.offset);
   return {
     worker: asString(search.worker),
+    origin: asString(search.origin),
     status: asEnum(search.status, RUN_STATUSES),
     fingerprint: asString(search.fingerprint),
     offset: offset !== undefined && offset > 0 ? offset : undefined,
@@ -74,7 +81,7 @@ export function SystemRunsRoute() {
 
   const offset = search.offset ?? 0;
   const page = useQuery({
-    ...queries.systemRuns(search.worker, search.status, offset, search.fingerprint),
+    ...queries.systemRuns(search.worker, search.status, offset, search.fingerprint, search.origin),
     // A queued or running entry is the only reason the ledger changes by itself.
     refetchInterval: (query) => (query.state.data?.items?.some(isActiveRun) ? 5_000 : false),
   });
@@ -85,6 +92,14 @@ export function SystemRunsRoute() {
   // does not show the queue counts, so there is no reason to pay for them repeatedly.
   const catalogue = useQuery({
     ...queries.systemWorkers(),
+    staleTime: 5 * 60_000,
+    refetchInterval: false,
+  });
+
+  // The origin vocabulary is the ingestion screen's read; the ledger reuses it for its own filter, so
+  // a run of `ingestion` says *which* origin it processed instead of only its worker name.
+  const origins = useQuery({
+    ...queries.ingestionOrigins(),
     staleTime: 5 * 60_000,
     refetchInterval: false,
   });
@@ -137,6 +152,19 @@ export function SystemRunsRoute() {
           </Select>
 
           <Select
+            className="max-w-56"
+            value={search.origin ?? ""}
+            onChange={(event) => patch({ origin: event.target.value || undefined })}
+          >
+            <option value="">todas as origens</option>
+            {(origins.data?.origins ?? []).map((origin) => (
+              <option key={origin.code} value={origin.code}>
+                {origin.label}
+              </option>
+            ))}
+          </Select>
+
+          <Select
             className="max-w-48"
             value={search.status ?? ""}
             onChange={(event) => patch({ status: (event.target.value || undefined) as WorkerRunStatus | undefined })}
@@ -149,11 +177,13 @@ export function SystemRunsRoute() {
             ))}
           </Select>
 
-          {search.worker || search.status || search.fingerprint ? (
+          {search.worker || search.origin || search.status || search.fingerprint ? (
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => patch({ worker: undefined, status: undefined, fingerprint: undefined })}
+              onClick={() =>
+                patch({ worker: undefined, origin: undefined, status: undefined, fingerprint: undefined })
+              }
             >
               limpar filtros
             </Button>
@@ -198,6 +228,7 @@ export function SystemRunsRoute() {
                       <Badge tone={RUN_STATUS_TONE[run.status]}>{RUN_STATUS_LABEL[run.status]}</Badge>
                       <span className="truncate text-sm font-medium">{labelOf(run.worker_name)}</span>
                       <span className="font-mono text-[11px] text-(--color-muted)">{run.worker_name}</span>
+                      {run.origin_code ? <Badge tone="accent">origem {run.origin_code}</Badge> : null}
                       <Badge tone="neutral">{TRIGGER_LABEL[run.trigger]}</Badge>
                     </div>
                     <span className="text-xs text-(--color-muted)">

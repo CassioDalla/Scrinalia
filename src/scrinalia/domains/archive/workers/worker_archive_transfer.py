@@ -183,6 +183,7 @@ def execute(
 
             doc_dto = ArchiveDocumentDTO(
                 description_id=doc_staging.description_id,
+                origin_code=doc_staging.origin_code,
                 original_title=doc_staging.title,
                 document_date=doc_staging.document_date,
                 summary=doc_staging.scope_content,

@@ -4651,6 +4651,459 @@
         "title": "HierarchyVocabulary",
         "type": "object"
       },
+      "IngestionOptionDTO": {
+        "properties": {
+          "default": {},
+          "help": {
+            "type": "string"
+          },
+          "kind": {
+            "default": "integer",
+            "enum": [
+              "boolean",
+              "integer",
+              "number",
+              "text"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "help",
+          "label",
+          "name"
+        ],
+        "title": "IngestionOptionDTO",
+        "type": "object"
+      },
+      "IngestionOriginDTO": {
+        "properties": {
+          "active_run_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "active_run_status": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorkerRunStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "config": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "config_fields": {
+            "items": {
+              "$ref": "#/components/schemas/OriginConfigFieldDTO"
+            },
+            "type": "array"
+          },
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "failed": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "last_run_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_run_error": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_run_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_run_status": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorkerRunStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "option_fields": {
+            "items": {
+              "$ref": "#/components/schemas/IngestionOptionDTO"
+            },
+            "type": "array"
+          },
+          "options": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "pending": {
+            "description": "O que a próxima execução desta origem leria.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pending_reason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "processed": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "runner_available": {
+            "default": false,
+            "description": "Se algum runner online aceita a etapa de ingestão; falso não impede enfileirar.",
+            "type": "boolean"
+          },
+          "schedule": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IngestionScheduleDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "description",
+          "enabled",
+          "kind",
+          "label"
+        ],
+        "title": "IngestionOriginDTO",
+        "type": "object"
+      },
+      "IngestionOriginListResponse": {
+        "properties": {
+          "generated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "origins": {
+            "items": {
+              "$ref": "#/components/schemas/IngestionOriginDTO"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at"
+        ],
+        "title": "IngestionOriginListResponse",
+        "type": "object"
+      },
+      "IngestionOriginUpdateRequest": {
+        "properties": {
+          "config": {
+            "additionalProperties": {},
+            "description": "A configuração do adapter, validada pelo modelo da origem (URLs, espera).",
+            "type": "object"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "options": {
+            "additionalProperties": {},
+            "description": "O padrão de execução agendada (páginas, janelas, retentativas).",
+            "type": "object"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "IngestionOriginUpdateRequest",
+        "type": "object"
+      },
+      "IngestionRunRequest": {
+        "properties": {
+          "audit_ttl_days": {
+            "description": "Re-lê os DONE com mais de N dias.",
+            "minimum": 1,
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "discovery_window_days": {
+            "description": "Só registros descobertos nos últimos N dias.",
+            "minimum": 1,
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "force_retry_fatal": {
+            "default": false,
+            "description": "Inclui os registros marcados FATAL_ERROR.",
+            "type": "boolean"
+          },
+          "ignore_sliding_window": {
+            "default": false,
+            "description": "Ignora as janelas de descoberta e TTL.",
+            "type": "boolean"
+          },
+          "limit": {
+            "description": "Máximo de registros desta execução.",
+            "minimum": 1,
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_retries": {
+            "description": "Falhas transitórias antes de FATAL.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pages": {
+            "description": "Páginas da listagem; 0 não lista.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scraped_ttl_days": {
+            "description": "Só registros lidos há mais de N dias.",
+            "minimum": 1,
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "title": "IngestionRunRequest",
+        "type": "object"
+      },
+      "IngestionScheduleDTO": {
+        "properties": {
+          "cron": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_enqueued_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_skipped_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_run_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timezone": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "title": "IngestionScheduleDTO",
+        "type": "object"
+      },
+      "IngestionScheduleRequest": {
+        "properties": {
+          "cron": {
+            "description": "Cinco campos: minuto, hora, dia, mês, semana.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "timezone": {
+            "description": "Zona IANA; o padrão é DEFAULT_TIMEZONE.",
+            "maxLength": 64,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "cron"
+        ],
+        "title": "IngestionScheduleRequest",
+        "type": "object"
+      },
       "JudgedConflict": {
         "properties": {
           "applicable": {
@@ -4959,6 +5412,252 @@
         },
         "required": [],
         "title": "MacroCategoryUpdateRequest",
+        "type": "object"
+      },
+      "ManualIngestionRequest": {
+        "properties": {
+          "access_conditions": {
+            "description": "Condições de acesso.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "admin_archival_history": {
+            "description": "História arquivística.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "admin_bio_history": {
+            "description": "História administrativa/biográfica.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attachment_link": {
+            "description": "Link do anexo, quando houver.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description_id": {
+            "description": "Identificador do registro.",
+            "maxLength": 50,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "document_date": {
+            "description": "Data de produção, quando conhecida.",
+            "oneOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "indexing_points": {
+            "description": "Pontos de acesso, separados por vírgula.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "level": {
+            "description": "Nível de descrição.",
+            "maxLength": 200,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "original_url": {
+            "description": "URL do registro original, quando houver.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parent_reference_code": {
+            "description": "Código da unidade superior.",
+            "maxLength": 500,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "producers": {
+            "description": "Produtores.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "description": "Procedência.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference_code": {
+            "description": "Código de referência.",
+            "maxLength": 500,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope_content": {
+            "description": "Âmbito e conteúdo.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "thumb_down_link": {
+            "description": "Link da imagem, quando houver.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "description": "Título da descrição.",
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "ManualIngestionRequest",
+        "type": "object"
+      },
+      "ManualIngestionResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RouteMessageCode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ManualIngestionResultDTO"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "title": "ManualIngestionResponse",
+        "type": "object"
+      },
+      "ManualIngestionResultDTO": {
+        "properties": {
+          "description_id": {
+            "type": "string"
+          },
+          "origin_code": {
+            "type": "string"
+          },
+          "review_status": {
+            "default": "PENDING_AI",
+            "description": "O estado inicial no archive: a ingestão manual não marca HUMAN_APPROVED.",
+            "type": "string"
+          },
+          "staging_saved": {
+            "type": "boolean"
+          },
+          "transfer_queued": {
+            "default": false,
+            "description": "Falso quando uma transferência já estava em andamento e esta entra na próxima.",
+            "type": "boolean"
+          },
+          "transfer_run_id": {
+            "description": "A execução de transferência enfileirada; nula quando já havia uma ativa.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "description_id",
+          "origin_code",
+          "staging_saved"
+        ],
+        "title": "ManualIngestionResultDTO",
         "type": "object"
       },
       "MergeBatchApplied": {
@@ -5784,6 +6483,40 @@
         "title": "OllamaHealthDTO",
         "type": "object"
       },
+      "OriginConfigFieldDTO": {
+        "properties": {
+          "default": {},
+          "help": {
+            "type": "string"
+          },
+          "kind": {
+            "default": "text",
+            "enum": [
+              "text",
+              "number",
+              "boolean"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "required": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "help",
+          "label",
+          "name"
+        ],
+        "title": "OriginConfigFieldDTO",
+        "type": "object"
+      },
       "OrphanEntityPurgeResponse": {
         "properties": {
           "code": {
@@ -6192,6 +6925,8 @@
           "TEXT_TEMPLATE_UPDATED",
           "TEXT_TEMPLATE_DELETED",
           "DOCUMENT_DELETED",
+          "MANUAL_INGESTION_QUEUED",
+          "MANUAL_INGESTION_STAGED",
           "WORKER_RUN_CANCELLED",
           "WORKER_RUN_CANCEL_REQUESTED",
           "TAG_MERGE_PROPOSAL_DECIDED",
@@ -8616,6 +9351,17 @@
             "description": "Opções efetivas do worker nesta execução (as colunas lidas, o limite de confiança), resolvidas quando a execução começou. Vazio numa linha antiga, ou numa que ainda não começou.",
             "type": "object"
           },
+          "origin_code": {
+            "description": "A origem que esta execução de ingestão processou; nula num worker de archive, que atravessa o acervo inteiro e não tem uma única origem para nomear.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "preset": {
             "oneOf": [
               {
@@ -9388,6 +10134,7 @@
           },
           "unit": {
             "enum": [
+              "origin",
               "staging",
               "document",
               "tag",
@@ -12224,6 +12971,486 @@
         ]
       }
     },
+    "/api/v1/ingestion/manual": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1IngestionManualCreateManual",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualIngestionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualIngestionResponse"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "CreateManual",
+        "tags": [
+          "Ingestion"
+        ]
+      }
+    },
+    "/api/v1/ingestion/origins": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1IngestionOriginsListOrigins",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestionOriginListResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ListOrigins",
+        "tags": [
+          "Ingestion"
+        ]
+      }
+    },
+    "/api/v1/ingestion/origins/{code}": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1IngestionOriginsCodeGetOrigin",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestionOriginDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetOrigin",
+        "tags": [
+          "Ingestion"
+        ]
+      },
+      "patch": {
+        "deprecated": false,
+        "operationId": "ApiV1IngestionOriginsCodeUpdateOrigin",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestionOriginUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestionOriginDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "UpdateOrigin",
+        "tags": [
+          "Ingestion"
+        ]
+      }
+    },
+    "/api/v1/ingestion/origins/{code}/runs": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1IngestionOriginsCodeRunsTriggerOrigin",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestionRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDTO"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "TriggerOrigin",
+        "tags": [
+          "Ingestion"
+        ]
+      }
+    },
+    "/api/v1/ingestion/origins/{code}/schedule": {
+      "delete": {
+        "deprecated": false,
+        "operationId": "ApiV1IngestionOriginsCodeScheduleDeleteSchedule",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestionOriginDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "DeleteSchedule",
+        "tags": [
+          "Ingestion"
+        ]
+      },
+      "put": {
+        "deprecated": false,
+        "operationId": "ApiV1IngestionOriginsCodeSchedulePutSchedule",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestionScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestionOriginDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "PutSchedule",
+        "tags": [
+          "Ingestion"
+        ]
+      }
+    },
     "/api/v1/public/documents": {
       "get": {
         "deprecated": false,
@@ -13626,6 +14853,24 @@
             "deprecated": false,
             "in": "query",
             "name": "worker",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "origin",
             "required": false,
             "schema": {
               "oneOf": [

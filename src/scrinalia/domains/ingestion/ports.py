@@ -96,3 +96,34 @@ class IDetailAdapter(ABC):
     def fetch_details(self, description_id: str) -> dict[str, str]:
         """It must return a dictionary containing the raw data ready for Staging."""
         raise NotImplementedError
+
+
+@dataclass(frozen=True)
+class OriginAdapters:
+    """
+    The ports one origin implements, resolved as a pair.
+
+    Both fields are optional on purpose. The ingestion job has two ports and an origin may implement
+    only one of them: a manual CSV ingestion lists rows and has no detail page to fetch, and an
+    origin that receives its identifiers from elsewhere fetches details it was told about. Declaring
+    the phase instead of failing deep inside the job is what keeps "another origin" a registry entry.
+
+    It lives in ``ports`` and not in ``sources`` because it is a contract, and because both the
+    registry metadata and the runtime definition need to name it without importing an adapter.
+    """
+
+    code: str
+    discovery: IDiscoveryAdapter | None = None
+    detail: IDetailAdapter | None = None
+
+    def require_discovery(self) -> IDiscoveryAdapter:
+        """The discovery port, or a sentence naming the phase this origin does not have."""
+        if self.discovery is None:
+            raise ValueError(f"Origin {self.code!r} declares no discovery phase.")
+        return self.discovery
+
+    def require_detail(self) -> IDetailAdapter:
+        """The detail port, or a sentence naming the phase this origin does not have."""
+        if self.detail is None:
+            raise ValueError(f"Origin {self.code!r} declares no detail phase.")
+        return self.detail

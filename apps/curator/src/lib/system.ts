@@ -96,6 +96,7 @@ export function describeConfig(config: Record<string, unknown> | undefined): str
 
 /** What one unit of a queue is, so "12 pendentes" is never ambiguous. */
 export const UNIT_LABEL: Record<WorkerStatus["unit"], string> = {
+  origin: "origens",
   staging: "registros de staging",
   document: "descrições",
   tag: "tags",

@@ -48,6 +48,7 @@ from scrinalia.domains.identity.repository.login_attempt_repo import LoginAttemp
 from scrinalia.domains.identity.repository.session_repo import SessionRepository
 from scrinalia.domains.identity.repository.user_repo import UserRepository
 from scrinalia.domains.identity.services.auth_service import AuthService
+from scrinalia.domains.ingestion.service import IngestionOriginService
 
 
 @lru_cache(maxsize=1)
@@ -193,6 +194,17 @@ def provide_worker_run_service(unit_of_work: NamedDependency[UnitOfWork]) -> Wor
 def provide_worker_schedule_service(unit_of_work: NamedDependency[UnitOfWork]) -> WorkerScheduleService:
     """Builds the agenda service over the request transaction; the write commits before returning."""
     return WorkerScheduleService(unit_of_work.db)
+
+
+def provide_ingestion_origin_service(unit_of_work: NamedDependency[UnitOfWork]) -> IngestionOriginService:
+    """
+    Builds the origin service over the request transaction.
+
+    The service reads the origin row and counts its queue in that transaction; the two writes that
+    have to outlive the request — the run row and the manual transfer — go through the ledger's own
+    committed session, exactly like every other execution the panel enqueues.
+    """
+    return IngestionOriginService(unit_of_work.db)
 
 
 def provide_failure_service(unit_of_work: NamedDependency[UnitOfWork]) -> FailureService:

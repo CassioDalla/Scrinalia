@@ -221,7 +221,10 @@ class DocumentRepository:
         db_dict = doc_data.model_dump(exclude_unset=True)
         # ``None`` here is not a value, it is an absence: the source declared no parent, so the
         # INSERT takes the column default (a root) and the UPDATE never mentions the column.
-        db_dict = {key: value for key, value in db_dict.items() if value is not None or key not in ARRANGEMENT_COLUMNS}
+        # ``origin_code`` follows the same rule: a legacy staging row with no origin must not erase
+        # a provenance the archive already knows.
+        optional_none = ARRANGEMENT_COLUMNS | {"origin_code"}
+        db_dict = {key: value for key, value in db_dict.items() if value is not None or key not in optional_none}
 
         stmt = insert(ArchiveDocument).values(db_dict)
 

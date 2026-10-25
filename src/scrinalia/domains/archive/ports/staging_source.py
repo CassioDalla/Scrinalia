@@ -11,6 +11,10 @@ class StagingRecord(BaseModel):
     """Read model of a structured staging document, decoupled from the staging ORM."""
 
     description_id: str
+    #: Provenance of the record, carried to the archive. It is **not** part of the CDC key: the origin
+    #: is where the record came from, not what the parser read, and folding it into the hash would
+    #: re-transfer the whole collection once for a column that no AI worker writes.
+    origin_code: str | None = None
     title: str
     document_date: date | None = None
     raw_content_hash: str
@@ -46,7 +50,7 @@ class StagingRecord(BaseModel):
         source byte-identical, so the archive would keep the old value forever. Hashing the
         parsed record makes the transfer notice it, exactly like a real source change.
         """
-        return str(ContentHash.of(self.model_dump(mode="json")))
+        return str(ContentHash.of(self.model_dump(mode="json", exclude={"origin_code"})))
 
 
 class StagingRecordSource(Protocol):

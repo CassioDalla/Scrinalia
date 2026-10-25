@@ -53,6 +53,10 @@ class RouteMessageCode(enum.StrEnum):
     DOCUMENT_DELETED = "DOCUMENT_DELETED"
 
     # --- The operations panel (the run ledger) ---
+    #: The ingestion origin received the record, staged it and queued the transfer run.
+    MANUAL_INGESTION_QUEUED = "MANUAL_INGESTION_QUEUED"
+    #: The record was staged, but a transfer was already in flight; it enters the next one.
+    MANUAL_INGESTION_STAGED = "MANUAL_INGESTION_STAGED"
     #: The run was still queued with no runner: it never started, so it closed at once.
     WORKER_RUN_CANCELLED = "WORKER_RUN_CANCELLED"
     #: The run is in flight: the request was recorded and the worker stops at the next batch

@@ -14,7 +14,12 @@ class RawRecordSource(Protocol):
     """
 
     def next_batch(
-        self, force: bool = False, limit: int | None = None, after: str | None = None
+        self,
+        force: bool = False,
+        limit: int | None = None,
+        after: str | None = None,
+        origin_code: str | None = None,
+        description_id: str | None = None,
     ) -> Sequence[RawRecord]:
         """
         Returns the raw records that are new or whose source content changed.
@@ -28,10 +33,20 @@ class RawRecordSource(Protocol):
         ``after`` is a keyset cursor over ``description_id``: under the CDC a bounded run advances
         by itself (a processed record stops matching), but a ``force`` re-parse does not, so a
         bounded forced run names where the next one starts.
+
+        ``origin_code`` bounds the run to one origin's records, and ``description_id`` to the one
+        record a manual entry just wrote. Both narrow the set; neither changes what counts as
+        pending for the records it leaves in scope.
         """
         raise NotImplementedError
 
-    def count_pending(self, force: bool = False, after: str | None = None) -> int:
+    def count_pending(
+        self,
+        force: bool = False,
+        after: str | None = None,
+        origin_code: str | None = None,
+        description_id: str | None = None,
+    ) -> int:
         """
         How many records the same predicate still leaves pending.
 

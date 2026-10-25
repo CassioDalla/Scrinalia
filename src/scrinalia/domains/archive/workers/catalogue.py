@@ -49,6 +49,9 @@ class WorkerSpec:
     unit: WorkerUnit = "document"
     governed: bool = True
     engine_source: EngineSource = "none"
+    #: True for the one stage whose run is about an **origin**, not about a document or a tag. The
+    #: runner resolves no engine for it, and the ledger's origin column is its axis (ADR 0016).
+    origin_axis: bool = False
     #: Stamp whose presence in ``execution_log`` means "this unit was processed". It is always an
     #: ``IdentityStamp``: the five catalogue workers whose ledger is a stamp all key their queue on
     #: *what produced* the answer, so the panel reads their processed/failed numbers as one breakdown
@@ -89,6 +92,27 @@ _WORKERS_PACKAGE = "scrinalia.domains.archive.workers"
 WORKER_CATALOGUE: dict[str, WorkerSpec] = {
     spec.name: spec
     for spec in (
+        WorkerSpec(
+            name="ingestion",
+            label="Ingestão por origem",
+            description=(
+                "Lê uma origem para o raw, estrutura o resultado no staging e o deixa pronto para a "
+                "transferência. A unidade é a origem, não a descrição; a fila e a agenda são as da "
+                "origem, e a tela de ingestão mostra cada uma."
+            ),
+            module="scrinalia.domains.ingestion.worker",
+            unit="origin",
+            governed=False,
+            origin_axis=True,
+            counter=None,
+            processed_counter="count_processed",
+            failed_counter="count_failed",
+            unmeasurable_reason=(
+                "A fila é por origem: a tela de ingestão mostra quantos registros cada origem tem "
+                "pendentes, com a mesma política que a próxima execução usa."
+            ),
+            note="Sem modelo: a etapa lê a origem e estrutura o staging; a transferência e a IA vêm depois.",
+        ),
         WorkerSpec(
             name="transfer",
             label="Transferência staging → archive",

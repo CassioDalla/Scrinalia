@@ -91,6 +91,10 @@ class ArchiveDocument(Base):
     description_id: Mapped[str] = mapped_column(String(50), primary_key=True)
 
     # --- Lineage and Origin ---
+    #: The ingestion origin whose record produced this description (``pmc``, ``manual``, ...). It is
+    #: provenance, not identity: ``description_id`` stays the archival key, and an adapter that can
+    #: collide namespaces its own ids. Nullable only for rows written before plural ingestion.
+    origin_code: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     original_title: Mapped[str] = mapped_column(Text, nullable=False)
     document_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -32,6 +32,9 @@ class StagingDocument(Base):
     __tablename__ = "staging_documents"
 
     description_id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    #: The origin whose payload produced this record. Nullable only for the rows written before
+    #: plural ingestion; the transform resolves the origin's ``SourceSchema`` from it.
+    origin_code: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     raw_content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
     title: Mapped[str] = mapped_column(Text, nullable=False)

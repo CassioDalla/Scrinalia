@@ -7,13 +7,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
+from scrinalia.core.author import Author, author_columns
 from scrinalia.core.content_hash import ContentHash
 from scrinalia.core.logger import logger
 
 from .models import RawData, ScrapeStatus, ScrapingQueue
 
 
-def add(db: Session, description_id: str) -> ScrapingQueue | None:
+def add(db: Session, description_id: str, origin_code: str | None = None) -> ScrapingQueue | None:
     """
     Adds a new document ID to the ingestion queue.
 
@@ -24,13 +25,14 @@ def add(db: Session, description_id: str) -> ScrapingQueue | None:
     Args:
         db (Session): Active SQLAlchemy session.
         description_id (str): Unique identifier of the document in the external source.
+        origin_code (str | None): The origin that discovered it.
 
     Returns:
         ScrapingQueue | None: The inserted object instance, or None if
             the ID already exists or a database failure occurs.
     """
 
-    item = ScrapingQueue(description_id=description_id)
+    item = ScrapingQueue(description_id=description_id, origin_code=origin_code)
     try:
         # A savepoint keeps the caller's transaction usable when the ID is duplicated.
         with db.begin_nested():
@@ -47,7 +49,7 @@ def add(db: Session, description_id: str) -> ScrapingQueue | None:
         return None
 
 
-def add_in_bulk(db: Session, description_id_list: list[str]) -> int:
+def add_in_bulk(db: Session, description_id_list: list[str], origin_code: str | None = None) -> int:
     """
     Inserts a list of IDs into the batch processing queue (Bulk Insert).
 
@@ -58,6 +60,7 @@ def add_in_bulk(db: Session, description_id_list: list[str]) -> int:
     Args:
         db (Session): Active SQLAlchemy session.
         description_id_list (list[str]): List containing the newly discovered IDs.
+        origin_code (str | None): The origin that discovered the batch.
 
     Returns:
         int: The exact number of new records inserted into the database.
@@ -66,7 +69,7 @@ def add_in_bulk(db: Session, description_id_list: list[str]) -> int:
     if not description_id_list:
         return 0
 
-    data = [{"description_id": desc_id} for desc_id in description_id_list]
+    data = [{"description_id": desc_id, "origin_code": origin_code} for desc_id in description_id_list]
 
     stmt = insert(ScrapingQueue).values(data)
     stmt = stmt.on_conflict_do_nothing(index_elements=["description_id"])
@@ -80,6 +83,7 @@ def pending_conditions(
     discovered_after: datetime | None = None,
     scraped_before: datetime | None = None,
     ignore_status: list[ScrapeStatus] | None = None,
+    origin_code: str | None = None,
 ) -> list[ColumnElement[bool]]:
     """
     The sliding-window policy, as one predicate.
@@ -90,6 +94,9 @@ def pending_conditions(
     which left a second counter with no honest way to answer "how many remain".
     """
     conditions: list[ColumnElement[bool]] = []
+
+    if origin_code is not None:
+        conditions.append(ScrapingQueue.origin_code == origin_code)
 
     if discovered_after is not None:
         conditions.append(ScrapingQueue.discovered_at >= discovered_after)
@@ -114,6 +121,7 @@ def get_from_queue(
     discovered_after: datetime | None = None,
     scraped_before: datetime | None = None,
     limit: int | None = None,
+    origin_code: str | None = None,
 ) -> Sequence[ScrapingQueue]:
     """
     Retrieves a batch of documents from the queue pending detail extraction.
@@ -138,7 +146,9 @@ def get_from_queue(
     the ones that have not — even the batch that failed. The limit is applied to the statement the
     policy already filtered, never before it.
     """
-    stmt = select(ScrapingQueue).where(*pending_conditions(discovered_after, scraped_before, ignore_status))
+    stmt = select(ScrapingQueue).where(
+        *pending_conditions(discovered_after, scraped_before, ignore_status, origin_code)
+    )
     stmt = stmt.order_by(ScrapingQueue.last_scraped_at.asc().nulls_first())
 
     if limit is not None:
@@ -152,6 +162,7 @@ def count_pending(
     ignore_status: list[ScrapeStatus] | None = None,
     discovered_after: datetime | None = None,
     scraped_before: datetime | None = None,
+    origin_code: str | None = None,
 ) -> int:
     """
     How many queue rows the same policy still leaves pending.
@@ -163,8 +174,36 @@ def count_pending(
     stmt = (
         select(func.count())
         .select_from(ScrapingQueue)
-        .where(*pending_conditions(discovered_after, scraped_before, ignore_status))
+        .where(*pending_conditions(discovered_after, scraped_before, ignore_status, origin_code))
     )
+    return int(db.scalar(stmt) or 0)
+
+
+def count_processed(db: Session, origin_code: str | None = None, **_: object) -> int:
+    """Queue rows the scrape finished, for the origin panel's ``processed`` number."""
+    stmt = select(func.count()).select_from(ScrapingQueue).where(ScrapingQueue.scrape_status == ScrapeStatus.DONE)
+    if origin_code is not None:
+        stmt = stmt.where(ScrapingQueue.origin_code == origin_code)
+    return int(db.scalar(stmt) or 0)
+
+
+def count_failed(db: Session, origin_code: str | None = None, **_: object) -> int:
+    """Queue rows whose failure is terminal for the policy: ``NOT_FOUND`` and ``FATAL_ERROR``."""
+    stmt = (
+        select(func.count())
+        .select_from(ScrapingQueue)
+        .where(ScrapingQueue.scrape_status.in_((ScrapeStatus.NOT_FOUND, ScrapeStatus.FATAL_ERROR)))
+    )
+    if origin_code is not None:
+        stmt = stmt.where(ScrapingQueue.origin_code == origin_code)
+    return int(db.scalar(stmt) or 0)
+
+
+def count_raw_data(db: Session, origin_code: str | None = None, **_: object) -> int:
+    """Raw payloads of one origin, for the manual origin's ``processed`` number."""
+    stmt = select(func.count()).select_from(RawData)
+    if origin_code is not None:
+        stmt = stmt.where(RawData.origin_code == origin_code)
     return int(db.scalar(stmt) or 0)
 
 
@@ -174,6 +213,7 @@ def update_queue_status(
     status: ScrapeStatus,
     error_msg: str | None = None,
     increment_retry: bool = False,
+    origin_code: str | None = None,
 ) -> bool:
     """
     Updates the state of a document in the queue following an ingestion attempt.
@@ -194,6 +234,8 @@ def update_queue_status(
     """
     now = datetime.now(UTC)
     stmt = update(ScrapingQueue).where(ScrapingQueue.description_id == description_id)
+    if origin_code is not None:
+        stmt = stmt.where(ScrapingQueue.origin_code == origin_code)
 
     if status == ScrapeStatus.DONE:
         # Success: Resets the retry counter
@@ -221,7 +263,14 @@ def update_queue_status(
     return True
 
 
-def save_raw_data(db: Session, description_id: str, scraped_data: dict) -> bool:
+def save_raw_data(
+    db: Session,
+    description_id: str,
+    scraped_data: dict,
+    *,
+    origin_code: str | None = None,
+    author: Author | None = None,
+) -> bool:
     """
     Persists the raw data extracted by the Adapter in the Ingestion layer.
 
@@ -245,11 +294,13 @@ def save_raw_data(db: Session, description_id: str, scraped_data: dict) -> bool:
 
     content_hash = ContentHash.of(scraped_data)
 
-    values = {
+    values: dict[str, object] = {
         "description_id": description_id,
+        "origin_code": origin_code,
         "raw_title": raw_title,
         "payload": scraped_data,
         "content_hash": content_hash,
+        **author_columns("created_by", author),
     }
 
     stmt = insert(RawData).values(**values)

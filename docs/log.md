@@ -2185,3 +2185,52 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   signal handler is unit-tested as a callable, but no `SIGTERM` was delivered by the operating system
   to a process mid-batch. The daemon's `SIGTERM` → lease → `INTERRUPTED` path was not exercised.
 
+
+## 2026-10-25 — the origin is a first-class object (#44)
+
+- **Range:** `b84cad3..8e0c42f`
+- **Pages:**
+  - `adr/0016-the-origin-is-a-first-class-object.md` — **created**: the decision (definition in
+    code + lifecycle row, `origin_code` as provenance, the `ingestion` stage in the same ledger, the
+    manual entry as `PENDING_AI`, the deferred CSV and per-origin AI settings).
+  - `adr/index.md`, `mkdocs.yml` — **updated**: the new ADR is linked and in the nav.
+  - `guides/operate.md` / `operate.pt.md` — **updated**: ten workers with `ingestion` first, the
+    origin table and screen, the manual entry, the per-origin slot and agenda, the removed
+    `ACERVO_SOURCE`, the origin routes, the `origin` filter on the ledger and the `ingestion` row that
+    links to the origin screen.
+  - `guides/install.md` / `install.pt.md` — **updated**: the origin is a row, not a setting;
+    `PUBLIC_SCRAPE_*` is the fallback for `pmc`; the migration seeds `pmc` and `manual`; the upgrade
+    path is `/sistema/ingestao`.
+  - `guides/data-model.md` / `data-model.pt.md` — **updated**: `ingestion_origins`, `origin_code` on
+    the queue/raw/staging/archive/run ledger, `created_by` on `raw_data`, and the provenance-not-key
+    rule.
+  - `guides/curate.md` / `curate.pt.md` — **updated**: the `/sistema/ingestao` screen, the worker row that links to it (the generic run button cannot name an origin) and the manual
+    form — data entry, not an approval; the AI queue sees the record; the operator controls are
+    hidden for a curator.
+  - `README.md` — **updated**: the ten worker names, the ingestion screen and the origin agenda.
+  - `.env.example` — **updated**: `ACERVO_SOURCE` removed; `PUBLIC_SCRAPE_*` documented as the
+    reference adapter's fallback.
+  - `.dsh/skills/ingestion` — **updated**: the origin object, per-record schema, the `ingestion`
+    stage and the manual origin; the old `ACERVO_SOURCE` rule removed.
+  - `.dsh/skills/workers` — **updated**: the `ingestion` spec and the per-origin slot.
+  - `.dsh/skills/data` — **updated**: 33 settings fields, no `ACERVO_SOURCE`, the origin is a row.
+- **Why the round exists:** #44, milestone 1.6 — the origin was a parameter with one selector and no
+  lifecycle, no agenda and no attribution; and the ingestion was the one stage the panel could not
+  answer for.
+- **What the round measured.** Full suite **2164 passed, 1 skipped**; `basedpyright` **0 errors**;
+  `ruff check` and `ruff format --check` green; `tsc`, ESLint and the Vite build green;
+  `alembic upgrade head` applied `44a1b2c3d4e5` and `alembic check` reports no drift;
+  `mkdocs build --strict` green. The generated contract was regenerated and matches the app.
+- **What was rendered.** `.render/44-ingestao.png` is the screen with the manual form and both origin
+  cards; `.render/44-ingestao-config.png` is the PMC configuration panel (URLs and delay);
+  `.render/44-ingestao-agenda.png` is its agenda (cron, IANA zone, save/remove);
+  `.render/44-ingestao-submit.png` is a **real** submit: the form filled, the POST ran, and the
+  success notice returned the manual id and "a transferência foi enfileirada". The record was staged
+  and the transfer row was queued; the scratch rows and the temporary account were removed after the
+  round.
+- **Not verified, and said so.** No runner was online, so the queued transfer was not executed by a
+  runner in the browser; the archive `PENDING_AI` and the NER queue are covered by the integration
+  test (`test_manual_ingestion_stages_the_record_and_queues_the_transfer`), which runs the transfer
+  directly. A real scraper execution of the `ingestion` worker against the reference site was not
+  run, and the scheduler's origin tick was tested against the test database, not observed in a live
+  process. The CSV import (#191) and the full manual field set (#192) are not in this change.

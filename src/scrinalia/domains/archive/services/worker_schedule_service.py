@@ -16,6 +16,7 @@ from scrinalia.core.author import Author
 from scrinalia.core.config import get_settings
 from scrinalia.domains.archive.exceptions import (
     InvalidWorkerScheduleError,
+    InvalidWorkerSettingsError,
     WorkerNotFoundError,
     WorkerScheduleNotFoundError,
 )
@@ -119,4 +120,8 @@ class WorkerScheduleService:
         spec = WORKER_CATALOGUE.get(worker_name)
         if spec is None:
             raise WorkerNotFoundError(f"Worker '{worker_name}' não existe. Opções: {sorted(WORKER_CATALOGUE)}.")
+        if spec.origin_axis:
+            raise InvalidWorkerSettingsError(
+                "A agenda da ingestão é a da origem: use a tela de ingestão, não a agenda genérica de workers."
+            )
         return spec

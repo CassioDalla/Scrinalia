@@ -999,18 +999,39 @@ the human review of the record, in the dossier.
 ## Sistema
 
 The machine, not the collection. Everything here belongs to whoever operates the installation, and
-all three screens are reached from `/configuracoes`, under *Operação*: the menu kept what the
-archivist consults while cataloguing, and this is not it.
+all four screens are reached from `/configuracoes`, under *Operação*: the menu kept what the
+archivist consults while cataloguing, and this is not it. The ingestion screen is the one exception
+to the "operator only" rule — its manual form is a curator's write (#44) — and it is therefore a
+`CURATE` card.
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
+| Ingestão — `/sistema/ingestao` | which origin to read, its URLs and its agenda (operator); and typing one record (curator) | the configuration and the agenda are reversible; a manual record enters the pipeline and is approved (or rejected) in the dossier |
 | Workers de IA — `/sistema/workers` | whether to run a worker now | yes (the run's own configuration); a run's effects follow what it wrote |
 | Execuções — `/sistema/execucoes` | whether to stop an active run (the ledger and the grouped failures are read-only) | no undo: a cancelled run stays cancelled; a new run is a new ledger row |
 | Saúde do sistema — `/sistema/diagnostico` | none (database, models, storage, process) | yes (read only) |
 
+### Ingestão — `/sistema/ingestao`
+
+The stage in front of the archive, origin by origin (ADR 0016). Each card is one origin: its own
+queue (what the next execution would read), processed and failed numbers, the last and the active
+run, and the agenda. The **operator** can edit the adapter configuration (the reference scraper's
+listing and detail URLs, the politeness delay), save a five-field cron in an IANA zone and
+**Enfileirar execução**. The run is the same ledger the AI workers use; a period that fires while the
+origin is already running is skipped, not queued. The generic worker routes refuse `ingestion` — a
+run of it needs the origin, and the origin routes are the selector.
+
+The **curator** sees the same cards read-only and the **Entrada manual** form. That form is the
+`manual` origin: the submit writes the typed record as the origin's raw payload, stages it through the
+same transform and enqueues the same `transfer` worker. The archive description is born
+`PENDING_AI`; the AI queues see it, and the approval is the dossier's `PATCH /documents/{id}` after
+the AI runs. Typing a record is **not** an approval, and a duplicate `description_id` is refused
+before the write. The rest of the staging fields and the browser-parsed CSV import are #192 and
+#191.
+
 ### Workers de IA — `/sistema/workers`
 
-The catalogue of the nine workers, in pipeline order, with the effective engine, preset and config on
+The catalogue of the ten workers, in pipeline order, with the effective engine, preset and config on
 the collapsed row — "with which model is this running?" is the question the screen exists to answer,
 and here the answer is **read only**. What the installation is *set* to do is a screen of its own
 (*Configuração dos Workers*, below), because the two questions are different: this one is what the
@@ -1025,6 +1046,8 @@ of the two counts:
   run leaves a row in the run ledger, and a worker with a run in flight disables the button — the
   guarantee is the partial unique index in the database, and the screen only avoids offering what
   the database would reject.
+
+The `ingestion` row is the one exception to the run button: its execution belongs to an origin, so the row links to `/sistema/ingestao` (the origin screen) and the generic route refuses it.
 
 The run panel's fields come from the contract, not from a text box: `declared_options` names the
 options the worker accepts and, for a column list, the columns the AI text has

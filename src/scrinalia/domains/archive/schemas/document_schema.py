@@ -17,6 +17,9 @@ class ArchiveDocumentDTO(BaseModel):
     """
 
     description_id: str = Field(description="ID inherited from Silver.")
+    origin_code: str | None = Field(
+        default=None, description="Ingestion origin that produced the staging record, when known."
+    )
     original_title: str = Field(description="Original title from Silver.")
     document_date: date | None = Field(default=None, description="Document date.")
     summary: str | None = Field(default=None, description="Document summary.")

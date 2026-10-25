@@ -41,6 +41,7 @@ import {
   previewSubjectExclusions,
   fetchSystemFailures,
   fetchSystemHealth,
+  listIngestionOrigins,
   fetchSystemRuns,
   fetchSystemSchedule,
   fetchSystemWorkerSettings,
@@ -640,6 +641,20 @@ export const queries = {
     }),
 
   /**
+   * The ingestion origins, their queues and their agendas.
+   *
+   * A read of its own: the panel's worker rows answer "what is the machine doing", this one answers
+   * "which origin is this queue and what does it read". The counts are cached for 15 s, the cadence
+   * the worker panel uses for a queued run.
+   */
+  ingestionOrigins: () =>
+    queryOptions({
+      queryKey: ["ingestion", "origins"],
+      queryFn: listIngestionOrigins,
+      staleTime: 15_000,
+    }),
+
+  /**
    * The persisted defaults of the nine workers, without the queues.
    *
    * A read of its own and not a filter over `systemWorkers`: that one carries the counts, and this
@@ -669,10 +684,11 @@ export const queries = {
     status: WorkerRunStatus | undefined,
     offset: number,
     fingerprint?: string,
+    origin?: string,
   ) =>
     queryOptions({
-      queryKey: ["system", "runs", worker ?? "", status ?? "", fingerprint ?? "", offset],
-      queryFn: () => fetchSystemRuns({ worker, status, fingerprint, limit: RUNS_PAGE_SIZE, offset }),
+      queryKey: ["system", "runs", worker ?? "", status ?? "", fingerprint ?? "", origin ?? "", offset],
+      queryFn: () => fetchSystemRuns({ worker, origin, status, fingerprint, limit: RUNS_PAGE_SIZE, offset }),
       staleTime: 10_000,
       placeholderData: (previous) => previous,
     }),

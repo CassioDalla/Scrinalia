@@ -43,7 +43,9 @@ from scrinalia.domains.archive.workers.catalogue import (
 #: opens, the runner dataclass (``NerRunnerConfig``/``TypologyRunnerConfig``) and the ports
 #: (``source``, ``storage``). ``config`` reaching ``execute`` as a dict would fail with an attribute
 #: error instead of a sentence, and a port cannot travel through JSON at all.
-NON_OPTION_PARAMETERS: frozenset[str] = frozenset({"db", "db_session", "config", "source", "storage", "run_control"})
+NON_OPTION_PARAMETERS: frozenset[str] = frozenset(
+    {"db", "db_session", "config", "source", "storage", "run_control", "origin_code"}
+)
 
 #: Why each of them is refused, as the fragment the refusal sentence adds.
 NON_OPTION_REASONS: dict[str, str] = {
@@ -53,6 +55,7 @@ NON_OPTION_REASONS: dict[str, str] = {
     "db": "é a sessão de banco que o runner abre",
     "db_session": "é a sessão de banco que o runner abre",
     "run_control": "é o controle de cancelamento da execução, não uma opção do worker",
+    "origin_code": "é o eixo da execução de ingestão e vem da linha da origem, não de um campo de opções",
 }
 
 #: Parameters that already have a field of their own in the configuration. Accepting them inside
