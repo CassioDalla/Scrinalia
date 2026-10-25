@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format is
 `1.0.0` was the first release; the newest one is at the top. Entries describe **behaviour**, not
 commits — the history is the detail.
 
-## [Unreleased]
+## [1.5.0] - 2026-10-25
 
 ### Added
 
@@ -44,75 +44,6 @@ commits — the history is the detail.
   measured typo `colunas_to_classify` — is refused with the options it does take, **422** at the
   route, and a column outside `AI_TEXT_COLUMNS` is refused when the default is saved, with the known
   ones in the sentence.
-
-- **A third ranking mode: the lexical and the semantic orders fused by Reciprocal Rank Fusion**
-  (issue #38): `mode=hybrid` on `GET /api/v1/documents` and on the public surface. The two rankings
-  are built independently — `ts_rank` over the generated `search_vector` with the taxonomy boost, and
-  the cosine similarity to the embedded term — and meet in `reciprocal_rank_fusion`
-  (`domains/archive/domain/search.py`, `RRF_K = 60`), so nothing normalises a `ts_rank` against a
-  cosine. The fusion reads the **window** of each arm (`RRF_DEPTH = 100`); `total` is the count of the
-  union of the full-text matches with the semantic window, and not every document that has an
-  embedding, which would be the whole collection. The page is the fused window first and the rest of
-  the matches after it in full-text order, and `rank` follows the same split: the fusion's score
-  inside the window, the relevance of the ordering that placed the document outside it. The full-text
-  mode stays the default on both surfaces, so a lexical request still never loads the model.
-
-  **Measured on the labelled set, per query stratum, through the product path** (16 queries whose gold
-  is derived from the title term, on the 4,831-description collection):
-
-  | stratum | mode | Hit@10 | Recall@10 | MRR | found in top-50 |
-  | --- | --- | ---: | ---: | ---: | ---: |
-  | the sentence a person types | lexical | 0.438 | 0.212 | 0.258 | 0.500 |
-  | | semantic | 0.562 | 0.221 | 0.293 | 0.750 |
-  | | hybrid | **0.625** | **0.358** | **0.296** | **0.812** |
-  | the title term alone | lexical | 0.875 | **0.650** | **0.703** | 0.938 |
-  | | semantic | 0.562 | 0.225 | 0.338 | 0.688 |
-  | | hybrid | **0.938** | 0.608 | 0.679 | 0.938 |
-
-  The fusion wins on the sentence and on the term; it is the mode that removes the choice. It is **not**
-  a free win: on the term stratum it puts one more query inside the top ten and still ends 0.024 below
-  the full-text ranking on MRR, because agreement demotes a confidently-ranked full-text hit when the
-  semantic arm disagrees — the set is small (one query is worth 0.0625 of Hit@10) and its gold is a
-  proxy, so the report prints that limit next to every number. The fusion is also not a dominance order:
-  a first place plus a third beats a second place twice by 8·10⁻⁶. Latency is the full-text one plus
-  about 7% (6.4 s against 5.5 s per query on the slowest stratum, which is dominated by the pre-existing
-  cost of a broad term, not by the fusion).
-
-- **A bench for the retrieval modes** (issue #38): `testing/evaluation/retrieval_modes.py` scores the
-  three rankings **through the product path** — `DocumentService` and the repository, the same objects
-  the route uses — where `retrieval_quality.py` embeds and ranks on its own because there the embedded
-  text is the variable. It reports Hit@k, recall@k, MRR and coverage per mode and per stratum, with the
-  position of the first expected description for each query, and the shared ranking arithmetic is
-  defined once in `testing/evaluation/ranking_metrics.py`.
-
-- **The operations panel opens a worker's stamp into what it actually names** (issue #137):
-  `GET /api/v1/system/workers` now carries `stamp_breakdown` per worker — units the stamp attributes to
-  a producer, units it leaves without a known one, units recorded as failed and units with no record at
-  all — and `/sistema/workers` shows those counts on the card. It exists because one "processed" number
-  used to stand for all of them, and for NER that number was 1,650 legacy values reading as success. The
-  four numbers come from one aggregate, and `processed`/`failed` are derived from it, so the panel pays
-  one scan where it used to pay two.
-
-- **A document-entity link says who wrote it, and a person can confirm one** (issue #135):
-  `archive_document_entities` gains an `origin` (`AI`, `HUMAN` or `UNKNOWN`) and a nullable
-  `created_at`. `UNKNOWN` is what the 64,504 links that predate the column carry — the database cannot
-  prove which producer wrote them, and the migration does not guess. A link a person writes through
-  `POST /api/v1/documents/{description_id}/entities` records `HUMAN`, and associating an entity the
-  extractor already proposed is the **confirmation** the schema could not express: the link stays, its
-  origin changes, and the description becomes `HUMAN_APPROVED`. The screen shows each entity's origin
-  and offers `Confirmar` on the ones nobody has vouched for. The extraction inserts with
-  `ON CONFLICT DO NOTHING`, so it cannot rewrite a human link, and the NER bench excludes a human link
-  from the model's proposal instead of scoring the correction as its own hit.
-
-- **The typology screen lists the descriptions the classifier refused** (issue #129):
-  `GET /api/v1/typologies/refusals` returns one page of the descriptions whose best score stayed
-  below the floor — one row per description, the latest refusal, nearest miss first, with the label
-  the run guessed and the score it saw. The page, the count and the inbox card compose the same
-  `_open_evidence()` predicate, so the total cannot drift from the rows, and a description a curator
-  has already filed leaves the list even though its queue row remains. Filing from the screen is the
-  dossier's own `PATCH /api/v1/documents/{id}` with a `typology_id`, which records the revision and
-  marks the description `HUMAN_APPROVED`; the empty state says no refusal is open, not that the
-  catalogue covers the collection.
 
 ### Changed
 
@@ -170,6 +101,33 @@ commits — the history is the detail.
   among 130, is gone: the screen it was written for reads the refusal from the write's answer instead
   (#175). No behaviour changed: the built bundle is byte-identical.
 
+## [1.4.0] - 2026-10-24
+
+### Added
+
+- **A document-entity link says who wrote it, and a person can confirm one** (issue #135):
+  `archive_document_entities` gains an `origin` (`AI`, `HUMAN` or `UNKNOWN`) and a nullable
+  `created_at`. `UNKNOWN` is what the 64,504 links that predate the column carry — the database cannot
+  prove which producer wrote them, and the migration does not guess. A link a person writes through
+  `POST /api/v1/documents/{description_id}/entities` records `HUMAN`, and associating an entity the
+  extractor already proposed is the **confirmation** the schema could not express: the link stays, its
+  origin changes, and the description becomes `HUMAN_APPROVED`. The screen shows each entity's origin
+  and offers `Confirmar` on the ones nobody has vouched for. The extraction inserts with
+  `ON CONFLICT DO NOTHING`, so it cannot rewrite a human link, and the NER bench excludes a human link
+  from the model's proposal instead of scoring the correction as its own hit.
+
+- **The typology screen lists the descriptions the classifier refused** (issue #129):
+  `GET /api/v1/typologies/refusals` returns one page of the descriptions whose best score stayed
+  below the floor — one row per description, the latest refusal, nearest miss first, with the label
+  the run guessed and the score it saw. The page, the count and the inbox card compose the same
+  `_open_evidence()` predicate, so the total cannot drift from the rows, and a description a curator
+  has already filed leaves the list even though its queue row remains. Filing from the screen is the
+  dossier's own `PATCH /api/v1/documents/{id}` with a `typology_id`, which records the revision and
+  marks the description `HUMAN_APPROVED`; the empty state says no refusal is open, not that the
+  catalogue covers the collection.
+
+### Changed
+
 - **A banned spelling says how it matches, and the extraction stops losing names that contain it**
   (issue #160). `domain_stopwords` gains `match_mode` (`TOKEN`/`EXACT`) and a
   `PATCH /api/v1/taxonomy/tags/stopwords` route changes it without re-banning, which would overwrite
@@ -180,6 +138,72 @@ commits — the history is the detail.
   from **P 0.909 / R 0.920 / F1 0.915** with 13 blocked gold terms to **P 0.917 / R 0.956 / F1
   0.936** with none; ORG recall 0.568 → 0.611 and the boundary cases 27 → 12. The token rule stays
   where it was written for: a `TOKEN` stopword still rejects the merged span `IPTU do Exemplo`.
+
+### Fixed
+
+- **The typology picker no longer proposes a plan as a Câmara petition** (issue #163). The
+  `Requerimento à Câmara Municipal` stratum's pattern carried a second alternative,
+  `|c[âa]mara municipal`, that matched any title naming the Câmara, including a plan whose title says
+  it is *for* the Câmara. Only the qualified `requerimento … câmara` form stays, so a plan falls
+  through to `Planta Arquitetônica`. Two synthetic titles pin both sides of the rule; no collection
+  data enters the test.
+
+## [1.3.0] - 2026-10-23
+
+### Added
+
+- **A third ranking mode: the lexical and the semantic orders fused by Reciprocal Rank Fusion**
+  (issue #38): `mode=hybrid` on `GET /api/v1/documents` and on the public surface. The two rankings
+  are built independently — `ts_rank` over the generated `search_vector` with the taxonomy boost, and
+  the cosine similarity to the embedded term — and meet in `reciprocal_rank_fusion`
+  (`domains/archive/domain/search.py`, `RRF_K = 60`), so nothing normalises a `ts_rank` against a
+  cosine. The fusion reads the **window** of each arm (`RRF_DEPTH = 100`); `total` is the count of the
+  union of the full-text matches with the semantic window, and not every document that has an
+  embedding, which would be the whole collection. The page is the fused window first and the rest of
+  the matches after it in full-text order, and `rank` follows the same split: the fusion's score
+  inside the window, the relevance of the ordering that placed the document outside it. The full-text
+  mode stays the default on both surfaces, so a lexical request still never loads the model.
+
+  **Measured on the labelled set, per query stratum, through the product path** (16 queries whose gold
+  is derived from the title term, on the 4,831-description collection):
+
+  | stratum | mode | Hit@10 | Recall@10 | MRR | found in top-50 |
+  | --- | --- | ---: | ---: | ---: | ---: |
+  | the sentence a person types | lexical | 0.438 | 0.212 | 0.258 | 0.500 |
+  | | semantic | 0.562 | 0.221 | 0.293 | 0.750 |
+  | | hybrid | **0.625** | **0.358** | **0.296** | **0.812** |
+  | the title term alone | lexical | 0.875 | **0.650** | **0.703** | 0.938 |
+  | | semantic | 0.562 | 0.225 | 0.338 | 0.688 |
+  | | hybrid | **0.938** | 0.608 | 0.679 | 0.938 |
+
+  The fusion wins on the sentence and on the term; it is the mode that removes the choice. It is **not**
+  a free win: on the term stratum it puts one more query inside the top ten and still ends 0.024 below
+  the full-text ranking on MRR, because agreement demotes a confidently-ranked full-text hit when the
+  semantic arm disagrees — the set is small (one query is worth 0.0625 of Hit@10) and its gold is a
+  proxy, so the report prints that limit next to every number. The fusion is also not a dominance order:
+  a first place plus a third beats a second place twice by 8·10⁻⁶. Latency is the full-text one plus
+  about 7% (6.4 s against 5.5 s per query on the slowest stratum, which is dominated by the pre-existing
+  cost of a broad term, not by the fusion).
+
+- **A bench for the retrieval modes** (issue #38): `testing/evaluation/retrieval_modes.py` scores the
+  three rankings **through the product path** — `DocumentService` and the repository, the same objects
+  the route uses — where `retrieval_quality.py` embeds and ranks on its own because there the embedded
+  text is the variable. It reports Hit@k, recall@k, MRR and coverage per mode and per stratum, with the
+  position of the first expected description for each query, and the shared ranking arithmetic is
+  defined once in `testing/evaluation/ranking_metrics.py`.
+
+- **The operations panel opens a worker's stamp into what it actually names** (issue #137):
+  `GET /api/v1/system/workers` now carries `stamp_breakdown` per worker — units the stamp attributes to
+  a producer, units it leaves without a known one, units recorded as failed and units with no record at
+  all — and `/sistema/workers` shows those counts on the card. It exists because one "processed" number
+  used to stand for all of them, and for NER that number was 1,650 legacy values reading as success. The
+  four numbers come from one aggregate, and `processed`/`failed` are derived from it, so the panel pays
+  one scan where it used to pay two.
+
+
+
+### Changed
+
 
 - **The thumbnail's failure mark is `ERROR`, not the boolean `"True"`** (issue #149). `StampStatus`
   carried a third value only because the thumbnail worker wrote `"True"` into `thumbnail_failed` — a
@@ -539,12 +563,6 @@ commits — the history is the detail.
 
 ### Fixed
 
-- **The typology picker no longer proposes a plan as a Câmara petition** (issue #163). The
-  `Requerimento à Câmara Municipal` stratum's pattern carried a second alternative,
-  `|c[âa]mara municipal`, that matched any title naming the Câmara, including a plan whose title says
-  it is *for* the Câmara. Only the qualified `requerimento … câmara` form stays, so a plan falls
-  through to `Planta Arquitetônica`. Two synthetic titles pin both sides of the rule; no collection
-  data enters the test.
 
 - **An `LLM_CHECK` rule can no longer be saved with an engine the registry does not have** (issue
   #124). The rule's engine and preset were free text all the way down to a `String(50)` column, the
@@ -1058,7 +1076,10 @@ commits — the history is the detail.
   reads the **runtime** export and not the development environment: an advisory in a tool that never
   reaches an installation no longer hides the ones that do.
 
-[Unreleased]: https://github.com/CassioDalla/Scrinalia/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/CassioDalla/Scrinalia/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.5.0
+[1.4.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.4.0
+[1.3.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.3.0
 [1.2.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.2.0
 [1.1.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.1.0
 [1.0.0]: https://github.com/CassioDalla/Scrinalia/releases/tag/v1.0.0
