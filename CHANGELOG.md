@@ -11,6 +11,17 @@ commits — the history is the detail.
 
 ### Added
 
+- **The "não é assunto" refusal is shown before the write** (issue #175). The preview route
+  (`POST /api/v1/taxonomy/tags/subject-exclusions/preview`) has answered `applicable` and `blocked`
+  since #83 and no screen called it — the client function was even deleted in #93 for having no
+  caller — so the archivist learned that a term's tag already sat in a drawer from the write's
+  answer, after the click. The **Vetar termos** box now asks it as the typing settles (250 ms) and
+  names the drawer while the term can still be changed. The box writes every term that applies, so a
+  partial refusal leaves the button enabled; only a list where **all** terms are blocked disables it,
+  because then the write would record nothing. The route declares only `words` now: a plan has no
+  reason to declare and no provenance to report, and the generated client can no longer be handed
+  either.
+
 - **A third ranking mode: the lexical and the semantic orders fused by Reciprocal Rank Fusion**
   (issue #38): `mode=hybrid` on `GET /api/v1/documents` and on the public surface. The two rankings
   are built independently — `ts_rank` over the generated `search_vector` with the taxonomy boost, and
