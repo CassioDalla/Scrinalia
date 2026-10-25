@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, Integer, func, select, update
+from sqlalchemy import CursorResult, Integer, exists, func, select, update
 from sqlalchemy import cast as sql_cast
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Session
@@ -192,6 +192,19 @@ class WorkerRunRepository:
         self.db.flush()
         self.db.refresh(run)
         return to_dto(run)
+
+    def has_active_run(self, worker_name: str) -> bool:
+        """Whether the worker already has a ``QUEUED``/``RUNNING`` row: the scheduler's skip check."""
+        return bool(
+            self.db.scalar(
+                select(
+                    exists().where(
+                        WorkerRun.worker_name == worker_name,
+                        WorkerRun.status.in_(ACTIVE_WORKER_RUN_STATUSES),
+                    )
+                )
+            )
+        )
 
     def claim_next(self, worker_names: Sequence[str], *, runner_id: str, lease_seconds: int) -> ClaimedRun | None:
         """

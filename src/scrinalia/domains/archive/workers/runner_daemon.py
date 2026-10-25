@@ -27,8 +27,6 @@ from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import text
-
 from scrinalia.core.cli import positive_int
 from scrinalia.core.database import SessionFactory, create_runner_session
 from scrinalia.core.logger import logger
@@ -39,6 +37,7 @@ from scrinalia.domains.archive.workers.catalogue import WORKER_CATALOGUE
 from scrinalia.domains.archive.workers.lease import RunLeaseMonitor
 from scrinalia.domains.archive.workers.ledger import WorkerRunLedger
 from scrinalia.domains.archive.workers.runner import run_worker
+from scrinalia.domains.archive.workers.schema import assert_schema_at_head
 
 
 @dataclass(frozen=True)
@@ -63,49 +62,6 @@ def _package_version() -> str | None:
         return version("scrinalia")
     except PackageNotFoundError:
         return None
-
-
-def schema_head() -> str | None:
-    """The head of the code's Alembic history, or ``None`` when the checkout has no migrations."""
-    try:
-        from alembic.config import Config
-        from alembic.script import ScriptDirectory
-
-        return ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
-    except Exception as exc:
-        logger.warning(f"⚠️ Could not read the Alembic head: {exc}")
-        return None
-
-
-def current_schema_revision(session_factory: SessionFactory = create_runner_session) -> str | None:
-    """The revision the database records, or ``None`` when the table/row is missing."""
-    try:
-        with session_factory() as db:
-            return db.execute(text("SELECT version_num FROM alembic_version")).scalar_one_or_none()
-    except Exception as exc:
-        logger.warning(f"⚠️ Could not read the schema revision: {exc}")
-        return None
-
-
-def assert_schema_at_head(session_factory: SessionFactory = create_runner_session) -> None:
-    """
-    Refuses to run against a schema behind the runner's code.
-
-    Two machines, one release: the API owns the migrations, and a runner that claimed rows against
-    a schema it does not understand would fail every run with a column error. The check is cheap and
-    runs before the first claim; it is skipped, with a warning, when the code's head is unreadable
-    (a wheel without ``migrations/``), because then there is nothing to compare against.
-    """
-    head = schema_head()
-    if head is None:
-        logger.warning("⚠️ The Alembic head is unavailable; the runner cannot check the schema revision.")
-        return
-    current = current_schema_revision(session_factory)
-    if current != head:
-        raise SystemExit(
-            f"The database is at {current or 'no alembic_version'}, the code is at {head}. "
-            "Apply the API's migrations before starting the runner (ADR 0014)."
-        )
 
 
 def _optional_str(value: Any) -> str | None:
