@@ -54,10 +54,10 @@ sources:
 
 # Operations
 
-This page is for whoever runs the machine day to day: which workers exist, in which order they
-run, how to start one, how the effective configuration is resolved, what the operations panel
-shows, and what to do when something breaks. Installing and configuring the system is in
-[Installation and deployment](install.md); the archival decisions each screen takes are in
+This page is for whoever runs the machine day to day: which workers exist, in which order they run,
+how to start the runner or a one-off run, how the effective configuration is resolved, what the
+operations panel shows, and what to do when something breaks. Installing and configuring the system
+is in [Installation and deployment](install.md); the archival decisions each screen takes are in
 [Curation](curate.md).
 
 ## The workers and the pipeline order
@@ -189,6 +189,31 @@ floor change actually moved. The preview below is how to size that before paying
 
 The `transfer` counter is the heaviest one: it validates the whole staging table through the same
 port the transfer uses. It is read once per panel load and is not polled in a loop.
+
+## The runner
+
+Since ADR 0014 the workers run in their own process; the API only enqueues. The runner claims the
+`QUEUED` rows and executes them:
+
+```bash
+uv run python -m scrinalia.domains.archive.workers.runner_daemon \
+    --name gpu-01 --workers ner,typology,embedding
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--name` | the human name in the panel; the identifier is generated (`name:<short uuid>`) unless `--id` is given |
+| `--workers` | the workers this runner accepts, comma-separated; the default is the whole catalogue |
+| `--concurrency` | how many runs it executes at once; 1 by default, because the models are CPU/GPU-bound |
+| `--heartbeat-seconds`, `--lease-seconds` | the lease it renews and how long a claim survives without it; 15/60 by default, and the heartbeat must be smaller |
+| `--poll-seconds`, `--sweep-seconds` | how often it looks for work and how often it expires claims; 2/30 by default |
+| `--once` | claims and runs at most one execution, then exits |
+| `--drain-seconds` | waits up to that long for in-flight runs before exiting; the lease covers the rest |
+
+The runner registers in `archive_worker_runners`, renews its own row with the same heartbeat, and
+refuses to start against a schema behind its code. The panel shows it — online/offline, the host, the
+version, the capabilities — and marks **sem runner** the workers no online runner accepts; a run
+enqueued for one of those waits. The database is the only channel: the API never calls a runner.
 
 ## Running a worker
 
@@ -413,7 +438,7 @@ in the SPA: the menu no longer carries them (issue #22).
 
 | Route | Method | Permission | What it does |
 | --- | --- | --- | --- |
-| `/api/v1/system/workers` | `GET` | authenticated | the nine workers with configuration, queue numbers and last/active run, in one request |
+| `/api/v1/system/workers` | `GET` | authenticated | the nine workers with configuration, queue numbers, last/active run and the runner registry, in one request |
 | `/api/v1/system/workers/settings` | `GET` | authenticated | the persisted defaults of the nine workers, without the queue counters (issue #53) |
 | `/api/v1/system/workers/{worker_name}/queue/preview` | `POST` | authenticated | the pending count of a **proposed** configuration, computed without writing |
 | `/api/v1/system/workers/{worker_name}/runs` | `POST` | `OPERATE` | queues one run with per-run overrides and answers `201` immediately |
@@ -431,15 +456,16 @@ The SPA mirrors it, as cards of `/configuracoes` under *Operação*:
 
 | Screen | Shows |
 | --- | --- |
-| `/sistema/workers` | the nine workers: engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and a run button; the effective configuration is read-only here |
+| `/sistema/workers` | the nine workers: engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and an **Enfileirar execução** button; above them, the runner cards (online, host, version, concurrency, capabilities, last heartbeat) and a warning when none is online. A worker no online runner accepts is marked **sem runner** — the row still queues and waits. The effective configuration is read-only here |
 | `/configuracoes/workers` | the persisted default of each worker and its revisions, with save and remove — the write the panel used to carry |
 | `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage and the effective process configuration |
 
-The screen only polls while something is running, because the `transfer` counter makes one
-`/system/workers` call cost about two seconds on the real collection. `/configuracoes/workers` reads
-`/system/workers/settings`, which resolves the same configuration and counts no queue — the split
-exists so that a screen showing no numbers does not pay for them.
+The screen polls every 5 s while a run is running and every 15 s while one is queued, because the
+`transfer` counter makes one `/system/workers` call cost about two seconds on the real collection;
+idle, it does not poll. `/configuracoes/workers` reads `/system/workers/settings`, which resolves the
+same configuration and counts no queue — the split exists so that a screen showing no numbers does
+not pay for them.
 
 ### Health: three endpoints, three questions
 
@@ -461,8 +487,9 @@ operating system's TCP timeout.
 `archive_worker_runs` has one row per execution, for **both** the CLI and the panel: the ledger is
 about the worker, not about the button that started it. A row carries `worker_name`, `status`,
 `trigger` (`CLI` or `API`), `requested_by` (and `requested_by_user_id`), `engine_name`, `preset`,
-the resolved `config`, the **effective worker `options`**, `queued_at`, `started_at`, `finished_at`,
-`duration_ms`, `error` and the generated `error_fingerprint`.
+the validated `request` (what a runner reproduces), the resolved `config`, the **effective worker
+`options`**, `queued_at`, `runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`,
+`finished_at`, `duration_ms`, `error` and the generated `error_fingerprint`.
 
 `config` answers "with which model?" and `options` answers "over which text, with which floor?" —
 the two halves of one run. `options` is resolved **when the run starts**, because the default of a
@@ -472,9 +499,10 @@ and the ledger screen says "opções não registradas nesta execução". The pro
 same values into the stamp, so the row is the readable half of that hash.
 
 The statuses are `QUEUED`, `RUNNING`, `SUCCESS`, `FAILED` and `INTERRUPTED`. The `QUEUED` row is
-committed through the ledger's **own session before** the executor thread receives its id; a row
-still inside the request's transaction would be invisible to that thread and the run would sit at
-`QUEUED` forever.
+committed through the ledger's **own session before the request returns**, so an external runner can
+claim it; the claim is one statement (`FOR UPDATE SKIP LOCKED`) that also writes `runner_id`,
+`started_at`, `heartbeat_at` and `lease_expires_at`. A `QUEUED` row is the work item; the API only
+enqueues.
 
 `uq_worker_run_active` is a **partial unique index** on `(worker_name)` where the status is `QUEUED`
 or `RUNNING`. It, and not a process lock, is the concurrency guard: at most one run per worker may
@@ -483,10 +511,10 @@ be in flight, across processes and across a reload. A second submission becomes 
 andamento para o worker '…'"). The CLI reaches the same error but has no handler for it, so it stops
 with a traceback instead of the sentence.
 
-The panel's executor runs **one worker at a time** (`WORKER_RUNTIME_MAX_WORKERS`, default 1) because
-the workers are CPU-bound — two torch models on the same CPU slow each other down without producing
-more. It is **not a scheduler**: no retry, no cron, no priority. It exists so a person can press a
-button.
+A runner claims a `QUEUED` row and renews the lease while it runs; `--concurrency` decides how many
+it executes at once, and the workers are CPU/GPU-bound, so one is the default. It is **not a
+scheduler**: no retry, no cron, no priority. The queue is one slot per worker, so a second run waits
+in the ledger or answers `409`.
 
 ## Reprocessing a document or a batch
 
@@ -545,10 +573,11 @@ routine operation.
 
 ## Interrupted runs
 
-A run left at `QUEUED` or `RUNNING` by a process that died is worse than a wrong one: the partial
-unique index would block that worker forever. At start-up, `api/lifespan.py` marks every such row as
-`INTERRUPTED`, with a `finished_at` and the error text "O processo anterior terminou antes do fim
-desta execução."
+A run is `RUNNING` under a lease. The runner renews it every `--heartbeat-seconds`; when the lease
+expires — the runner died, or its heartbeat stopped — the next runner (or the next CLI, which has the
+same lease) marks the row `INTERRUPTED`, with a `finished_at` and the error text "O runner parou de
+enviar sinal antes do fim desta execução." The API's boot repairs nothing, so several API processes
+are safe. The sweep only touches the expired rows: a live claim of a sibling is never closed.
 
 Nothing is retried automatically. After an `INTERRUPTED` run:
 
@@ -557,9 +586,8 @@ Nothing is retried automatically. After an `INTERRUPTED` run:
 3. Trigger the worker again. The per-unit stamps are what make this safe: the new run reads only
    what the interrupted one did not finish.
 
-The recovery assumes a **single API process**. With `uvicorn --workers > 1`, one process's start-up
-would mark a sibling's live run as interrupted, so scaling out requires moving the executor (and the
-recovery) out of the API first. The partial unique index stays valid either way.
+A queued run with no runner online waits, and the panel says so. Cancellation is #72 and the retry
+policy is #43: ADR 0014 fixes the vocabulary, the issues implement it.
 
 ## Scheduling
 
@@ -586,9 +614,9 @@ Two warnings that the design makes explicit:
   second in-flight run of the same worker; the API answers `409` and the CLI raises the same
   refusal. Nothing in the process serialises the calls, so the guard holds across processes, across
   a reload, and even when the CLI and the panel disagree about who is in charge. Triggering a
-  *different* worker is accepted even while one is running — it queues behind the others — because
-  the index limits one run per worker; `WORKER_RUNTIME_MAX_WORKERS` decides how many the panel
-  itself runs at once.
+  *different* worker is accepted even while one is running — the row is queued and a runner claims
+  it when it has a free slot — because the index limits one run per worker; the runner's
+  `--concurrency` decides how many it executes at once.
 
 The API route is a mutation, so it also needs an authenticated `ADMIN` session and a same-origin
 `Origin` header. A cron on a remote host is simpler through the CLI.
@@ -770,9 +798,16 @@ behaviour to expect, and so that a limit already paid for is not read as a defec
 - **Nobody is paged.** Observability is the panel, the run ledger and the failure groups; an external
   alerting service is deliberately not part of the system (ADR 0005). A new root cause is found by
   somebody opening the screen, not by a notification.
-- **The executor assumes a single API process.** The API runs one worker at a time
-  (`WORKER_RUNTIME_MAX_WORKERS`) and the recovery in `api/lifespan.py` marks what a dead process left
-  behind, which is only correct with `uvicorn --workers 1` (see [Interrupted runs](#interrupted-runs)).
+- **The runner reaches the database.** A runner on another machine needs a private path to
+  PostgreSQL and a credential; the API's `DB_*` can stay local (ADR 0014). The optional
+  least-privilege role and the tunnel are in the [install guide](install.md#the-network-and-the-credential).
+- **The lease is not a fencing token.** A runner that lost its lease can still write the archive
+  until its worker stops; the stamps make the re-run idempotent and the ledger row is fenced, but a
+  duplicate execution after a lease expiry is possible. A hard fence is future work.
+- **The queue is one slot per worker.** A second run for a worker with one in flight answers `409`,
+  and a schedule has to coalesce; a backlog or a priority is not what this queue is.
+- **No retry and no cancellation yet.** A failed run stays failed and a running one cannot be
+  stopped from the panel until #43/#72; an interrupted one is visible and a re-trigger is safe.
 - **The arrangement `path` is not enforced by the database.** The column is materialised by the
   service, so a hand-written `UPDATE` can diverge it from the tree; the `PATH_DIVERGENCE` diagnostic
   is what finds it. Do not write `path` directly — go through the routes that own the move.
