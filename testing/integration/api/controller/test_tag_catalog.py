@@ -17,6 +17,7 @@ from litestar.testing import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from scrinalia.domains.archive.domain.text_quality import AI_TEXT_COLUMNS, CLUSTERING_TEXT_COLUMNS
 from scrinalia.domains.archive.models import (
     AnomalyType,
     ArchiveAIReviewQueue,
@@ -462,3 +463,49 @@ def test_a_negative_offset_is_clamped_instead_of_failing(
     assert response.status_code == HTTP_200_OK, response.text
     assert response.json()["offset"] == 0
     assert response.json()["total"] == 1
+
+
+# ==========================================
+# THE CLUSTERING'S COLUMNS ARE A READ (#174)
+# ==========================================
+
+
+def test_the_suggestion_columns_route_publishes_the_catalogue(client: TestClient) -> None:
+    """The picker reads the code's own tuples, so it cannot offer a column the route would refuse."""
+    response = client.get("/api/v1/taxonomy/tags/suggest-macro/columns")
+
+    assert response.status_code == HTTP_200_OK, response.text
+    body = response.json()
+    assert body["columns"] == list(AI_TEXT_COLUMNS)
+    assert body["defaults"] == list(CLUSTERING_TEXT_COLUMNS)
+
+
+def test_an_unknown_clustering_column_is_named_in_the_refusal(client: TestClient, api_uses_test_db) -> None:
+    """A typo was a ``getattr`` miss and answered 500; it is a 400 that names the column now."""
+    response = client.post(
+        "/api/v1/taxonomy/tags/suggest-macro",
+        json={"source_type": "documents", "columns_to_extract": ["original_titel"]},
+    )
+
+    assert response.status_code == HTTP_400_BAD_REQUEST, response.text
+    assert "original_titel" in response.json()["message"]
+
+
+def test_the_columns_are_refused_for_the_tags_source(client: TestClient) -> None:
+    """The field only applies to documents, so a list the run would ignore is a 400, not silence."""
+    response = client.post(
+        "/api/v1/taxonomy/tags/suggest-macro",
+        json={"source_type": "tags", "columns_to_extract": ["original_title"]},
+    )
+
+    assert response.status_code == HTTP_400_BAD_REQUEST, response.text
+
+
+def test_an_empty_column_list_is_refused(client: TestClient) -> None:
+    """``[]`` would fall back to the defaults, which is not what the caller wrote."""
+    response = client.post(
+        "/api/v1/taxonomy/tags/suggest-macro",
+        json={"source_type": "documents", "columns_to_extract": []},
+    )
+
+    assert response.status_code == HTTP_400_BAD_REQUEST, response.text

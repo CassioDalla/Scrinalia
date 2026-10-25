@@ -420,6 +420,30 @@
         "title": "CleaningRuleMutationResponse",
         "type": "object"
       },
+      "ClusteringColumnsResponse": {
+        "properties": {
+          "columns": {
+            "description": "Todo o texto da IA que o clustering pode ler.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "defaults": {
+            "description": "O que ele lê quando a requisição não escolhe coluna.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "columns",
+          "defaults"
+        ],
+        "title": "ClusteringColumnsResponse",
+        "type": "object"
+      },
       "CollectionTermCreateRequest": {
         "properties": {
           "kind": {
@@ -7054,6 +7078,8 @@
       "SuggestMacroRequest": {
         "properties": {
           "columns_to_extract": {
+            "description": "The AI text columns the clustering reads. Omitted means the code default, published by ``GET /taxonomy/tags/suggest-macro/columns``; it only applies with source_type='documents'.",
+            "minLength": 1,
             "oneOf": [
               {
                 "items": {
@@ -18164,6 +18190,29 @@
           }
         },
         "summary": "SuggestMacroCategories",
+        "tags": [
+          "Taxonomy"
+        ]
+      }
+    },
+    "/api/v1/taxonomy/tags/suggest-macro/columns": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1TaxonomyTagsSuggestMacroColumnsSuggestMacroColumns",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusteringColumnsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "SuggestMacroColumns",
         "tags": [
           "Taxonomy"
         ]

@@ -700,6 +700,15 @@ cadastrar, o que é `POST /api/v1/taxonomy/macro-categories` (`CATALOGUE`). Desc
 local à tela. Um corpus pequeno demais responde com uma sugestão vazia e uma mensagem, não com um
 erro.
 
+Lendo os **documentos**, a tela oferece as colunas que o clustering lê: `GET
+/api/v1/taxonomy/tags/suggest-macro/columns` publica o texto da IA e o subconjunto que a execução lê
+quando o corpo não escolhe nenhuma, e a tela desenha um checkbox por coluna a partir dessa leitura —
+ela não digita os cinco nomes. `final_title` está no corpus e **fora** do padrão: uma coluna pode
+entrar no que a IA lê sem mudar em silêncio o que o clustering lê. O corpo só leva
+`columns_to_extract` depois que uma coluna se move, e a rota recusa um nome desconhecido com **400**
+que o nomeia (antes do #174 o erro de digitação chegava a um `getattr` e respondia **500**), recusa
+uma lista vazia, e recusa a lista com `source_type=tags`, onde ela seria ignorada.
+
 ### Não é assunto — `/assuntos/excecoes`
 
 A metade curada do "isto não é assunto de jeito nenhum". O guarda determinístico pega o que tem forma

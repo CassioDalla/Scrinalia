@@ -28,6 +28,20 @@ AI_TEXT_COLUMNS: tuple[str, ...] = (
 )
 
 
+#: The columns the clustering reads when the request names none.
+#:
+#: A subset of :data:`AI_TEXT_COLUMNS` and deliberately its own definition: the corpus of AI text can
+#: grow without silently changing what the clustering reads. ``final_title`` is outside it, and the
+#: difference is pinned by ``testing/unit/archive/domain/test_text_quality.py`` so that dropping or
+#: adding a column here is a line a reviewer reads.
+CLUSTERING_TEXT_COLUMNS: tuple[str, ...] = (
+    "original_title",
+    "admin_bio_history",
+    "provenance",
+    "scope_content",
+)
+
+
 def unknown_ai_columns(columns: Iterable[str]) -> list[str]:
     """
     The names in ``columns`` that the AI text does not have, in the order they were given.

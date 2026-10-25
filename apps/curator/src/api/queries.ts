@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 
 import {
   fetchCleaningRuleEngines,
+  fetchClusteringColumns,
   fetchCleaningRules,
   fetchCollectionVocabulary,
   fetchDeletions,
@@ -249,6 +250,19 @@ export const queries = {
       queryKey: ["taxonomy", "macro-categories"],
       queryFn: () => fetchMacroCategories(false),
       staleTime: 5 * 60_000,
+    }),
+
+  /**
+   * The columns the clustering can read, and its own defaults (#174).
+   *
+   * A statement about the code, not about the collection, so it does not go stale while the
+   * archivist works — and the screen must not carry its own copy of the five names.
+   */
+  clusteringColumns: () =>
+    queryOptions({
+      queryKey: ["taxonomy", "clustering-columns"],
+      queryFn: fetchClusteringColumns,
+      staleTime: Infinity,
     }),
 
   /**
