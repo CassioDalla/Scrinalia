@@ -315,7 +315,8 @@ def test_the_schedule_round_trip_through_the_http_layer(client: TestClient, mock
         "engine_options": {},
     }
 
-    assert client.delete("/api/v1/system/workers/cleaning/schedule").status_code == 200
+    removed = client.delete("/api/v1/system/workers/cleaning/schedule")
+    assert removed.status_code == 200
     upsert.assert_called_once()
     delete.assert_called_once()
 
@@ -346,4 +347,5 @@ def test_deleting_a_missing_schedule_answers_not_found(client: TestClient, mocke
     mock = mocker.patch.object(WorkerScheduleService, "delete")
     mock.side_effect = WorkerScheduleNotFoundError("O worker 'cleaning' não tem agenda.")
 
-    assert client.delete("/api/v1/system/workers/cleaning/schedule").status_code == 404
+    response = client.delete("/api/v1/system/workers/cleaning/schedule")
+    assert response.status_code == 404
