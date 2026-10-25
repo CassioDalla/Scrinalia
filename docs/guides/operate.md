@@ -188,7 +188,7 @@ repository root:
 
 ```bash
 uv run python -m scrinalia.domains.archive.workers.runner <name> \
-    [--engine X --preset Y --batch N --limit N --option key=value --by "who"]
+    [--engine X --preset Y --batch N --limit N --option key=value --engine-option key=value --by "who"]
 ```
 
 For example:
@@ -205,9 +205,9 @@ uv run python -m scrinalia.domains.archive.workers.runner typology \
 # Force the embedding of every description, ignoring the text hash.
 uv run python -m scrinalia.domains.archive.workers.runner embedding --option force=true
 
-# Override the engine's device for this run only; the worker forwards it to the engine.
+# Override the engine's device for this run only: a pass-through to the engine constructor.
 uv run python -m scrinalia.domains.archive.workers.runner ner \
-    --engine spacy_ner --option device=cpu --by "ana"
+    --engine spacy_ner --engine-option device=cpu --by "ana"
 ```
 
 | Flag | Meaning |
@@ -217,26 +217,42 @@ uv run python -m scrinalia.domains.archive.workers.runner ner \
 | `--preset Y` | a preset of that axis, e.g. `gpu`, `lemmatizer`, `cpu_local`, `gpu_cloud`, `xlm_roberta_local`, `gemma_4b_local`, `multilingual_minilm` |
 | `--batch N` | batch size per transaction, forwarded to the workers that declare `db_batch_size`; a worker without it logs that the value was ignored |
 | `--limit N` | cap on the units this run touches, for the workers that declare `limit` (`embedding`, `macro-category`, `ner`, `quality-validator`, `thumbnail`, `typology`); refused for the others, because a cap that silently does nothing is worse than no cap. It counts attempts, so a queue of failures still ends, and it is never persisted |
-| `--option key=value` | an extra parameter, repeatable; `key` without `=` is refused |
+| `--option key=value` | a **declared** worker option, repeatable; a key the worker does not declare is refused with its option list, and `key` without `=` is refused |
+| `--engine-option key=value` | a raw pass-through to the engine constructor, repeatable, for one run; never persisted, and its keys are not enumerated (the engine validates the value) |
 | `--by "who"` | free text naming who is running it; the CLI runs on the host and has no session, so this stays a name with no account behind it |
 
-`--option` is coerced by the type the worker declares for that option in its `execute` signature:
-`true`/`false` become booleans, an integer default makes the value an `int`, a float default a
-`float`. `--option confidence_threshold=0.6` therefore arrives as a number and reaches the
+`--option` is validated against the worker's `execute` signature, and coerced by the type the worker
+declares there: `true`/`false` become booleans, an integer default makes the value an `int`, a float
+default a `float`. `--option confidence_threshold=0.6` therefore arrives as a number and reaches the
 comparison; a value that cannot be read (`0.6x` for a float, `talvez` for a boolean) is refused with
-a sentence before the run starts, instead of failing at the bottom of it. An option whose declared
-default is a list or an object is refused too: a string would be forwarded and the worker would
-iterate it character by character. The flag is validated against the worker's `execute` signature: an
-option the worker does not declare is refused, unless the worker ends with `**engine_kwargs`, which
-is the documented way to override `device`, `host` and similar engine parameters for one run.
-`conflict-judge` declares no `**engine_kwargs`, so its host is not a `--option` at all: it comes from
-the `OLLAMA_HOST_URL` setting (or the local default).
+a sentence before the run starts, instead of failing at the bottom of it. A key the worker does not
+declare is refused: `--option colunas_to_classify=…` — the measured typo of #120 — is a `422`
+sentence naming the options the worker does take, and not a default that fails later in the queue
+counter. A column list is checked against the columns the AI text has (below).
 
-Two things are always refused:
+`--engine-option` is the **named exception**: it goes straight to the constructor of the engine, for
+whoever knows the library. It is per run and never persisted, so a tweak does not become an
+installation default; the keys the axis itself passes are offered as a hint
+(`model`, `device`, `host`, `batch_size`, `dimensions`, `disable`), and a key outside them is still
+forwarded — the engine is the one that validates the value. Only a worker whose `execute` ends in
+`**engine_kwargs` has the door; `transfer`, `cleaning`, `thumbnail` and `conflict-judge` declare no
+pass-through, and the run is refused if one is given.
+`conflict-judge` therefore takes its host from the `OLLAMA_HOST_URL` setting (or the local default),
+not from a flag.
 
-- `config` is refused because it is a runner dataclass (`NerRunnerConfig` and its siblings), not a
-  value a command line or a JSON body can carry; a dictionary reaching `execute` would fail with an
-  attribute error instead of a sentence. Pass the individual fields instead.
+Five things are always refused:
+
+- `config` is a runner dataclass (`NerRunnerConfig` and its siblings), not a value a command line or
+  a JSON body can carry; a dictionary reaching `execute` would fail with an attribute error instead
+  of a sentence. Pass the individual fields instead.
+- `source` and `storage` are **ports** (the staging source, the object storage), and `db`/`db_session`
+  is the session the runner opens: none of them travels through JSON.
+- `engine_name`, `preset` and `db_batch_size` have a field of their own. They are refused inside
+  `options` because the runner applies the extra mapping *after* the resolved argument, which made a
+  value there a silent second definition of the same field.
+- `limit` is refused as a **persisted default** (`PUT …/settings`): it caps one execution, and a cap
+  that outlived the command would stop every later run at N units. `force` is a legitimate default —
+  it is the way back from a mark a transient outage left behind.
 - `--engine`/`--preset` only make sense for the workers whose configuration comes from their
   signature (`ner`, `typology`, `conflict-judge`, `macro-category`, `embedding`). `transfer`,
   `cleaning` and `thumbnail` load no model, and `quality-validator` takes its engine from the active
@@ -335,6 +351,32 @@ active `LLM_CHECK` rule, and the settings and trigger routes refuse to set them 
 second place to choose the same engine would be a second source of truth. When no rule is active the
 worker runs deterministic validation only, and the panel says so in `note`.
 
+### What a worker accepts
+
+What a worker accepts is its `execute` signature, and the API publishes it: `GET
+/api/v1/system/workers` and `/workers/settings` carry `declared_options` — the name, the kind of
+control (`boolean`, `integer`, `number`, `text`, `list`, `columns`), the signature default, whether
+the option is a persisted default or one execution's (`scope: "run"` for `limit`) and, for a column
+list, the values it admits. The configuration and run screens render that list as fields, so the form
+cannot offer a key the write path would refuse, and the archivist does not have to know that the
+parameter is called `columns_to_classify`.
+
+Two option names carry the text an AI worker reads: **`columns_to_extract`** (`ner`) and
+**`columns_to_classify`** (`typology`). Their values are the columns in `AI_TEXT_COLUMNS`:
+
+`original_title`, `final_title`, `scope_content`, `admin_bio_history`, `provenance`.
+
+That tuple is the one definition of what the AI may read: it is what the SQL composition composes,
+what the evaluation benches check in `--config engine:preset:columns` and what the write path checks
+in the option. A name outside it is refused when the default is saved, with the known ones in the
+sentence; an empty list is refused too, because a worker with no column has no text to read. Leaving
+the field empty keeps the code default (`NerRunnerConfig.columns_to_extract`,
+`TypologyRunnerConfig.columns_to_classify`), which is the value the run ledger records.
+
+A row saved before this rule is not a new mistake: the read ignores the option it can no longer
+honour and puts the reason in `note` ("Padrão salvo ignorado — …"), so the panel answers with the
+code default instead of failing the queue counter. Saving the screen again heals the row.
+
 ### Trying a configuration before saving it
 
 A saved default is not only a preference: because the queue is keyed on the producer identity,
@@ -408,8 +450,15 @@ operating system's TCP timeout.
 `archive_worker_runs` has one row per execution, for **both** the CLI and the panel: the ledger is
 about the worker, not about the button that started it. A row carries `worker_name`, `status`,
 `trigger` (`CLI` or `API`), `requested_by` (and `requested_by_user_id`), `engine_name`, `preset`,
-the resolved `config`, `queued_at`, `started_at`, `finished_at`, `duration_ms`, `error` and the
-generated `error_fingerprint`.
+the resolved `config`, the **effective worker `options`**, `queued_at`, `started_at`, `finished_at`,
+`duration_ms`, `error` and the generated `error_fingerprint`.
+
+`config` answers "with which model?" and `options` answers "over which text, with which floor?" —
+the two halves of one run. `options` is resolved **when the run starts**, because the default of a
+column list lives in the worker's own runner dataclass and only the worker can say which columns it
+read; a row queued but not started, or written before the column existed, carries the empty default
+and the ledger screen says "opções não registradas nesta execução". The producer identity hashes the
+same values into the stamp, so the row is the readable half of that hash.
 
 The statuses are `QUEUED`, `RUNNING`, `SUCCESS`, `FAILED` and `INTERRUPTED`. The `QUEUED` row is
 committed through the ledger's **own session before** the executor thread receives its id; a row
@@ -642,8 +691,8 @@ recovery out of scope), and there is **no reset-token table** to store, expire o
 Two tables answer two different questions, and a number taken from the wrong one misleads.
 
 `execution_log` says **whether a worker ran over a unit**: it is the stamp the queue is built from.
-`archive_worker_runs` says **what ran, when, with which engine and preset, how long it took and how it
-ended** (`SUCCESS`, `FAILED`, `INTERRUPTED`). An empty stamp count is a fact about the queue; the row
+`archive_worker_runs` says **what ran, when, with which engine and preset, over which options, how
+long it took and how it ended** (`SUCCESS`, `FAILED`, `INTERRUPTED`). An empty stamp count is a fact about the queue; the row
 in the ledger is the fact about the execution that explains it — a stage at zero and one interrupted
 run at start-up are the same event seen from two tables.
 

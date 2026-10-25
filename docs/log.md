@@ -1808,3 +1808,47 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   collection, not a real worker run; no typology worker ran after the change. The page was rendered on
   the zeroed dev database's 101 documents, not on the 4,812 of the reference collection, so the
   screenshot proves the screen and the write, not a production-sized list.
+
+## 2026-10-24 — the declared worker options are validated, published and recorded (#120)
+
+- **Range:** `8e3a903..dbb00c8`
+- **Pages:**
+  - `guides/operate.md` — **updated**: "What a worker accepts" (the declared options, the two column
+    options and the `AI_TEXT_COLUMNS` they are checked against, the run-only `limit`), the
+    `--engine-option` flag and its row, the two doors, the five refusals, the run ledger's `options`
+    and the stale row that is ignored with a note.
+  - `guides/operate.pt.md` — **updated**: the same sections.
+  - `guides/curate.md` — **updated**: the run panel is rendered from `declared_options` with the
+    pass-through block as the only free-form one, the settings form no longer has a JSON box and
+    hides `limit`, and the ledger row shows the effective options.
+  - `guides/curate.pt.md` — **updated**: the same three passages.
+  - `guides/data-model.md` — **updated**: `archive_worker_runs.options`, and the note that the ledger
+    carries the resolved engine configuration *and* the resolved worker options.
+  - `guides/data-model.pt.md` — **updated**: the same row and note.
+  - `guides/install.md` — **no-change**: the report named it for `pyproject.toml`, and the only
+    movement there is the release's version bump.
+- **Measured, not assumed.** `uv run pytest` answers **2028 passed, 1 skipped** (the 34 new unit
+  tests of `test_worker_options.py`, the 3 of the pin in `test_option_columns_pin.py`, and the new
+  cases in the runner and service suites); `ruff check`/`ruff format --check` and `basedpyright`
+  answer zero. `alembic upgrade head` applied `efe037349552` on the dev database and `alembic check`
+  reports **no new upgrade operations**. `bun run contract` regenerated the document and the client,
+  and `tsc`, ESLint and the Vite build are green.
+- **The pair was measured, not asserted.** The typology benchmark and the write path now refuse the
+  same spelling through the same helper: `unknown_ai_columns(["original_title", "admin_bio_historia"])`
+  answers `["admin_bio_historia"]` for both, and the API's sentence names the five known columns. The
+  measured default of `columns_to_extract`, resolved by the worker itself, is
+  `original_title, admin_bio_history, provenance, scope_content`.
+- **Looked at, not assumed.** The three screens were rendered on the dev database through a temporary
+  admin account: the settings card of `typology` shows five column checkboxes, the confidence field and
+  the `force` flag, **no JSON box and no `limit`**; the run panel of `ner` shows the same fields plus
+  `limit`, and its opened *Repasses ao engine (avançado)* block lists `device, disable, model` as what
+  the axis passes; the ledger shows a seeded run with
+  `columns_to_classify=original_title,scope_content · confidence_threshold=0.4` and a row without the
+  column reading "opções não registradas nesta execução". The seeded rows and the account were removed
+  afterwards.
+- **Not verified, and said so.** No worker was run after the change: the recorded-options path is
+  proved by the integration test with a fake worker (the record of `ner` carries the resolved default
+  columns and not the `None` of the signature), not by a real extraction or classification over the
+  collection on this machine, and the screens were rendered over the 100 descriptions of the dev
+  database rather than the reference collection. The `--engine-option` coercion is covered by unit
+  tests on argument parsing, not by a run that loaded a model with an overridden `device`.

@@ -986,6 +986,14 @@ fazendo. A linha carrega a fila — pendentes, processados, falhas, última exec
   ledger de execuções, e um worker com execução em andamento desabilita o botão — a garantia é o
   índice único parcial no banco, e a tela só evita oferecer o que o banco recusaria.
 
+Os campos do painel de execução vêm do contrato, não de uma caixa de texto: `declared_options` nomeia
+as opções que o worker aceita e, para uma lista de colunas, as colunas que o texto da IA tem
+(`original_title`, `final_title`, `scope_content`, `admin_bio_history`, `provenance`), então a tela
+renderiza um checkbox, um número ou as próprias colunas. O único bloco livre é *Repasses ao engine
+(avançado)*: um repasse cru ao construtor da engine, por execução e nunca persistido, com as chaves que
+o eixo já repassa (`model`, `device`, `host`, ...) como dica. É a exceção nomeada da #120 — existe para
+quem conhece a biblioteca, e a engine valida o valor.
+
 O painel em si não oferece desfazer para uma execução. A reversibilidade de uma execução é a
 reversibilidade do que ela escreveu — um desfazer de merge, de materialização, de conflito — e um
 worker que carimba a própria fila não refaz o trabalho só porque foi rodado de novo. O painel marca
@@ -999,7 +1007,10 @@ descrições (um registro de staging, um par, uma tag).
 
 O ledger de execuções, em leitura: uma linha por execução, da linha de comando e do painel, com a
 configuração **já resolvida** que a execução usou (então ele continua legível depois que um preset
-muda no código), a duração, o desfecho e quem pediu. Acima dele, as falhas dos últimos 30 dias
+muda no código), as **opções efetivas do worker** (as colunas que ele leu, o limiar, o teto —
+resolvidas quando a execução começou, então "quais colunas a execução #N leu?" tem resposta), a
+duração, o desfecho e quem pediu. Uma linha anterior à coluna de opções diz "opções não registradas
+nesta execução". Acima dele, as falhas dos últimos 30 dias
 agrupadas por causa (`GET /api/v1/system/failures`), que respondem à pergunta que o ledger não
 responde: quarenta linhas dizendo a mesma frase são uma causa. Clicar num grupo filtra o ledger
 abaixo em vez de abrir uma segunda lista, e a referência de uma falha é o que se procura no log.
@@ -1048,8 +1059,12 @@ suas revisões — as duas escritas são `OPERATE`:
 
 - **Salvar padrão** — `PUT /api/v1/system/workers/{worker_name}/settings` grava o padrão. É parcial de
   propósito: um campo vazio continua seguindo o código, e a precedência não muda —
-  `argumento explícito > a linha de archive_worker_settings > o default da assinatura`. `config`
-  continua recusado como opção, porque é um dataclass do runner e não um valor JSON.
+  `argumento explícito > a linha de archive_worker_settings > o default da assinatura`. O formulário
+  renderiza um controle por opção declarada (uma lista de colunas como as colunas que o texto da IA
+  tem); `limit` não aparece, porque um teto pertence a uma execução, e `config` continua recusado como
+  opção, porque é um dataclass do runner e não um valor JSON. `engine_name`, `preset` e
+  `db_batch_size` têm campo próprio e são recusados dentro das opções, que seriam uma segunda
+  definição do mesmo campo.
 - **Conferir impacto** — `POST /api/v1/system/workers/{worker_name}/queue/preview` responde quantas
   unidades a configuração que o formulário mostra deixaria na fila, e não escreve nada. Existe porque a
   fila é chaveada pela identidade do produtor: salvar outra engine, outro preset ou outro limiar relê
@@ -1065,6 +1080,11 @@ engine/preset aqui: um segundo lugar para escolher a mesma engine seria uma segu
 então o cartão diz onde ela vive e oferece só os parâmetros de execução. A tela lê
 `GET /api/v1/system/workers/settings`, que não é o `GET /api/v1/system/workers` do painel — o painel
 conta nove filas, e esta tela não mostra nenhuma delas.
+
+Uma linha gravada antes da validação de opções não é um erro novo: a leitura ignora a opção que não
+consegue mais honrar e explica isso na nota do cartão ("Padrão salvo ignorado — …"), então a tela
+responde com o default do código em vez de derrubar o contador da fila. Salvar o formulário de novo
+escreve só os campos que ele mostra, o que cura a linha.
 
 ### Usuários — `/configuracoes/usuarios`
 
