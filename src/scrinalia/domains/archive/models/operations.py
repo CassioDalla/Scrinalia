@@ -107,6 +107,15 @@ class WorkerRun(Base):
     (``ValueError: ...``) and truncated: enough to act on, not a stack trace storage.
     ``error_fingerprint`` is the *root cause* of that text, computed by PostgreSQL — see the column
     below.
+
+    ``cancel_requested_at`` is the operator's **request**, not a status: the row stays
+    ``QUEUED``/``RUNNING`` and keeps ``uq_worker_run_active`` until the request is honoured, because
+    releasing the slot while the worker is still writing would let a second run overlap it
+    (ADR 0014 decision 9). A ``QUEUED`` row no runner has claimed is closed ``CANCELLED`` by the
+    API at once; a claimed one stops at the next batch boundary. ``cancel_requested_by`` is the
+    account that asked, and it is deliberately a second pair of columns rather than a reuse of
+    ``requested_by``: "who started it" and "who stopped it" are two decisions, and a cancellation
+    may be asked by someone else.
     """
 
     __tablename__ = "archive_worker_runs"
@@ -161,6 +170,17 @@ class WorkerRun(Base):
     #: When the claim expires if the runner stops renewing. A claim whose runner disappeared is
     #: marked ``INTERRUPTED`` by the next runner's sweep, never by the API's boot.
     lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    #: When the operator asked to stop this run. Null means nobody asked. This is a **request**, not
+    #: a status: the row keeps ``QUEUED``/``RUNNING`` (and the slot) until the worker honours it at
+    #: the next batch boundary, or until the API closes a never-claimed row at once.
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    #: Who asked for the stop. A pair of its own, not a reuse of ``requested_by``: starting and
+    #: stopping are two decisions, and the second may be taken by someone else. ``SET NULL`` for the
+    #: account for the same reason as every other author link — the name survives the account.
+    cancel_requested_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    cancel_requested_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("auth_users.user_id", ondelete="SET NULL"), nullable=True
+    )
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)

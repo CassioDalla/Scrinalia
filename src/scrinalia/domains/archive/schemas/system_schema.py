@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from scrinalia.core.schemas import RequestModel
 from scrinalia.domains.archive.models.enums import FailureSource, WorkerRunStatus, WorkerRunTrigger
+from scrinalia.domains.archive.schemas.responses import RouteResponse
 
 #: Where a worker's engine/preset come from.
 #:
@@ -85,6 +86,18 @@ class WorkerRunDTO(BaseModel):
             "marca a execução como interrompida."
         ),
     )
+    cancel_requested_at: datetime | None = Field(
+        default=None,
+        description=(
+            "Quando o operador pediu o cancelamento; nulo enquanto ninguém pediu. É um pedido, não "
+            "um estado: a linha continua na fila ou em execução, e segura a vaga, até o worker "
+            "honrá-lo no limite do lote."
+        ),
+    )
+    cancel_requested_by: str | None = Field(
+        default=None,
+        description="Quem pediu o cancelamento; nulo quando o pedido veio de um sinal do processo, não do painel.",
+    )
     finished_at: datetime | None = None
     duration_ms: int | None = None
     error: str | None = None
@@ -99,6 +112,18 @@ class WorkerRunListResponse(BaseModel):
     total: int = Field(ge=0)
     limit: int = Field(ge=1)
     offset: int = Field(ge=0)
+
+
+class WorkerRunCancelResponse(RouteResponse):
+    """
+    What a cancellation did, with the row as it stands afterwards.
+
+    Two outcomes share this shape because they differ only in the code: the run was never claimed
+    and is already ``CANCELLED``, or it is running and the request is now recorded. The row comes
+    back so the screen updates the line it already shows instead of refetching the page.
+    """
+
+    data: WorkerRunDTO
 
 
 class FailureGroupDTO(BaseModel):

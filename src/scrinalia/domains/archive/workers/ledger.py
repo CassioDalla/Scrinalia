@@ -7,8 +7,9 @@ committed before any runner can claim it, so a claim always finds it.
 
 Since ADR 0014 the same object also carries the queue operations the runner and the CLI use:
 ``claim`` (the oldest row this runner accepts), ``record_start`` (the configuration it resolved),
-``heartbeat`` (the lease), ``expire_stale_leases`` (the orphan recovery that left the API) and
-``finish`` (fenced by the runner that claimed the row).
+``heartbeat`` (the lease), ``expire_stale_leases`` (the orphan recovery that left the API),
+``finish`` (fenced by the runner that claimed the row) and, since #72, ``cancel_requested`` (the read
+the worker repeats at every batch boundary).
 
 The failure modes are treated differently on purpose:
 
@@ -169,6 +170,22 @@ class WorkerRunLedger:
         except Exception as exc:
             logger.error(f"⚠️ Não foi possível varrer os leases vencidos: {exc}")
             return 0
+
+    def cancel_requested(self, run_id: int) -> bool:
+        """
+        Whether the operator asked this run to stop; never raises.
+
+        The worker consults this once per batch (``RunControl.checkpoint``). A ledger that cannot be
+        read must not kill a run that is otherwise healthy: the answer is "not requested", and the
+        same failure that hid the read will show up on the panel as a stale run — the honest place
+        for it, not the middle of a batch.
+        """
+        try:
+            with self._session_factory() as db:
+                return WorkerRunRepository(db).is_cancel_requested(run_id)
+        except Exception as exc:
+            logger.error(f"⚠️ Não foi possível ler o pedido de cancelamento da execução {run_id}: {exc}")
+            return False
 
     def start(
         self,

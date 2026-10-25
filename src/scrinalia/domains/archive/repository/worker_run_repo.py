@@ -16,6 +16,9 @@ The queue protocol is the state machine of one row:
 * ``finish`` closes the row, fenced by the runner that claimed it.
 * ``expire_stale_leases`` marks only the claims whose lease expired as ``INTERRUPTED``; it is the
   runner's job, not the API's boot.
+* ``close_unclaimed`` closes a ``QUEUED`` row no runner claimed as ``CANCELLED``; ``request_cancel``
+  records the request on an in-flight row without freeing its slot, and ``is_cancel_requested`` is
+  the read the worker performs once per batch (ADR 0014 decision 9, #72).
 
 Every lease timestamp is computed by PostgreSQL's ``now()``: the API and the runner are different
 machines, so the runner's clock cannot be the proof of life.
@@ -96,6 +99,8 @@ def to_dto(run: WorkerRun) -> WorkerRunDTO:
         started_at=run.started_at,
         heartbeat_at=run.heartbeat_at,
         lease_expires_at=run.lease_expires_at,
+        cancel_requested_at=run.cancel_requested_at,
+        cancel_requested_by=run.cancel_requested_by,
         finished_at=run.finished_at,
         duration_ms=run.duration_ms,
         error=run.error,
@@ -413,8 +418,77 @@ class WorkerRunRepository:
         self.db.flush()
         return int(result.rowcount or 0)
 
-    def get(self, run_id: int) -> WorkerRunDTO | None:
-        run = self.db.get(WorkerRun, run_id)
+    def close_unclaimed(self, run_id: int, *, requested_by: Author | None) -> bool:
+        """
+        Closes a ``QUEUED`` row no runner has claimed as ``CANCELLED``, in one statement.
+
+        The predicate is the whole race: a claim that wins between the panel's read and this write
+        moves the row to ``RUNNING``, this update matches nothing, and the caller falls back to
+        ``request_cancel``. The slot is released only when nothing is running, which is the
+        distinction ADR 0014 decision 9 draws. ``duration_ms`` is NULL because ``started_at`` is:
+        the run never started, and a duration would be invented.
+        """
+        result = cast(
+            CursorResult[Any],
+            self.db.execute(
+                update(WorkerRun)
+                .where(
+                    WorkerRun.id == run_id,
+                    WorkerRun.status == WorkerRunStatus.QUEUED,
+                    WorkerRun.runner_id.is_(None),
+                )
+                .values(
+                    status=WorkerRunStatus.CANCELLED,
+                    cancel_requested_at=func.now(),
+                    finished_at=func.now(),
+                    duration_ms=_duration_ms(),
+                    **author_columns("cancel_requested_by", requested_by),
+                )
+            ),
+        )
+        self.db.flush()
+        return bool(result.rowcount)
+
+    def request_cancel(self, run_id: int, *, requested_by: Author | None) -> bool:
+        """
+        Records the cancellation request without touching the status or the slot.
+
+        ``cancel_requested_at`` is a request, not a state: the row stays ``QUEUED``/``RUNNING`` and
+        keeps ``uq_worker_run_active`` until the worker honours it at a batch boundary. Idempotent:
+        the second request finds the column already set and matches nothing, so the first author and
+        the first instant survive.
+        """
+        result = cast(
+            CursorResult[Any],
+            self.db.execute(
+                update(WorkerRun)
+                .where(
+                    WorkerRun.id == run_id,
+                    WorkerRun.status.in_(ACTIVE_WORKER_RUN_STATUSES),
+                    WorkerRun.cancel_requested_at.is_(None),
+                )
+                .values(
+                    cancel_requested_at=func.now(),
+                    **author_columns("cancel_requested_by", requested_by),
+                )
+            ),
+        )
+        self.db.flush()
+        return bool(result.rowcount)
+
+    def is_cancel_requested(self, run_id: int) -> bool:
+        """Whether a cancellation was requested for this run; the runner reads it once per batch."""
+        return self.db.scalar(select(WorkerRun.cancel_requested_at).where(WorkerRun.id == run_id)) is not None
+
+    def get(self, run_id: int, *, populate_existing: bool = False) -> WorkerRunDTO | None:
+        """
+        One row as the contract reads it.
+
+        ``populate_existing`` re-reads a row this session just updated: without it SQLAlchemy
+        returns the identity-mapped instance and the caller would serialise the state *before* its
+        own write — the exact stale read the cancellation's response cannot afford.
+        """
+        run = self.db.get(WorkerRun, run_id, populate_existing=populate_existing)
         return to_dto(run) if run is not None else None
 
     def list(

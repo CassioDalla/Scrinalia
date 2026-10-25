@@ -52,6 +52,13 @@ class RouteMessageCode(enum.StrEnum):
     # --- The description itself ---
     DOCUMENT_DELETED = "DOCUMENT_DELETED"
 
+    # --- The operations panel (the run ledger) ---
+    #: The run was still queued with no runner: it never started, so it closed at once.
+    WORKER_RUN_CANCELLED = "WORKER_RUN_CANCELLED"
+    #: The run is in flight: the request was recorded and the worker stops at the next batch
+    #: boundary. The row stays ``QUEUED``/``RUNNING`` and keeps its slot until then.
+    WORKER_RUN_CANCEL_REQUESTED = "WORKER_RUN_CANCEL_REQUESTED"
+
     # --- The subject axis (tags and drawers) ---
     TAG_MERGE_PROPOSAL_DECIDED = "TAG_MERGE_PROPOSAL_DECIDED"
     TAG_MERGE_UNDONE = "TAG_MERGE_UNDONE"

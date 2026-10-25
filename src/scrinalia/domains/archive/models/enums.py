@@ -204,6 +204,13 @@ class WorkerRunStatus(enum.StrEnum):
     single run at a time, so a submitted run may wait before it actually starts. ``INTERRUPTED`` is
     written by the next start-up for a row the previous process left behind — without it the row
     would stay ``RUNNING`` forever, and the partial unique index would block that worker for good.
+
+    ``CANCELLED`` is the operator's stop (ADR 0014 decision 9, #72). It is deliberately distinct
+    from ``INTERRUPTED``: a process death is an accident the sweep repairs, a cancellation is a
+    deliberate verdict on the execution. The request that precedes it is the nullable
+    ``cancel_requested_at`` column, not this status: a requested run stays ``QUEUED``/``RUNNING``
+    and keeps its slot until the worker honours the request at a batch boundary, or the API closes
+    it at once when no runner has claimed it.
     """
 
     QUEUED = "QUEUED"
@@ -211,6 +218,7 @@ class WorkerRunStatus(enum.StrEnum):
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
     INTERRUPTED = "INTERRUPTED"
+    CANCELLED = "CANCELLED"
 
 
 class WorkerRunTrigger(enum.StrEnum):

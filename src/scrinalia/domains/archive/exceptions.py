@@ -342,6 +342,13 @@ class WorkerRunAlreadyActiveError(DomainException):
     pass
 
 
+class WorkerRunNotCancellableError(DomainException):
+    """Raised when a run that already reached a terminal state is asked to cancel (#72)."""
+
+    # Ideal translation in Litestar: HTTP 409 (Conflict)
+    pass
+
+
 class InvalidWorkerSettingsError(DomainException):
     """Raised when an override names an engine/preset/option the worker cannot accept."""
 
