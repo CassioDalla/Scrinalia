@@ -1,14 +1,16 @@
 """Triggering a worker run from the panel, and reading the execution ledger.
 
 The service resolves the configuration, writes the ``QUEUED`` row through the ledger's own committed
-transaction and only then hands the id to the executor. That order is the whole design: the thread
-marks the row as running from another session, so a row still inside the request's transaction would
-be invisible to it and the run would sit at ``QUEUED`` forever.
+transaction and returns it. That order is the whole design: the run is a queue item an external
+runner claims (ADR 0014), so the row must be committed before the response and must carry the
+request the runner will reproduce. The resolution here is the promise the panel shows; the runner
+records the effective configuration when it starts.
+
+There is no executor in this process. The API only enqueues; ``boot`` no longer repairs anything,
+and the run's liveness is a lease the runner renews.
 """
 
 from __future__ import annotations
-
-from typing import Protocol
 
 from sqlalchemy.orm import Session
 
@@ -24,7 +26,6 @@ from scrinalia.domains.archive.schemas.system_schema import (
 )
 from scrinalia.domains.archive.workers.catalogue import WORKER_CATALOGUE
 from scrinalia.domains.archive.workers.configuration import (
-    ResolvedWorkerConfig,
     resolve_configuration,
     validate_engine_choice,
     validate_engine_options,
@@ -33,19 +34,11 @@ from scrinalia.domains.archive.workers.configuration import (
 from scrinalia.domains.archive.workers.ledger import WorkerRunLedger
 
 
-class WorkerRuntimePort(Protocol):
-    """What the service needs from the executor: hand it a resolved run, do not wait for it."""
-
-    def submit(self, worker_name: str, run_id: int, resolved: ResolvedWorkerConfig) -> None:
-        raise NotImplementedError
-
-
 class WorkerRunService:
     """Queues a run and reads the ledger."""
 
-    def __init__(self, db: Session, runtime: WorkerRuntimePort, ledger: WorkerRunLedger | None = None) -> None:
+    def __init__(self, db: Session, ledger: WorkerRunLedger | None = None) -> None:
         self.db = db
-        self.runtime = runtime
         self.ledger = ledger or WorkerRunLedger()
         self.runs = WorkerRunRepository(db)
         self.settings = WorkerSettingsRepository(db)
@@ -53,6 +46,14 @@ class WorkerRunService:
     def trigger(
         self, worker_name: str, request: WorkerRunRequest, *, requested_by: Author | None = None
     ) -> WorkerRunDTO:
+        """
+        Validates the request, resolves the configuration and enqueues the run.
+
+        The response is the ``QUEUED`` row; a runner claims it when one is online. The explicitly
+        named configuration is resolved here for the panel and frozen into ``config`` as the
+        promise; the runner re-resolves it at claim under the same precedence and records the
+        effective values (`record_start`), which is what keeps the active ``LLM_CHECK`` rule current.
+        """
         spec = WORKER_CATALOGUE.get(worker_name)
         if spec is None:
             raise WorkerNotFoundError(f"Worker '{worker_name}' não existe. Opções: {sorted(WORKER_CATALOGUE)}.")
@@ -73,15 +74,14 @@ class WorkerRunService:
             engine_options=request.engine_options,
         )
 
-        run = self.ledger.enqueue(
+        return self.ledger.enqueue(
             worker_name,
             requested_by=requested_by,
             engine_name=resolved.engine_name,
             preset=resolved.preset,
             config=resolved.config,
+            request=request.model_dump(mode="json"),
         )
-        self.runtime.submit(worker_name, run.run_id, resolved)
-        return run
 
     def list_runs(
         self,

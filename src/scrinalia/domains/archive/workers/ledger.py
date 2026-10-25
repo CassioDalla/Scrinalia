@@ -209,15 +209,6 @@ class WorkerRunLedger:
             logger.error(f"⚠️ Não foi possível abrir o registro da execução de '{worker_name}': {exc}")
             return None
 
-    def mark_running(self, run_id: int, *, options: dict[str, Any] | None = None) -> None:
-        """Moves a queued row to running, for the in-process path that is being removed."""
-        try:
-            with self._session_factory() as db:
-                WorkerRunRepository(db).mark_running(run_id, options=options)
-                db.commit()
-        except Exception as exc:
-            logger.error(f"⚠️ Não foi possível marcar a execução {run_id} como em andamento: {exc}")
-
     def finish(
         self,
         run_id: int,

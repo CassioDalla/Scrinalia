@@ -31,7 +31,6 @@ from scrinalia.api.handlers import (
     permission_denied_handler,
     unhandled_exception_handler,
 )
-from scrinalia.api.lifespan import application_lifespan
 from scrinalia.api.middleware import RequestContextMiddleware
 from scrinalia.api.openapi import openapi_config
 from scrinalia.api.security import access_guard, origin_guard
@@ -121,7 +120,9 @@ def create_app() -> Litestar:
             # exactly the boundary between an answer and a defect.
             HTTP_500_INTERNAL_SERVER_ERROR: unhandled_exception_handler,
         },
-        lifespan=[application_lifespan],
+        # There is deliberately no lifespan: the API owns no background state. The workers are an
+        # external runner that claims the ledger (ADR 0014), so a process start no longer repairs a
+        # run and several API processes are safe.
         # The contract's ``info`` block. Litestar's default names the framework and its own version,
         # and an unset ``openapi_config`` is how the committed document served ``title="Litestar API"``
         # through a release: the project's version lives in ``pyproject.toml`` and reaches this through

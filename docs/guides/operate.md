@@ -2,6 +2,8 @@
 sources:
   - src/scrinalia/domains/archive/workers/catalogue.py
   - src/scrinalia/domains/archive/workers/runner.py
+  - src/scrinalia/domains/archive/workers/runner_daemon.py
+  - src/scrinalia/domains/archive/workers/lease.py
   - src/scrinalia/domains/archive/workers/configuration.py
   - src/scrinalia/domains/archive/workers/ledger.py
   - src/scrinalia/domains/archive/workers/worker_*.py
@@ -10,6 +12,7 @@ sources:
   - src/scrinalia/domains/archive/models/enums.py
   - src/scrinalia/domains/archive/schemas/system_schema.py
   - src/scrinalia/domains/archive/repository/worker_run_repo.py
+  - src/scrinalia/domains/archive/repository/worker_runner_repo.py
   - src/scrinalia/domains/archive/repository/worker_settings_repo.py
   - src/scrinalia/domains/archive/repository/worker_stamp_repo.py
   - src/scrinalia/domains/archive/repository/governance.py
@@ -20,8 +23,6 @@ sources:
   - src/scrinalia/api/controllers/system_controller.py
   - src/scrinalia/api/controllers/health_controller.py
   - src/scrinalia/api/controllers/setup_controller.py
-  - src/scrinalia/api/worker_runtime.py
-  - src/scrinalia/api/lifespan.py
   - src/scrinalia/api/middleware.py
   - src/scrinalia/api/system_health.py
   - src/scrinalia/core/logger.py
@@ -42,6 +43,7 @@ sources:
   - src/scrinalia/api/controllers/users_controller.py
   - docs/adr/0009-authentication-and-authorization.md
   - docs/adr/0011-first-run-setup-without-an-open-door.md
+  - docs/adr/0014-the-workers-leave-the-api.md
   - apps/curator/src/router.tsx
   - apps/curator/src/routes/SystemWorkersRoute.tsx
   - apps/curator/src/routes/SystemRunsRoute.tsx

@@ -136,11 +136,6 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     DEBUG: bool = False
 
-    #: How many worker runs the API's background executor accepts at once. One by default: the
-    #: workers are CPU-bound and the pipeline has an order, so a second torch model on the same CPU
-    #: slows the first without producing more.
-    WORKER_RUNTIME_MAX_WORKERS: int = 1
-
     @property
     def DATABASE_URL(self) -> str:
         """

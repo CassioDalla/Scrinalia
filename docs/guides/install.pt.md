@@ -252,7 +252,6 @@ pipeline, não o boot — o `ACERVO_SOURCE` é exigido pela transformação de s
 | `LOG_DIR` | `logs` | diretório dos sinks do loguru (`critical.log`, `ui_stream.jsonl`); criado se não existir |
 | `LOG_LEVEL` | `INFO` | nível do console e do fluxo estruturado |
 | `DEBUG` | `false` | informa o sinalizador de depuração no diagnóstico do sistema; ele é exibido, não usado para trocar o log |
-| `WORKER_RUNTIME_MAX_WORKERS` | `1` | quantas execuções o executor da API aceita ao mesmo tempo; os workers são limitados por CPU, então um segundo atrasa o primeiro |
 
 O `DATABASE_URL` **não** está nesta tabela: é uma propriedade derivada, que codifica as credenciais
 de `DB_*` para a URL, e não um valor que você define. Ele também acrescenta o `sslmode` de

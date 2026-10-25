@@ -356,23 +356,6 @@ class WorkerRunRepository:
         self.db.flush()
         return int(result.rowcount or 0)
 
-    def mark_running(self, run_id: int, *, options: dict[str, Any] | None = None) -> None:
-        """
-        Moves a queued run to running, for the in-process path that is being removed.
-
-        The effective options arrive with it when the run was queued by the panel: the request never
-        saw them, because a worker resolves the default of a column list from its own runner
-        dataclass, and that resolution happens here, at the start of the run (#120). The external
-        runner uses :meth:`record_start` instead, because its claim already set ``RUNNING``.
-        """
-        values: dict[str, Any] = {"status": WorkerRunStatus.RUNNING, "started_at": func.now()}
-        if options is not None:
-            values["options"] = options
-        self.db.execute(
-            update(WorkerRun).where(WorkerRun.id == run_id, WorkerRun.status == WorkerRunStatus.QUEUED).values(**values)
-        )
-        self.db.flush()
-
     def get(self, run_id: int) -> WorkerRunDTO | None:
         run = self.db.get(WorkerRun, run_id)
         return to_dto(run) if run is not None else None
@@ -419,27 +402,3 @@ class WorkerRunRepository:
         """The runs in flight, keyed by worker; the partial unique index allows at most one each."""
         rows = self.db.scalars(select(WorkerRun).where(WorkerRun.status.in_(ACTIVE_WORKER_RUN_STATUSES))).all()
         return {run.worker_name: to_dto(run) for run in rows}
-
-    def recover_orphans(self) -> int:
-        """
-        Marks the runs a dead process left behind, for the in-process path being removed.
-
-        A row stuck at ``QUEUED``/``RUNNING`` is worse than a wrong one: the partial unique index
-        would block that worker forever. Called once at start-up, with its own committed session,
-        and it assumes a single API process — with several, it would kill a sibling's live run.
-        The external runner replaces it with :meth:`expire_stale_leases`.
-        """
-        result = cast(
-            CursorResult[Any],
-            self.db.execute(
-                update(WorkerRun)
-                .where(WorkerRun.status.in_(ACTIVE_WORKER_RUN_STATUSES))
-                .values(
-                    status=WorkerRunStatus.INTERRUPTED,
-                    finished_at=func.now(),
-                    error="O processo anterior terminou antes do fim desta execução.",
-                )
-            ),
-        )
-        self.db.flush()
-        return int(result.rowcount or 0)

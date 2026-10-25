@@ -229,9 +229,8 @@ def run_worker(
     ledger, its own ``runner_id`` and no id: the runner opens the row with a lease. The external
     runner passes the id it claimed **and** its ``runner_id``: the row is already ``RUNNING``, so
     ``record_start`` writes the effective configuration and a lost lease aborts before the worker
-    runs. The in-process API path (being removed) passes an id and no runner id, and keeps
-    ``mark_running``. A programmatic caller that passes no ledger runs without a ledger line —
-    explicit, not silent.
+    runs. An id without the runner that claimed it is a programming error. A programmatic caller
+    that passes no ledger runs without a ledger line — explicit, not silent.
 
     ``lease_monitor`` renews the run's lease while the worker executes; the CLI and the daemon both
     pass one (ADR 0014).
@@ -301,8 +300,8 @@ def run_worker(
                     lease_seconds=lease_seconds if runner_id is not None else None,
                 )
             elif runner_id is None:
-                # The in-process path that is being removed: its row is already open as RUNNING.
-                ledger.mark_running(run_id, options=run_options)
+                # A run id is a claim; without its owner there is nothing that can fence the close.
+                raise ValueError("run_worker() needs the runner_id that claimed the run")
             else:
                 # The external runner claimed the row before resolving anything; this is where the
                 # effective configuration lands. ``False`` means the lease was swept in between.

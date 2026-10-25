@@ -11,6 +11,7 @@ sources:
   - package.json
   - pyproject.toml
   - src/scrinalia/core/config.py
+  - src/scrinalia/core/database.py
   - src/scrinalia/core/database_cli.py
   - src/scrinalia/core/logger.py
   - src/scrinalia/core/storage.py
@@ -18,8 +19,8 @@ sources:
   - src/scrinalia/api/system_health.py
   - src/scrinalia/api/controllers/health_controller.py
   - src/scrinalia/api/controllers/setup_controller.py
-  - src/scrinalia/api/lifespan.py
   - src/scrinalia/api/spa.py
+  - src/scrinalia/domains/archive/workers/runner_daemon.py
   - src/scrinalia/domains/identity/cli.py
   - src/scrinalia/domains/ingestion/sources.py
   - apps/curator/src/components/layout/AppShell.tsx
@@ -28,6 +29,7 @@ sources:
   - apps/curator/src/lib/settings.ts
   - docs/adr/0004-worker-execution-from-the-api.md
   - docs/adr/0009-authentication-and-authorization.md
+  - docs/adr/0014-the-workers-leave-the-api.md
   - docs/adr/0011-first-run-setup-without-an-open-door.md
 ---
 
@@ -278,7 +280,6 @@ pipeline, not the boot — `ACERVO_SOURCE` is required by the staging transform 
 | `LOG_DIR` | `logs` | directory of the loguru sinks (`critical.log`, `ui_stream.jsonl`); created if missing |
 | `LOG_LEVEL` | `INFO` | console and structured-stream level |
 | `DEBUG` | `false` | reports the debug flag on the system diagnostic; it is shown, not used to switch logging |
-| `WORKER_RUNTIME_MAX_WORKERS` | `1` | how many runs the API's executor accepts at once; the workers are CPU-bound, so a second one slows the first |
 
 `DATABASE_URL` is **not** in this table: it is a derived property that percent-encodes the
 credentials from `DB_*`, not a value you set. It also appends `sslmode` from `DB_SSLMODE`.

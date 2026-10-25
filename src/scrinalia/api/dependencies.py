@@ -13,7 +13,6 @@ from scrinalia.api.security import (
     AuthenticatedUser,
     authenticated_user_of,
 )
-from scrinalia.api.worker_runtime import provide_worker_runtime
 from scrinalia.core.database import create_session
 from scrinalia.core.unit_of_work import UnitOfWork
 from scrinalia.domains.archive.engines.base import EmbeddingEngine
@@ -184,10 +183,10 @@ def provide_worker_run_service(unit_of_work: NamedDependency[UnitOfWork]) -> Wor
     """
     Builds the trigger/ledger service.
 
-    The runtime is the process-wide executor; the ledger writes through its own committed sessions,
-    which is what lets the background thread see the queued row before the request transaction ends.
+    The API only enqueues now: the run is a queue item an external runner claims (ADR 0014). The
+    ledger writes through its own committed session, so the row is durable before the response.
     """
-    return WorkerRunService(unit_of_work.db, provide_worker_runtime())
+    return WorkerRunService(unit_of_work.db)
 
 
 def provide_failure_service(unit_of_work: NamedDependency[UnitOfWork]) -> FailureService:
