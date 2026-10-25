@@ -14,9 +14,12 @@ from scrinalia.domains.archive.exceptions import (
     InvalidWorkerSettingsError,
     WorkerNotFoundError,
     WorkerRunAlreadyActiveError,
+    WorkerRunNotCancellableError,
+    WorkerRunNotFoundError,
     WorkerScheduleNotFoundError,
 )
 from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
+from scrinalia.domains.archive.schemas.responses import RouteMessageCode
 from scrinalia.domains.archive.schemas.system_schema import (
     DatabaseHealthDTO,
     OllamaHealthDTO,
@@ -26,6 +29,7 @@ from scrinalia.domains.archive.schemas.system_schema import (
     SystemWorkerSettingsResponse,
     SystemWorkersResponse,
     WorkerQueuePreviewDTO,
+    WorkerRunCancelResponse,
     WorkerRunDTO,
     WorkerRunListResponse,
     WorkerRunnerDTO,
@@ -349,3 +353,56 @@ def test_deleting_a_missing_schedule_answers_not_found(client: TestClient, mocke
 
     response = client.delete("/api/v1/system/workers/cleaning/schedule")
     assert response.status_code == 404
+
+
+# --- Cancelling a run (#72) -------------------------------------------------------------------
+
+
+def _requested_run() -> WorkerRunDTO:
+    now = datetime.now(UTC)
+    return WorkerRunDTO(
+        run_id=1,
+        worker_name="ner",
+        status=WorkerRunStatus.RUNNING,
+        trigger=WorkerRunTrigger.API,
+        queued_at=now,
+        started_at=now,
+        cancel_requested_at=now,
+        cancel_requested_by="ana",
+    )
+
+
+def test_the_cancel_answers_the_row_and_the_outcome_code(client: TestClient, mocker) -> None:
+    """The two outcomes are codes, not sentences the screen would have to parse."""
+    mock = mocker.patch.object(WorkerRunService, "cancel")
+    mock.return_value = WorkerRunCancelResponse(
+        code=RouteMessageCode.WORKER_RUN_CANCEL_REQUESTED,
+        message="Cancelamento pedido: a execução para no fim do lote atual.",
+        data=_requested_run(),
+    )
+
+    response = client.post("/api/v1/system/runs/1/cancel")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["code"] == "WORKER_RUN_CANCEL_REQUESTED"
+    assert body["data"]["status"] == "RUNNING"
+    assert body["data"]["cancel_requested_by"] == "ana"
+    assert mock.call_args.args[0] == 1
+
+
+def test_cancelling_a_finished_run_answers_conflict(client: TestClient, mocker) -> None:
+    mock = mocker.patch.object(WorkerRunService, "cancel")
+    mock.side_effect = WorkerRunNotCancellableError("A execução 1 já terminou (SUCCESS); não há o que cancelar.")
+
+    response = client.post("/api/v1/system/runs/1/cancel")
+
+    assert response.status_code == 409
+    assert response.json()["error_code"] == "WorkerRunNotCancellableError"
+
+
+def test_cancelling_an_unknown_run_answers_not_found(client: TestClient, mocker) -> None:
+    mock = mocker.patch.object(WorkerRunService, "cancel")
+    mock.side_effect = WorkerRunNotFoundError("Execução 999 não existe no ledger.")
+
+    assert client.post("/api/v1/system/runs/999/cancel").status_code == 404
