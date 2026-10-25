@@ -2018,3 +2018,39 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   the screen. The run's use of the columns rests on the service test that already asserted
   `fetch_documents_for_clustering(columns_to_extract=...)` receives them.
 
+## 2026-10-24 — a request body refuses what it does not know (#177)
+
+- **Range:** `5900c48..4a8b78f`
+- **Pages:**
+  - `guides/operate.md` — **no-change**: the report named it through `system_schema.py`, whose two
+    request models now inherit `RequestModel`. The page documents the *options* contract — a key the
+    worker does not declare is refused inside `options` — and this change is about an unknown key at
+    the top level of a body, which the page never said was accepted.
+- **Why the round exists:** #177, with the policy the owner chose (forbid everywhere). The body
+  position was loud only where a model happened to say so: 22 of the 53 bodies declared
+  `extra="forbid"` and 31 kept pydantic's default, so the same stale client answered 400 on one route
+  and 200 on the next.
+- **What the round measured.** The generated contract is **unchanged**: `additionalProperties` was
+  already absent for the 22 strict models, so Litestar never expressed the difference, and adding
+  `extra="forbid"` to the other 31 emits nothing either — measured here by regenerating
+  `openapi.json` and `schema.d.ts` and getting a **0-line** diff. The gate is
+  `testing/unit/api/test_request_models.py`: it resolves the bodies from the **built** application
+  (55 of them, exactly the names the contract points at from a `requestBody`), and fails both on a
+  body model that does not forbid and on a walk that stops finding them. The full suite answers
+  **2041 passed, 1 skipped**; `basedpyright`, `ruff check` and `ruff format --check` answer zero.
+- **What the policy changed in behaviour, and the two tests that said otherwise.** Two calls used to
+  be accepted and silently ignored: a `role` in the setup body (`test_the_client_cannot_choose_the_role`
+  asserted 201 and ADMIN) and a `requested_by` in the run trigger. Both are **400** now, and the
+  tests say so — the first also checks that the installation is still unconfigured after the refusal.
+  A third test was added where the policy is a security property: a `changed_by` in the
+  materialisation body is refused, because the author is the session's.
+- **A finding, not fixed here.** `HierarchyMaterialisationRequest` exists twice: in
+  `api/schemas/hierarchy_requests.py` (the body: `note`, `limit`) and in
+  `domains/archive/schemas/hierarchy_schema.py` (the command: the same plus `changed_by`). The handler
+  spreads the body and adds the session author into the command. They answer different questions, so
+  the duplication is a name collision rather than a second definition — renaming would move a contract
+  component and belongs to a round of its own.
+- **Not verified, and said so.** No screen was rendered: no route changed shape and the SPA sends
+  bodies derived from the contract, so the pixels cannot differ. The 53 bodies were not exercised
+  against a live server one by one — the gate reads the policy, and the suite drives the routes.
+

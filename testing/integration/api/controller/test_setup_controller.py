@@ -84,11 +84,12 @@ def test_the_answer_never_carries_the_password_or_its_hash(api_client: TestClien
 
 
 def test_the_client_cannot_choose_the_role(api_client: TestClient) -> None:
-    """The first account administers. A ``role`` in the body is not a field of the command at all."""
+    """The first account administers, and a ``role`` in the body is refused, not silently ignored (#177)."""
     response = _create(api_client, role="VIEWER")
 
-    assert response.status_code == 201
-    assert response.json()["role"] == "ADMIN"
+    assert response.status_code == 400, response.text
+    assert response.json()["extra"] == [{"message": "Extra inputs are not permitted", "key": "role"}]
+    assert api_client.get("/api/v1/setup/status").json() == {"needs_setup": True}
 
 
 def test_the_address_is_stored_normalised(api_client: TestClient) -> None:

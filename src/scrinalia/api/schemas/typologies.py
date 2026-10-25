@@ -1,7 +1,9 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from scrinalia.core.schemas import RequestModel
 
 
-class TypologyCreateRequest(BaseModel):
+class TypologyCreateRequest(RequestModel):
     """Registers a documental typology: a name the classifier will propose and the curator will read."""
 
     name: str = Field(
@@ -13,10 +15,8 @@ class TypologyCreateRequest(BaseModel):
         "Nunca vai para o modelo — concatená-lo ao rótulo faz o classificador colapsar o acervo.",
     )
 
-    model_config = ConfigDict(extra="forbid")
 
-
-class TypologyUpdateRequest(BaseModel):
+class TypologyUpdateRequest(RequestModel):
     """
     Partial update of a typology.
 
@@ -28,5 +28,3 @@ class TypologyUpdateRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     context_description: str | None = None
     is_active: bool | None = None
-
-    model_config = ConfigDict(extra="forbid")

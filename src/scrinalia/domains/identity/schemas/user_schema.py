@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from scrinalia.core.schemas import RequestModel
 from scrinalia.domains.identity.domain.permissions import Role
 
 
@@ -53,7 +54,7 @@ class AuthUserDTO(BaseModel):
         return self.locked_until is not None and self.locked_until > datetime.now(UTC)
 
 
-class CreateUserCommand(BaseModel):
+class CreateUserCommand(RequestModel):
     """Creates an account. The password is hashed before it reaches the row."""
 
     email: str = Field(min_length=3, max_length=320, description="Identificador da conta; normalizado para minúsculas.")
@@ -66,7 +67,7 @@ class CreateUserCommand(BaseModel):
     password: str = Field(min_length=1, description="Senha inicial; a política é verificada no domínio.")
 
 
-class UpdateUserCommand(BaseModel):
+class UpdateUserCommand(RequestModel):
     """Partial update of an account. Everything is optional; nothing is required to change."""
 
     name: str | None = Field(default=None, min_length=1, max_length=120)
@@ -96,7 +97,7 @@ class AuthSessionDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class SetPasswordCommand(BaseModel):
+class SetPasswordCommand(RequestModel):
     """An administrator (or the CLI) sets a new password without knowing the old one."""
 
     password: str = Field(min_length=1, description="Nova senha; a política é verificada no domínio.")
@@ -105,7 +106,7 @@ class SetPasswordCommand(BaseModel):
     must_change: bool = True
 
 
-class ChangePasswordCommand(BaseModel):
+class ChangePasswordCommand(RequestModel):
     """The account changes its own password, proving it knows the current one."""
 
     current_password: str = Field(min_length=1)

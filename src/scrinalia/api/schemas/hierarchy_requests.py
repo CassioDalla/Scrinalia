@@ -2,10 +2,12 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from scrinalia.core.schemas import RequestModel
 
 
-class DescriptionLevelCreateRequest(BaseModel):
+class DescriptionLevelCreateRequest(RequestModel):
     """Registers a rung of the level ladder."""
 
     ordinal: int = Field(ge=0, description="Posição na escada.")
@@ -16,10 +18,8 @@ class DescriptionLevelCreateRequest(BaseModel):
     requires_parent: bool = Field(default=False, description="Um nó deste nível não pode ser raiz.")
     allows_children: bool = Field(default=True, description="Um nó deste nível pode ter filhos.")
 
-    model_config = ConfigDict(extra="forbid")
 
-
-class DescriptionLevelUpdateRequest(BaseModel):
+class DescriptionLevelUpdateRequest(RequestModel):
     """Partial update of a rung. ``ordinal`` is not editable: it would silently re-rank the tree."""
 
     name: str | None = Field(default=None, min_length=1, max_length=60)
@@ -29,10 +29,8 @@ class DescriptionLevelUpdateRequest(BaseModel):
     allows_children: bool | None = None
     is_active: bool | None = None
 
-    model_config = ConfigDict(extra="forbid")
 
-
-class HierarchyNodeCreateRequest(BaseModel):
+class HierarchyNodeCreateRequest(RequestModel):
     """Creates an arrangement node that has no counterpart in the source."""
 
     reference_code: str = Field(min_length=1, description="Código do novo nó, ex.: 'ACERVO RAIZ BETA'.")
@@ -42,10 +40,8 @@ class HierarchyNodeCreateRequest(BaseModel):
     scope_content: str | None = None
     note: str | None = None
 
-    model_config = ConfigDict(extra="forbid")
 
-
-class HierarchyNodeMoveRequest(BaseModel):
+class HierarchyNodeMoveRequest(RequestModel):
     """
     Moves and/or re-levels one description.
 
@@ -57,19 +53,15 @@ class HierarchyNodeMoveRequest(BaseModel):
     level_id: int | None = None
     note: str | None = None
 
-    model_config = ConfigDict(extra="forbid")
 
-
-class HierarchyProposalRequest(BaseModel):
+class HierarchyProposalRequest(RequestModel):
     """Options of the proposal run. Read-only: there is nothing to approve here."""
 
     include_existing: bool = Field(default=True, description="Incluir códigos que já têm registro.")
     limit: int = Field(default=500, ge=1, le=5000, description="Teto de nós devolvidos.")
 
-    model_config = ConfigDict(extra="forbid")
 
-
-class HierarchyPlanDecisionRequest(BaseModel):
+class HierarchyPlanDecisionRequest(RequestModel):
     """
     The archivist's verdict on one rung of the proposal.
 
@@ -85,13 +77,9 @@ class HierarchyPlanDecisionRequest(BaseModel):
     collapse_into_code: str | None = Field(default=None, max_length=500)
     note: str | None = None
 
-    model_config = ConfigDict(extra="forbid")
 
-
-class HierarchyMaterialisationRequest(BaseModel):
+class HierarchyMaterialisationRequest(RequestModel):
     """Who authorised the run, and why. The decisions themselves live in the plan rows."""
 
     note: str | None = None
     limit: int = Field(default=500, ge=1, le=5000, description="Teto de itens no preview.")
-
-    model_config = ConfigDict(extra="forbid")
