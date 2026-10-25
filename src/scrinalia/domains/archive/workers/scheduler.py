@@ -24,7 +24,7 @@ import argparse
 import signal
 import threading
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import cast
 
 from sqlalchemy import func, select, text
@@ -42,6 +42,7 @@ from scrinalia.domains.archive.repository.worker_settings_repo import WorkerSett
 from scrinalia.domains.archive.schemas.system_schema import WorkerRunRequest
 from scrinalia.domains.archive.workers.catalogue import WORKER_CATALOGUE
 from scrinalia.domains.archive.workers.configuration import resolve_configuration
+from scrinalia.domains.archive.workers.retry import MAX_ATTEMPTS, retry_delay_seconds
 from scrinalia.domains.archive.workers.schedule import next_occurrence
 from scrinalia.domains.archive.workers.schema import assert_schema_at_head
 from scrinalia.metadata import load_all_models
@@ -112,6 +113,7 @@ class SchedulerService:
         """
         with self._session_factory() as db:
             now: datetime = db.execute(select(func.now())).scalar_one()
+            retried = self._retry(db, now)
             schedules = WorkerScheduleRepository(db).due(now)
             for schedule in schedules:
                 try:
@@ -124,9 +126,45 @@ class SchedulerService:
                 except Exception as exc:
                     logger.error(f"⚠️ Could not schedule '{schedule.worker_name}': {exc}")
             db.commit()
-            if schedules:
-                logger.info(f"🕒 Scheduler tick: {len(schedules)} due schedule(s).")
+            if schedules or retried:
+                logger.info(f"🕒 Scheduler tick: {len(schedules)} due schedule(s), {retried} retry(ies).")
             return len(schedules)
+
+    def _retry(self, db: Session, now: datetime) -> int:
+        """
+        Creates the retry row of every failed scheduled run that has none, and returns how many.
+
+        A retry is a new ``QUEUED`` row with ``attempt + 1``, the previous request and config, and a
+        ``not_before`` computed from the database's now plus the backoff. The row is created now and
+        waits in the slot: the claim's ``not_before`` check keeps the runner from taking it early, and
+        a manual run of the same worker answers 409 until then (ADR 0015).
+        """
+        failed = WorkerRunRepository(db).due_retries(MAX_ATTEMPTS)
+        for run in failed:
+            try:
+                with db.begin_nested():
+                    delay = retry_delay_seconds(run.attempt)
+                    WorkerRunRepository(db).create_queued(
+                        run.worker_name,
+                        trigger=WorkerRunTrigger.SCHEDULE,
+                        requested_by=SCHEDULED_BY,
+                        engine_name=run.engine_name,
+                        preset=run.preset,
+                        config=dict(run.config or {}),
+                        request=dict(run.request or {}),
+                        attempt=run.attempt + 1,
+                        retry_of=run.id,
+                        not_before=now + timedelta(seconds=delay),
+                    )
+                    logger.info(
+                        f"🔁 Retry {run.attempt + 1}/{MAX_ATTEMPTS} of '{run.worker_name}' "
+                        f"(run #{run.id}) in {delay} s."
+                    )
+            except IntegrityError:
+                logger.info(f"⏭️ The retry of run #{run.id} lost the slot to another run; the next tick sees it.")
+            except Exception as exc:
+                logger.error(f"⚠️ Could not create the retry of run #{run.id}: {exc}")
+        return len(failed)
 
     def _process(self, db: Session, schedule: WorkerSchedule, now: datetime) -> None:
         """Enqueues the run or skips the period, and always advances ``next_run_at``."""

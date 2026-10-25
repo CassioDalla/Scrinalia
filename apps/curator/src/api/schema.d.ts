@@ -894,6 +894,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/workers/{worker_name}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetSchedule */
+        get: operations["ApiV1SystemWorkersWorkerNameScheduleGetSchedule"];
+        /** PutSchedule */
+        put: operations["ApiV1SystemWorkersWorkerNameSchedulePutSchedule"];
+        post?: never;
+        /** DeleteSchedule */
+        delete: operations["ApiV1SystemWorkersWorkerNameScheduleDeleteSchedule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/workers/{worker_name}/settings": {
         parameters: {
             query?: never;
@@ -4218,6 +4237,11 @@ export interface components {
         };
         /** WorkerRunDTO */
         WorkerRunDTO: {
+            /**
+             * @description Qual tentativa esta linha é: 1 numa execução pedida uma vez, N numa agendada (ADR 0015).
+             * @default 1
+             */
+            attempt: number;
             /** @description Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código. */
             config?: {
                 [key: string]: unknown;
@@ -4232,6 +4256,8 @@ export interface components {
             heartbeat_at?: string | null;
             /** @description Quando o claim vence se o runner parar de renovar. A próxima varredura do runner marca a execução como interrompida. */
             lease_expires_at?: string | null;
+            /** @description O instante a partir do qual a linha pode ser reivindicada; nulo significa já (ADR 0015). */
+            not_before?: string | null;
             /** @description Opções efetivas do worker nesta execução (as colunas lidas, o limite de confiança), resolvidas quando a execução começou. Vazio numa linha antiga, ou numa que ainda não começou. */
             options?: {
                 [key: string]: unknown;
@@ -4241,6 +4267,8 @@ export interface components {
             queued_at: string;
             /** @description Quem pediu a execução; nulo quando ela veio do host, sem --by. */
             requested_by?: string | null;
+            /** @description A execução que esta retenta; nula na primeira tentativa. */
+            retry_of?: number | null;
             run_id: number;
             /** @description O runner que reivindicou a execução; nulo enquanto ninguém a pegou. */
             runner_id?: string | null;
@@ -4256,7 +4284,10 @@ export interface components {
             offset: number;
             total: number;
         };
-        /** WorkerRunRequest */
+        /**
+         * WorkerRunRequest
+         * @description O corpo validado que cada execução agendada usa; as partes não pinadas seguem as configurações.
+         */
         WorkerRunRequest: {
             db_batch_size?: number | null;
             engine_name?: string | null;
@@ -4283,10 +4314,10 @@ export interface components {
         WorkerRunStatus: "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "INTERRUPTED";
         /**
          * WorkerRunTrigger
-         * @description Who asked for the run: the command line or the curator's panel.
+         * @description Who asked for the run: the command line, the curator's panel or the schedule (ADR 0015).
          * @enum {string}
          */
-        WorkerRunTrigger: "CLI" | "API";
+        WorkerRunTrigger: "CLI" | "API" | "SCHEDULE";
         /** WorkerRunnerDTO */
         WorkerRunnerDTO: {
             /** @description Os workers que este runner aceita. */
@@ -4303,6 +4334,31 @@ export interface components {
             started_at: string;
             stopped_at?: string | null;
             version?: string | null;
+        };
+        /** WorkerScheduleDTO */
+        WorkerScheduleDTO: {
+            cron: string;
+            enabled: boolean;
+            last_enqueued_at?: string | null;
+            /** @description O último período pulado porque o worker já tinha uma execução ativa. */
+            last_skipped_at?: string | null;
+            /** @description Nulo enquanto a agenda está pausada. */
+            next_run_at?: string | null;
+            request: components["schemas"]["WorkerRunRequest"];
+            timezone: string;
+            updated_at?: string | null;
+            updated_by?: string | null;
+            worker_name: string;
+        };
+        /** WorkerScheduleRequest */
+        WorkerScheduleRequest: {
+            /** @description Cinco campos: minuto, hora, dia do mês, mês e dia da semana. */
+            cron: string;
+            /** @default true */
+            enabled: boolean;
+            request?: components["schemas"]["WorkerRunRequest"];
+            /** @description Nome IANA da zona em que o cron é avaliado; o padrão é DEFAULT_TIMEZONE. */
+            timezone?: string | null;
         };
         /** WorkerSettingsDTO */
         WorkerSettingsDTO: {
@@ -4401,6 +4457,8 @@ export interface components {
              * @default false
              */
             runner_available: boolean;
+            /** @description A agenda do worker (ADR 0015); nula quando ele não tem uma. */
+            schedule?: components["schemas"]["WorkerScheduleDTO"] | null;
             settings: components["schemas"]["WorkerSettingsDTO"];
             /** @description Os quatro números do **ledger** do worker — com produtor, valor legado, falha e ausência de registro — e não da fila: `pending` é o predicado da fila, e uma unidade com carimbo de falha ou de produtor antigo conta aqui sem estar pendente. Nulo quando o ledger do worker não é um carimbo. */
             stamp_breakdown?: components["schemas"]["WorkerStampBreakdownDTO"] | null;
@@ -6470,6 +6528,119 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["WorkerRunDTO"];
                 };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1SystemWorkersWorkerNameScheduleGetSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerScheduleDTO"] | null;
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1SystemWorkersWorkerNameSchedulePutSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkerScheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerScheduleDTO"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1SystemWorkersWorkerNameScheduleDeleteSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Bad request syntax or unsupported method */
             400: {

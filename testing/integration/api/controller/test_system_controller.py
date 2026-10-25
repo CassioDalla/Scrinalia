@@ -10,9 +10,11 @@ from datetime import UTC, datetime
 from litestar.testing import TestClient
 
 from scrinalia.domains.archive.exceptions import (
+    InvalidWorkerScheduleError,
     InvalidWorkerSettingsError,
     WorkerNotFoundError,
     WorkerRunAlreadyActiveError,
+    WorkerScheduleNotFoundError,
 )
 from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
 from scrinalia.domains.archive.schemas.system_schema import (
@@ -27,6 +29,8 @@ from scrinalia.domains.archive.schemas.system_schema import (
     WorkerRunDTO,
     WorkerRunListResponse,
     WorkerRunnerDTO,
+    WorkerRunRequest,
+    WorkerScheduleDTO,
     WorkerSettingsDTO,
     WorkerSettingsItemDTO,
     WorkerSettingsRevisionListResponse,
@@ -34,6 +38,7 @@ from scrinalia.domains.archive.schemas.system_schema import (
 )
 from scrinalia.domains.archive.services.worker_operations_service import WorkerOperationsService
 from scrinalia.domains.archive.services.worker_run_service import WorkerRunService
+from scrinalia.domains.archive.services.worker_schedule_service import WorkerScheduleService
 
 
 def _settings() -> WorkerSettingsDTO:
@@ -273,3 +278,72 @@ def test_an_unmeasurable_queue_previews_with_a_reason(client: TestClient, mocker
     assert response.status_code == 200
     assert response.json()["pending"] is None
     assert response.json()["pending_reason"]
+
+
+def _schedule() -> WorkerScheduleDTO:
+    return WorkerScheduleDTO(
+        worker_name="cleaning",
+        enabled=True,
+        cron="0 2 * * *",
+        timezone="UTC",
+        request=WorkerRunRequest(),
+        next_run_at=datetime.now(UTC),
+        updated_by="Admin",
+        updated_at=datetime.now(UTC),
+    )
+
+
+def test_the_schedule_round_trip_through_the_http_layer(client: TestClient, mocker) -> None:
+    mocker.patch.object(WorkerScheduleService, "get", return_value=_schedule())
+    upsert = mocker.patch.object(WorkerScheduleService, "upsert", return_value=_schedule())
+    delete = mocker.patch.object(WorkerScheduleService, "delete")
+
+    created = client.put(
+        "/api/v1/system/workers/cleaning/schedule",
+        json={"cron": "0 2 * * *", "timezone": "UTC"},
+    )
+    assert created.status_code == 200
+    assert created.json()["cron"] == "0 2 * * *"
+
+    body = client.get("/api/v1/system/workers/cleaning/schedule").json()
+    assert body["timezone"] == "UTC"
+    assert body["request"] == {
+        "engine_name": None,
+        "preset": None,
+        "db_batch_size": None,
+        "options": {},
+        "engine_options": {},
+    }
+
+    assert client.delete("/api/v1/system/workers/cleaning/schedule").status_code == 200
+    upsert.assert_called_once()
+    delete.assert_called_once()
+
+
+def test_a_missing_schedule_reads_as_null(client: TestClient, mocker) -> None:
+    mocker.patch.object(WorkerScheduleService, "get", return_value=None)
+
+    response = client.get("/api/v1/system/workers/cleaning/schedule")
+
+    assert response.status_code == 200
+    assert response.json() is None
+
+
+def test_an_invalid_schedule_answers_unprocessable(client: TestClient, mocker) -> None:
+    mock = mocker.patch.object(WorkerScheduleService, "upsert")
+    mock.side_effect = InvalidWorkerScheduleError("Agenda inválida: o cron precisa de cinco campos.")
+
+    response = client.put(
+        "/api/v1/system/workers/cleaning/schedule",
+        json={"cron": "0 2 * *", "timezone": "UTC"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error_code"] == "InvalidWorkerScheduleError"
+
+
+def test_deleting_a_missing_schedule_answers_not_found(client: TestClient, mocker) -> None:
+    mock = mocker.patch.object(WorkerScheduleService, "delete")
+    mock.side_effect = WorkerScheduleNotFoundError("O worker 'cleaning' não tem agenda.")
+
+    assert client.delete("/api/v1/system/workers/cleaning/schedule").status_code == 404

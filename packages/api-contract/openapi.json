@@ -8469,6 +8469,12 @@
       },
       "WorkerRunDTO": {
         "properties": {
+          "attempt": {
+            "default": 1,
+            "description": "Qual tentativa esta linha é: 1 numa execução pedida uma vez, N numa agendada (ADR 0015).",
+            "minimum": 1.0,
+            "type": "integer"
+          },
           "config": {
             "additionalProperties": {},
             "description": "Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código.",
@@ -8550,6 +8556,18 @@
               }
             ]
           },
+          "not_before": {
+            "description": "O instante a partir do qual a linha pode ser reivindicada; nulo significa já (ADR 0015).",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "options": {
             "additionalProperties": {},
             "description": "Opções efetivas do worker nesta execução (as colunas lidas, o limite de confiança), resolvidas quando a execução começou. Vazio numa linha antiga, ou numa que ainda não começou.",
@@ -8574,6 +8592,17 @@
             "oneOf": [
               {
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retry_of": {
+            "description": "A execução que esta retenta; nula na primeira tentativa.",
+            "oneOf": [
+              {
+                "type": "integer"
               },
               {
                 "type": "null"
@@ -8655,6 +8684,7 @@
         "type": "object"
       },
       "WorkerRunRequest": {
+        "description": "O corpo validado que cada execução agendada usa; as partes não pinadas seguem as configurações.",
         "properties": {
           "db_batch_size": {
             "maximum": 10000,
@@ -8716,10 +8746,11 @@
         "type": "string"
       },
       "WorkerRunTrigger": {
-        "description": "Who asked for the run: the command line or the curator's panel.",
+        "description": "Who asked for the run: the command line, the curator's panel or the schedule (ADR 0015).",
         "enum": [
           "CLI",
-          "API"
+          "API",
+          "SCHEDULE"
         ],
         "title": "WorkerRunTrigger",
         "type": "string"
@@ -8790,6 +8821,124 @@
           "started_at"
         ],
         "title": "WorkerRunnerDTO",
+        "type": "object"
+      },
+      "WorkerScheduleDTO": {
+        "properties": {
+          "cron": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "last_enqueued_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_skipped_at": {
+            "description": "O último período pulado porque o worker já tinha uma execução ativa.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_run_at": {
+            "description": "Nulo enquanto a agenda está pausada.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "request": {
+            "$ref": "#/components/schemas/WorkerRunRequest"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "updated_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_by": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "worker_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cron",
+          "enabled",
+          "request",
+          "timezone",
+          "worker_name"
+        ],
+        "title": "WorkerScheduleDTO",
+        "type": "object"
+      },
+      "WorkerScheduleRequest": {
+        "properties": {
+          "cron": {
+            "description": "Cinco campos: minuto, hora, dia do mês, mês e dia da semana.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "type": "boolean"
+          },
+          "request": {
+            "$ref": "#/components/schemas/WorkerRunRequest"
+          },
+          "timezone": {
+            "description": "Nome IANA da zona em que o cron é avaliado; o padrão é DEFAULT_TIMEZONE.",
+            "maxLength": 64,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "cron"
+        ],
+        "title": "WorkerScheduleRequest",
         "type": "object"
       },
       "WorkerSettingsDTO": {
@@ -9171,6 +9320,17 @@
             "default": false,
             "description": "Se algum runner online declara este worker; falso não impede enfileirar (ADR 0014).",
             "type": "boolean"
+          },
+          "schedule": {
+            "description": "A agenda do worker (ADR 0015); nula quando ele não tem uma.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorkerScheduleDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "settings": {
             "$ref": "#/components/schemas/WorkerSettingsDTO"
@@ -13761,6 +13921,228 @@
           }
         },
         "summary": "TriggerRun",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/workers/{worker_name}/schedule": {
+      "delete": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemWorkersWorkerNameScheduleDeleteSchedule",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "worker_name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "DeleteSchedule",
+        "tags": [
+          "System"
+        ]
+      },
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemWorkersWorkerNameScheduleGetSchedule",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "worker_name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/WorkerScheduleDTO"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetSchedule",
+        "tags": [
+          "System"
+        ]
+      },
+      "put": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemWorkersWorkerNameSchedulePutSchedule",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "worker_name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkerScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerScheduleDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "PutSchedule",
         "tags": [
           "System"
         ]

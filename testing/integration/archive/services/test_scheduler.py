@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from scrinalia.core.author import Author
-from scrinalia.domains.archive.models.enums import WorkerRunTrigger
+from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
 from scrinalia.domains.archive.models.operations import WorkerRun
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
 from scrinalia.domains.archive.repository.worker_schedule_repo import WorkerScheduleRepository
@@ -148,3 +148,130 @@ def test_only_one_scheduler_holds_the_advisory_lock(engine) -> None:
     first._release()
     assert second._acquire() is True
     second._release()
+
+
+def _failed(
+    db: Session,
+    *,
+    trigger: WorkerRunTrigger = WorkerRunTrigger.SCHEDULE,
+    status: WorkerRunStatus = WorkerRunStatus.FAILED,
+    attempt: int = 1,
+    worker: str = "cleaning",
+) -> WorkerRun:
+    run = WorkerRun(
+        worker_name=worker,
+        status=status,
+        trigger=trigger,
+        attempt=attempt,
+        engine_name=None,
+        preset=None,
+        request={},
+        config={},
+        finished_at=datetime.now(UTC),
+    )
+    db.add(run)
+    db.flush()
+    return run
+
+
+def _retries(db: Session, failed_id: int) -> list[WorkerRun]:
+    return list(db.scalars(select(WorkerRun).where(WorkerRun.retry_of == failed_id)))
+
+
+def test_a_failed_scheduled_run_is_retried(db_session: Session) -> None:
+    failed = _failed(db_session)
+
+    assert _service(db_session).tick() == 0
+
+    retry = _retries(db_session, failed.id)
+    assert len(retry) == 1
+    assert retry[0].attempt == 2
+    assert retry[0].trigger == WorkerRunTrigger.SCHEDULE
+    assert retry[0].status == WorkerRunStatus.QUEUED
+    assert retry[0].not_before is not None
+    assert retry[0].not_before > datetime.now(UTC) + timedelta(seconds=30)
+    assert retry[0].request == {}
+
+
+def test_a_manual_failed_run_is_not_retried(db_session: Session) -> None:
+    _failed(db_session, trigger=WorkerRunTrigger.API)
+
+    assert _service(db_session).tick() == 0
+    assert _retries(db_session, 0) == []
+
+
+def test_a_cli_failed_run_is_not_retried(db_session: Session) -> None:
+    _failed(db_session, trigger=WorkerRunTrigger.CLI)
+
+    assert _service(db_session).tick() == 0
+    assert _retries(db_session, 0) == []
+
+
+def test_a_third_attempt_is_not_retried(db_session: Session) -> None:
+    _failed(db_session, attempt=3)
+
+    assert _service(db_session).tick() == 0
+    assert _retries(db_session, 0) == []
+
+
+def test_an_interrupted_scheduled_run_is_retried(db_session: Session) -> None:
+    failed = _failed(db_session, status=WorkerRunStatus.INTERRUPTED)
+
+    assert _service(db_session).tick() == 0
+
+    retry = _retries(db_session, failed.id)
+    assert len(retry) == 1
+    assert retry[0].attempt == 2
+
+
+def test_a_retry_is_not_duplicated(db_session: Session) -> None:
+    failed = _failed(db_session)
+    service = _service(db_session)
+
+    assert service.tick() == 0
+    assert service.tick() == 0
+
+    assert len(_retries(db_session, failed.id)) == 1
+
+
+def test_a_retry_before_its_not_before_is_not_claimed(db_session: Session) -> None:
+    now = datetime.now(UTC)
+    run_id = (
+        WorkerRunRepository(db_session)
+        .create_queued(
+            "cleaning",
+            trigger=WorkerRunTrigger.SCHEDULE,
+            requested_by=None,
+            engine_name=None,
+            preset=None,
+            config={},
+            attempt=2,
+            not_before=now + timedelta(hours=1),
+        )
+        .run_id
+    )
+    db_session.flush()
+
+    assert WorkerRunRepository(db_session).claim_next(["cleaning"], runner_id="r1", lease_seconds=60) is None
+
+    run = db_session.get(WorkerRun, run_id)
+    assert run is not None
+    run.not_before = now - timedelta(minutes=1)
+    db_session.flush()
+
+    claimed = WorkerRunRepository(db_session).claim_next(["cleaning"], runner_id="r1", lease_seconds=60)
+    assert claimed is not None
+    assert claimed.run_id == run_id
+
+
+def test_the_schedule_skips_while_the_retry_is_queued(db_session: Session) -> None:
+    now = datetime.now(UTC)
+    _failed(db_session)
+    _schedule(db_session, next_run_at=now - timedelta(minutes=1))
+
+    assert _service(db_session).tick() == 1
+
+    assert _count(db_session) == 2  # the failed row and its retry, not a third scheduled run
+    schedule = WorkerScheduleRepository(db_session).get("cleaning")
+    assert schedule is not None
+    assert schedule.last_skipped_at is not None

@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     # rebuilds ``search_vector``.
     ACERVO_LANGUAGE: str = "pt-BR"
 
+    #: The instance's zone: the default zone a worker's schedule is evaluated in when the operator
+    #: does not name one. The cron runs in this zone, not in the server's (ADR 0015).
+    DEFAULT_TIMEZONE: str = "America/Sao_Paulo"
+
     # Object storage
     S3_ENDPOINT_URL: str | None = None
     S3_BUCKET_NAME: str | None = None

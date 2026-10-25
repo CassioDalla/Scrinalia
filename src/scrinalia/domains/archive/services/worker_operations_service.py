@@ -22,6 +22,7 @@ from scrinalia.domains.archive.models.operations import WorkerSetting
 from scrinalia.domains.archive.repository.tag_repo import TagRepository
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
 from scrinalia.domains.archive.repository.worker_runner_repo import WorkerRunnerRepository
+from scrinalia.domains.archive.repository.worker_schedule_repo import WorkerScheduleRepository
 from scrinalia.domains.archive.repository.worker_settings_repo import WorkerSettingsRepository
 from scrinalia.domains.archive.repository.worker_stamp_repo import StampBreakdown, WorkerStampRepository
 from scrinalia.domains.archive.schemas.system_schema import (
@@ -38,6 +39,7 @@ from scrinalia.domains.archive.schemas.system_schema import (
     WorkerStampBreakdownDTO,
     WorkerStatusDTO,
 )
+from scrinalia.domains.archive.services.worker_schedule_service import to_schedule_dto
 from scrinalia.domains.archive.workers.catalogue import (
     WORKER_CATALOGUE,
     WorkerSpec,
@@ -73,6 +75,7 @@ class WorkerOperationsService:
         active_runs = self.runs.active_by_worker()
         runners = self.runner_registry.list_for_panel()
         online = [runner for runner in runners if runner.online]
+        schedules = {schedule.worker_name: schedule for schedule in WorkerScheduleRepository(self.db).list_all()}
 
         workers = []
         for order, spec, setting, resolved in self._resolved_workers():
@@ -98,6 +101,7 @@ class WorkerOperationsService:
                     stamp_breakdown=self._breakdown_dto(breakdown),
                     last_run=last_runs.get(spec.name),
                     active_run=active_runs.get(spec.name),
+                    schedule=(to_schedule_dto(schedules[spec.name]) if spec.name in schedules else None),
                     # The API only enqueues; this is the panel's answer to "will anyone pick it up?".
                     runner_available=any(spec.name in runner.capabilities for runner in online),
                 )

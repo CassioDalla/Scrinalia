@@ -39,6 +39,19 @@ class WorkerRunDTO(BaseModel):
     worker_name: str
     status: WorkerRunStatus
     trigger: WorkerRunTrigger
+    attempt: int = Field(
+        default=1,
+        ge=1,
+        description="Qual tentativa esta linha é: 1 numa execução pedida uma vez, N numa agendada (ADR 0015).",
+    )
+    retry_of: int | None = Field(
+        default=None,
+        description="A execução que esta retenta; nula na primeira tentativa.",
+    )
+    not_before: datetime | None = Field(
+        default=None,
+        description="O instante a partir do qual a linha pode ser reivindicada; nulo significa já (ADR 0015).",
+    )
     requested_by: str | None = Field(
         default=None, description="Quem pediu a execução; nulo quando ela veio do host, sem --by."
     )
@@ -136,6 +149,44 @@ class WorkerRunRequest(RequestModel):
             "vira padrão. Uma chave de opção declarada aqui é recusada."
         ),
     )
+
+
+class WorkerScheduleRequest(RequestModel):
+    """A worker's agenda: the cron, the zone and the pinned request it enqueues (ADR 0015)."""
+
+    enabled: bool = True
+    cron: str = Field(
+        min_length=1,
+        max_length=120,
+        description="Cinco campos: minuto, hora, dia do mês, mês e dia da semana.",
+    )
+    timezone: str | None = Field(
+        default=None,
+        max_length=64,
+        description="Nome IANA da zona em que o cron é avaliado; o padrão é DEFAULT_TIMEZONE.",
+    )
+    request: WorkerRunRequest = Field(
+        default_factory=WorkerRunRequest,
+        description="O corpo validado que cada execução agendada usa; as partes não pinadas seguem as configurações.",
+    )
+
+
+class WorkerScheduleDTO(BaseModel):
+    """A worker's agenda, as the panel reads it (ADR 0015)."""
+
+    worker_name: str
+    enabled: bool
+    cron: str
+    timezone: str
+    request: WorkerRunRequest
+    next_run_at: datetime | None = Field(default=None, description="Nulo enquanto a agenda está pausada.")
+    last_enqueued_at: datetime | None = None
+    last_skipped_at: datetime | None = Field(
+        default=None,
+        description="O último período pulado porque o worker já tinha uma execução ativa.",
+    )
+    updated_by: str | None = None
+    updated_at: datetime | None = None
 
 
 class WorkerPresetDTO(BaseModel):
@@ -268,6 +319,10 @@ class WorkerStatusDTO(BaseModel):
     )
     last_run: WorkerRunDTO | None = None
     active_run: WorkerRunDTO | None = None
+    schedule: WorkerScheduleDTO | None = Field(
+        default=None,
+        description="A agenda do worker (ADR 0015); nula quando ele não tem uma.",
+    )
     runner_available: bool = Field(
         default=False,
         description="Se algum runner online declara este worker; falso não impede enfileirar (ADR 0014).",
