@@ -76,6 +76,46 @@ services:
       - app_logs:/app/logs
       - hf_cache:/home/scrinalia/.cache/huggingface
 
+  # The worker runner: the process that claims the queued runs and executes them (ADR 0014). It is
+  # the same image and configuration as the API, with two differences that matter:
+  #
+  # * Its entrypoint is the Python module, not ``docker/entrypoint.sh``: the API owns the migrations,
+  #   and two containers running ``alembic upgrade head`` at the same time would race. The runner
+  #   checks the schema itself and ``restart: always`` retries until the API has migrated.
+  # * It publishes no port: the API never calls a runner. The database is the only channel.
+  #
+  # This service runs the models on the CPU, like the image. A GPU host runs the same image on that
+  # machine with a CUDA build, its own ``--workers`` and a private path to the database; the install
+  # guide has the command and the credential.
+  runner:
+    profiles: ["app"]
+    build:
+      context: .
+    image: scrinalia-app:latest
+    container_name: scrinalia_runner
+    restart: always
+    depends_on:
+      db:
+        condition: service_started
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER:-admin}
+      DB_PASS: ${DB_PASS:-admin123}
+      DB_NAME: ${DB_NAME:-scrinalia}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://host.docker.internal:9000}
+      OLLAMA_HOST_URL: ${APP_OLLAMA_HOST_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    entrypoint: ["/app/.venv/bin/python", "-m", "scrinalia.domains.archive.workers.runner_daemon"]
+    command: ["--name", "compose", "--poll-seconds", "1"]
+    volumes:
+      - app_logs:/app/logs
+      - hf_cache:/home/scrinalia/.cache/huggingface
+
 volumes:
   pgdata:
   app_logs:
