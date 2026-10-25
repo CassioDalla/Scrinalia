@@ -4651,6 +4651,54 @@
         "title": "HierarchyVocabulary",
         "type": "object"
       },
+      "IngestionHealthDTO": {
+        "properties": {
+          "detail": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enabled": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "origins": {
+            "items": {
+              "$ref": "#/components/schemas/IngestionOriginHealthDTO"
+            },
+            "type": "array"
+          },
+          "total": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "IngestionHealthDTO",
+        "type": "object"
+      },
       "IngestionOptionDTO": {
         "properties": {
           "default": {},
@@ -4866,6 +4914,26 @@
           "label"
         ],
         "title": "IngestionOriginDTO",
+        "type": "object"
+      },
+      "IngestionOriginHealthDTO": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "enabled",
+          "label"
+        ],
+        "title": "IngestionOriginHealthDTO",
         "type": "object"
       },
       "IngestionOriginListResponse": {
@@ -7871,6 +7939,9 @@
             "format": "date-time",
             "type": "string"
           },
+          "ingestion": {
+            "$ref": "#/components/schemas/IngestionHealthDTO"
+          },
           "ollama": {
             "$ref": "#/components/schemas/OllamaHealthDTO"
           },
@@ -7884,6 +7955,7 @@
         "required": [
           "database",
           "generated_at",
+          "ingestion",
           "ollama",
           "process",
           "storage"

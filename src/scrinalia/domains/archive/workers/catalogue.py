@@ -105,11 +105,12 @@ WORKER_CATALOGUE: dict[str, WorkerSpec] = {
             governed=False,
             origin_axis=True,
             counter=None,
-            processed_counter="count_processed",
-            failed_counter="count_failed",
+            processed_counter=None,
+            failed_counter=None,
             unmeasurable_reason=(
-                "A fila é por origem: a tela de ingestão mostra quantos registros cada origem tem "
-                "pendentes, com a mesma política que a próxima execução usa."
+                "A fila e os contadores são por origem: a tela de ingestão mostra quantos registros "
+                "cada origem tem pendentes, processados e com falha, com a mesma política que a próxima "
+                "execução usa."
             ),
             note="Sem modelo: a etapa lê a origem e estrutura o staging; a transferência e a IA vêm depois.",
         ),

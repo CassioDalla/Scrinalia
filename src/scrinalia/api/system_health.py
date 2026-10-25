@@ -21,12 +21,16 @@ from scrinalia.core.database import create_session
 from scrinalia.domains.archive.models import ArchiveDocument, ArchiveEntity, ArchiveTag
 from scrinalia.domains.archive.schemas.system_schema import (
     DatabaseHealthDTO,
+    IngestionHealthDTO,
+    IngestionOriginHealthDTO,
     OllamaHealthDTO,
     ProcessHealthDTO,
     StorageHealthDTO,
     SystemHealthResponse,
 )
 from scrinalia.domains.archive.workers.catalogue import axis_registry
+from scrinalia.domains.ingestion.models import IngestionOrigin
+from scrinalia.domains.ingestion.origin_registry import ORIGINS
 
 #: Short on purpose: the panel is a human waiting on a screen, not a monitoring agent.
 NETWORK_TIMEOUT_SECONDS = 2.0
@@ -169,6 +173,35 @@ def probe_storage() -> StorageHealthDTO:
         return StorageHealthDTO(configured=True, ok=False, endpoint=endpoint, bucket=bucket, detail=_detail(exc))
 
 
+def probe_ingestion() -> IngestionHealthDTO:
+    """
+    The configured origins, from the table rather than from the environment.
+
+    ``PUBLIC_SCRAPE_*`` is only the reference adapter's fallback since #44: an installation can have
+    ``pmc`` configured in ``ingestion_origins`` with an empty ``.env``. This probe answers "how many
+    origins are on?" and leaves the queues to the ingestion screen, where they are counted per origin.
+    """
+    try:
+        with create_session() as db:
+            rows = db.scalars(select(IngestionOrigin).order_by(IngestionOrigin.code)).all()
+        origins = [
+            IngestionOriginHealthDTO(
+                code=row.code,
+                label=ORIGINS[row.code].label if row.code in ORIGINS else row.code,
+                enabled=row.enabled,
+            )
+            for row in rows
+        ]
+        return IngestionHealthDTO(
+            ok=True,
+            total=len(origins),
+            enabled=sum(1 for origin in origins if origin.enabled),
+            origins=origins,
+        )
+    except Exception as exc:
+        return IngestionHealthDTO(ok=False, detail=_detail(exc))
+
+
 def probe_process() -> ProcessHealthDTO:
     """The effective environment, with secrets reduced to a boolean."""
     return ProcessHealthDTO(
@@ -195,5 +228,6 @@ def probe_infrastructure() -> SystemHealthResponse:
         database=probe_database(),
         ollama=probe_ollama(),
         storage=probe_storage(),
+        ingestion=probe_ingestion(),
         process=probe_process(),
     )

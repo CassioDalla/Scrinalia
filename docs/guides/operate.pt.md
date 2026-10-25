@@ -444,7 +444,7 @@ SPA: o menu não os carrega mais (issue #22).
 | `/api/v1/system/runs` | `GET` | autenticado | o ledger de execuções, mais recente primeiro; filtros `worker`, `origin`, `status`, `fingerprint`, `limit`, `offset` |
 | `/api/v1/system/runs/{run_id}/cancel` | `POST` | `OPERATE` | pede que uma execução pare: fecha uma na fila que nenhum runner reivindicou, registra o pedido numa em andamento (#72) |
 | `/api/v1/system/failures` | `GET` | autenticado | as causas raiz agrupadas; filtros `days` (padrão 30), `worker`, `limit` |
-| `/api/v1/system/health` | `GET` | `OPERATE` | banco, modelos do Ollama, storage de objetos e o processo |
+| `/api/v1/system/health` | `GET` | `OPERATE` | banco, modelos do Ollama, storage de objetos, as origens da ingestão e o processo |
 | `/api/v1/ingestion/origins` | `GET` | autenticado | cada origem com a própria fila, a última execução e a agenda (#44) |
 | `/api/v1/ingestion/origins/{code}` | `PATCH` | `OPERATE` | o ciclo de vida e a configuração do adaptador (URLs, espera) |
 | `/api/v1/ingestion/origins/{code}/schedule` | `PUT` | `OPERATE` | o cron e o fuso IANA da origem |
@@ -461,11 +461,11 @@ A SPA espelha isso, como cartões de `/configuracoes` sob *Operação*:
 
 | Tela | Mostra |
 | --- | --- |
-| `/sistema/workers` | os dez workers: engine, preset e modelo, a fila, o que o carimbo de cada um nomeia (com produtor, sem produtor conhecido, sem registro) e um botão **Enfileirar execução**; acima deles, os cartões dos runners (online, host, versão, concorrência, capacidades, último sinal) e um aviso quando nenhum está online. Um worker que nenhum runner online aceita aparece como **sem runner** — a linha ainda enfileira e espera. O selo e o fato **Agenda** mostram o cron, o fuso, a próxima execução e o último período pulado. A configuração efetiva aqui é só leitura. A linha `ingestion` é a exceção: não tem engine e a execução dela pertence a uma origem, então ela leva a `/sistema/ingestao` em vez de um botão genérico |
+| `/sistema/workers` | os dez workers: engine, preset e modelo, a fila, o que o carimbo de cada um nomeia (com produtor, sem produtor conhecido, sem registro) e um botão **Enfileirar execução**; acima deles, os cartões dos runners (online, host, versão, concorrência, capacidades, último sinal) e um aviso quando nenhum está online. Um worker que nenhum runner online aceita aparece como **sem runner** — a linha ainda enfileira e espera. O selo e o fato **Agenda** mostram o cron, o fuso, a próxima execução e o último período pulado. A configuração efetiva aqui é só leitura. A linha `ingestion` é a exceção: não tem engine, não tem contadores agregados de pendentes/processados/falhas, e a execução dela pertence a uma origem, então ela leva a `/sistema/ingestao` em vez de um botão genérico — os números por origem ficam naquela tela |
 | `/configuracoes/workers` | o padrão persistido de cada worker e suas revisões, com salvar e remover, e a **Agenda** do worker (o cron, o fuso, o estado habilitado e o request pinado) — a escrita que o painel carregava |
 | `/sistema/execucoes` | o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela. Cada linha diz quem pediu (`painel`, `linha de comando` ou `agenda`), a tentativa (`tentativa 2/3`), a linha que ela retenta e, quando está na fila com `not_before`, quando começa. Uma linha ativa oferece **Cancelar execução…** com confirmação embutida, e um pedido de parada aparece como nota enquanto o worker termina o lote atual |
 | `/sistema/ingestao` | as origens, um cartão cada: a própria fila e a última execução, a configuração do adaptador, a agenda e **Enfileirar execução** (operador); e o formulário **Entrada manual**, que grava um registro como `PENDING_AI` e enfileira a transferência (curador). A tela é um cartão de *Operação*, mas declara `CURATE`, porque o formulário manual é a escrita que um curador possui; os controles só de operador ficam escondidos para um curador |
-| `/sistema/diagnostico` | banco, modelos do Ollama, storage das miniaturas e a configuração efetiva do processo |
+| `/sistema/diagnostico` | banco, modelos do Ollama, storage das miniaturas, as origens da ingestão (ativas/total, com link para `/sistema/ingestao`) e a configuração efetiva do processo |
 
 A tela consulta a cada 5 s enquanto uma execução está rodando e a cada 15 s enquanto uma está na fila,
 porque o contador do `transfer` faz uma chamada a `/system/workers` custar cerca de dois segundos no
@@ -481,7 +481,12 @@ Eles não são intercambiáveis, e juntá-los é o erro a evitar.
 | --- | --- | --- |
 | `GET /health/live` | o processo está vivo? | não toca em nada, sempre `200` enquanto o processo responde; fora do documento OpenAPI |
 | `GET /health/ready` | esta instância pode receber tráfego? | roda `SELECT 1`; `200`, ou `503` quando o banco não responde; também fora de `/api/v1` e fora do contrato |
-| `GET /api/v1/system/health` | qual peça está fora? | o painel humano: contagens do banco, os modelos do Ollama que os presets exigem e quais faltam, o bucket do storage e a configuração efetiva do processo — segredos como presença, nunca como valor |
+| `GET /api/v1/system/health` | qual peça está fora? | o painel humano: contagens do banco, os modelos do Ollama que os presets exigem e quais faltam, o bucket do storage, o resumo de `ingestion_origins` e a configuração efetiva do processo — segredos como presença, nunca como valor |
+
+O cartão de ingestão lê `ingestion_origins`, não `PUBLIC_SCRAPE_*`: desde a #44 a origem é uma linha,
+então uma instalação pode ter o `pmc` configurado com o `.env` vazio. O cartão do processo rotula a
+variável como **fallback** do adaptador de referência, e a fila, a agenda e os contadores por origem
+ficam em `/sistema/ingestao`.
 
 Uma sonda de liveness que consulta o banco reiniciaria a API sempre que o banco reiniciasse, e é por
 isso que `live` não toca em nada. A sonda de readiness tem engine própria, com timeout de conexão e

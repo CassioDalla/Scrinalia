@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 
 import { queries } from "@/api/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -36,7 +37,7 @@ export function SystemHealthRoute() {
 
         {health.isPending ? (
           <div className="grid gap-3 sm:grid-cols-2">
-            {Array.from({ length: 4 }).map((_, index) => (
+            {Array.from({ length: 5 }).map((_, index) => (
               <Skeleton key={index} className="h-40" />
             ))}
           </div>
@@ -94,6 +95,25 @@ export function SystemHealthRoute() {
               />
 
               <ProbeCard
+                title="Ingestão por origem"
+                ok={health.data.ingestion.ok}
+                detail={health.data.ingestion.detail}
+                lines={[
+                  `${formatCount(health.data.ingestion.enabled ?? 0)} de ${formatCount(health.data.ingestion.total ?? 0)} origens ativas`,
+                  (health.data.ingestion.origins ?? []).length > 0
+                    ? (health.data.ingestion.origins ?? [])
+                        .map((origin) => `${origin.label} (${origin.enabled ? "ativa" : "pausada"})`)
+                        .join(" · ")
+                    : "nenhuma origem disponível",
+                  "a fila, a agenda e a configuração de cada origem ficam na tela de ingestão",
+                ]}
+              >
+                <Link to="/sistema/ingestao" className="text-xs font-medium text-(--color-accent) hover:underline">
+                  Abrir ingestão
+                </Link>
+              </ProbeCard>
+
+              <ProbeCard
                 title="Processo da API"
                 ok
                 detail={null}
@@ -102,8 +122,8 @@ export function SystemHealthRoute() {
                   `banco ${health.data.process.database}`,
                   `ollama ${health.data.process.ollama_host_url ?? "não configurado"}`,
                   `s3 ${health.data.process.s3_endpoint_url ?? "não configurado"}`,
-                  `site público ${
-                    health.data.process.public_scrape_configured ? "configurado" : "não configurado"
+                  `fallback de coleta no .env ${
+                    health.data.process.public_scrape_configured ? "presente" : "ausente"
                   }`,
                   `segredos presentes: ${Object.entries(health.data.process.secrets_present ?? {})
                     .map(([name, present]) => `${name} ${present ? "sim" : "não"}`)

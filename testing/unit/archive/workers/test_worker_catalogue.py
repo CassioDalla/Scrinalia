@@ -20,6 +20,17 @@ def test_every_runner_worker_has_a_spec_and_the_order_is_the_pipeline() -> None:
     assert list(catalogue.WORKER_CATALOGUE) == runner.PIPELINE_ORDER
 
 
+def test_ingestion_counts_only_per_origin() -> None:
+    """The worker row is a pipeline index; a total across origins is not a queue and reads as one."""
+    ingestion = catalogue.WORKER_CATALOGUE["ingestion"]
+    assert ingestion.origin_axis is True
+    assert ingestion.unit == "origin"
+    assert ingestion.counter is None
+    assert ingestion.processed_counter is None
+    assert ingestion.failed_counter is None
+    assert ingestion.unmeasurable_reason
+
+
 def test_every_spec_has_a_module_that_exposes_execute() -> None:
     for spec in ALL_SPECS:
         assert inspect.isfunction(catalogue.worker_function(spec))

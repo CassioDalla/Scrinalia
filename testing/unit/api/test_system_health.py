@@ -178,3 +178,61 @@ def test_the_process_probe_never_reveals_a_secret(monkeypatch) -> None:
     serialized = str(payload)
     assert "segredo-do-banco" not in serialized
     assert "admin123" not in serialized
+
+
+class _FakeScalars:
+    def __init__(self, rows: list) -> None:
+        self._rows = rows
+
+    def all(self) -> list:
+        return self._rows
+
+
+class _FakeSession:
+    def __init__(self, rows: list) -> None:
+        self._rows = rows
+
+    def __enter__(self) -> "_FakeSession":
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def scalars(self, _statement: object) -> _FakeScalars:
+        return _FakeScalars(self._rows)
+
+
+class _FakeOrigin:
+    def __init__(self, code: str, enabled: bool) -> None:
+        self.code = code
+        self.enabled = enabled
+
+
+def test_the_ingestion_probe_reads_the_origin_table(monkeypatch) -> None:
+    """Since #44 the table, not PUBLIC_SCRAPE_*, is the answer to 'is the origin configured?'."""
+    rows = [
+        _FakeOrigin("manual", enabled=False),
+        _FakeOrigin("pmc", enabled=True),
+        _FakeOrigin("retired", enabled=True),
+    ]
+    monkeypatch.setattr(system_health, "create_session", lambda: _FakeSession(rows))
+
+    health = system_health.probe_ingestion()
+
+    assert health.ok is True
+    assert (health.total, health.enabled) == (3, 2)
+    labels = {origin.code: origin.label for origin in health.origins}
+    assert labels["pmc"] == "Acervo de referência (PMC)"
+    assert labels["retired"] == "retired"
+
+
+def test_the_ingestion_probe_answers_instead_of_raising(monkeypatch) -> None:
+    def explode():
+        raise RuntimeError("banco fora do ar")
+
+    monkeypatch.setattr(system_health, "create_session", explode)
+
+    health = system_health.probe_ingestion()
+
+    assert health.ok is False
+    assert "banco fora do ar" in (health.detail or "")

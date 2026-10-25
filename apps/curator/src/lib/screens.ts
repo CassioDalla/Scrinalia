@@ -208,8 +208,9 @@ export const SCREENS: Record<ScreenId, Screen> = {
   health: {
     path: "/sistema/diagnostico",
     label: "Saúde do sistema",
-    hint: "Banco, modelos e storage",
-    description: "Banco, modelos do Ollama, storage de miniaturas e a configuração efetiva do processo.",
+    hint: "Banco, modelos, storage e origens",
+    description:
+      "Banco, modelos do Ollama, storage de miniaturas, origens da ingestão e a configuração efetiva do processo.",
   },
   settings: {
     path: "/configuracoes",
