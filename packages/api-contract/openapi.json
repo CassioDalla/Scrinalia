@@ -9511,6 +9511,11 @@
           "status": {
             "$ref": "#/components/schemas/WorkerRunStatus"
           },
+          "trial": {
+            "default": false,
+            "description": "Verdadeiro num ensaio: uma comparação de configurações que lê a coleção e não escreve conteúdo arquivístico (ADR 0018). O painel o distingue de uma execução de produção.",
+            "type": "boolean"
+          },
           "trigger": {
             "$ref": "#/components/schemas/WorkerRunTrigger"
           },
@@ -9526,6 +9531,242 @@
           "worker_name"
         ],
         "title": "WorkerRunDTO",
+        "type": "object"
+      },
+      "WorkerRunDetailDTO": {
+        "properties": {
+          "attempt": {
+            "default": 1,
+            "description": "Qual tentativa esta linha é: 1 numa execução pedida uma vez, N numa agendada (ADR 0015).",
+            "minimum": 1.0,
+            "type": "integer"
+          },
+          "cancel_requested_at": {
+            "description": "Quando o operador pediu o cancelamento; nulo enquanto ninguém pediu. É um pedido, não um estado: a linha continua na fila ou em execução, e segura a vaga, até o worker honrá-lo no limite do lote.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cancel_requested_by": {
+            "description": "Quem pediu o cancelamento; nulo quando o pedido veio de um sinal do processo, não do painel.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "config": {
+            "additionalProperties": {},
+            "description": "Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código.",
+            "type": "object"
+          },
+          "duration_ms": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "engine_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error_fingerprint": {
+            "description": "A causa raiz da falha, derivada da mensagem pelo PostgreSQL. Duas execuções com a mesma causa compartilham este valor.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finished_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "heartbeat_at": {
+            "description": "O último sinal de vida do runner, no relógio do banco.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lease_expires_at": {
+            "description": "Quando o claim vence se o runner parar de renovar. A próxima varredura do runner marca a execução como interrompida.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "not_before": {
+            "description": "O instante a partir do qual a linha pode ser reivindicada; nulo significa já (ADR 0015).",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "options": {
+            "additionalProperties": {},
+            "description": "Opções efetivas do worker nesta execução (as colunas lidas, o limite de confiança), resolvidas quando a execução começou. Vazio numa linha antiga, ou numa que ainda não começou.",
+            "type": "object"
+          },
+          "origin_code": {
+            "description": "A origem que esta execução de ingestão processou; nula num worker de archive, que atravessa o acervo inteiro e não tem uma única origem para nomear.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preset": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "queued_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "requested_by": {
+            "description": "Quem pediu a execução; nulo quando ela veio do host, sem --by.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retry_of": {
+            "description": "A execução que esta retenta; nula na primeira tentativa.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_id": {
+            "type": "integer"
+          },
+          "runner_id": {
+            "description": "O runner que reivindicou a execução; nulo enquanto ninguém a pegou.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "started_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkerRunStatus"
+          },
+          "trial": {
+            "default": false,
+            "description": "Verdadeiro num ensaio: uma comparação de configurações que lê a coleção e não escreve conteúdo arquivístico (ADR 0018). O painel o distingue de uma execução de produção.",
+            "type": "boolean"
+          },
+          "trial_result": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorkerTrialResultDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/WorkerRunTrigger"
+          },
+          "worker_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "queued_at",
+          "run_id",
+          "status",
+          "trigger",
+          "worker_name"
+        ],
+        "title": "WorkerRunDetailDTO",
         "type": "object"
       },
       "WorkerRunListResponse": {
@@ -9896,6 +10137,11 @@
               }
             ]
           },
+          "trial_supported": {
+            "default": false,
+            "description": "Se este worker aceita um ensaio (ADR 0018). A lista é o catálogo: a tela só oferece a comparação para quem o runner sabe executar.",
+            "type": "boolean"
+          },
           "updated_at": {
             "oneOf": [
               {
@@ -10238,6 +10484,304 @@
           "unit"
         ],
         "title": "WorkerStatusDTO",
+        "type": "object"
+      },
+      "WorkerTrialConfigDTO": {
+        "properties": {
+          "abstention_rate": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "agreement": {
+            "description": "Acerto sobre o gabarito; nulo quando a coleção ainda não tem veredito.",
+            "maximum": 1,
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "answered": {
+            "description": "Vereditos em que a configuração deu um rótulo (não absteve).",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "config": {
+            "additionalProperties": {},
+            "description": "A configuração resolvida do engine.",
+            "type": "object"
+          },
+          "coverage": {
+            "description": "Fração do gabarito que a configuração respondeu.",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "db_batch_size": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "distribution": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "engine_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entropy_bits": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "largest_share": {
+            "default": "",
+            "description": "O balde mais frequente da distribuição.",
+            "type": "string"
+          },
+          "largest_share_value": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "load_seconds": {
+            "default": 0.0,
+            "description": "O custo de carregar o modelo, fora dos s/doc.",
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "misses": {
+            "items": {
+              "$ref": "#/components/schemas/WorkerTrialMissDTO"
+            },
+            "type": "array"
+          },
+          "options": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "pending": {
+            "description": "Unidades que esta configuração poria na fila.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pending_reason": {
+            "description": "Por que a fila não foi contada.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preset": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "processed": {
+            "description": "Unidades que o ensaio classificou nesta configuração.",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "projected_hours": {
+            "description": "A fila desta configuração no ritmo medido; nulo quando a fila não é mensurável.",
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "seconds_per_document": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/WorkerSettingsRequest"
+          },
+          "verdicts_scored": {
+            "description": "Vereditos pontuados; o denominador da concordância.",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "abstention_rate",
+          "answered",
+          "coverage",
+          "processed",
+          "settings",
+          "verdicts_scored"
+        ],
+        "title": "WorkerTrialConfigDTO",
+        "type": "object"
+      },
+      "WorkerTrialMissDTO": {
+        "properties": {
+          "description_id": {
+            "type": "string"
+          },
+          "expected": {
+            "type": "string"
+          },
+          "predicted": {
+            "type": "string"
+          },
+          "score": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "description_id",
+          "expected",
+          "predicted"
+        ],
+        "title": "WorkerTrialMissDTO",
+        "type": "object"
+      },
+      "WorkerTrialRequest": {
+        "properties": {
+          "configs": {
+            "items": {
+              "$ref": "#/components/schemas/WorkerRunRequest"
+            },
+            "maxItems": 4,
+            "minItems": 2,
+            "type": "array"
+          },
+          "sample": {
+            "default": 50,
+            "description": "Quantas descrições sortear para distribuição e custo; o gabarito é lido até o mesmo teto.",
+            "maximum": 500.0,
+            "minimum": 5.0,
+            "type": "integer"
+          },
+          "seed": {
+            "description": "Semente da amostra; nula usa a do código. Fica registrada no resultado.",
+            "maxLength": 64,
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "configs"
+        ],
+        "title": "WorkerTrialRequest",
+        "type": "object"
+      },
+      "WorkerTrialResultDTO": {
+        "properties": {
+          "configs": {
+            "items": {
+              "$ref": "#/components/schemas/WorkerTrialConfigDTO"
+            },
+            "type": "array"
+          },
+          "sample": {
+            "$ref": "#/components/schemas/WorkerTrialSampleDTO"
+          },
+          "unknown_verdicts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "worker_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sample",
+          "worker_name"
+        ],
+        "title": "WorkerTrialResultDTO",
+        "type": "object"
+      },
+      "WorkerTrialSampleDTO": {
+        "properties": {
+          "description_ids": {
+            "description": "As descrições sorteadas.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "seed": {
+            "type": "string"
+          },
+          "size": {
+            "description": "Quantas descrições a amostra aleatória pediu.",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "verdict_ids": {
+            "description": "As descrições com veredito que o ensaio pontuou.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "verdicts_available": {
+            "description": "Quantos vereditos existem na coleção; o ensaio lê até o teto.",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seed",
+          "size",
+          "verdicts_available"
+        ],
+        "title": "WorkerTrialSampleDTO",
         "type": "object"
       }
     }
@@ -15080,6 +15624,24 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
+            "name": "trial",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -15152,6 +15714,78 @@
           }
         },
         "summary": "ListRuns",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/runs/{run_id}": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemRunsRunIdGetRun",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDetailDTO"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetRun",
         "tags": [
           "System"
         ]
@@ -15904,6 +16538,88 @@
           }
         },
         "summary": "ListSettingsRevisions",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/workers/{worker_name}/trial": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemWorkersWorkerNameTrialTriggerTrial",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "worker_name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkerTrialRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDTO"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "TriggerTrial",
         "tags": [
           "System"
         ]

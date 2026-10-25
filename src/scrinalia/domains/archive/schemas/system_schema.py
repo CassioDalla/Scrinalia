@@ -47,6 +47,13 @@ class WorkerRunDTO(BaseModel):
     )
     status: WorkerRunStatus
     trigger: WorkerRunTrigger
+    trial: bool = Field(
+        default=False,
+        description=(
+            "Verdadeiro num ensaio: uma comparação de configurações que lê a coleção e não escreve "
+            "conteúdo arquivístico (ADR 0018). O painel o distingue de uma execução de produção."
+        ),
+    )
     attempt: int = Field(
         default=1,
         ge=1,
@@ -269,6 +276,13 @@ class WorkerSettingsDTO(BaseModel):
     updated_by: str | None = None
     updated_at: datetime | None = None
     engine_source: EngineSource
+    trial_supported: bool = Field(
+        default=False,
+        description=(
+            "Se este worker aceita um ensaio (ADR 0018). A lista é o catálogo: a tela só oferece a "
+            "comparação para quem o runner sabe executar."
+        ),
+    )
     config: dict[str, Any] = Field(default_factory=dict)
     available_engines: list[WorkerEngineDTO] = Field(default_factory=list)
     declared_options: list[WorkerOptionDTO] = Field(default_factory=list)
@@ -395,6 +409,126 @@ class WorkerSettingsRequest(RequestModel):
     preset: str | None = None
     db_batch_size: int | None = Field(default=None, ge=1, le=10_000)
     options: dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkerTrialRequest(RequestModel):
+    """
+    A comparison of two or more configurations over one sample, without writing archival content.
+
+    ``sample`` is the random sample of the **production scope** (the units the configurations would
+    actually read). The verdict set — the descriptions a person already decided — is read whole up
+    to the same cap, because the gabarito is the half that measures quality (ADR 0018). The seed is
+    optional and recorded: the same seed and a collection that only grew propose the same rows for
+    the rows that already existed.
+    """
+
+    sample: int = Field(
+        default=50,
+        ge=5,
+        le=500,
+        description="Quantas descrições sortear para distribuição e custo; o gabarito é lido até o mesmo teto.",
+    )
+    #: The configurations, each with the same shape a run uses. At least two: a comparison of one
+    #: configuration is a run, and the screen would have nothing to compare.
+    configs: list[WorkerRunRequest] = Field(min_length=2, max_length=4)
+    seed: str | None = Field(
+        default=None,
+        max_length=64,
+        description="Semente da amostra; nula usa a do código. Fica registrada no resultado.",
+    )
+
+
+class WorkerTrialMissDTO(BaseModel):
+    """One row of the gabarito the configuration got wrong, kept so the disagreement is actionable."""
+
+    description_id: str
+    expected: str
+    predicted: str
+    score: float | None = None
+
+
+class WorkerTrialSampleDTO(BaseModel):
+    """
+    What the trial read, recorded so the numbers can be audited after the collection changed.
+
+    ``description_ids`` is the random sample of the production scope; ``verdict_ids`` is the part of
+    the gabarito the trial scored. They are different populations on purpose (ADR 0018): the first
+    measures the shape and the cost, the second measures whether the labels are right. The ids are
+    stored because the collection grows and a seed alone would not reproduce the set.
+    """
+
+    seed: str
+    size: int = Field(ge=0, description="Quantas descrições a amostra aleatória pediu.")
+    description_ids: list[str] = Field(default_factory=list, description="As descrições sorteadas.")
+    verdict_ids: list[str] = Field(default_factory=list, description="As descrições com veredito que o ensaio pontuou.")
+    verdicts_available: int = Field(ge=0, description="Quantos vereditos existem na coleção; o ensaio lê até o teto.")
+
+
+class WorkerTrialConfigDTO(BaseModel):
+    """
+    One configuration of the comparison, with the numbers and the write it would become.
+
+    ``settings`` is the body "use this configuration" sends to the settings route: the trial result
+    carries it so the screen cannot reconstruct a different body from the one it measured. The
+    metric fields mirror the bench's report — ``agreement`` and ``coverage`` from the verdict set,
+    the distribution and the abstention from the production sample, the seconds from the model
+    calls only (the load is charged once to the run, not to a configuration).
+    """
+
+    engine_name: str | None = None
+    preset: str | None = None
+    db_batch_size: int | None = None
+    options: dict[str, Any] = Field(default_factory=dict)
+    config: dict[str, Any] = Field(default_factory=dict, description="A configuração resolvida do engine.")
+    settings: WorkerSettingsRequest
+    pending: int | None = Field(default=None, description="Unidades que esta configuração poria na fila.")
+    pending_reason: str | None = Field(default=None, description="Por que a fila não foi contada.")
+    processed: int = Field(ge=0, description="Unidades que o ensaio classificou nesta configuração.")
+    verdicts_scored: int = Field(ge=0, description="Vereditos pontuados; o denominador da concordância.")
+    answered: int = Field(ge=0, description="Vereditos em que a configuração deu um rótulo (não absteve).")
+    agreement: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description="Acerto sobre o gabarito; nulo quando a coleção ainda não tem veredito.",
+    )
+    coverage: float = Field(ge=0, le=1, description="Fração do gabarito que a configuração respondeu.")
+    abstention_rate: float = Field(ge=0, le=1)
+    distribution: dict[str, int] = Field(default_factory=dict)
+    largest_share: str = Field(default="", description="O balde mais frequente da distribuição.")
+    largest_share_value: float = Field(default=0.0, ge=0, le=1)
+    entropy_bits: float = Field(default=0.0, ge=0)
+    seconds_per_document: float = Field(default=0.0, ge=0)
+    load_seconds: float = Field(default=0.0, ge=0, description="O custo de carregar o modelo, fora dos s/doc.")
+    projected_hours: float | None = Field(
+        default=None,
+        ge=0,
+        description="A fila desta configuração no ritmo medido; nulo quando a fila não é mensurável.",
+    )
+    #: The first disagreements, so "concordância 0.70" has something to open. The list model
+    #: carries its own description.
+    misses: list[WorkerTrialMissDTO] = Field(default_factory=list)
+
+
+class WorkerTrialResultDTO(BaseModel):
+    """
+    What a trial measured: one sample, every configuration, and the numbers side by side.
+
+    ``unknown_verdicts`` names the gabarito labels the active catalogue no longer has. They are a
+    guaranteed miss — the engine only answers active names — and reporting them is cheaper than
+    letting the reader suspect the model got them wrong.
+    """
+
+    worker_name: str
+    sample: WorkerTrialSampleDTO
+    unknown_verdicts: list[str] = Field(default_factory=list)
+    configs: list[WorkerTrialConfigDTO] = Field(default_factory=list)
+
+
+class WorkerRunDetailDTO(WorkerRunDTO):
+    """One execution with its trial result, when it is one."""
+
+    trial_result: WorkerTrialResultDTO | None = None
 
 
 class WorkerQueuePreviewDTO(BaseModel):

@@ -47,7 +47,7 @@ from scrinalia.domains.archive.models.enums import (
     WorkerRunTrigger,
 )
 from scrinalia.domains.archive.models.operations import MAX_ERROR_LENGTH, WorkerRun
-from scrinalia.domains.archive.schemas.system_schema import WorkerRunDTO
+from scrinalia.domains.archive.schemas.system_schema import WorkerRunDetailDTO, WorkerRunDTO, WorkerTrialResultDTO
 
 #: The error a swept claim is closed with. It names the cause (the runner stopped signalling) and
 #: not a stack trace; the fingerprint groups every sweep under one root cause.
@@ -63,6 +63,10 @@ class ClaimedRun:
     #: The origin an ingestion run processes; ``None`` for an archive worker.
     origin_code: str | None
     request: dict[str, Any]
+    #: True when this row is a trial comparison rather than a production execution (ADR 0018). The
+    #: runner dispatches on it: a trial runs the configurations over a sample and writes no
+    #: archival content, while a production run calls the worker.
+    trial: bool = False
 
 
 def _lease_deadline(lease_seconds: int) -> Any:
@@ -89,6 +93,7 @@ def to_dto(run: WorkerRun) -> WorkerRunDTO:
         origin_code=run.origin_code,
         status=run.status,
         trigger=run.trigger,
+        trial=run.trial,
         attempt=run.attempt,
         retry_of=run.retry_of,
         not_before=run.not_before,
@@ -132,6 +137,7 @@ class WorkerRunRepository:
         attempt: int = 1,
         retry_of: int | None = None,
         not_before: datetime | None = None,
+        trial: bool = False,
     ) -> WorkerRunDTO:
         """
         Accepts a run before it starts, so the panel can show it waiting for a runner.
@@ -143,12 +149,16 @@ class WorkerRunRepository:
 
         ``attempt``/``retry_of``/``not_before`` are the scheduler's (ADR 0015): a retry is a new row
         created after the previous one is terminal. A manual/CLI run leaves them at 1/None/None.
+        ``trial`` marks a comparison of configurations (ADR 0018); its request carries the configs
+        and its ``config`` is deliberately empty, because there is no single resolved configuration
+        until the runner measures them.
         """
         run = WorkerRun(
             worker_name=worker_name,
             origin_code=origin_code,
             status=WorkerRunStatus.QUEUED,
             trigger=trigger,
+            trial=trial,
             attempt=attempt,
             retry_of=retry_of,
             not_before=not_before,
@@ -287,18 +297,19 @@ class WorkerRunRepository:
                 heartbeat_at=func.now(),
                 lease_expires_at=_lease_deadline(lease_seconds),
             )
-            .returning(WorkerRun.id, WorkerRun.worker_name, WorkerRun.origin_code, WorkerRun.request)
+            .returning(WorkerRun.id, WorkerRun.worker_name, WorkerRun.origin_code, WorkerRun.request, WorkerRun.trial)
         ).first()
         self.db.flush()
         if row is None:
             return None
 
-        claimed_id, worker_name, origin_code, request = row
+        claimed_id, worker_name, origin_code, request, trial = row
         return ClaimedRun(
             run_id=int(claimed_id),
             worker_name=str(worker_name),
             origin_code=str(origin_code) if origin_code is not None else None,
             request=dict(request or {}),
+            trial=bool(trial),
         )
 
     def record_start(
@@ -367,6 +378,7 @@ class WorkerRunRepository:
         error: str | None = None,
         error_kind: str | None = None,
         runner_id: str | None = None,
+        trial_result: dict[str, Any] | None = None,
     ) -> bool:
         """
         Closes the run with its outcome and duration, computed by the database.
@@ -376,6 +388,9 @@ class WorkerRunRepository:
         class, two different failures that happen to share a sentence would group as one root
         cause. A bare ``raise RuntimeError()`` stores the class alone — the alternative would be
         recording *no* failure at all, which is the one outcome a ledger must not produce.
+
+        ``trial_result`` is the comparison's evidence, written once in the same closing statement
+        (ADR 0018). A production run passes none and the column stays ``NULL``.
 
         ``runner_id`` fences the write: when given, only the runner that claimed the row and only
         while it is ``RUNNING`` can close it. ``False`` is a lost lease, not a missing row; the
@@ -389,18 +404,18 @@ class WorkerRunRepository:
         if runner_id is not None:
             conditions += [WorkerRun.runner_id == runner_id, WorkerRun.status == WorkerRunStatus.RUNNING]
 
+        values: dict[str, Any] = {
+            "status": status,
+            "finished_at": func.now(),
+            "error": text[:MAX_ERROR_LENGTH] or None,
+            "duration_ms": _duration_ms(),
+        }
+        if trial_result is not None:
+            values["trial_result"] = trial_result
+
         result = cast(
             CursorResult[Any],
-            self.db.execute(
-                update(WorkerRun)
-                .where(*conditions)
-                .values(
-                    status=status,
-                    finished_at=func.now(),
-                    error=text[:MAX_ERROR_LENGTH] or None,
-                    duration_ms=_duration_ms(),
-                )
-            ),
+            self.db.execute(update(WorkerRun).where(*conditions).values(**values)),
         )
         self.db.flush()
         return bool(result.rowcount)
@@ -496,6 +511,27 @@ class WorkerRunRepository:
         """Whether a cancellation was requested for this run; the runner reads it once per batch."""
         return self.db.scalar(select(WorkerRun.cancel_requested_at).where(WorkerRun.id == run_id)) is not None
 
+    def is_owned(self, run_id: int, runner_id: str) -> bool:
+        """
+        Whether this runner still owns a run in flight.
+
+        The trial's fence (ADR 0018): the claim wrote ``runner_id`` and ``RUNNING``, but a lease
+        swept between the claim and the first model call must abort before the work is paid for,
+        exactly as ``run_worker``'s ``record_start`` does for a production run. A trial has no one
+        effective configuration to record, so it checks the ownership without writing one.
+        """
+        return bool(
+            self.db.scalar(
+                select(
+                    exists().where(
+                        WorkerRun.id == run_id,
+                        WorkerRun.status == WorkerRunStatus.RUNNING,
+                        WorkerRun.runner_id == runner_id,
+                    )
+                )
+            )
+        )
+
     def get(self, run_id: int, *, populate_existing: bool = False) -> WorkerRunDTO | None:
         """
         One row as the contract reads it.
@@ -507,6 +543,20 @@ class WorkerRunRepository:
         run = self.db.get(WorkerRun, run_id, populate_existing=populate_existing)
         return to_dto(run) if run is not None else None
 
+    def get_detail(self, run_id: int) -> WorkerRunDetailDTO | None:
+        """
+        One row plus the trial result, when it is a trial (ADR 0018).
+
+        The list stays light: ``trial_result`` can carry the sampled ids and the per-configuration
+        tables, and the ledger pages over runs that are not trials at all. The comparison card asks
+        for the one run it is showing.
+        """
+        run = self.db.get(WorkerRun, run_id)
+        if run is None:
+            return None
+        result = WorkerTrialResultDTO.model_validate(run.trial_result) if run.trial_result else None
+        return WorkerRunDetailDTO(**to_dto(run).model_dump(), trial_result=result)
+
     def list(
         self,
         *,
@@ -514,6 +564,7 @@ class WorkerRunRepository:
         origin_code: str | None = None,
         status: WorkerRunStatus | None = None,
         fingerprint: str | None = None,
+        trial: bool | None = None,
         limit: int,
         offset: int,
     ) -> tuple[list[WorkerRunDTO], int]:
@@ -528,6 +579,10 @@ class WorkerRunRepository:
             # The other half of the failures screen: a group is only actionable if the ledger can
             # show the occurrences behind it.
             conditions.append(WorkerRun.error_fingerprint == fingerprint)
+        if trial is not None:
+            # The comparison card reads the latest trial of one worker; the ledger's other readers
+            # leave it unset and see production and trials alike (ADR 0018).
+            conditions.append(WorkerRun.trial.is_(trial))
 
         total = int(self.db.scalar(select(func.count()).select_from(WorkerRun).where(*conditions)) or 0)
         rows = self.db.scalars(
@@ -540,9 +595,16 @@ class WorkerRunRepository:
         return [to_dto(run) for run in rows], total
 
     def last_by_worker(self) -> dict[str, WorkerRunDTO]:
-        """The most recent run of each worker, one query for the whole panel."""
+        """
+        The most recent **production** run of each worker, one query for the whole panel.
+
+        A trial never answers "when did this worker last run?": it writes no archival content, so
+        showing it as the worker's last run would make the panel describe an experiment as work
+        (ADR 0018). A trial in flight is still the worker's active run, because it holds the slot.
+        """
         rows = self.db.scalars(
             select(WorkerRun)
+            .where(WorkerRun.trial.is_(False))
             .ext(distinct_on(WorkerRun.worker_name))
             .order_by(WorkerRun.worker_name, WorkerRun.queued_at.desc(), WorkerRun.id.desc())
         ).all()

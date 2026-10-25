@@ -49,6 +49,11 @@ class WorkerSpec:
     unit: WorkerUnit = "document"
     governed: bool = True
     engine_source: EngineSource = "none"
+    #: True when the worker has a trial implementation registered in
+    #: ``domains/archive/evaluation/trial.py`` (ADR 0018). The panel offers the comparison only for
+    #: these, and a test keeps this flag equal to the executor's registry so the screen cannot offer
+    #: a comparison the runner does not know how to run.
+    trial: bool = False
     #: True for the one stage whose run is about an **origin**, not about a document or a tag. The
     #: runner resolves no engine for it, and the ledger's origin column is its axis (ADR 0016).
     origin_axis: bool = False
@@ -156,6 +161,7 @@ WORKER_CATALOGUE: dict[str, WorkerSpec] = {
             module=f"{_WORKERS_PACKAGE}.worker_typology",
             axis="classification",
             engine_source="signature",
+            trial=True,
             stamp=TYPOLOGY,
             stamp_model="document",
             option_resolver="effective_options",

@@ -42,6 +42,7 @@ import {
   fetchSystemFailures,
   fetchSystemHealth,
   listIngestionOrigins,
+  fetchSystemRun,
   fetchSystemRuns,
   fetchSystemSchedule,
   fetchSystemWorkerSettings,
@@ -685,12 +686,53 @@ export const queries = {
     offset: number,
     fingerprint?: string,
     origin?: string,
+    trial?: boolean,
   ) =>
     queryOptions({
-      queryKey: ["system", "runs", worker ?? "", status ?? "", fingerprint ?? "", origin ?? "", offset],
-      queryFn: () => fetchSystemRuns({ worker, origin, status, fingerprint, limit: RUNS_PAGE_SIZE, offset }),
+      queryKey: [
+        "system",
+        "runs",
+        worker ?? "",
+        status ?? "",
+        fingerprint ?? "",
+        origin ?? "",
+        trial === undefined ? "" : String(trial),
+        offset,
+      ],
+      queryFn: () => fetchSystemRuns({ worker, origin, status, fingerprint, trial, limit: RUNS_PAGE_SIZE, offset }),
       staleTime: 10_000,
       placeholderData: (previous) => previous,
+    }),
+
+  /**
+   * The most recent trial of one worker, for the comparison card's first paint.
+   *
+   * The list read is enough to find the row; the detail (with the result) is a second read, because
+   * the ledger's list deliberately carries no per-configuration tables (ADR 0018).
+   */
+  latestTrial: (worker: string) =>
+    queryOptions({
+      queryKey: ["system", "runs", worker, "trial", "latest"],
+      queryFn: () => fetchSystemRuns({ worker, trial: true, limit: 1, offset: 0 }),
+      staleTime: 5_000,
+    }),
+
+  /**
+   * One execution, with the trial result when it is a comparison.
+   *
+   * Polls while the row is queued or running and stops at the first terminal status: the card has
+   * nothing to say until the runner finishes, and a finished trial does not change.
+   */
+  systemRun: (runId: number | null) =>
+    queryOptions({
+      queryKey: ["system", "runs", "detail", runId ?? 0],
+      queryFn: () => fetchSystemRun(runId as number),
+      enabled: runId !== null && runId > 0,
+      refetchInterval: (query) => {
+        const status = query.state.data?.status;
+        return status === "QUEUED" || status === "RUNNING" ? 3_000 : false;
+      },
+      staleTime: 0,
     }),
 
   /**

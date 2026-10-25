@@ -4,9 +4,12 @@ import pytest
 from sqlalchemy import delete, func, update
 from sqlalchemy.orm import Session
 
+from scrinalia.domains.archive.evaluation import trial as trial_module
+from scrinalia.domains.archive.models import ArchiveDocument, ArchiveTypology
 from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
 from scrinalia.domains.archive.models.operations import WorkerRun, WorkerRunner
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
+from scrinalia.domains.archive.schemas.system_schema import WorkerRunRequest, WorkerTrialRequest
 from scrinalia.domains.archive.workers import runner
 from scrinalia.domains.archive.workers.ledger import WorkerRunLedger
 from scrinalia.domains.archive.workers.runner import WorkerRunLeaseLostError
@@ -116,4 +119,88 @@ def test_a_run_whose_lease_was_swept_is_not_executed(engine, monkeypatch) -> Non
             )
         assert seen == []
     finally:
+        _cleanup(engine, run_id=run_id, runner_id=runner_id)
+
+
+class _FakeTypology:
+    """A classifier that always answers the first active label, so the wiring is what is tested."""
+
+    def classify(self, texts, labels, batch_size=1):
+        return [{"labels": [labels[0]], "scores": [0.9]} for _ in texts]
+
+
+def test_the_daemon_dispatches_a_trial_and_records_its_result(engine, monkeypatch) -> None:
+    """
+    The claim knows the row is a trial and the executor owns the close (ADR 0018).
+
+    The production path must not run for a trial — it would classify and stamp the collection — and
+    the result has to be on the row before the runner releases the lease. The model is faked: what
+    this pins is the dispatch, the ledger write and the absence of archival writes.
+    """
+    monkeypatch.setattr(trial_module, "_build_engine", lambda _resolved: _FakeTypology())
+    runner_id = "runner-trial"
+    description_ids = ["trial-doc-1", "trial-doc-2"]
+    with Session(bind=engine) as db:
+        db.add(ArchiveTypology(typology_id=990, name="Fotografia", is_active=True))
+        for description_id in description_ids:
+            db.add(
+                ArchiveDocument(
+                    description_id=description_id,
+                    original_title="Foto da praça",
+                    staging_content_hash="hash-trial",
+                )
+            )
+        request = WorkerTrialRequest(
+            sample=5,
+            seed="daemon-seed",
+            configs=[
+                WorkerRunRequest(engine_name="deberta_typology", preset="cpu_local"),
+                WorkerRunRequest(engine_name="deberta_typology", preset="cpu_local"),
+            ],
+        )
+        run = WorkerRunRepository(db).create_queued(
+            "typology",
+            trigger=WorkerRunTrigger.API,
+            requested_by=None,
+            engine_name=None,
+            preset=None,
+            config={},
+            request=request.model_dump(mode="json"),
+            trial=True,
+        )
+        run_id = run.run_id
+        db.commit()
+
+    config = RunnerConfig(
+        runner_id=runner_id,
+        name="test",
+        capabilities=("typology",),
+        once=True,
+        heartbeat_seconds=5,
+        lease_seconds=60,
+        poll_seconds=0.1,
+        sweep_seconds=0.1,
+    )
+    try:
+        RunnerService(config, session_factory=lambda: Session(bind=engine)).run()
+
+        with Session(bind=engine) as db:
+            stored = db.get(WorkerRun, run_id)
+            docs = [db.get(ArchiveDocument, description_id) for description_id in description_ids]
+            assert stored is not None
+            assert stored.status == WorkerRunStatus.SUCCESS
+            assert stored.trial is True
+            assert stored.trial_result is not None
+            assert len(stored.trial_result["configs"]) == 2
+            assert stored.trial_result["sample"]["seed"] == "daemon-seed"
+            assert stored.trial_result["configs"][0]["processed"] == 2
+            for doc in docs:
+                assert doc is not None
+                assert doc.typology_id is None, "the trial must not classify the sample"
+                assert not doc.execution_log, "the trial must not stamp the sample"
+    finally:
+        with Session(bind=engine) as db:
+            db.execute(delete(ArchiveDocument).where(ArchiveDocument.description_id.in_(description_ids)))
+            db.execute(delete(ArchiveTypology).where(ArchiveTypology.typology_id == 990))
+            db.commit()
         _cleanup(engine, run_id=run_id, runner_id=runner_id)

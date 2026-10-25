@@ -32,6 +32,7 @@ from scrinalia.domains.archive.schemas.system_schema import (
     SystemWorkersResponse,
     WorkerQueuePreviewDTO,
     WorkerRunCancelResponse,
+    WorkerRunDetailDTO,
     WorkerRunDTO,
     WorkerRunListResponse,
     WorkerRunnerDTO,
@@ -39,8 +40,12 @@ from scrinalia.domains.archive.schemas.system_schema import (
     WorkerScheduleDTO,
     WorkerSettingsDTO,
     WorkerSettingsItemDTO,
+    WorkerSettingsRequest,
     WorkerSettingsRevisionListResponse,
     WorkerStatusDTO,
+    WorkerTrialConfigDTO,
+    WorkerTrialResultDTO,
+    WorkerTrialSampleDTO,
 )
 from scrinalia.domains.archive.services.worker_operations_service import WorkerOperationsService
 from scrinalia.domains.archive.services.worker_run_service import WorkerRunService
@@ -419,3 +424,102 @@ def test_cancelling_an_unknown_run_answers_not_found(client: TestClient, mocker)
     mock.side_effect = WorkerRunNotFoundError("Execução 999 não existe no ledger.")
 
     assert client.post("/api/v1/system/runs/999/cancel").status_code == 404
+
+
+def _trial_config() -> WorkerTrialConfigDTO:
+    return WorkerTrialConfigDTO(
+        engine_name="deberta_typology",
+        preset="cpu_local",
+        options={"confidence_threshold": 0.4},
+        settings=WorkerSettingsRequest(engine_name="deberta_typology", preset="cpu_local"),
+        processed=10,
+        verdicts_scored=4,
+        answered=3,
+        agreement=0.75,
+        coverage=0.75,
+        abstention_rate=0.2,
+        distribution={"Fotografia": 6, "Planta": 2, "(abstained)": 2},
+        largest_share="Fotografia",
+        largest_share_value=0.6,
+        entropy_bits=1.2,
+        seconds_per_document=2.2,
+    )
+
+
+def test_a_trial_is_queued_and_answered_with_the_row(client: TestClient, mocker) -> None:
+    """The route answers the ``QUEUED`` row, like a run; the comparison itself happens in the runner."""
+    mock = mocker.patch.object(WorkerRunService, "trigger_trial")
+    mock.return_value = WorkerRunDTO(
+        run_id=7,
+        worker_name="typology",
+        status=WorkerRunStatus.QUEUED,
+        trigger=WorkerRunTrigger.API,
+        trial=True,
+        queued_at=datetime.now(UTC),
+    )
+
+    response = client.post(
+        "/api/v1/system/workers/typology/trial",
+        json={
+            "sample": 10,
+            "configs": [
+                {"engine_name": "deberta_typology", "preset": "cpu_local", "options": {"confidence_threshold": 0.4}},
+                {"engine_name": "deberta_typology", "preset": "cpu_local", "options": {"confidence_threshold": 0.8}},
+            ],
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["trial"] is True
+    assert body["run_id"] == 7
+    assert len(mock.call_args.args[1].configs) == 2
+
+
+def test_a_trial_for_a_worker_without_one_answers_unprocessable(client: TestClient, mocker) -> None:
+    mock = mocker.patch.object(WorkerRunService, "trigger_trial")
+    mock.side_effect = InvalidWorkerSettingsError(
+        "O worker 'ner' não aceita ensaio: ele não tem uma comparação registrada."
+    )
+
+    response = client.post(
+        "/api/v1/system/workers/ner/trial",
+        json={
+            "sample": 10,
+            "configs": [{"engine_name": "spacy_ner"}, {"engine_name": "spacy_ner"}],
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error_code"] == "InvalidWorkerSettingsError"
+
+
+def test_one_run_detail_carries_the_trial_result(client: TestClient, mocker) -> None:
+    mock = mocker.patch.object(WorkerRunService, "get_run")
+    mock.return_value = WorkerRunDetailDTO(
+        run_id=7,
+        worker_name="typology",
+        status=WorkerRunStatus.SUCCESS,
+        trigger=WorkerRunTrigger.API,
+        trial=True,
+        queued_at=datetime.now(UTC),
+        trial_result=WorkerTrialResultDTO(
+            worker_name="typology",
+            sample=WorkerTrialSampleDTO(
+                seed="test-seed",
+                size=10,
+                description_ids=["doc-1", "doc-2"],
+                verdict_ids=["doc-3"],
+                verdicts_available=1,
+            ),
+            configs=[_trial_config()],
+        ),
+    )
+
+    response = client.get("/api/v1/system/runs/7")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["trial"] is True
+    assert body["trial_result"]["configs"][0]["agreement"] == 0.75
+    assert body["trial_result"]["sample"]["seed"] == "test-seed"

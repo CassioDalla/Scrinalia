@@ -26,6 +26,7 @@ from scrinalia.domains.archive.schemas.system_schema import (
     SystemWorkersResponse,
     WorkerQueuePreviewDTO,
     WorkerRunCancelResponse,
+    WorkerRunDetailDTO,
     WorkerRunDTO,
     WorkerRunListResponse,
     WorkerRunRequest,
@@ -34,6 +35,7 @@ from scrinalia.domains.archive.schemas.system_schema import (
     WorkerSettingsDTO,
     WorkerSettingsRequest,
     WorkerSettingsRevisionListResponse,
+    WorkerTrialRequest,
 )
 from scrinalia.domains.archive.services.failure_service import FailureService
 from scrinalia.domains.archive.services.worker_operations_service import WorkerOperationsService
@@ -84,6 +86,7 @@ class SystemController(Controller):
         origin: FromQuery[str | None] = None,
         status: FromQuery[WorkerRunStatus | None] = None,
         fingerprint: FromQuery[str | None] = None,
+        trial: FromQuery[bool | None] = None,
         limit: FromQuery[int] = 20,
         offset: FromQuery[int] = 0,
     ) -> WorkerRunListResponse:
@@ -91,16 +94,28 @@ class SystemController(Controller):
         The execution ledger, newest first; the filters narrow it server-side.
 
         ``fingerprint`` is the other end of the failures screen: a group says *what* is breaking, and
-        this is how the archivist sees the executions behind it.
+        this is how the archivist sees the executions behind it. ``trial`` separates the comparisons
+        from the production runs; the comparison card reads the latest trial of one worker.
         """
         return run_service.list_runs(
             worker_name=worker,
             status=status,
             origin_code=origin,
             fingerprint=fingerprint,
+            trial=trial,
             limit=limit,
             offset=offset,
         )
+
+    @get("/runs/{run_id:int}", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
+    def get_run(self, run_service: NamedDependency[WorkerRunService], run_id: FromPath[int]) -> WorkerRunDetailDTO:
+        """
+        One execution, with the trial result when it is a comparison (ADR 0018).
+
+        The list carries no result: its per-configuration tables and sampled ids are only useful to
+        the screen showing that trial, and the ledger pages over runs that are not trials.
+        """
+        return run_service.get_run(run_id)
 
     @get("/failures", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_failures(
@@ -134,6 +149,24 @@ class SystemController(Controller):
         partial unique index, not from a check the API could race.
         """
         return run_service.trigger(worker_name, data, requested_by=current_user.author)
+
+    @post("/workers/{worker_name:str}/trial", opt={"access": Access.OPERATE}, status_code=201, sync_to_thread=True)
+    def trigger_trial(
+        self,
+        run_service: NamedDependency[WorkerRunService],
+        worker_name: FromPath[str],
+        data: WorkerTrialRequest,
+        current_user: NamedDependency[AuthenticatedUser],
+    ) -> WorkerRunDTO:
+        """
+        Queues a comparison of configurations over one sample, writing nothing (ADR 0018).
+
+        The answer is the ``QUEUED`` row, exactly like a run. A trial holds the worker's slot: it
+        loads the model and reads the collection, and two executions of the same worker never
+        overlap. The body carries the configurations and the sample size; the result is read from
+        ``GET /runs/{run_id}`` when the runner finishes it.
+        """
+        return run_service.trigger_trial(worker_name, data, requested_by=current_user.author)
 
     @post("/runs/{run_id:int}/cancel", opt={"access": Access.OPERATE}, status_code=200, sync_to_thread=True)
     def cancel_run(

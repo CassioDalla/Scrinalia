@@ -116,6 +116,12 @@ class WorkerRun(Base):
     account that asked, and it is deliberately a second pair of columns rather than a reuse of
     ``requested_by``: "who started it" and "who stopped it" are two decisions, and a cancellation
     may be asked by someone else.
+
+    ``trial`` says **what kind** of execution the row is (ADR 0018): a trial compares configurations
+    over a fixed sample and writes no archival content, while ``trigger`` keeps saying *who* asked.
+    ``trial_result`` is the comparison's evidence — the seed, the sampled ids, the per-configuration
+    metrics and the settings body each one would write. It is ``NULL`` on a production run and on a
+    trial that has not finished; a trial whose row is ``FAILED`` has no result to show.
     """
 
     __tablename__ = "archive_worker_runs"
@@ -200,6 +206,15 @@ class WorkerRun(Base):
         Computed(WORKER_RUN_ERROR_FINGERPRINT_SQL, persisted=True),
         nullable=True,
     )
+
+    #: True when the row is a **trial**: a comparison of configurations over one sample, writing no
+    #: archival content (ADR 0018). It holds the worker's slot like any run (the comparison loads the
+    #: model and reads the collection), but it is not a production execution and the panel must not
+    #: present it as one.
+    trial: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    #: The trial's measured result — sample, per-configuration metrics and the settings body each
+    #: configuration would write. ``NULL`` on a production run and on a trial that did not finish.
+    trial_result: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     __table_args__ = (
         # The concurrency guard, enforced by PostgreSQL: at most one run per worker may be in

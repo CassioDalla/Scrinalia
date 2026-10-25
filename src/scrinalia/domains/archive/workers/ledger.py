@@ -61,6 +61,7 @@ class WorkerRunLedger:
         config: dict[str, Any],
         origin_code: str | None = None,
         request: dict[str, Any] | None = None,
+        trial: bool = False,
     ) -> WorkerRunDTO:
         """
         Creates the ``QUEUED`` row and commits it before returning.
@@ -68,7 +69,8 @@ class WorkerRunLedger:
         The commit is the point: a runner opens its own session to claim the row, and a row still
         inside the request's uncommitted transaction would be invisible to it — the run would sit at
         ``QUEUED`` forever. ``request`` is the validated body that lets the runner reproduce the
-        execution without this process (ADR 0014).
+        execution without this process (ADR 0014). ``trial`` marks a comparison of configurations:
+        its request carries the configurations and it writes no archival content (ADR 0018).
         """
         try:
             with self._session_factory() as db:
@@ -81,6 +83,7 @@ class WorkerRunLedger:
                     config=config,
                     origin_code=origin_code,
                     request=request,
+                    trial=trial,
                 )
                 db.commit()
                 return run
@@ -189,6 +192,16 @@ class WorkerRunLedger:
             logger.error(f"⚠️ Não foi possível ler o pedido de cancelamento da execução {run_id}: {exc}")
             return False
 
+    def owns(self, run_id: int, runner_id: str) -> bool:
+        """
+        Whether this runner still owns the run it claimed; the trial's pre-flight fence (ADR 0018).
+
+        Unlike ``cancel_requested``, a failure here is raised: a trial that cannot confirm it owns
+        the row must not spend minutes loading a model and classifying a sample it cannot record.
+        """
+        with self._session_factory() as db:
+            return WorkerRunRepository(db).is_owned(run_id, runner_id)
+
     def start(
         self,
         worker_name: str,
@@ -238,6 +251,7 @@ class WorkerRunLedger:
         error: str | None = None,
         error_kind: str | None = None,
         runner_id: str | None = None,
+        trial_result: dict[str, Any] | None = None,
     ) -> bool:
         """
         Closes the run with its outcome; never raises.
@@ -245,11 +259,18 @@ class WorkerRunLedger:
         ``False`` means the row was not closed — the runner lost its lease, or the row was already
         terminal — and the caller does not pretend the outcome was recorded. The archive writes the
         worker made are still in the database and its stamps still say what it processed.
+        ``trial_result`` is the comparison's evidence, written in the same closing statement
+        (ADR 0018); a production run passes none and the column stays ``NULL``.
         """
         try:
             with self._session_factory() as db:
                 closed = WorkerRunRepository(db).finish(
-                    run_id, status=status, error=error, error_kind=error_kind, runner_id=runner_id
+                    run_id,
+                    status=status,
+                    error=error,
+                    error_kind=error_kind,
+                    runner_id=runner_id,
+                    trial_result=trial_result,
                 )
                 db.commit()
                 if not closed:

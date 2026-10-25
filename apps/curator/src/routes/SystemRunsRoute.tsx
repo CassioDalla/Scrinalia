@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getRouteApi, useNavigate } from "@tanstack/react-router";
+import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 
 import {
   cancelWorkerRun,
@@ -229,6 +229,14 @@ export function SystemRunsRoute() {
                       <span className="truncate text-sm font-medium">{labelOf(run.worker_name)}</span>
                       <span className="font-mono text-[11px] text-(--color-muted)">{run.worker_name}</span>
                       {run.origin_code ? <Badge tone="accent">origem {run.origin_code}</Badge> : null}
+                      {run.trial ? (
+                        <Badge
+                          tone="accent"
+                          title="Um ensaio compara configurações e não escreve no acervo (ADR 0018)."
+                        >
+                          ensaio
+                        </Badge>
+                      ) : null}
                       <Badge tone="neutral">{TRIGGER_LABEL[run.trigger]}</Badge>
                     </div>
                     <span className="text-xs text-(--color-muted)">
@@ -237,18 +245,32 @@ export function SystemRunsRoute() {
                   </div>
 
                   <p className="text-xs text-(--color-muted)">
-                    <span className="font-mono">{run.engine_name ?? "sem modelo"}</span>
-                    {run.preset ? ` · ${run.preset}` : ""}
-                    {run.engine_name ? ` · ${describeConfig(run.config)}` : ""}
+                    {run.trial ? (
+                      <>
+                        comparação de configurações · o resultado e a escolha ficam em{" "}
+                        <Link to="/configuracoes/workers" className="underline">
+                          Configurações › {labelOf(run.worker_name)}
+                        </Link>
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-mono">{run.engine_name ?? "sem modelo"}</span>
+                        {run.preset ? ` · ${run.preset}` : ""}
+                        {run.engine_name ? ` · ${describeConfig(run.config)}` : ""}
+                      </>
+                    )}
                     {run.requested_by ? ` · pedido por ${run.requested_by}` : ""}
                   </p>
 
                   {/*
                     What the run actually read (#120): the columns, the floor, the cap. It sits on
                     its own line because it is the answer to a different question than "with which
-                    model?", and a row older than the column says so instead of guessing.
+                    model?", and a row older than the column says so instead of guessing. A trial has
+                    one options set per configuration, so the aggregate line would be a half-truth.
                   */}
-                  <p className="font-mono text-[11px] text-(--color-muted)">{describeOptions(run.options)}</p>
+                  {run.trial ? null : (
+                    <p className="font-mono text-[11px] text-(--color-muted)">{describeOptions(run.options)}</p>
+                  )}
 
                   {run.attempt > 1 || run.retry_of || (run.not_before && run.status === "QUEUED") ? (
                     <p className="text-xs text-(--color-muted)">

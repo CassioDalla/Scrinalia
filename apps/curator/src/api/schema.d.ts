@@ -930,6 +930,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GetRun */
+        get: operations["ApiV1SystemRunsRunIdGetRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/runs/{run_id}/cancel": {
         parameters: {
             query?: never;
@@ -1063,6 +1080,23 @@ export interface paths {
         get: operations["ApiV1SystemWorkersWorkerNameSettingsRevisionsListSettingsRevisions"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/workers/{worker_name}/trial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** TriggerTrial */
+        post: operations["ApiV1SystemWorkersWorkerNameTrialTriggerTrial"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4609,6 +4643,65 @@ export interface components {
             runner_id?: string | null;
             started_at?: string | null;
             status: components["schemas"]["WorkerRunStatus"];
+            /**
+             * @description Verdadeiro num ensaio: uma comparação de configurações que lê a coleção e não escreve conteúdo arquivístico (ADR 0018). O painel o distingue de uma execução de produção.
+             * @default false
+             */
+            trial: boolean;
+            trigger: components["schemas"]["WorkerRunTrigger"];
+            worker_name: string;
+        };
+        /** WorkerRunDetailDTO */
+        WorkerRunDetailDTO: {
+            /**
+             * @description Qual tentativa esta linha é: 1 numa execução pedida uma vez, N numa agendada (ADR 0015).
+             * @default 1
+             */
+            attempt: number;
+            /** @description Quando o operador pediu o cancelamento; nulo enquanto ninguém pediu. É um pedido, não um estado: a linha continua na fila ou em execução, e segura a vaga, até o worker honrá-lo no limite do lote. */
+            cancel_requested_at?: string | null;
+            /** @description Quem pediu o cancelamento; nulo quando o pedido veio de um sinal do processo, não do painel. */
+            cancel_requested_by?: string | null;
+            /** @description Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código. */
+            config?: {
+                [key: string]: unknown;
+            };
+            duration_ms?: number | null;
+            engine_name?: string | null;
+            error?: string | null;
+            /** @description A causa raiz da falha, derivada da mensagem pelo PostgreSQL. Duas execuções com a mesma causa compartilham este valor. */
+            error_fingerprint?: string | null;
+            finished_at?: string | null;
+            /** @description O último sinal de vida do runner, no relógio do banco. */
+            heartbeat_at?: string | null;
+            /** @description Quando o claim vence se o runner parar de renovar. A próxima varredura do runner marca a execução como interrompida. */
+            lease_expires_at?: string | null;
+            /** @description O instante a partir do qual a linha pode ser reivindicada; nulo significa já (ADR 0015). */
+            not_before?: string | null;
+            /** @description Opções efetivas do worker nesta execução (as colunas lidas, o limite de confiança), resolvidas quando a execução começou. Vazio numa linha antiga, ou numa que ainda não começou. */
+            options?: {
+                [key: string]: unknown;
+            };
+            /** @description A origem que esta execução de ingestão processou; nula num worker de archive, que atravessa o acervo inteiro e não tem uma única origem para nomear. */
+            origin_code?: string | null;
+            preset?: string | null;
+            /** Format: date-time */
+            queued_at: string;
+            /** @description Quem pediu a execução; nulo quando ela veio do host, sem --by. */
+            requested_by?: string | null;
+            /** @description A execução que esta retenta; nula na primeira tentativa. */
+            retry_of?: number | null;
+            run_id: number;
+            /** @description O runner que reivindicou a execução; nulo enquanto ninguém a pegou. */
+            runner_id?: string | null;
+            started_at?: string | null;
+            status: components["schemas"]["WorkerRunStatus"];
+            /**
+             * @description Verdadeiro num ensaio: uma comparação de configurações que lê a coleção e não escreve conteúdo arquivístico (ADR 0018). O painel o distingue de uma execução de produção.
+             * @default false
+             */
+            trial: boolean;
+            trial_result?: components["schemas"]["WorkerTrialResultDTO"] | null;
             trigger: components["schemas"]["WorkerRunTrigger"];
             worker_name: string;
         };
@@ -4719,6 +4812,11 @@ export interface components {
             /** @default false */
             overridden: boolean;
             preset?: string | null;
+            /**
+             * @description Se este worker aceita um ensaio (ADR 0018). A lista é o catálogo: a tela só oferece a comparação para quem o runner sabe executar.
+             * @default false
+             */
+            trial_supported: boolean;
             updated_at?: string | null;
             updated_by?: string | null;
             worker_name: string;
@@ -4800,6 +4898,94 @@ export interface components {
             stamp_breakdown?: components["schemas"]["WorkerStampBreakdownDTO"] | null;
             /** @enum {string} */
             unit: "origin" | "staging" | "document" | "tag" | "pair";
+        };
+        /** WorkerTrialConfigDTO */
+        WorkerTrialConfigDTO: {
+            abstention_rate: number;
+            /** @description Acerto sobre o gabarito; nulo quando a coleção ainda não tem veredito. */
+            agreement?: number | null;
+            /** @description Vereditos em que a configuração deu um rótulo (não absteve). */
+            answered: number;
+            /** @description A configuração resolvida do engine. */
+            config?: {
+                [key: string]: unknown;
+            };
+            /** @description Fração do gabarito que a configuração respondeu. */
+            coverage: number;
+            db_batch_size?: number | null;
+            distribution?: {
+                [key: string]: number;
+            };
+            engine_name?: string | null;
+            /** @default 0 */
+            entropy_bits: number;
+            /**
+             * @description O balde mais frequente da distribuição.
+             * @default
+             */
+            largest_share: string;
+            /** @default 0 */
+            largest_share_value: number;
+            /**
+             * @description O custo de carregar o modelo, fora dos s/doc.
+             * @default 0
+             */
+            load_seconds: number;
+            misses?: components["schemas"]["WorkerTrialMissDTO"][];
+            options?: {
+                [key: string]: unknown;
+            };
+            /** @description Unidades que esta configuração poria na fila. */
+            pending?: number | null;
+            /** @description Por que a fila não foi contada. */
+            pending_reason?: string | null;
+            preset?: string | null;
+            /** @description Unidades que o ensaio classificou nesta configuração. */
+            processed: number;
+            /** @description A fila desta configuração no ritmo medido; nulo quando a fila não é mensurável. */
+            projected_hours?: number | null;
+            /** @default 0 */
+            seconds_per_document: number;
+            settings: components["schemas"]["WorkerSettingsRequest"];
+            /** @description Vereditos pontuados; o denominador da concordância. */
+            verdicts_scored: number;
+        };
+        /** WorkerTrialMissDTO */
+        WorkerTrialMissDTO: {
+            description_id: string;
+            expected: string;
+            predicted: string;
+            score?: number | null;
+        };
+        /** WorkerTrialRequest */
+        WorkerTrialRequest: {
+            configs: components["schemas"]["WorkerRunRequest"][];
+            /**
+             * @description Quantas descrições sortear para distribuição e custo; o gabarito é lido até o mesmo teto.
+             * @default 50
+             */
+            sample: number;
+            /** @description Semente da amostra; nula usa a do código. Fica registrada no resultado. */
+            seed?: string | null;
+        };
+        /** WorkerTrialResultDTO */
+        WorkerTrialResultDTO: {
+            configs?: components["schemas"]["WorkerTrialConfigDTO"][];
+            sample: components["schemas"]["WorkerTrialSampleDTO"];
+            unknown_verdicts?: string[];
+            worker_name: string;
+        };
+        /** WorkerTrialSampleDTO */
+        WorkerTrialSampleDTO: {
+            /** @description As descrições sorteadas. */
+            description_ids?: string[];
+            seed: string;
+            /** @description Quantas descrições a amostra aleatória pediu. */
+            size: number;
+            /** @description As descrições com veredito que o ensaio pontuou. */
+            verdict_ids?: string[];
+            /** @description Quantos vereditos existem na coleção; o ensaio lê até o teto. */
+            verdicts_available: number;
         };
     };
     responses: never;
@@ -7019,6 +7205,7 @@ export interface operations {
                 origin?: string | null;
                 status?: components["schemas"]["WorkerRunStatus"] | null;
                 fingerprint?: string | null;
+                trial?: boolean | null;
                 limit?: number;
                 offset?: number;
             };
@@ -7035,6 +7222,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkerRunListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1SystemRunsRunIdGetRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerRunDetailDTO"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
@@ -7425,6 +7649,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkerSettingsRevisionListResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1SystemWorkersWorkerNameTrialTriggerTrial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                worker_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkerTrialRequest"];
+            };
+        };
+        responses: {
+            /** @description Document created, URL follows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerRunDTO"];
                 };
             };
             /** @description Bad request syntax or unsupported method */
