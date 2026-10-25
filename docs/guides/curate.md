@@ -1005,7 +1005,7 @@ archivist consults while cataloguing, and this is not it.
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
 | Workers de IA — `/sistema/workers` | whether to run a worker now | yes (the run's own configuration); a run's effects follow what it wrote |
-| Execuções — `/sistema/execucoes` | none (the ledger and the grouped failures) | yes (read only) |
+| Execuções — `/sistema/execucoes` | whether to stop an active run (the ledger and the grouped failures are read-only) | no undo: a cancelled run stays cancelled; a new run is a new ledger row |
 | Saúde do sistema — `/sistema/diagnostico` | none (database, models, storage, process) | yes (read only) |
 
 ### Workers de IA — `/sistema/workers`
@@ -1044,14 +1044,21 @@ staging record, a pair, a tag).
 
 ### Execuções — `/sistema/execucoes`
 
-The run ledger, read-only: one row per execution, from the command line and from the panel, carrying
-the **resolved** configuration the run used (so it stays readable after a preset changes in code),
+The run ledger, read-only except for the stop: one row per execution, from the command line and from
+the panel, carrying the **resolved** configuration the run used (so it stays readable after a preset
+changes in code),
 the **effective worker options** (the columns it read, the floor, the cap — resolved when the run
 started, so "which columns did run #N read?" has an answer), the duration, the outcome and who
 asked. A row older than the options column says "opções não registradas nesta execução". Above it, the failures of the last 30 days grouped by root
 cause (`GET /api/v1/system/failures`), which answer the question the ledger cannot: forty rows saying
 the same sentence are one cause. Clicking a group filters the ledger below instead of opening a
 second list, and a failure's reference is what is searched in the log.
+
+The one write is **Cancelar execução…** on an active row (`POST /api/v1/system/runs/{run_id}/cancel`,
+`OPERATE`). A queued run no runner claimed is cancelled at once; a running one is only asked, and the
+row keeps saying "em execução" with a note until the worker reaches the batch boundary — the batch in
+progress is committed, not interrupted, because a model pass cannot be cut in the middle. A second
+click is the same request, and a run that already finished answers `409`.
 
 ### Saúde do sistema — `/sistema/diagnostico`
 

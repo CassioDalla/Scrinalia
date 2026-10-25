@@ -454,6 +454,7 @@ in the SPA: the menu no longer carries them (issue #22).
 | `/api/v1/system/workers/{worker_name}/settings` | `DELETE` | `OPERATE` | drops the override so the worker follows the code |
 | `/api/v1/system/workers/{worker_name}/settings/revisions` | `GET` | authenticated | who changed what, when |
 | `/api/v1/system/runs` | `GET` | authenticated | the execution ledger, newest first; filters `worker`, `status`, `fingerprint`, `limit`, `offset` |
+| `/api/v1/system/runs/{run_id}/cancel` | `POST` | `OPERATE` | asks one execution to stop: closes a queued run no runner claimed, records the request on a running one (#72) |
 | `/api/v1/system/failures` | `GET` | authenticated | the grouped root causes; filters `days` (default 30), `worker`, `limit` |
 | `/api/v1/system/health` | `GET` | `OPERATE` | database, Ollama models, object storage and the process |
 
@@ -466,7 +467,7 @@ The SPA mirrors it, as cards of `/configuracoes` under *Operação*:
 | --- | --- |
 | `/sistema/workers` | the nine workers: engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and an **Enfileirar execução** button; above them, the runner cards (online, host, version, concurrency, capabilities, last heartbeat) and a warning when none is online. A worker no online runner accepts is marked **sem runner** — the row still queues and waits. The **Agenda** badge and fact show the cron, the zone, the next run and the last skipped period. The effective configuration is read-only here |
 | `/configuracoes/workers` | the persisted default of each worker and its revisions, with save and remove, and the worker's **Agenda** (the cron, the zone, the enabled state and the pinned request) — the write the panel used to carry |
-| `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences. Each row says who asked (`painel`, `linha de comando` or `agenda`), the attempt (`tentativa 2/3`), the row it retries and, when it is queued with a `not_before`, when it starts |
+| `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences. Each row says who asked (`painel`, `linha de comando` or `agenda`), the attempt (`tentativa 2/3`), the row it retries and, when it is queued with a `not_before`, when it starts. An active row offers **Cancelar execução…** with an inline confirmation, and a requested stop is shown as a note while the worker finishes the current batch |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage and the effective process configuration |
 
 The screen polls every 5 s while a run is running and every 15 s while one is queued, because the
@@ -494,10 +495,12 @@ operating system's TCP timeout.
 
 `archive_worker_runs` has one row per execution, for **both** the CLI and the panel: the ledger is
 about the worker, not about the button that started it. A row carries `worker_name`, `status`,
-`trigger` (`CLI` or `API`), `requested_by` (and `requested_by_user_id`), `engine_name`, `preset`,
+`trigger` (`CLI`, `API` or `SCHEDULE`), `requested_by` (and `requested_by_user_id`), `engine_name`,
+`preset`,
 the validated `request` (what a runner reproduces), the resolved `config`, the **effective worker
 `options`**, `queued_at`, `runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`,
-`finished_at`, `duration_ms`, `error` and the generated `error_fingerprint`.
+`cancel_requested_at`, `cancel_requested_by` (and `cancel_requested_by_user_id`), `finished_at`,
+`duration_ms`, `error` and the generated `error_fingerprint`.
 
 `config` answers "with which model?" and `options` answers "over which text, with which floor?" —
 the two halves of one run. `options` is resolved **when the run starts**, because the default of a
@@ -506,11 +509,16 @@ read; a row queued but not started, or written before the column existed, carrie
 and the ledger screen says "opções não registradas nesta execução". The producer identity hashes the
 same values into the stamp, so the row is the readable half of that hash.
 
-The statuses are `QUEUED`, `RUNNING`, `SUCCESS`, `FAILED` and `INTERRUPTED`. The `QUEUED` row is
-committed through the ledger's **own session before the request returns**, so an external runner can
-claim it; the claim is one statement (`FOR UPDATE SKIP LOCKED`) that also writes `runner_id`,
+The statuses are `QUEUED`, `RUNNING`, `SUCCESS`, `FAILED`, `INTERRUPTED` and `CANCELLED`. The `QUEUED`
+row is committed through the ledger's **own session before the request returns**, so an external
+runner can claim it; the claim is one statement (`FOR UPDATE SKIP LOCKED`) that also writes `runner_id`,
 `started_at`, `heartbeat_at` and `lease_expires_at`. A `QUEUED` row is the work item; the API only
 enqueues.
+
+A cancellation is a **request** before it is a status: `cancel_requested_at` (and
+`cancel_requested_by`, with its `_user_id` link) is written while the row is still `QUEUED`/`RUNNING`,
+and only the worker's batch boundary turns it into `CANCELLED`. [Cancelling a run](#cancelling-a-run)
+is the whole story.
 
 `uq_worker_run_active` is a **partial unique index** on `(worker_name)` where the status is `QUEUED`
 or `RUNNING`. It, and not a process lock, is the concurrency guard: at most one run per worker may
@@ -595,8 +603,43 @@ A scheduled `INTERRUPTED` run is retried by the scheduler (see [Scheduling and r
 3. Trigger the worker again. The per-unit stamps are what make this safe: the new run reads only
    what the interrupted one did not finish.
 
-A queued run with no runner online waits, and the panel says so. Cancellation is #72 and the retry
-policy is #43: ADR 0014 fixes the vocabulary, the issues implement it.
+A queued run with no runner online waits, and the panel says so; [Cancelling a run](#cancelling-a-run)
+is the way out. The retry policy is #43 and is described under
+[Scheduling and retries](#scheduling-and-retries).
+
+## Cancelling a run
+
+`POST /api/v1/system/runs/{run_id}/cancel` (`OPERATE`) stops one execution (#72). The route answers
+two outcomes, and the difference is the one the ledger's state machine draws:
+
+- a `QUEUED` row **no runner has claimed** (`runner_id IS NULL`) never started and nothing is writing,
+  so it closes `CANCELLED` immediately and frees the worker's slot;
+- a row **in flight** only receives the request: `cancel_requested_at` and `cancel_requested_by` are
+  written, the status stays `QUEUED`/`RUNNING`, and `uq_worker_run_active` keeps the slot. The worker
+  consults the request once per batch, commits the batch it has already started, and the runner closes
+  the row `CANCELLED` — with no `error`, because a deliberate stop is not a failure the grouped
+  failures screen should present as a root cause.
+
+The request is idempotent: a second click answers the same outcome and keeps the first author and
+instant. A run that already reached a terminal state answers `409`, and an unknown id answers `404`.
+The SPA offers the action on an active row of `/sistema/execucoes`, with the confirmation the other
+destructive actions use; a requested stop is shown as a note while the row is still running.
+
+The honest limit is one batch (`db_batch_size`, 64 by default): `ThreadPoolExecutor` cannot kill a
+thread and a torch forward pass cannot be interrupted, so `future.cancel()` only covers the queued
+case. A `QUEUED` row is cancellable at once; a `RUNNING` one cooperates, and how long that takes is the
+duration of the batch it is in — minutes when the quality validator calls the LLM per document.
+
+`SIGINT`/`SIGTERM` give the CLI the same ending: the first signal sets the same request (the process
+half of it), the worker stops at the next batch boundary and the run closes `CANCELLED`; a second
+signal forces the exit. The daemon is deliberately different: it stops claiming on `SIGTERM` and
+leaves its in-flight rows to the lease, so a runner that is being restarted reports `INTERRUPTED` — an
+accident — not `CANCELLED` — a decision.
+
+A `CANCELLED` run is never retried. The check is one function (`RunControl.checkpoint`) consulted once
+per batch by every worker that loops, and
+`testing/unit/archive/workers/test_worker_cancellation_gate.py` walks the catalogue and fails when a
+looping worker stops consulting it.
 
 ## Scheduling and retries
 
@@ -621,7 +664,8 @@ A scheduled run that ends `FAILED` or `INTERRUPTED` is retried by the scheduler 
 `60 s x 2^(attempt-1)` later, ±20% jitter, capped at 30 minutes. Three attempts in total; the third
 failure is final. A manual or CLI run is never retried. The retry row is created immediately and waits
 in the slot — the claim only takes a row whose `not_before` has passed — so a manual run of the same
-worker answers `409` until it starts. `CANCELLED` (#72) will never be retried.
+worker answers `409` until it starts. A `CANCELLED` run is never retried: only `FAILED` and
+`INTERRUPTED` scheduled runs are (ADR 0014 decision 9).
 
 Two warnings that survive the scheduler:
 
@@ -751,7 +795,7 @@ Two tables answer two different questions, and a number taken from the wrong one
 
 `execution_log` says **whether a worker ran over a unit**: it is the stamp the queue is built from.
 `archive_worker_runs` says **what ran, when, with which engine and preset, over which options, how
-long it took and how it ended** (`SUCCESS`, `FAILED`, `INTERRUPTED`). An empty stamp count is a fact about the queue; the row
+long it took and how it ended** (`SUCCESS`, `FAILED`, `INTERRUPTED`, `CANCELLED`). An empty stamp count is a fact about the queue; the row
 in the ledger is the fact about the execution that explains it — a stage at zero and one interrupted
 run at start-up are the same event seen from two tables.
 
@@ -832,8 +876,10 @@ behaviour to expect, and so that a limit already paid for is not read as a defec
   worker's slot during the backoff.
 - **One scheduler, one lock.** The advisory lock releases when the connection dies and a standby
   takes over within its retry interval; there is still a window of one tick with no scheduler.
-- **No cancellation yet.** A running run cannot be stopped from the panel until #72; an interrupted
-  one is visible and a re-trigger is safe.
+- **A cancellation stops at the batch boundary.** A `QUEUED` run no runner claimed closes at once; a
+  `RUNNING` one keeps its slot until it finishes the current batch, so stopping a quality-validator run
+  that calls the LLM per document can take minutes. A hard kill is not a cancellation: the process
+  death is `INTERRUPTED` when the lease expires.
 - **The arrangement `path` is not enforced by the database.** The column is materialised by the
   service, so a hand-written `UPDATE` can diverge it from the tree; the `PATH_DIVERGENCE` diagnostic
   is what finds it. Do not write `path` directly — go through the routes that own the move.

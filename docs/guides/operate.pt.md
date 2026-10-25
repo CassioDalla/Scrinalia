@@ -403,6 +403,7 @@ SPA: o menu não os carrega mais (issue #22).
 | `/api/v1/system/workers/{worker_name}/settings` | `DELETE` | `OPERATE` | apaga o override para o worker voltar a seguir o código |
 | `/api/v1/system/workers/{worker_name}/settings/revisions` | `GET` | autenticado | quem mudou o quê, quando |
 | `/api/v1/system/runs` | `GET` | autenticado | o ledger de execuções, mais recente primeiro; filtros `worker`, `status`, `fingerprint`, `limit`, `offset` |
+| `/api/v1/system/runs/{run_id}/cancel` | `POST` | `OPERATE` | pede que uma execução pare: fecha uma na fila que nenhum runner reivindicou, registra o pedido numa em andamento (#72) |
 | `/api/v1/system/failures` | `GET` | autenticado | as causas raiz agrupadas; filtros `days` (padrão 30), `worker`, `limit` |
 | `/api/v1/system/health` | `GET` | `OPERATE` | banco, modelos do Ollama, storage de objetos e o processo |
 
@@ -415,7 +416,7 @@ A SPA espelha isso, como cartões de `/configuracoes` sob *Operação*:
 | --- | --- |
 | `/sistema/workers` | os nove workers: engine, preset e modelo, a fila, o que o carimbo de cada um nomeia (com produtor, sem produtor conhecido, sem registro) e um botão **Enfileirar execução**; acima deles, os cartões dos runners (online, host, versão, concorrência, capacidades, último sinal) e um aviso quando nenhum está online. Um worker que nenhum runner online aceita aparece como **sem runner** — a linha ainda enfileira e espera. O selo e o fato **Agenda** mostram o cron, o fuso, a próxima execução e o último período pulado. A configuração efetiva aqui é só leitura |
 | `/configuracoes/workers` | o padrão persistido de cada worker e suas revisões, com salvar e remover, e a **Agenda** do worker (o cron, o fuso, o estado habilitado e o request pinado) — a escrita que o painel carregava |
-| `/sistema/execucoes` | o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela. Cada linha diz quem pediu (`painel`, `linha de comando` ou `agenda`), a tentativa (`tentativa 2/3`), a linha que ela retenta e, quando está na fila com `not_before`, quando começa |
+| `/sistema/execucoes` | o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela. Cada linha diz quem pediu (`painel`, `linha de comando` ou `agenda`), a tentativa (`tentativa 2/3`), a linha que ela retenta e, quando está na fila com `not_before`, quando começa. Uma linha ativa oferece **Cancelar execução…** com confirmação embutida, e um pedido de parada aparece como nota enquanto o worker termina o lote atual |
 | `/sistema/diagnostico` | banco, modelos do Ollama, storage das miniaturas e a configuração efetiva do processo |
 
 A tela consulta a cada 5 s enquanto uma execução está rodando e a cada 15 s enquanto uma está na fila,
@@ -442,10 +443,11 @@ timeout de TCP do sistema operacional.
 ## O ledger de execuções
 
 `archive_worker_runs` tem uma linha por execução, tanto da CLI quanto do painel: o ledger é sobre o
-worker, não sobre o botão que o iniciou. Uma linha carrega `worker_name`, `status`, `trigger` (`CLI`
-ou `API`), `requested_by` (e `requested_by_user_id`), `engine_name`, `preset`, o `request` validado
+worker, não sobre o botão que o iniciou. Uma linha carrega `worker_name`, `status`, `trigger` (`CLI`,
+`API` ou `SCHEDULE`), `requested_by` (e `requested_by_user_id`), `engine_name`, `preset`, o `request` validado
 (o que um runner reproduz), o `config` resolvido, as **`options` efetivas do worker**, `attempt`, `retry_of`, `not_before`, `queued_at`,
-`runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`, `finished_at`, `duration_ms`, `error`
+`runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`, `cancel_requested_at`,
+`cancel_requested_by` (e `cancel_requested_by_user_id`), `finished_at`, `duration_ms`, `error`
 e o `error_fingerprint` gerado.
 
 O `config` responde "com qual modelo?" e as `options` respondem "sobre qual texto, com qual limiar?" —
@@ -455,11 +457,16 @@ colunas leu; uma linha enfileirada e ainda não iniciada, ou escrita antes de a 
 o default vazio e a tela do ledger diz "opções não registradas nesta execução". A identidade do
 produtor faz o hash dos mesmos valores no carimbo, então a linha é a metade legível desse hash.
 
-Os status são `QUEUED`, `RUNNING`, `SUCCESS`, `FAILED` e `INTERRUPTED`. A linha `QUEUED` é comitada
-pela **sessão própria do ledger antes de a requisição retornar**, para que um runner externo possa
-reivindicá-la; a reivindicação é uma instrução (`FOR UPDATE SKIP LOCKED`) que também grava `runner_id`,
-`started_at`, `heartbeat_at` e `lease_expires_at`. Uma linha `QUEUED` é o item de trabalho; a API
-apenas enfileira.
+Os status são `QUEUED`, `RUNNING`, `SUCCESS`, `FAILED`, `INTERRUPTED` e `CANCELLED`. A linha `QUEUED` é
+comitada pela **sessão própria do ledger antes de a requisição retornar**, para que um runner externo
+possa reivindicá-la; a reivindicação é uma instrução (`FOR UPDATE SKIP LOCKED`) que também grava
+`runner_id`, `started_at`, `heartbeat_at` e `lease_expires_at`. Uma linha `QUEUED` é o item de
+trabalho; a API apenas enfileira.
+
+Um cancelamento é um **pedido** antes de ser um status: `cancel_requested_at` (e `cancel_requested_by`,
+com o vínculo `_user_id`) é gravado enquanto a linha ainda está `QUEUED`/`RUNNING`, e só o limite do
+lote do worker o transforma em `CANCELLED`. [Cancelar uma execução](#cancelar-uma-execucao) é a
+história inteira.
 
 `uq_worker_run_active` é um **índice único parcial** sobre `(worker_name)` quando o status é `QUEUED`
 ou `RUNNING`. É ele, e não um lock de processo, a trava de concorrência: no máximo uma execução por
@@ -543,8 +550,44 @@ Uma execução agendada `INTERRUPTED` é retentada pelo scheduler (veja [Agendam
 3. Dispare o worker de novo. Os carimbos por unidade são o que torna isso seguro: a nova execução lê
    só o que a interrompida não terminou.
 
-A execução enfileirada sem runner online espera, e o painel diz isso. O cancelamento é a #72 e a
-política de retry é a #43: a ADR 0014 fixa o vocabulário, as issues o implementam.
+A execução enfileirada sem runner online espera, e o painel diz isso; [Cancelar uma
+execução](#cancelar-uma-execucao) é a saída. A política de retry é a #43 e está em
+[Agendamento e retentativas](#agendamento-e-retentativas).
+
+## Cancelar uma execução
+
+`POST /api/v1/system/runs/{run_id}/cancel` (`OPERATE`) para uma execução (#72). A rota responde dois
+desfechos, e a diferença é a que a máquina de estados do ledger desenha:
+
+- uma linha `QUEUED` que **nenhum runner reivindicou** (`runner_id IS NULL`) nunca começou e nada está
+  escrevendo, então fecha `CANCELLED` na hora e libera o slot do worker;
+- uma linha **em andamento** só recebe o pedido: `cancel_requested_at` e `cancel_requested_by` são
+  gravados, o status continua `QUEUED`/`RUNNING`, e `uq_worker_run_active` segura o slot. O worker
+  consulta o pedido uma vez por lote, comita o lote que já começou, e o runner fecha a linha
+  `CANCELLED` — sem `error`, porque uma parada deliberada não é uma falha que a tela de falhas
+  agrupadas deva apresentar como causa raiz.
+
+O pedido é idempotente: um segundo clique responde o mesmo desfecho e preserva o primeiro autor e o
+primeiro instante. Uma execução que já chegou a um estado terminal responde `409`, e um id
+desconhecido responde `404`. A SPA oferece a ação numa linha ativa de `/sistema/execucoes`, com a
+confirmação que as outras ações destrutivas usam; um pedido de parada aparece como nota enquanto a
+linha ainda está em execução.
+
+O limite honesto é um lote (`db_batch_size`, 64 por padrão): o `ThreadPoolExecutor` não mata uma
+thread e uma passada do torch não pode ser interrompida, então `future.cancel()` só cobre o caso na
+fila. Uma linha `QUEUED` é cancelável na hora; uma `RUNNING` coopera, e o tempo que isso leva é a
+duração do lote em que ela está — minutos quando o validador de qualidade chama o LLM por documento.
+
+`SIGINT`/`SIGTERM` dão à CLI o mesmo desfecho: o primeiro sinal grava o mesmo pedido (a metade do
+processo), o worker para no próximo limite de lote e a execução fecha `CANCELLED`; um segundo sinal
+força a saída. O daemon é deliberadamente diferente: ele para de reivindicar no `SIGTERM` e deixa as
+linhas em voo para o lease, então um runner que está sendo reiniciado reporta `INTERRUPTED` — um
+acidente — e não `CANCELLED` — uma decisão.
+
+Uma execução `CANCELLED` nunca é retentada. A checagem é uma função (`RunControl.checkpoint`) consultada
+uma vez por lote por todo worker que itera, e
+`testing/unit/archive/workers/test_worker_cancellation_gate.py` percorre o catálogo e falha quando um
+worker que itera deixa de consultá-la.
 
 ## Agendamento e retentativas
 
@@ -568,7 +611,8 @@ linha do ledger**: `attempt = anterior + 1`, `retry_of` a linha falha, o mesmo r
 `60 s x 2^(attempt-1)` depois, ±20% de jitter, teto de 30 minutos. Três tentativas no total; a terceira
 falha é final. Uma execução manual ou da CLI nunca é retentada. A linha do retry nasce na hora e espera
 no slot — o claim só pega uma linha cujo `not_before` passou — então uma execução manual do mesmo worker
-responde `409` até ela começar. `CANCELLED` (#72) nunca será retentada.
+responde `409` até ela começar. Uma execução `CANCELLED` nunca é retentada: só as agendadas `FAILED` e
+`INTERRUPTED` são (ADR 0014, decisão 9).
 
 Dois avisos que sobrevivem ao scheduler:
 
@@ -699,7 +743,7 @@ Duas tabelas respondem a duas perguntas diferentes, e um número tirado da tabel
 `execution_log` diz **se um worker passou por uma unidade**: é o carimbo de onde a fila é construída.
 `archive_worker_runs` diz **o que rodou, quando, com que engine e preset, sobre quais opções, quanto
 demorou e como
-terminou** (`SUCCESS`, `FAILED`, `INTERRUPTED`). Uma contagem de carimbo vazia é um fato sobre a fila;
+terminou** (`SUCCESS`, `FAILED`, `INTERRUPTED`, `CANCELLED`). Uma contagem de carimbo vazia é um fato sobre a fila;
 a linha no ledger é o fato sobre a execução que explica a fila — uma etapa em zero e uma execução
 interrompida na subida são o mesmo evento visto de duas tabelas.
 
@@ -779,8 +823,10 @@ comportamento esperar, e para um limite já pago não ser lido como defeito.
   backoff.
 - **Um scheduler, um lock.** O advisory lock é liberado quando a conexão morre e um standby assume
   dentro do intervalo de retentativa dele; ainda há uma janela de um tick sem scheduler.
-- **Ainda não há cancelamento.** Uma execução em andamento não pode ser parada pelo painel até a #72;
-  uma interrompida é visível e um novo disparo é seguro.
+- **O cancelamento para no limite do lote.** Uma execução `QUEUED` que nenhum runner reivindicou fecha
+  na hora; uma `RUNNING` mantém o slot até terminar o lote atual, então parar uma execução do validador
+  de qualidade que chama o LLM por documento pode levar minutos. Um kill não é um cancelamento: a morte
+  do processo é `INTERRUPTED` quando o lease vence.
 - **O `path` do arranjo não é garantido pelo banco.** A coluna é materializada pelo serviço, então um
   `UPDATE` escrito à mão pode divergi-la da árvore; o diagnóstico `PATH_DIVERGENCE` é o que encontra.
   Não escreva `path` diretamente — passe pelas rotas que são donas da movimentação.
