@@ -1,12 +1,14 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from scrinalia.core.schemas import RequestModel
 
 # The columns the user is allowed to interact with in the Frontend
 AllowedColumns = Literal["original_title", "scope_content", "admin_bio_history", "provenance", "archivist_notes"]
 
 
-class CreateCleaningRuleRequest(BaseModel):
+class CreateCleaningRuleRequest(RequestModel):
     """Payload received from the Frontend when the user clicks 'Save Rule'."""
 
     rule_name: str = Field(..., max_length=150, description="Identifying name of the rule.")
@@ -24,7 +26,7 @@ class CreateCleaningRuleRequest(BaseModel):
     preset: str | None = Field(default=None, description="Preset used by an LLM_CHECK rule.")
 
 
-class DryRunRequest(BaseModel):
+class DryRunRequest(RequestModel):
     """Payload received from the Frontend to test the 'Before and After' (Simulation)."""
 
     target_column: AllowedColumns

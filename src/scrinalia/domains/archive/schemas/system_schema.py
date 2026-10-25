@@ -10,6 +10,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from scrinalia.core.schemas import RequestModel
 from scrinalia.domains.archive.models.enums import FailureSource, WorkerRunStatus, WorkerRunTrigger
 
 #: Where a worker's engine/preset come from.
@@ -103,7 +104,7 @@ class FailureGroupListResponse(BaseModel):
     total: int = Field(ge=0, description="Quantos grupos existem na janela consultada.")
 
 
-class WorkerRunRequest(BaseModel):
+class WorkerRunRequest(RequestModel):
     """Overrides for a single run; they are not persisted."""
 
     engine_name: str | None = None
@@ -274,7 +275,7 @@ class SystemWorkerSettingsResponse(BaseModel):
     generated_at: datetime
 
 
-class WorkerSettingsRequest(BaseModel):
+class WorkerSettingsRequest(RequestModel):
     """A persisted default; a field left null keeps following the code."""
 
     engine_name: str | None = None

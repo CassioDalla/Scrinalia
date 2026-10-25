@@ -1,11 +1,12 @@
 """Requests of the collection vocabulary catalogue: the terms this archive declares."""
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
+from scrinalia.core.schemas import RequestModel
 from scrinalia.domains.archive.models.enums import CollectionTermKind
 
 
-class ArrangementTermCreateRequest(BaseModel):
+class ArrangementTermCreateRequest(RequestModel):
     """Registers a rung name the hierarchy proposal will suggest for a code token."""
 
     token: str = Field(
@@ -16,7 +17,7 @@ class ArrangementTermCreateRequest(BaseModel):
     display_name: str = Field(min_length=1, max_length=200, description="O nome que o arquivista lê na proposta.")
 
 
-class ArrangementTermUpdateRequest(BaseModel):
+class ArrangementTermUpdateRequest(RequestModel):
     """
     Partial update of an arrangement term.
 
@@ -28,17 +29,15 @@ class ArrangementTermUpdateRequest(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=200)
     is_active: bool | None = None
 
-    model_config = ConfigDict(extra="forbid")
 
-
-class CollectionTermCreateRequest(BaseModel):
+class CollectionTermCreateRequest(RequestModel):
     """Registers a term the collection carries that is not a subject."""
 
     term: str = Field(min_length=1, max_length=200, description="A grafia como ela aparece no acervo.")
     kind: CollectionTermKind
 
 
-class CollectionTermUpdateRequest(BaseModel):
+class CollectionTermUpdateRequest(RequestModel):
     """
     Partial update of a collection term.
 
@@ -49,5 +48,3 @@ class CollectionTermUpdateRequest(BaseModel):
     term: str | None = Field(default=None, min_length=1, max_length=200)
     kind: CollectionTermKind | None = None
     is_active: bool | None = None
-
-    model_config = ConfigDict(extra="forbid")
