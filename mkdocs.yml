@@ -133,4 +133,5 @@ nav:
       - 0016 The origin is a first-class object: adr/0016-the-origin-is-a-first-class-object.md
       - 0017 The thumbnail reaches the browser through the API: adr/0017-the-thumbnail-reaches-the-browser-through-the-api.md
       - 0018 A trial is a ledger row, and the gabarito is the human decision already recorded: adr/0018-trials-and-the-human-gabarito.md
+      - 0019 The CSV import is parsed in the browser: adr/0019-the-csv-import-is-parsed-in-the-browser.md
   - Documentation log: log.md

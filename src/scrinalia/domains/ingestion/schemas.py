@@ -20,6 +20,18 @@ from pydantic import Field
 from scrinalia.core.schemas import RequestModel
 from scrinalia.domains.archive.models.enums import WorkerRunStatus
 from scrinalia.domains.archive.schemas.responses import RouteResponse
+from scrinalia.domains.ingestion.csv_import import (
+    CSV_FIELDS,
+    CSV_ID_FIELD,
+    MAX_CSV_BYTES,
+    MAX_CSV_FIELD_CHARS,
+    MAX_CSV_ROW_BYTES,
+    MAX_CSV_ROWS,
+    CsvField,
+    CsvFieldKind,
+    CsvRowIssueCode,
+    CsvRowStatus,
+)
 
 #: The control a configuration field needs on the screen.
 ConfigFieldKind = Literal["text", "number", "boolean"]
@@ -256,3 +268,123 @@ class ManualIngestionResponse(RouteResponse):
     """The submit's sentence and the record it produced."""
 
     data: ManualIngestionResultDTO
+
+
+# ==========================================
+# THE CSV IMPORT
+# ==========================================
+
+
+class CsvFieldDTO(RequestModel):
+    """
+    One column of the CSV import, as the screen and the template render it.
+
+    ``label`` is the file's header and the key the payload carries; ``attribute`` is the staging
+    column it fills. The pair is metadata about the origin's own ``SourceSchema``, not a second
+    map: the route validates the row against the same catalogue the schema was built from.
+    """
+
+    label: str
+    attribute: str
+    help: str
+    kind: CsvFieldKind = "text"
+    required: bool = False
+    max_length: int | None = None
+
+
+class CsvImportSpecResponse(RequestModel):
+    """Everything the screen needs to parse and validate a file before sending it."""
+
+    origin_code: str
+    #: The record's identity column, which is outside the staging payload.
+    id: CsvFieldDTO
+    fields: list[CsvFieldDTO] = Field(default_factory=list)
+    max_rows: int
+    max_bytes: int
+    max_row_bytes: int
+    max_field_chars: int
+
+
+class CsvImportRow(RequestModel):
+    """One row of the file: its identity, the line for the screen, and its cells by label."""
+
+    #: 1-based line in the file, header included; ``0`` when the client did not send one.
+    line: int = Field(default=0, ge=0, description="A linha do arquivo, para a tela.")
+    description_id: str = Field(description="Identificador único do registro.")
+    fields: dict[str, str] = Field(
+        default_factory=dict,
+        description="As células da linha, com o rótulo do mapa como chave.",
+    )
+
+
+class CsvImportRequest(RequestModel):
+    """A bounded list of rows, never a file: the CSV is parsed in the browser (issue #191)."""
+
+    rows: list[CsvImportRow] = Field(
+        min_length=1,
+    )
+
+
+class CsvRowIssueDTO(RequestModel):
+    """Why one row did not enter, with the label the person sees and a Portuguese sentence."""
+
+    field: str | None = None
+    code: CsvRowIssueCode
+    message: str
+
+
+class CsvRowResultDTO(RequestModel):
+    """What happened to one row: accepted, duplicated or invalid, and why."""
+
+    line: int
+    description_id: str
+    status: CsvRowStatus
+    issues: list[CsvRowIssueDTO] = Field(default_factory=list)
+
+
+class CsvImportResultDTO(RequestModel):
+    """The batch's per-row report and what happened to the transfer that follows it."""
+
+    origin_code: str
+    received: int
+    accepted: int
+    duplicated: int
+    invalid: int
+    rows: list[CsvRowResultDTO] = Field(default_factory=list)
+    transfer_run_id: int | None = None
+    transfer_queued: bool = False
+    review_status: str = Field(
+        default="PENDING_AI",
+        description="O estado inicial no archive: a importação não marca HUMAN_APPROVED.",
+    )
+
+
+class CsvImportResponse(RouteResponse):
+    """The import's sentence and its per-row report."""
+
+    data: CsvImportResultDTO
+
+
+def _csv_field_dto(field: CsvField) -> CsvFieldDTO:
+    """Presents one catalogue entry as the contract's field."""
+    return CsvFieldDTO(
+        label=field.label,
+        attribute=field.attribute,
+        help=field.help,
+        kind=field.kind,
+        required=field.required,
+        max_length=field.max_length,
+    )
+
+
+def build_csv_import_spec() -> CsvImportSpecResponse:
+    """The map and the bounds, derived from their one definition (``csv_import``)."""
+    return CsvImportSpecResponse(
+        origin_code="csv",
+        id=_csv_field_dto(CSV_ID_FIELD),
+        fields=[_csv_field_dto(field) for field in CSV_FIELDS],
+        max_rows=MAX_CSV_ROWS,
+        max_bytes=MAX_CSV_BYTES,
+        max_row_bytes=MAX_CSV_ROW_BYTES,
+        max_field_chars=MAX_CSV_FIELD_CHARS,
+    )

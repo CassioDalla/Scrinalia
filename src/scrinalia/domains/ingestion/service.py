@@ -13,6 +13,7 @@ is a later, explicit act (``PATCH /documents/{id}``), not the submit button.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
@@ -39,18 +40,38 @@ from scrinalia.domains.archive.workers.schedule import (
     validate_timezone,
 )
 from scrinalia.domains.ingestion import repository, worker
+from scrinalia.domains.ingestion.adapters.csv import CSV_SOURCE_SCHEMA
 from scrinalia.domains.ingestion.adapters.manual import MANUAL_FIELDS, MANUAL_SOURCE_SCHEMA
+from scrinalia.domains.ingestion.csv_import import (
+    CSV_ID_FIELD,
+    CSV_TITLE_LABEL,
+    MAX_CSV_BYTES,
+    MAX_CSV_ROW_BYTES,
+    MAX_CSV_ROWS,
+    CsvRowIssue,
+    CsvRowIssueCode,
+    CsvRowStatus,
+    payload_of,
+    row_bytes,
+    validate_csv_row,
+)
 from scrinalia.domains.ingestion.exceptions import (
+    CsvImportLimitError,
     DuplicateManualRecordError,
     InvalidOriginConfigError,
     OriginDisabledError,
     OriginNotFoundError,
 )
-from scrinalia.domains.ingestion.models import IngestionOrigin, RawData, ScrapeStatus
+from scrinalia.domains.ingestion.models import IngestionOrigin, RawData, ScrapeStatus, ScrapingQueue
 from scrinalia.domains.ingestion.origin_registry import ORIGINS, OriginSummary, get_origin_summary
 from scrinalia.domains.ingestion.origin_repo import IngestionOriginRepository
 from scrinalia.domains.ingestion.schemas import (
     INGESTION_OPTION_FIELDS,
+    CsvImportRequest,
+    CsvImportResponse,
+    CsvImportResultDTO,
+    CsvRowIssueDTO,
+    CsvRowResultDTO,
     IngestionOriginDTO,
     IngestionOriginListResponse,
     IngestionOriginUpdateRequest,
@@ -62,6 +83,7 @@ from scrinalia.domains.ingestion.schemas import (
     ManualIngestionResultDTO,
     OriginConfigFieldDTO,
 )
+from scrinalia.domains.staging.models import StagingDocument
 from scrinalia.domains.staging.worker import run_staging_pipeline
 
 
@@ -332,10 +354,8 @@ class IngestionOriginService:
             )
 
         payload = self._manual_payload(request)
-        repository.save_raw_data(self.db, description_id, payload, origin_code="manual", author=author)
-        if repository.add(self.db, description_id, origin_code="manual") is None:
+        if not self._write_record(description_id, payload, origin_code="manual", author=author):
             raise DuplicateManualRecordError(f"Já existe um registro com o identificador '{description_id}'.")
-        repository.update_queue_status(self.db, description_id, ScrapeStatus.DONE, origin_code="manual")
 
         # The staging pipeline commits the raw record and the staged row before the transfer can be
         # claimed: a runner that saw the queued transfer first would find no staging row to move.
@@ -397,3 +417,282 @@ class IngestionOriginService:
             if value is not None and value != "":
                 payload[field] = value
         return payload
+
+    # --- the CSV origin -------------------------------------------------------------------------
+
+    def import_csv(self, request: CsvImportRequest, *, author: Author | None = None) -> CsvImportResponse:
+        """
+        Writes a bounded list of rows as the CSV origin's raw payload, stages the accepted ones,
+        and queues one transfer for the batch.
+
+        The rows are the file parsed in the browser: nothing is uploaded and nothing is persisted
+        as a file (#191). Each row is validated with the staging model, written only when it is
+        valid and its id is new, and reported back as accepted, duplicated or invalid. A partial
+        import is normal — the rejected rows stay out, the accepted ones follow the same path as a
+        scraped record, and the archive description is born ``PENDING_AI``.
+        """
+        origin = self.origins.get("csv")
+        if origin is None:
+            raise OriginNotFoundError("A origem CSV não está configurada; rode a migração da #191.")
+        if not origin.enabled:
+            raise OriginDisabledError("A importação CSV está pausada; habilite a origem antes de enviar.")
+
+        received = len(request.rows)
+        if received > MAX_CSV_ROWS:
+            raise CsvImportLimitError(
+                f"A importação aceita no máximo {MAX_CSV_ROWS} linhas por vez; o arquivo tem {received}."
+            )
+        total_bytes = sum(row_bytes(row.fields) for row in request.rows)
+        if total_bytes > MAX_CSV_BYTES:
+            limit_mb = MAX_CSV_BYTES // (1024 * 1024)
+            raise CsvImportLimitError(
+                f"A importação tem {total_bytes / (1024 * 1024):.1f} MB; o limite é {limit_mb} MB. "
+                "Divida o arquivo em partes."
+            )
+
+        existing = self._existing_ids([row.description_id.strip() for row in request.rows])
+        seen: set[str] = set()
+        results: list[CsvRowResultDTO] = []
+        accepted: list[str] = []
+
+        for index, row in enumerate(request.rows, start=2):
+            identifier = row.description_id.strip()
+            line = row.line or index
+            row_size = row_bytes(row.fields)
+            issues: list[CsvRowIssue]
+            if row_size > MAX_CSV_ROW_BYTES:
+                issues = [
+                    CsvRowIssue(
+                        field=None,
+                        code=CsvRowIssueCode.ROW_TOO_LARGE,
+                        message=(
+                            f"A linha tem {max(1, row_size // 1024)} KB; o limite por linha é "
+                            f"{MAX_CSV_ROW_BYTES // 1024} KB."
+                        ),
+                    )
+                ]
+            else:
+                issues = validate_csv_row(identifier, row.fields)
+
+            if not issues:
+                if identifier in existing:
+                    issues = [
+                        CsvRowIssue(
+                            field=CSV_ID_FIELD.label,
+                            code=CsvRowIssueCode.ALREADY_EXISTS,
+                            message=f"Já existe um registro com o identificador '{identifier}'.",
+                        )
+                    ]
+                elif identifier in seen:
+                    issues = [
+                        CsvRowIssue(
+                            field=CSV_ID_FIELD.label,
+                            code=CsvRowIssueCode.DUPLICATE_IN_BATCH,
+                            message=f"O identificador '{identifier}' repete uma linha anterior deste arquivo.",
+                        )
+                    ]
+
+            if issues:
+                duplicated = all(
+                    issue.code in (CsvRowIssueCode.ALREADY_EXISTS, CsvRowIssueCode.DUPLICATE_IN_BATCH)
+                    for issue in issues
+                )
+                results.append(
+                    self._csv_row_result(
+                        line,
+                        identifier,
+                        CsvRowStatus.DUPLICATED if duplicated else CsvRowStatus.INVALID,
+                        issues,
+                    )
+                )
+                continue
+
+            payload = payload_of(row.fields)
+            raw_title = payload.get(CSV_TITLE_LABEL)
+            if not self._write_record(identifier, payload, origin_code="csv", author=author, raw_title=raw_title):
+                results.append(
+                    self._csv_row_result(
+                        line,
+                        identifier,
+                        CsvRowStatus.DUPLICATED,
+                        [
+                            CsvRowIssue(
+                                field=CSV_ID_FIELD.label,
+                                code=CsvRowIssueCode.ALREADY_EXISTS,
+                                message=f"Já existe um registro com o identificador '{identifier}'.",
+                            )
+                        ],
+                    )
+                )
+                continue
+
+            seen.add(identifier)
+            accepted.append(identifier)
+            results.append(self._csv_row_result(line, identifier, CsvRowStatus.ACCEPTED, []))
+
+        if accepted:
+            # One staging run for exactly the rows just written: leftovers of an earlier import are
+            # not staged in their place, and the batch is committed before the transfer is queued.
+            run_staging_pipeline(
+                self.db,
+                source_schema=CSV_SOURCE_SCHEMA,
+                origin_code="csv",
+                description_ids=accepted,
+            )
+            staged = set(
+                self.db.scalars(
+                    select(StagingDocument.description_id).where(StagingDocument.description_id.in_(accepted))
+                )
+            )
+            not_staged = set(accepted) - staged
+            if not_staged:
+                for result in results:
+                    if result.status is CsvRowStatus.ACCEPTED and result.description_id in not_staged:
+                        result.status = CsvRowStatus.INVALID
+                        result.issues = [
+                            CsvRowIssueDTO(
+                                field=None,
+                                code=CsvRowIssueCode.STAGING_FAILED,
+                                message=(
+                                    "O registro não pôde ser estruturado; ele ficou na fila e a próxima "
+                                    "execução o tenta de novo."
+                                ),
+                            )
+                        ]
+                accepted = [identifier for identifier in accepted if identifier in staged]
+
+        transfer_run_id: int | None = None
+        transfer_queued = False
+        if accepted:
+            try:
+                run = self.ledger.enqueue(
+                    "transfer",
+                    requested_by=author,
+                    engine_name=None,
+                    preset=None,
+                    config={},
+                    request={},
+                )
+            except WorkerRunAlreadyActiveError:
+                transfer_queued = False
+            else:
+                transfer_run_id = run.run_id
+                transfer_queued = True
+
+        duplicated_count = sum(1 for result in results if result.status is CsvRowStatus.DUPLICATED)
+        invalid_count = sum(1 for result in results if result.status is CsvRowStatus.INVALID)
+        code, message = self._csv_message(
+            accepted=len(accepted),
+            received=received,
+            duplicated=duplicated_count,
+            invalid=invalid_count,
+            transfer_queued=transfer_queued,
+        )
+        return CsvImportResponse(
+            code=code,
+            message=message,
+            data=CsvImportResultDTO(
+                origin_code="csv",
+                received=received,
+                accepted=len(accepted),
+                duplicated=duplicated_count,
+                invalid=invalid_count,
+                rows=results,
+                transfer_run_id=transfer_run_id,
+                transfer_queued=transfer_queued,
+            ),
+        )
+
+    def _existing_ids(self, description_ids: Sequence[str]) -> set[str]:
+        """The ids the three layers already know: a row reusing one is duplicated, not overwritten."""
+        wanted = [identifier for identifier in description_ids if identifier]
+        if not wanted:
+            return set()
+        existing = set(self.db.scalars(select(RawData.description_id).where(RawData.description_id.in_(wanted))))
+        existing.update(
+            self.db.scalars(select(ScrapingQueue.description_id).where(ScrapingQueue.description_id.in_(wanted)))
+        )
+        existing.update(
+            self.db.scalars(select(ArchiveDocument.description_id).where(ArchiveDocument.description_id.in_(wanted)))
+        )
+        return existing
+
+    def _write_record(
+        self,
+        description_id: str,
+        payload: dict[str, Any],
+        *,
+        origin_code: str,
+        author: Author | None = None,
+        raw_title: str | None = None,
+    ) -> bool:
+        """
+        The raw payload and the ``DONE`` queue row, in one savepoint.
+
+        Both writes belong together: a queue row without a payload would look discovered but never
+        scraped, and a payload without a queue row would be staged without the discovery record.
+        A duplicate id rolls the savepoint back and returns ``False``; the caller decides whether
+        that is a refusal (the manual form) or a per-row result (the CSV import).
+        """
+        savepoint = self.db.begin_nested()
+        try:
+            repository.save_raw_data(
+                self.db,
+                description_id,
+                payload,
+                origin_code=origin_code,
+                author=author,
+                raw_title=raw_title,
+            )
+            if repository.add(self.db, description_id, origin_code=origin_code) is None:
+                savepoint.rollback()
+                return False
+            repository.update_queue_status(self.db, description_id, ScrapeStatus.DONE, origin_code=origin_code)
+        except Exception:
+            savepoint.rollback()
+            raise
+        savepoint.commit()
+        return True
+
+    @staticmethod
+    def _csv_row_result(
+        line: int,
+        description_id: str,
+        status: CsvRowStatus,
+        issues: list[CsvRowIssue],
+    ) -> CsvRowResultDTO:
+        """One row's report, from the domain's issue objects to the contract's DTOs."""
+        return CsvRowResultDTO(
+            line=line,
+            description_id=description_id,
+            status=status,
+            issues=[CsvRowIssueDTO(field=issue.field, code=issue.code, message=issue.message) for issue in issues],
+        )
+
+    @staticmethod
+    def _csv_message(
+        *,
+        accepted: int,
+        received: int,
+        duplicated: int,
+        invalid: int,
+        transfer_queued: bool,
+    ) -> tuple[RouteMessageCode, str]:
+        """The batch's sentence and the code that identifies the outcome, not the wording."""
+        if accepted == 0:
+            return (
+                RouteMessageCode.CSV_IMPORT_REFUSED,
+                f"Nenhuma das {received} linhas entrou: {duplicated} duplicadas e {invalid} inválidas. "
+                "Corrija a prévia e envie de novo.",
+            )
+        counts = f"{accepted} de {received} linhas importadas ({duplicated} duplicadas, {invalid} inválidas)."
+        if transfer_queued:
+            return (
+                RouteMessageCode.CSV_IMPORT_QUEUED,
+                f"{counts} A transferência foi enfileirada; a IA vai enriquecê-las e elas continuam em revisão.",
+            )
+        return (
+            RouteMessageCode.CSV_IMPORT_STAGED,
+            f"{counts} Já existe uma transferência em andamento, então elas entram na próxima e seguem "
+            "para a IA depois.",
+        )

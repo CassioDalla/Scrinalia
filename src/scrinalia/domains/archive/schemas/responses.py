@@ -57,6 +57,12 @@ class RouteMessageCode(enum.StrEnum):
     MANUAL_INGESTION_QUEUED = "MANUAL_INGESTION_QUEUED"
     #: The record was staged, but a transfer was already in flight; it enters the next one.
     MANUAL_INGESTION_STAGED = "MANUAL_INGESTION_STAGED"
+    #: At least one CSV row was written and staged, and the transfer was enqueued.
+    CSV_IMPORT_QUEUED = "CSV_IMPORT_QUEUED"
+    #: At least one CSV row was staged, but a transfer was already in flight.
+    CSV_IMPORT_STAGED = "CSV_IMPORT_STAGED"
+    #: No CSV row entered: every one was duplicated or invalid, and the report says which.
+    CSV_IMPORT_REFUSED = "CSV_IMPORT_REFUSED"
     #: The run was still queued with no runner: it never started, so it closed at once.
     WORKER_RUN_CANCELLED = "WORKER_RUN_CANCELLED"
     #: The run is in flight: the request was recorded and the worker stops at the next batch

@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import TypeVarTuple
 
 from sqlalchemy import Select, func, select
@@ -34,6 +35,7 @@ class SqlRawRecordSource:
         after: str | None,
         origin_code: str | None = None,
         description_id: str | None = None,
+        description_ids: Sequence[str] | None = None,
     ) -> Select[*_Ts]:
         """
         The one definition of "pending", applied to whatever statement needs it.
@@ -48,7 +50,8 @@ class SqlRawRecordSource:
 
         ``origin_code`` is the ingestion worker's window: a run of one origin must not stage another
         origin's records. ``description_id`` is the manual entry's window: the record the archivist
-        just typed is staged in the same request, without touching the rest of the backlog.
+        just typed is staged in the same request, without touching the rest of the backlog. The
+        ``description_ids`` window is the CSV import's: exactly the rows the request just wrote.
         """
         if not force:
             stmt = stmt.outerjoin(StagingDocument, RawData.description_id == StagingDocument.description_id).where(
@@ -60,6 +63,8 @@ class SqlRawRecordSource:
             stmt = stmt.where(RawData.origin_code == origin_code)
         if description_id is not None:
             stmt = stmt.where(RawData.description_id == description_id)
+        if description_ids is not None:
+            stmt = stmt.where(RawData.description_id.in_(description_ids))
         return stmt
 
     def next_batch(
@@ -69,6 +74,7 @@ class SqlRawRecordSource:
         after: str | None = None,
         origin_code: str | None = None,
         description_id: str | None = None,
+        description_ids: Sequence[str] | None = None,
     ) -> list[RawRecord]:
         """
         Pending records by CDC, or every record when ``force`` asks for a full re-parse.
@@ -90,6 +96,7 @@ class SqlRawRecordSource:
             after,
             origin_code,
             description_id,
+            description_ids,
         ).order_by(RawData.description_id)
         if limit is not None:
             stmt = stmt.limit(limit)
@@ -101,9 +108,17 @@ class SqlRawRecordSource:
         after: str | None = None,
         origin_code: str | None = None,
         description_id: str | None = None,
+        description_ids: Sequence[str] | None = None,
     ) -> int:
         """How many raw records the same predicate still leaves pending."""
-        stmt = self._with_pending(select(func.count()).select_from(RawData), force, after, origin_code, description_id)
+        stmt = self._with_pending(
+            select(func.count()).select_from(RawData),
+            force,
+            after,
+            origin_code,
+            description_id,
+            description_ids,
+        )
         return int(self.db.scalar(stmt) or 0)
 
 

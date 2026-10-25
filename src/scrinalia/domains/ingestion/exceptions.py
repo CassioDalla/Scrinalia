@@ -15,7 +15,7 @@ class OriginNotFoundError(DomainException):
 
 
 class OriginDisabledError(DomainException):
-    """The origin exists but is paused; it cannot run and it cannot receive a manual record."""
+    """The origin exists but is paused; it cannot run and it cannot receive a typed record."""
 
     pass
 
@@ -34,5 +34,11 @@ class OriginPhaseNotImplementedError(DomainException):
 
 class DuplicateManualRecordError(DomainException):
     """The manual form submitted a description_id the collection already has."""
+
+    pass
+
+
+class CsvImportLimitError(DomainException):
+    """The CSV import carried more rows or bytes than the one declared limit allows."""
 
     pass

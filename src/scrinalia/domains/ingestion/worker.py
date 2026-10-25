@@ -279,12 +279,16 @@ def execute(
     The staging step is what makes the run *end to end*: a scrape that leaves the raw payload in the
     bucket and never structures it would be a queue with no consumer. The archive transfer remains
     the next stage of the panel, a worker of its own.
+
+    The form-based origins (``manual`` and ``csv``) skip straight to staging, because their raw
+    record is the input the person sent; a run of one of them only retries a row an earlier import
+    could not structure.
     """
     from scrinalia.domains.ingestion.origin_registry import OriginKind
     from scrinalia.domains.ingestion.origins import get_origin_definition
 
     definition = get_origin_definition(origin_code, db_session)
-    if definition.summary.kind is OriginKind.MANUAL:
+    if definition.summary.kind in (OriginKind.MANUAL, OriginKind.CSV):
         run_staging_pipeline(
             db_session,
             source_schema=definition.schema,
@@ -347,7 +351,7 @@ def count_pending(
     """
     What the next execution of this origin would take, through the run's own policy.
 
-    The manual origin's queue is the raw records not yet staged; a scraper's is the
+    A form-based origin's queue is the raw records not yet staged; a scraper's is the
     ``scraping_queue`` window. Both answers come from the same helpers ``execute`` uses, so the
     number the panel shows and the batch the next run takes cannot disagree.
     """
@@ -356,7 +360,7 @@ def count_pending(
     if not origin_code:
         raise ValueError("A fila da ingestão é por origem: informe origin_code.")
     summary = get_origin_summary(origin_code)
-    if summary.kind is OriginKind.MANUAL:
+    if summary.kind in (OriginKind.MANUAL, OriginKind.CSV):
         return SqlRawRecordSource(db_session).count_pending(origin_code=origin_code)
 
     config = _config_from_options(
@@ -380,19 +384,19 @@ def count_pending(
 
 
 def count_processed(db_session: Session, origin_code: str | None = None, **_: object) -> int:
-    """Units the origin already produced: raw payloads for the manual origin, ``DONE`` rows otherwise."""
+    """Units the origin already produced: raw payloads for the form-based origins, ``DONE`` rows otherwise."""
     from scrinalia.domains.ingestion.origin_registry import OriginKind, get_origin_summary
 
-    if origin_code and get_origin_summary(origin_code).kind is OriginKind.MANUAL:
+    if origin_code and get_origin_summary(origin_code).kind in (OriginKind.MANUAL, OriginKind.CSV):
         return repository.count_raw_data(db_session, origin_code=origin_code)
     return repository.count_processed(db_session, origin_code=origin_code)
 
 
 def count_failed(db_session: Session, origin_code: str | None = None, **_: object) -> int:
-    """Terminal failures of the origin's queue; the manual origin has no scrape to fail."""
+    """Terminal failures of the origin's queue; a form-based origin has no scrape to fail."""
     from scrinalia.domains.ingestion.origin_registry import OriginKind, get_origin_summary
 
-    if origin_code and get_origin_summary(origin_code).kind is OriginKind.MANUAL:
+    if origin_code and get_origin_summary(origin_code).kind in (OriginKind.MANUAL, OriginKind.CSV):
         return 0
     return repository.count_failed(db_session, origin_code=origin_code)
 

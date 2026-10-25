@@ -17,6 +17,9 @@ from scrinalia.api.dependencies import provide_current_user, provide_ingestion_o
 from scrinalia.api.security import Access, AuthenticatedUser
 from scrinalia.domains.archive.schemas.system_schema import WorkerRunDTO
 from scrinalia.domains.ingestion.schemas import (
+    CsvImportRequest,
+    CsvImportResponse,
+    CsvImportSpecResponse,
     IngestionOriginDTO,
     IngestionOriginListResponse,
     IngestionOriginUpdateRequest,
@@ -24,6 +27,7 @@ from scrinalia.domains.ingestion.schemas import (
     IngestionScheduleRequest,
     ManualIngestionRequest,
     ManualIngestionResponse,
+    build_csv_import_spec,
 )
 from scrinalia.domains.ingestion.service import IngestionOriginService
 
@@ -120,3 +124,30 @@ class IngestionController(Controller):
         response says the record enters the next one.
         """
         return origin_service.create_manual(data, author=current_user.author)
+
+    @get("/csv/spec", opt={"access": Access.AUTHENTICATED}, sync_to_thread=False)
+    def csv_import_spec(self) -> CsvImportSpecResponse:
+        """
+        The CSV map and its bounds, for the screen to parse and validate before sending.
+
+        It is the same catalogue the import route validates against and the staging transform reads,
+        so the headers the card offers cannot drift from the ones the API accepts. A read, and it
+        needs no session beyond the one every route has.
+        """
+        return build_csv_import_spec()
+
+    @post("/csv", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
+    def import_csv(
+        self,
+        origin_service: NamedDependency[IngestionOriginService],
+        data: CsvImportRequest,
+        current_user: NamedDependency[AuthenticatedUser],
+    ) -> CsvImportResponse:
+        """
+        Writes a bounded list of CSV rows, stages the accepted ones and queues one transfer.
+
+        The file is parsed in the browser: no multipart, no object storage, no temporary file. The
+        API re-validates every row and answers a per-row report — a partial import is a normal
+        outcome, not a 500. A row whose id already exists is reported as duplicated, never written.
+        """
+        return origin_service.import_csv(data, author=current_user.author)

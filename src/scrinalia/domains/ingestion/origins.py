@@ -85,6 +85,18 @@ def get_origin_definition(
             adapters=OriginAdapters(code=code),
         )
 
+    if summary.kind is OriginKind.CSV:
+        from scrinalia.domains.ingestion.adapters.csv import CSV_SOURCE_SCHEMA
+
+        # No ports: the file is parsed in the browser and the import route writes and stages the
+        # rows itself. The schema is still this origin's, so the staging transform learns no site.
+        return OriginDefinition(
+            summary=summary,
+            config=validated,
+            schema=CSV_SOURCE_SCHEMA,
+            adapters=OriginAdapters(code=code),
+        )
+
     if summary.kind is OriginKind.SCRAPER:
         # Imported here, not at module level: ``requests``/``bs4`` are the adapter's, not the API's.
         from scrinalia.domains.ingestion.adapters.pmc_scraper import PMC_SOURCE_SCHEMA, PMCScraperAdapter

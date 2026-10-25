@@ -568,6 +568,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ingestion/csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ImportCsv */
+        post: operations["ApiV1IngestionCsvImportCsv"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingestion/csv/spec": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** CsvImportSpec */
+        get: operations["ApiV1IngestionCsvSpecCsvImportSpec"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ingestion/manual": {
         parameters: {
             query?: never;
@@ -2600,6 +2634,99 @@ export interface components {
             offset: number;
             total: number;
         };
+        /** CsvFieldDTO */
+        CsvFieldDTO: {
+            attribute: string;
+            help: string;
+            /**
+             * @default text
+             * @enum {string}
+             */
+            kind: "text" | "long_text" | "date" | "tags" | "url";
+            label: string;
+            max_length?: number | null;
+            /** @default false */
+            required: boolean;
+        };
+        /** CsvImportRequest */
+        CsvImportRequest: {
+            rows: components["schemas"]["CsvImportRow"][];
+        };
+        /** CsvImportResponse */
+        CsvImportResponse: {
+            code: components["schemas"]["RouteMessageCode"];
+            data: components["schemas"]["CsvImportResultDTO"];
+            message: string;
+        };
+        /** CsvImportResultDTO */
+        CsvImportResultDTO: {
+            accepted: number;
+            duplicated: number;
+            invalid: number;
+            origin_code: string;
+            received: number;
+            /**
+             * @description O estado inicial no archive: a importação não marca HUMAN_APPROVED.
+             * @default PENDING_AI
+             */
+            review_status: string;
+            rows?: components["schemas"]["CsvRowResultDTO"][];
+            /** @default false */
+            transfer_queued: boolean;
+            transfer_run_id?: number | null;
+        };
+        /** CsvImportRow */
+        CsvImportRow: {
+            /** @description Identificador único do registro. */
+            description_id: string;
+            /** @description As células da linha, com o rótulo do mapa como chave. */
+            fields?: {
+                [key: string]: string;
+            };
+            /**
+             * @description A linha do arquivo, para a tela.
+             * @default 0
+             */
+            line: number;
+        };
+        /** CsvImportSpecResponse */
+        CsvImportSpecResponse: {
+            fields?: components["schemas"]["CsvFieldDTO"][];
+            id: components["schemas"]["CsvFieldDTO"];
+            max_bytes: number;
+            max_field_chars: number;
+            max_row_bytes: number;
+            max_rows: number;
+            origin_code: string;
+        };
+        /**
+         * CsvRowIssueCode
+         * @description Why one row did not enter, as a stable identifier rather than a sentence.
+         *
+         *         The codes are additive and shared by the rows that produce the same outcome; the sentence
+         *         beside it is Portuguese and can be translated later without renaming the code.
+         * @enum {string}
+         */
+        CsvRowIssueCode: "MISSING_REQUIRED" | "UNKNOWN_FIELD" | "TOO_LONG" | "ROW_TOO_LARGE" | "INVALID_DATE" | "INVALID_VALUE" | "INVALID_IDENTIFIER" | "DUPLICATE_IN_BATCH" | "ALREADY_EXISTS" | "STAGING_FAILED";
+        /** CsvRowIssueDTO */
+        CsvRowIssueDTO: {
+            code: components["schemas"]["CsvRowIssueCode"];
+            field?: string | null;
+            message: string;
+        };
+        /** CsvRowResultDTO */
+        CsvRowResultDTO: {
+            description_id: string;
+            issues?: components["schemas"]["CsvRowIssueDTO"][];
+            line: number;
+            status: components["schemas"]["CsvRowStatus"];
+        };
+        /**
+         * CsvRowStatus
+         * @description The outcome of one row of the import, as the screen reports it.
+         * @enum {string}
+         */
+        CsvRowStatus: "ACCEPTED" | "DUPLICATED" | "INVALID";
         /** CurationInbox */
         CurationInbox: {
             /** Format: date-time */
@@ -3939,7 +4066,7 @@ export interface components {
          *         things and a translation catalogue needs to tell them apart.
          * @enum {string}
          */
-        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "MANUAL_INGESTION_QUEUED" | "MANUAL_INGESTION_STAGED" | "WORKER_RUN_CANCELLED" | "WORKER_RUN_CANCEL_REQUESTED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORDS_MATCH_UPDATED" | "TAG_STOPWORD_PURGE_DONE" | "TAG_STOPWORD_PURGE_UNDONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_BLOCKED" | "SUBJECT_EXCLUSIONS_PARTIAL" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "NER_PURGE_DONE" | "NER_PURGE_UNDONE" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "ENTITY_RENAMED" | "ENTITY_MERGE_UNDONE" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "PASSWORD_CHANGE_REQUIRED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
+        RouteMessageCode: "CLEANING_RULE_CREATED" | "CLEANING_RULE_DEACTIVATED" | "CLEANING_RULE_ACTIVATED" | "TEXT_TEMPLATE_SUGGESTED" | "TEXT_TEMPLATE_CREATED" | "TEXT_TEMPLATE_UPDATED" | "TEXT_TEMPLATE_DELETED" | "DOCUMENT_DELETED" | "MANUAL_INGESTION_QUEUED" | "MANUAL_INGESTION_STAGED" | "CSV_IMPORT_QUEUED" | "CSV_IMPORT_STAGED" | "CSV_IMPORT_REFUSED" | "WORKER_RUN_CANCELLED" | "WORKER_RUN_CANCEL_REQUESTED" | "TAG_MERGE_PROPOSAL_DECIDED" | "TAG_MERGE_UNDONE" | "TAG_STOPWORDS_BANNED" | "TAG_STOPWORDS_REMOVED" | "TAG_STOPWORDS_MATCH_UPDATED" | "TAG_STOPWORD_PURGE_DONE" | "TAG_STOPWORD_PURGE_UNDONE" | "SUBJECT_EXCLUSIONS_ADDED" | "SUBJECT_EXCLUSIONS_BLOCKED" | "SUBJECT_EXCLUSIONS_PARTIAL" | "SUBJECT_EXCLUSIONS_REMOVED" | "MACRO_CLUSTERING_INSUFFICIENT_TEXTS" | "NER_EXCLUSIONS_ADDED" | "NER_EXCLUSIONS_REMOVED" | "NER_PURGE_DONE" | "NER_PURGE_UNDONE" | "ORPHAN_ENTITIES_PURGED" | "ENTITY_RECLASSIFIED" | "ENTITY_DELETED" | "ENTITY_RENAMED" | "ENTITY_MERGE_UNDONE" | "CONFLICT_RESOLVED" | "CONFLICT_BATCH_RESOLVED" | "SESSION_ENDED" | "PASSWORD_CHANGED" | "PASSWORD_CHANGE_REQUIRED" | "USER_PASSWORD_RESET" | "USER_SESSIONS_REVOKED" | "SESSION_REVOKED";
         /** RouteResponse */
         RouteResponse: {
             code: components["schemas"]["RouteMessageCode"];
@@ -6294,6 +6421,65 @@ export interface operations {
                         } | unknown[];
                         status_code: number;
                     };
+                };
+            };
+        };
+    };
+    ApiV1IngestionCsvImportCsv: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CsvImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CsvImportResponse"];
+                };
+            };
+            /** @description Bad request syntax or unsupported method */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        detail: string;
+                        extra?: null | {
+                            [key: string]: unknown;
+                        } | unknown[];
+                        status_code: number;
+                    };
+                };
+            };
+        };
+    };
+    ApiV1IngestionCsvSpecCsvImportSpec: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Request fulfilled, document follows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CsvImportSpecResponse"];
                 };
             };
         };

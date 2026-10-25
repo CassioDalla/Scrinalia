@@ -9,7 +9,7 @@ and it keeps two promises the ADR 0008 made:
   ``ACERVO_SOURCE`` fallback is gone, because a fallback would make an installation that never named
   an origin read the reference site's labels. The plural run resolves the schema per record from the
   record's own ``origin_code``; the host command names one explicitly.
-* **the vocabulary stays with the adapter.** ``SOURCES`` exposes the two schemas the package ships;
+* **the vocabulary stays with the adapter.** ``SOURCES`` exposes the schemas the package ships;
   ``get_source_schema`` is a lookup, never a transform.
 
 The ports are resolved through :func:`origins.get_origin_definition`, which reads the origin's row.
@@ -23,6 +23,7 @@ from collections.abc import Callable
 
 from sqlalchemy.orm import Session
 
+from scrinalia.domains.ingestion.adapters.csv import CSV_SOURCE_SCHEMA
 from scrinalia.domains.ingestion.adapters.manual import MANUAL_SOURCE_SCHEMA
 from scrinalia.domains.ingestion.adapters.pmc_scraper import PMC_SOURCE_SCHEMA
 from scrinalia.domains.ingestion.origin_registry import ORIGINS, get_origin_summary
@@ -34,6 +35,7 @@ from scrinalia.domains.ingestion.ports import OriginAdapters, SourceSchema
 SOURCES: dict[str, SourceSchema] = {
     PMC_SOURCE_SCHEMA.code: PMC_SOURCE_SCHEMA,
     MANUAL_SOURCE_SCHEMA.code: MANUAL_SOURCE_SCHEMA,
+    CSV_SOURCE_SCHEMA.code: CSV_SOURCE_SCHEMA,
 }
 
 #: Factories kept for the callers that only need the shape of the registry. The real resolution is

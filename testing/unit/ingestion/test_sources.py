@@ -9,23 +9,27 @@ column filed as unknown, and adding a second origin must not make the transform 
 import pytest
 
 from scrinalia.core.config import settings
+from scrinalia.domains.ingestion.adapters.csv import CSV_SOURCE_SCHEMA
 from scrinalia.domains.ingestion.adapters.manual import MANUAL_SOURCE_SCHEMA
 from scrinalia.domains.ingestion.adapters.pmc_scraper import PMC_SOURCE_SCHEMA
+from scrinalia.domains.ingestion.csv_import import CSV_FIELD_MAP, CSV_FIELDS, CSV_TITLE_LABEL
 from scrinalia.domains.ingestion.exceptions import InvalidOriginConfigError, OriginNotFoundError
 from scrinalia.domains.ingestion.origin_registry import ORIGINS
 from scrinalia.domains.ingestion.ports import OriginAdapters
+from scrinalia.domains.ingestion.schemas import ManualIngestionRequest
 from scrinalia.domains.ingestion.sources import ADAPTERS, SOURCES, get_adapters, get_source_schema
 from scrinalia.domains.staging.schemas import StagingDocumentDTO
 
 
 def test_every_shipped_origin_is_registered() -> None:
-    assert set(SOURCES) == set(ADAPTERS) == set(ORIGINS) == {"pmc", "manual"}
+    assert set(SOURCES) == set(ADAPTERS) == set(ORIGINS) == {"pmc", "manual", "csv"}
 
 
 def test_each_origin_has_its_own_vocabulary() -> None:
     assert get_source_schema("pmc") is PMC_SOURCE_SCHEMA
     assert get_source_schema("manual") is MANUAL_SOURCE_SCHEMA
-    assert PMC_SOURCE_SCHEMA is not MANUAL_SOURCE_SCHEMA
+    assert get_source_schema("csv") is CSV_SOURCE_SCHEMA
+    assert len({id(PMC_SOURCE_SCHEMA), id(MANUAL_SOURCE_SCHEMA), id(CSV_SOURCE_SCHEMA)}) == 3
 
 
 def test_a_missing_origin_fails_fast() -> None:
@@ -77,6 +81,48 @@ def test_the_manual_vocabulary_is_the_form_keys() -> None:
     assert MANUAL_SOURCE_SCHEMA.date_keys == ("document_date",)
 
 
+def test_the_csv_vocabulary_is_the_import_catalogue() -> None:
+    """
+    The file's headers are the labels, and the title/date are consumed by the schema's own keys.
+
+    Keeping the title out of ``field_map`` is load-bearing: the transform would append it to itself
+    (``Ofício | Ofício``) instead of reading it once through ``title_key``.
+    """
+    assert CSV_SOURCE_SCHEMA.field_map is CSV_FIELD_MAP
+    assert CSV_SOURCE_SCHEMA.title_key == CSV_TITLE_LABEL == "Título"
+    assert CSV_SOURCE_SCHEMA.date_keys == ("Data de produção",)
+    assert "Título" not in CSV_SOURCE_SCHEMA.field_map
+    assert "Data de produção" not in CSV_SOURCE_SCHEMA.field_map
+    assert CSV_SOURCE_SCHEMA.field_map["Código de referência"] == "reference_code"
+
+
+def test_the_csv_vocabulary_is_the_manual_contract() -> None:
+    """
+    The CSV accepts the manual contract's field set, and #192 expands both together.
+
+    The set equality is the gate: a field added to ``ManualIngestionRequest`` without a label here
+    (or a label pointing at an attribute the model does not have) fails before the route can file
+    the column as unknown. ``description_id`` is the row's identity, outside the payload.
+    """
+    attributes = {field.attribute for field in CSV_FIELDS}
+    manual = set(ManualIngestionRequest.model_fields) - {"description_id"}
+    assert attributes == manual
+    assert len({field.label for field in CSV_FIELDS}) == len(CSV_FIELDS)
+
+
+def test_the_csv_field_caps_are_the_manual_ones() -> None:
+    """A cap looser than the contract's would make the front accept a row the route refuses."""
+    from annotated_types import MaxLen
+
+    for field in CSV_FIELDS:
+        model_field = ManualIngestionRequest.model_fields.get(field.attribute)
+        if model_field is None:
+            continue
+        caps = [cap.max_length for cap in model_field.metadata if isinstance(cap, MaxLen)]
+        if caps:
+            assert field.max_length == caps[0], f"{field.label} tem limite {field.max_length} != {caps[0]}"
+
+
 def test_every_origin_config_field_names_a_model_field() -> None:
     """
     The screen's fields are metadata about the origin's own model, not a second validation.
@@ -111,7 +157,15 @@ def test_the_reference_origin_registers_both_phases(monkeypatch: pytest.MonkeyPa
 
 
 def test_the_adapters_registry_is_the_source_registry() -> None:
-    assert set(ADAPTERS) == set(SOURCES) == {"pmc", "manual"}
+    assert set(ADAPTERS) == set(SOURCES) == {"pmc", "manual", "csv"}
+
+
+def test_a_form_based_origin_declares_no_port() -> None:
+    """The CSV (like the manual origin) writes its rows itself; asking for a phase names it."""
+    adapters = get_adapters("csv")
+    assert adapters.discovery is None and adapters.detail is None
+    with pytest.raises(ValueError, match="no discovery phase"):
+        adapters.require_discovery()
 
 
 def test_a_missing_scrape_url_fails_fast(monkeypatch: pytest.MonkeyPatch) -> None:

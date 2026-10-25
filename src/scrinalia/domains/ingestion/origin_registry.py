@@ -29,6 +29,9 @@ class OriginKind(StrEnum):
 
     SCRAPER = "SCRAPER"
     MANUAL = "MANUAL"
+    #: A batch of rows uploaded from the screen. There is no adapter and no site; the import route
+    #: stages the rows itself, and an ``ingestion`` run of this origin only retries leftovers.
+    CSV = "CSV"
 
 
 #: The control a configuration field needs on the screen.
@@ -69,6 +72,12 @@ class PmcOriginConfig(BaseModel):
 
 class ManualOriginConfig(BaseModel):
     """A manual origin has no adapter configuration; the form is its input."""
+
+    pass
+
+
+class CsvOriginConfig(BaseModel):
+    """A CSV origin has no adapter configuration; the uploaded rows are its input."""
 
     pass
 
@@ -129,6 +138,16 @@ ORIGINS: Mapping[str, OriginSummary] = {
         ),
         kind=OriginKind.MANUAL,
         config_model=ManualOriginConfig,
+    ),
+    "csv": OriginSummary(
+        code="csv",
+        label="Importação CSV",
+        description=(
+            "Um arquivo CSV lido no navegador e enviado como linhas. Não passa pelo storage: entra "
+            "no mesmo staging e na mesma fila de IA das outras origens, com o resultado por linha."
+        ),
+        kind=OriginKind.CSV,
+        config_model=CsvOriginConfig,
     ),
 }
 

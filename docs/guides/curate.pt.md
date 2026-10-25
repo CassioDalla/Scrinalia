@@ -989,11 +989,11 @@ correção é a revisão humana da ficha, na descrição.
 A máquina, não o acervo. Tudo aqui pertence a quem opera a instalação, e as quatro telas são
 alcançadas por `/configuracoes`, sob *Operação*: o menu ficou com o que o arquivista consulta
 catalogando, e não é isto. A tela de ingestão é a exceção à regra "só operador" — o formulário manual
-é uma escrita do curador (#44) — e por isso é um cartão `CURATE`.
+e a importação CSV são escritas do curador (#44, #191) — e por isso é um cartão `CURATE`.
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Ingestão — `/sistema/ingestao` | qual origem ler, as URLs e a agenda (operador); e digitar um registro (curador) | a configuração e a agenda são reversíveis; um registro manual entra no pipeline e é aprovado (ou rejeitado) no dossiê |
+| Ingestão — `/sistema/ingestao` | qual origem ler, as URLs e a agenda (operador); e digitar um registro ou importar um CSV (curador) | a configuração e a agenda são reversíveis; um registro manual ou uma linha importada entra no pipeline e é aprovado (ou rejeitado) no dossiê |
 | Workers de IA — `/sistema/workers` | se roda um worker agora | sim (a configuração da própria execução); os efeitos de uma execução seguem o que ela escreveu |
 | Execuções — `/sistema/execucoes` | se para uma execução ativa (o ledger e as falhas agrupadas são só leitura) | sem desfazer: uma execução cancelada continua cancelada; uma nova execução é uma nova linha no ledger |
 | Saúde do sistema — `/sistema/diagnostico` | nenhuma (banco, modelos, storage, processo) | sim (só leitura) |
@@ -1008,12 +1008,23 @@ execução**. A execução é o mesmo ledger dos workers de IA; um período que 
 rodando é pulado, não enfileirado. As rotas genéricas de worker recusam `ingestion` — uma execução
 dela precisa da origem, e as rotas da origem são o seletor.
 
-O **curador** vê os mesmos cartões só para leitura e o formulário **Entrada manual**. Esse formulário
-é a origem `manual`: o envio grava o registro digitado como payload bruto da origem, estrutura-o pelo
-mesmo transform e enfileira o mesmo worker `transfer`. A descrição do Acervo nasce `PENDING_AI`; as
-filas de IA a veem, e a aprovação é o `PATCH /documents/{id}` do dossiê depois que a IA rodar. Digitar
-um registro **não** é uma aprovação, e um `description_id` duplicado é recusado antes da gravação. O
-resto dos campos de staging e a importação de CSV interpretada no navegador são #192 e #191.
+O **curador** vê os mesmos cartões só para leitura, o formulário **Entrada manual** e o cartão
+**Importação CSV**. O formulário é a origem `manual`: o envio grava o registro digitado como payload
+bruto da origem, estrutura-o pelo mesmo transform e enfileira o mesmo worker `transfer`. A descrição do
+Acervo nasce `PENDING_AI`; as filas de IA a veem, e a aprovação é o `PATCH /documents/{id}` do dossiê
+depois que a IA rodar. Digitar um registro **não** é uma aprovação, e um `description_id` duplicado é
+recusado antes da gravação.
+
+O cartão de CSV é a origem `csv` (#191, ADR 0019). O arquivo é interpretado **no navegador**: o cartão
+mostra os cabeçalhos detectados, uma prévia e as conferências locais, e envia só as linhas como JSON —
+nada vai para o storage de objetos e não existe rota multipart, então uma instalação cujo storage não
+está configurado importa um CSV do mesmo jeito. O mapa é o da API (`GET
+/api/v1/ingestion/csv/spec`), então um cabeçalho não pode ser aceito pela tela e recusado pelo
+servidor; a API revalida cada linha com o contrato de staging, e a resposta por linha diz **aceita**,
+**duplicada** (o `description_id` já existe) ou **inválida**, com o campo e a frase. Uma importação
+parcial é normal. As linhas aceitas entram no staging como `origin_code='csv'` e uma `transfer` é
+enfileirada depois delas, então a descrição do Acervo nasce `PENDING_AI` como na entrada manual. O
+resto dos campos de staging é #192.
 
 ### Workers de IA — `/sistema/workers`
 

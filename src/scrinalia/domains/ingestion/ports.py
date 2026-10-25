@@ -104,9 +104,10 @@ class OriginAdapters:
     The ports one origin implements, resolved as a pair.
 
     Both fields are optional on purpose. The ingestion job has two ports and an origin may implement
-    only one of them: a manual CSV ingestion lists rows and has no detail page to fetch, and an
-    origin that receives its identifiers from elsewhere fetches details it was told about. Declaring
-    the phase instead of failing deep inside the job is what keeps "another origin" a registry entry.
+    only one of them: the manual form and the CSV import write their rows themselves and have no
+    detail page to fetch, and an origin that receives its identifiers from elsewhere fetches details
+    it was told about. Declaring the phase instead of failing deep inside the job is what keeps
+    "another origin" a registry entry.
 
     It lives in ``ports`` and not in ``sources`` because it is a contract, and because both the
     registry metadata and the runtime definition need to name it without importing an adapter.

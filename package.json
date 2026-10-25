@@ -16,6 +16,7 @@
     "dev": "bun run db:up && bun run api:dev & bun run runner:dev & bun run scheduler:dev & bun run curator:dev",
     "curator:dev": "bun run --cwd apps/curator dev",
     "curator:build": "bun run --cwd apps/curator build",
+    "curator:test": "bun run --cwd apps/curator test",
     "curator:codegen": "bun run --cwd apps/curator codegen",
     "contract": "uv run python -m scrinalia.api.dump_openapi > packages/api-contract/openapi.json && bun run --cwd apps/curator codegen"
   },
