@@ -231,3 +231,56 @@ def test_a_cap_must_be_positive() -> None:
     """``--limit 0`` reads nothing and exits successfully, which reads as "the queue is empty"."""
     with pytest.raises(SystemExit):
         runner.main(["embedding", "--limit", "0"])
+
+
+# --- the engine pass-through (#120) -------------------------------------------------------------
+
+
+def test_main_parses_the_engine_pass_through_apart_from_the_options(monkeypatch) -> None:
+    """
+    The two doors are parsed apart: ``--option`` is validated by the worker's signature, and
+    ``--engine-option`` is the raw pass-through the constructor validates.
+    """
+    captured: dict = {}
+    monkeypatch.setattr(runner, "run_worker", lambda name, **kwargs: captured.update(name=name, **kwargs))
+
+    exit_code = runner.main(
+        [
+            "ner",
+            "--option",
+            "columns_to_extract=original_title",
+            "--engine-option",
+            "device=cpu",
+            "--engine-option",
+            "disable=ner,parser",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["extra"] == {"columns_to_extract": "original_title"}
+    assert captured["engine_options"] == {"device": "cpu", "disable": ["ner", "parser"]}
+
+
+def test_the_pass_through_is_coerced_by_the_type_the_preset_declares(monkeypatch) -> None:
+    """``batch_size=16`` reaches the constructor as a number, not as the string the shell gave."""
+    captured: dict = {}
+    monkeypatch.setattr(runner, "run_worker", lambda name, **kwargs: captured.update(name=name, **kwargs))
+
+    runner.main(["embedding", "--engine-option", "batch_size=16"])
+
+    assert captured["engine_options"] == {"batch_size": 16}
+
+
+def test_an_unknown_pass_through_key_keeps_the_string_the_shell_gave(monkeypatch) -> None:
+    """The key is the library's: the engine validates the value, and the CLI invents no type for it."""
+    captured: dict = {}
+    monkeypatch.setattr(runner, "run_worker", lambda name, **kwargs: captured.update(name=name, **kwargs))
+
+    runner.main(["ner", "--engine-option", "max_length=256"])
+
+    assert captured["engine_options"] == {"max_length": "256"}
+
+
+def test_a_pass_through_without_a_value_is_a_usage_error(monkeypatch) -> None:
+    with pytest.raises(SystemExit):
+        runner.main(["ner", "--engine-option", "device"])

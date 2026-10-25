@@ -14,6 +14,7 @@ import difflib
 import hashlib
 import re
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 #: Columns whose content forms the text read by the AI. ``final_title`` is here even
@@ -25,6 +26,19 @@ AI_TEXT_COLUMNS: tuple[str, ...] = (
     "admin_bio_history",
     "provenance",
 )
+
+
+def unknown_ai_columns(columns: Iterable[str]) -> list[str]:
+    """
+    The names in ``columns`` that the AI text does not have, in the order they were given.
+
+    One implementation for the readers that already refuse a typo: the evaluation benches
+    (``--config engine:preset:col1,col2``) and the write path of a worker option
+    (``columns_to_extract``/``columns_to_classify``). Both check :data:`AI_TEXT_COLUMNS` — the same
+    tuple the SQL composition reads — so "which columns may the AI read?" has one answer (#120).
+    """
+    return [column for column in columns if column not in AI_TEXT_COLUMNS]
+
 
 #: An excerpt shorter than this is not proposed by the frequency routine. Shorter
 #: fragments match too much unrelated text ("da cidade", "nº 12") and a human

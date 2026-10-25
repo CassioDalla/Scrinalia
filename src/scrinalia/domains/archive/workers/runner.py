@@ -23,8 +23,8 @@ from scrinalia.domains.archive.workers import (
     worker_thumbnail,
     worker_typology,
 )
-from scrinalia.domains.archive.workers.catalogue import WORKER_CATALOGUE
-from scrinalia.domains.archive.workers.configuration import resolve_configuration
+from scrinalia.domains.archive.workers.catalogue import WORKER_CATALOGUE, engine_option_values
+from scrinalia.domains.archive.workers.configuration import effective_worker_options, resolve_configuration
 from scrinalia.domains.archive.workers.ledger import WorkerRunLedger
 
 WorkerFn = Callable[..., None]
@@ -114,6 +114,36 @@ def _coerce_option(key: str, value: Any, declared: Any) -> Any:
     return value
 
 
+def _coerce_engine_option(key: str, value: str, known: dict[str, Any]) -> Any:
+    """
+    Coerces a ``--engine-option`` to the type the engine's own preset gives that key.
+
+    The axis declares the value (``batch_size: 32``, ``disable: ["ner", "parser"]``), so a number
+    reaches the constructor as a number instead of the string the shell produced. A key the axis
+    does not name is left as the string it was: the engine is the one that validates it, and this
+    function refuses nothing it has no type for.
+    """
+    reference = known.get(key)
+    if isinstance(reference, bool):
+        lowered = value.strip().lower()
+        if lowered not in {"true", "false"}:
+            raise InvalidWorkerSettingsError(f"O repasse '{key}' é booleano: use true ou false, não {value!r}.")
+        return lowered == "true"
+    if isinstance(reference, int) and not isinstance(reference, bool):
+        try:
+            return int(value)
+        except ValueError as error:
+            raise InvalidWorkerSettingsError(f"O repasse '{key}' espera um inteiro, não {value!r}.") from error
+    if isinstance(reference, float):
+        try:
+            return float(value)
+        except ValueError as error:
+            raise InvalidWorkerSettingsError(f"O repasse '{key}' espera um número, não {value!r}.") from error
+    if isinstance(reference, (list, tuple)):
+        return [part.strip() for part in value.split(",") if part.strip()]
+    return value
+
+
 def _forward_kwargs(
     fn: WorkerFn,
     *,
@@ -165,6 +195,7 @@ def run_worker(
     db_batch_size: int | None = None,
     limit: int | None = None,
     extra: dict[str, Any] | None = None,
+    engine_options: dict[str, Any] | None = None,
     db_factory: Callable[[], Any] = get_db,
     ledger: WorkerRunLedger | None = None,
     run_id: int | None = None,
@@ -186,6 +217,10 @@ def run_worker(
     ``ledger``/``run_id`` are how the execution becomes visible in the panel: the CLI passes a
     ledger and no id (the runner opens the row), the API passes the id of the row it queued. A
     programmatic caller that passes neither runs without a ledger line — explicit, not silent.
+
+    ``engine_options`` is the named exception of the option validation (#120): a raw pass-through to
+    the engine constructor, per run, for an operator who knows the library. It is never persisted and
+    never merged into the worker's declared options.
     """
     if name not in WORKERS:
         raise ValueError(f"Unknown worker '{name}'. Options: {sorted(WORKERS)}")
@@ -208,6 +243,7 @@ def run_worker(
 
     logger.info(f"🚀 Runner executing the worker '{name}'...")
     with db_factory() as db:
+        run_options: dict[str, Any] = {}
         if spec is None:
             resolved_engine, resolved_preset, resolved_batch = engine_name, preset, db_batch_size
             forwarded = explicit_extra
@@ -222,6 +258,7 @@ def run_worker(
                 preset=preset,
                 db_batch_size=db_batch_size,
                 options=explicit_extra,
+                engine_options=engine_options,
             )
             resolved_engine, resolved_preset, resolved_batch = (
                 resolved.engine_name,
@@ -230,6 +267,7 @@ def run_worker(
             )
             forwarded = resolved.forwarded_options
             run_config = resolved.config
+            run_options = effective_worker_options(spec, resolved)
 
         if ledger is not None:
             if run_id is None:
@@ -240,9 +278,13 @@ def run_worker(
                     engine_name=resolved_engine,
                     preset=resolved_preset,
                     config=run_config,
+                    options=run_options,
                 )
             else:
-                ledger.mark_running(run_id)
+                # The effective options are known only here, inside the run: a worker resolves the
+                # default of a column list from its own runner dataclass, and the request that
+                # queued the row never saw it.
+                ledger.mark_running(run_id, options=run_options)
 
         kwargs = _forward_kwargs(
             fn,
@@ -287,16 +329,34 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         default=[],
         metavar="KEY=VALUE",
-        help="Extra parameter forwarded to the worker (can be repeated).",
+        help="A worker option (can be repeated); only the ones the worker declares are accepted.",
+    )
+    parser.add_argument(
+        "--engine-option",
+        dest="engine_option",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help=(
+            "Raw pass-through to the engine constructor, per run (can be repeated). "
+            "Never persisted; an option the worker declares belongs in --option."
+        ),
     )
     args = parser.parse_args(argv)
 
-    extra: dict[str, str] = {}
-    for item in args.option:
-        key, separator, value = item.partition("=")
-        if not separator:
-            parser.error(f"Invalid option '{item}'. Use KEY=VALUE.")
-        extra[key] = value
+    def parsed(items: list[str], flag: str) -> dict[str, str]:
+        values: dict[str, str] = {}
+        for item in items:
+            key, separator, value = item.partition("=")
+            if not separator:
+                parser.error(f"Invalid {flag} '{item}'. Use KEY=VALUE.")
+            values[key] = value
+        return values
+
+    extra = parsed(args.option, "--option")
+    raw_engine_options = parsed(args.engine_option, "--engine-option")
+    known = engine_option_values(args.worker)
+    engine_options = {key: _coerce_engine_option(key, value, known) for key, value in raw_engine_options.items()}
 
     run_worker(
         args.worker,
@@ -305,6 +365,7 @@ def main(argv: list[str] | None = None) -> int:
         db_batch_size=args.db_batch_size,
         limit=args.limit,
         extra=extra,
+        engine_options=engine_options,
         ledger=WorkerRunLedger(),
         trigger=WorkerRunTrigger.CLI,
         requested_by=Author(name=args.requested_by) if args.requested_by else None,

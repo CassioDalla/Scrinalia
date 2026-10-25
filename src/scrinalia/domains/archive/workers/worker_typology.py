@@ -1,3 +1,5 @@
+from typing import Any
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
@@ -44,6 +46,21 @@ def resolved_parameters(
     columns = list(columns_to_classify or resolved.columns_to_classify)
     threshold = resolved.confidence_threshold if confidence_threshold is None else float(confidence_threshold)
     return columns, threshold
+
+
+def effective_options(
+    columns_to_classify: list[str] | None = None,
+    confidence_threshold: float | None = None,
+    **_options: Any,
+) -> dict[str, Any]:
+    """
+    The option values a run really uses, through ``resolved_parameters`` (#120).
+
+    Named by the catalogue, so the ledger answers "which columns and which floor did run #N use?"
+    without a second resolution of the code default.
+    """
+    columns, threshold = resolved_parameters(None, columns_to_classify, confidence_threshold)
+    return {"columns_to_classify": columns, "confidence_threshold": threshold}
 
 
 def producer_identity(

@@ -4149,6 +4149,21 @@ export interface components {
             name: string;
             presets?: components["schemas"]["WorkerPresetDTO"][];
         };
+        /** WorkerOptionDTO */
+        WorkerOptionDTO: {
+            /** @description Os valores admitidos quando kind='columns': as colunas que o texto da IA tem. */
+            choices?: string[];
+            default?: unknown;
+            /** @enum {string} */
+            kind: "boolean" | "integer" | "number" | "text" | "list" | "columns";
+            name: string;
+            /**
+             * @description 'run' é uma opção de uma execução (o cap 'limit'): não aparece no formulário de padrão.
+             * @default both
+             * @enum {string}
+             */
+            scope: "setting" | "run" | "both";
+        };
         /** WorkerPresetDTO */
         WorkerPresetDTO: {
             config?: {
@@ -4176,6 +4191,10 @@ export interface components {
             /** @description A causa raiz da falha, derivada da mensagem pelo PostgreSQL. Duas execuções com a mesma causa compartilham este valor. */
             error_fingerprint?: string | null;
             finished_at?: string | null;
+            /** @description Opções efetivas do worker nesta execução (as colunas lidas, o limite de confiança), resolvidas quando a execução começou. Vazio numa linha antiga, ou numa que ainda não começou. */
+            options?: {
+                [key: string]: unknown;
+            };
             preset?: string | null;
             /** Format: date-time */
             queued_at: string;
@@ -4198,6 +4217,11 @@ export interface components {
         WorkerRunRequest: {
             db_batch_size?: number | null;
             engine_name?: string | null;
+            /** @description Repasse cru ao construtor do engine, para quem conhece a biblioteca. Por execução: não vira padrão. Uma chave de opção declarada aqui é recusada. */
+            engine_options?: {
+                [key: string]: unknown;
+            };
+            /** @description As opções declaradas pelo worker; uma chave que ele não declara é recusada. */
             options?: {
                 [key: string]: unknown;
             };
@@ -4227,7 +4251,11 @@ export interface components {
                 [key: string]: unknown;
             };
             db_batch_size?: number | null;
+            /** @description As opções que este worker aceita, derivadas da assinatura do execute. */
+            declared_options?: components["schemas"]["WorkerOptionDTO"][];
             engine_name?: string | null;
+            /** @description As chaves que o eixo repassa ao construtor do engine (model, device, host, ...). É a dica do bloco avançado; os valores seguem os do próprio motor. */
+            engine_option_names?: string[];
             /** @enum {string} */
             engine_source: "signature" | "llm_check_rule" | "none";
             note?: string | null;

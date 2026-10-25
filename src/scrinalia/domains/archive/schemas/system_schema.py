@@ -23,6 +23,13 @@ EngineSource = Literal["signature", "llm_check_rule", "none"]
 #: What one unit of a worker's queue is.
 WorkerUnit = Literal["staging", "document", "tag", "pair"]
 
+#: The control an option needs. ``columns`` is a list whose values are enumerated (the columns the
+#: AI text has); ``list`` is a free list of strings.
+WorkerOptionKind = Literal["boolean", "integer", "number", "text", "list", "columns"]
+
+#: Where an option is admissible: a persisted default, one execution only, or both.
+WorkerOptionScope = Literal["setting", "run", "both"]
+
 
 class WorkerRunDTO(BaseModel):
     """One execution of a worker, as the ledger recorded it."""
@@ -39,6 +46,13 @@ class WorkerRunDTO(BaseModel):
     config: dict[str, Any] = Field(
         default_factory=dict,
         description="Configuração resolvida (preset já mesclado com os overrides), para o registro não mudar de sentido quando um preset mudar no código.",
+    )
+    options: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Opções efetivas do worker nesta execução (as colunas lidas, o limite de confiança), "
+            "resolvidas quando a execução começou. Vazio numa linha antiga, ou numa que ainda não começou."
+        ),
     )
     queued_at: datetime
     started_at: datetime | None = None
@@ -95,7 +109,17 @@ class WorkerRunRequest(BaseModel):
     engine_name: str | None = None
     preset: str | None = None
     db_batch_size: int | None = Field(default=None, ge=1, le=10_000)
-    options: dict[str, Any] = Field(default_factory=dict)
+    options: dict[str, Any] = Field(
+        default_factory=dict,
+        description="As opções declaradas pelo worker; uma chave que ele não declara é recusada.",
+    )
+    engine_options: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Repasse cru ao construtor do engine, para quem conhece a biblioteca. Por execução: não "
+            "vira padrão. Uma chave de opção declarada aqui é recusada."
+        ),
+    )
 
 
 class WorkerPresetDTO(BaseModel):
@@ -106,6 +130,29 @@ class WorkerPresetDTO(BaseModel):
 class WorkerEngineDTO(BaseModel):
     name: str
     presets: list[WorkerPresetDTO] = Field(default_factory=list)
+
+
+class WorkerOptionDTO(BaseModel):
+    """
+    One option the worker's ``execute`` declares, so the screen renders a field instead of a JSON box.
+
+    Derived from the worker's own signature by ``workers/configuration.py``: ``kind`` is the type it
+    already declares, ``default`` is its own default, and ``choices`` is the catalogue the option is
+    defined against — for a column list, ``AI_TEXT_COLUMNS``, the same tuple the SQL composition and
+    the benches read. The panel can therefore offer exactly what the write path accepts (#120).
+    """
+
+    name: str
+    kind: WorkerOptionKind
+    scope: WorkerOptionScope = Field(
+        default="both",
+        description="'run' é uma opção de uma execução (o cap 'limit'): não aparece no formulário de padrão.",
+    )
+    default: Any = None
+    choices: list[str] = Field(
+        default_factory=list,
+        description="Os valores admitidos quando kind='columns': as colunas que o texto da IA tem.",
+    )
 
 
 class WorkerSettingsDTO(BaseModel):
@@ -128,6 +175,17 @@ class WorkerSettingsDTO(BaseModel):
     engine_source: EngineSource
     config: dict[str, Any] = Field(default_factory=dict)
     available_engines: list[WorkerEngineDTO] = Field(default_factory=list)
+    declared_options: list[WorkerOptionDTO] = Field(
+        default_factory=list,
+        description="As opções que este worker aceita, derivadas da assinatura do execute.",
+    )
+    engine_option_names: list[str] = Field(
+        default_factory=list,
+        description=(
+            "As chaves que o eixo repassa ao construtor do engine (model, device, host, ...). É a "
+            "dica do bloco avançado; os valores seguem os do próprio motor."
+        ),
+    )
     note: str | None = None
 
 

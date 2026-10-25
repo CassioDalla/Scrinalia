@@ -27,6 +27,7 @@ from scrinalia.domains.archive.workers.configuration import (
     ResolvedWorkerConfig,
     resolve_configuration,
     validate_engine_choice,
+    validate_engine_options,
     validate_options,
 )
 from scrinalia.domains.archive.workers.ledger import WorkerRunLedger
@@ -58,6 +59,7 @@ class WorkerRunService:
 
         validate_engine_choice(spec, request.engine_name, request.preset)
         validate_options(spec, request.options)
+        validate_engine_options(spec, request.engine_options)
 
         setting = self.settings.get(worker_name)
         resolved = resolve_configuration(
@@ -68,6 +70,7 @@ class WorkerRunService:
             preset=request.preset,
             db_batch_size=request.db_batch_size,
             options=request.options,
+            engine_options=request.engine_options,
         )
 
         run = self.ledger.enqueue(
