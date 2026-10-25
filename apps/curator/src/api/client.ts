@@ -336,6 +336,7 @@ export type WorkerSettingsRevision = components["schemas"]["WorkerSettingsRevisi
 export type WorkerSettingsRevisionList = components["schemas"]["WorkerSettingsRevisionListResponse"];
 export type WorkerEngine = components["schemas"]["WorkerEngineDTO"];
 export type WorkerPreset = components["schemas"]["WorkerPresetDTO"];
+export type WorkerOption = components["schemas"]["WorkerOptionDTO"];
 export type WorkerRun = components["schemas"]["WorkerRunDTO"];
 export type WorkerRunList = components["schemas"]["WorkerRunListResponse"];
 export type FailureGroup = components["schemas"]["FailureGroupDTO"];

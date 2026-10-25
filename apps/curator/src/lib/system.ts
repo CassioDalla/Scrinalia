@@ -81,6 +81,20 @@ export const UNIT_LABEL: Record<WorkerStatus["unit"], string> = {
   pair: "pares",
 };
 
+/**
+ * What a run's recorded worker options read as (#120).
+ *
+ * A row written before the column existed — or one that has not started — carries no options at
+ * all, and saying "não registradas" is the honest answer: the columns it read cannot be recovered
+ * from the fingerprint the stamp hashed.
+ */
+export function describeOptions(options: Record<string, unknown> | undefined): string {
+  if (!options || Object.keys(options).length === 0) return "opções não registradas nesta execução";
+  return Object.entries(options)
+    .map(([key, value]) => `${key}=${Array.isArray(value) ? value.join(",") : String(value)}`)
+    .join(" · ");
+}
+
 /** Serialises the options for the textarea; an empty object reads as an empty box. */
 export function optionsToText(options: Record<string, unknown> | undefined): string {
   if (!options || Object.keys(options).length === 0) return "";
