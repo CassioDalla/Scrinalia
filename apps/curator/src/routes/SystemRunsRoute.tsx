@@ -166,7 +166,7 @@ export function SystemRunsRoute() {
         {page.data && total === 0 ? (
           <EmptyState
             title="Nenhuma execução registrada"
-            hint="Nada rodou desde que o ledger existe. O botão 'Rodar agora' na tela de workers cria a primeira entrada."
+            hint="Nada rodou desde que o ledger existe. O botão 'Enfileirar execução' na tela de workers cria a primeira entrada."
           />
         ) : null}
 
@@ -200,6 +200,16 @@ export function SystemRunsRoute() {
                     model?", and a row older than the column says so instead of guessing.
                   */}
                   <p className="font-mono text-[11px] text-(--color-muted)">{describeOptions(run.options)}</p>
+
+                  {run.runner_id ? (
+                    <p className="font-mono text-[11px] text-(--color-muted)">
+                      runner {run.runner_id}
+                      {run.heartbeat_at ? ` · sinal ${formatDateTime(run.heartbeat_at)}` : ""}
+                      {run.lease_expires_at && isActiveRun(run)
+                        ? ` · lease até ${formatDateTime(run.lease_expires_at)}`
+                        : ""}
+                    </p>
+                  ) : null}
 
                   {run.error ? <p className="text-xs text-(--color-danger)">{run.error}</p> : null}
                 </CardBody>

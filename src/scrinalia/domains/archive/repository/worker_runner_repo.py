@@ -12,11 +12,12 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, func, select, update
+from sqlalchemy import CursorResult, and_, case, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from scrinalia.domains.archive.models.operations import WorkerRunner
+from scrinalia.domains.archive.schemas.system_schema import WorkerRunnerDTO
 
 
 class WorkerRunnerRepository:
@@ -88,5 +89,43 @@ class WorkerRunnerRepository:
         return bool(result.rowcount)
 
     def list(self) -> list[WorkerRunner]:
-        """The registry, most recently alive first; the panel derives ``online`` from the heartbeat."""
+        """The registry rows, most recently alive first."""
         return list(self.db.scalars(select(WorkerRunner).order_by(WorkerRunner.last_heartbeat_at.desc())).all())
+
+    def list_for_panel(self) -> list[WorkerRunnerDTO]:
+        """
+        The registry as the panel reads it, with ``online`` computed by PostgreSQL.
+
+        Online is the heartbeat within three of the runner's **own** declared intervals: a runner
+        configured with a slower heartbeat would otherwise be declared dead between two beats. The
+        API's clock does not enter the answer, for the same reason the lease does not use it.
+        """
+        online = case(
+            (
+                and_(
+                    WorkerRunner.stopped_at.is_(None),
+                    WorkerRunner.last_heartbeat_at
+                    > func.now() - func.make_interval(0, 0, 0, 0, 0, 0, WorkerRunner.heartbeat_seconds * 3),
+                ),
+                True,
+            ),
+            else_=False,
+        )
+        rows = self.db.execute(
+            select(WorkerRunner, online.label("online")).order_by(WorkerRunner.last_heartbeat_at.desc())
+        ).all()
+        return [
+            WorkerRunnerDTO(
+                runner_id=runner.runner_id,
+                name=runner.name,
+                hostname=runner.hostname,
+                version=runner.version,
+                capabilities=list(runner.capabilities),
+                concurrency=runner.concurrency,
+                started_at=runner.started_at,
+                last_heartbeat_at=runner.last_heartbeat_at,
+                stopped_at=runner.stopped_at,
+                online=bool(is_online),
+            )
+            for runner, is_online in rows
+        ]

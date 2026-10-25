@@ -1,5 +1,8 @@
 """The runner registry: one row per runner, the heartbeat and the graceful stop (ADR 0014)."""
 
+from sqlalchemy import func, update
+
+from scrinalia.domains.archive.models.operations import WorkerRunner
 from scrinalia.domains.archive.repository.worker_runner_repo import WorkerRunnerRepository
 
 
@@ -58,3 +61,27 @@ def test_the_heartbeat_and_the_stop_move_the_row(db_session) -> None:
     assert repo.list()[0].stopped_at is not None
     assert repo.heartbeat("runner-a") is False
     assert repo.stop("runner-a") is False
+
+
+def test_the_panel_read_marks_an_old_heartbeat_and_a_stop_offline(db_session) -> None:
+    repo = WorkerRunnerRepository(db_session)
+    _register(repo)
+    assert repo.list_for_panel()[0].online is True
+
+    db_session.execute(
+        update(WorkerRunner)
+        .where(WorkerRunner.runner_id == "runner-a")
+        .values(last_heartbeat_at=func.now() - func.make_interval(0, 0, 0, 0, 0, 0, 100))
+    )
+    db_session.flush()
+    assert repo.list_for_panel()[0].online is False
+
+    # A fresh registration is a heartbeat again; a graceful stop is offline even with a fresh one.
+    _register(repo)
+    assert repo.list_for_panel()[0].online is True
+    repo.stop("runner-a")
+    db_session.flush()
+
+    panel = repo.list_for_panel()
+    assert panel[0].stopped_at is not None
+    assert panel[0].online is False

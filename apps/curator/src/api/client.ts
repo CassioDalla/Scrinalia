@@ -351,6 +351,7 @@ export type SystemWorkers = components["schemas"]["SystemWorkersResponse"];
 export type SystemWorkerSettings = components["schemas"]["SystemWorkerSettingsResponse"];
 export type WorkerSettingsItem = components["schemas"]["WorkerSettingsItemDTO"];
 export type WorkerStatus = components["schemas"]["WorkerStatusDTO"];
+export type WorkerRunner = components["schemas"]["WorkerRunnerDTO"];
 export type WorkerSettings = components["schemas"]["WorkerSettingsDTO"];
 export type WorkerSettingsRequest = components["schemas"]["WorkerSettingsRequest"];
 export type WorkerQueuePreview = components["schemas"]["WorkerQueuePreviewDTO"];

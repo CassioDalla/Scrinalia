@@ -41,10 +41,6 @@ export function isActiveRun(run?: WorkerRun | null): boolean {
   return run?.status === "QUEUED" || run?.status === "RUNNING";
 }
 
-export function hasActiveRun(workers: WorkerStatus[] | undefined): boolean {
-  return (workers ?? []).some((worker) => isActiveRun(worker.active_run));
-}
-
 /** Duration a person can read at a glance; milliseconds only matter for the instant runs. */
 export function formatDuration(ms?: number | null): string {
   if (ms === undefined || ms === null) return "—";

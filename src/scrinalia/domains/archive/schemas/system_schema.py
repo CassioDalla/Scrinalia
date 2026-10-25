@@ -268,12 +268,46 @@ class WorkerStatusDTO(BaseModel):
     )
     last_run: WorkerRunDTO | None = None
     active_run: WorkerRunDTO | None = None
+    runner_available: bool = Field(
+        default=False,
+        description="Se algum runner online declara este worker; falso não impede enfileirar (ADR 0014).",
+    )
+
+
+class WorkerRunnerDTO(BaseModel):
+    """
+    One runner process, as the panel sees it (ADR 0014).
+
+    ``online`` is computed by PostgreSQL from the heartbeat and the runner's own declared interval: a
+    runner that stopped signalling is still listed — the registry remembers it — but stops counting
+    as available for a worker.
+    """
+
+    runner_id: str
+    name: str
+    hostname: str
+    version: str | None = None
+    capabilities: list[str] = Field(default_factory=list, description="Os workers que este runner aceita.")
+    concurrency: int = Field(ge=1)
+    started_at: datetime
+    last_heartbeat_at: datetime
+    stopped_at: datetime | None = None
+    online: bool = Field(
+        description="Verdadeiro enquanto o último sinal está dentro de três intervalos declarados pelo runner."
+    )
 
 
 class SystemWorkersResponse(BaseModel):
-    """The whole panel in one request: nine workers, their configuration and their queues."""
+    """The whole panel in one request: the workers, their queues and the runners that drain them."""
 
     workers: list[WorkerStatusDTO] = Field(default_factory=list)
+    runners: list[WorkerRunnerDTO] = Field(
+        default_factory=list,
+        description=(
+            "Os runners registrados, online ou não. As capacidades dizem qual worker cada um aceita; "
+            "sem nenhum online, uma execução fica na fila até um subir (ADR 0014)."
+        ),
+    )
     generated_at: datetime
 
 

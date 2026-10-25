@@ -3870,6 +3870,8 @@ export interface components {
         SystemWorkersResponse: {
             /** Format: date-time */
             generated_at: string;
+            /** @description Os runners registrados, online ou não. As capacidades dizem qual worker cada um aceita; sem nenhum online, uma execução fica na fila até um subir (ADR 0014). */
+            runners?: components["schemas"]["WorkerRunnerDTO"][];
             workers?: components["schemas"]["WorkerStatusDTO"][];
         };
         /** TagCatalogResponse */
@@ -4285,6 +4287,23 @@ export interface components {
          * @enum {string}
          */
         WorkerRunTrigger: "CLI" | "API";
+        /** WorkerRunnerDTO */
+        WorkerRunnerDTO: {
+            /** @description Os workers que este runner aceita. */
+            capabilities?: string[];
+            concurrency: number;
+            hostname: string;
+            /** Format: date-time */
+            last_heartbeat_at: string;
+            name: string;
+            /** @description Verdadeiro enquanto o último sinal está dentro de três intervalos declarados pelo runner. */
+            online: boolean;
+            runner_id: string;
+            /** Format: date-time */
+            started_at: string;
+            stopped_at?: string | null;
+            version?: string | null;
+        };
         /** WorkerSettingsDTO */
         WorkerSettingsDTO: {
             available_engines?: components["schemas"]["WorkerEngineDTO"][];
@@ -4377,6 +4396,11 @@ export interface components {
             pending_reason?: string | null;
             /** @description Unidades que o worker já carimbou. */
             processed?: number | null;
+            /**
+             * @description Se algum runner online declara este worker; falso não impede enfileirar (ADR 0014).
+             * @default false
+             */
+            runner_available: boolean;
             settings: components["schemas"]["WorkerSettingsDTO"];
             /** @description Os quatro números do **ledger** do worker — com produtor, valor legado, falha e ausência de registro — e não da fila: `pending` é o predicado da fila, e uma unidade com carimbo de falha ou de produtor antigo conta aqui sem estar pendente. Nulo quando o ledger do worker não é um carimbo. */
             stamp_breakdown?: components["schemas"]["WorkerStampBreakdownDTO"] | null;

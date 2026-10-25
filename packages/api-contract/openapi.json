@@ -7180,6 +7180,13 @@
             "format": "date-time",
             "type": "string"
           },
+          "runners": {
+            "description": "Os runners registrados, online ou não. As capacidades dizem qual worker cada um aceita; sem nenhum online, uma execução fica na fila até um subir (ADR 0014).",
+            "items": {
+              "$ref": "#/components/schemas/WorkerRunnerDTO"
+            },
+            "type": "array"
+          },
           "workers": {
             "items": {
               "$ref": "#/components/schemas/WorkerStatusDTO"
@@ -8717,6 +8724,74 @@
         "title": "WorkerRunTrigger",
         "type": "string"
       },
+      "WorkerRunnerDTO": {
+        "properties": {
+          "capabilities": {
+            "description": "Os workers que este runner aceita.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "concurrency": {
+            "minimum": 1.0,
+            "type": "integer"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "last_heartbeat_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "online": {
+            "description": "Verdadeiro enquanto o último sinal está dentro de três intervalos declarados pelo runner.",
+            "type": "boolean"
+          },
+          "runner_id": {
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "stopped_at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "concurrency",
+          "hostname",
+          "last_heartbeat_at",
+          "name",
+          "online",
+          "runner_id",
+          "started_at"
+        ],
+        "title": "WorkerRunnerDTO",
+        "type": "object"
+      },
       "WorkerSettingsDTO": {
         "properties": {
           "available_engines": {
@@ -9091,6 +9166,11 @@
                 "type": "null"
               }
             ]
+          },
+          "runner_available": {
+            "default": false,
+            "description": "Se algum runner online declara este worker; falso não impede enfileirar (ADR 0014).",
+            "type": "boolean"
           },
           "settings": {
             "$ref": "#/components/schemas/WorkerSettingsDTO"

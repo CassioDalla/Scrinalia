@@ -21,6 +21,7 @@ from scrinalia.domains.archive.exceptions import WorkerNotFoundError
 from scrinalia.domains.archive.models.operations import WorkerSetting
 from scrinalia.domains.archive.repository.tag_repo import TagRepository
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
+from scrinalia.domains.archive.repository.worker_runner_repo import WorkerRunnerRepository
 from scrinalia.domains.archive.repository.worker_settings_repo import WorkerSettingsRepository
 from scrinalia.domains.archive.repository.worker_stamp_repo import StampBreakdown, WorkerStampRepository
 from scrinalia.domains.archive.schemas.system_schema import (
@@ -63,12 +64,15 @@ class WorkerOperationsService:
         self.db = db
         self.settings = WorkerSettingsRepository(db)
         self.runs = WorkerRunRepository(db)
+        self.runner_registry = WorkerRunnerRepository(db)
 
     # --- reads -----------------------------------------------------------------------------------
 
     def list_workers(self) -> SystemWorkersResponse:
         last_runs = self.runs.last_by_worker()
         active_runs = self.runs.active_by_worker()
+        runners = self.runner_registry.list_for_panel()
+        online = [runner for runner in runners if runner.online]
 
         workers = []
         for order, spec, setting, resolved in self._resolved_workers():
@@ -94,9 +98,11 @@ class WorkerOperationsService:
                     stamp_breakdown=self._breakdown_dto(breakdown),
                     last_run=last_runs.get(spec.name),
                     active_run=active_runs.get(spec.name),
+                    # The API only enqueues; this is the panel's answer to "will anyone pick it up?".
+                    runner_available=any(spec.name in runner.capabilities for runner in online),
                 )
             )
-        return SystemWorkersResponse(workers=workers, generated_at=datetime.now(UTC))
+        return SystemWorkersResponse(workers=workers, runners=runners, generated_at=datetime.now(UTC))
 
     def list_settings(self) -> SystemWorkerSettingsResponse:
         """
