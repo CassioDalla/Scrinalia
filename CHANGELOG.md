@@ -34,6 +34,17 @@ commits — the history is the detail.
   reason to declare and no provenance to report, and the generated client can no longer be handed
   either.
 
+- **A worker option is declared, validated and rendered as a field** (issue #120). What a worker
+  accepts is its `execute` signature, and the API publishes it: `GET /api/v1/system/workers` and
+  `/workers/settings` carry `declared_options` — the name, the kind of control (`boolean`, `integer`,
+  `number`, `text`, `list`, `columns`), the signature default, whether the option is a persisted
+  default or one execution's (`scope: "run"` for `limit`) and, for a column list, the values it
+  admits. The configuration and run screens render that list as fields instead of a JSON box, so the
+  form cannot offer a key the write path would refuse. A key the worker does not declare — the
+  measured typo `colunas_to_classify` — is refused with the options it does take, **422** at the
+  route, and a column outside `AI_TEXT_COLUMNS` is refused when the default is saved, with the known
+  ones in the sentence.
+
 - **A third ranking mode: the lexical and the semantic orders fused by Reciprocal Rank Fusion**
   (issue #38): `mode=hybrid` on `GET /api/v1/documents` and on the public surface. The two rankings
   are built independently — `ts_rank` over the generated `search_vector` with the taxonomy boost, and
