@@ -23,6 +23,9 @@ class RawRecord(BaseModel):
     """
 
     description_id: str
+    #: The origin that wrote the payload. The transform resolves the origin's ``SourceSchema`` from
+    #: it, so a run that reads several origins cannot apply one site's labels to another's record.
+    origin_code: str | None = None
     content_hash: str
     payload: dict[str, Any]
     raw_title: str | None = None
@@ -52,6 +55,9 @@ class StagingDocumentDTO(BaseModel):
     """
 
     description_id: str
+    #: Provenance of the record, carried from ``raw_data``. It is not part of the archival key:
+    #: ``description_id`` is global, and an adapter that can collide namespaces its own ids.
+    origin_code: str | None = None
     raw_content_hash: str
 
     # --- First-Class Columns ---
@@ -194,6 +200,7 @@ class StagingDocumentDTO(BaseModel):
 
         staging_data: dict[str, Any] = {
             "description_id": data.get("description_id"),
+            "origin_code": data.get("origin_code"),
             "raw_content_hash": data.get("content_hash"),
             "title": _title_or_placeholder(data.get("raw_title") or payload.get(schema.title_key)),
             "original_url": payload.get(schema.url_key),

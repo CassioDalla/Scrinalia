@@ -32,6 +32,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from scrinalia.core.author import Author
+from scrinalia.core.config import get_settings
 from scrinalia.core.database import SessionFactory, create_session
 from scrinalia.core.logger import logger
 from scrinalia.domains.archive.models.enums import WorkerRunTrigger
@@ -45,6 +46,10 @@ from scrinalia.domains.archive.workers.configuration import resolve_configuratio
 from scrinalia.domains.archive.workers.retry import MAX_ATTEMPTS, retry_delay_seconds
 from scrinalia.domains.archive.workers.schedule import next_occurrence
 from scrinalia.domains.archive.workers.schema import assert_schema_at_head
+from scrinalia.domains.ingestion.models import IngestionOrigin
+from scrinalia.domains.ingestion.origin_registry import get_origin_summary
+from scrinalia.domains.ingestion.origin_repo import IngestionOriginRepository
+from scrinalia.domains.ingestion.schemas import IngestionRunRequest
 from scrinalia.metadata import load_all_models
 
 #: The advisory lock's key; one constant so every scheduler asks the same question. The value is
@@ -125,10 +130,22 @@ class SchedulerService:
                     logger.info(f"⏭️ '{schedule.worker_name}' already has an active run; skipping this period.")
                 except Exception as exc:
                     logger.error(f"⚠️ Could not schedule '{schedule.worker_name}': {exc}")
+            origins = IngestionOriginRepository(db).due(now)
+            for origin in origins:
+                try:
+                    with db.begin_nested():
+                        self._process_origin(db, origin, now)
+                except IntegrityError:
+                    logger.info(f"⏭️ A origem '{origin.code}' já tem uma ingestão ativa; período pulado.")
+                except Exception as exc:
+                    logger.error(f"⚠️ Could not schedule the origin '{origin.code}': {exc}")
             db.commit()
-            if schedules or retried:
-                logger.info(f"🕒 Scheduler tick: {len(schedules)} due schedule(s), {retried} retry(ies).")
-            return len(schedules)
+            if schedules or origins or retried:
+                logger.info(
+                    f"🕒 Scheduler tick: {len(schedules)} due schedule(s), "
+                    f"{len(origins)} due origin(s), {retried} retry(ies)."
+                )
+            return len(schedules) + len(origins)
 
     def _retry(self, db: Session, now: datetime) -> int:
         """
@@ -151,6 +168,7 @@ class SchedulerService:
                         engine_name=run.engine_name,
                         preset=run.preset,
                         config=dict(run.config or {}),
+                        origin_code=run.origin_code,
                         request=dict(run.request or {}),
                         attempt=run.attempt + 1,
                         retry_of=run.id,
@@ -209,6 +227,49 @@ class SchedulerService:
         schedule.last_enqueued_at = now
         schedule.next_run_at = next_occurrence(schedule.cron, schedule.timezone, now, previous=schedule.next_run_at)
         logger.info(f"🕒 Scheduled run for '{schedule.worker_name}' enqueued.")
+
+    def _process_origin(self, db: Session, origin: IngestionOrigin, now: datetime) -> None:
+        """
+        The origin branch of the tick: one ``ingestion`` run per due origin, or a skipped period.
+
+        The run's ``worker_name`` is the shared stage; the origin is the axis and travels in
+        ``origin_code``. The queue is one slot per origin (the partial index includes the origin), so
+        one origin's crawl does not wait behind another's. The request is the origin's persisted
+        options, validated here exactly as the panel validates them.
+        """
+        runs = WorkerRunRepository(db)
+        timezone = origin.timezone or get_settings().DEFAULT_TIMEZONE
+        if runs.has_active_run("ingestion", origin.code):
+            origin.last_skipped_at = now
+            origin.next_run_at = next_occurrence(origin.cron or "", timezone, now, previous=origin.next_run_at)
+            logger.info(f"⏭️ A origem '{origin.code}' foi pulada: já há uma ingestão ativa.")
+            return
+
+        try:
+            get_origin_summary(origin.code)
+            options = IngestionRunRequest.model_validate(origin.options or {}).model_dump(exclude_none=True)
+        except Exception as exc:
+            # The registry is the definition and the request model is the contract; a row that
+            # names a removed origin or an invalid option can never run. Skip the period and keep
+            # the row visible, like a stale worker schedule.
+            origin.last_skipped_at = now
+            origin.next_run_at = next_occurrence(origin.cron or "", timezone, now, previous=origin.next_run_at)
+            logger.warning(f"⚠️ A agenda da origem '{origin.code}' não pode ser executada: {exc}")
+            return
+
+        runs.create_queued(
+            "ingestion",
+            trigger=WorkerRunTrigger.SCHEDULE,
+            requested_by=SCHEDULED_BY,
+            engine_name=None,
+            preset=None,
+            config={},
+            origin_code=origin.code,
+            request={"options": options},
+        )
+        origin.last_enqueued_at = now
+        origin.next_run_at = next_occurrence(origin.cron or "", timezone, now, previous=origin.next_run_at)
+        logger.info(f"🕒 Ingestão agendada para a origem '{origin.code}'.")
 
     def _acquire(self) -> bool:
         """Takes the advisory lock on a dedicated session; ``False`` when another scheduler holds it."""

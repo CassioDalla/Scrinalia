@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from scrinalia.core.author import Author
 from scrinalia.core.logger import logger
-from scrinalia.domains.archive.exceptions import WorkerNotFoundError
+from scrinalia.domains.archive.exceptions import InvalidWorkerSettingsError, WorkerNotFoundError
 from scrinalia.domains.archive.models.operations import WorkerSetting
 from scrinalia.domains.archive.repository.tag_repo import TagRepository
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
@@ -125,6 +125,9 @@ class WorkerOperationsService:
                 settings=self._settings_dto(spec, setting, resolved),
             )
             for order, spec, setting, resolved in self._resolved_workers()
+            # The ingestion stage has no engine and its options live on the origin row; a settings
+            # card here would be a second place to configure the same crawl (ADR 0016).
+            if not spec.origin_axis
         ]
         return SystemWorkerSettingsResponse(workers=workers, generated_at=datetime.now(UTC))
 
@@ -222,6 +225,10 @@ class WorkerOperationsService:
         spec = WORKER_CATALOGUE.get(worker_name)
         if spec is None:
             raise WorkerNotFoundError(f"Worker '{worker_name}' não existe. Opções: {sorted(WORKER_CATALOGUE)}.")
+        if spec.origin_axis:
+            raise InvalidWorkerSettingsError(
+                "A ingestão não tem engine nem padrão de worker: a configuração dela é a da origem."
+            )
         return spec
 
     def _settings_dto(

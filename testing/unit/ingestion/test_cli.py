@@ -14,17 +14,28 @@ import pytest
 
 from scrinalia.core.runner_config import IngestionRunnerConfig
 from scrinalia.domains.ingestion import sources, worker
+from scrinalia.domains.ingestion.exceptions import OriginNotFoundError
 from scrinalia.domains.ingestion.ports import IDetailAdapter, IDiscoveryAdapter
 
 
 def test_the_config_follows_the_flags_and_keeps_the_code_defaults() -> None:
     parser = worker._build_parser()
 
-    untouched = parser.parse_args(["scrape", "--limit", "100"])
+    untouched = parser.parse_args(["scrape", "--origin", "pmc", "--limit", "100"])
     assert worker.config_from_args(untouched) == IngestionRunnerConfig()
 
     overridden = parser.parse_args(
-        ["scrape", "--max-retries", "0", "--discovery-window-days", "7", "--scraped-ttl-days", "2"]
+        [
+            "scrape",
+            "--origin",
+            "pmc",
+            "--max-retries",
+            "0",
+            "--discovery-window-days",
+            "7",
+            "--scraped-ttl-days",
+            "2",
+        ]
     )
     assert worker.config_from_args(overridden) == IngestionRunnerConfig(
         max_retries=0, discovery_window_days=7, scraped_ttl_days=2
@@ -34,7 +45,7 @@ def test_the_config_follows_the_flags_and_keeps_the_code_defaults() -> None:
 def test_a_zero_limit_is_a_usage_error() -> None:
     """``LIMIT 0`` would read nothing and exit successfully, which an operator cannot tell from empty."""
     with pytest.raises(SystemExit):
-        worker._build_parser().parse_args(["scrape", "--limit", "0"])
+        worker._build_parser().parse_args(["scrape", "--origin", "pmc", "--limit", "0"])
 
 
 def test_run_chains_the_two_phases(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -50,7 +61,7 @@ def test_run_chains_the_two_phases(monkeypatch: pytest.MonkeyPatch) -> None:
             return {}
 
     adapters = sources.OriginAdapters(code="pmc", discovery=_Port(), detail=_Port())
-    monkeypatch.setattr(sources, "get_adapters", lambda code=None: adapters)
+    monkeypatch.setattr(sources, "get_adapters", lambda code=None, db=None: adapters)
 
     @contextmanager
     def _db():
@@ -58,22 +69,29 @@ def test_run_chains_the_two_phases(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(worker, "get_db", _db)
     monkeypatch.setattr(
-        worker, "run_discovery_job", lambda db, adapter, max_pages=None: calls.append(("discover", max_pages))
+        worker,
+        "run_discovery_job",
+        lambda db, adapter, max_pages=None, origin_code=None: calls.append(("discover", max_pages)),
     )
     monkeypatch.setattr(
         worker, "run_detail_scraping_job", lambda db, **kwargs: calls.append(("scrape", kwargs["limit"]))
     )
 
-    assert worker.main(["run", "--pages", "2", "--limit", "5"]) == 0
+    assert worker.main(["run", "--origin", "pmc", "--pages", "2", "--limit", "5"]) == 0
     assert calls == [("discover", 2), ("scrape", 5)]
 
 
-def test_an_unknown_origin_fails_before_the_database(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A wrong origin is a usage error, and it must not be discovered halfway through a run."""
+def test_an_unknown_origin_fails_as_a_usage_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A wrong origin is a sentence and an exit code, not a scrape that starts and then dies."""
 
-    def _explode():
-        raise AssertionError("the CLI reached the database with an origin it could not resolve")
+    @contextmanager
+    def _db():
+        yield object()
 
-    monkeypatch.setattr(worker, "get_db", _explode)
+    def _unknown(code=None, db=None):
+        raise OriginNotFoundError("Origem 'inexistente' não existe.")
+
+    monkeypatch.setattr(worker, "get_db", _db)
+    monkeypatch.setattr(sources, "get_adapters", _unknown)
 
     assert worker.main(["scrape", "--origin", "inexistente"]) == 1

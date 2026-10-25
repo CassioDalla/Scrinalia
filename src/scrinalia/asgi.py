@@ -16,6 +16,7 @@ from scrinalia.api.controllers.curation_controller import CurationController
 from scrinalia.api.controllers.document_controller import DocumentController
 from scrinalia.api.controllers.health_controller import HealthController
 from scrinalia.api.controllers.hierarchy_controller import HierarchyController
+from scrinalia.api.controllers.ingestion_controller import IngestionController
 from scrinalia.api.controllers.public_controller import PublicController
 from scrinalia.api.controllers.setup_controller import SetupController
 from scrinalia.api.controllers.system_controller import SystemController
@@ -77,6 +78,7 @@ def create_app() -> Litestar:
         CurationController,
         DocumentController,
         HierarchyController,
+        IngestionController,
         PublicController,
         SystemController,
         TextQualityController,

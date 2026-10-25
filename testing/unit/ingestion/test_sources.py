@@ -1,68 +1,61 @@
 """
-The origin registry: which site's vocabulary this deployment reads.
+The origin registry: which origins this deployment can read, and how their vocabularies are checked.
 
-The registry is small and the tests are about its two failure modes, because both are silent
-otherwise: a missing selection would map every column as unknown (empty records instead of an
-error), and a typo in the map would file one column as unknown while the rest looked fine.
+The registry is small and the tests are about its silent failure modes: a missing origin must fail
+fast instead of mapping every column as unknown, a typo in a map must be a test failure instead of a
+column filed as unknown, and adding a second origin must not make the transform learn its labels.
 """
 
 import pytest
 
 from scrinalia.core.config import settings
+from scrinalia.domains.ingestion.adapters.manual import MANUAL_SOURCE_SCHEMA
 from scrinalia.domains.ingestion.adapters.pmc_scraper import PMC_SOURCE_SCHEMA
-from scrinalia.domains.ingestion.sources import ADAPTERS, SOURCES, OriginAdapters, get_adapters, get_source_schema
+from scrinalia.domains.ingestion.exceptions import InvalidOriginConfigError, OriginNotFoundError
+from scrinalia.domains.ingestion.origin_registry import ORIGINS
+from scrinalia.domains.ingestion.ports import OriginAdapters
+from scrinalia.domains.ingestion.sources import ADAPTERS, SOURCES, get_adapters, get_source_schema
 from scrinalia.domains.staging.schemas import StagingDocumentDTO
 
 
-@pytest.fixture(autouse=True)
-def _clear_the_resolver_cache():
-    """The resolver is ``lru_cache``d like ``get_settings``; a test must not inherit its answer."""
-    get_source_schema.cache_clear()
-    yield
-    get_source_schema.cache_clear()
+def test_every_shipped_origin_is_registered() -> None:
+    assert set(SOURCES) == set(ADAPTERS) == set(ORIGINS) == {"pmc", "manual"}
 
 
-def test_the_reference_origin_is_registered() -> None:
-    assert SOURCES == {"pmc": PMC_SOURCE_SCHEMA}
-
-
-def test_an_explicit_code_wins() -> None:
+def test_each_origin_has_its_own_vocabulary() -> None:
     assert get_source_schema("pmc") is PMC_SOURCE_SCHEMA
+    assert get_source_schema("manual") is MANUAL_SOURCE_SCHEMA
+    assert PMC_SOURCE_SCHEMA is not MANUAL_SOURCE_SCHEMA
 
 
-def test_the_environment_selects_it_when_no_code_is_given(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "ACERVO_SOURCE", "pmc")
-    assert get_source_schema() is PMC_SOURCE_SCHEMA
-
-
-def test_an_undeclared_origin_fails_fast(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_a_missing_origin_fails_fast() -> None:
     """
-    There is no fallback, on purpose.
+    There is no default, on purpose.
 
-    A default would make an installation that never declared its origin read the reference site's
-    labels — the "the default is Curitiba" defect ADR 0008 removed from the collection vocabulary,
-    repeated in a different place.
+    A default would make a record whose origin was never named read the reference site's labels —
+    the "the default is Curitiba" defect ADR 0008 removed from the collection vocabulary, repeated
+    one layer down.
     """
-    monkeypatch.setattr(settings, "ACERVO_SOURCE", None)
-    with pytest.raises(ValueError, match="ACERVO_SOURCE"):
-        get_source_schema()
+    with pytest.raises(OriginNotFoundError, match="Informe a origem"):
+        get_source_schema(None)
 
 
 def test_an_unknown_origin_names_the_known_ones() -> None:
-    with pytest.raises(ValueError, match="Unknown source"):
+    with pytest.raises(OriginNotFoundError, match="não existe"):
         get_source_schema("inexistente")
 
 
-def test_every_mapped_attribute_is_a_real_column() -> None:
+@pytest.mark.parametrize("code", sorted(SOURCES))
+def test_every_mapped_attribute_is_a_real_column(code: str) -> None:
     """
     A typo on the right-hand side of the map would file that column as unknown without failing.
 
-    The map's *values* are the staging model's attributes, so the model itself is the check: this
-    fails when a label is pointed at a column that does not exist.
+    The map's *values* are the staging model's attributes, so the model itself is the check. It runs
+    for **every** origin, which is what keeps a second origin's map honest.
     """
     columns = set(StagingDocumentDTO.model_fields)
-    unknown = {attribute for attribute in PMC_SOURCE_SCHEMA.field_map.values() if attribute not in columns}
-    assert unknown == set(), f"o mapa aponta para colunas que não existem: {sorted(unknown)}"
+    unknown = {attribute for attribute in SOURCES[code].field_map.values() if attribute not in columns}
+    assert unknown == set(), f"{code} aponta para colunas que não existem: {sorted(unknown)}"
 
 
 def test_the_origin_labels_are_not_translated() -> None:
@@ -75,6 +68,27 @@ def test_the_origin_labels_are_not_translated() -> None:
     assert "Código de Referência" in PMC_SOURCE_SCHEMA.field_map
     assert "Âmbito e Conteúdo" in PMC_SOURCE_SCHEMA.field_map
     assert PMC_SOURCE_SCHEMA.date_keys == ("Data de Produção", "Data")
+
+
+def test_the_manual_vocabulary_is_the_form_keys() -> None:
+    """The manual source's labels are the form's; the transform still reads them from the schema."""
+    assert "scope_content" in MANUAL_SOURCE_SCHEMA.field_map
+    assert MANUAL_SOURCE_SCHEMA.title_key == "title"
+    assert MANUAL_SOURCE_SCHEMA.date_keys == ("document_date",)
+
+
+def test_every_origin_config_field_names_a_model_field() -> None:
+    """
+    The screen's fields are metadata about the origin's own model, not a second validation.
+
+    A URL added to the model and forgotten in the metadata would be unreachable from the screen; a
+    metadata field the model does not have would be a form control that the API refuses. The pair is
+    checked here so neither can drift alone.
+    """
+    for summary in ORIGINS.values():
+        described = {field.name for field in summary.config_fields}
+        model_fields = set(summary.config_model.model_fields)
+        assert described == model_fields, f"{summary.code}: tela {described} != modelo {model_fields}"
 
 
 # ==========================================
@@ -94,43 +108,50 @@ def test_the_reference_origin_registers_both_phases(monkeypatch: pytest.MonkeyPa
 
     # One adapter object, because this site implements both ports.
     assert adapters.require_discovery() is adapters.require_detail()
-    # The two registries are selected by the same code, so they cannot name different origins.
-    assert set(ADAPTERS) == set(SOURCES) == {"pmc"}
 
 
-def test_an_undeclared_origin_fails_fast_for_the_ports(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The same selector, and the same refusal to invent a default, as the vocabulary."""
-    monkeypatch.setattr(settings, "ACERVO_SOURCE", None)
-    with pytest.raises(ValueError, match="ACERVO_SOURCE"):
-        get_adapters()
-
-
-def test_an_unknown_origin_names_the_known_ones_for_the_ports() -> None:
-    with pytest.raises(ValueError, match="Unknown source"):
-        get_adapters("inexistente")
+def test_the_adapters_registry_is_the_source_registry() -> None:
+    assert set(ADAPTERS) == set(SOURCES) == {"pmc", "manual"}
 
 
 def test_a_missing_scrape_url_fails_fast(monkeypatch: pytest.MonkeyPatch) -> None:
     """
-    The adapter used to build ``str(None)`` into the URL and break later with a network error.
+    The fail-fast moved with the adapter, and it still fires before an adapter exists.
 
-    The check moved with the construction, from the worker to the origin's registry entry, and it
-    still has to fire before an adapter exists.
+    The reference origin accepts the environment as a fallback for its URLs (that is what keeps an
+    existing ``.env`` working); with neither the row nor the environment saying where it is, the
+    refusal is a sentence and not a request to ``https://None``.
     """
     monkeypatch.setattr(settings, "PUBLIC_SCRAPE_URL", None)
-    monkeypatch.setattr(settings, "PUBLIC_SCRAPE_DETAIL_URL", "https://exemplo.test/acervo/detalhe")
-    with pytest.raises(ValueError, match="PUBLIC_SCRAPE_URL"):
-        get_adapters("pmc")
+    monkeypatch.setattr(settings, "PUBLIC_SCRAPE_DETAIL_URL", None)
+    with pytest.raises(InvalidOriginConfigError, match="base_url"):
+        get_adapters("pmc", config={})
+
+
+def test_the_row_config_wins_over_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The origin row is the operator's; the environment is only the fallback for the reference."""
+    _configured(monkeypatch)
+    adapters = get_adapters(
+        "pmc",
+        config={
+            "base_url": "https://outro.test/lista",
+            "detail_url": "https://outro.test/detalhe",
+            "delay_requests": 0,
+        },
+    )
+    adapter = adapters.require_detail()
+    assert adapter.detail_url == "https://outro.test/detalhe"  # type: ignore[attr-defined]
 
 
 def test_a_phase_an_origin_does_not_declare_is_a_sentence() -> None:
     """
     An origin is not necessarily a paginated site.
 
-    A CSV ingestion lists rows and has no detail page, so asking for the phase it does not implement
-    must name it instead of raising ``AttributeError`` deep inside the job.
+    The manual origin has no discovery and no detail page: its input is the form. Asking for the
+    phase it does not implement must name it instead of raising ``AttributeError`` deep inside the
+    job.
     """
-    listing_only = OriginAdapters(code="csv")
+    listing_only = OriginAdapters(code="manual")
 
     with pytest.raises(ValueError, match="no discovery phase"):
         listing_only.require_discovery()

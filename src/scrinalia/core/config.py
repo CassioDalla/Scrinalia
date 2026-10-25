@@ -43,18 +43,12 @@ class Settings(BaseSettings):
     #: unset the runner uses ``DATABASE_URL``. A secret: it is unwrapped only at the driver.
     RUNNER_DATABASE_URL: SecretStr | None = None
 
-    # Public site that gets scraped. Read at the composition point and handed to the adapter,
-    # never by the adapter itself: an adapter that reads global settings cannot be pointed at
-    # another origin, which is what plural ingestion will need.
+    # The reference scraper's URLs. Since #44 the origin is a row (``ingestion_origins``) and the
+    # adapter receives its configuration from there; these two remain the *fallback* for the ``pmc``
+    # origin, so an existing ``.env`` keeps working after the upgrade. They are not a default origin:
+    # the code is always named by the row, and a second origin has no fallback.
     PUBLIC_SCRAPE_URL: str | None = None
     PUBLIC_SCRAPE_DETAIL_URL: str | None = None
-
-    # Which origin the staging transform reads. Names the ``SourceSchema`` in
-    # ``domains/ingestion/sources.py`` — the site's field labels and where each one lands. It has
-    # **no default on purpose**: a fallback would make an installation that never declared its
-    # origin read the reference site's vocabulary, which is the defect ADR 0008 removed from the
-    # collection catalogue. Required by the staging pipeline, not by boot.
-    ACERVO_SOURCE: str | None = None
 
     # Language of the collection. Selects the profile in ``core/language`` that the date
     # parser, the term guard, the plural rules and the clustering/NER presets read. The

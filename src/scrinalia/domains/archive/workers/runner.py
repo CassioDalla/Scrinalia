@@ -31,6 +31,7 @@ from scrinalia.domains.archive.workers.catalogue import WORKER_CATALOGUE, engine
 from scrinalia.domains.archive.workers.configuration import effective_worker_options, resolve_configuration
 from scrinalia.domains.archive.workers.lease import RunLeaseMonitor
 from scrinalia.domains.archive.workers.ledger import WorkerRunLedger
+from scrinalia.domains.ingestion import worker as ingestion_worker
 
 WorkerFn = Callable[..., None]
 
@@ -68,6 +69,10 @@ class _StopOnSignal:
 
 # Registry of executable workers. The key is the CLI name.
 WORKERS: dict[str, WorkerFn] = {
+    # The stage in front of the archive. It is a worker of the same ledger because it is the first
+    # operation the panel has to schedule, lease and cancel; it has no engine and its unit is an
+    # origin, not a document (ADR 0016).
+    "ingestion": ingestion_worker.execute,
     "transfer": worker_archive_transfer.execute,
     "cleaning": worker_cleaning_regex.execute,
     "ner": worker_ner.execute,
@@ -87,6 +92,7 @@ WORKERS: dict[str, WorkerFn] = {
 # after every worker that can change the document text, because it embeds that text and
 # keys its stamp on a hash of it.
 PIPELINE_ORDER = [
+    "ingestion",
     "transfer",
     "cleaning",
     "ner",
@@ -188,6 +194,7 @@ def _forward_kwargs(
     preset: str | None,
     db_batch_size: int | None,
     limit: int | None,
+    origin_code: str | None,
     run_control: RunControl | None,
     extra: dict[str, Any],
 ) -> dict[str, Any]:
@@ -211,6 +218,7 @@ def _forward_kwargs(
         ("preset", preset),
         ("db_batch_size", db_batch_size),
         ("limit", limit),
+        ("origin_code", origin_code),
     ):
         if value is None:
             continue
@@ -237,6 +245,7 @@ def run_worker(
     preset: str | None = None,
     db_batch_size: int | None = None,
     limit: int | None = None,
+    origin_code: str | None = None,
     extra: dict[str, Any] | None = None,
     engine_options: dict[str, Any] | None = None,
     db_factory: Callable[[], Any] = get_db,
@@ -303,10 +312,21 @@ def run_worker(
     logger.info(f"🚀 Runner executing the worker '{name}'...")
     with db_factory() as db:
         run_options: dict[str, Any] = {}
-        if spec is None:
+        run_config: dict[str, Any] = {}
+        if spec is not None and spec.origin_axis:
+            # The ingestion stage has no engine and does not read ``archive_worker_settings``: its
+            # configuration is the origin row, resolved by the job itself. The options are the
+            # request's; the origin is the axis and travels in its own column.
+            if not origin_code:
+                raise InvalidWorkerSettingsError(
+                    "O worker 'ingestion' precisa da origem: informe --origin ou a linha da fila."
+                )
+            resolved_engine, resolved_preset, resolved_batch = None, None, None
+            forwarded = explicit_extra
+            run_options = dict(explicit_extra)
+        elif spec is None:
             resolved_engine, resolved_preset, resolved_batch = engine_name, preset, db_batch_size
             forwarded = explicit_extra
-            run_config: dict[str, Any] = {}
         else:
             setting = WorkerSettingsRepository(db).get(name)
             resolved = resolve_configuration(
@@ -337,6 +357,7 @@ def run_worker(
                     engine_name=resolved_engine,
                     preset=resolved_preset,
                     config=run_config,
+                    origin_code=origin_code,
                     options=run_options,
                     runner_id=runner_id,
                     lease_seconds=lease_seconds if runner_id is not None else None,
@@ -386,6 +407,7 @@ def run_worker(
             preset=resolved_preset,
             db_batch_size=resolved_batch,
             limit=limit,
+            origin_code=origin_code,
             run_control=run_control,
             extra=forwarded,
         )
@@ -423,6 +445,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--engine", dest="engine_name", help="Registered AI engine (e.g. spacy_ner).")
     parser.add_argument("--preset", dest="preset", help="Engine preset (e.g. gpu, cpu_local).")
     parser.add_argument("--batch", dest="db_batch_size", type=int, help="Batch size per transaction.")
+    parser.add_argument(
+        "--origin",
+        dest="origin_code",
+        default=None,
+        help="Origin code for the 'ingestion' worker; the archive workers do not take one.",
+    )
     parser.add_argument(
         "--limit",
         dest="limit",
@@ -509,6 +537,7 @@ def main(argv: list[str] | None = None) -> int:
             preset=args.preset,
             db_batch_size=args.db_batch_size,
             limit=args.limit,
+            origin_code=args.origin_code,
             extra=extra,
             engine_options=engine_options,
             ledger=ledger,

@@ -28,7 +28,13 @@ class SqlRawRecordSource:
         self.db = db
 
     @staticmethod
-    def _with_pending(stmt: Select[*_Ts], force: bool, after: str | None) -> Select[*_Ts]:
+    def _with_pending(
+        stmt: Select[*_Ts],
+        force: bool,
+        after: str | None,
+        origin_code: str | None = None,
+        description_id: str | None = None,
+    ) -> Select[*_Ts]:
         """
         The one definition of "pending", applied to whatever statement needs it.
 
@@ -39,6 +45,10 @@ class SqlRawRecordSource:
         advance on its own: ``force`` bypasses the hash comparison, so a bounded forced re-parse
         would otherwise re-read the same first page every run. It changes neither the CDC nor what
         counts as pending — only where the window starts.
+
+        ``origin_code`` is the ingestion worker's window: a run of one origin must not stage another
+        origin's records. ``description_id`` is the manual entry's window: the record the archivist
+        just typed is staged in the same request, without touching the rest of the backlog.
         """
         if not force:
             stmt = stmt.outerjoin(StagingDocument, RawData.description_id == StagingDocument.description_id).where(
@@ -46,9 +56,20 @@ class SqlRawRecordSource:
             )
         if after is not None:
             stmt = stmt.where(RawData.description_id > after)
+        if origin_code is not None:
+            stmt = stmt.where(RawData.origin_code == origin_code)
+        if description_id is not None:
+            stmt = stmt.where(RawData.description_id == description_id)
         return stmt
 
-    def next_batch(self, force: bool = False, limit: int | None = None, after: str | None = None) -> list[RawRecord]:
+    def next_batch(
+        self,
+        force: bool = False,
+        limit: int | None = None,
+        after: str | None = None,
+        origin_code: str | None = None,
+        description_id: str | None = None,
+    ) -> list[RawRecord]:
         """
         Pending records by CDC, or every record when ``force`` asks for a full re-parse.
 
@@ -58,15 +79,31 @@ class SqlRawRecordSource:
         bounded run is reproducible and a cursor can name where the next one starts.
         """
         stmt = self._with_pending(
-            select(RawData.description_id, RawData.payload, RawData.content_hash, RawData.raw_title), force, after
+            select(
+                RawData.description_id,
+                RawData.origin_code,
+                RawData.payload,
+                RawData.content_hash,
+                RawData.raw_title,
+            ),
+            force,
+            after,
+            origin_code,
+            description_id,
         ).order_by(RawData.description_id)
         if limit is not None:
             stmt = stmt.limit(limit)
         return [RawRecord.model_validate(row._mapping) for row in self.db.execute(stmt)]
 
-    def count_pending(self, force: bool = False, after: str | None = None) -> int:
+    def count_pending(
+        self,
+        force: bool = False,
+        after: str | None = None,
+        origin_code: str | None = None,
+        description_id: str | None = None,
+    ) -> int:
         """How many raw records the same predicate still leaves pending."""
-        stmt = self._with_pending(select(func.count()).select_from(RawData), force, after)
+        stmt = self._with_pending(select(func.count()).select_from(RawData), force, after, origin_code, description_id)
         return int(self.db.scalar(stmt) or 0)
 
 

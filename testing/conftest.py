@@ -498,6 +498,8 @@ def mock_staging_doc():
 
         doc = Mock()
         doc.description_id = description_id
+        # Provenance of the record; the transfer carries it without folding it into the CDC hash.
+        doc.origin_code = None
         doc.title = "Dossiê Teste"
         doc.document_date = None
         doc.scope_content = "Resumo do documento"

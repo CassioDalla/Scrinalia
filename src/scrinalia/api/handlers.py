@@ -79,6 +79,12 @@ from scrinalia.domains.identity.exceptions import (
     UserNotFoundError,
     WeakPasswordError,
 )
+from scrinalia.domains.ingestion.exceptions import (
+    DuplicateManualRecordError,
+    InvalidOriginConfigError,
+    OriginDisabledError,
+    OriginNotFoundError,
+)
 
 #: One recorder for the process. It opens its own short-lived session per write, so this instance
 #: keeps nothing between requests and needs no per-request wiring.
@@ -117,6 +123,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             WorkerNotFoundError,
             WorkerRunNotFoundError,
             WorkerScheduleNotFoundError,
+            OriginNotFoundError,
             UserNotFoundError,
             SessionNotFoundError,
         ),
@@ -139,6 +146,8 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             DocumentHasChildrenError,
             WorkerRunAlreadyActiveError,
             WorkerRunNotCancellableError,
+            OriginDisabledError,
+            DuplicateManualRecordError,
             DuplicateUserEmailError,
             LastAdminError,
             SetupAlreadyCompleteError,
@@ -174,6 +183,7 @@ def domain_exception_handler(request: Request, exc: DomainException) -> Response
             UnresolvableConflictError,
             InvalidWorkerScheduleError,
             InvalidWorkerSettingsError,
+            InvalidOriginConfigError,
             InvalidCurrentPasswordError,
             InvalidEmailError,
             WeakPasswordError,

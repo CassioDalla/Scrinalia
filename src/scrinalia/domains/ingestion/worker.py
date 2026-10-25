@@ -1,6 +1,7 @@
 import argparse
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -10,6 +11,7 @@ from scrinalia.core.logger import logger
 from scrinalia.core.runner_config import IngestionRunnerConfig
 from scrinalia.core.unit_of_work import UnitOfWork
 from scrinalia.domains.ingestion import repository
+from scrinalia.domains.ingestion.exceptions import InvalidOriginConfigError, OriginNotFoundError
 from scrinalia.domains.ingestion.models import ScrapeStatus
 from scrinalia.domains.ingestion.ports import (
     AdapterFatalError,
@@ -18,9 +20,18 @@ from scrinalia.domains.ingestion.ports import (
     IDetailAdapter,
     IDiscoveryAdapter,
 )
+from scrinalia.domains.staging.repository import SqlRawRecordSource
+from scrinalia.domains.staging.worker import run_staging_pipeline
 
 
-def run_discovery_job(db_session: Session, adapter: IDiscoveryAdapter, max_pages: int | None = None) -> int:
+def run_discovery_job(
+    db_session: Session,
+    adapter: IDiscoveryAdapter,
+    max_pages: int | None = None,
+    *,
+    origin_code: str | None = None,
+    run_control: Any | None = None,
+) -> int:
     """
     Orchestrates the Ingestion discovery phase, retrieving new IDs from the data source.
 
@@ -32,6 +43,8 @@ def run_discovery_job(db_session: Session, adapter: IDiscoveryAdapter, max_pages
         db_session (Session): Active SQLAlchemy session.
         adapter (IDiscoveryAdapter): Instance of the adapter responsible for retrieving IDs.
         max_pages (int | None, optional): Limit on the number of iterations/pages to process.
+        origin_code (str | None): The origin whose queue receives the ids.
+        run_control (Any | None): The cancellation control, checked once per page batch.
 
     Returns:
         int: How many new identifiers this run enqueued, so a caller chaining the two phases can
@@ -43,7 +56,9 @@ def run_discovery_job(db_session: Session, adapter: IDiscoveryAdapter, max_pages
     uow = UnitOfWork(db_session)
     total_inserted = 0
     for batch_ids in adapter.fetch_new_ids(max_pages=max_pages):
-        inserted_count = repository.add_in_bulk(db_session, batch_ids)
+        if run_control is not None:
+            run_control.checkpoint()
+        inserted_count = repository.add_in_bulk(db_session, batch_ids, origin_code=origin_code)
         uow.commit()
         total_inserted += inserted_count
 
@@ -56,6 +71,40 @@ def run_discovery_job(db_session: Session, adapter: IDiscoveryAdapter, max_pages
     return total_inserted
 
 
+def queue_window(
+    config: IngestionRunnerConfig,
+    *,
+    audit_ttl_days: int | None = None,
+    ignore_sliding_window: bool = False,
+    force_retry_fatal: bool = False,
+) -> tuple[datetime | None, datetime | None, list[ScrapeStatus]]:
+    """
+    The sliding-window policy of one run, as the three values the queue predicate reads.
+
+    It belongs to one function because the run and the panel's counter must apply the same policy:
+    a number computed by a second copy of this block would answer a different question from the one
+    the next execution asks. The order is the ADR 0014 order — audit mode overrides the window,
+    then the discovery/TTL filters, then the statuses the policy excludes.
+    """
+    if audit_ttl_days is not None:
+        discovered_after = None
+        scraped_before = datetime.now(UTC) - timedelta(days=audit_ttl_days)
+        ignore_status = [ScrapeStatus.NOT_FOUND, ScrapeStatus.FATAL_ERROR]
+    else:
+        discovered_after = (
+            None if ignore_sliding_window else (datetime.now(UTC) - timedelta(days=config.discovery_window_days))
+        )
+        scraped_before = (
+            None if ignore_sliding_window else (datetime.now(UTC) - timedelta(days=config.scraped_ttl_days))
+        )
+        ignore_status = [ScrapeStatus.NOT_FOUND]
+        if not force_retry_fatal:
+            ignore_status.append(ScrapeStatus.FATAL_ERROR)
+        if not ignore_sliding_window:
+            ignore_status.append(ScrapeStatus.DONE)
+    return discovered_after, scraped_before, ignore_status
+
+
 def run_detail_scraping_job(
     db_session: Session,
     adapter: IDetailAdapter,
@@ -64,6 +113,8 @@ def run_detail_scraping_job(
     audit_ttl_days: int | None = None,
     limit: int | None = None,
     config: IngestionRunnerConfig | None = None,
+    origin_code: str | None = None,
+    run_control: Any | None = None,
 ):
     """
     Orchestrates queue consumption and raw data extraction.
@@ -89,27 +140,18 @@ def run_detail_scraping_job(
             write succeeds, which is the accepted limit of the bound.
         config (IngestionRunnerConfig | None): Retry and window policy; defaults to the
             standard configuration.
+        origin_code (str | None): The origin whose queue this run consumes. ``None`` is the whole
+            queue, which is what the host command still does; a worker run always names one.
+        run_control (Any | None): The cancellation control, checked once per queue row.
     """
 
     config = config or IngestionRunnerConfig()
-
-    # Time-To-Live configs
-    if audit_ttl_days is not None:
-        discovered_after = None
-        scraped_before = datetime.now(UTC) - timedelta(days=audit_ttl_days)
-        ignore_status = [ScrapeStatus.NOT_FOUND, ScrapeStatus.FATAL_ERROR]
-    else:
-        discovered_after = (
-            None if ignore_sliding_window else (datetime.now(UTC) - timedelta(days=config.discovery_window_days))
-        )
-        scraped_before = (
-            None if ignore_sliding_window else (datetime.now(UTC) - timedelta(days=config.scraped_ttl_days))
-        )
-        ignore_status = [ScrapeStatus.NOT_FOUND]
-        if not force_retry_fatal:
-            ignore_status.append(ScrapeStatus.FATAL_ERROR)
-        if not ignore_sliding_window:
-            ignore_status.append(ScrapeStatus.DONE)
+    discovered_after, scraped_before, ignore_status = queue_window(
+        config,
+        audit_ttl_days=audit_ttl_days,
+        ignore_sliding_window=ignore_sliding_window,
+        force_retry_fatal=force_retry_fatal,
+    )
 
     batch = repository.get_from_queue(
         db_session,
@@ -117,6 +159,7 @@ def run_detail_scraping_job(
         scraped_before=scraped_before,
         ignore_status=ignore_status,
         limit=limit,
+        origin_code=origin_code,
     )
 
     total_items = len(batch)
@@ -130,6 +173,8 @@ def run_detail_scraping_job(
     failures = 0
 
     for index, queue in enumerate(batch, start=1):
+        if run_control is not None:
+            run_control.checkpoint()
         doc_id = queue.description_id
         logger.info(f"⏳ Processing [{index}/{total_items}] ID: {doc_id}")
 
@@ -139,28 +184,39 @@ def run_detail_scraping_job(
         except AdapterNotFoundError as e:
             logger.error(f"Error 404: {e}")
             failures += 1
-            repository.update_queue_status(db_session, doc_id, ScrapeStatus.NOT_FOUND, error_msg=str(e))
+            repository.update_queue_status(
+                db_session, doc_id, ScrapeStatus.NOT_FOUND, error_msg=str(e), origin_code=origin_code
+            )
 
         except AdapterNetworkError as e:
             logger.warning(f"⚠️ Instability on {doc_id}: {e}")
             failures += 1
             if queue.retry_count >= config.max_retries:
-                repository.update_queue_status(db_session, doc_id, ScrapeStatus.FATAL_ERROR, error_msg=str(e))
+                repository.update_queue_status(
+                    db_session, doc_id, ScrapeStatus.FATAL_ERROR, error_msg=str(e), origin_code=origin_code
+                )
             else:
                 repository.update_queue_status(
-                    db_session, doc_id, ScrapeStatus.NETWORK_ERROR, error_msg=str(e), increment_retry=True
+                    db_session,
+                    doc_id,
+                    ScrapeStatus.NETWORK_ERROR,
+                    error_msg=str(e),
+                    increment_retry=True,
+                    origin_code=origin_code,
                 )
 
         except (AdapterFatalError, Exception) as e:
             logger.exception(f"💥 Fatal error (Parsing/DB) on {doc_id}: {e}")
             failures += 1
-            repository.update_queue_status(db_session, doc_id, ScrapeStatus.FATAL_ERROR, error_msg=str(e))
+            repository.update_queue_status(
+                db_session, doc_id, ScrapeStatus.FATAL_ERROR, error_msg=str(e), origin_code=origin_code
+            )
 
         else:
             # The raw payload and the queue status must land in the same transaction.
             try:
-                repository.save_raw_data(db_session, doc_id, data_scraped)
-                repository.update_queue_status(db_session, doc_id, ScrapeStatus.DONE)
+                repository.save_raw_data(db_session, doc_id, data_scraped, origin_code=origin_code)
+                repository.update_queue_status(db_session, doc_id, ScrapeStatus.DONE, origin_code=origin_code)
             except Exception as e:
                 logger.exception(f"💥 Database error persisting {doc_id}: {e}")
                 failures += 1
@@ -179,8 +235,166 @@ def run_detail_scraping_job(
         ignore_status=ignore_status,
         discovered_after=discovered_after,
         scraped_before=scraped_before,
+        origin_code=origin_code,
     )
     logger.info(f"🎯 Extraction finished. taken: {total_items} | failures: {failures} | still pending: {remaining}")
+
+
+def _config_from_options(
+    *,
+    max_retries: int | None = None,
+    discovery_window_days: int | None = None,
+    scraped_ttl_days: int | None = None,
+) -> IngestionRunnerConfig:
+    """The run policy with only the fields the caller set; the defaults stay in the dataclass."""
+    overrides = {
+        "max_retries": max_retries,
+        "discovery_window_days": discovery_window_days,
+        "scraped_ttl_days": scraped_ttl_days,
+    }
+    return replace(IngestionRunnerConfig(), **{key: value for key, value in overrides.items() if value is not None})
+
+
+def execute(
+    db_session: Session,
+    origin_code: str,
+    pages: int | None = 1,
+    limit: int | None = None,
+    audit_ttl_days: int | None = None,
+    force_retry_fatal: bool = False,
+    ignore_sliding_window: bool = False,
+    max_retries: int | None = None,
+    discovery_window_days: int | None = None,
+    scraped_ttl_days: int | None = None,
+    run_control: Any | None = None,
+) -> None:
+    """
+    One ingestion execution: discovery (when the origin has it), detail extraction, then staging.
+
+    It is the worker body the runner calls, and the same three steps the host ``run`` command does,
+    with two differences that matter: the origin is a row (and an explicit code), and every phase is
+    bounded by the run's options. The manual origin skips straight to staging, because its raw
+    record is the form itself.
+
+    The staging step is what makes the run *end to end*: a scrape that leaves the raw payload in the
+    bucket and never structures it would be a queue with no consumer. The archive transfer remains
+    the next stage of the panel, a worker of its own.
+    """
+    from scrinalia.domains.ingestion.origin_registry import OriginKind
+    from scrinalia.domains.ingestion.origins import get_origin_definition
+
+    definition = get_origin_definition(origin_code, db_session)
+    if definition.summary.kind is OriginKind.MANUAL:
+        run_staging_pipeline(
+            db_session,
+            source_schema=definition.schema,
+            origin_code=origin_code,
+            limit=limit,
+            run_control=run_control,
+        )
+        return
+
+    config = _config_from_options(
+        max_retries=max_retries,
+        discovery_window_days=discovery_window_days,
+        scraped_ttl_days=scraped_ttl_days,
+    )
+
+    discovery = definition.adapters.discovery
+    if discovery is not None and pages != 0:
+        run_discovery_job(
+            db_session,
+            adapter=discovery,
+            max_pages=pages,
+            origin_code=origin_code,
+            run_control=run_control,
+        )
+
+    detail = definition.adapters.detail
+    if detail is not None:
+        run_detail_scraping_job(
+            db_session,
+            adapter=detail,
+            force_retry_fatal=force_retry_fatal,
+            ignore_sliding_window=ignore_sliding_window,
+            audit_ttl_days=audit_ttl_days,
+            limit=limit,
+            config=config,
+            origin_code=origin_code,
+            run_control=run_control,
+        )
+
+    run_staging_pipeline(
+        db_session,
+        origin_code=origin_code,
+        limit=limit,
+        run_control=run_control,
+    )
+
+
+def count_pending(
+    db_session: Session,
+    origin_code: str | None = None,
+    *,
+    audit_ttl_days: int | None = None,
+    force_retry_fatal: bool = False,
+    ignore_sliding_window: bool = False,
+    max_retries: int | None = None,
+    discovery_window_days: int | None = None,
+    scraped_ttl_days: int | None = None,
+    **_: object,
+) -> int:
+    """
+    What the next execution of this origin would take, through the run's own policy.
+
+    The manual origin's queue is the raw records not yet staged; a scraper's is the
+    ``scraping_queue`` window. Both answers come from the same helpers ``execute`` uses, so the
+    number the panel shows and the batch the next run takes cannot disagree.
+    """
+    from scrinalia.domains.ingestion.origin_registry import OriginKind, get_origin_summary
+
+    if not origin_code:
+        raise ValueError("A fila da ingestão é por origem: informe origin_code.")
+    summary = get_origin_summary(origin_code)
+    if summary.kind is OriginKind.MANUAL:
+        return SqlRawRecordSource(db_session).count_pending(origin_code=origin_code)
+
+    config = _config_from_options(
+        max_retries=max_retries,
+        discovery_window_days=discovery_window_days,
+        scraped_ttl_days=scraped_ttl_days,
+    )
+    discovered_after, scraped_before, ignore_status = queue_window(
+        config,
+        audit_ttl_days=audit_ttl_days,
+        ignore_sliding_window=ignore_sliding_window,
+        force_retry_fatal=force_retry_fatal,
+    )
+    return repository.count_pending(
+        db_session,
+        ignore_status=ignore_status,
+        discovered_after=discovered_after,
+        scraped_before=scraped_before,
+        origin_code=origin_code,
+    )
+
+
+def count_processed(db_session: Session, origin_code: str | None = None, **_: object) -> int:
+    """Units the origin already produced: raw payloads for the manual origin, ``DONE`` rows otherwise."""
+    from scrinalia.domains.ingestion.origin_registry import OriginKind, get_origin_summary
+
+    if origin_code and get_origin_summary(origin_code).kind is OriginKind.MANUAL:
+        return repository.count_raw_data(db_session, origin_code=origin_code)
+    return repository.count_processed(db_session, origin_code=origin_code)
+
+
+def count_failed(db_session: Session, origin_code: str | None = None, **_: object) -> int:
+    """Terminal failures of the origin's queue; the manual origin has no scrape to fail."""
+    from scrinalia.domains.ingestion.origin_registry import OriginKind, get_origin_summary
+
+    if origin_code and get_origin_summary(origin_code).kind is OriginKind.MANUAL:
+        return 0
+    return repository.count_failed(db_session, origin_code=origin_code)
 
 
 def config_from_args(args: argparse.Namespace) -> IngestionRunnerConfig:
@@ -233,7 +447,7 @@ def _build_parser() -> argparse.ArgumentParser:
     with no engine to configure (the operations panel surfacing it is its own change).
     """
     origin = argparse.ArgumentParser(add_help=False)
-    origin.add_argument("--origin", default=None, help="Origin code; ACERVO_SOURCE when omitted.")
+    origin.add_argument("--origin", required=True, help="Origin code (see the ingestion screen).")
 
     parser = argparse.ArgumentParser(
         prog="python -m scrinalia.domains.ingestion.worker",
@@ -266,17 +480,17 @@ def main(argv: list[str] | None = None) -> int:
     # and this module is imported by processes that never scrape.
     from scrinalia.domains.ingestion.sources import get_adapters
 
-    try:
-        adapters = get_adapters(args.origin)
-        discovery = adapters.require_discovery() if args.command in ("discover", "run") else None
-        detail = adapters.require_detail() if args.command in ("scrape", "run") else None
-    except ValueError as error:
-        logger.error(f"❌ {error}")
-        return 1
-
     with get_db() as db:
+        try:
+            adapters = get_adapters(args.origin, db)
+            discovery = adapters.require_discovery() if args.command in ("discover", "run") else None
+            detail = adapters.require_detail() if args.command in ("scrape", "run") else None
+        except (ValueError, OriginNotFoundError, InvalidOriginConfigError) as error:
+            logger.error(f"❌ {error}")
+            return 1
+
         if discovery is not None:
-            run_discovery_job(db, adapter=discovery, max_pages=args.pages)
+            run_discovery_job(db, adapter=discovery, max_pages=args.pages, origin_code=args.origin)
         if detail is not None:
             run_detail_scraping_job(
                 db,
@@ -286,6 +500,7 @@ def main(argv: list[str] | None = None) -> int:
                 audit_ttl_days=args.audit_ttl_days,
                 limit=args.limit,
                 config=config_from_args(args),
+                origin_code=args.origin,
             )
 
     return 0

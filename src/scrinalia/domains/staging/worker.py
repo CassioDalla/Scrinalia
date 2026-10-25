@@ -1,4 +1,5 @@
 import argparse
+from typing import Any
 
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -22,6 +23,9 @@ def run_staging_pipeline(
     force: bool = False,
     limit: int | None = None,
     after: str | None = None,
+    origin_code: str | None = None,
+    description_id: str | None = None,
+    run_control: Any | None = None,
 ) -> None:
     """
     Orchestrates the transformation pipeline (Transform/Load) for the Staging layer.
@@ -38,9 +42,11 @@ def run_staging_pipeline(
 
     Args:
         db_session (Session): Active SQLAlchemy session.
-        source_schema (SourceSchema | None): The origin's field vocabulary. Defaults to the one
-            ``ACERVO_SOURCE`` names; there is no built-in fallback, so a deployment that never
-            declared its origin fails here instead of filing every column as unknown.
+        source_schema (SourceSchema | None): An explicit vocabulary, used when the caller knows the
+            whole window belongs to one origin (the manual entry). ``None`` is the plural path: each
+            record's ``origin_code`` selects its own schema, so a run that reads several origins
+            cannot apply one site's labels to another's payload. There is still **no default
+            origin**: a record without an origin fails instead of inheriting the reference site.
         source (RawRecordSource | None): Input port; defaults to the SQL adapter.
         writer (StagingDocumentWriter | None): Output port; defaults to the SQL adapter.
         force (bool): Re-parses every raw record instead of only the changed ones. Required
@@ -51,18 +57,28 @@ def run_staging_pipeline(
             full-collection transform.
         after (str | None): Keyset cursor over ``description_id``, the way a bounded ``force`` run
             resumes: the CDC advances on its own, a forced re-parse does not.
+        origin_code (str | None): Bounds the run to one origin's records. The ingestion worker
+            passes its own; ``None`` is the whole pending set.
+        description_id (str | None): Bounds the run to the one record a manual entry just wrote.
+        run_control (Any | None): The cancellation control of the execution that called this
+            helper; ``None`` for a host run. It is checked once per record.
     """
     # Imported here, not at module level: the staging worker is a step of the pipeline, and the
     # origin registry drags in the adapter module (requests, bs4) that this process never uses.
     from scrinalia.domains.ingestion.sources import get_source_schema
 
-    source_schema = source_schema or get_source_schema()
     source = source or SqlRawRecordSource(db_session)
     writer = writer or SqlStagingDocumentWriter(db_session)
     uow = uow or UnitOfWork(db_session)
 
     logger.info("🔍 Checking pending documents at the Ingestion Domain...")
-    pending_records = source.next_batch(force=force, limit=limit, after=after)
+    pending_records = source.next_batch(
+        force=force,
+        limit=limit,
+        after=after,
+        origin_code=origin_code,
+        description_id=description_id,
+    )
 
     total = len(pending_records)
     if total == 0:
@@ -76,16 +92,23 @@ def run_staging_pipeline(
 
     for i, raw_record in enumerate(pending_records, start=1):
         doc_id = raw_record.description_id
+        if run_control is not None:
+            run_control.checkpoint()
         try:
+            # The schema is resolved per record when the caller did not pin one: the origin's
+            # vocabulary is a property of the record, not of the worker's process.
+            record_schema = source_schema or get_source_schema(raw_record.origin_code)
+
             # Validation and Cleaning (Pydantic), with the origin's vocabulary as context.
             clean_record = StagingDocumentDTO.model_validate(
                 {
                     "description_id": raw_record.description_id,
+                    "origin_code": raw_record.origin_code,
                     "content_hash": raw_record.content_hash,
                     "payload": raw_record.payload,
                     "raw_title": raw_record.raw_title,
                 },
-                context={SOURCE_SCHEMA_CONTEXT_KEY: source_schema},
+                context={SOURCE_SCHEMA_CONTEXT_KEY: record_schema},
             )
 
             # Persistency
@@ -113,7 +136,12 @@ def run_staging_pipeline(
         logger.critical(f"🔥 Critical error during final commit:{e!s}")
         return
 
-    remaining = source.count_pending(force=force, after=after)
+    remaining = source.count_pending(
+        force=force,
+        after=after,
+        origin_code=origin_code,
+        description_id=description_id,
+    )
     logger.info(
         f"🎯 Staging Pipeline Completed! Success: {success} | failures: {failures} | still pending: {remaining}"
     )
@@ -147,31 +175,25 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Resume a forced re-parse at the first description_id greater than this.",
     )
-    parser.add_argument("--origin", default=None, help="Origin code; ACERVO_SOURCE when omitted.")
+    parser.add_argument(
+        "--origin",
+        default=None,
+        help="Only records of this origin; each record otherwise resolves its own schema.",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     """Runs one bounded transform; returns the process exit code."""
-    # Imported here, not at module level, for the same reason the pipeline imports it: this module
-    # is imported by the API process, which never reads an origin.
-    from scrinalia.domains.ingestion.sources import get_source_schema
-
     args = _build_parser().parse_args(argv)
-
-    try:
-        source_schema = get_source_schema(args.origin)
-    except ValueError as error:
-        logger.error(f"❌ {error}")
-        return 1
 
     with get_db() as db:
         run_staging_pipeline(
             db,
-            source_schema=source_schema,
             force=args.force,
             limit=args.limit,
             after=args.after,
+            origin_code=args.origin,
         )
 
     return 0

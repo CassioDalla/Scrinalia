@@ -81,6 +81,7 @@ class SystemController(Controller):
         self,
         run_service: NamedDependency[WorkerRunService],
         worker: FromQuery[str | None] = None,
+        origin: FromQuery[str | None] = None,
         status: FromQuery[WorkerRunStatus | None] = None,
         fingerprint: FromQuery[str | None] = None,
         limit: FromQuery[int] = 20,
@@ -93,7 +94,12 @@ class SystemController(Controller):
         this is how the archivist sees the executions behind it.
         """
         return run_service.list_runs(
-            worker_name=worker, status=status, fingerprint=fingerprint, limit=limit, offset=offset
+            worker_name=worker,
+            status=status,
+            origin_code=origin,
+            fingerprint=fingerprint,
+            limit=limit,
+            offset=offset,
         )
 
     @get("/failures", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)

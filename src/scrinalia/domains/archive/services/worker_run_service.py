@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from scrinalia.core.author import Author
 from scrinalia.domains.archive.exceptions import (
+    InvalidWorkerSettingsError,
     WorkerNotFoundError,
     WorkerRunNotCancellableError,
     WorkerRunNotFoundError,
@@ -69,6 +70,11 @@ class WorkerRunService:
         spec = WORKER_CATALOGUE.get(worker_name)
         if spec is None:
             raise WorkerNotFoundError(f"Worker '{worker_name}' não existe. Opções: {sorted(WORKER_CATALOGUE)}.")
+        if spec.origin_axis:
+            raise InvalidWorkerSettingsError(
+                "A ingestão é enfileirada pela origem, não pelo worker genérico: use a tela de "
+                "ingestão ou POST /api/v1/ingestion/origins/{code}/runs."
+            )
 
         validate_engine_choice(spec, request.engine_name, request.preset)
         validate_options(spec, request.options)
@@ -144,11 +150,17 @@ class WorkerRunService:
         *,
         worker_name: str | None,
         status: WorkerRunStatus | None,
+        origin_code: str | None = None,
         fingerprint: str | None = None,
         limit: int,
         offset: int,
     ) -> WorkerRunListResponse:
         items, total = self.runs.list(
-            worker_name=worker_name, status=status, fingerprint=fingerprint, limit=limit, offset=offset
+            worker_name=worker_name,
+            origin_code=origin_code,
+            status=status,
+            fingerprint=fingerprint,
+            limit=limit,
+            offset=offset,
         )
         return WorkerRunListResponse(items=items, total=total, limit=limit, offset=offset)

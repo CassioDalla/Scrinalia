@@ -1,0 +1,258 @@
+"""Contract of the ingestion surface: origins, their agenda and the manual entry.
+
+The origin is an operational object, so its screen needs more than a name: the configuration fields
+it can edit, the run options a scheduled execution inherits, the queue it addresses and the run it
+last executed. The DTOs below are that read model plus the two writes (configuration and agenda) and
+the manual body.
+
+The manual body is a `RequestModel` (``extra="forbid"``) like every other write: a field the API does
+not read is a 400 and not a silent drop, and the form's own copy of the list is derived from the
+generated client.
+"""
+
+from __future__ import annotations
+
+from datetime import date, datetime
+from typing import Any, Literal
+
+from pydantic import Field
+
+from scrinalia.core.schemas import RequestModel
+from scrinalia.domains.archive.models.enums import WorkerRunStatus
+from scrinalia.domains.archive.schemas.responses import RouteResponse
+
+#: The control a configuration field needs on the screen.
+ConfigFieldKind = Literal["text", "number", "boolean"]
+
+#: The control a run option needs. The ingestion options are numbers, booleans and nothing else.
+OptionKind = Literal["boolean", "integer", "number", "text"]
+
+
+class OriginConfigFieldDTO(RequestModel):
+    """One editable field of an origin's configuration, with its label and help."""
+
+    name: str
+    label: str
+    help: str
+    kind: ConfigFieldKind = "text"
+    required: bool = False
+    default: Any = None
+
+
+class IngestionOptionDTO(RequestModel):
+    """One run option the scheduler and the run dialog can carry."""
+
+    name: str
+    label: str
+    help: str
+    kind: OptionKind = "integer"
+    default: Any = None
+
+
+class IngestionScheduleDTO(RequestModel):
+    """The origin's agenda, as the screen reads it; ``next_run_at`` is null while paused."""
+
+    cron: str | None = None
+    timezone: str | None = None
+    next_run_at: datetime | None = None
+    last_enqueued_at: datetime | None = None
+    last_skipped_at: datetime | None = None
+    updated_by: str | None = None
+    updated_at: datetime | None = None
+
+
+class IngestionOriginDTO(RequestModel):
+    """
+    One origin as the ingestion screen sees it.
+
+    ``pending`` is counted through the same policy the next execution uses (the scraper's queue
+    window, or the manual origin's unstaged raw records); ``processed``/``failed`` are the ledger
+    numbers of that origin, never a collection-wide total. ``last_run``/``active_run`` are flattened
+    so this contract does not have to import the run DTO, and the full ledger stays on
+    ``/system/runs?origin=...``.
+    """
+
+    code: str
+    label: str
+    description: str
+    kind: str
+    enabled: bool
+    config: dict[str, Any] = Field(default_factory=dict)
+    config_fields: list[OriginConfigFieldDTO] = Field(default_factory=list)
+    options: dict[str, Any] = Field(default_factory=dict)
+    option_fields: list[IngestionOptionDTO] = Field(default_factory=list)
+    schedule: IngestionScheduleDTO | None = None
+    pending: int | None = Field(default=None, description="O que a próxima execução desta origem leria.")
+    pending_reason: str | None = None
+    processed: int | None = None
+    failed: int | None = None
+    last_run_id: int | None = None
+    last_run_status: WorkerRunStatus | None = None
+    last_run_at: datetime | None = None
+    last_run_error: str | None = None
+    active_run_id: int | None = None
+    active_run_status: WorkerRunStatus | None = None
+    runner_available: bool = Field(
+        default=False,
+        description="Se algum runner online aceita a etapa de ingestão; falso não impede enfileirar.",
+    )
+    updated_by: str | None = None
+    updated_at: datetime | None = None
+
+
+class IngestionOriginListResponse(RequestModel):
+    origins: list[IngestionOriginDTO] = Field(default_factory=list)
+    generated_at: datetime
+
+
+class IngestionOriginUpdateRequest(RequestModel):
+    """The origin's lifecycle and configuration; the agenda has its own route."""
+
+    enabled: bool
+    config: dict[str, Any] = Field(
+        default_factory=dict,
+        description="A configuração do adapter, validada pelo modelo da origem (URLs, espera).",
+    )
+    options: dict[str, Any] = Field(
+        default_factory=dict,
+        description="O padrão de execução agendada (páginas, janelas, retentativas).",
+    )
+
+
+class IngestionScheduleRequest(RequestModel):
+    """The agenda: a five-field cron and an IANA zone. The origin's ``enabled`` is its own field."""
+
+    cron: str = Field(min_length=1, max_length=120, description="Cinco campos: minuto, hora, dia, mês, semana.")
+    timezone: str | None = Field(default=None, max_length=64, description="Zona IANA; o padrão é DEFAULT_TIMEZONE.")
+
+
+class IngestionRunRequest(RequestModel):
+    """
+    The options of one ingestion execution; the persisted origin options are the defaults.
+
+    ``pages`` defaults to one listing page, because a scheduled crawl that walked to the end of the
+    site would never finish inside its slot. ``limit`` is the batch cap; the manual origin ignores
+    the scrape options and stages the records it can.
+    """
+
+    pages: int | None = Field(default=None, ge=0, description="Páginas da listagem; 0 não lista.")
+    limit: int | None = Field(default=None, ge=1, description="Máximo de registros desta execução.")
+    audit_ttl_days: int | None = Field(default=None, ge=1, description="Re-lê os DONE com mais de N dias.")
+    force_retry_fatal: bool = Field(default=False, description="Inclui os registros marcados FATAL_ERROR.")
+    ignore_sliding_window: bool = Field(default=False, description="Ignora as janelas de descoberta e TTL.")
+    max_retries: int | None = Field(default=None, ge=0, description="Falhas transitórias antes de FATAL.")
+    discovery_window_days: int | None = Field(
+        default=None, ge=1, description="Só registros descobertos nos últimos N dias."
+    )
+    scraped_ttl_days: int | None = Field(default=None, ge=1, description="Só registros lidos há mais de N dias.")
+
+
+#: The labels and help of the run options. They are presentation, and the test beside the model
+#: pins that every field of ``IngestionRunRequest`` has exactly one entry here.
+INGESTION_OPTION_FIELDS: tuple[IngestionOptionDTO, ...] = (
+    IngestionOptionDTO(
+        name="pages",
+        label="Páginas da listagem",
+        help="Quantas páginas de listagem a execução percorre; 0 não lista.",
+        kind="integer",
+        default=1,
+    ),
+    IngestionOptionDTO(
+        name="limit",
+        label="Limite de registros",
+        help="Máximo de registros que esta execução toma da fila.",
+        kind="integer",
+    ),
+    IngestionOptionDTO(
+        name="audit_ttl_days",
+        label="Auditoria (dias)",
+        help="Re-lê os registros concluídos há mais de N dias.",
+        kind="integer",
+    ),
+    IngestionOptionDTO(
+        name="force_retry_fatal",
+        label="Incluir falhas permanentes",
+        help="Toma também os registros marcados FATAL_ERROR.",
+        kind="boolean",
+        default=False,
+    ),
+    IngestionOptionDTO(
+        name="ignore_sliding_window",
+        label="Ignorar janelas",
+        help="Ignora as janelas de descoberta e TTL e toma tudo o que os status permitem.",
+        kind="boolean",
+        default=False,
+    ),
+    IngestionOptionDTO(
+        name="max_retries",
+        label="Tentativas transitórias",
+        help="Falhas de rede antes de marcar FATAL_ERROR.",
+        kind="integer",
+    ),
+    IngestionOptionDTO(
+        name="discovery_window_days",
+        label="Janela de descoberta (dias)",
+        help="Só considera registros descobertos nos últimos N dias.",
+        kind="integer",
+    ),
+    IngestionOptionDTO(
+        name="scraped_ttl_days",
+        label="TTL da leitura (dias)",
+        help="Só considera registros lidos há mais de N dias.",
+        kind="integer",
+    ),
+)
+
+
+class ManualIngestionRequest(RequestModel):
+    """
+    One record typed by an archivist.
+
+    It is the **manual origin's payload**, not an approval: the record goes through the same staging,
+    the same transfer and the same AI queues as a scraped one. The essential ISAD(G) fields are here;
+    the rest of ``StagingDocumentDTO`` is a follow-up issue, and a new field is a line here plus a
+    line in the manual schema.
+    """
+
+    #: The client generates it (``manual-<uuid>``) so a retried submit is the same record. Omitted,
+    #: the API generates one; a duplicate answers 409.
+    description_id: str | None = Field(default=None, max_length=50, description="Identificador do registro.")
+    title: str = Field(min_length=1, max_length=500, description="Título da descrição.")
+    reference_code: str | None = Field(default=None, max_length=500, description="Código de referência.")
+    level: str | None = Field(default=None, max_length=200, description="Nível de descrição.")
+    parent_reference_code: str | None = Field(default=None, max_length=500, description="Código da unidade superior.")
+    document_date: date | None = Field(default=None, description="Data de produção, quando conhecida.")
+    scope_content: str | None = Field(default=None, description="Âmbito e conteúdo.")
+    producers: str | None = Field(default=None, description="Produtores.")
+    admin_bio_history: str | None = Field(default=None, description="História administrativa/biográfica.")
+    admin_archival_history: str | None = Field(default=None, description="História arquivística.")
+    provenance: str | None = Field(default=None, description="Procedência.")
+    access_conditions: str | None = Field(default=None, description="Condições de acesso.")
+    indexing_points: str | None = Field(default=None, description="Pontos de acesso, separados por vírgula.")
+    original_url: str | None = Field(default=None, description="URL do registro original, quando houver.")
+    attachment_link: str | None = Field(default=None, description="Link do anexo, quando houver.")
+    thumb_down_link: str | None = Field(default=None, description="Link da imagem, quando houver.")
+
+
+class ManualIngestionResultDTO(RequestModel):
+    """What the submit created and what happened to the transfer that follows it."""
+
+    description_id: str
+    origin_code: str
+    staging_saved: bool
+    transfer_run_id: int | None = Field(
+        default=None, description="A execução de transferência enfileirada; nula quando já havia uma ativa."
+    )
+    transfer_queued: bool = Field(
+        default=False, description="Falso quando uma transferência já estava em andamento e esta entra na próxima."
+    )
+    review_status: str = Field(
+        default="PENDING_AI",
+        description="O estado inicial no archive: a ingestão manual não marca HUMAN_APPROVED.",
+    )
+
+
+class ManualIngestionResponse(RouteResponse):
+    """The submit's sentence and the record it produced."""
+
+    data: ManualIngestionResultDTO

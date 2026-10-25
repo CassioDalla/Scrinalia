@@ -59,6 +59,7 @@ class WorkerRunLedger:
         engine_name: str | None,
         preset: str | None,
         config: dict[str, Any],
+        origin_code: str | None = None,
         request: dict[str, Any] | None = None,
     ) -> WorkerRunDTO:
         """
@@ -78,6 +79,7 @@ class WorkerRunLedger:
                     engine_name=engine_name,
                     preset=preset,
                     config=config,
+                    origin_code=origin_code,
                     request=request,
                 )
                 db.commit()
@@ -196,6 +198,7 @@ class WorkerRunLedger:
         engine_name: str | None,
         preset: str | None,
         config: dict[str, Any],
+        origin_code: str | None = None,
         request: dict[str, Any] | None = None,
         options: dict[str, Any] | None = None,
         runner_id: str | None = None,
@@ -211,6 +214,7 @@ class WorkerRunLedger:
                     engine_name=engine_name,
                     preset=preset,
                     config=config,
+                    origin_code=origin_code,
                     request=request,
                     options=options,
                     runner_id=runner_id,

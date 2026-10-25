@@ -60,6 +60,8 @@ class ClaimedRun:
 
     run_id: int
     worker_name: str
+    #: The origin an ingestion run processes; ``None`` for an archive worker.
+    origin_code: str | None
     request: dict[str, Any]
 
 
@@ -84,6 +86,7 @@ def to_dto(run: WorkerRun) -> WorkerRunDTO:
     return WorkerRunDTO(
         run_id=run.id,
         worker_name=run.worker_name,
+        origin_code=run.origin_code,
         status=run.status,
         trigger=run.trigger,
         attempt=run.attempt,
@@ -123,6 +126,7 @@ class WorkerRunRepository:
         engine_name: str | None,
         preset: str | None,
         config: dict[str, Any],
+        origin_code: str | None = None,
         request: dict[str, Any] | None = None,
         options: dict[str, Any] | None = None,
         attempt: int = 1,
@@ -142,6 +146,7 @@ class WorkerRunRepository:
         """
         run = WorkerRun(
             worker_name=worker_name,
+            origin_code=origin_code,
             status=WorkerRunStatus.QUEUED,
             trigger=trigger,
             attempt=attempt,
@@ -170,6 +175,7 @@ class WorkerRunRepository:
         engine_name: str | None,
         preset: str | None,
         config: dict[str, Any],
+        origin_code: str | None = None,
         request: dict[str, Any] | None = None,
         options: dict[str, Any] | None = None,
         runner_id: str | None = None,
@@ -183,6 +189,7 @@ class WorkerRunRepository:
         """
         run = WorkerRun(
             worker_name=worker_name,
+            origin_code=origin_code,
             status=WorkerRunStatus.RUNNING,
             trigger=trigger,
             **author_columns("requested_by", requested_by),
@@ -201,18 +208,22 @@ class WorkerRunRepository:
         self.db.refresh(run)
         return to_dto(run)
 
-    def has_active_run(self, worker_name: str) -> bool:
-        """Whether the worker already has a ``QUEUED``/``RUNNING`` row: the scheduler's skip check."""
-        return bool(
-            self.db.scalar(
-                select(
-                    exists().where(
-                        WorkerRun.worker_name == worker_name,
-                        WorkerRun.status.in_(ACTIVE_WORKER_RUN_STATUSES),
-                    )
-                )
-            )
-        )
+    def has_active_run(self, worker_name: str, origin_code: str | None = None) -> bool:
+        """
+        Whether the worker already has a ``QUEUED``/``RUNNING`` row: the scheduler's skip check.
+
+        ``origin_code`` narrows the question to one origin's slot; the archive workers pass none
+        and keep their one-slot-per-worker guard.
+        """
+        conditions = [
+            WorkerRun.worker_name == worker_name,
+            WorkerRun.status.in_(ACTIVE_WORKER_RUN_STATUSES),
+        ]
+        if origin_code is None:
+            conditions.append(WorkerRun.origin_code.is_(None))
+        else:
+            conditions.append(WorkerRun.origin_code == origin_code)
+        return bool(self.db.scalar(select(exists().where(*conditions))))
 
     def due_retries(self, max_attempts: int) -> list[WorkerRun]:
         """
@@ -276,14 +287,19 @@ class WorkerRunRepository:
                 heartbeat_at=func.now(),
                 lease_expires_at=_lease_deadline(lease_seconds),
             )
-            .returning(WorkerRun.id, WorkerRun.worker_name, WorkerRun.request)
+            .returning(WorkerRun.id, WorkerRun.worker_name, WorkerRun.origin_code, WorkerRun.request)
         ).first()
         self.db.flush()
         if row is None:
             return None
 
-        claimed_id, worker_name, request = row
-        return ClaimedRun(run_id=int(claimed_id), worker_name=str(worker_name), request=dict(request or {}))
+        claimed_id, worker_name, origin_code, request = row
+        return ClaimedRun(
+            run_id=int(claimed_id),
+            worker_name=str(worker_name),
+            origin_code=str(origin_code) if origin_code is not None else None,
+            request=dict(request or {}),
+        )
 
     def record_start(
         self,
@@ -495,6 +511,7 @@ class WorkerRunRepository:
         self,
         *,
         worker_name: str | None = None,
+        origin_code: str | None = None,
         status: WorkerRunStatus | None = None,
         fingerprint: str | None = None,
         limit: int,
@@ -503,6 +520,8 @@ class WorkerRunRepository:
         conditions = []
         if worker_name is not None:
             conditions.append(WorkerRun.worker_name == worker_name)
+        if origin_code is not None:
+            conditions.append(WorkerRun.origin_code == origin_code)
         if status is not None:
             conditions.append(WorkerRun.status == status)
         if fingerprint is not None:
@@ -533,3 +552,23 @@ class WorkerRunRepository:
         """The runs in flight, keyed by worker; the partial unique index allows at most one each."""
         rows = self.db.scalars(select(WorkerRun).where(WorkerRun.status.in_(ACTIVE_WORKER_RUN_STATUSES))).all()
         return {run.worker_name: to_dto(run) for run in rows}
+
+    def last_ingestion_by_origin(self) -> dict[str, WorkerRunDTO]:
+        """The most recent ingestion run of each origin, one query for the ingestion screen."""
+        rows = self.db.scalars(
+            select(WorkerRun)
+            .where(WorkerRun.worker_name == "ingestion")
+            .ext(distinct_on(WorkerRun.origin_code))
+            .order_by(WorkerRun.origin_code, WorkerRun.queued_at.desc(), WorkerRun.id.desc())
+        ).all()
+        return {run.origin_code: to_dto(run) for run in rows if run.origin_code is not None}
+
+    def active_ingestion_by_origin(self) -> dict[str, WorkerRunDTO]:
+        """The ingestion runs in flight, keyed by origin; one slot per origin."""
+        rows = self.db.scalars(
+            select(WorkerRun).where(
+                WorkerRun.worker_name == "ingestion",
+                WorkerRun.status.in_(ACTIVE_WORKER_RUN_STATUSES),
+            )
+        ).all()
+        return {run.origin_code: to_dto(run) for run in rows if run.origin_code is not None}

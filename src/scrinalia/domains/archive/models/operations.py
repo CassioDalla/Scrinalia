@@ -122,6 +122,10 @@ class WorkerRun(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     worker_name: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    #: The origin an **ingestion** run processes. ``NULL`` for an archive worker: a run of the NER
+    #: spans every origin in the collection and has no single source to name. The partial unique
+    #: index below includes it, so the queue is one slot per worker *and* one per origin.
+    origin_code: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     status: Mapped[WorkerRunStatus] = mapped_column(
         Enum(WorkerRunStatus, name="worker_run_status"), nullable=False, index=True
     )
@@ -202,7 +206,18 @@ class WorkerRun(Base):
         # flight, across processes and across a reload. A second submission becomes an
         # IntegrityError the API translates into a 409 with a sentence a person can read. It is
         # also the reason the queue is one slot per worker and not a backlog (ADR 0014).
-        Index("uq_worker_run_active", "worker_name", unique=True, postgresql_where=text(ACTIVE_RUN_PREDICATE)),
+        #
+        # The origin is part of the slot because one ``ingestion`` worker serves several origins:
+        # the archive workers keep ``origin_code IS NULL`` and therefore their one-slot-per-worker
+        # guard, while each origin gets a slot of its own. ``COALESCE`` is what makes the NULL
+        # coalesce into one value instead of the many NULLs a plain unique index would allow.
+        Index(
+            "uq_worker_run_active",
+            "worker_name",
+            text("COALESCE(origin_code, '')"),
+            unique=True,
+            postgresql_where=text(ACTIVE_RUN_PREDICATE),
+        ),
         # The claim reads the oldest queued row; only queued rows are the queue, so the index is
         # partial and stays small no matter how long the ledger grows.
         Index("ix_worker_run_queue", "queued_at", postgresql_where=text(QUEUED_RUN_PREDICATE)),
