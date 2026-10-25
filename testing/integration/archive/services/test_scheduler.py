@@ -19,6 +19,7 @@ from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTri
 from scrinalia.domains.archive.models.operations import WorkerRun
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
 from scrinalia.domains.archive.repository.worker_schedule_repo import WorkerScheduleRepository
+from scrinalia.domains.archive.services.worker_run_service import WorkerRunService
 from scrinalia.domains.archive.workers.scheduler import SchedulerConfig, SchedulerService
 
 
@@ -191,6 +192,23 @@ def test_a_failed_scheduled_run_is_retried(db_session: Session) -> None:
     assert retry[0].not_before is not None
     assert retry[0].not_before > datetime.now(UTC) + timedelta(seconds=30)
     assert retry[0].request == {}
+
+
+def test_the_panel_read_carries_the_retry(db_session: Session) -> None:
+    """The DTO the ledger screen consumes, not only the row: attempt, origin and the start time."""
+    failed = _failed(db_session)
+    assert _service(db_session).tick() == 0
+
+    page = WorkerRunService(db_session).list_runs(worker_name=None, status=None, limit=20, offset=0)
+    failed_dto = next(item for item in page.items if item.run_id == failed.id)
+    retry = next(item for item in page.items if item.retry_of == failed.id)
+
+    assert failed_dto.attempt == 1
+    assert failed_dto.status == WorkerRunStatus.FAILED
+    assert retry.attempt == 2
+    assert retry.trigger == WorkerRunTrigger.SCHEDULE
+    assert retry.status == WorkerRunStatus.QUEUED
+    assert retry.not_before is not None
 
 
 def test_a_manual_failed_run_is_not_retried(db_session: Session) -> None:

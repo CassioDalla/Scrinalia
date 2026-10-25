@@ -2137,7 +2137,7 @@ with short or full shas, and part of a `## <date> — <title>` entry.
 - **What the round measured.** Six commits: the ADR 0015; the schedule table and the attempt columns; the
   scheduler (the advisory lock, the tick, the skip, the catch-up, the cron's DST); the retry and the
   API (the routes, the DTOs, the retry as a new row); the panel; the dev/deploy. The migration
-  `b7e4c2a9f1d0`, and `alembic check` reports no drift. Full suite **2123 passed, 1 skipped**;
+  `b7e4c2a9f1d0`, and `alembic check` reports no drift. Full suite **2124 passed, 1 skipped**;
   `basedpyright`, `ruff`, `tsc`, ESLint and the Vite build green; `mkdocs --strict` green. Rendered and
   looked at: the agenda in `/configuracoes/workers` (the `*/1 * * * *` cron, `America/Sao_Paulo`, the
   enabled state and the next run), the **agenda** badge and fact in `/sistema/workers` (with `sem
