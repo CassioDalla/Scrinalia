@@ -29,7 +29,7 @@ from scrinalia.domains.archive.repository.collection_vocabulary_repo import Coll
 from scrinalia.domains.archive.repository.hierarchy_repo import HierarchyRepository
 from scrinalia.domains.archive.repository.level_catalog_repo import LevelCatalogRepository
 from scrinalia.domains.archive.schemas.hierarchy_schema import (
-    HierarchyMaterialisationRequest,
+    HierarchyMaterialisationCommand,
     HierarchyPlanDecisionCommand,
 )
 from scrinalia.domains.archive.services.hierarchy_materialisation_service import (
@@ -294,7 +294,7 @@ class TestPreview:
         service.suggest()
         _approve(service, nobrade, _full_decisions())
 
-        preview = service.preview(HierarchyMaterialisationRequest())
+        preview = service.preview(HierarchyMaterialisationCommand())
 
         assert preview.nodes_to_create == 5  # Acervo, IPPUC, SMU, SMU ED, SMU ED AL
         assert preview.nodes_to_adopt == 1  # the existing Série record
@@ -310,7 +310,7 @@ class TestPreview:
                 ArchiveDocument.description_id
             )
         ).all()
-        service.preview(HierarchyMaterialisationRequest())
+        service.preview(HierarchyMaterialisationCommand())
         after = db_session.execute(
             select(ArchiveDocument.description_id, ArchiveDocument.parent_id, ArchiveDocument.path).order_by(
                 ArchiveDocument.description_id
@@ -328,7 +328,7 @@ class TestPreview:
         del decisions["BR PRADAP SMU ED AL CONSTR"]
         _approve(service, nobrade, decisions)
 
-        preview = service.preview(HierarchyMaterialisationRequest())
+        preview = service.preview(HierarchyMaterialisationCommand())
 
         # The two SMU processes still reach SMU ED, so they are not orphans at all.
         assert preview.remaining_orphans == 0
@@ -336,14 +336,14 @@ class TestPreview:
     def test_applying_nothing_approved_is_refused(self, service, collection):
         service.suggest()
         with pytest.raises(InvalidHierarchyPlanError, match="Nenhum nó aprovado"):
-            service.apply(HierarchyMaterialisationRequest())
+            service.apply(HierarchyMaterialisationCommand())
 
 
 class TestApply:
     def _materialise(self, service, collection, nobrade):
         service.suggest()
         _approve(service, nobrade, _full_decisions())
-        return service.apply(HierarchyMaterialisationRequest(changed_by=Author(name="ana")))
+        return service.apply(HierarchyMaterialisationCommand(changed_by=Author(name="ana")))
 
     def test_the_tree_is_materialised_and_the_invariant_holds(self, service, collection, nobrade, db_session):
         result = self._materialise(service, collection, nobrade)
@@ -408,7 +408,7 @@ class TestApply:
         """A second apply finds everything already placed: nothing is created, nothing is moved."""
         self._materialise(service, collection, nobrade)
 
-        second = service.apply(HierarchyMaterialisationRequest(changed_by=Author(name="ana")))
+        second = service.apply(HierarchyMaterialisationCommand(changed_by=Author(name="ana")))
 
         assert second.created_nodes == 0
         assert second.documents_attached == 0
@@ -420,9 +420,9 @@ class TestApply:
         """
         service.suggest()
         _approve(service, nobrade, _full_decisions())
-        preview = service.preview(HierarchyMaterialisationRequest())
+        preview = service.preview(HierarchyMaterialisationCommand())
 
-        result = service.apply(HierarchyMaterialisationRequest(changed_by=Author(name="ana")))
+        result = service.apply(HierarchyMaterialisationCommand(changed_by=Author(name="ana")))
 
         assert preview.nodes_to_create == result.created_nodes
         assert preview.nodes_to_adopt == result.adopted_nodes
@@ -433,7 +433,7 @@ class TestUndo:
     def _materialise(self, service, collection, nobrade):
         service.suggest()
         _approve(service, nobrade, _full_decisions())
-        return service.apply(HierarchyMaterialisationRequest(changed_by=Author(name="ana")))
+        return service.apply(HierarchyMaterialisationCommand(changed_by=Author(name="ana")))
 
     def test_the_collection_goes_back_exactly_where_it_was(self, service, collection, nobrade, db_session):
         before = db_session.execute(
@@ -499,7 +499,7 @@ class TestUndo:
         """The two fields that let someone find "the run Ana did when the microfilm was attached"."""
         service.suggest()
         _approve(service, nobrade, _full_decisions())
-        service.apply(HierarchyMaterialisationRequest(changed_by=Author(name="ana"), note="microfilmes anexados"))
+        service.apply(HierarchyMaterialisationCommand(changed_by=Author(name="ana"), note="microfilmes anexados"))
 
         assert service.list_log(include_undone=True, limit=10, offset=0, term="ana").total == 1
         assert service.list_log(include_undone=True, limit=10, offset=0, term="microfilme").total == 1
@@ -567,7 +567,7 @@ class TestUndo:
     def test_applying_again_after_an_undo_rebuilds_the_same_tree(self, service, collection, nobrade, db_session):
         first = self._materialise(service, collection, nobrade)
         service.undo(first.materialisation_id, undone_by=Author(name="ana"))
-        second = service.apply(HierarchyMaterialisationRequest(changed_by=Author(name="ana")))
+        second = service.apply(HierarchyMaterialisationCommand(changed_by=Author(name="ana")))
 
         assert second.created_nodes == first.created_nodes
         assert second.documents_attached == first.documents_attached
