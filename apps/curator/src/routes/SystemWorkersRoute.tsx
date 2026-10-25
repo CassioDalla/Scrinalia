@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import {
@@ -174,21 +175,35 @@ function WorkerCard({ worker }: { worker: WorkerStatus }) {
       className={active ? "ring-(--color-accent)/40" : undefined}
       header={<WorkerHeader worker={worker} />}
       actions={
-        <Button
-          size="sm"
-          variant="primary"
-          onClick={() => openPanel("run")}
-          disabled={active}
-          title={
-            active
-              ? "Há uma execução em andamento"
-              : worker.runner_available
-                ? "Enfileirar uma execução com a configuração efetiva"
-                : "Nenhum runner online aceita este worker: a execução espera na fila"
-          }
-        >
-          {active ? RUN_STATUS_LABEL[worker.active_run!.status] : ACTION.run.label}
-        </Button>
+        /*
+          The ingestion stage is in this catalogue because the panel must show the stage, but its
+          run is about an origin: the generic route refuses it (there is no origin in a
+          `WorkerRunRequest`), so the row points at the screen that owns the origin instead of
+          offering a button the API would answer 422 to.
+        */
+        worker.name === "ingestion" ? (
+          <Link to="/sistema/ingestao">
+            <Button size="sm" variant="secondary">
+              Abrir ingestão
+            </Button>
+          </Link>
+        ) : (
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => openPanel("run")}
+            disabled={active}
+            title={
+              active
+                ? "Há uma execução em andamento"
+                : worker.runner_available
+                  ? "Enfileirar uma execução com a configuração efetiva"
+                  : "Nenhum runner online aceita este worker: a execução espera na fila"
+            }
+          >
+            {active ? RUN_STATUS_LABEL[worker.active_run!.status] : ACTION.run.label}
+          </Button>
+        )
       }
     >
       <div className="grid gap-4">
