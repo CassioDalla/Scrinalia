@@ -506,6 +506,20 @@ def test_remove_ner_exclusions_returns_200(client: TestClient, mocker):
     mock_service.assert_called_once_with(["iptu"])
 
 
+def test_remove_ner_exclusions_refuses_the_reason_the_route_ignores(client: TestClient, mocker):
+    """The removal declares only ``words`` since #176, so a ``reason`` is a 400 and not a silent drop."""
+    mock_service = mocker.patch.object(EntityService, "remove_ner_exclusions")
+
+    response = client.request(
+        "DELETE",
+        "/api/v1/taxonomy/entities/ner-exclusions",
+        json={"words": ["iptu"], "reason": "o motivo que a rota ignorava"},
+    )
+
+    assert response.status_code == HTTP_400_BAD_REQUEST
+    mock_service.assert_not_called()
+
+
 # --- The purge: the destructive half of the veto, on its own ---
 
 

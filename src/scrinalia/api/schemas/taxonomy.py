@@ -187,6 +187,20 @@ class NerExclusionRequest(BaseModel):
     reason: str | None = Field(default=None, description="Why the decision was made; kept for auditing.")
 
 
+class NerExclusionRemovalRequest(BaseModel):
+    """
+    Undoes the ban for the given terms.
+
+    Deliberately **not** ``NerExclusionRequest``: removing a ban has no provenance to declare — the
+    deletion is its own record — and sharing the model advertised a ``reason`` the route ignores,
+    which the generated client offered to every caller (issue #176).
+    """
+
+    words: list[str] = Field(min_length=1, description="Terms to put back into the NER extraction.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class SubjectExclusionRequest(BaseModel):
     """
     Terms a curator declares to be no subject at all (the second half of NENHUMA).

@@ -216,6 +216,7 @@ export type EntityMergePreviewRequest = components["schemas"]["EntityMergePrevie
 export type OrphanEntityPurgeResponse = components["schemas"]["OrphanEntityPurgeResponse"];
 export type NerExclusion = components["schemas"]["NerExclusion"];
 export type NerExclusionRequest = components["schemas"]["NerExclusionRequest"];
+export type NerExclusionRemovalRequest = components["schemas"]["NerExclusionRemovalRequest"];
 export type NerExclusionBanResponse = components["schemas"]["NerExclusionBanResponse"];
 export type NerExclusionRemovalResponse = components["schemas"]["NerExclusionRemovalResponse"];
 export type NerPurgeEntity = components["schemas"]["NerPurgeEntity"];
@@ -1220,15 +1221,12 @@ export async function banNerExclusions(body: NerExclusionRequest): Promise<NerEx
 }
 
 /**
- * The removal body: the route takes the shared ban model but reads only ``words``.
+ * Undoes the ban for the given terms.
  *
- * A ``reason`` sent on the ``DELETE`` is accepted and silently dropped, so offering it here would
- * promise a ledger entry that is never written. The model deserves its own removal shape, as the
- * subject exclusions already have (#176); until then this is the honest half of it.
+ * The ``DELETE`` declares its own removal model since #176 — removing a ban has no reason to
+ * declare — so the body is the route's, with nothing narrowed away.
  */
-type NerRemovalBody = Pick<NerExclusionRequest, "words">;
-
-export async function unbanNerExclusions(body: NerRemovalBody): Promise<NerExclusionRemovalResponse> {
+export async function unbanNerExclusions(body: NerExclusionRemovalRequest): Promise<NerExclusionRemovalResponse> {
   return unwrap<NerExclusionRemovalResponse>(
     await client.DELETE("/api/v1/taxonomy/entities/ner-exclusions", { body }),
   );

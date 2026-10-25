@@ -3338,6 +3338,11 @@ export interface components {
             created: number;
             message: string;
         };
+        /** NerExclusionRemovalRequest */
+        NerExclusionRemovalRequest: {
+            /** @description Terms to put back into the NER extraction. */
+            words: string[];
+        };
         /** NerExclusionRemovalResponse */
         NerExclusionRemovalResponse: {
             code: components["schemas"]["RouteMessageCode"];
@@ -7076,7 +7081,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["NerExclusionRequest"];
+                "application/json": components["schemas"]["NerExclusionRemovalRequest"];
             };
         };
         responses: {

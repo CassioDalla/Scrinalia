@@ -25,6 +25,7 @@ from scrinalia.api.schemas.taxonomy import (
     MergeProposalDecisionRequest,
     MergeRequest,
     MergeSuggestionRequest,
+    NerExclusionRemovalRequest,
     NerExclusionRequest,
     ReclassifyEntityRequest,
     StopwordCreateRequest,
@@ -934,7 +935,7 @@ class TaxonomyController(Controller):
 
     @delete("/entities/ner-exclusions", opt={"access": Access.CURATE}, status_code=200, sync_to_thread=True)
     def remove_ner_exclusions(
-        self, entity_service: NamedDependency[EntityService], data: NerExclusionRequest
+        self, entity_service: NamedDependency[EntityService], data: NerExclusionRemovalRequest
     ) -> NerExclusionRemovalResponse:
         """
         Undoes the ban and re-opens the terms for the NER engine.
