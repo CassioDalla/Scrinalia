@@ -734,9 +734,14 @@ it and whether its spelling is already banned), and offers to register them with
 at a time.
 
 Confirming plans and applies in one call: the write below consumes the same planner the preview route
-uses, so the two cannot disagree. The preview, `POST
-/api/v1/taxonomy/tags/subject-exclusions/preview` (`AUTHENTICATED`), returns `applicable` and
-`blocked`, but it exists as an API read — no screen calls it.
+uses, so the two cannot disagree. The preview is `POST
+/api/v1/taxonomy/tags/subject-exclusions/preview` (`AUTHENTICATED`); it takes the terms and nothing
+else, because a plan has no reason to declare and no provenance to report, and it answers
+`applicable` and `blocked`. The **Vetar termos** box asks it as the typing settles (250 ms) and shows
+the refusal **before** the click: a term whose tag already sits in a drawer is named with the drawer
+while the archivist can still change it, and the write's own answer only confirms it. The box writes
+every term that applies, so a partial refusal does not disable the button — only a list where **all**
+terms are blocked does, because then the write would record nothing.
 
 The write is `POST /api/v1/taxonomy/tags/subject-exclusions` (`CURATE`), and it does two things at
 once: it registers the term in `domain_subject_exclusions`, so the subject classifier stops guessing
