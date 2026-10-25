@@ -2303,7 +2303,7 @@ with short or full shas, and part of a `## <date> — <title>` entry.
 
 ## 2026-10-25 — a trial before committing the collection, and the gabarito it reads (#71)
 
-- **Range:** `89b2ec6..855f341`
+- **Range:** `984b514..06bada0`
 - **Pages:**
   - `adr/0018-trials-and-the-human-gabarito.md` — **new**: a trial is a ledger row (`trial`,
     `trial_result`) that runs two to four configurations over one sample and writes no archival
@@ -2332,7 +2332,7 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   dossier, the tags screen or the conflicts screen already recorded; approving a record is not
   certifying its labels. The plan, the metric and the bench now share one definition
   (`domains/archive/evaluation/metrics.py`), and the worker calls the same `link_decision`.
-- **What the round measured.** Full suite **2177 passed, 1 skipped** (test database on 5434,
+- **What the round measured.** Full suite **2197 passed, 1 skipped** on the rebased branch (test database on 5434,
   `postgresql+psycopg2`); `basedpyright` 0 errors; `ruff check` and `ruff format --check` green; the
   contract was regenerated with `bun run contract` and the SPA's `tsc`, ESLint and Vite build are green;
   `mkdocs build --strict` green; `alembic upgrade head` applied `71a2b4c6d8e0` and `alembic check`
