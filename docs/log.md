@@ -2188,7 +2188,7 @@ with short or full shas, and part of a `## <date> — <title>` entry.
 
 ## 2026-10-25 — the origin is a first-class object (#44)
 
-- **Range:** `b84cad3..8828582`
+- **Range:** `b84cad3..8e0c42f`
 - **Pages:**
   - `adr/0016-the-origin-is-a-first-class-object.md` — **created**: the decision (definition in
     code + lifecycle row, `origin_code` as provenance, the `ingestion` stage in the same ledger, the
@@ -2196,14 +2196,15 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   - `adr/index.md`, `mkdocs.yml` — **updated**: the new ADR is linked and in the nav.
   - `guides/operate.md` / `operate.pt.md` — **updated**: ten workers with `ingestion` first, the
     origin table and screen, the manual entry, the per-origin slot and agenda, the removed
-    `ACERVO_SOURCE`, the origin routes and the `origin` filter on the ledger.
+    `ACERVO_SOURCE`, the origin routes, the `origin` filter on the ledger and the `ingestion` row that
+    links to the origin screen.
   - `guides/install.md` / `install.pt.md` — **updated**: the origin is a row, not a setting;
     `PUBLIC_SCRAPE_*` is the fallback for `pmc`; the migration seeds `pmc` and `manual`; the upgrade
     path is `/sistema/ingestao`.
   - `guides/data-model.md` / `data-model.pt.md` — **updated**: `ingestion_origins`, `origin_code` on
     the queue/raw/staging/archive/run ledger, `created_by` on `raw_data`, and the provenance-not-key
     rule.
-  - `guides/curate.md` / `curate.pt.md` — **updated**: the `/sistema/ingestao` screen and the manual
+  - `guides/curate.md` / `curate.pt.md` — **updated**: the `/sistema/ingestao` screen, the worker row that links to it (the generic run button cannot name an origin) and the manual
     form — data entry, not an approval; the AI queue sees the record; the operator controls are
     hidden for a curator.
   - `README.md` — **updated**: the ten worker names, the ingestion screen and the origin agenda.

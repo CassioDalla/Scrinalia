@@ -1047,6 +1047,8 @@ of the two counts:
   guarantee is the partial unique index in the database, and the screen only avoids offering what
   the database would reject.
 
+The `ingestion` row is the one exception to the run button: its execution belongs to an origin, so the row links to `/sistema/ingestao` (the origin screen) and the generic route refuses it.
+
 The run panel's fields come from the contract, not from a text box: `declared_options` names the
 options the worker accepts and, for a column list, the columns the AI text has
 (`original_title`, `final_title`, `scope_content`, `admin_bio_history`, `provenance`), so the screen

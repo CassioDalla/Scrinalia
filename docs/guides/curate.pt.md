@@ -1022,6 +1022,8 @@ cada um dos dois conta:
   ledger de execuções, e um worker com execução em andamento desabilita o botão — a garantia é o
   índice único parcial no banco, e a tela só evita oferecer o que o banco recusaria.
 
+A linha `ingestion` é a exceção ao botão de execução: a execução dela pertence a uma origem, então a linha leva a `/sistema/ingestao` (a tela da origem) e a rota genérica a recusa.
+
 Os campos do painel de execução vêm do contrato, não de uma caixa de texto: `declared_options` nomeia
 as opções que o worker aceita e, para uma lista de colunas, as colunas que o texto da IA tem
 (`original_title`, `final_title`, `scope_content`, `admin_bio_history`, `provenance`), então a tela
