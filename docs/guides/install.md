@@ -249,6 +249,8 @@ pipeline, not the boot — `ACERVO_SOURCE` is required by the staging transform 
 | `DB_HOST` | `localhost` | database host: `db` inside the compose network, the server's address on bare metal |
 | `DB_PORT` | `5432` | database port |
 | `DB_NAME` | `scrinalia` | database name; the compose service creates it on first boot |
+| `DB_SSLMODE` | `prefer` | libpq transport appended to the derived DSN; `verify-full` with a CA when the database is reached across a network |
+| `RUNNER_DATABASE_URL` | unset | the external runner's own DSN (a secret); when unset it uses `DB_*`. It lets a GPU host hold a least-privilege role and its own `sslmode` (ADR 0014) |
 | `PUBLIC_SCRAPE_URL` | unset | base URL of the source site the ingestion worker lists; required to scrape |
 | `PUBLIC_SCRAPE_DETAIL_URL` | unset | detail-page URL prefix the ingestion adapter builds each record from; required to scrape |
 | `ACERVO_SOURCE` | unset | names the active origin — the field labels the staging transform reads and the ports the scrape builds; the only one shipped is `pmc`, `--origin` overrides it for one run, and there is **no default**: a staging run fails fast without it |
@@ -279,7 +281,7 @@ pipeline, not the boot — `ACERVO_SOURCE` is required by the staging transform 
 | `WORKER_RUNTIME_MAX_WORKERS` | `1` | how many runs the API's executor accepts at once; the workers are CPU-bound, so a second one slows the first |
 
 `DATABASE_URL` is **not** in this table: it is a derived property that percent-encodes the
-credentials from `DB_*`, not a value you set.
+credentials from `DB_*`, not a value you set. It also appends `sslmode` from `DB_SSLMODE`.
 
 ### `.env.example` and `core/config.py`
 

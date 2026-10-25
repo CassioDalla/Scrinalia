@@ -57,6 +57,36 @@ def create_session() -> Session:
     return get_session_factory()()
 
 
+def runner_database_url() -> str:
+    """
+    The DSN the external runner connects with.
+
+    ``RUNNER_DATABASE_URL`` when set, ``DATABASE_URL`` otherwise. The split is the hardening ADR
+    0014 documents: a GPU host can hold a least-privilege role and its own TLS parameters without
+    the API's credential. Read at call time, so a test can isolate the configuration.
+    """
+    if settings.RUNNER_DATABASE_URL is not None:
+        return settings.RUNNER_DATABASE_URL.get_secret_value()
+    return settings.DATABASE_URL
+
+
+@lru_cache(maxsize=1)
+def get_runner_engine() -> Engine:
+    """The runner's own engine: a separate pool from the API's, built only by the runner process."""
+    return create_engine(runner_database_url(), echo=False, pool_pre_ping=True)
+
+
+@lru_cache(maxsize=1)
+def get_runner_session_factory() -> sessionmaker[Session]:
+    """Returns the runner's session factory, bound to its own engine."""
+    return sessionmaker(autocommit=False, autoflush=False, bind=get_runner_engine())
+
+
+def create_runner_session() -> Session:
+    """Opens a session for the external runner: its own DSN, its own pool, its own cache entries."""
+    return get_runner_session_factory()()
+
+
 @contextmanager
 def get_db() -> Iterator[Session]:
     """

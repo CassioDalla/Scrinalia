@@ -223,6 +223,8 @@ pipeline, não o boot — o `ACERVO_SOURCE` é exigido pela transformação de s
 | `DB_HOST` | `localhost` | host do banco: `db` na rede do compose, o endereço do servidor no metal |
 | `DB_PORT` | `5432` | porta do banco |
 | `DB_NAME` | `scrinalia` | nome do banco; o serviço do compose o cria no primeiro boot |
+| `DB_SSLMODE` | `prefer` | transporte libpq acrescentado ao DSN derivado; `verify-full` com uma CA quando o banco é alcançado pela rede |
+| `RUNNER_DATABASE_URL` | não definido | o DSN próprio do runner externo (um segredo); sem ele, o runner usa `DB_*`. Permite que um host de GPU tenha uma role de menor privilégio e seu próprio `sslmode` (ADR 0014) |
 | `PUBLIC_SCRAPE_URL` | vazio | URL base do site de origem que o worker de coleta lista; exigida para coletar |
 | `PUBLIC_SCRAPE_DETAIL_URL` | vazio | prefixo da página de detalhe de onde o adaptador monta cada registro; exigido para coletar |
 | `ACERVO_SOURCE` | vazio | nomeia a origem ativa — os rótulos de campo que a transformação de staging lê e as portas que a coleta monta; a única embarcada é `pmc`, o `--origin` a sobrepõe numa execução, e **não há padrão**: uma execução de staging falha rápido sem ela |
@@ -253,7 +255,8 @@ pipeline, não o boot — o `ACERVO_SOURCE` é exigido pela transformação de s
 | `WORKER_RUNTIME_MAX_WORKERS` | `1` | quantas execuções o executor da API aceita ao mesmo tempo; os workers são limitados por CPU, então um segundo atrasa o primeiro |
 
 O `DATABASE_URL` **não** está nesta tabela: é uma propriedade derivada, que codifica as credenciais
-de `DB_*` para a URL, e não um valor que você define.
+de `DB_*` para a URL, e não um valor que você define. Ele também acrescenta o `sslmode` de
+`DB_SSLMODE`.
 
 ### `.env.example` e `core/config.py`
 
