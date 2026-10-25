@@ -159,6 +159,16 @@ export type BatchMergeResponse = components["schemas"]["BatchMergeResponse"];
 export type MergeLogList = components["schemas"]["MergeLogListResponse"];
 export type MergeLogEntry = components["schemas"]["MergeLogEntryDTO"];
 export type MergeResponse = components["schemas"]["MergeResponse"];
+/**
+ * The merge request bodies, named so a call takes the model its route declares (#93).
+ *
+ * A body typed out in the signature is the same second definition the query shapes were, and it
+ * fails the same silent way: pydantic refuses a missing *required* field but ignores an unknown
+ * one, so a renamed optional field is dropped without a trace. Only deriving can rule that out.
+ */
+export type MergeSuggestionRequest = components["schemas"]["MergeSuggestionRequest"];
+export type MergeBatchRequest = components["schemas"]["MergeBatchRequest"];
+export type MergePreviewRequest = components["schemas"]["MergePreviewRequest"];
 export type Stopword = components["schemas"]["StopwordDTO"];
 export type StopwordMatch = NonNullable<Stopword["match_mode"]>;
 export type StopwordPurgePreview = components["schemas"]["StopwordPurgePreview"];
@@ -170,6 +180,9 @@ export type StopwordPurgeResponse = components["schemas"]["StopwordPurgeResponse
 export type StopwordPurgeLogEntryDTO = components["schemas"]["StopwordPurgeLogEntryDTO"];
 export type StopwordPurgeLogListResponse = components["schemas"]["StopwordPurgeLogListResponse"];
 export type StopwordPurgeUndoResponse = components["schemas"]["StopwordPurgeUndoResponse"];
+export type StopwordCreateRequest = components["schemas"]["StopwordCreateRequest"];
+export type StopwordMatchRequest = components["schemas"]["StopwordMatchRequest"];
+export type StopwordRemovalRequest = components["schemas"]["StopwordRemovalRequest"];
 export type TagMergeProposalDecisionResponse = components["schemas"]["TagMergeProposalDecisionResponse"];
 export type TagMergeUndoResponse = components["schemas"]["TagMergeUndoResponse"];
 
@@ -199,8 +212,10 @@ export type EntityReclassifyResponse = components["schemas"]["EntityReclassifyRe
 export type EntityDeleteResponse = components["schemas"]["EntityDeleteResponse"];
 export type EntityRenameRequest = components["schemas"]["EntityRenameRequest"];
 export type EntityRenameResponse = components["schemas"]["EntityRenameResponse"];
+export type EntityMergePreviewRequest = components["schemas"]["EntityMergePreviewRequest"];
 export type OrphanEntityPurgeResponse = components["schemas"]["OrphanEntityPurgeResponse"];
 export type NerExclusion = components["schemas"]["NerExclusion"];
+export type NerExclusionRequest = components["schemas"]["NerExclusionRequest"];
 export type NerExclusionBanResponse = components["schemas"]["NerExclusionBanResponse"];
 export type NerExclusionRemovalResponse = components["schemas"]["NerExclusionRemovalResponse"];
 export type NerPurgeEntity = components["schemas"]["NerPurgeEntity"];
@@ -225,6 +240,7 @@ export type ConflictResolutionPlan = components["schemas"]["ConflictResolutionPl
 export type ConflictResolutionLogEntry = components["schemas"]["ConflictResolutionLogEntry"];
 export type ConflictResolutionLogList = components["schemas"]["ConflictResolutionLogListResponse"];
 export type ConflictResolutionRequest = components["schemas"]["ConflictResolutionRequest"];
+export type ConflictPreviewRequest = components["schemas"]["ConflictPreviewRequest"];
 export type ConflictResolutionResponse = components["schemas"]["ConflictResolutionResponse"];
 export type ConflictBatchRequest = components["schemas"]["ConflictBatchRequest"];
 export type ConflictBatchResponse = components["schemas"]["ConflictBatchResponse"];
@@ -244,14 +260,15 @@ export type ConflictPairKindFilter = "all" | "exact_name" | "near_duplicate";
 
 // --- The subject vocabulary: exclusions and the agrupamento discovery ------------------------------
 export type SubjectExclusionBanResponse = components["schemas"]["SubjectExclusionBanResponse"];
-export type SubjectExclusionPlan = components["schemas"]["SubjectExclusionPlan"];
-export type SubjectExclusionTarget = components["schemas"]["SubjectExclusionTarget"];
+export type SubjectExclusionRequest = components["schemas"]["SubjectExclusionRequest"];
+export type SubjectExclusionRemovalRequest = components["schemas"]["SubjectExclusionRemovalRequest"];
 export type SubjectExclusionSuggestion = components["schemas"]["SubjectExclusionSuggestion"];
 export type SubjectExclusionSuggestionResponse =
   components["schemas"]["SubjectExclusionSuggestionResponse"];
 export type SubjectExclusionRemovalResponse = components["schemas"]["SubjectExclusionRemovalResponse"];
 export type MacroCategorySuggested = components["schemas"]["MacroCategorySuggested"];
 export type MacroCategoriesSuggestionResponse = components["schemas"]["MacroCategoriesSuggestionResponse"];
+export type SuggestMacroRequest = components["schemas"]["SuggestMacroRequest"];
 
 // --- Quality of the input data: excerpts, cleaning rules and the dry runs ----------------------
 export type TextTemplate = components["schemas"]["TextTemplateDTO"];
@@ -261,6 +278,7 @@ export type TemplateDryRunMatch = components["schemas"]["TemplateDryRunMatch"];
 export type TemplateSuggestionResponse = components["schemas"]["TemplateSuggestionResponse"];
 export type TemplateSuggestion = components["schemas"]["TemplateSuggestion"];
 export type CreateTextTemplateRequest = components["schemas"]["CreateTextTemplateRequest"];
+export type SuggestTextTemplatesRequest = components["schemas"]["SuggestTextTemplatesRequest"];
 export type UpdateTextTemplateRequest = components["schemas"]["UpdateTextTemplateRequest"];
 export type DryRunTextTemplateRequest = components["schemas"]["DryRunTextTemplateRequest"];
 export type CleaningRule = components["schemas"]["CleaningRuleDTO"];
@@ -752,7 +770,7 @@ export async function fetchMergeProposals(params: MergeProposalSearch): Promise<
 }
 
 /** Idempotent, and it never overwrites a verdict a human already recorded. */
-export async function suggestMergeProposals(body: { threshold: number; limit: number }): Promise<MergeSuggestionRun> {
+export async function suggestMergeProposals(body: MergeSuggestionRequest): Promise<MergeSuggestionRun> {
   return unwrap<MergeSuggestionRun>(await client.POST("/api/v1/taxonomy/tags/merge-proposals/suggest", { body }));
 }
 
@@ -776,10 +794,7 @@ export async function previewMerge(proposalId: number): Promise<MergePreview> {
 }
 
 /** Applies the approved agrupamentos, each in its own savepoint: one failure does not roll back the rest. */
-export async function applyMergeBatch(body: {
-  proposal_ids: number[];
-  note?: string | null;
-}): Promise<BatchMergeResponse> {
+export async function applyMergeBatch(body: MergeBatchRequest): Promise<BatchMergeResponse> {
   return unwrap<BatchMergeResponse>(await client.POST("/api/v1/taxonomy/tags/merge/batch", { body }));
 }
 
@@ -806,16 +821,22 @@ export async function undoMerge(mergeId: number): Promise<TagMergeUndoResponse> 
 }
 
 /**
+ * The pair form of the merge preview, and only it: the proposal form is ``previewMerge``'s.
+ *
+ * Both keys stay required because the model's validator requires exactly one source of truth, so
+ * omitting them is a 400 and not a default. ``proposal_id`` is left out for the opposite reason: a
+ * function called "pair" that also accepted a proposal would be advertising two ways to call it.
+ */
+type TagPairPreviewBody = Required<Pick<MergePreviewRequest, "canonical_id" | "ids_to_merge">>;
+
+/**
  * The dry run for a pair the archivist chose by hand.
  *
  * The proposal flow previews by ``proposal_id``; here the pair comes from the similarity list, which
  * is the raw evidence and carries no proposal. The same endpoint answers both, and one planner
  * computes both — so the numbers shown are the numbers the write produces.
  */
-export async function previewTagPair(body: {
-  canonical_id: number;
-  ids_to_merge: number[];
-}): Promise<MergePreview> {
+export async function previewTagPair(body: TagPairPreviewBody): Promise<MergePreview> {
   return unwrap<MergePreview>(await client.POST("/api/v1/taxonomy/tags/merge/preview", { body }));
 }
 
@@ -935,27 +956,17 @@ export async function fetchStopwords(axis?: StopwordsScope): Promise<Stopword[]>
 }
 
 /** Bans terms. Banning deletes nothing: the purge is a separate, explicit step. */
-export async function banStopwords(body: {
-  words: string[];
-  scope?: StopwordsScope;
-  match_mode?: StopwordMatch;
-}): Promise<StopwordBanResponse> {
+export async function banStopwords(body: StopwordCreateRequest): Promise<StopwordBanResponse> {
   return unwrap<StopwordBanResponse>(await client.POST("/api/v1/taxonomy/tags/stopwords", { body }));
 }
 
 /** Changes how existing bans match, keeping their axis and who planted them. */
-export async function setStopwordMatch(body: {
-  words: string[];
-  match_mode: StopwordMatch;
-}): Promise<StopwordMatchResponse> {
+export async function setStopwordMatch(body: StopwordMatchRequest): Promise<StopwordMatchResponse> {
   return unwrap<StopwordMatchResponse>(await client.PATCH("/api/v1/taxonomy/tags/stopwords", { body }));
 }
 
 /** Un-bans terms. The purge keeps a ledger, so this is no longer the only way back. */
-export async function unbanStopwords(body: {
-  words: string[];
-  scope?: StopwordsScope;
-}): Promise<StopwordRemovalResponse> {
+export async function unbanStopwords(body: StopwordRemovalRequest): Promise<StopwordRemovalResponse> {
   return unwrap<StopwordRemovalResponse>(await client.DELETE("/api/v1/taxonomy/tags/stopwords", { body }));
 }
 
@@ -1032,22 +1043,14 @@ export async function fetchSubjectExclusionSuggestions(
 }
 
 /**
- * What confirming these terms would do, without writing anything.
+ * The subject-exclusion body, with ``source`` required.
  *
- * ``applicable`` is what the write records — the exclusion **and** the ``TAG``-scoped ban — and
- * ``blocked`` is what it refuses, each with the drawer in the way: a term whose tag already sits in
- * a subject drawer is a subject question already answered, and the write that settles a *tag* is
- * the tag catalogue's, not this one's.
+ * The model defaults it to ``HUMAN``, so omitting it is legal — and that is exactly why this client
+ * asks: a verdict the guard produced (``RULE``) silently recorded as a human judgement is the one
+ * lie the ledger cannot recover from. Everything else derives untouched.
  */
-export async function previewSubjectExclusions(body: {
-  words: string[];
-  reason?: string | null;
-  source: "HUMAN" | "RULE";
-}): Promise<SubjectExclusionPlan> {
-  return unwrap<SubjectExclusionPlan>(
-    await client.POST("/api/v1/taxonomy/tags/subject-exclusions/preview", { body }),
-  );
-}
+type SubjectExclusionBody = Omit<SubjectExclusionRequest, "source"> &
+  Required<Pick<SubjectExclusionRequest, "source">>;
 
 /**
  * Records the decision. ``source`` tells a shape from a judgement: ``RULE`` for a term the guard
@@ -1058,24 +1061,26 @@ export async function previewSubjectExclusions(body: {
  * in a drawer is refused and reported in ``blocked`` — the answer says what it wrote and what it
  * would not.
  */
-export async function excludeFromSubjects(body: {
-  words: string[];
-  reason?: string | null;
-  /** Required by the contract, and deliberately so: the provenance is never implicit. */
-  source: "HUMAN" | "RULE";
-}): Promise<SubjectExclusionBanResponse> {
+export async function excludeFromSubjects(body: SubjectExclusionBody): Promise<SubjectExclusionBanResponse> {
   return unwrap<SubjectExclusionBanResponse>(
     await client.POST("/api/v1/taxonomy/tags/subject-exclusions", { body }),
   );
 }
 
-export async function restoreToSubjects(body: {
-  words: string[];
-}): Promise<SubjectExclusionRemovalResponse> {
+export async function restoreToSubjects(body: SubjectExclusionRemovalRequest): Promise<SubjectExclusionRemovalResponse> {
   return unwrap<SubjectExclusionRemovalResponse>(
     await client.DELETE("/api/v1/taxonomy/tags/subject-exclusions", { body }),
   );
 }
+
+/**
+ * The macro-suggestion body the screen can offer today.
+ *
+ * ``columns_to_extract`` exists on the route — it chooses the AI text the clustering reads — and no
+ * screen offers it yet, so exposing it here would advertise a knob nothing sets. It comes back with
+ * the Discover screen's picker (#174).
+ */
+type MacroSuggestionBody = Pick<SuggestMacroRequest, "source_type">;
 
 /**
  * Agrupamentos the collection so a drawer the vocabulary lacks can be discovered.
@@ -1084,9 +1089,7 @@ export async function restoreToSubjects(body: {
  * page load. Below the engine's own floor it answers ``total_suggestions: 0`` with a message,
  * which is why the screen must render the message instead of an empty list.
  */
-export async function suggestMacroCategories(body: {
-  source_type: "tags" | "documents";
-}): Promise<MacroCategoriesSuggestionResponse> {
+export async function suggestMacroCategories(body: MacroSuggestionBody): Promise<MacroCategoriesSuggestionResponse> {
   return unwrap<MacroCategoriesSuggestionResponse>(
     await client.POST("/api/v1/taxonomy/tags/suggest-macro", { body }),
   );
@@ -1122,11 +1125,7 @@ export async function mergeEntities(body: EntityMergeRequest): Promise<EntityMer
 }
 
 /** The dry run of an entity merge, computed by the same planner the write executes. */
-export async function previewEntityMerge(body: {
-  canonical_id: number;
-  ids_to_merge: number[];
-  new_name?: string | null;
-}): Promise<EntityMergePreviewResponse> {
+export async function previewEntityMerge(body: EntityMergePreviewRequest): Promise<EntityMergePreviewResponse> {
   return unwrap<EntityMergePreviewResponse>(
     await client.POST("/api/v1/taxonomy/entities/merge/preview", { body }),
   );
@@ -1214,16 +1213,22 @@ export async function fetchNerExclusions(): Promise<NerExclusion[]> {
  * Bans terms from NER. The ban **deletes nothing**: it only stops the extractor from creating them
  * from now on, and the `DELETE` on the same path re-opens the term.
  */
-export async function banNerExclusions(body: {
-  words: string[];
-  reason?: string | null;
-}): Promise<NerExclusionBanResponse> {
+export async function banNerExclusions(body: NerExclusionRequest): Promise<NerExclusionBanResponse> {
   return unwrap<NerExclusionBanResponse>(
     await client.POST("/api/v1/taxonomy/entities/ner-exclusions", { body }),
   );
 }
 
-export async function unbanNerExclusions(body: { words: string[] }): Promise<NerExclusionRemovalResponse> {
+/**
+ * The removal body: the route takes the shared ban model but reads only ``words``.
+ *
+ * A ``reason`` sent on the ``DELETE`` is accepted and silently dropped, so offering it here would
+ * promise a ledger entry that is never written. The model deserves its own removal shape, as the
+ * subject exclusions already have (#176); until then this is the honest half of it.
+ */
+type NerRemovalBody = Pick<NerExclusionRequest, "words">;
+
+export async function unbanNerExclusions(body: NerRemovalBody): Promise<NerExclusionRemovalResponse> {
   return unwrap<NerExclusionRemovalResponse>(
     await client.DELETE("/api/v1/taxonomy/entities/ner-exclusions", { body }),
   );
@@ -1312,10 +1317,7 @@ export async function fetchJudgedConflicts(
  * would create, which row each would delete, which ban each would plant — so asking one side at a
  * time would need two round trips to answer it. Nothing is written.
  */
-export async function previewConflictResolution(body: {
-  tag_id: number;
-  entity_id: number;
-}): Promise<ConflictResolutionPlan> {
+export async function previewConflictResolution(body: ConflictPreviewRequest): Promise<ConflictResolutionPlan> {
   return unwrap<ConflictResolutionPlan>(
     await client.POST("/api/v1/taxonomy/conflicts/resolve/preview", { body }),
   );
@@ -1410,10 +1412,9 @@ export async function deleteTextTemplate(templateId: number): Promise<TextTempla
  * The thresholds are the engine's own: how much of the collection a block must cover to be worth
  * proposing. Nothing is applied to the AI text before a human approves it.
  */
-export async function suggestTextTemplates(body: {
-  min_ratio: number;
-  min_documents: number;
-}): Promise<TemplateSuggestionResponse> {
+export async function suggestTextTemplates(
+  body: SuggestTextTemplatesRequest,
+): Promise<TemplateSuggestionResponse> {
   return unwrap<TemplateSuggestionResponse>(
     await client.POST("/api/v1/quality/text-templates/suggest", { body }),
   );
