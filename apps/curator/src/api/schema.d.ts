@@ -3276,6 +3276,14 @@ export interface components {
             /** @description Why a move or a creation is refused, so the screen can explain the refusal. */
             violations?: string[];
         };
+        /** IngestionHealthDTO */
+        IngestionHealthDTO: {
+            detail?: string | null;
+            enabled?: number | null;
+            ok: boolean;
+            origins?: components["schemas"]["IngestionOriginHealthDTO"][];
+            total?: number | null;
+        };
         /** IngestionOptionDTO */
         IngestionOptionDTO: {
             default?: unknown;
@@ -3322,6 +3330,12 @@ export interface components {
             schedule?: components["schemas"]["IngestionScheduleDTO"] | null;
             updated_at?: string | null;
             updated_by?: string | null;
+        };
+        /** IngestionOriginHealthDTO */
+        IngestionOriginHealthDTO: {
+            code: string;
+            enabled: boolean;
+            label: string;
         };
         /** IngestionOriginListResponse */
         IngestionOriginListResponse: {
@@ -4158,6 +4172,7 @@ export interface components {
             database: components["schemas"]["DatabaseHealthDTO"];
             /** Format: date-time */
             generated_at: string;
+            ingestion: components["schemas"]["IngestionHealthDTO"];
             ollama: components["schemas"]["OllamaHealthDTO"];
             process: components["schemas"]["ProcessHealthDTO"];
             storage: components["schemas"]["StorageHealthDTO"];

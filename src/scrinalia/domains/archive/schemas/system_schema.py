@@ -452,6 +452,24 @@ class StorageHealthDTO(BaseModel):
     detail: str | None = None
 
 
+class IngestionOriginHealthDTO(BaseModel):
+    """One origin as the health screen needs it: the code, its label and whether it is on."""
+
+    code: str
+    label: str
+    enabled: bool
+
+
+class IngestionHealthDTO(BaseModel):
+    """The origin table, not the environment: the summary the health screen can trust."""
+
+    ok: bool
+    total: int | None = None
+    enabled: int | None = None
+    origins: list[IngestionOriginHealthDTO] = Field(default_factory=list)
+    detail: str | None = None
+
+
 class ProcessHealthDTO(BaseModel):
     log_level: str
     debug: bool
@@ -474,4 +492,5 @@ class SystemHealthResponse(BaseModel):
     database: DatabaseHealthDTO
     ollama: OllamaHealthDTO
     storage: StorageHealthDTO
+    ingestion: IngestionHealthDTO
     process: ProcessHealthDTO

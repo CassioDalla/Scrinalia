@@ -22,6 +22,8 @@ from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTri
 from scrinalia.domains.archive.schemas.responses import RouteMessageCode
 from scrinalia.domains.archive.schemas.system_schema import (
     DatabaseHealthDTO,
+    IngestionHealthDTO,
+    IngestionOriginHealthDTO,
     OllamaHealthDTO,
     ProcessHealthDTO,
     StorageHealthDTO,
@@ -235,6 +237,15 @@ def test_the_health_endpoint_answers_every_probe(client: TestClient, mocker) -> 
             database=DatabaseHealthDTO(ok=True, documents=10),
             ollama=OllamaHealthDTO(ok=True, host="http://localhost:11434", host_source="default"),
             storage=StorageHealthDTO(configured=False, ok=False),
+            ingestion=IngestionHealthDTO(
+                ok=True,
+                total=2,
+                enabled=2,
+                origins=[
+                    IngestionOriginHealthDTO(code="manual", label="Entrada manual", enabled=True),
+                    IngestionOriginHealthDTO(code="pmc", label="Acervo de referência (PMC)", enabled=True),
+                ],
+            ),
             process=ProcessHealthDTO(
                 log_level="INFO",
                 debug=False,
@@ -250,6 +261,8 @@ def test_the_health_endpoint_answers_every_probe(client: TestClient, mocker) -> 
     assert body["database"]["documents"] == 10
     assert body["ollama"]["host_source"] == "default"
     assert body["storage"]["configured"] is False
+    assert body["ingestion"]["enabled"] == 2
+    assert [origin["code"] for origin in body["ingestion"]["origins"]] == ["manual", "pmc"]
     assert body["process"]["secrets_present"] == {}
 
 
