@@ -142,7 +142,7 @@ def resolve(type_text: str, table: dict[str, str], depth: int = 4) -> str:
 def narrowings(source: str) -> dict[str, str]:
     """Every alias that narrows a request model with a derived wrapper, and the model it derives from."""
     table = aliases(source)
-    request_models = set(request_body_models().values())
+    request_models = sorted(set(request_body_models().values()))
     found: dict[str, str] = {}
     for name, body in table.items():
         if not WRAPPER.search(body):
