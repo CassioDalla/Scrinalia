@@ -457,8 +457,8 @@ def _build_engine(resolved: ResolvedWorkerConfig) -> Any:
     names the registry declares.
     """
     return get_engine(
-        cast("EngineName", resolved.engine_name),
-        cast("PresetName", resolved.preset),
+        cast(EngineName, resolved.engine_name),
+        cast(PresetName, resolved.preset),
         **resolved.engine_kwargs,
     )
 
