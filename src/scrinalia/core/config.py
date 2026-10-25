@@ -1,6 +1,7 @@
 """Typed application settings, loaded from the environment and the local ``.env``."""
 
 from functools import lru_cache
+from typing import Literal
 from urllib.parse import quote
 
 from pydantic import SecretStr
@@ -29,6 +30,18 @@ class Settings(BaseSettings):
     #: fresh clone default to somebody else's catalogue; a deployment that wants that name sets
     #: ``DB_NAME`` in its ``.env``, where its own configuration belongs.
     DB_NAME: str = "scrinalia"
+
+    #: The libpq ``sslmode`` of the application DSN. ``prefer`` is the local default; a database
+    #: reached across a network — the runner on the GPU host — sets ``verify-full`` with a CA. It is
+    #: appended to ``DATABASE_URL``, the one derived property, so the API, Alembic and every reader
+    #: of the property agree on the transport.
+    DB_SSLMODE: Literal["disable", "allow", "prefer", "require", "verify-ca", "verify-full"] = "prefer"
+
+    #: The runner's own DSN, optional. When set, the external runner (and only it) connects with
+    #: this URL, which is how a remote host holds a least-privilege role without the API's
+    #: credentials; it is a full DSN, so it can carry ``sslmode=verify-full`` and its own host. When
+    #: unset the runner uses ``DATABASE_URL``. A secret: it is unwrapped only at the driver.
+    RUNNER_DATABASE_URL: SecretStr | None = None
 
     # Public site that gets scraped. Read at the composition point and handed to the adapter,
     # never by the adapter itself: an adapter that reads global settings cannot be pointed at
@@ -123,11 +136,6 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     DEBUG: bool = False
 
-    #: How many worker runs the API's background executor accepts at once. One by default: the
-    #: workers are CPU-bound and the pipeline has an order, so a second torch model on the same CPU
-    #: slows the first without producing more.
-    WORKER_RUNTIME_MAX_WORKERS: int = 1
-
     @property
     def DATABASE_URL(self) -> str:
         """
@@ -141,7 +149,10 @@ class Settings(BaseSettings):
         """
         user = quote(self.DB_USER, safe="")
         password = quote(self.DB_PASS.get_secret_value(), safe="")
-        return f"postgresql+psycopg2://{user}:{password}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        return (
+            f"postgresql+psycopg2://{user}:{password}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+            f"?sslmode={self.DB_SSLMODE}"
+        )
 
 
 @lru_cache

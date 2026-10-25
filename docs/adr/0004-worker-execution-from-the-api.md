@@ -1,6 +1,6 @@
 # ADR 0004: Running AI workers from the API, and the ledger that makes it observable
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR 0014](0014-the-workers-leave-the-api.md)
 - **Date:** 2026-10-06
 
 ## Context

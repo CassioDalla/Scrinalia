@@ -68,7 +68,7 @@ RETIRED = {
     r"\bunific\w*": "the merge is `Mesclar`",
     r"\bapag\w*": "destroying stored data is `Excluir`",
     r"\bcadastr\w*": "creating a row is `Criar`",
-    r"\bexecuta(?:r|ndo|do|da|dos|das|ou)?\b": "launching a run is `Rodar agora` (`execução` is the noun)",
+    r"\bexecuta(?:r|ndo|do|da|dos|das|ou)?\b": "launching a run is `Enfileirar execução` (`execução` is the noun)",
     r"\bapply\b": "the batch commit is `aplicação`",
     r"\bdry-run\b": "the preview is `prévia`",
     r"\bundo\b": "walking a ledger back is `Desfazer`",

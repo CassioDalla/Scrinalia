@@ -203,14 +203,20 @@ is what the subject axis stops guessing at — they are not a state of the tag.
 | --- | --- | --- |
 | `archive_worker_settings` | The persisted default configuration of one worker. | `worker_name` (primary key), `engine_name`, `preset`, `db_batch_size`, `options` (JSONB), `updated_by`, `updated_at` |
 | `archive_worker_settings_revisions` | Audit trail of configuration writes, one row per write. | `id`, `worker_name`, `before` (JSONB), `after` (JSONB), `changed_by`, `changed_by_user_id`, `changed_at` |
-| `archive_worker_runs` | One row per worker execution, from the CLI and from the panel alike. | `id`, `worker_name`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `config` (JSONB), `options` (JSONB), `queued_at`, `started_at`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (generated) |
+| `archive_worker_runs` | One row per worker execution, from the CLI and from the panel alike; since ADR 0014 a `QUEUED` row is also the queue item a runner claims. | `id`, `worker_name`, `status` (`WorkerRunStatus`), `trigger` (`WorkerRunTrigger`), `requested_by`, `requested_by_user_id`, `engine_name`, `preset`, `request` (JSONB, the validated request), `config` (JSONB), `options` (JSONB), `queued_at`, `runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`, `finished_at`, `duration_ms`, `error`, `error_fingerprint` (generated) |
+| `archive_worker_runners` | The live runner registry: who is connected, which workers it accepts, and when it last signalled. | `runner_id` (primary key), `name`, `hostname`, `version`, `capabilities` (text array), `concurrency`, `heartbeat_seconds`, `started_at`, `last_heartbeat_at`, `stopped_at` |
 | `archive_api_errors` | The API's own unexpected HTTP failures. | `id`, `occurred_at`, `request_id`, `method`, `path`, `status_code`, `message`, `error_fingerprint` (generated) |
 
 `archive_worker_settings` is a **partial** row on purpose: a field left `NULL` keeps following the
 code, so the precedence is `explicit argument > this row > the signature default`. `archive_worker_runs`
 carries the **resolved** configuration — `config` for the engine, `options` for the worker's own
 options, resolved when the run starts — so the row keeps its meaning when a preset or a code default
-changes in code.
+changes in code. Since ADR 0014 the run ledger is also the queue: a `QUEUED` row carries the validated
+`request`, so a runner reproduces the execution without the process that accepted it, and the claim
+writes `runner_id`, `started_at`, `heartbeat_at` and `lease_expires_at` with PostgreSQL's clock. The
+runner renews the lease; a claim whose lease expires is marked `INTERRUPTED` by the next runner, never
+by the API's boot. `archive_worker_runners` is the registry the panel reads to answer whether a runner
+is alive and whether it can run a given worker.
 There is deliberately no foreign key from either table to a worker table: workers are code, not rows.
 `archive_api_errors` records only *unexpected* failures — a 404, a 409 and a 422 are answers the API
 owes a client, and recording them buries the real defects.

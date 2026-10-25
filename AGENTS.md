@@ -122,10 +122,11 @@ change at a time and attributable.
 Always run from the repo root. Python 3.12, managed by `uv` (`uv.lock`).
 
 - Install: `uv sync` (heavy: `torch`, `transformers`, `spacy`, `bertopic`). Whole dev stack:
-  `bun run dev` — `docker compose up -d`, then the API on `:8000` and the SPA on `:5173`. The pieces run
-  alone too: `bun run db:up`, `bun run api:dev`, `bun run curator:dev`. **A 502 on `/api` from the Vite
-  dev server means the API is not up** (the proxy targets `localhost:8000`); the SPA itself still answers
-  200, which is what makes the symptom look like a front-end bug.
+  `bun run dev` — `docker compose up -d`, then the API on `:8000`, the runner and SPA on `:5173`. The
+  pieces run alone too: `bun run db:up`, `bun run api:dev`, `bun run runner:dev`, `bun run curator:dev`.
+  **A 502 on `/api` from the Vite dev server means the API is not up** (the proxy targets
+  `localhost:8000`); the SPA itself still answers 200, which is what makes the symptom look like a
+  front-end bug.
 - API: `uv run uvicorn main:app --reload`.
 - Curator UI: `bun install` once at the repo root, then `bun run curator:dev` or `bun run curator:build`.
   **Bun manages packages and scripts; Vite is the bundler** — do not replace it with `bun build`
@@ -133,8 +134,9 @@ Always run from the repo root. Python 3.12, managed by `uv` (`uv.lock`).
 - Contract: `bun run contract` regenerates `openapi.json` and the TypeScript client (principle III).
 - Migrations: `uv run alembic upgrade head`; `uv run alembic check` must report no drift.
 - Workers: `uv run python -m scrinalia.domains.archive.workers.runner <name> [--engine X --preset Y
-  --batch N --option k=v --by "quem"]`; the names, the pipeline order and the panel are the rule file
-  `workers`.
+  --batch N --option k=v --by "quem"]` for one-off runs; `uv run python -m
+  scrinalia.domains.archive.workers.runner_daemon` serves the queue (ADR 0014). The names, pipeline
+  order and panel are the rule file `workers`.
 - Tests: `uv run pytest` from the root; one test is
   `uv run pytest testing/unit/archive/workers/test_worker_ner.py::test_name`. The fixtures and the test
   database are the rule file `testing`.
@@ -149,8 +151,8 @@ Always run from the repo root. Python 3.12, managed by `uv` (`uv.lock`).
   under `$HOME/.cache` — die with `Read-only file system` on **any** `uv run`, not only on the hook.
   Point them into the checkout before running; the rule file `environment` owns the measurement and the
   flags.
-- Deploy: `Procfile` runs the API on the CPU; `create_app()` mounts `apps/curator/dist` at `/` when the
-  build exists, so a deploy builds the SPA first (rule file `api`).
+- Deploy: `Procfile` runs the API and the runner on the CPU; `create_app()` mounts `apps/curator/dist`
+  at `/` when the build exists, so a deploy builds the SPA first (rule file `api`).
 
 ## Documentation and language
 
@@ -229,4 +231,4 @@ A skill per topic. Open the one that owns what you are about to touch.
   writable, and where `uv`'s and `pre-commit`'s caches must point.
 - `documenter` — the procedure for a documentation triage round.
 
-**Version**: 1.2.0 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-24
+**Version**: 1.2.1 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-25

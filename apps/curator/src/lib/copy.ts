@@ -86,8 +86,8 @@ export const ACTION = {
   reactivate: { label: "Reativar", pending: "Reativando…" },
   /** Disables an account. Not a catalogue row: see the note above. */
   deactivate: { label: "Desativar", pending: "Desativando…" },
-  /** Launches one worker run. */
-  run: { label: "Rodar agora", pending: "Rodando…" },
+  /** Enqueues one worker run; a runner outside the API executes it (ADR 0014). */
+  run: { label: "Enfileirar execução", pending: "Enfileirando…" },
   /** Unifies two vocabulary entries into one. */
   merge: { label: "Mesclar", pending: "Mesclando…" },
   /**

@@ -358,9 +358,9 @@ def api_app() -> Litestar:
     ``create_app()`` costs ~94 ms and every HTTP test used to pay it: the suite builds the same
     application ~300 times. Nothing in it is per-test state — the route table, the guards and the
     providers are resolved per request, and the three writers that need the test session
-    (``api_uses_test_db``) are patched on the module attributes the request reads. The **lifespan**
-    still runs per test, because the client stays function-scoped: that is the part that owns the
-    process-wide runtime, and a test may want it fresh.
+    (``api_uses_test_db``) are patched on the module attributes the request reads. The application
+    owns no background state since the workers left the API (ADR 0014); the ``TestClient`` context
+    still runs per test, so the start-up path is exercised the way an installation sees it.
     """
     return create_app()
 

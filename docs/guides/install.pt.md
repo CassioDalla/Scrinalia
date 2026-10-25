@@ -77,17 +77,55 @@ worker.
   motor baseado em preset resolve o host; `http://localhost:11434` é o padrão quando ele não é
   definido.
 
-## A premissa de processo único
+## O runner e a API
 
-!!! danger "Rode exatamente um processo da API"
-    Suba a API com `--workers 1`, sempre. O executor de workers vive **dentro** do processo da API e
-    aceita um worker por vez (`WORKER_RUNTIME_MAX_WORKERS`, padrão 1); no boot, o `api/lifespan.py`
-    marca como `INTERRUPTED` toda linha de execução ainda em `QUEUED`/`RUNNING`, porque assume que
-    elas pertencem a um processo que não está mais vivo. Com `uvicorn --workers > 1`, um segundo
-    processo mataria a execução viva do processo irmão a cada reinício. A trava de concorrência do
-    banco (`uq_worker_run_active`, um índice único parcial sobre as linhas ativas) continua correta;
-    a recuperação não. Escalar horizontalmente exige tirar o executor e a recuperação da API antes
-    (ADR 0004).
+A API apenas enfileira desde a ADR 0014; um runner fora dela executa os workers. É por isso que a API
+pode rodar com `uvicorn --workers N` — não há executor em segundo plano nem recuperação no boot — e
+por que os workers precisam de um segundo processo, iniciado da raiz do repositório ou da imagem:
+
+```bash
+uv run python -m scrinalia.domains.archive.workers.runner_daemon \
+    --name gpu-01 --workers ner,typology,embedding
+```
+
+`--workers` restringe o que o runner aceita (o padrão é o catálogo inteiro); `--concurrency`,
+`--heartbeat-seconds`, `--lease-seconds`, `--poll-seconds`, `--sweep-seconds`, `--once` e
+`--drain-seconds` estão no [guia de Operação](operate.md#o-runner). O runner reivindica uma linha
+`QUEUED` com `FOR UPDATE SKIP LOCKED`, renova um lease enquanto roda e grava a configuração efetiva.
+Ele recusa um schema atrás do seu código: aplique as migrações da API antes. O painel mostra o runner
+e se ele aceita cada worker; uma execução enfileirada sem runner online espera.
+
+O banco é o único canal entre a API e um runner: a API nunca chama um.
+
+## A rede e a credencial
+
+Um runner em outra máquina alcança o mesmo PostgreSQL. Duas coisas tornam isso seguro:
+
+1. **Um caminho privado.** WireGuard/Tailscale, ou um túnel SSH no host do runner
+   (`ssh -N -L 5432:localhost:5432 user@vps`), com o `pg_hba.conf` aceitando só `hostssl` desse
+   caminho; nunca exponha a `5432` publicamente.
+2. **TLS.** O `DB_SSLMODE` (padrão `prefer`) entra no DSN derivado; um banco remoto usa `verify-full`
+   com uma CA. Uma `RUNNER_DATABASE_URL` completa pode trazer o próprio host e `sslmode`, então o
+   runner não depende do DSN da API.
+
+A role de menor privilégio é endurecimento opcional. Ela mantém o runner fora das tabelas de
+identidade sem tirar dele a escrita do acervo, que é o que um worker faz:
+
+```sql
+CREATE ROLE scrinalia_runner LOGIN PASSWORD '<segredo>';
+GRANT CONNECT ON DATABASE <db> TO scrinalia_runner;
+GRANT USAGE ON SCHEMA public TO scrinalia_runner;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO scrinalia_runner;
+REVOKE ALL ON auth_users, auth_sessions FROM scrinalia_runner;
+GRANT SELECT ON alembic_version TO scrinalia_runner;
+REVOKE INSERT, UPDATE, DELETE ON alembic_version FROM scrinalia_runner;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO scrinalia_runner;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO scrinalia_runner;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO scrinalia_runner;
+```
+
+Depois defina `RUNNER_DATABASE_URL=postgresql+psycopg2://scrinalia_runner:<segredo>@<host>:5432/<db>?sslmode=verify-full`
+no ambiente do runner. Nada mais muda: a API continua com `DB_*`.
 
 ## Instalação: a sequência ordenada
 
@@ -223,6 +261,8 @@ pipeline, não o boot — o `ACERVO_SOURCE` é exigido pela transformação de s
 | `DB_HOST` | `localhost` | host do banco: `db` na rede do compose, o endereço do servidor no metal |
 | `DB_PORT` | `5432` | porta do banco |
 | `DB_NAME` | `scrinalia` | nome do banco; o serviço do compose o cria no primeiro boot |
+| `DB_SSLMODE` | `prefer` | transporte libpq acrescentado ao DSN derivado; `verify-full` com uma CA quando o banco é alcançado pela rede |
+| `RUNNER_DATABASE_URL` | não definido | o DSN próprio do runner externo (um segredo); sem ele, o runner usa `DB_*`. Permite que um host de GPU tenha uma role de menor privilégio e seu próprio `sslmode` (ADR 0014) |
 | `PUBLIC_SCRAPE_URL` | vazio | URL base do site de origem que o worker de coleta lista; exigida para coletar |
 | `PUBLIC_SCRAPE_DETAIL_URL` | vazio | prefixo da página de detalhe de onde o adaptador monta cada registro; exigido para coletar |
 | `ACERVO_SOURCE` | vazio | nomeia a origem ativa — os rótulos de campo que a transformação de staging lê e as portas que a coleta monta; a única embarcada é `pmc`, o `--origin` a sobrepõe numa execução, e **não há padrão**: uma execução de staging falha rápido sem ela |
@@ -250,10 +290,10 @@ pipeline, não o boot — o `ACERVO_SOURCE` é exigido pela transformação de s
 | `LOG_DIR` | `logs` | diretório dos sinks do loguru (`critical.log`, `ui_stream.jsonl`); criado se não existir |
 | `LOG_LEVEL` | `INFO` | nível do console e do fluxo estruturado |
 | `DEBUG` | `false` | informa o sinalizador de depuração no diagnóstico do sistema; ele é exibido, não usado para trocar o log |
-| `WORKER_RUNTIME_MAX_WORKERS` | `1` | quantas execuções o executor da API aceita ao mesmo tempo; os workers são limitados por CPU, então um segundo atrasa o primeiro |
 
 O `DATABASE_URL` **não** está nesta tabela: é uma propriedade derivada, que codifica as credenciais
-de `DB_*` para a URL, e não um valor que você define.
+de `DB_*` para a URL, e não um valor que você define. Ele também acrescenta o `sslmode` de
+`DB_SSLMODE`.
 
 ### `.env.example` e `core/config.py`
 
@@ -297,20 +337,21 @@ Para usar uma GPU em vez disso, a roda precisa estar lá primeiro:
    (`cupy`, o extra `spacy[gpu]`), que este projeto não declara, então instale-o à parte se quiser as
    entidades na GPU; o motor de embeddings tem um único preset, `multilingual_minilm`, em
    `device: "cpu"`, e aceita override.
-4. Rode pelo runner unificado, que encaminha `--option key=value` ao worker e daí à fábrica do
-   motor:
+4. Rode o runner nesse host com a build CUDA, e deixe-o aceitar os workers que usam o modelo. O
+   painel enfileira e o runner da GPU reivindica; para um teste pontual no host, a CLI unificada
+   continua lá:
 
 ```bash
+CUDA_VISIBLE_DEVICES=0 uv run python -m scrinalia.domains.archive.workers.runner_daemon \
+    --name gpu-01 --workers ner,typology,embedding
 CUDA_VISIBLE_DEVICES=0 uv run python -m scrinalia.domains.archive.workers.runner typology --preset gpu_cloud
-CUDA_VISIBLE_DEVICES=0 uv run python -m scrinalia.domains.archive.workers.runner embedding --option device=cuda
 ```
 
-Duas consequências a ter em mente. Uma execução disparada pelo painel (`Configurações → Operação →
-Workers de IA`) herda o ambiente do processo da API, então uma API subida com `CUDA_VISIBLE_DEVICES=""`
-roda só na CPU, qualquer que seja o preset escolhido no painel. E a configuração efetiva segue
-`argumento explícito > override persistido > padrão da assinatura`, então um preset escolhido no
-painel pode ser sobreposto por uma linha em `archive_worker_settings` — [Operação](operate.md) é
-dona dessa precedência.
+A consequência que importa agora: **o processo que roda um worker é o runner, não a API**. Uma
+execução disparada pelo painel roda no runner que a reivindicar, com o ambiente e a build CUDA desse
+runner; o `CUDA_VISIBLE_DEVICES=""` da API só esconde a GPU do processo da API. A configuração
+efetiva continua seguindo `argumento explícito > override persistido > padrão da assinatura`, então um
+preset escolhido no painel é o que o runner resolve — [Operação](operate.md) é dona dessa precedência.
 
 ## HTTPS
 
@@ -336,16 +377,22 @@ configurar; encaminhe o `Host` original pelo proxy, ou declare a origem pública
 ## Implantação em contêiner
 
 O contêiner é a alternativa à sequência no metal acima, e empacota o que o código já assume: uma
-imagem contendo a API **e** a interface do curador, rodando um processo.
+imagem contendo a API **e** a interface do curador, mais um segundo serviço para o runner.
 
 ```bash
-docker compose --profile app up -d --build   # aplicação + PostgreSQL
+docker compose --profile app up -d --build   # API + runner + PostgreSQL
 docker compose --profile app logs -f app
+docker compose --profile app logs -f runner
 # → http://localhost:8000
 ```
 
 O serviço `app` fica atrás do profile `app` de propósito, então o `docker compose up -d` — e
 portanto o `bun run dev` — continua subindo só a infraestrutura.
+
+O profile também traz um serviço `runner`: a mesma imagem, sem porta publicada, o módulo dos workers
+como entrypoint. É o formato CPU de uma instalação de um host só; um host com GPU roda a imagem
+naquela máquina com uma build CUDA e um caminho privado até o banco, como em [a rede e a
+credencial](#a-rede-e-a-credencial). A API nunca o chama.
 
 O que o entrypoint faz por você:
 
@@ -353,8 +400,11 @@ O que o entrypoint faz por você:
   enquanto o banco está inalcançável e desistindo com saída não zero depois de
   `SCRINALIA_DB_WAIT_SECONDS` (padrão 60). Defina `SCRINALIA_RUN_MIGRATIONS=false` quando as
   migrações forem um passo separado, ou quando várias réplicas subirem ao mesmo tempo: o Alembic não
-  toma trava distribuída, então execuções concorrentes correm umas contra as outras.
-- O comando de runtime é `uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1`, e o
+  toma trava distribuída, então execuções concorrentes correm umas contra as outras. O serviço
+  `runner` deliberadamente **não** usa esse entrypoint: a API é dona das migrações, e o runner
+  confere o schema e tenta de novo em vez de disputar com elas.
+- O comando de runtime é `uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1` (o entrypoint
+  mantém um processo; a API agora suporta mais, e o número de réplicas é escolha do operador), e o
   `HEALTHCHECK` da própria imagem lê o `/health/live`, que não toca em nada.
 
 Configuração dentro do contêiner:

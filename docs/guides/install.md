@@ -11,6 +11,7 @@ sources:
   - package.json
   - pyproject.toml
   - src/scrinalia/core/config.py
+  - src/scrinalia/core/database.py
   - src/scrinalia/core/database_cli.py
   - src/scrinalia/core/logger.py
   - src/scrinalia/core/storage.py
@@ -18,8 +19,8 @@ sources:
   - src/scrinalia/api/system_health.py
   - src/scrinalia/api/controllers/health_controller.py
   - src/scrinalia/api/controllers/setup_controller.py
-  - src/scrinalia/api/lifespan.py
   - src/scrinalia/api/spa.py
+  - src/scrinalia/domains/archive/workers/runner_daemon.py
   - src/scrinalia/domains/identity/cli.py
   - src/scrinalia/domains/ingestion/sources.py
   - apps/curator/src/components/layout/AppShell.tsx
@@ -28,6 +29,7 @@ sources:
   - apps/curator/src/lib/settings.ts
   - docs/adr/0004-worker-execution-from-the-api.md
   - docs/adr/0009-authentication-and-authorization.md
+  - docs/adr/0014-the-workers-leave-the-api.md
   - docs/adr/0011-first-run-setup-without-an-open-door.md
 ---
 
@@ -102,17 +104,55 @@ that is comfortable for the API can still be short for a worker run.
 - An Ollama host, if you will use the Ollama-backed engines. `OLLAMA_HOST_URL` is where every
   preset-backed engine resolves its host; `http://localhost:11434` is the fallback when it is unset.
 
-## The single-process premise
+## The runner and the API
 
-!!! danger "Run exactly one API process"
-    Start the API with `--workers 1`, always. The worker executor lives **inside** the API process
-    and accepts one worker at a time (`WORKER_RUNTIME_MAX_WORKERS`, default 1); at start-up
-    `api/lifespan.py` marks every run row still `QUEUED`/`RUNNING` as `INTERRUPTED`, because it
-    assumes those rows belong to a process that is no longer alive. With `uvicorn --workers > 1`, a
-    second process would kill a sibling's live run at every restart. The database concurrency guard
-    (`uq_worker_run_active`, a partial unique index on the active rows) stays correct; the recovery
-    does not. Scaling out means moving the executor and the recovery out of the API first
-    (ADR 0004).
+The API only enqueues since ADR 0014; a runner outside it executes the workers. That is why the API
+can run with `uvicorn --workers N` — there is no background executor and no start-up recovery in it —
+and why the workers need a second process, started from the repository root or the image:
+
+```bash
+uv run python -m scrinalia.domains.archive.workers.runner_daemon \
+    --name gpu-01 --workers ner,typology,embedding
+```
+
+`--workers` narrows what the runner accepts (the default is the whole catalogue); `--concurrency`,
+`--heartbeat-seconds`, `--lease-seconds`, `--poll-seconds`, `--sweep-seconds`, `--once` and
+`--drain-seconds` are in the [Operations guide](operate.md#the-runner). The runner claims a `QUEUED`
+row with `FOR UPDATE SKIP LOCKED`, renews a lease while it runs and records the effective
+configuration. It refuses a schema behind its code: apply the API's migrations first. The panel shows
+the runner and whether it accepts each worker; a run enqueued with no online runner waits.
+
+The database is the only channel between the API and a runner: the API never calls one.
+
+## The network and the credential
+
+A runner on another machine reaches the same PostgreSQL. Two things make that safe:
+
+1. **A private path.** WireGuard/Tailscale, or an SSH tunnel on the runner host
+   (`ssh -N -L 5432:localhost:5432 user@vps`), with `pg_hba.conf` accepting only `hostssl` from that
+   path; never expose `5432` publicly.
+2. **TLS.** `DB_SSLMODE` (default `prefer`) is appended to the derived DSN; a remote database sets
+   `verify-full` with a CA. A full `RUNNER_DATABASE_URL` can carry its own host and `sslmode`, so the
+   runner does not depend on the API's DSN.
+
+The least-privilege role is optional hardening. It keeps the runner out of the identity tables while
+it keeps writing the archive, which is what a worker does:
+
+```sql
+CREATE ROLE scrinalia_runner LOGIN PASSWORD '<secret>';
+GRANT CONNECT ON DATABASE <db> TO scrinalia_runner;
+GRANT USAGE ON SCHEMA public TO scrinalia_runner;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO scrinalia_runner;
+REVOKE ALL ON auth_users, auth_sessions FROM scrinalia_runner;
+GRANT SELECT ON alembic_version TO scrinalia_runner;
+REVOKE INSERT, UPDATE, DELETE ON alembic_version FROM scrinalia_runner;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO scrinalia_runner;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO scrinalia_runner;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO scrinalia_runner;
+```
+
+Then set `RUNNER_DATABASE_URL=postgresql+psycopg2://scrinalia_runner:<secret>@<host>:5432/<db>?sslmode=verify-full`
+in the runner's environment. Nothing else changes: the API keeps `DB_*`.
 
 ## Install: the ordered sequence
 
@@ -249,6 +289,8 @@ pipeline, not the boot — `ACERVO_SOURCE` is required by the staging transform 
 | `DB_HOST` | `localhost` | database host: `db` inside the compose network, the server's address on bare metal |
 | `DB_PORT` | `5432` | database port |
 | `DB_NAME` | `scrinalia` | database name; the compose service creates it on first boot |
+| `DB_SSLMODE` | `prefer` | libpq transport appended to the derived DSN; `verify-full` with a CA when the database is reached across a network |
+| `RUNNER_DATABASE_URL` | unset | the external runner's own DSN (a secret); when unset it uses `DB_*`. It lets a GPU host hold a least-privilege role and its own `sslmode` (ADR 0014) |
 | `PUBLIC_SCRAPE_URL` | unset | base URL of the source site the ingestion worker lists; required to scrape |
 | `PUBLIC_SCRAPE_DETAIL_URL` | unset | detail-page URL prefix the ingestion adapter builds each record from; required to scrape |
 | `ACERVO_SOURCE` | unset | names the active origin — the field labels the staging transform reads and the ports the scrape builds; the only one shipped is `pmc`, `--origin` overrides it for one run, and there is **no default**: a staging run fails fast without it |
@@ -276,10 +318,9 @@ pipeline, not the boot — `ACERVO_SOURCE` is required by the staging transform 
 | `LOG_DIR` | `logs` | directory of the loguru sinks (`critical.log`, `ui_stream.jsonl`); created if missing |
 | `LOG_LEVEL` | `INFO` | console and structured-stream level |
 | `DEBUG` | `false` | reports the debug flag on the system diagnostic; it is shown, not used to switch logging |
-| `WORKER_RUNTIME_MAX_WORKERS` | `1` | how many runs the API's executor accepts at once; the workers are CPU-bound, so a second one slows the first |
 
 `DATABASE_URL` is **not** in this table: it is a derived property that percent-encodes the
-credentials from `DB_*`, not a value you set.
+credentials from `DB_*`, not a value you set. It also appends `sslmode` from `DB_SSLMODE`.
 
 ### `.env.example` and `core/config.py`
 
@@ -323,19 +364,21 @@ To use a GPU instead, the wheel has to be there first:
    (`cupy`, the `spacy[gpu]` extra), which this project does not declare, so install it separately
    if you want the entities on the GPU; the embedding engine has a single `multilingual_minilm`
    preset on `device: "cpu"` and takes an override.
-4. Run through the unified runner, which forwards `--option key=value` to the worker and from there
-   to the engine factory:
+4. Run the runner on that host with the CUDA build, and let it accept the workers that use the
+   model. The panel enqueues and the GPU runner claims; for a one-off on the host, the unified CLI is
+   still there:
 
 ```bash
+CUDA_VISIBLE_DEVICES=0 uv run python -m scrinalia.domains.archive.workers.runner_daemon \
+    --name gpu-01 --workers ner,typology,embedding
 CUDA_VISIBLE_DEVICES=0 uv run python -m scrinalia.domains.archive.workers.runner typology --preset gpu_cloud
-CUDA_VISIBLE_DEVICES=0 uv run python -m scrinalia.domains.archive.workers.runner embedding --option device=cuda
 ```
 
-Two consequences to keep in mind. A run triggered from the panel (`Configurações → Operação →
-Workers de IA`) inherits the API process's environment, so an API started with `CUDA_VISIBLE_DEVICES=""`
-runs CPU-only whatever preset the panel selects. And the effective configuration follows
-`explicit argument > persisted override > signature default`, so a preset chosen in the panel can be
-overridden by a row in `archive_worker_settings` — [Operations](operate.md) owns that precedence.
+The consequence that matters now: **the process that runs a worker is the runner, not the API**. A run
+triggered from the panel executes on whichever runner claims it, with that runner's environment and
+CUDA build; the API's `CUDA_VISIBLE_DEVICES=""` only hides the GPU from the API process. The effective
+configuration still follows `explicit argument > persisted override > signature default`, so a preset
+chosen in the panel is what the runner resolves — [Operations](operate.md) owns that precedence.
 
 ## HTTPS
 
@@ -362,25 +405,35 @@ to write; forward the original `Host` through the proxy, or declare the public o
 ## Deploying the container image
 
 The container is the alternative to the bare-metal sequence above, and it packages what the code
-already assumes: one image containing the API **and** the curator UI, running one process.
+already assumes: one image containing the API **and** the curator UI, plus a second service for the
+runner.
 
 ```bash
-docker compose --profile app up -d --build   # application + PostgreSQL
+docker compose --profile app up -d --build   # API + runner + PostgreSQL
 docker compose --profile app logs -f app
+docker compose --profile app logs -f runner
 # → http://localhost:8000
 ```
 
 The `app` service is behind the `app` profile on purpose, so `docker compose up -d` — and therefore
 `bun run dev` — keeps starting the infrastructure alone.
 
+The profile also carries a `runner` service: the same image, no published port, the worker module as
+its entrypoint. It is the CPU shape of a single-host installation; a GPU host runs the image on that
+machine with a CUDA build and a private path to the database, as in [the network and the
+credential](#the-network-and-the-credential). The API never calls it.
+
 What the entrypoint does for you:
 
 - `docker/entrypoint.sh` runs `alembic upgrade head` before the server starts, retrying while the
   database is unreachable and giving up with a non-zero exit after `SCRINALIA_DB_WAIT_SECONDS`
   (default 60). Set `SCRINALIA_RUN_MIGRATIONS=false` when migrations are a separate step, or when
-  several replicas start at once: Alembic takes no distributed lock, so concurrent runs race.
-- The runtime command is `uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1`, and the image's
-  own `HEALTHCHECK` reads `/health/live`, which touches nothing.
+  several replicas start at once: Alembic takes no distributed lock, so concurrent runs race. The
+  `runner` service deliberately does **not** use this entrypoint: the API owns the migrations, and
+  the runner checks the schema and retries instead of racing them.
+- The runtime command is `uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1` (the entrypoint
+  keeps one process; the API now supports more, and a replica count is an operator's choice), and the
+  image's own `HEALTHCHECK` reads `/health/live`, which touches nothing.
 
 Configuration inside the container:
 

@@ -7,6 +7,7 @@ import pytest
 from scrinalia.core.author import Author
 from scrinalia.domains.archive.exceptions import InvalidWorkerSettingsError, WorkerRunAlreadyActiveError
 from scrinalia.domains.archive.models.enums import WorkerRunStatus, WorkerRunTrigger
+from scrinalia.domains.archive.models.operations import WorkerRun
 from scrinalia.domains.archive.repository.worker_run_repo import WorkerRunRepository
 from scrinalia.domains.archive.repository.worker_settings_repo import WorkerSettingsRepository
 from scrinalia.domains.archive.schemas.system_schema import WorkerRunRequest
@@ -21,32 +22,17 @@ def _shared_session(db):
     yield db
 
 
-class FakeRuntime:
-    """Records what was submitted; the real pool is not exercised here."""
-
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, int, object]] = []
-
-    def submit(self, worker_name, run_id, resolved) -> None:
-        self.calls.append((worker_name, run_id, resolved))
-
-
 @pytest.fixture
 def ledger(db_session) -> WorkerRunLedger:
     return WorkerRunLedger(session_factory=lambda: _shared_session(db_session))
 
 
 @pytest.fixture
-def runtime() -> FakeRuntime:
-    return FakeRuntime()
+def service(db_session, ledger) -> WorkerRunService:
+    return WorkerRunService(db_session, ledger=ledger)
 
 
-@pytest.fixture
-def service(db_session, runtime, ledger) -> WorkerRunService:
-    return WorkerRunService(db_session, runtime, ledger=ledger)
-
-
-def test_trigger_queues_the_run_with_its_resolved_config(service, runtime, db_session) -> None:
+def test_trigger_queues_the_run_with_its_resolved_config(service, db_session) -> None:
     run = service.trigger("ner", WorkerRunRequest(), requested_by=Author(name="teste"))
 
     assert run.status == WorkerRunStatus.QUEUED
@@ -56,13 +42,17 @@ def test_trigger_queues_the_run_with_its_resolved_config(service, runtime, db_se
     assert run.preset == "gpu"
     assert run.config["model"] == "pt_core_news_lg"
 
-    assert len(runtime.calls) == 1
-    worker_name, run_id, _resolved = runtime.calls[0]
-    assert (worker_name, run_id) == ("ner", run.run_id)
-    # The row is already committed when the executor is handed the id.
-    queued_row = WorkerRunRepository(db_session).get(run.run_id)
-    assert queued_row is not None
-    assert queued_row.status == WorkerRunStatus.QUEUED
+    # The API only enqueues: the row is the work item, and its request is what a runner reproduces.
+    stored = db_session.get(WorkerRun, run.run_id)
+    assert stored is not None
+    assert stored.status == WorkerRunStatus.QUEUED
+    assert stored.request == {
+        "engine_name": None,
+        "preset": None,
+        "db_batch_size": None,
+        "options": {},
+        "engine_options": {},
+    }
 
 
 def test_trigger_honours_the_persisted_override(service, db_session) -> None:
@@ -105,27 +95,6 @@ def test_the_cli_ledger_refuses_to_open_a_second_run(db_session, ledger) -> None
 
     with pytest.raises(WorkerRunAlreadyActiveError):
         ledger.start("ner", trigger=WorkerRunTrigger.CLI, requested_by=None, engine_name=None, preset=None, config={})
-
-
-def test_recover_orphans_closes_the_runs_a_dead_process_left(db_session) -> None:
-    repository = WorkerRunRepository(db_session)
-    queued = repository.create_queued(
-        "ner", trigger=WorkerRunTrigger.API, requested_by=None, engine_name=None, preset=None, config={}
-    )
-    running = repository.create_running(
-        "typology", trigger=WorkerRunTrigger.CLI, requested_by=None, engine_name=None, preset=None, config={}
-    )
-    db_session.flush()
-
-    assert repository.recover_orphans() == 2
-
-    recovered_queued = repository.get(queued.run_id)
-    assert recovered_queued is not None
-    assert recovered_queued.status == WorkerRunStatus.INTERRUPTED
-    recovered_running = repository.get(running.run_id)
-    assert recovered_running is not None
-    assert recovered_running.status == WorkerRunStatus.INTERRUPTED
-    assert "processo anterior" in (recovered_running.error or "")
 
 
 def test_the_runner_records_a_successful_run(db_session, ledger, monkeypatch) -> None:
@@ -180,20 +149,6 @@ def test_the_runner_precedence_is_explicit_then_override_then_default(db_session
 # --- the options of a run (#120) ---------------------------------------------------------------
 
 
-def test_the_ledger_records_the_effective_options_when_the_run_starts(db_session, ledger) -> None:
-    run = WorkerRunRepository(db_session).create_queued(
-        "ner", trigger=WorkerRunTrigger.API, requested_by=None, engine_name="spacy_ner", preset="gpu", config={}
-    )
-    db_session.flush()
-    assert run.options == {}
-
-    ledger.mark_running(run.run_id, options={"columns_to_extract": ["original_title"], "force": False})
-
-    stored = WorkerRunRepository(db_session).get(run.run_id)
-    assert stored is not None
-    assert stored.options == {"columns_to_extract": ["original_title"], "force": False}
-
-
 def test_the_runner_writes_the_columns_the_run_read(db_session, ledger, monkeypatch) -> None:
     """
     "Which columns did run #N read?" is a value in the row, not the fingerprint the stamp hashed.
@@ -223,13 +178,13 @@ def test_the_runner_writes_the_columns_the_run_read(db_session, ledger, monkeypa
     assert "columns_to_extract" not in seen
 
 
-def test_the_engine_pass_through_reaches_the_config_and_the_run(service, runtime) -> None:
+def test_the_engine_pass_through_reaches_the_config_and_the_request(service, db_session) -> None:
     run = service.trigger("ner", WorkerRunRequest(engine_options={"device": "cpu"}))
 
     assert run.config["device"] == "cpu"
-    _worker_name, _run_id, resolved = runtime.calls[0]
-    assert resolved.engine_kwargs == {"device": "cpu"}
-    assert resolved.worker_options == {}
+    stored = db_session.get(WorkerRun, run.run_id)
+    assert stored is not None
+    assert stored.request["engine_options"] == {"device": "cpu"}
 
 
 def test_a_declared_option_is_refused_as_a_pass_through(service) -> None:
@@ -250,3 +205,26 @@ def test_a_run_cap_is_accepted_for_one_execution(service) -> None:
     run = service.trigger("ner", WorkerRunRequest(options={"limit": 5}))
 
     assert run.status == WorkerRunStatus.QUEUED
+
+
+def test_the_cli_opens_its_run_with_a_lease(db_session, ledger, monkeypatch) -> None:
+    """The CLI is a one-shot runner: its row carries the identity and the lease (ADR 0014)."""
+
+    def fake_cleaning(db, **kwargs) -> None:
+        pass
+
+    monkeypatch.setitem(runner.WORKERS, "cleaning", fake_cleaning)
+
+    runner.run_worker(
+        "cleaning",
+        db_factory=lambda: _shared_session(db_session),
+        ledger=ledger,
+        runner_id="cli:host:1",
+        lease_seconds=60,
+    )
+
+    stored = WorkerRunRepository(db_session).last_by_worker()["cleaning"]
+    assert stored.status == WorkerRunStatus.SUCCESS
+    assert stored.runner_id == "cli:host:1"
+    assert stored.heartbeat_at is not None
+    assert stored.lease_expires_at is not None

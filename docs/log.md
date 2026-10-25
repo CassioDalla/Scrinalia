@@ -2081,3 +2081,38 @@ with short or full shas, and part of a `## <date> — <title>` entry.
   type, so no pixel can differ. The materialisation routes were exercised only through their
   integration tests, not against a live server.
 
+
+## 2026-10-25 — the workers leave the API (ADR 0014)
+
+- **Range:** `74a3a5c..27063f7`
+- **Pages:**
+  - `adr/0014-the-workers-leave-the-api.md` — **created**
+  - `adr/0004-worker-execution-from-the-api.md` — **updated** (superseded)
+  - `adr/index.md` — **updated**
+  - `guides/install.md` / `install.pt.md` — **updated**: the runner and the API; the network and the
+    credential; the GPU host; the compose `runner` service.
+  - `guides/operate.md` / `operate.pt.md` — **updated**: the runner; interrupted runs by lease; the
+    queue in the ledger; the panel's runners and availability; the limits.
+  - `guides/data-model.md` / `data-model.pt.md` — **updated**: the request/runner/lease columns and
+    `archive_worker_runners`.
+  - `README.md` — **updated**: the runner, the image and `bun run dev`.
+  - `SECURITY.md` — **updated**: the runner's database reachability replaces the single-process
+    bullet.
+  - `guides/curate.md` / `curate.pt.md` — **no-change**: the report names them through the release's
+    version declarations; the curation contract and the screens did not move — the panel's new fields
+    are additive and belong to operate.
+- **Why the round exists:** #42, milestone 1.6: move the workers out of the API behind a runner and a
+  lease, before the retry (#43) and cancellation (#72) policies.
+- **What the round measured.** Six commits: the ADR; the queue columns/table/indexes; the runner
+  credential; the claim/lease/run; the API only enqueueing; the panel. The migration
+  `a842f9efad08`, and `alembic check` reports no drift. Full suite **2079 passed, 1 skipped**;
+  `basedpyright`, `ruff`, `tsc`, ESLint and the Vite build green. Rendered and looked at: the workers
+  panel (an online runner with two capabilities, `sem runner` on the seven others, `Enfileirar
+  execução`) and the run history (a live run enqueued by the panel, claimed and closed by a runner,
+  showing `runner`, `sinal` and `lease`). The run was #9, `SUCCESS`, claimed **0.46 s** after the
+  enqueue.
+- **Not verified, and said so.** The GPU host is not this machine: the runner rendered is the CPU one
+  and the CUDA path is the install guide's, not a measured run. A real remote database over
+  TLS/tunnel was not exercised; the `RUNNER_DATABASE_URL`/`DB_SSLMODE` path is tested against the
+  local database only. #43/#72 are vocabulary in the ADR, not code. The API with several processes was
+  not run; the claim/lease tests use two runners on one database.

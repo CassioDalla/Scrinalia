@@ -3870,6 +3870,8 @@ export interface components {
         SystemWorkersResponse: {
             /** Format: date-time */
             generated_at: string;
+            /** @description Os runners registrados, online ou não. As capacidades dizem qual worker cada um aceita; sem nenhum online, uma execução fica na fila até um subir (ADR 0014). */
+            runners?: components["schemas"]["WorkerRunnerDTO"][];
             workers?: components["schemas"]["WorkerStatusDTO"][];
         };
         /** TagCatalogResponse */
@@ -4226,6 +4228,10 @@ export interface components {
             /** @description A causa raiz da falha, derivada da mensagem pelo PostgreSQL. Duas execuções com a mesma causa compartilham este valor. */
             error_fingerprint?: string | null;
             finished_at?: string | null;
+            /** @description O último sinal de vida do runner, no relógio do banco. */
+            heartbeat_at?: string | null;
+            /** @description Quando o claim vence se o runner parar de renovar. A próxima varredura do runner marca a execução como interrompida. */
+            lease_expires_at?: string | null;
             /** @description Opções efetivas do worker nesta execução (as colunas lidas, o limite de confiança), resolvidas quando a execução começou. Vazio numa linha antiga, ou numa que ainda não começou. */
             options?: {
                 [key: string]: unknown;
@@ -4236,6 +4242,8 @@ export interface components {
             /** @description Quem pediu a execução; nulo quando ela veio do host, sem --by. */
             requested_by?: string | null;
             run_id: number;
+            /** @description O runner que reivindicou a execução; nulo enquanto ninguém a pegou. */
+            runner_id?: string | null;
             started_at?: string | null;
             status: components["schemas"]["WorkerRunStatus"];
             trigger: components["schemas"]["WorkerRunTrigger"];
@@ -4279,6 +4287,23 @@ export interface components {
          * @enum {string}
          */
         WorkerRunTrigger: "CLI" | "API";
+        /** WorkerRunnerDTO */
+        WorkerRunnerDTO: {
+            /** @description Os workers que este runner aceita. */
+            capabilities?: string[];
+            concurrency: number;
+            hostname: string;
+            /** Format: date-time */
+            last_heartbeat_at: string;
+            name: string;
+            /** @description Verdadeiro enquanto o último sinal está dentro de três intervalos declarados pelo runner. */
+            online: boolean;
+            runner_id: string;
+            /** Format: date-time */
+            started_at: string;
+            stopped_at?: string | null;
+            version?: string | null;
+        };
         /** WorkerSettingsDTO */
         WorkerSettingsDTO: {
             available_engines?: components["schemas"]["WorkerEngineDTO"][];
@@ -4371,6 +4396,11 @@ export interface components {
             pending_reason?: string | null;
             /** @description Unidades que o worker já carimbou. */
             processed?: number | null;
+            /**
+             * @description Se algum runner online declara este worker; falso não impede enfileirar (ADR 0014).
+             * @default false
+             */
+            runner_available: boolean;
             settings: components["schemas"]["WorkerSettingsDTO"];
             /** @description Os quatro números do **ledger** do worker — com produtor, valor legado, falha e ausência de registro — e não da fila: `pending` é o predicado da fila, e uma unidade com carimbo de falha ou de produtor antigo conta aqui sem estar pendente. Nulo quando o ledger do worker não é um carimbo. */
             stamp_breakdown?: components["schemas"]["WorkerStampBreakdownDTO"] | null;

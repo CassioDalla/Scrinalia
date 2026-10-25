@@ -26,6 +26,7 @@ from scrinalia.domains.archive.schemas.system_schema import (
     WorkerQueuePreviewDTO,
     WorkerRunDTO,
     WorkerRunListResponse,
+    WorkerRunnerDTO,
     WorkerSettingsDTO,
     WorkerSettingsItemDTO,
     WorkerSettingsRevisionListResponse,
@@ -49,7 +50,7 @@ def _settings() -> WorkerSettingsDTO:
     )
 
 
-def _status() -> WorkerStatusDTO:
+def _status(*, runner_available: bool = False) -> WorkerStatusDTO:
     return WorkerStatusDTO(
         name="ner",
         label="Extração de entidades (NER)",
@@ -61,6 +62,22 @@ def _status() -> WorkerStatusDTO:
         pending=10,
         processed=0,
         failed=0,
+        runner_available=runner_available,
+    )
+
+
+def _runner() -> WorkerRunnerDTO:
+    now = datetime.now(UTC)
+    return WorkerRunnerDTO(
+        runner_id="gpu-01",
+        name="gpu",
+        hostname="gpu-01",
+        version="1.6.0",
+        capabilities=["ner"],
+        concurrency=1,
+        started_at=now,
+        last_heartbeat_at=now,
+        online=True,
     )
 
 
@@ -86,6 +103,22 @@ def test_the_panel_lists_every_worker(client: TestClient, mocker) -> None:
     assert body["workers"][0]["settings"]["config"]["model"] == "pt_core_news_lg"
     assert body["workers"][0]["pending"] == 10
     assert body["generated_at"]
+
+
+def test_the_panel_carries_the_runners_and_the_worker_availability(client: TestClient, mocker) -> None:
+    mock = mocker.patch.object(WorkerOperationsService, "list_workers")
+    mock.return_value = SystemWorkersResponse(
+        workers=[_status(runner_available=True)],
+        runners=[_runner()],
+        generated_at=datetime.now(UTC),
+    )
+
+    body = client.get("/api/v1/system/workers").json()
+
+    assert body["workers"][0]["runner_available"] is True
+    assert body["runners"][0]["runner_id"] == "gpu-01"
+    assert body["runners"][0]["capabilities"] == ["ner"]
+    assert body["runners"][0]["online"] is True
 
 
 def test_the_settings_read_carries_the_configuration_and_no_queue(client: TestClient, mocker) -> None:

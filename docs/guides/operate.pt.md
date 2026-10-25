@@ -5,8 +5,8 @@ translation_of: guides/operate.md
 # Operação
 
 Esta página é para quem opera a máquina no dia a dia: quais workers existem, em que ordem rodam,
-como disparar um, como a configuração efetiva é resolvida, o que o painel de sistema mostra e o que
-fazer quando algo quebra. Instalar e configurar o sistema está em
+como subir o runner ou disparar uma execução pontual, como a configuração efetiva é resolvida, o que
+o painel de sistema mostra e o que fazer quando algo quebra. Instalar e configurar o sistema está em
 [Instalação e implantação](install.md); as decisões arquivísticas de cada tela estão em
 [Curadoria](curate.md).
 
@@ -142,6 +142,31 @@ medir isso antes de pagar.
 
 O contador do `transfer` é o mais pesado: valida a tabela de staging inteira pelo mesmo port que o
 transfer usa. É lido uma vez por carga do painel e não é consultado em laço.
+
+## O runner
+
+Desde a ADR 0014 os workers rodam no próprio processo; a API apenas enfileira. O runner reivindica as
+linhas `QUEUED` e as executa:
+
+```bash
+uv run python -m scrinalia.domains.archive.workers.runner_daemon \
+    --name gpu-01 --workers ner,typology,embedding
+```
+
+| Flag | Significado |
+| --- | --- |
+| `--name` | o nome humano no painel; o identificador é gerado (`name:<uuid curto>`) a menos que `--id` seja dado |
+| `--workers` | os workers que este runner aceita, separados por vírgula; o padrão é o catálogo inteiro |
+| `--concurrency` | quantas execuções ele executa de uma vez; 1 por padrão, porque os modelos são limitados por CPU/GPU |
+| `--heartbeat-seconds`, `--lease-seconds` | o lease que ele renova e quanto tempo uma reivindicação sobrevive sem ele; 15/60 por padrão, e o heartbeat precisa ser menor |
+| `--poll-seconds`, `--sweep-seconds` | de quanto em quanto procura trabalho e expira reivindicações; 2/30 por padrão |
+| `--once` | reivindica e executa no máximo uma execução, e sai |
+| `--drain-seconds` | espera até esse tempo pelas execuções em andamento antes de sair; o lease cobre o resto |
+
+O runner se registra em `archive_worker_runners`, renova a própria linha com o mesmo heartbeat e
+recusa um schema atrás do seu código. O painel o mostra — online/offline, o host, a versão, as
+capacidades — e marca **sem runner** os workers que nenhum runner online aceita; uma execução
+enfileirada para um deles espera. O banco é o único canal: a API nunca chama um runner.
 
 ## Executando um worker
 
@@ -367,7 +392,7 @@ SPA: o menu não os carrega mais (issue #22).
 
 | Rota | Método | Permissão | O que faz |
 | --- | --- | --- | --- |
-| `/api/v1/system/workers` | `GET` | autenticado | os nove workers com configuração, números de fila e última execução/execução ativa, numa requisição só |
+| `/api/v1/system/workers` | `GET` | autenticado | os nove workers com configuração, números de fila, última execução/execução ativa e o registro de runners, numa requisição só |
 | `/api/v1/system/workers/settings` | `GET` | autenticado | os padrões persistidos dos nove workers, sem os contadores de fila (issue #53) |
 | `/api/v1/system/workers/{worker_name}/queue/preview` | `POST` | autenticado | o pendente de uma configuração **proposta**, calculado sem escrever |
 | `/api/v1/system/workers/{worker_name}/runs` | `POST` | `OPERATE` | enfileira uma execução com overrides só para ela e responde `201` na hora |
@@ -385,15 +410,16 @@ A SPA espelha isso, como cartões de `/configuracoes` sob *Operação*:
 
 | Tela | Mostra |
 | --- | --- |
-| `/sistema/workers` | os nove workers: engine, preset e modelo, a fila, o que o carimbo de cada um nomeia (com produtor, sem produtor conhecido, sem registro) e um botão de execução; a configuração efetiva aqui é só leitura |
+| `/sistema/workers` | os nove workers: engine, preset e modelo, a fila, o que o carimbo de cada um nomeia (com produtor, sem produtor conhecido, sem registro) e um botão **Enfileirar execução**; acima deles, os cartões dos runners (online, host, versão, concorrência, capacidades, último sinal) e um aviso quando nenhum está online. Um worker que nenhum runner online aceita aparece como **sem runner** — a linha ainda enfileira e espera. A configuração efetiva aqui é só leitura |
 | `/configuracoes/workers` | o padrão persistido de cada worker e suas revisões, com salvar e remover — a escrita que o painel carregava |
 | `/sistema/execucoes` | o ledger de execuções e as falhas dos últimos 30 dias agrupadas por causa raiz; clicar numa causa filtra o ledger para as ocorrências dela |
 | `/sistema/diagnostico` | banco, modelos do Ollama, storage das miniaturas e a configuração efetiva do processo |
 
-A tela só fica consultando enquanto algo está rodando, porque o contador do `transfer` faz uma
-chamada a `/system/workers` custar cerca de dois segundos no acervo real. A
-`/configuracoes/workers` lê `/system/workers/settings`, que resolve a mesma configuração e não conta
-fila nenhuma — a separação existe para que uma tela que não mostra números não pague por eles.
+A tela consulta a cada 5 s enquanto uma execução está rodando e a cada 15 s enquanto uma está na fila,
+porque o contador do `transfer` faz uma chamada a `/system/workers` custar cerca de dois segundos no
+acervo real; ociosa, ela não consulta. A `/configuracoes/workers` lê `/system/workers/settings`, que
+resolve a mesma configuração e não conta fila nenhuma — a separação existe para que uma tela que não
+mostra números não pague por eles.
 
 ### Saúde: três endpoints, três perguntas
 
@@ -414,8 +440,9 @@ timeout de TCP do sistema operacional.
 
 `archive_worker_runs` tem uma linha por execução, tanto da CLI quanto do painel: o ledger é sobre o
 worker, não sobre o botão que o iniciou. Uma linha carrega `worker_name`, `status`, `trigger` (`CLI`
-ou `API`), `requested_by` (e `requested_by_user_id`), `engine_name`, `preset`, o `config` resolvido,
-as **`options` efetivas do worker**, `queued_at`, `started_at`, `finished_at`, `duration_ms`, `error`
+ou `API`), `requested_by` (e `requested_by_user_id`), `engine_name`, `preset`, o `request` validado
+(o que um runner reproduz), o `config` resolvido, as **`options` efetivas do worker**, `queued_at`,
+`runner_id`, `started_at`, `heartbeat_at`, `lease_expires_at`, `finished_at`, `duration_ms`, `error`
 e o `error_fingerprint` gerado.
 
 O `config` responde "com qual modelo?" e as `options` respondem "sobre qual texto, com qual limiar?" —
@@ -426,9 +453,10 @@ o default vazio e a tela do ledger diz "opções não registradas nesta execuç�
 produtor faz o hash dos mesmos valores no carimbo, então a linha é a metade legível desse hash.
 
 Os status são `QUEUED`, `RUNNING`, `SUCCESS`, `FAILED` e `INTERRUPTED`. A linha `QUEUED` é comitada
-pela **sessão própria do ledger antes** de a thread do executor receber o id; uma linha ainda dentro
-da transação da requisição ficaria invisível para essa thread e a execução ficaria em `QUEUED` para
-sempre.
+pela **sessão própria do ledger antes de a requisição retornar**, para que um runner externo possa
+reivindicá-la; a reivindicação é uma instrução (`FOR UPDATE SKIP LOCKED`) que também grava `runner_id`,
+`started_at`, `heartbeat_at` e `lease_expires_at`. Uma linha `QUEUED` é o item de trabalho; a API
+apenas enfileira.
 
 `uq_worker_run_active` é um **índice único parcial** sobre `(worker_name)` quando o status é `QUEUED`
 ou `RUNNING`. É ele, e não um lock de processo, a trava de concorrência: no máximo uma execução por
@@ -437,9 +465,10 @@ worker em andamento, entre processos e através de um reload. Um segundo envio v
 para o worker '…'"). A CLI chega ao mesmo erro, mas não tem tratamento para ele, então termina com o
 traceback em vez da frase.
 
-O executor do painel roda **um worker por vez** (`WORKER_RUNTIME_MAX_WORKERS`, padrão 1) porque os
-workers são limitados por CPU — dois modelos torch na mesma CPU se atrasam sem produzir mais. Ele
-**não é um agendador**: sem retry, sem cron, sem prioridade. Existe para uma pessoa apertar um botão.
+Um runner reivindica uma linha `QUEUED` e renova o lease enquanto roda; `--concurrency` decide quantas
+executa de uma vez, e os workers são limitados por CPU/GPU, então o padrão é um. Ele **não é um
+agendador**: sem retry, sem cron, sem prioridade. A fila é um slot por worker, então uma segunda
+execução espera no ledger ou responde `409`.
 
 ## Reprocessar um documento ou um lote
 
@@ -498,10 +527,11 @@ Não há **rota nem flag que limpe um carimbo** para os workers que não aceitam
 
 ## Execuções INTERRUPTED
 
-Uma execução deixada em `QUEUED` ou `RUNNING` por um processo que morreu é pior que uma errada: o
-índice único parcial bloquearia aquele worker para sempre. No boot, `api/lifespan.py` marca toda
-linha assim como `INTERRUPTED`, com `finished_at` e o texto de erro "O processo anterior terminou
-antes do fim desta execução."
+Uma execução fica `RUNNING` sob um lease. O runner o renova a cada `--heartbeat-seconds`; quando o
+lease vence — o runner morreu, ou o sinal parou — o próximo runner (ou a próxima CLI, que tem o mesmo
+lease) marca a linha como `INTERRUPTED`, com `finished_at` e o texto "O runner parou de enviar sinal
+antes do fim desta execução." O boot da API não repara nada, então vários processos da API são
+seguros. A varredura toca só as linhas vencidas: a reivindicação viva de um irmão nunca é fechada.
 
 Nada é retentado automaticamente. Depois de uma execução `INTERRUPTED`:
 
@@ -510,9 +540,8 @@ Nada é retentado automaticamente. Depois de uma execução `INTERRUPTED`:
 3. Dispare o worker de novo. Os carimbos por unidade são o que torna isso seguro: a nova execução lê
    só o que a interrompida não terminou.
 
-A recuperação assume **um único processo da API**. Com `uvicorn --workers > 1`, o boot de um processo
-marcaria a execução viva de um irmão como interrompida, então escalar exige tirar o executor (e a
-recuperação) de dentro da API antes. O índice único parcial continua válido nos dois casos.
+A execução enfileirada sem runner online espera, e o painel diz isso. O cancelamento é a #72 e a
+política de retry é a #43: a ADR 0014 fixa o vocabulário, as issues o implementam.
 
 ## Agendamento
 
@@ -539,8 +568,9 @@ Dois avisos que o desenho deixa explícitos:
   execução em andamento do mesmo worker; a API responde `409` e a CLI levanta a mesma recusa. Nada no
   processo serializa as chamadas, então a garantia vale entre processos, através de um reload e mesmo
   quando a CLI e o painel discordam sobre quem manda. Disparar um worker **diferente** é aceito
-  mesmo com outro rodando — ele entra na fila atrás dos demais — porque o índice limita a uma
-  execução por worker; `WORKER_RUNTIME_MAX_WORKERS` decide quantos o painel mesmo roda de uma vez.
+  mesmo com outro rodando — a linha fica na fila e um runner a reivindica quando tem folga — porque o
+  índice limita a uma execução por worker; o `--concurrency` do runner decide quantas ele executa de
+  uma vez.
 
 A rota da API é uma mutação, então também exige sessão de `ADMIN` autenticada e cabeçalho `Origin` de
 mesma origem. Um cron em host remoto é mais simples pela CLI.
@@ -723,9 +753,16 @@ comportamento esperar, e para um limite já pago não ser lido como defeito.
 - **Ninguém é avisado.** A observabilidade é o painel, o ledger de execuções e os grupos de falha; um
   serviço externo de alerta está deliberadamente fora do sistema (ADR 0005). Uma causa raiz nova é
   encontrada por quem abre a tela, não por uma notificação.
-- **O executor assume um único processo da API.** A API roda um worker por vez
-  (`WORKER_RUNTIME_MAX_WORKERS`) e a recuperação no `api/lifespan.py` marca o que um processo morto
-  deixou para trás, o que só é correto com `uvicorn --workers 1` (veja *Execuções INTERRUPTED*, acima).
+- **O runner alcança o banco.** Um runner em outra máquina precisa de um caminho privado até o
+  PostgreSQL e de uma credencial; o `DB_*` da API pode ficar local (ADR 0014). A role de menor
+  privilégio opcional e o túnel estão no [guia de instalação](install.md#a-rede-e-a-credencial).
+- **O lease não é um fencing token.** Um runner que perdeu o lease ainda pode escrever o acervo até o
+  worker parar; os carimbos tornam a re-execução idempotente e a linha do ledger é cercada, mas uma
+  execução duplicada depois de um lease vencido é possível. Um fence rígido é trabalho futuro.
+- **A fila é um slot por worker.** Uma segunda execução de um worker com uma em andamento responde
+  `409`, e um agendamento precisa coalescer; backlog ou prioridade não é o que esta fila é.
+- **Ainda não há retry nem cancelamento.** Uma execução que falhou continua falha e uma em andamento
+  não pode ser parada pelo painel até a #43/#72; uma interrompida é visível e um novo disparo é seguro.
 - **O `path` do arranjo não é garantido pelo banco.** A coluna é materializada pelo serviço, então um
   `UPDATE` escrito à mão pode divergi-la da árvore; o diagnóstico `PATH_DIVERGENCE` é o que encontra.
   Não escreva `path` diretamente — passe pelas rotas que são donas da movimentação.
