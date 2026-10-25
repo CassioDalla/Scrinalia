@@ -5425,6 +5425,23 @@
         "title": "NerExclusionBanResponse",
         "type": "object"
       },
+      "NerExclusionRemovalRequest": {
+        "properties": {
+          "words": {
+            "description": "Terms to put back into the NER extraction.",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "words"
+        ],
+        "title": "NerExclusionRemovalRequest",
+        "type": "object"
+      },
       "NerExclusionRemovalResponse": {
         "properties": {
           "code": {
@@ -14910,7 +14927,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NerExclusionRequest"
+                "$ref": "#/components/schemas/NerExclusionRemovalRequest"
               }
             }
           },

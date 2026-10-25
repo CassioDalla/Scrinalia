@@ -26,12 +26,11 @@ the client must not learn the difference by copying the list. The API-side quest
 A **deliberate** narrowing is allowed, because it is a statement about the function and not about the
 contract — and it is derived, so a rename in the model breaks the ``Pick`` at compile time. Each one
 is listed in :data:`NARROWED` with the screen or the route that justifies it, so adding another is a
-line a reviewer reads. Today there are four:
+line a reviewer reads. Today there are three:
 
 * ``TagPairPreviewBody`` — the pair form of the merge preview; the proposal form is ``previewMerge``'s.
 * ``SubjectExclusionBody`` — ``source`` stays required, because the model's ``HUMAN`` default would
   let a ``RULE`` verdict be recorded as a human judgement.
-* ``NerRemovalBody`` — the removal route takes the ban's model but reads only ``words`` (#176).
 * ``MacroSuggestionBody`` — no screen offers ``columns_to_extract`` yet (#174).
 
 The parser is deliberately textual, like ``test_api_query_shapes.py``: the SPA has no test runner of
@@ -69,7 +68,6 @@ WRAPPER = re.compile(r"\b(?:Required|Pick|Omit|Partial|NonNullable)\s*<")
 NARROWED = {
     "TagPairPreviewBody": "MergePreviewRequest",
     "SubjectExclusionBody": "SubjectExclusionRequest",
-    "NerRemovalBody": "NerExclusionRequest",
     "MacroSuggestionBody": "SuggestMacroRequest",
 }
 
