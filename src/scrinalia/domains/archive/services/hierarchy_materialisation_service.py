@@ -47,11 +47,11 @@ from scrinalia.domains.archive.repository.hierarchy_repo import CodeObservation,
 from scrinalia.domains.archive.repository.level_catalog_repo import LevelCatalogRepository
 from scrinalia.domains.archive.schemas.hierarchy_schema import (
     CreateHierarchyNodeCommand,
+    HierarchyMaterialisationCommand,
     HierarchyMaterialisationItem,
     HierarchyMaterialisationLogDTO,
     HierarchyMaterialisationLogListResponse,
     HierarchyMaterialisationPreview,
-    HierarchyMaterialisationRequest,
     HierarchyMaterialisationResult,
     HierarchyNodePlanDTO,
     HierarchyPlanDecisionCommand,
@@ -231,7 +231,7 @@ class HierarchyMaterialisationService:
     # =========================================================================
     # Preview and apply share this planner
     # =========================================================================
-    def preview(self, request: HierarchyMaterialisationRequest) -> HierarchyMaterialisationPreview:
+    def preview(self, request: HierarchyMaterialisationCommand) -> HierarchyMaterialisationPreview:
         plan = self._plan()
         items = self._items(plan, limit=request.limit)
         return HierarchyMaterialisationPreview(
@@ -244,7 +244,7 @@ class HierarchyMaterialisationService:
             items=items,
         )
 
-    def apply(self, request: HierarchyMaterialisationRequest) -> HierarchyMaterialisationResult:
+    def apply(self, request: HierarchyMaterialisationCommand) -> HierarchyMaterialisationResult:
         """
         Creates the missing rungs, adopts the existing ones and hangs the descriptions under them.
 
