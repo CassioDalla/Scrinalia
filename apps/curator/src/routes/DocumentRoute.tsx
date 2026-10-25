@@ -17,6 +17,7 @@ import {
   updateDocument,
 } from "@/api/client";
 import { queries } from "@/api/queries";
+import { DocumentThumbnail } from "@/components/description/Thumbnail";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -178,6 +179,23 @@ function DescriptionTab({ document }: { document: DocumentSummary }) {
 
   return (
     <div className="grid gap-4">
+      {/*
+        The miniature comes from the API, not from the bucket: ``thumbnail_url`` is derived on the
+        server from the stored URI, so this screen never assembles a path and never sees S3. The
+        placeholder is not an edge case — four descriptions of the reference collection have no
+        source image at all — and the "indisponível" state covers an object that left the bucket.
+      */}
+      <Card>
+        <CardHeader className="text-sm font-semibold">Imagem</CardHeader>
+        <CardBody>
+          <DocumentThumbnail
+            url={document.thumbnail_url}
+            title={document.final_title || document.original_title}
+            variant="dossier"
+          />
+        </CardBody>
+      </Card>
+
       {/*
         The proposal is shown *next to* the field it proposes, and is never the stored value: the
         machine proposes the title, only the archivist writes ``final_title``.

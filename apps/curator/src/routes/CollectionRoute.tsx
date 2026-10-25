@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import type { ArchiveReviewStatus, DocumentFacets, DocumentSearch, FacetCount, SearchMode } from "@/api/client";
 import { queries } from "@/api/queries";
+import { DocumentThumbnail } from "@/components/description/Thumbnail";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -420,41 +421,54 @@ export function CollectionRoute() {
               return (
                 <li key={document.description_id}>
                   <Card className="transition hover:ring-(--color-accent)/40">
-                    <CardBody className="flex flex-col gap-2">
-                      <div className="flex items-start justify-between gap-3">
-                        <Link
-                          to="/acervo/$descriptionId"
-                          params={{ descriptionId: document.description_id }}
-                          className="min-w-0 text-sm font-medium hover:underline"
-                        >
-                          {document.final_title || document.original_title}
-                        </Link>
-                        <Badge tone={REVIEW_STATUS_TONE[document.review_status]}>
-                          {REVIEW_STATUS_LABEL[document.review_status]}
-                        </Badge>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-(--color-muted)">
-                        <span>{formatDate(document.document_date)}</span>
-                        {document.level ? <span>· {document.level}</span> : null}
-                        {document.typology ? <span>· {document.typology}</span> : null}
-                        {document.reference_code ? (
-                          <code className="rounded bg-black/[0.05] px-1">{document.reference_code}</code>
-                        ) : null}
-                        {document.is_anomaly ? <Badge tone="warn">anomalia</Badge> : null}
-                      </div>
-
-                      {/* Badge rule (Fase 1.5): winner by votes, plus how many drawers it also has. */}
-                      {subject ? (
-                        <div className="flex items-center gap-2">
-                          <Badge tone="accent">{subject.name}</Badge>
-                          {subject.others > 0 ? <Badge tone="neutral">+{subject.others}</Badge> : null}
+                    <CardBody className="flex items-start gap-3">
+                      {/*
+                        The miniature turns a row of titles into a row of records: in a photographic
+                        collection it is how the archivist recognises one without opening the
+                        dossier. The URL is the API's, never built here, and a row without an image
+                        keeps the same 56px box so the list stays aligned.
+                      */}
+                      <DocumentThumbnail
+                        url={document.thumbnail_url}
+                        title={document.final_title || document.original_title}
+                        variant="list"
+                      />
+                      <div className="flex min-w-0 flex-1 flex-col gap-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <Link
+                            to="/acervo/$descriptionId"
+                            params={{ descriptionId: document.description_id }}
+                            className="min-w-0 text-sm font-medium hover:underline"
+                          >
+                            {document.final_title || document.original_title}
+                          </Link>
+                          <Badge tone={REVIEW_STATUS_TONE[document.review_status]}>
+                            {REVIEW_STATUS_LABEL[document.review_status]}
+                          </Badge>
                         </div>
-                      ) : null}
 
-                      {document.scope_content ? (
-                        <p className="line-clamp-2 text-xs text-(--color-muted)">{document.scope_content}</p>
-                      ) : null}
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-(--color-muted)">
+                          <span>{formatDate(document.document_date)}</span>
+                          {document.level ? <span>· {document.level}</span> : null}
+                          {document.typology ? <span>· {document.typology}</span> : null}
+                          {document.reference_code ? (
+                            <code className="rounded bg-black/[0.05] px-1">{document.reference_code}</code>
+                          ) : null}
+                          {document.is_anomaly ? <Badge tone="warn">anomalia</Badge> : null}
+                        </div>
+
+                        {/* Badge rule (Fase 1.5): winner by votes, plus how many drawers it also has. */}
+                        {subject ? (
+                          <div className="flex items-center gap-2">
+                            <Badge tone="accent">{subject.name}</Badge>
+                            {subject.others > 0 ? <Badge tone="neutral">+{subject.others}</Badge> : null}
+                          </div>
+                        ) : null}
+
+                        {document.scope_content ? (
+                          <p className="line-clamp-2 text-xs text-(--color-muted)">{document.scope_content}</p>
+                        ) : null}
+                      </div>
                     </CardBody>
                   </Card>
                 </li>

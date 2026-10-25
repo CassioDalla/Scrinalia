@@ -1064,6 +1064,18 @@ class DocumentRepository:
         doc = self.db.scalars(stmt).first()
         return self._page_summaries([(doc, None)])[0] if doc else None
 
+    def get_thumbnail_uri(self, description_id: str) -> str | None:
+        """
+        The stored miniature's URI, read without decorating the description.
+
+        A page of twenty-five miniatures must not pay for tags, entities and ancestors per image, so
+        this is one scalar query and not ``get_by_id``. ``None`` means both "no such description" and
+        "no stored miniature": the route answers the same 404 for both, and the log keeps the row.
+        """
+        return self.db.scalar(
+            select(ArchiveDocument.storage_thumbnail_uri).where(ArchiveDocument.description_id == description_id)
+        )
+
     def update_review(self, command: DocumentReviewCommand) -> DocumentSummary | None:
         """
         Applies the archivist's edits and shields the document against the AI.

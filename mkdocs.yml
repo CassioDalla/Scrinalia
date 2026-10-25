@@ -131,4 +131,5 @@ nav:
       - 0014 The workers leave the API: adr/0014-the-workers-leave-the-api.md
       - 0015 Schedules and retries: adr/0015-schedules-and-retries.md
       - 0016 The origin is a first-class object: adr/0016-the-origin-is-a-first-class-object.md
+      - 0017 The thumbnail reaches the browser through the API: adr/0017-the-thumbnail-reaches-the-browser-through-the-api.md
   - Documentation log: log.md

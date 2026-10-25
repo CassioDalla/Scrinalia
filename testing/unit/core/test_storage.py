@@ -15,7 +15,13 @@ from botocore.exceptions import ClientError
 from pydantic import SecretStr
 
 from scrinalia.core import storage as storage_module
-from scrinalia.core.storage import ObjectStorageError, S3Storage, is_missing_bucket_error
+from scrinalia.core.storage import (
+    ObjectStorageError,
+    S3Storage,
+    is_missing_bucket_error,
+    is_missing_object_error,
+    parse_s3_uri,
+)
 
 
 def _client_error(code: str, status: int, operation: str = "HeadBucket") -> ClientError:
@@ -25,15 +31,34 @@ def _client_error(code: str, status: int, operation: str = "HeadBucket") -> Clie
     )
 
 
+class _FakeBody:
+    def __init__(self, payload: bytes) -> None:
+        self.payload = payload
+
+    def read(self) -> bytes:
+        return self.payload
+
+
 class _FakeClient:
     """A boto3 client double that counts what the storage asked of it."""
 
-    def __init__(self, head_error: ClientError | None = None, create_error: ClientError | None = None) -> None:
+    def __init__(
+        self,
+        head_error: ClientError | None = None,
+        create_error: ClientError | None = None,
+        get_error: ClientError | None = None,
+        body: bytes = b"",
+        content_type: str = "image/jpeg",
+    ) -> None:
         self.head_error = head_error
         self.create_error = create_error
+        self.get_error = get_error
+        self.body = body
+        self.content_type = content_type
         self.heads = 0
         self.creates = 0
         self.uploads = 0
+        self.gets: list[tuple[str, str]] = []
 
     def head_bucket(self, Bucket: str) -> None:
         self.heads += 1
@@ -47,6 +72,12 @@ class _FakeClient:
 
     def upload_fileobj(self, file_stream, bucket, key, ExtraArgs=None) -> None:
         self.uploads += 1
+
+    def get_object(self, Bucket: str, Key: str) -> dict:
+        self.gets.append((Bucket, Key))
+        if self.get_error is not None:
+            raise self.get_error
+        return {"Body": _FakeBody(self.body), "ContentType": self.content_type}
 
 
 def _storage(
@@ -148,3 +179,69 @@ def test_missing_bucket_classification_covers_the_endpoints(code: str, status: i
 
 def test_a_permission_error_is_not_a_missing_bucket() -> None:
     assert is_missing_bucket_error(_client_error("AccessDenied", 403)) is False
+
+
+# ==========================================
+# READING ONE OBJECT (the thumbnail route)
+# ==========================================
+
+
+def test_parse_s3_uri_splits_bucket_and_key() -> None:
+    assert parse_s3_uri("s3://meu-bucket-teste/thumbnails/thumb_109222.jpg") == (
+        "meu-bucket-teste",
+        "thumbnails/thumb_109222.jpg",
+    )
+
+
+@pytest.mark.parametrize(
+    "uri",
+    ["", "thumb_1.jpg", "https://bucket/key.jpg", "s3://bucket", "s3:///key.jpg"],
+)
+def test_parse_s3_uri_refuses_anything_that_is_not_a_complete_reference(uri: str) -> None:
+    with pytest.raises(ValueError):
+        parse_s3_uri(uri)
+
+
+def test_read_object_returns_the_bytes_and_the_media_type(monkeypatch) -> None:
+    client = _FakeClient(body=b"\xff\xd8jpeg", content_type="image/jpeg")
+    storage = _storage(monkeypatch, client)
+
+    stored = storage.read_object("s3://thumbs/thumbnails/thumb_1.jpg")
+
+    assert stored == (b"\xff\xd8jpeg", "image/jpeg")
+    # The bucket comes from the URI, not from ``S3_BUCKET_NAME``: a row written before the
+    # installation moved still names the object it stored.
+    assert client.gets == [("thumbs", "thumbnails/thumb_1.jpg")]
+
+
+def test_read_object_serves_images_only(monkeypatch) -> None:
+    """Whatever the bucket's metadata says, this origin never answers with a non-image type."""
+    client = _FakeClient(body=b"<html>", content_type="text/html")
+    storage = _storage(monkeypatch, client)
+
+    assert storage.read_object("s3://thumbs/a.jpg") == (b"<html>", "image/jpeg")
+
+
+@pytest.mark.parametrize("code,status", [("NoSuchKey", 404), ("404", 404), ("NoSuchBucket", 404)])
+def test_read_object_answers_none_when_the_object_is_gone(monkeypatch, code: str, status: int) -> None:
+    client = _FakeClient(get_error=_client_error(code, status, "GetObject"))
+    storage = _storage(monkeypatch, client)
+
+    assert storage.read_object("s3://thumbs/gone.jpg") is None
+    assert is_missing_object_error(_client_error(code, status)) is True
+
+
+def test_read_object_raises_when_the_endpoint_is_not_a_missing_object(monkeypatch) -> None:
+    client = _FakeClient(get_error=_client_error("AccessDenied", 403, "GetObject"))
+    storage = _storage(monkeypatch, client)
+
+    with pytest.raises(ObjectStorageError, match="AccessDenied"):
+        storage.read_object("s3://thumbs/a.jpg")
+
+
+def test_read_object_ignores_a_malformed_uri_instead_of_reading_it(monkeypatch) -> None:
+    client = _FakeClient(body=b"bytes")
+    storage = _storage(monkeypatch, client)
+
+    assert storage.read_object("s3://") is None
+    assert client.gets == []

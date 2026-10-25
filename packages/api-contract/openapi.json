@@ -2412,6 +2412,18 @@
             },
             "type": "array"
           },
+          "thumbnail_url": {
+            "description": "Where the browser reads the miniature, or ``None`` when the source had no image to store.\n\nDerived on the server from ``storage_thumbnail_uri`` and **never** assembled by the client:\nthe SPA binds this string to an ``<img>``, so it does not know the bucket and cannot drift\nfrom the route. The bytes themselves come from the authenticated route, which answers 404\nwhen the object is gone; the screen shows \"imagem indisponível\" instead of a broken image.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true
+          },
           "typology": {
             "oneOf": [
               {
@@ -2436,7 +2448,8 @@
         "required": [
           "description_id",
           "original_title",
-          "review_status"
+          "review_status",
+          "thumbnail_url"
         ],
         "title": "DocumentSummary",
         "type": "object"
@@ -11545,6 +11558,77 @@
           }
         },
         "summary": "UnlinkTag",
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/v1/documents/{description_id}/thumbnail": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1DocumentsDescriptionIdThumbnailGetThumbnail",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "description_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The stored miniature, read from the object storage on demand."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetThumbnail",
         "tags": [
           "Documents"
         ]

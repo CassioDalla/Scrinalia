@@ -1,16 +1,25 @@
 from datetime import date
 
-from litestar import Controller, delete, get, patch, post
+from litestar import Controller, Response, delete, get, patch, post
 from litestar.di import NamedDependency, Provide
+from litestar.exceptions import HTTPException
+from litestar.openapi.datastructures import ResponseSpec
 from litestar.params import FromPath, FromQuery
 
-from scrinalia.api.dependencies import provide_current_user, provide_document_service
+from scrinalia.api.dependencies import (
+    ThumbnailReader,
+    provide_current_user,
+    provide_document_service,
+    provide_thumbnail_reader,
+)
 from scrinalia.api.schemas.documents import (
     DocumentUpdateRequest,
     EntityLinkRequest,
     TagLinkRequest,
 )
 from scrinalia.api.security import Access, AuthenticatedUser
+from scrinalia.core.exceptions import DomainException
+from scrinalia.core.logger import logger
 from scrinalia.domains.archive.models import ArchiveReviewStatus
 from scrinalia.domains.archive.schemas import RouteMessageCode
 from scrinalia.domains.archive.schemas.command_schema import (
@@ -19,6 +28,8 @@ from scrinalia.domains.archive.schemas.command_schema import (
     TagLinkCommand,
 )
 from scrinalia.domains.archive.schemas.document_schema import (
+    DOCUMENTS_RESOURCE,
+    THUMBNAIL_SEGMENT,
     DocumentDeletionListResponse,
     DocumentDeletionResponse,
     DocumentListResponse,
@@ -30,7 +41,7 @@ from scrinalia.domains.archive.services.document_service import DocumentService
 
 
 class DocumentController(Controller):
-    path = "/api/v1/documents"
+    path = DOCUMENTS_RESOURCE
     tags = ["Documents"]  # noqa: RUF012
 
     dependencies = {  # noqa: RUF012
@@ -106,6 +117,67 @@ class DocumentController(Controller):
     ) -> DocumentSummary:
         """Returns a specific document with its tags and entities."""
         return document_service.get(description_id)
+
+    @get(
+        THUMBNAIL_SEGMENT,
+        opt={"access": Access.AUTHENTICATED},
+        sync_to_thread=True,
+        dependencies={"thumbnail_reader": Provide(provide_thumbnail_reader, sync_to_thread=False)},
+        responses={
+            200: ResponseSpec(
+                data_container=bytes,
+                media_type="image/jpeg",
+                description="The stored miniature, read from the object storage on demand.",
+                generate_examples=False,
+            )
+        },
+    )
+    def get_thumbnail(
+        self,
+        document_service: NamedDependency[DocumentService],
+        thumbnail_reader: NamedDependency[ThumbnailReader],
+        description_id: FromPath[str],
+    ) -> Response[bytes]:
+        """
+        Serves the miniature's bytes, from the same origin and under the session cookie.
+
+        The browser gets no ``s3://`` URI and no presigned link: the bucket's endpoint is the API's
+        private one, and a link handed to the browser would both expose it and outlive the session
+        that may read it. ``DocumentSummary.thumbnail_url`` advertises this route, so the SPA never
+        assembles the path itself.
+
+        The three answers are the three states the screen draws: **200** the image, **404** when the
+        source had no image or the object is no longer in the bucket (the URI is a reference, not a
+        guarantee), and **503** when the storage itself is unconfigured or unreachable — an operator
+        problem, logged, and not a defect of the request. The body is private for five minutes so a
+        page of miniatures is paid once; a forced worker run can take that long to show.
+        """
+        uri = document_service.get_thumbnail_uri(description_id)
+        if uri is None:
+            raise HTTPException(status_code=404, detail="This description has no stored thumbnail.")
+
+        try:
+            stored = thumbnail_reader.read_object(uri)
+        except DomainException:
+            # ``ObjectStorageError``: credentials, endpoint or bucket, not this description. The
+            # handler is the operator's log line; the browser only needs the placeholder.
+            logger.exception(f"🖼️ The object storage could not read the thumbnail of {description_id}.")
+            raise HTTPException(status_code=503, detail="The object storage is unavailable.") from None
+
+        if stored is None:
+            raise HTTPException(status_code=404, detail="The thumbnail object is not in the bucket.")
+
+        body, media_type = stored
+        return Response(
+            content=body,
+            media_type=media_type,
+            headers={
+                "Cache-Control": "private, max-age=300",
+                # The worker writes JPEG, and a bucket whose metadata says otherwise must not make
+                # this origin serve a type the browser would interpret as markup.
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
 
     @get("/{description_id:str}/revisions", opt={"access": Access.AUTHENTICATED}, sync_to_thread=True)
     def list_revisions(

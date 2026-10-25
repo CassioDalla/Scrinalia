@@ -3,6 +3,7 @@ sources:
   - apps/curator/src/router.tsx
   - apps/curator/src/components/layout/AppShell.tsx
   - apps/curator/src/components/layout/PageHeader.tsx
+  - apps/curator/src/components/description/**
   - apps/curator/src/components/layout/LoginForm.tsx
   - apps/curator/src/components/layout/PasswordChangeForm.tsx
   - apps/curator/src/routes/**
@@ -10,6 +11,7 @@ sources:
   - apps/curator/src/lib/screens.ts
   - apps/curator/src/lib/copy.ts
   - src/scrinalia/api/controllers/**
+  - src/scrinalia/domains/archive/schemas/document_schema.py
   - src/scrinalia/api/schemas/public.py
   - src/scrinalia/api/security.py
   - src/scrinalia/domains/archive/domain/governance.py
@@ -141,7 +143,8 @@ never 403, because a distinct status would confirm that the description exists.
 The public projection is narrower than the curator's, field by field. It carries the ISAD(G) fields
 `original_title`, `final_title`, `document_date`, `reference_code`, `level`, `scope_content`,
 `language_name` and `producers`; the enrichment `typology`, the tags (name), the entities (name and
-type) and the subject categories (name and count); the thumbnail; the branch (`ancestors`) and the
+type) and the subject categories (name and count); the thumbnail — still the stored `s3://` reference,
+because the public route that serves the bytes is #46 (ADR 0017); the branch (`ancestors`) and the
 `children_count`. It deliberately does **not** carry the curation process or the unpublished
 narrative: `review_status`, `is_anomaly`, `anomaly_reasons`, `archivist_notes`, `provenance`,
 `suggested_final_title`, `admin_bio_history`, `admin_archival_history` and `access_conditions`. The
@@ -379,6 +382,16 @@ proposes and is never the stored value: it is derived on read from the `TITLE`-s
 only the archivist writes `final_title`.
 
 #### Descrição
+
+The first card is the **miniature**, and it comes from the API, not from the browser: the read view
+advertises `thumbnail_url` and the SPA binds it to an `<img>`, so the client never assembles a path
+and never talks to the bucket (ADR 0017). The bytes are `GET
+/api/v1/documents/{description_id}/thumbnail` (`AUTHENTICATED`); the route answers 404 when the
+source had no image or the object is no longer in the bucket, and 503 when the storage itself is
+unavailable. Four of the reference collection's 101 descriptions have no source image, so "Sem
+imagem" is a normal state, and a stored URI whose object is gone shows "Imagem indisponível" — never
+a broken-image glyph. The collection list shows the same miniature at 56 px, which is how a
+photograph is recognised without opening the dossier.
 
 The decision is the record itself: any ISAD(G) field, the level, the typology, `access_conditions`
 and `is_published`, with a note on why. The write is `PATCH /api/v1/documents/{description_id}`
