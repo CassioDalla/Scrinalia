@@ -69,7 +69,7 @@ from sqlalchemy.orm import Session
 from scrinalia.core.config import settings
 from scrinalia.core.database import get_db
 from scrinalia.core.logger import logger
-from scrinalia.domains.archive.domain.text_quality import AI_TEXT_COLUMNS
+from scrinalia.domains.archive.domain.text_quality import AI_TEXT_COLUMNS, unknown_ai_columns
 from scrinalia.domains.archive.engines.classification.registry import (
     EngineName,
     PresetName,
@@ -832,7 +832,7 @@ def parse_config(text: str, default_columns: tuple[str, ...], default_threshold:
     except ValueError as error:
         raise SystemExit(f"--config {text!r} has a threshold that is not a number: {parts[3]!r}") from error
 
-    unknown = [column for column in columns if column not in AI_TEXT_COLUMNS]
+    unknown = unknown_ai_columns(columns)
     if unknown:
         raise SystemExit(
             f"--config {text!r} names columns the AI text does not have: {unknown}. Known: {AI_TEXT_COLUMNS}"

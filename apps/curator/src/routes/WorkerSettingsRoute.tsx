@@ -16,11 +16,12 @@ import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Field } from "@/components/ui/Field";
-import { Input, Select, Textarea } from "@/components/ui/Input";
+import { Input, Select } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
+import { WorkerOptionsFields, initialOptionValues, optionsForRequest } from "@/components/workers/WorkerOptionsFields";
 import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
-import { describeConfig, optionsToText, parseOptions } from "@/lib/system";
+import { describeConfig } from "@/lib/system";
 
 /**
  * The persisted configuration of the AI workers: the default each one follows, and its history.
@@ -119,7 +120,9 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
   const [engine, setEngine] = useState(settings.engine_name ?? "");
   const [preset, setPreset] = useState(settings.preset ?? "");
   const [batch, setBatch] = useState(settings.db_batch_size ? String(settings.db_batch_size) : "");
-  const [optionsText, setOptionsText] = useState(optionsToText(settings.options));
+  const [optionValues, setOptionValues] = useState<Record<string, unknown>>(
+    initialOptionValues(settings.options ?? {}, settings.declared_options ?? [], "settings"),
+  );
 
   const revisions = useQuery(queries.systemSettingsRevisions(worker.name));
 
@@ -137,11 +140,9 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
    * precisely to answer it before the write.
    */
   const buildBody = (): WorkerSettingsRequest => {
-    const parsed = parseOptions(optionsText);
-    if (parsed.error) throw new Error(parsed.error);
     const body: WorkerSettingsRequest = {
       db_batch_size: batch ? Number(batch) : null,
-      options: parsed.options ?? {},
+      options: optionsForRequest(optionValues, settings.declared_options ?? [], "settings"),
     };
     if (settings.engine_source === "signature") {
       body.engine_name = engine || null;
@@ -245,23 +246,15 @@ function SettingsForm({ worker, onDone }: { worker: WorkerSettingsItem; onDone: 
         </Field>
       </div>
 
-      <Field
-        label={
-          <>
-            Opções (JSON; ex.: <code>{'{"force": true}'}</code>)
-          </>
-        }
-      >
-        <Textarea
-          rows={2}
-          value={optionsText}
-          onChange={(event) => {
-            setOptionsText(event.target.value);
-            clearPreview();
-          }}
-          placeholder="{}"
-        />
-      </Field>
+      <WorkerOptionsFields
+        settings={settings}
+        mode="settings"
+        values={optionValues}
+        onChange={(next) => {
+          setOptionValues(next);
+          clearPreview();
+        }}
+      />
 
       {save.error ? <ErrorState error={save.error} /> : null}
       {clear.error ? <ErrorState error={clear.error} /> : null}

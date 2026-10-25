@@ -40,6 +40,7 @@ def to_dto(run: WorkerRun) -> WorkerRunDTO:
         engine_name=run.engine_name,
         preset=run.preset,
         config=dict(run.config or {}),
+        options=dict(run.options or {}),
         queued_at=run.queued_at,
         started_at=run.started_at,
         finished_at=run.finished_at,
@@ -64,6 +65,7 @@ class WorkerRunRepository:
         engine_name: str | None,
         preset: str | None,
         config: dict[str, Any],
+        options: dict[str, Any] | None = None,
     ) -> WorkerRunDTO:
         """Accepts a run before it starts, so the panel can show it waiting in the executor."""
         run = WorkerRun(
@@ -74,6 +76,7 @@ class WorkerRunRepository:
             engine_name=engine_name,
             preset=preset,
             config=config,
+            options=options or {},
             queued_at=datetime.now(UTC),
         )
         self.db.add(run)
@@ -89,6 +92,7 @@ class WorkerRunRepository:
         engine_name: str | None,
         preset: str | None,
         config: dict[str, Any],
+        options: dict[str, Any] | None = None,
     ) -> WorkerRunDTO:
         """Opens a run that is already executing (the command line path)."""
         now = datetime.now(UTC)
@@ -100,6 +104,7 @@ class WorkerRunRepository:
             engine_name=engine_name,
             preset=preset,
             config=config,
+            options=options or {},
             queued_at=now,
             started_at=now,
         )
@@ -107,12 +112,19 @@ class WorkerRunRepository:
         self.db.flush()
         return to_dto(run)
 
-    def mark_running(self, run_id: int) -> None:
-        """Moves a queued run to running, which is when the executor's thread actually picks it up."""
+    def mark_running(self, run_id: int, *, options: dict[str, Any] | None = None) -> None:
+        """
+        Moves a queued run to running, which is when the executor's thread actually picks it up.
+
+        The effective options arrive with it when the run was queued by the panel: the request never
+        saw them, because a worker resolves the default of a column list from its own runner
+        dataclass, and that resolution happens here, at the start of the run (#120).
+        """
+        values: dict[str, Any] = {"status": WorkerRunStatus.RUNNING, "started_at": datetime.now(UTC)}
+        if options is not None:
+            values["options"] = options
         self.db.execute(
-            update(WorkerRun)
-            .where(WorkerRun.id == run_id, WorkerRun.status == WorkerRunStatus.QUEUED)
-            .values(status=WorkerRunStatus.RUNNING, started_at=datetime.now(UTC))
+            update(WorkerRun).where(WorkerRun.id == run_id, WorkerRun.status == WorkerRunStatus.QUEUED).values(**values)
         )
         self.db.flush()
 

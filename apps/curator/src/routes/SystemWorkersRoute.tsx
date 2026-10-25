@@ -15,6 +15,7 @@ import { Disclosure } from "@/components/ui/Disclosure";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import { Notice } from "@/components/ui/Notice";
+import { WorkerOptionsFields, initialOptionValues, optionsForRequest } from "@/components/workers/WorkerOptionsFields";
 import { PageBody } from "@/components/layout/PageBody";
 import { ACTION } from "@/lib/copy";
 import { formatCount, formatDateTime } from "@/lib/format";
@@ -23,7 +24,6 @@ import {
   formatDuration,
   hasActiveRun,
   isActiveRun,
-  optionsToText,
   parseOptions,
   RUN_STATUS_LABEL,
   RUN_STATUS_TONE,
@@ -239,17 +239,21 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
   const [engine, setEngine] = useState(settings.engine_name ?? "");
   const [preset, setPreset] = useState(settings.preset ?? "");
   const [batch, setBatch] = useState(settings.db_batch_size ? String(settings.db_batch_size) : "");
-  const [optionsText, setOptionsText] = useState(optionsToText(settings.options));
+  const [optionValues, setOptionValues] = useState<Record<string, unknown>>(
+    initialOptionValues(settings.options ?? {}, settings.declared_options ?? [], "run"),
+  );
+  const [engineText, setEngineText] = useState("");
 
   const presets = (settings.available_engines ?? []).find((item) => item.name === engine)?.presets ?? [];
 
   const run = useMutation({
     mutationFn: () => {
-      const parsed = parseOptions(optionsText);
+      const parsed = parseOptions(engineText);
       if (parsed.error) throw new Error(parsed.error);
       const body: WorkerRunRequest = {
         db_batch_size: batch ? Number(batch) : null,
-        options: parsed.options ?? {},
+        options: optionsForRequest(optionValues, settings.declared_options ?? [], "run"),
+        engine_options: parsed.options ?? {},
       };
       if (settings.engine_source === "signature") {
         body.engine_name = engine || null;
@@ -321,15 +325,40 @@ function RunPanel({ worker, onDone }: { worker: WorkerStatus; onDone: (message: 
           </label>
         </div>
 
-        <label className="flex flex-col gap-1 text-xs">
-          Opções (JSON; ex.: {"{\"force\": true}"})
-          <Textarea
-            rows={2}
-            value={optionsText}
-            onChange={(event) => setOptionsText(event.target.value)}
-            placeholder="{}"
-          />
-        </label>
+        <WorkerOptionsFields
+          settings={settings}
+          mode="run"
+          values={optionValues}
+          onChange={setOptionValues}
+        />
+
+        {/*
+          The one free-form box left in the screen, and it is deliberately here: the pass-through is
+          for whoever knows the library, it is never persisted, and the contract enumerates the keys
+          the axis already hands the engine — a value outside that list is the engine's to refuse.
+        */}
+        <Disclosure
+          toggleLabel="Repasses ao engine (avançado)"
+          className="bg-black/[0.02]"
+          header={
+            <span className="text-xs text-(--color-muted)">
+              Parâmetros crus ao construtor do engine — valem só para esta execução e não viram padrão.
+              {(settings.engine_option_names ?? []).length > 0
+                ? ` Este eixo já repassa: ${(settings.engine_option_names ?? []).join(", ")}.`
+                : ""}
+            </span>
+          }
+        >
+          <label className="flex flex-col gap-1 text-xs">
+            Repasses (JSON; ex.: {"{\"device\": \"cpu\"}"})
+            <Textarea
+              rows={2}
+              value={engineText}
+              onChange={(event) => setEngineText(event.target.value)}
+              placeholder="{}"
+            />
+          </label>
+        </Disclosure>
 
         {run.error ? <ErrorState error={run.error} /> : null}
 

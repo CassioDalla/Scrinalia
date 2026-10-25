@@ -38,6 +38,11 @@ def resolved_threshold(config: MacroCategoryRunnerConfig | None, confidence_thre
     return resolved.confidence_threshold if confidence_threshold is None else float(confidence_threshold)
 
 
+def effective_options(confidence_threshold: float | None = None, **_options: Any) -> dict[str, Any]:
+    """The floor a run really uses, through ``resolved_threshold`` (#120)."""
+    return {"confidence_threshold": resolved_threshold(None, confidence_threshold)}
+
+
 def producer_identity(
     *,
     engine_name: EngineName,

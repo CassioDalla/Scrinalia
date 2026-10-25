@@ -139,6 +139,17 @@ def resolved_columns(config: NerRunnerConfig | None, columns_to_extract: list[st
     return list(columns_to_extract or resolved.columns_to_extract)
 
 
+def effective_options(columns_to_extract: list[str] | None = None, **_options: Any) -> dict[str, Any]:
+    """
+    The option values a run really uses, through the same helper ``execute`` calls.
+
+    Named by the catalogue (``option_resolver``) so the run ledger records the columns the run read
+    and not only the ones somebody typed (#120). ``config`` never reaches here — it is a runner
+    dataclass and the write path refuses it — so the resolution is the code default.
+    """
+    return {"columns_to_extract": resolved_columns(None, columns_to_extract)}
+
+
 def producer_identity(
     *,
     engine_name: ExtractEngineName,

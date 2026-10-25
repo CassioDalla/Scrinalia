@@ -4,6 +4,7 @@ import pytest
 
 from scrinalia.core.author import Author
 from scrinalia.core.runner_config import TypologyRunnerConfig
+from scrinalia.domains.archive.domain.text_quality import AI_TEXT_COLUMNS
 from scrinalia.domains.archive.exceptions import InvalidWorkerSettingsError, WorkerNotFoundError
 from scrinalia.domains.archive.models.operations import WorkerSetting
 from scrinalia.domains.archive.repository import TypologyRepository
@@ -269,3 +270,115 @@ def test_a_worker_whose_ledger_is_not_a_stamp_has_no_breakdown(service) -> None:
 
     assert thumbnail.stamp_breakdown is None
     assert thumbnail.processed == 0
+
+
+# --- the declared options (#120) ---------------------------------------------------------------
+
+
+def test_the_settings_read_publishes_the_options_the_worker_accepts(service) -> None:
+    """
+    The screen renders a control per declared option, so the read has to say what they are.
+
+    The columns' ``choices`` are ``AI_TEXT_COLUMNS`` — the same tuple the SQL composition and the
+    benches read — not a list typed into the screen.
+    """
+    ner = next(worker for worker in service.list_workers().workers if worker.name == "ner")
+    options = {option.name: option for option in ner.settings.declared_options}
+
+    assert set(options) == {"columns_to_extract", "force", "limit"}
+    assert options["columns_to_extract"].kind == "columns"
+    assert options["columns_to_extract"].choices == list(AI_TEXT_COLUMNS)
+    assert options["force"].kind == "boolean"
+    assert options["limit"].kind == "integer"
+    assert options["limit"].scope == "run"
+    assert set(ner.settings.engine_option_names) == {"model", "device", "disable"}
+
+
+def test_the_settings_read_offers_no_option_to_a_worker_that_declares_none(service) -> None:
+    transfer = next(worker for worker in service.list_workers().workers if worker.name == "transfer")
+
+    assert transfer.settings.declared_options == []
+    assert transfer.settings.engine_option_names == []
+
+
+def test_a_mistyped_column_is_refused_at_the_settings_write(service) -> None:
+    with pytest.raises(InvalidWorkerSettingsError, match="admin_bio_historia"):
+        service.update_settings(
+            "typology", WorkerSettingsRequest(options={"columns_to_classify": ["admin_bio_historia"]})
+        )
+
+
+def test_an_unknown_option_name_is_refused_at_the_settings_write(service) -> None:
+    with pytest.raises(InvalidWorkerSettingsError, match="colunas_to_classify"):
+        service.update_settings("typology", WorkerSettingsRequest(options={"colunas_to_classify": ["original_title"]}))
+
+
+def test_a_run_cap_is_refused_as_a_persisted_default(service) -> None:
+    with pytest.raises(InvalidWorkerSettingsError, match="execução"):
+        service.update_settings("ner", WorkerSettingsRequest(options={"limit": 10}))
+
+    # The same body is refused by the preview, because the preview answers what saving it would cost.
+    with pytest.raises(InvalidWorkerSettingsError, match="execução"):
+        service.preview_queue("ner", WorkerSettingsRequest(options={"limit": 10}))
+
+
+def test_a_default_with_the_columns_and_the_floor_round_trips(db_session, service) -> None:
+    service.update_settings(
+        "typology",
+        WorkerSettingsRequest(options={"columns_to_classify": ["scope_content"], "confidence_threshold": 0.9}),
+    )
+
+    typology = next(worker for worker in service.list_workers().workers if worker.name == "typology")
+    assert typology.settings.options == {
+        "columns_to_classify": ["scope_content"],
+        "confidence_threshold": 0.9,
+    }
+
+
+def test_a_stale_row_with_a_mistyped_column_is_ignored_with_a_note(db_session, service) -> None:
+    """
+    A row written before the validation is not a new mistake: it does not take the panel down.
+
+    The typo used to make ``count_pending`` raise, and the panel swallowed the error into "a contagem
+    falhou". The read now drops the value and says why, so the screen can be saved again.
+    """
+    db_session.add(
+        WorkerSetting(
+            worker_name="typology",
+            engine_name=None,
+            preset=None,
+            db_batch_size=None,
+            options={"columns_to_classify": ["admin_bio_historia"]},
+            updated_by="curador",
+        )
+    )
+    db_session.flush()
+
+    typology = next(worker for worker in service.list_workers().workers if worker.name == "typology")
+
+    assert typology.settings.note is not None
+    assert "admin_bio_historia" in typology.settings.note
+    assert "ignorado" in typology.settings.note
+    # The queue is counted with the code default instead of failing.
+    assert typology.pending is not None
+
+
+def test_a_stale_row_with_a_run_cap_or_a_pass_through_says_what_happens(db_session, service) -> None:
+    db_session.add(
+        WorkerSetting(
+            worker_name="ner",
+            engine_name=None,
+            preset=None,
+            db_batch_size=None,
+            options={"limit": 10, "device": "cpu"},
+            updated_by="curador",
+        )
+    )
+    db_session.flush()
+
+    ner = next(worker for worker in service.list_workers().workers if worker.name == "ner")
+
+    assert ner.settings.note is not None
+    assert "limit" in ner.settings.note
+    assert "device" in ner.settings.note
+    assert "por execução" in ner.settings.note

@@ -83,6 +83,7 @@ class WorkerRunLedger:
         engine_name: str | None,
         preset: str | None,
         config: dict[str, Any],
+        options: dict[str, Any] | None = None,
     ) -> int | None:
         """Opens a run that is already executing. Returns its id, or ``None`` if the ledger failed."""
         try:
@@ -94,6 +95,7 @@ class WorkerRunLedger:
                     engine_name=engine_name,
                     preset=preset,
                     config=config,
+                    options=options,
                 )
                 db.commit()
                 return run.run_id
@@ -105,11 +107,11 @@ class WorkerRunLedger:
             logger.error(f"⚠️ Não foi possível abrir o registro da execução de '{worker_name}': {exc}")
             return None
 
-    def mark_running(self, run_id: int) -> None:
+    def mark_running(self, run_id: int, *, options: dict[str, Any] | None = None) -> None:
         """Moves a queued row to running, which is when the executor's thread really starts."""
         try:
             with self._session_factory() as db:
-                WorkerRunRepository(db).mark_running(run_id)
+                WorkerRunRepository(db).mark_running(run_id, options=options)
                 db.commit()
         except Exception as exc:
             logger.error(f"⚠️ Não foi possível marcar a execução {run_id} como em andamento: {exc}")

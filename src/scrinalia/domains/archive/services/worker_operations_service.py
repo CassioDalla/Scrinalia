@@ -27,6 +27,7 @@ from scrinalia.domains.archive.schemas.system_schema import (
     SystemWorkerSettingsResponse,
     SystemWorkersResponse,
     WorkerEngineDTO,
+    WorkerOptionDTO,
     WorkerQueuePreviewDTO,
     WorkerSettingsDTO,
     WorkerSettingsItemDTO,
@@ -43,13 +44,15 @@ from scrinalia.domains.archive.workers.catalogue import (
     count_pending,
     count_processed,
     describe_axis_engines,
+    engine_option_names,
     worker_module,
 )
 from scrinalia.domains.archive.workers.configuration import (
     ResolvedWorkerConfig,
+    declared_options,
     resolve_configuration,
     validate_engine_choice,
-    validate_options,
+    validate_settings_options,
 )
 
 
@@ -149,6 +152,9 @@ class WorkerOperationsService:
         signature default), so the preview cannot disagree with the run it announces.
         """
         spec = self._spec(worker_name)
+        # The body is a **settings** body: the preview answers what saving it would cost, so it
+        # refuses what the save refuses (a run-only option has no default to preview).
+        validate_settings_options(spec, request.options)
         setting = self.settings.get(worker_name)
         resolved = resolve_configuration(
             self.db,
@@ -169,7 +175,7 @@ class WorkerOperationsService:
     ) -> WorkerSettingsDTO:
         spec = self._spec(worker_name)
         validate_engine_choice(spec, request.engine_name, request.preset)
-        validate_options(spec, request.options)
+        validate_settings_options(spec, request.options)
 
         self.settings.upsert(
             worker_name,
@@ -223,8 +229,23 @@ class WorkerOperationsService:
             engine_source=spec.engine_source,
             config=resolved.config,
             available_engines=self._available_engines(spec),
+            declared_options=self._declared_options(spec),
+            engine_option_names=list(engine_option_names(spec)),
             note=self._note(spec, resolved),
         )
+
+    def _declared_options(self, spec: WorkerSpec) -> list[WorkerOptionDTO]:
+        """The options the worker declares, as the screen renders them."""
+        return [
+            WorkerOptionDTO(
+                name=option.name,
+                kind=option.kind,
+                scope=option.scope,
+                default=option.default,
+                choices=list(option.choices),
+            )
+            for option in declared_options(spec)
+        ]
 
     def _available_engines(self, spec: WorkerSpec) -> list[WorkerEngineDTO]:
         return describe_axis_engines(spec.axis) if spec.axis is not None else []

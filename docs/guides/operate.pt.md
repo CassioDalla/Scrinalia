@@ -144,7 +144,7 @@ repositório:
 
 ```bash
 uv run python -m scrinalia.domains.archive.workers.runner <name> \
-    [--engine X --preset Y --batch N --limit N --option key=value --by "quem"]
+    [--engine X --preset Y --batch N --limit N --option key=value --engine-option key=value --by "quem"]
 ```
 
 Por exemplo:
@@ -161,9 +161,9 @@ uv run python -m scrinalia.domains.archive.workers.runner typology \
 # Força o embedding de toda descrição, ignorando o hash do texto.
 uv run python -m scrinalia.domains.archive.workers.runner embedding --option force=true
 
-# Sobrescreve o device da engine só nesta execução; o worker repassa a opção para a engine.
+# Sobrescreve o device da engine só nesta execução: um repasse ao construtor da engine.
 uv run python -m scrinalia.domains.archive.workers.runner ner \
-    --engine spacy_ner --option device=cpu --by "ana"
+    --engine spacy_ner --engine-option device=cpu --by "ana"
 ```
 
 | Flag | Significado |
@@ -173,26 +173,41 @@ uv run python -m scrinalia.domains.archive.workers.runner ner \
 | `--preset Y` | um preset desse eixo, por exemplo `gpu`, `lemmatizer`, `cpu_local`, `gpu_cloud`, `xlm_roberta_local`, `gemma_4b_local`, `multilingual_minilm` |
 | `--batch N` | tamanho do lote por transação, repassado aos workers que declaram `db_batch_size`; um worker sem isso registra no log que o valor foi ignorado |
 | `--limit N` | teto de unidades desta execução, para os workers que declaram `limit` (`embedding`, `macro-category`, `ner`, `quality-validator`, `thumbnail`, `typology`); recusado nos demais, porque um teto que não faz nada em silêncio é pior do que nenhum teto. Ele conta tentativas, então uma fila de falhas ainda termina, e nunca é persistido |
-| `--option key=value` | parâmetro extra, repetível; `key` sem `=` é recusado |
+| `--option key=value` | uma opção **declarada** do worker, repetível; uma chave que o worker não declara é recusada com a lista de opções dele, e `key` sem `=` é recusado |
+| `--engine-option key=value` | repasse cru ao construtor da engine, repetível, para uma execução; nunca persistido, e as chaves não são enumeradas (a engine valida o valor) |
 | `--by "quem"` | texto livre com quem está executando; a CLI roda no host e não tem sessão, então isso continua sendo um nome sem conta por trás |
 
-O `--option` é convertido pelo tipo que o worker declara para aquela opção na assinatura do
-`execute`: `true`/`false` viram booleanos, um default inteiro faz o valor virar `int`, um default
+O `--option` é validado contra a assinatura do `execute` do worker e convertido pelo tipo que ele
+declara ali: `true`/`false` viram booleanos, um default inteiro faz o valor virar `int`, um default
 float faz virar `float`. `--option confidence_threshold=0.6` portanto chega como número e alcança a
 comparação; um valor que não pode ser lido (`0.6x` para um float, `talvez` para um booleano) é
-recusado com uma frase antes de a execução começar, em vez de falhar no fundo dela. Uma opção cujo
-default declarado é uma lista ou um objeto também é recusada: uma string seria repassada e o worker a
-iteraria caractere por caractere. A flag é validada contra a assinatura do `execute` do worker: uma
-opção que o worker não declara é recusada, a menos que o worker termine em `**engine_kwargs`, que é a
-forma documentada de sobrescrever `device`, `host` e parâmetros parecidos da engine em uma execução.
-O `conflict-judge` não declara `**engine_kwargs`, então o host dele não é um `--option`: ele vem da
-configuração `OLLAMA_HOST_URL` (ou do default local).
+recusado com uma frase antes de a execução começar, em vez de falhar no fundo dela. Uma chave que o
+worker não declara é recusada: `--option colunas_to_classify=…` — o typo medido na #120 — vira uma
+frase de `422` com as opções que o worker aceita, e não um padrão que falha depois no contador da
+fila. Uma lista de colunas é conferida contra as colunas que o texto da IA tem (abaixo).
 
-Duas coisas são sempre recusadas:
+O `--engine-option` é a **exceção nomeada**: vai direto ao construtor da engine, para quem conhece a
+biblioteca. Vale por execução e nunca é persistido, então um ajuste não vira padrão da instalação; as
+chaves que o próprio eixo repassa são oferecidas como dica (`model`, `device`, `host`, `batch_size`,
+`dimensions`, `disable`), e uma chave fora delas continua sendo repassada — a engine é quem valida o
+valor. Só um worker cujo `execute` termina em `**engine_kwargs` tem a porta; `transfer`, `cleaning`,
+`thumbnail` e `conflict-judge` não declaram repasse, e a execução é recusada se um for dado. O
+`conflict-judge`, portanto, tira o host da configuração `OLLAMA_HOST_URL` (ou do default local), não
+de uma flag.
 
-- `config` é recusado porque é um dataclass do runner (`NerRunnerConfig` e os irmãos), não um valor
-  que uma linha de comando ou um corpo JSON possa carregar; um dicionário chegando ao `execute`
-  falharia com erro de atributo em vez de uma frase. Passe os campos individuais.
+Cinco coisas são sempre recusadas:
+
+- `config` é um dataclass do runner (`NerRunnerConfig` e os irmãos), não um valor que uma linha de
+  comando ou um corpo JSON possa carregar; um dicionário chegando ao `execute` falharia com erro de
+  atributo em vez de uma frase. Passe os campos individuais.
+- `source` e `storage` são **portas** (a origem do staging, o armazenamento de objetos), e
+  `db`/`db_session` é a sessão que o runner abre: nenhuma delas viaja por JSON.
+- `engine_name`, `preset` e `db_batch_size` têm campo próprio. São recusados dentro de `options`
+  porque o runner aplica o mapa de extras *depois* do argumento resolvido, e um valor ali era uma
+  segunda definição silenciosa do mesmo campo.
+- `limit` é recusado como **padrão persistido** (`PUT …/settings`): ele limita uma execução, e um teto
+  que sobrevivesse ao comando pararia toda execução seguinte em N unidades. `force` é um padrão
+  legítimo — é o caminho de volta de uma marca que uma queda passageira deixou.
 - `--engine`/`--preset` só fazem sentido para os workers cuja configuração vem da própria assinatura
   (`ner`, `typology`, `conflict-judge`, `macro-category`, `embedding`). `transfer`, `cleaning` e
   `thumbnail` não carregam modelo, e `quality-validator` tira a engine da regra `LLM_CHECK` ativa.
@@ -281,8 +296,9 @@ idempotente.
 `GET /api/v1/system/workers` é a forma de ver a configuração efetiva sem rodar nada. Cada worker
 traz o `engine_name`, o `preset`, o `db_batch_size` e as `options` resolvidos, o `overridden` (se
 existe linha — um campo pode ser `None` de propósito), o dicionário `config` resolvido, os
-`available_engines` com seus presets e uma `note`. Esse dicionário vem do `describe_config` de cada
-registro de engine, o **gêmeo somente-leitura do `get_engine`**: resolve o preset e os overrides e
+`available_engines` com seus presets, o `declared_options` que o worker aceita e o
+`engine_option_names` que o eixo dele sabe repassar, e uma `note`. Esse dicionário vem do
+`describe_config` de cada registro de engine, o **gêmeo somente-leitura do `get_engine`**: resolve o preset e os overrides e
 devolve o dicionário sem instanciar a engine, então o painel consegue responder "com qual modelo
 isto vai rodar?" para um worker que nunca rodou — sem carregar o modelo.
 
@@ -290,6 +306,32 @@ Para `quality-validator`, o `engine_source` é `llm_check_rule`: a engine e o pr
 `LLM_CHECK` ativa, e as rotas de configuração e de disparo recusam defini-las ali, porque um segundo
 lugar para escolher a mesma engine seria uma segunda fonte de verdade. Sem regra ativa, o worker roda
 apenas a validação determinística, e o painel diz isso na `note`.
+
+### O que um worker aceita
+
+O que um worker aceita é a assinatura do `execute` dele, e a API publica isso: `GET
+/api/v1/system/workers` e `/workers/settings` trazem `declared_options` — o nome, o tipo de controle
+(`boolean`, `integer`, `number`, `text`, `list`, `columns`), o default da assinatura, se a opção é um
+padrão persistido ou de uma execução (`scope: "run"` para `limit`) e, para uma lista de colunas, os
+valores que ela admite. As telas de configuração e de execução renderizam essa lista como campos, então
+o formulário não pode oferecer uma chave que a escrita recusaria, e o arquivista não precisa saber que
+o parâmetro se chama `columns_to_classify`.
+
+Dois nomes de opção carregam o texto que um worker de IA lê: **`columns_to_extract`** (`ner`) e
+**`columns_to_classify`** (`typology`). Os valores deles são as colunas de `AI_TEXT_COLUMNS`:
+
+`original_title`, `final_title`, `scope_content`, `admin_bio_history`, `provenance`.
+
+Essa tupla é a definição única do que a IA pode ler: é o que a composição em SQL compõe, o que os
+benches de avaliação conferem em `--config engine:preset:colunas` e o que a escrita confere na opção.
+Um nome fora dela é recusado quando o padrão é salvo, com as conhecidas na frase; uma lista vazia
+também é recusada, porque um worker sem coluna não tem texto para ler. Deixar o campo vazio mantém o
+default do código (`NerRunnerConfig.columns_to_extract`,
+`TypologyRunnerConfig.columns_to_classify`), que é o valor que o ledger da execução registra.
+
+Uma linha salva antes desta regra não é um erro novo: a leitura ignora a opção que não consegue mais
+honrar e põe o motivo em `note` ("Padrão salvo ignorado — …"), então o painel responde com o default
+do código em vez de derrubar o contador da fila. Salvar a tela de novo cura a linha.
 
 ### Testar uma configuração antes de salvá-la
 
@@ -365,7 +407,15 @@ timeout de TCP do sistema operacional.
 `archive_worker_runs` tem uma linha por execução, tanto da CLI quanto do painel: o ledger é sobre o
 worker, não sobre o botão que o iniciou. Uma linha carrega `worker_name`, `status`, `trigger` (`CLI`
 ou `API`), `requested_by` (e `requested_by_user_id`), `engine_name`, `preset`, o `config` resolvido,
-`queued_at`, `started_at`, `finished_at`, `duration_ms`, `error` e o `error_fingerprint` gerado.
+as **`options` efetivas do worker**, `queued_at`, `started_at`, `finished_at`, `duration_ms`, `error`
+e o `error_fingerprint` gerado.
+
+O `config` responde "com qual modelo?" e as `options` respondem "sobre qual texto, com qual limiar?" —
+as duas metades de uma execução. As `options` são resolvidas **quando a execução começa**, porque o
+default de uma lista de colunas vive no dataclass do runner do próprio worker e só ele sabe quais
+colunas leu; uma linha enfileirada e ainda não iniciada, ou escrita antes de a coluna existir, carrega
+o default vazio e a tela do ledger diz "opções não registradas nesta execução". A identidade do
+produtor faz o hash dos mesmos valores no carimbo, então a linha é a metade legível desse hash.
 
 Os status são `QUEUED`, `RUNNING`, `SUCCESS`, `FAILED` e `INTERRUPTED`. A linha `QUEUED` é comitada
 pela **sessão própria do ledger antes** de a thread do executor receber o id; uma linha ainda dentro
@@ -597,7 +647,8 @@ vazar. O *Esqueci minha senha* da tela declara esses dois caminhos e não promet
 Duas tabelas respondem a duas perguntas diferentes, e um número tirado da tabela errada engana.
 
 `execution_log` diz **se um worker passou por uma unidade**: é o carimbo de onde a fila é construída.
-`archive_worker_runs` diz **o que rodou, quando, com que engine e preset, quanto demorou e como
+`archive_worker_runs` diz **o que rodou, quando, com que engine e preset, sobre quais opções, quanto
+demorou e como
 terminou** (`SUCCESS`, `FAILED`, `INTERRUPTED`). Uma contagem de carimbo vazia é um fato sobre a fila;
 a linha no ledger é o fato sobre a execução que explica a fila — uma etapa em zero e uma execução
 interrompida na subida são o mesmo evento visto de duas tabelas.

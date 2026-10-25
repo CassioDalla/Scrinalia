@@ -86,7 +86,8 @@ class WorkerRun(Base):
     One execution of a worker, from the queue to the outcome.
 
     ``config`` is the **resolved** configuration (the preset already merged with the overrides), so
-    the row keeps its meaning when a preset changes in code. ``error`` is the exception text,
+    the row keeps its meaning when a preset changes in code; ``options`` is the resolved set of the
+    worker's own options, so "which columns did this run read?" is a value and not a fingerprint. ``error`` is the exception text,
     prefixed with its class (``ValueError: ...``) and truncated: enough to act on, not a stack trace
     storage. ``error_fingerprint`` is the *root cause* of that text, computed by PostgreSQL — see
     the column below.
@@ -109,6 +110,11 @@ class WorkerRun(Base):
     engine_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
     preset: Mapped[str | None] = mapped_column(String(50), nullable=True)
     config: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict, server_default=_EMPTY_JSON)
+    #: The **effective worker options** of the run (the columns it read, the floor it applied),
+    #: resolved when the run started. ``config`` beside it is the engine's resolved configuration, so
+    #: the row answers "with which model?" and "over which text?" without opening a hash (#120).
+    #: Rows written before the column existed keep the empty default, and the panel says so.
+    options: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict, server_default=_EMPTY_JSON)
     queued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -1009,6 +1009,14 @@ write is `OPERATE`:
   guarantee is the partial unique index in the database, and the screen only avoids offering what
   the database would reject.
 
+The run panel's fields come from the contract, not from a text box: `declared_options` names the
+options the worker accepts and, for a column list, the columns the AI text has
+(`original_title`, `final_title`, `scope_content`, `admin_bio_history`, `provenance`), so the screen
+renders a checkbox, a number or the columns themselves. The one free-form block is *Repasses ao
+engine (avançado)*: a raw pass-through to the engine constructor, per run and never persisted, with
+the keys the axis already passes (`model`, `device`, `host`, ...) as a hint. It is the named
+exception of #120 — it exists for whoever knows the library, and the engine validates the value.
+
 The panel itself offers no undo for a run. The reversibility of a run is the reversibility of what it
 wrote — a merge undo, a materialisation undo, a conflict undo — and a worker that stamps its queue
 does not redo its work just because it is run again. The panel marks **four** workers as outside the
@@ -1021,7 +1029,9 @@ staging record, a pair, a tag).
 
 The run ledger, read-only: one row per execution, from the command line and from the panel, carrying
 the **resolved** configuration the run used (so it stays readable after a preset changes in code),
-the duration, the outcome and who asked. Above it, the failures of the last 30 days grouped by root
+the **effective worker options** (the columns it read, the floor, the cap — resolved when the run
+started, so "which columns did run #N read?" has an answer), the duration, the outcome and who
+asked. A row older than the options column says "opções não registradas nesta execução". Above it, the failures of the last 30 days grouped by root
 cause (`GET /api/v1/system/failures`), which answer the question the ledger cannot: forty rows saying
 the same sentence are one cause. Clicking a group filters the ledger below instead of opening a
 second list, and a failure's reference is what is searched in the log.
@@ -1070,8 +1080,12 @@ revisions — both writes `OPERATE`:
 
 - **Salvar padrão** — `PUT /api/v1/system/workers/{worker_name}/settings` writes the default. It is
   partial on purpose: an empty field keeps following the code, and the precedence is unchanged —
-  `explicit argument > the archive_worker_settings row > the signature default`. `config` is still
-  refused as an option, because it is a runner dataclass and not a JSON value.
+  `explicit argument > the archive_worker_settings row > the signature default`. The form renders one
+  control per declared option (a column list as the columns the AI text has); `limit` is absent
+  because a cap belongs to one execution, and `config` is still refused as an option, because it is
+  a runner dataclass and not a JSON value. `engine_name`, `preset` and `db_batch_size` have fields of
+  their own and are refused inside the options, which would otherwise be a second definition of the
+  same field.
 - **Conferir impacto** — `POST /api/v1/system/workers/{worker_name}/queue/preview` answers how many
   units the configuration the form is showing would leave in the queue, and writes nothing. It exists
   because the queue is keyed on the producer identity: saving another engine, preset or threshold
@@ -1088,6 +1102,11 @@ engine/preset choice here: a second place to choose the same engine would be a s
 truth, so the card says where it lives and offers only the run parameters. The screen reads
 `GET /api/v1/system/workers/settings`, which is not the panel's `GET /api/v1/system/workers` — the
 panel counts nine queues, and this screen shows none of them.
+
+A row written before the option validation is not a new mistake: the read ignores the option it can
+no longer honour and explains it in the card's note ("Padrão salvo ignorado — …"), so the screen
+answers with the code default instead of failing the queue counter. Saving the form again writes
+only the fields it shows, which heals the row.
 
 ### Usuários — `/configuracoes/usuarios`
 

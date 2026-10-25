@@ -8308,6 +8308,48 @@
         "title": "WorkerEngineDTO",
         "type": "object"
       },
+      "WorkerOptionDTO": {
+        "properties": {
+          "choices": {
+            "description": "Os valores admitidos quando kind='columns': as colunas que o texto da IA tem.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "default": {},
+          "kind": {
+            "enum": [
+              "boolean",
+              "integer",
+              "number",
+              "text",
+              "list",
+              "columns"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "default": "both",
+            "description": "'run' é uma opção de uma execução (o cap 'limit'): não aparece no formulário de padrão.",
+            "enum": [
+              "setting",
+              "run",
+              "both"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name"
+        ],
+        "title": "WorkerOptionDTO",
+        "type": "object"
+      },
       "WorkerPresetDTO": {
         "properties": {
           "config": {
@@ -8416,6 +8458,11 @@
                 "type": "null"
               }
             ]
+          },
+          "options": {
+            "additionalProperties": {},
+            "description": "Opções efetivas do worker nesta execução (as colunas lidas, o limite de confiança), resolvidas quando a execução começou. Vazio numa linha antiga, ou numa que ainda não começou.",
+            "type": "object"
           },
           "preset": {
             "oneOf": [
@@ -8529,8 +8576,14 @@
               }
             ]
           },
+          "engine_options": {
+            "additionalProperties": {},
+            "description": "Repasse cru ao construtor do engine, para quem conhece a biblioteca. Por execução: não vira padrão. Uma chave de opção declarada aqui é recusada.",
+            "type": "object"
+          },
           "options": {
             "additionalProperties": {},
+            "description": "As opções declaradas pelo worker; uma chave que ele não declara é recusada.",
             "type": "object"
           },
           "preset": {
@@ -8591,6 +8644,13 @@
               }
             ]
           },
+          "declared_options": {
+            "description": "As opções que este worker aceita, derivadas da assinatura do execute.",
+            "items": {
+              "$ref": "#/components/schemas/WorkerOptionDTO"
+            },
+            "type": "array"
+          },
           "engine_name": {
             "oneOf": [
               {
@@ -8600,6 +8660,13 @@
                 "type": "null"
               }
             ]
+          },
+          "engine_option_names": {
+            "description": "As chaves que o eixo repassa ao construtor do engine (model, device, host, ...). É a dica do bloco avançado; os valores seguem os do próprio motor.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "engine_source": {
             "enum": [

@@ -15,6 +15,7 @@ import { cn } from "@/lib/cn";
 import { asEnum, asNumber, asString } from "@/lib/search";
 import {
   describeConfig,
+  describeOptions,
   FAILURE_SOURCE_LABEL,
   formatDuration,
   isActiveRun,
@@ -192,6 +193,13 @@ export function SystemRunsRoute() {
                     {run.engine_name ? ` · ${describeConfig(run.config)}` : ""}
                     {run.requested_by ? ` · pedido por ${run.requested_by}` : ""}
                   </p>
+
+                  {/*
+                    What the run actually read (#120): the columns, the floor, the cap. It sits on
+                    its own line because it is the answer to a different question than "with which
+                    model?", and a row older than the column says so instead of guessing.
+                  */}
+                  <p className="font-mono text-[11px] text-(--color-muted)">{describeOptions(run.options)}</p>
 
                   {run.error ? <p className="text-xs text-(--color-danger)">{run.error}</p> : null}
                 </CardBody>

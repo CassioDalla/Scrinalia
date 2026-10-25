@@ -70,7 +70,7 @@ from scrinalia.core.config import settings
 from scrinalia.core.database import get_db
 from scrinalia.core.logger import logger
 from scrinalia.core.runner_config import NerRunnerConfig
-from scrinalia.domains.archive.domain.text_quality import AI_TEXT_COLUMNS
+from scrinalia.domains.archive.domain.text_quality import AI_TEXT_COLUMNS, unknown_ai_columns
 from scrinalia.domains.archive.engines.NER.registry import (
     EngineName,
     PresetName,
@@ -541,7 +541,7 @@ def parse_config(text: str, default_columns: tuple[str, ...]) -> BenchConfig:
         if len(parts) > 2 and parts[2].strip()
         else default_columns
     )
-    unknown = [column for column in columns if column not in AI_TEXT_COLUMNS]
+    unknown = unknown_ai_columns(columns)
     if unknown:
         raise SystemExit(
             f"--config {text!r} names columns the AI text does not have: {unknown}. Known: {AI_TEXT_COLUMNS}"
