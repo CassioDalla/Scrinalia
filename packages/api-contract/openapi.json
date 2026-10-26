@@ -2457,6 +2457,16 @@
               }
             ]
           },
+          "accruals": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "admin_archival_history": {
             "oneOf": [
               {
@@ -2497,7 +2507,27 @@
               }
             ]
           },
+          "appraisal_destruction": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "archivist_notes": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "arrangement": {
             "oneOf": [
               {
                 "type": "string"
@@ -2511,8 +2541,58 @@
             "default": 0,
             "type": "integer"
           },
+          "conservation_notes": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "copies_location": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "date_expression": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description_dates": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "description_id": {
             "type": "string"
+          },
+          "dimension_support": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "document_date": {
             "oneOf": [
@@ -2532,6 +2612,26 @@
             "type": "array"
           },
           "final_title": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finding_aids": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "general_notes": {
             "oneOf": [
               {
                 "type": "string"
@@ -2588,6 +2688,26 @@
           "original_title": {
             "type": "string"
           },
+          "original_url": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "originals_location": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "parent_id": {
             "oneOf": [
               {
@@ -2598,7 +2718,27 @@
               }
             ]
           },
+          "parent_reference_code": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "path": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "physical_characteristics": {
             "oneOf": [
               {
                 "type": "string"
@@ -2619,6 +2759,16 @@
             ]
           },
           "provenance": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "publication_notes": {
             "oneOf": [
               {
                 "type": "string"
@@ -2649,8 +2799,38 @@
               }
             ]
           },
+          "related_units": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reproduction_conditions": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "review_status": {
             "$ref": "#/components/schemas/ArchiveReviewStatus"
+          },
+          "rules_conventions": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "scope_content": {
             "oneOf": [
@@ -2790,6 +2970,17 @@
               }
             ]
           },
+          "accruals": {
+            "description": "ISAD(G) 3.3.3 — incorporações.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "admin_archival_history": {
             "description": "História arquivística.",
             "oneOf": [
@@ -2812,8 +3003,74 @@
               }
             ]
           },
+          "appraisal_destruction": {
+            "description": "ISAD(G) 3.3.2 — avaliação, eliminação e temporalidade.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "archivist_notes": {
             "description": "Notas do arquivista.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "arrangement": {
+            "description": "ISAD(G) 3.3.4 — sistema de arranjo.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "conservation_notes": {
+            "description": "Nota da instituição sobre o estado físico.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "copies_location": {
+            "description": "ISAD(G) 3.5.2 — existência e localização das cópias.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description_dates": {
+            "description": "ISAD(G) 3.7.3 — datas da descrição.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dimension_support": {
+            "description": "ISAD(G) 3.1.5 — dimensão e suporte.",
             "oneOf": [
               {
                 "type": "string"
@@ -2837,6 +3094,28 @@
           },
           "final_title": {
             "description": "Título final revisado pelo arquivista.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finding_aids": {
+            "description": "ISAD(G) 3.4.5 — instrumentos de pesquisa.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "general_notes": {
+            "description": "ISAD(G) 3.6.1 — notas gerais.",
             "oneOf": [
               {
                 "type": "string"
@@ -2890,6 +3169,28 @@
               }
             ]
           },
+          "originals_location": {
+            "description": "ISAD(G) 3.5.1 — existência e localização dos originais.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "physical_characteristics": {
+            "description": "ISAD(G) 3.4.4 — características físicas e requisitos técnicos.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "producers": {
             "description": "Produtor(es).",
             "oneOf": [
@@ -2912,6 +3213,17 @@
               }
             ]
           },
+          "publication_notes": {
+            "description": "ISAD(G) 3.5.4 — notas de publicação.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "reference_code": {
             "description": "Código de referência.",
             "oneOf": [
@@ -2923,8 +3235,41 @@
               }
             ]
           },
+          "related_units": {
+            "description": "ISAD(G) 3.5.3 — unidades de descrição relacionadas.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reproduction_conditions": {
+            "description": "ISAD(G) 3.4.2 — condições de reprodução.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "review_note": {
             "description": "Motivo da edição; fica no histórico.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rules_conventions": {
+            "description": "ISAD(G) 3.7.2 — regras ou convenções.",
             "oneOf": [
               {
                 "type": "string"
@@ -5601,6 +5946,22 @@
           "total"
         ],
         "title": "JudgedConflictPage",
+        "type": "object"
+      },
+      "LanguageDTO": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "LanguageDTO",
         "type": "object"
       },
       "LoginCommand": {
@@ -14522,6 +14883,32 @@
         "summary": "PutSchedule",
         "tags": [
           "Ingestion"
+        ]
+      }
+    },
+    "/api/v1/languages": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1LanguagesListLanguages",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LanguageDTO"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ListLanguages",
+        "tags": [
+          "Languages"
         ]
       }
     },

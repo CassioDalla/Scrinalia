@@ -22,6 +22,7 @@ import {
   fetchHierarchyVocabulary,
   fetchInbox,
   fetchLevelCatalog,
+  fetchLanguages,
   fetchLevels,
   fetchMacroCategories,
   fetchTypologies,
@@ -183,6 +184,19 @@ export const queries = {
     queryOptions({
       queryKey: ["hierarchy", "levels"],
       queryFn: fetchLevels,
+      staleTime: 5 * 60_000,
+    }),
+
+  /**
+   * The languages of the catalogues, for the dossier's and the form's select.
+   *
+   * The list is code, so it cannot change while the app is open; the same five minutes the level
+   * ladder uses is more than enough.
+   */
+  languages: () =>
+    queryOptions({
+      queryKey: ["languages"],
+      queryFn: fetchLanguages,
       staleTime: 5 * 60_000,
     }),
 

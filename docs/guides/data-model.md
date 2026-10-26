@@ -94,11 +94,13 @@ changed once for a column no AI worker writes.
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `staging_documents` | The sanitised, typed description before any AI touches it: the single source of sanitised truth. | `description_id` (primary key), `origin_code`, `raw_content_hash`, `title`, `document_date`, `reference_code`, `parent_reference_code`, `hierarchy_path`, `level`, the ISAD(G) text columns, `raw_metadata` (JSONB), `created_at`, `updated_at` |
+| `staging_documents` | The sanitised, typed description before any AI touches it: the single source of sanitised truth. | `description_id` (primary key), `origin_code`, `raw_content_hash`, `title`, `document_date`, `date_expression`, `original_url`, `reference_code`, `parent_reference_code`, `hierarchy_path`, `level`, the ISAD(G) text columns, `raw_metadata` (JSONB), `created_at`, `updated_at` |
 
 `parent_reference_code` is optional on purpose: an origin that delivers a child before its parent
-leaves the description orphan and *marked* instead of failing the batch. `raw_metadata` keeps the
-keys that did not map to a column.
+leaves the description orphan and *marked* instead of failing the batch. `date_expression` keeps the
+date **as the source spelled it** (`Década de 1980`, `1951-1953`) beside the parsed value, because
+the parser approximates an expression into a real date and the spelling is the only evidence of that
+approximation. `raw_metadata` keeps the keys that did not map to a column.
 
 ### Archive — the description and everything around it
 
@@ -106,7 +108,21 @@ keys that did not map to a column.
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `archive_documents` | The final cleaned and enriched description, served to users and enriched by the AI workers. | `description_id` (primary key), `origin_code`, `original_title`, `final_title`, `document_date`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `path`, `review_status`, `is_anomaly`, `anomaly_reasons`, `is_published`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (generated), timestamps |
+| `archive_documents` | The final cleaned and enriched description, served to users and enriched by the AI workers. | `description_id` (primary key), `origin_code`, `original_title`, `final_title`, `document_date`, `date_expression`, `original_url`, `summary`, `staging_content_hash`, `reference_code`, `level_id`, `typology_id`, `parent_id`, `parent_reference_code`, `path`, the ISAD(G) text columns, `review_status`, `is_anomaly`, `anomaly_reasons`, `is_published`, `execution_log` (JSONB), `embedding` (`vector(384)`), `search_vector` (generated), timestamps |
+
+The **ISAD(G) text columns** are the whole record, not a subset: `dimension_support`,
+`producers`, `admin_bio_history`, `admin_archival_history`, `provenance`, `scope_content`,
+`appraisal_destruction`, `accruals`, `arrangement`, `access_conditions`, `reproduction_conditions`,
+`language_name`, `physical_characteristics`, `finding_aids`, `originals_location`, `copies_location`,
+`related_units`, `publication_notes`, `conservation_notes`, `general_notes`, `archivist_notes`,
+`rules_conventions` and `description_dates`. The staging transform parsed all of them from the
+beginning; the transfer copied a subset until the archive gained the rest, which is why the dossier
+can now show and edit the record area by area.
+
+`parent_reference_code` is the parent the origin **declared**, kept even when the link cannot be
+resolved yet: the transfer marks the child as pending and the code used to live only inside the
+`hierarchy_parent_v1` stamp value. `date_expression` and `original_url` are evidence rather than
+editable description: how the source spelled the date, and the page the record was read from.
 
 Three properties of this table carry the model:
 

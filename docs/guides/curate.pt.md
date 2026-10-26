@@ -368,13 +368,30 @@ têm imagem de origem, então "Sem imagem" é um estado normal, e uma URI guarda
 mostra "Imagem indisponível" — nunca o ícone de imagem quebrada. A lista do acervo mostra a mesma
 miniatura a 56 px, que é como se reconhece uma fotografia sem abrir o dossiê.
 
-A decisão é o próprio registro: qualquer campo ISAD(G), o nível, a tipologia, `access_conditions` e
-`is_published`, com uma nota do porquê. A escrita é `PATCH /api/v1/documents/{description_id}`
-(`CURATE`). Ela registra o antes e o depois do que mudou em `archive_document_revisions`, grava a
-autoria a partir da sessão e define `HUMAN_APPROVED` — o que tira a descrição da fila da IA.
-Reversível: outra edição registra uma nova revisão; o histórico é só de acréscimo e o valor anterior
-fica visível na aba `Histórico`. Publicar e retirar usam o mesmo comando e são igualmente
-reversíveis.
+A decisão é o próprio registro, agrupado nas áreas da norma — **3.1 Identidade**, **3.2 Contexto**,
+**3.3 Conteúdo e estrutura**, **3.4 Acesso e uso**, **3.5 Materiais relacionados**, **3.6 Notas** e
+**3.7 Controle da descrição** — mais o nível, a tipologia e o selo de difusão, com uma nota do porquê.
+O registro ISAD(G) inteiro é editável: o acervo guarda todo campo que o transform de staging
+interpretou, não o subconjunto que a transferência copiava. A escrita é `PATCH
+/api/v1/documents/{description_id}` (`CURATE`). Ela registra o antes e o depois do que mudou em
+`archive_document_revisions`, grava a autoria a partir da sessão e define `HUMAN_APPROVED` — o que tira
+a descrição da fila da IA. Reversível: outra edição registra uma nova revisão; o histórico é só de
+acréscimo e o valor anterior fica visível na aba `Histórico`. Publicar e retirar usam o mesmo comando e
+são igualmente reversíveis.
+
+Dois valores são exibidos e não editados, porque são evidência e não descrição: `date_expression` (a
+data como a fonte escreveu — `Década de 1980` ao lado do `1980-01-01` interpretado, que é o que o
+parser conseguiu dela) e `original_url` (a página de onde o registro foi lido). O nível e a tipologia
+são seletores sobre os seus catálogos; `language_name` é um seletor sobre `GET /api/v1/languages`, um
+catálogo declarado em código porque um idioma não carrega regra que a instituição edite — e ele
+**mantém um valor que o catálogo não conhece**, marcado como tal, para que abrir o dossiê nunca apague
+o que a origem declarou. O pai declarado aparece em 3.1 mesmo enquanto está pendente (`BR PRPMC —
+aguardando`), porque a origem pode entregar o filho antes do pai; o vínculo em si se faz na aba
+`Arranjo`.
+
+O cartão **Objeto digital** aparece com o controle **desabilitado**: o acervo guarda a descrição, não
+o arquivo, e o objeto digital é a #198. A frase que diz isso é definida uma vez
+(`apps/curator/src/lib/copy.ts`) e o formulário de entrada manual mostra a mesma.
 
 #### Assuntos
 

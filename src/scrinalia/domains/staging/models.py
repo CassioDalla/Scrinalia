@@ -39,6 +39,11 @@ class StagingDocument(Base):
 
     title: Mapped[str] = mapped_column(Text, nullable=False)
     document_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    #: The date as the source spelled it (``Década de 1980``, ``1951-1953``), kept beside the parsed
+    #: value because the normalisation is lossy: the parser turns an approximate expression into a
+    #: real ``date`` at the precision the source has, and the archive must be able to show what the
+    #: record actually says. ``None`` when the source sent no date or a placeholder for "no date".
+    date_expression: Mapped[str | None] = mapped_column(Text, nullable=True)
     original_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     attachment_link: Mapped[str | None] = mapped_column(Text, nullable=True)
     thumb_down_link: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -97,8 +97,15 @@ class ArchiveDocument(Base):
     origin_code: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     original_title: Mapped[str] = mapped_column(Text, nullable=False)
     document_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    #: The date as the source spelled it (``Década de 1980``, ``1951-1953``). The parsed column is
+    #: lossy by design — an approximate expression becomes a real date at the precision the source
+    #: has — so the spelling is kept to be shown. ``None`` when the source sent none.
+    date_expression: Mapped[str | None] = mapped_column(Text, nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     staging_content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: The URL of the page the record was read from, when the origin had one. It is the record's
+    #: source, not the digital object (that is #198): the dossier shows it as "Fonte".
+    original_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     original_thumbnail_url: Mapped[str | None] = mapped_column(String, nullable=True)
     storage_thumbnail_uri: Mapped[str | None] = mapped_column(String, nullable=True)
 
@@ -107,13 +114,59 @@ class ArchiveDocument(Base):
     # ``level`` is no longer a text column: it is the name of the catalogue rung, read through
     # ``level_ref`` (see the property below). The free text of 3,608 descriptions was migrated
     # into ``level_id`` by ``b2c3d4e5f6a7`` and the column dropped by ``c3d4e5f6a7b8``.
+    #: ISAD(G) 3.1.5, extent and medium of the unit of description.
+    dimension_support: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ISAD(G) 3.2, the context of creation.
     producers: Mapped[str | None] = mapped_column(Text, nullable=True)
     admin_bio_history: Mapped[str | None] = mapped_column(Text, nullable=True)
     admin_archival_history: Mapped[str | None] = mapped_column(Text, nullable=True)
     provenance: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ISAD(G) 3.3, content and structure.
     scope_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: ISAD(G) 3.3.2, appraisal, destruction and scheduling.
+    appraisal_destruction: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: ISAD(G) 3.3.3, accruals.
+    accruals: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: ISAD(G) 3.3.4, the system of arrangement as text. The *position* is ``parent_id``/``path``;
+    #: this is the description of how the record is arranged.
+    arrangement: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ISAD(G) 3.4, conditions of access and use.
     language_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: ISAD(G) 3.4.2, conditions governing reproduction.
+    reproduction_conditions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: ISAD(G) 3.4.4, physical characteristics and technical requirements.
+    physical_characteristics: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: ISAD(G) 3.4.5, finding aids.
+    finding_aids: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ISAD(G) 3.5, allied materials.
+    #: ISAD(G) 3.5.1, existence and location of the originals.
+    originals_location: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: ISAD(G) 3.5.2, existence and location of copies.
+    copies_location: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: ISAD(G) 3.5.3, related units of description.
+    related_units: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: ISAD(G) 3.5.4, publication note.
+    publication_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ISAD(G) 3.6, notes. ``conservation_notes`` is not a 3.6.1 sub-field of the norm; it is the
+    # institution's own note about the physical state of the record, and the source declares it
+    # under its own label, so it is kept apart from the general note instead of merged into it.
+    conservation_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    general_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ISAD(G) 3.7, description control.
     archivist_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: ISAD(G) 3.7.2, rules or conventions the description follows.
+    rules_conventions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: ISAD(G) 3.7.3, date(s) of the description as the source declared them. It is not the
+    #: record's own date and it is not the review ledger's timestamp; the archive keeps it because
+    #: the source states it, and the dossier shows it beside the record's history.
+    description_dates: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # ISAD(G) 4.1, "Conditions governing access". It was captured by the staging parser and then
     # dropped by the transfer, which meant the archive could not state whether a description is
     # restricted — a defect that only became visible when a diffusion surface was specified.
@@ -126,6 +179,10 @@ class ArchiveDocument(Base):
     # ``RESTRICT`` and not ``SET NULL``: every descendant's materialised ``path`` carries its
     # ancestors' ids, so a silent ``SET NULL`` would leave a whole subtree pointing at a prefix
     # that no longer exists. A node with children is not deletable in passing.
+    #: The parent the origin declared, by reference code. Kept beside ``parent_id`` because the
+    #: link may not exist yet: the transfer marks the child pending and the code was, until this
+    #: column, stored only inside the ``hierarchy_parent_v1`` stamp value.
+    parent_reference_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     parent_id: Mapped[str | None] = mapped_column(
         String(50),
         ForeignKey("archive_documents.description_id", ondelete="RESTRICT"),

@@ -129,6 +129,24 @@ class DocumentReviewCommand(BaseModel):
     #: who can state a restriction the origin never declared.
     access_conditions: str | None = None
 
+    #: The rest of the ISAD(G) record (3.1.5 to 3.7.3). The archive gained these columns and the
+    #: transfer fills them from staging; the archivist is the one who can complete or correct them.
+    dimension_support: str | None = None
+    appraisal_destruction: str | None = None
+    accruals: str | None = None
+    arrangement: str | None = None
+    reproduction_conditions: str | None = None
+    physical_characteristics: str | None = None
+    finding_aids: str | None = None
+    originals_location: str | None = None
+    copies_location: str | None = None
+    related_units: str | None = None
+    publication_notes: str | None = None
+    conservation_notes: str | None = None
+    general_notes: str | None = None
+    rules_conventions: str | None = None
+    description_dates: str | None = None
+
     # Diffusion (Fase 4). Not part of ISAD(G): the institution's decision about what to expose.
     # It travels in the same command because it is edited from the same screen, but it is the
     # only field here that does not describe the record itself.

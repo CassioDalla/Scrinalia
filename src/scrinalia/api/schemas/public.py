@@ -37,6 +37,13 @@ from scrinalia.domains.archive.schemas.document_schema import (
 #: * diffusion still undecided by the product — ``admin_bio_history`` and ``admin_archival_history``
 #:   (narrative about people and institutions) and ``access_conditions`` (free text from the origin,
 #:   never reviewed for publication). The gate today is ``is_published``; widening it is deliberate.
+#:
+#: The ISAD(G) record the archive gained in #199 is in the same "undecided" group — every field
+#: arrived with the same default, and publishing an appraisal, a location of the originals or a
+#: conservation note is a diffusion decision the institution has not taken. ``original_url`` and
+#: ``date_expression`` travel with them: the first is where the record came from (an external link,
+#: not ours to publish), the second is a quotation of the source that the public page can decide to
+#: show once the rest of the area does.
 NOT_PUBLIC_FIELDS = frozenset(
     {
         "review_status",
@@ -48,12 +55,30 @@ NOT_PUBLIC_FIELDS = frozenset(
         "rank",
         "path",
         "parent_id",
+        "parent_reference_code",
         "level_id",
         "typology_id",
         "is_published",
         "admin_bio_history",
         "admin_archival_history",
         "access_conditions",
+        "original_url",
+        "date_expression",
+        "dimension_support",
+        "appraisal_destruction",
+        "accruals",
+        "arrangement",
+        "reproduction_conditions",
+        "physical_characteristics",
+        "finding_aids",
+        "originals_location",
+        "copies_location",
+        "related_units",
+        "publication_notes",
+        "conservation_notes",
+        "general_notes",
+        "rules_conventions",
+        "description_dates",
     }
 )
 

@@ -489,42 +489,29 @@ def generate_archive_dto():
 @pytest.fixture
 def mock_staging_doc():
     """
-    Generates a perfect Mock object simulating a StagingDocument coming from the database.
-    Prevents Pydantic from raising type-validation errors during the Worker tests.
+    A real ``StagingRecord`` standing in for the row the repository hands the transfer.
+
+    It used to be a bare ``Mock`` with one attribute per staging column, which made every new column
+    break a worker test that had nothing to do with it (measured: adding the ISAD(G) record failed
+    three of these with seventeen validation errors). The port's model declares every field with its
+    "the source said nothing" default, so the double cannot fall behind the contract it stands for.
     """
 
     def _create(description_id="doc-100", raw_content_hash="hash_123"):
-        from unittest.mock import Mock
+        from scrinalia.domains.archive.ports.staging_source import StagingRecord
 
-        doc = Mock()
-        doc.description_id = description_id
-        # Provenance of the record; the transfer carries it without folding it into the CDC hash.
-        doc.origin_code = None
-        doc.title = "Dossiê Teste"
-        doc.document_date = None
-        doc.scope_content = "Resumo do documento"
-        doc.raw_content_hash = raw_content_hash
-        # The transfer keys the archive CDC on the *parsed* record (a parser fix must move it),
-        # so the double answers with a deterministic value derived from the raw hash.
-        doc.parsed_content_hash = lambda: f"parsed-{raw_content_hash}"
-        doc.reference_code = "BR PR"
-        # The arrangement the origin may or may not declare. ``None`` is the common case and the
-        # one the transfer must handle without touching the curated tree.
-        doc.parent_reference_code = None
-        doc.hierarchy_path = None
-        doc.level = "Dossiê"
-        doc.producers = "Prefeitura"
-        doc.admin_bio_history = None
-        doc.admin_archival_history = None
-        doc.provenance = None
-        doc.language_name = "pt-BR"
-        doc.archivist_notes = None
-        # ISAD(G) 4.1: parsed by staging from the beginning and, until the port declared it, never
-        # carried into the archive.
-        doc.access_conditions = None
-        doc.indexing_points = "Tag Teste"
-        doc.thumb_down_link = ""
-        return doc
+        return StagingRecord(
+            description_id=description_id,
+            raw_content_hash=raw_content_hash,
+            title="Dossiê Teste",
+            scope_content="Resumo do documento",
+            reference_code="BR PR",
+            level="Dossiê",
+            producers="Prefeitura",
+            language_name="pt-BR",
+            indexing_points="Tag Teste",
+            thumb_down_link="",
+        )
 
     return _create
 
