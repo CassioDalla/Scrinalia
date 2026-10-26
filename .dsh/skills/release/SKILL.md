@@ -9,7 +9,8 @@ whenToUse: "When asked to bump the version, cut a release, or merge `dev` into `
 `main` moves only at a release, through a `dev` → `main` pull request; the tag is created by the
 `Release` workflow, never by hand (`.github/workflows/release.yml`, `CONTRIBUTING.md`). A merge into
 `main` without the release preparation leaves the changelog and the citation claiming the previous
-version, and the next release inherits the debt.
+version, and the next release inherits the debt. After the tag, `dev` is fast-forwarded to the release
+commit (step 7), so the next cut starts from the tag and not behind it.
 
 Read `commit` for the message format and the DCO sign-off; every commit here uses both.
 
@@ -108,4 +109,32 @@ validates the version, builds the SPA and the SBOM, attests provenance, and crea
 GitHub Release. It does not update the changelog.
 
 `main` is pushed as a release pull request, not with a direct push. `dev` keeps moving after the
-release; do not reset it to `main`.
+release; do not reset it to `main` — step 7 moves it forward to the release commit, and the work that
+lands on it afterwards stays.
+
+## 7 — Bring the release commit back into `dev`
+
+The release commit — the one the tag points at — exists only on `main`, and the next release branch is
+cut from `dev`. If `dev` does not contain it, that branch starts behind the tag: `git describe` names
+the previous release, the changelog has the released entries back in `[Unreleased]`, and the release
+has to rebuild the released sections from `main` — the debt 1.5.0 inherited and 1.6.0 paid.
+
+Right after the merge, `dev` is an ancestor of `main`, so the sync is a fast-forward and the two
+branches end at the **same commit**:
+
+```sh
+git checkout dev
+git fetch origin
+git merge --ff-only origin/main   # fails if dev moved; see below
+git push origin dev
+```
+
+No pull request: the tree does not change, only the branch pointer moves. Do **not** sync it through
+a PR merged with a merge commit — `dev` would end one empty merge commit ahead of `main`, the same
+tree at a different commit, and the next release would carry that commit into `main`. The 1.6.0
+release did exactly that (#218) and left `dev ^main` at one commit.
+
+If `dev` already moved past the merge, the fast-forward fails — that is the guard, not an error. Then
+the sync is a real merge: merge `main` into a branch off `dev`, open a pull request, and keep `main`'s
+changelog and citation; the tree does not change, only the merge commit is recorded. Do it before
+cutting the next release, not necessarily on the day of this one.
