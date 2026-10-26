@@ -104,9 +104,10 @@ export const SETTINGS_TABS: SettingsTab[] = [
     cards: [
       { screen: "workers", icon: Cpu, permission: "OPERATE" },
       /*
-        Ingestão is reachable by a curator because the manual form is a CURATE write; the origin's
-        configuration and agenda are OPERATE controls the screen hides for a curator. A card that
-        only the operator could open would hide the one action the archivist owns.
+        Ingestão stays reachable by a curator after the entry paths moved to the Acervo (#205): the
+        screen is now the origins' status, which a curator reads, and the configuration, the agenda
+        and the run are OPERATE controls it hides. The final permission of the origins page — and
+        whether it needs a read-only mode — is #206's decision, not this card's.
       */
       { screen: "ingestion", icon: Download, permission: "CURATE" },
       /*

@@ -1,4 +1,4 @@
-import { createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
+import { createRootRoute, createRoute, createRouter, redirect } from "@tanstack/react-router";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { AnomaliesRoute, validateAnomaliesSearch } from "@/routes/AnomaliesRoute";
@@ -13,9 +13,9 @@ import { DocumentRoute } from "@/routes/DocumentRoute";
 import { EntitiesRoute, validateEntitiesSearch } from "@/routes/EntitiesRoute";
 import { InboxRoute } from "@/routes/InboxRoute";
 import { IngestionRoute } from "@/routes/IngestionRoute";
-import { ManualEntryRoute } from "@/routes/ManualEntryRoute";
 import { LevelsRoute } from "@/routes/LevelsRoute";
 import { NerExclusionsRoute } from "@/routes/NerExclusionsRoute";
+import { NewDescriptionRoute, validateNewDescriptionSearch } from "@/routes/NewDescriptionRoute";
 import { NotFoundRoute } from "@/routes/NotFoundRoute";
 import { PlanRoute, validatePlanSearch } from "@/routes/PlanRoute";
 import { SettingsRoute, validateSettingsSearch } from "@/routes/SettingsRoute";
@@ -87,6 +87,20 @@ const documentRoute = createRoute({
   validateSearch: (search: Record<string, unknown>): { aba?: string } => ({
     aba: typeof search.aba === "string" ? search.aba : undefined,
   }),
+});
+
+/**
+ * The way into the collection: one description typed in full, or a CSV imported (#205).
+ *
+ * A static segment beside the dossier, like ``/acervo/arvore``: TanStack ranks it above
+ * ``/acervo/$descriptionId``, so "/acervo/nova" can never resolve as a description id. The ``modo``
+ * is the screen's tab, so a link can open the CSV import directly.
+ */
+const newDescriptionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/acervo/nova",
+  component: NewDescriptionRoute,
+  validateSearch: validateNewDescriptionSearch,
 });
 
 const planRoute = createRoute({
@@ -221,12 +235,18 @@ const ingestionRoute = createRoute({
   component: IngestionRoute,
 });
 
-// The manual form has a screen of its own: the record is the whole ISAD(G) record, and a card with
-// thirty controls inside the ingestion screen would push the origin cards down by a screen.
-const manualEntryRoute = createRoute({
+/*
+ * The old path of the entry screen, kept as a redirect so a shared link and the guides that named it
+ * do not break (#205). It is a route without a screen: the copy gate lists it in
+ * ``REDIRECT_ROUTES`` instead of asking for a name in ``lib/screens.ts``, because a menu entry for
+ * a URL that only sends the browser elsewhere would lead nowhere.
+ */
+const legacyNewDescriptionRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sistema/ingestao/nova",
-  component: ManualEntryRoute,
+  beforeLoad: () => {
+    throw redirect({ to: "/acervo/nova" });
+  },
 });
 
 const systemRunsRoute = createRoute({
@@ -288,6 +308,7 @@ export const router = createRouter({
   routeTree: rootRoute.addChildren([
     inboxRoute,
     collectionRoute,
+    newDescriptionRoute,
     deletionsRoute,
     treeRoute,
     documentRoute,
@@ -308,7 +329,7 @@ export const router = createRouter({
     anomaliesRoute,
     systemWorkersRoute,
     ingestionRoute,
-    manualEntryRoute,
+    legacyNewDescriptionRoute,
     systemRunsRoute,
     systemHealthRoute,
     settingsRoute,

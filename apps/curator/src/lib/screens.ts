@@ -46,7 +46,7 @@ export type ScreenId =
   | "vocabulary"
   | "workers"
   | "ingestion"
-  | "manualEntry"
+  | "newDescription"
   | "workerSettings"
   | "runs"
   | "health"
@@ -189,16 +189,15 @@ export const SCREENS: Record<ScreenId, Screen> = {
   ingestion: {
     path: "/sistema/ingestao",
     label: "Ingestão",
-    hint: "Origens, filas e entrada manual",
-    description:
-      "Cada origem com a sua fila, a sua agenda e a sua configuração; e a entrada manual, que entra na mesma fila de IA.",
+    hint: "Origens, filas e agenda",
+    description: "Cada origem com a sua fila, a sua agenda e a sua configuração; o curador lê o status.",
   },
-  manualEntry: {
-    path: "/sistema/ingestao/nova",
+  newDescription: {
+    path: "/acervo/nova",
     label: "Nova descrição",
-    hint: "Entrada manual, campo a campo",
+    hint: "Digitar ou importar CSV",
     description:
-      "Uma descrição digitada do zero, área por área: o registro inteiro entra no mesmo staging e na mesma fila de IA das demais origens, e nasce pendente de revisão.",
+      "O registro entra no mesmo staging e na mesma fila de IA das demais origens — digitado campo a campo ou importado de um CSV — e não é uma aprovação: ele nasce pendente de revisão, e o dossiê é onde ele é aprovado.",
   },
   workerSettings: {
     path: "/configuracoes/workers",

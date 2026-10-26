@@ -260,6 +260,16 @@ def test_the_product_name_is_written_once() -> None:
     )
 
 
+#: Routes that only send the browser elsewhere: a path, not a screen.
+#:
+#: They are listed here instead of in ``lib/screens.ts``, and this table is what makes the exception
+#: a line a reviewer reads. The target has to be a declared route, so a redirect cannot survive the
+#: screen it pointed at.
+REDIRECT_ROUTES: dict[str, str] = {
+    "/sistema/ingestao/nova": "/acervo/nova",
+}
+
+
 def _screen_records() -> dict[str, tuple[str, bool]]:
     """Every entry of `SCREENS`, keyed by its id: its path, and whether its heading is dynamic."""
     body = text(SCREENS).split("export const SCREENS", 1)
@@ -274,15 +284,23 @@ def _screen_records() -> dict[str, tuple[str, bool]]:
     return records
 
 
-def _routes() -> dict[str, str]:
-    """Every route of `router.tsx`, keyed by its path: the component that renders it."""
-    records: dict[str, str] = {}
+def _routes() -> dict[str, str | None]:
+    """Every route of `router.tsx`, keyed by its path: its component, or ``None`` for a redirect.
+
+    A redirect is a route with no screen: it has a ``beforeLoad`` that throws, not a component. The
+    ``None`` is what lets the two catalogue tests below skip it, while ``REDIRECT_ROUTES`` keeps the
+    exception visible.
+    """
+    records: dict[str, str | None] = {}
     for block in re.finditer(r"createRoute\(\{(.*?)\n\}\);", text(ROUTER), re.S):
         entry = block.group(1)
         path = re.search(r'path:\s*"([^"]+)"', entry)
         component = re.search(r"component:\s*(\w+)", entry)
-        assert path and component, f"a route in `router.tsx` has no path or no component:\n{entry[:200]}"
-        records[path.group(1)] = component.group(1)
+        redirect_to = re.search(r'redirect\(\{\s*to:\s*"([^"]+)"', entry)
+        assert path and (component or redirect_to), (
+            f"a route in `router.tsx` has no path, or neither a component nor a redirect:\n{entry[:200]}"
+        )
+        records[path.group(1)] = component.group(1) if component else None
     assert records, "`router.tsx` declares no route."
     return records
 
@@ -291,13 +309,32 @@ def test_every_route_has_a_named_screen() -> None:
     """A route without a name is a screen the menu, the card and the heading cannot agree on."""
     screens = _screen_records()
     routes = _routes()
+    redirects = {path for path, component in routes.items() if component is None}
+    assert redirects == set(REDIRECT_ROUTES), (
+        f"the routes without a component ({sorted(redirects)}) and `REDIRECT_ROUTES` "
+        f"({sorted(REDIRECT_ROUTES)}) disagree. A route that only redirects has to be listed in "
+        "this gate, and a listed path has to be a redirect in `router.tsx`."
+    )
+    for source, target in REDIRECT_ROUTES.items():
+        assert source in routes, f"`REDIRECT_ROUTES` names {source}, which `router.tsx` does not declare."
+        assert target in routes, f"the redirect {source} points at {target}, which `router.tsx` does not declare."
+        assert re.search(
+            rf'path:\s*"{re.escape(source)}".*?redirect\(\{{\s*to:\s*"{re.escape(target)}"', text(ROUTER), re.S
+        ), f"`{source}` is listed as redirecting to `{target}`, but `router.tsx` does not say so."
+
     named = {path for path, _ in screens.values()}
-    missing = sorted(set(routes) - named)
+    routable = set(routes) - redirects
+    overlap = sorted(named & redirects)
+    assert not overlap, (
+        f"`lib/screens.ts` names these redirect paths as screens: {overlap}. A redirect has no "
+        "heading, no menu entry and no settings card; the catalogue would point at a dead end."
+    )
+    missing = sorted(routable - named)
     assert not missing, (
         f"these routes of `apps/curator/src/router.tsx` have no entry in `lib/screens.ts`: {missing}. "
         "Every screen has one name, and it is the one the menu, the settings card and the `<h1>` read."
     )
-    orphaned = sorted(named - set(routes))
+    orphaned = sorted(named - routable)
     assert not orphaned, (
         f"`lib/screens.ts` names screens that `router.tsx` does not declare: {orphaned}. "
         "A name for a route that does not exist is a menu entry that leads nowhere."
@@ -317,6 +354,8 @@ def test_every_heading_comes_from_the_screens_catalogue() -> None:
 
     failures: list[str] = []
     for path, component in _routes().items():
+        if component is None:
+            continue
         identifier = by_path[path]
         if identifier in dynamic:
             continue

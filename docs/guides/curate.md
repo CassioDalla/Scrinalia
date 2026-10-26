@@ -327,10 +327,38 @@ linking.
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
+| Nova descrição — `/acervo/nova` | typing one description or importing a CSV (curator) | the record enters the pipeline as `PENDING_AI`; it is approved (or rejected) in the dossier, and only there |
 | Lista e busca — `/acervo/lista` | how to slice the collection | yes (read only) |
 | Árvore — `/acervo/arvore` | where a description sits in the arrangement | yes, by moving it; removing the node means excluding the description |
 | Excluídas — `/acervo/excluidas` | none (the ledger of what left) | yes (read only) |
 | Descrição — `/acervo/$descriptionId` | the record, its subjects and its place | mostly yes; the exclusion does not |
+
+### Nova descrição — `/acervo/nova`
+
+The way into the collection: one description typed in full, or a CSV imported. The two are tabs in
+the URL — **Digitar** (the default) and **Importar CSV** (`?modo=csv`) — because they are two input
+shapes of the same job, not two jobs: both stage the record and enqueue the same `transfer` the
+scraper uses, and the archive description is born `PENDING_AI`. The screen is **not an approval**:
+the dossier is where the record is reviewed and approved after the AI runs. It is a `CURATE` write,
+and it is the first entry of the *Acervo* menu.
+
+**Digitar** is the whole ISAD(G) record: thirty controls in the norm's seven areas, the level and the
+language as selects, the date as text with the language grammar, the digital object control disabled
+until #198. The form generates a `manual-<uuid>` id, so a retried submit is the same record; a
+duplicate `description_id` is refused before the write. Only the title is required — a description
+can be born incomplete and completed in the dossier.
+
+**Importar CSV** is the `csv` origin (#191, ADR 0019). The file is parsed **in the browser** (comma or
+semicolon, quoted fields, CRLF, UTF-8 with a Windows-1252 fallback); the screen shows the detected
+headers, a preview and the local checks, and sends only a bounded list of rows as JSON — nothing is
+uploaded to the object storage and there is no multipart route, so an installation whose storage is
+unconfigured imports a CSV exactly the same. The map is the API's (`GET /api/v1/ingestion/csv/spec`),
+so a header cannot be accepted by the screen and refused by the server; the API re-validates every row
+with the staging contract, and the per-row answer says **accepted**, **duplicated** (the
+`description_id` already exists) or **invalid**, with the field and the sentence. A partial import is
+normal. The accepted rows are staged as `origin_code='csv'` and one `transfer` is enqueued after them.
+
+The old `/sistema/ingestao/nova` redirects here, so a shared link still opens the typed form.
 
 ### Lista e busca — `/acervo/lista`
 
@@ -1033,13 +1061,12 @@ the human review of the record, in the dossier.
 The machine, not the collection. Everything here belongs to whoever operates the installation, and
 all four screens are reached from `/configuracoes`, under *Operação*: the menu kept what the
 archivist consults while cataloguing, and this is not it. The ingestion screen is the one exception
-to the "operator only" rule — its manual form and its CSV import are a curator's writes (#44, #191) —
-and it is therefore a `CURATE` card.
+to the "operator only" rule — a curator reads the origins' status there — and it is therefore a
+`CURATE` card; the two ways into the collection live in the Acervo (`/acervo/nova`).
 
 | Screen | Decision | Reversible? |
 | --- | --- | --- |
-| Ingestão — `/sistema/ingestao` | which origin to read, its URLs and its agenda (operator); and importing a CSV (curator) | the configuration and the agenda are reversible; an imported row enters the pipeline and is approved (or rejected) in the dossier |
-| Nova descrição — `/sistema/ingestao/nova` | typing one description, field by field (curator) | the record enters the pipeline as `PENDING_AI`; it is approved (or rejected) in the dossier, and only there |
+| Ingestão — `/sistema/ingestao` | which origin to read, its URLs and its agenda (operator); the curator reads the queues and the last run | the configuration and the agenda are reversible; the screen writes no description |
 | Workers de IA — `/sistema/workers` | whether to run a worker now | yes (the run's own configuration); a run's effects follow what it wrote |
 | Execuções — `/sistema/execucoes` | whether to stop an active run (the ledger and the grouped failures are read-only) | no undo: a cancelled run stays cancelled; a new run is a new ledger row |
 | Saúde do sistema — `/sistema/diagnostico` | none (database, models, storage, process) | yes (read only) |
@@ -1054,26 +1081,11 @@ listing and detail URLs, the politeness delay), save a five-field cron in an IAN
 origin is already running is skipped, not queued. The generic worker routes refuse `ingestion` — a
 run of it needs the origin, and the origin routes are the selector.
 
-The **curator** sees the same cards read-only, the **Entrada manual** card and the **Importação CSV**
-card. The manual card opens `/sistema/ingestao/nova`, a screen of its own, where the description is
-typed in full: thirty controls in the norm's seven areas, the level and the language as selects, the
-date as text with the language grammar, and the digital object control disabled until #198. The manual
-origin is the `manual` origin: the submit writes the typed record as the origin's raw
-payload, stages it through the same transform and enqueues the same `transfer` worker. The archive
-description is born `PENDING_AI`; the AI queues see it, and the approval is the dossier's
-`PATCH /documents/{id}` after the AI runs. Typing a record is **not** an approval, and a duplicate
-`description_id` is refused before the write.
-
-The CSV card is the `csv` origin (#191, ADR 0019). The file is parsed **in the browser**: the card
-shows the detected headers, a preview and the local checks, and sends only the rows as JSON — nothing
-is uploaded to the object storage and there is no multipart route, so an installation whose storage is
-unconfigured imports a CSV exactly the same. The map is the API's (`GET /api/v1/ingestion/csv/spec`),
-so a header cannot be accepted by the screen and refused by the server; the API re-validates every
-row with the staging contract, and the per-row answer says **accepted**, **duplicated** (the
-`description_id` already exists) or **invalid**, with the field and the sentence. A partial import is
-normal. The accepted rows are staged as `origin_code='csv'` and one `transfer` is enqueued after them,
-so the archive description is born `PENDING_AI` like the manual entry. The rest of the staging fields
-is #192.
+The **curator** sees the same cards read-only: the queues, the last run and the agenda are the
+status of the stage, and the operator-only controls are hidden. The two writes that used to live
+here — the typed record and the CSV import — are `/acervo/nova`, in the Acervo (#205); their
+behaviour is described under *Nova descrição*. The final permission of this page, and whether it
+needs a read-only mode of its own, is the origins issue (#206).
 
 ### Workers de IA — `/sistema/workers`
 

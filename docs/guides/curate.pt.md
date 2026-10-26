@@ -303,10 +303,40 @@ mostra "tela pendente" em vez de apontar para o vazio.
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
+| Nova descrição — `/acervo/nova` | digitar uma descrição ou importar um CSV (curador) | o registro entra no pipeline como `PENDING_AI`; a aprovação (ou rejeição) acontece no dossiê, e só ali |
 | Lista e busca — `/acervo/lista` | como recortar o acervo | sim (só leitura) |
 | Árvore — `/acervo/arvore` | onde a descrição fica no arranjo | sim, movendo; remover o nó significa excluir a descrição |
 | Excluídas — `/acervo/excluidas` | nenhuma (o ledger do que saiu) | sim (só leitura) |
 | Descrição — `/acervo/$descriptionId` | o registro, seus assuntos e seu lugar | em geral sim; a exclusão não |
+
+### Nova descrição — `/acervo/nova`
+
+A porta de entrada do acervo: uma descrição digitada inteira, ou um CSV importado. As duas são abas
+na URL — **Digitar** (o padrão) e **Importar CSV** (`?modo=csv`) — porque são duas formas de entrada
+do mesmo trabalho, não dois trabalhos: as duas põem o registro no staging e enfileiram a mesma
+`transfer` que a coleta usa, e a descrição do Acervo nasce `PENDING_AI`. A tela **não é uma
+aprovação**: o dossiê é onde o registro é revisto e aprovado depois que a IA rodar. É uma escrita
+`CURATE`, e é a primeira entrada do menu *Acervo*.
+
+**Digitar** é o registro ISAD(G) inteiro: trinta controles nas sete áreas da norma, o nível e o idioma
+como seletores, a data como texto com a gramática do idioma, o controle do objeto digital desabilitado
+até a #198. O formulário gera um id `manual-<uuid>`, então um reenvio é o mesmo registro; um
+`description_id` duplicado é recusado antes da gravação. Só o título é obrigatório — uma descrição pode
+nascer incompleta e ser completada no dossiê.
+
+**Importar CSV** é a origem `csv` (#191, ADR 0019). O arquivo é interpretado **no navegador** (vírgula
+ou ponto e vírgula, campos entre aspas, CRLF, UTF-8 com queda para Windows-1252); a tela mostra os
+cabeçalhos detectados, uma prévia e as conferências locais, e envia só uma lista limitada de linhas
+como JSON — nada vai para o storage de objetos e não existe rota multipart, então uma instalação cujo
+storage não está configurado importa um CSV do mesmo jeito. O mapa é o da API (`GET
+/api/v1/ingestion/csv/spec`), então um cabeçalho não pode ser aceito pela tela e recusado pelo
+servidor; a API revalida cada linha com o contrato de staging, e a resposta por linha diz **aceita**,
+**duplicada** (o `description_id` já existe) ou **inválida**, com o campo e a frase. Uma importação
+parcial é normal. As linhas aceitas entram no staging como `origin_code='csv'` e uma `transfer` é
+enfileirada depois delas.
+
+O caminho antigo `/sistema/ingestao/nova` redireciona para cá, então um link compartilhado ainda abre
+o formulário digitado.
 
 ### Lista e busca — `/acervo/lista`
 
@@ -1007,13 +1037,13 @@ correção é a revisão humana da ficha, na descrição.
 
 A máquina, não o acervo. Tudo aqui pertence a quem opera a instalação, e as quatro telas são
 alcançadas por `/configuracoes`, sob *Operação*: o menu ficou com o que o arquivista consulta
-catalogando, e não é isto. A tela de ingestão é a exceção à regra "só operador" — o formulário manual
-e a importação CSV são escritas do curador (#44, #191) — e por isso é um cartão `CURATE`.
+catalogando, e não é isto. A tela de ingestão é a exceção à regra "só operador" — o curador lê o
+status das origens ali — e por isso é um cartão `CURATE`; as duas formas de entrada do acervo moram
+no Acervo (`/acervo/nova`).
 
 | Tela | Decisão | Reversível? |
 | --- | --- | --- |
-| Ingestão — `/sistema/ingestao` | qual origem ler, as URLs e a agenda (operador); e importar um CSV (curador) | a configuração e a agenda são reversíveis; uma linha importada entra no pipeline e é aprovada (ou rejeitada) no dossiê |
-| Nova descrição — `/sistema/ingestao/nova` | digitar uma descrição, campo a campo (curador) | o registro entra no pipeline como `PENDING_AI`; a aprovação (ou rejeição) acontece no dossiê, e só ali |
+| Ingestão — `/sistema/ingestao` | qual origem ler, as URLs e a agenda (operador); o curador lê as filas e a última execução | a configuração e a agenda são reversíveis; a tela não escreve descrição |
 | Workers de IA — `/sistema/workers` | se roda um worker agora | sim (a configuração da própria execução); os efeitos de uma execução seguem o que ela escreveu |
 | Execuções — `/sistema/execucoes` | se para uma execução ativa (o ledger e as falhas agrupadas são só leitura) | sem desfazer: uma execução cancelada continua cancelada; uma nova execução é uma nova linha no ledger |
 | Saúde do sistema — `/sistema/diagnostico` | nenhuma (banco, modelos, storage, processo) | sim (só leitura) |
@@ -1028,26 +1058,11 @@ execução**. A execução é o mesmo ledger dos workers de IA; um período que 
 rodando é pulado, não enfileirado. As rotas genéricas de worker recusam `ingestion` — uma execução
 dela precisa da origem, e as rotas da origem são o seletor.
 
-O **curador** vê os mesmos cartões só para leitura, o cartão **Entrada manual** e o cartão
-**Importação CSV**. O cartão manual abre `/sistema/ingestao/nova`, uma tela própria, onde a descrição
-é digitada inteira: trinta controles nas sete áreas da norma, o nível e o idioma como seletores, a data
-como texto com a gramática do idioma, e o controle do objeto digital desabilitado até a #198. O
-formulário é a origem `manual`: o envio grava o registro digitado como payload bruto da origem,
-estrutura-o pelo mesmo transform e enfileira o mesmo worker `transfer`. A descrição do Acervo nasce
-`PENDING_AI`; as filas de IA a veem, e a aprovação é o `PATCH /documents/{id}` do dossiê depois que a
-IA rodar. Digitar um registro **não** é uma aprovação, e um `description_id` duplicado é recusado antes
-da gravação.
-
-O cartão de CSV é a origem `csv` (#191, ADR 0019). O arquivo é interpretado **no navegador**: o cartão
-mostra os cabeçalhos detectados, uma prévia e as conferências locais, e envia só as linhas como JSON —
-nada vai para o storage de objetos e não existe rota multipart, então uma instalação cujo storage não
-está configurado importa um CSV do mesmo jeito. O mapa é o da API (`GET
-/api/v1/ingestion/csv/spec`), então um cabeçalho não pode ser aceito pela tela e recusado pelo
-servidor; a API revalida cada linha com o contrato de staging, e a resposta por linha diz **aceita**,
-**duplicada** (o `description_id` já existe) ou **inválida**, com o campo e a frase. Uma importação
-parcial é normal. As linhas aceitas entram no staging como `origin_code='csv'` e uma `transfer` é
-enfileirada depois delas, então a descrição do Acervo nasce `PENDING_AI` como na entrada manual. O
-resto dos campos de staging é #192.
+O **curador** vê os mesmos cartões só para leitura: as filas, a última execução e a agenda são o
+status da etapa, e os controles só de operador ficam escondidos. As duas escritas que ficavam aqui —
+o registro digitado e a importação CSV — são `/acervo/nova`, no Acervo (#205); o comportamento delas
+está em *Nova descrição*. A permissão final desta página, e se ela precisa de um modo só leitura
+próprio, é da issue das origens (#206).
 
 ### Workers de IA — `/sistema/workers`
 

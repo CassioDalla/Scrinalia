@@ -340,9 +340,10 @@ no site.
 `/sistema/ingestao` is the screen. Each card answers *which queue is this, what does it read, when
 does it run and what happened last time*: the origin's own pending/processed/failed numbers, the last
 and active run, the agenda and the runner availability. The operator can **Enfileirar execução**,
-edit the configuration and save the agenda; a curator reaches the screen for the manual form and sees
-the same cards read-only. The generic worker routes refuse `ingestion`: a run of it needs an origin,
-so the origin routes are the selector (`/api/v1/ingestion/origins/...`).
+edit the configuration and save the agenda; a curator reaches the screen to read the queues and sees
+the same cards read-only. The two ways into the collection are not here: they are the tabs of
+`/acervo/nova` (#205). The generic worker routes refuse `ingestion`: a run of it needs an origin, so
+the origin routes are the selector (`/api/v1/ingestion/origins/...`).
 
 The stage runs in the **same** ledger, runner, lease and cancellation as the AI workers. A run has
 `worker_name="ingestion"` and `origin_code` set; the partial unique index is
@@ -391,19 +392,21 @@ would skip pending records instead of already-structured ones.
 
 ### The manual entry
 
-The `manual` origin is the form at `/sistema/ingestao`, and it is **not** an approval. The submit
-writes `raw_data` (with `created_by`), a `scraping_queue` row marked `DONE` (the form is the
-discovery) and the staging record, then enqueues the same `transfer` worker the scraper uses. The
-archive description is born `PENDING_AI`, and the AI queues see it; the archivist approves in the
-dossier after the AI runs. If a transfer is already in flight, the record stays staged and the
-response says it enters the next one. A duplicate `description_id` is refused before the write; the
-form generates a `manual-<uuid>` id so a retried submit is the same record.
+The `manual` origin is the **Digitar** tab at `/acervo/nova` (the old `/sistema/ingestao/nova`
+redirects there), and it is **not** an approval. The submit writes `raw_data` (with `created_by`), a
+`scraping_queue` row marked `DONE` (the form is the discovery) and the staging record, then enqueues
+the same `transfer` worker the scraper uses. The archive description is born `PENDING_AI`, and the AI
+queues see it; the archivist approves in the dossier after the AI runs. If a transfer is already in
+flight, the record stays staged and the response says it enters the next one. A duplicate
+`description_id` is refused before the write; the form generates a `manual-<uuid>` id so a retried
+submit is the same record.
 
-The form lives on its own screen, `/sistema/ingestao/nova`, reached from the **Entrada manual** card:
-the record is the whole ISAD(G) record — thirty controls grouped in the norm's seven areas, identity
-open and the rest collapsed — and a card that size inside the ingestion screen would push the origin
-cards down by a screen. The labels, kinds and order come from the same catalogue the dossier edits
-(`apps/curator/src/lib/isad.ts`), so the two screens cannot grow two vocabularies for one norm.
+The form is the first tab of the entry screen, at `/acervo/nova`; the CSV import is the second. The
+record is the whole ISAD(G) record — thirty controls grouped in the norm's seven areas, identity open
+and the rest collapsed — and it shares the screen with the import because both feed the same staging
+and the same queue, not because the two are the same input. The labels, kinds and order come from the
+same catalogue the dossier edits (`apps/curator/src/lib/isad.ts`), so the two screens cannot grow two
+vocabularies for one norm.
 
 Three behaviours are worth knowing before typing:
 
@@ -421,8 +424,8 @@ Three behaviours are worth knowing before typing:
 
 ### The CSV import
 
-The `csv` origin is the **Importação CSV** card at `/sistema/ingestao`, and it is a write of the same
-kind as the manual entry: the rows are staged and one `transfer` is enqueued, so the archive
+The `csv` origin is the **Importar CSV** tab at `/acervo/nova?modo=csv`, and it is a write of the
+same kind as the manual entry: the rows are staged and one `transfer` is enqueued, so the archive
 description is born `PENDING_AI` (#191, ADR 0019).
 
 The file never reaches the server as a file. The browser parses it (comma or semicolon, quoted
@@ -617,7 +620,7 @@ The SPA mirrors it, as cards of `/configuracoes` under *Operação*:
 | `/sistema/workers` | the ten workers: engine, preset and model, the queue, what the stamp of each one names (with a producer, without a known one, without a record) and an **Enfileirar execução** button; above them, the runner cards (online, host, version, concurrency, capabilities, last heartbeat) and a warning when none is online. A worker no online runner accepts is marked **sem runner** — the row still queues and waits. The **Agenda** badge and fact show the cron, the zone, the next run and the last skipped period. The effective configuration is read-only here. The `ingestion` row is the exception: it has no engine, no aggregate pending/processed/failed counters, and its run belongs to an origin, so it links to `/sistema/ingestao` instead of a generic run button — the per-origin numbers live on that screen |
 | `/configuracoes/workers` | the persisted default of each worker and its revisions, with save and remove, and the worker's **Agenda** (the cron, the zone, the enabled state and the pinned request) — the write the panel used to carry. A worker the catalogue marks `trial` (today the typology) also carries **Comparar configurações**: two configurations, the sample size, the side-by-side table (agreement with its denominator, coverage, abstention, the largest drawer, entropy, seconds per document, the queue and the projected hours) and **Usar esta**, which saves the measured body, and **Rodar no acervo inteiro**, which reads the saved body's queue and triggers the real run |
 | `/sistema/execucoes` | the execution ledger, and the failures of the last 30 days grouped by root cause; clicking a cause filters the ledger to its occurrences. Each row says who asked (`painel`, `linha de comando` or `agenda`), the attempt (`tentativa 2/3`), the row it retries and, when it is queued with a `not_before`, when it starts. A **trial** row carries an `ensaio` badge and links to the comparison card, so it is never mistaken for a production run (ADR 0018). An active row offers **Cancelar execução…** with an inline confirmation, and a requested stop is shown as a note while the worker finishes the current batch |
-| `/sistema/ingestao` | the origins, one card each: its own queue and last run, the adapter configuration, the agenda and **Enfileirar execução** (operator); the **Entrada manual** form, which writes a record as `PENDING_AI` and queues the transfer; and the **Importação CSV** card, which parses the file in the browser, shows the headers and the per-row result and sends only the rows (curator). The screen is a card of *Operação* but declares `CURATE`, because the manual form and the CSV import are the writes a curator owns; the operator-only controls are hidden for a curator |
+| `/sistema/ingestao` | the origins, one card each: its own queue and last run, the adapter configuration, the agenda and **Enfileirar execução** (operator); a curator reads the cards read-only. The screen no longer carries the entry forms: the typed record and the CSV import are the two tabs of `/acervo/nova`, a `CURATE` screen of the Acervo (#205). The card here stays `CURATE` because the origins' status is a read a curator uses; whether the page needs its own read-only mode is the origins issue (#206) |
 | `/sistema/diagnostico` | database, Ollama models, thumbnail storage, the ingestion origins (active/total, with a link to `/sistema/ingestao`) and the effective process configuration |
 
 The screen polls every 5 s while a run is running and every 15 s while one is queued, because the

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
   CircleSlash,
+  FilePlus2,
   Flag,
   FolderTree,
   GitCompareArrows,
@@ -119,6 +120,12 @@ const NAV: NavGroup[] = [
     id: "acervo",
     section: "Acervo",
     items: [
+      /*
+        Creating a description is the first thing the collection offers, and it belongs here rather
+        than under Configurações → Operação: the screen creates the object this group lists and
+        opens. The CSV import is the second tab of the same screen, not a second entry (#205).
+       */
+      { screen: "newDescription", icon: FilePlus2, permission: "CURATE" },
       { screen: "collection", icon: Search },
       { screen: "tree", icon: Network },
       { screen: "deletions", icon: Trash2 },
