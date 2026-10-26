@@ -107,6 +107,14 @@ pode ser resolvido: a transferência marca o filho como pendente, e o código vi
 do carimbo `hierarchy_parent_v1`. `date_expression` e `original_url` são evidência, não descrição
 editável: como a fonte escreveu a data, e a página de onde o registro foi lido.
 
+`language_name` guarda a grafia do **catálogo**. As origens não concordam sobre como escrever um
+idioma — a coleção de referência declarava `Português Brasil` em 78 descrições e `Português/Brasil` em
+22 —, então a transferência resolve o texto declarado contra `domain/language_catalog.py` (sem acento,
+caixa ou pontuação, com as variantes declaradas como apelidos) e grava o nome canônico. Um idioma que
+o catálogo não conhece é mantido exatamente como a fonte escreveu: o catálogo nunca troca a palavra de
+uma fonte por um palpite, e é para isso que existe a marcação `(fora do catálogo)` do dossiê.
+`staging_documents.language_name` guarda o texto declarado, como o texto do nível.
+
 Três propriedades desta tabela sustentam o modelo:
 
 - `parent_id` é uma autorreferência com `ON DELETE RESTRICT`. Um fundo é uma descrição arquivística

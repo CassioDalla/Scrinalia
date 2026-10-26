@@ -124,6 +124,15 @@ resolved yet: the transfer marks the child as pending and the code used to live 
 `hierarchy_parent_v1` stamp value. `date_expression` and `original_url` are evidence rather than
 editable description: how the source spelled the date, and the page the record was read from.
 
+`language_name` holds the **catalogue's** spelling. The origins do not agree on how to write a
+language — the reference collection declared `Português Brasil` in 78 descriptions and
+`Português/Brasil` in 22 — so the transfer resolves the declared text against
+`domain/language_catalog.py` (accent-, case- and punctuation-insensitive, with the variants declared
+as aliases) and writes the canonical name. A language the catalogue does not know is kept exactly as
+the source wrote it: the catalogue never replaces a source's word with a guess, and that is what the
+dossier's `(fora do catálogo)` marker is for. `staging_documents.language_name` keeps the declared
+text, like the level text.
+
 Three properties of this table carry the model:
 
 - `parent_id` is a self-reference with `ON DELETE RESTRICT`. A fund is an archival description like

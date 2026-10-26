@@ -409,8 +409,10 @@ Two values are shown and not edited, because they are evidence rather than descr
 `1980-01-01`, which is what the parser could make of it) and `original_url` (the page the record was
 read from). The level and the typology are selects over their catalogues; `language_name` is a select
 over `GET /api/v1/languages`, a catalogue declared in code because a language carries no rule an
-institution edits — and it **keeps a value the catalogue does not know**, marked as such, so opening
-the dossier never erases what the origin declared. The declared parent is shown in 3.1 even while it
+institution edits. The stored value is the catalogue's name: a declared variant (`Português/Brasil`,
+`Português Brasil`) is folded at the transfer, so the whole collection reads one spelling — and the
+select **keeps a value the catalogue does not know**, marked as such, so opening the dossier never
+erases a language the catalogue has never heard of. The declared parent is shown in 3.1 even while it
 is pending (`BR PRPMC — aguardando`), because the origin is allowed to deliver the child before the
 parent; the link itself is made in the `Arranjo` tab.
 

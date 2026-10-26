@@ -8,6 +8,7 @@ from scrinalia.core.logger import logger
 from scrinalia.core.unit_of_work import UnitOfWork
 from scrinalia.domains.archive.domain.hierarchy import build_path
 from scrinalia.domains.archive.domain.hierarchy_code import normalize_reference_code
+from scrinalia.domains.archive.domain.language_catalog import resolve_language
 from scrinalia.domains.archive.domain.level_catalog import resolve_level_id
 from scrinalia.domains.archive.models import ArchiveDocument, ArchiveReviewStatus
 from scrinalia.domains.archive.ports.staging_source import StagingRecordSource
@@ -205,7 +206,10 @@ def execute(
                 accruals=doc_staging.accruals,
                 arrangement=doc_staging.arrangement,
                 reproduction_conditions=doc_staging.reproduction_conditions,
-                language_name=doc_staging.language_name,
+                # One language, one spelling: the catalogue's name when the declared one folds to
+                # it, and the source's text when it does not (#203). The staging row keeps what
+                # the origin declared, exactly like the level text.
+                language_name=resolve_language(doc_staging.language_name) or doc_staging.language_name,
                 physical_characteristics=doc_staging.physical_characteristics,
                 finding_aids=doc_staging.finding_aids,
                 originals_location=doc_staging.originals_location,
